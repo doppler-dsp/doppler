@@ -11,10 +11,10 @@ transport layer when you need to move signals between processes or machines.
 
 ### Engine lifecycle
 
-Header: [c/include/dp/doppler.h](../c/include/dp/doppler.h)
+Header: [c/include/doppler.h](../c/include/doppler.h)
 
 ```c
-#include <dp/doppler.h>
+#include <doppler.h>
 
 dp_init();      // Initialize global state (FFT backend, SIMD, etc.)
 // ... do work ...

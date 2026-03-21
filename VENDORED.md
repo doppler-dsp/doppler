@@ -20,12 +20,14 @@ This document describes how we manage vendored third-party code in the doppler p
 - **Version:** 4.3.5 (released 2023-10-09)
 - **SHA256:** (see below)
 - **Used in:** Python `dp_stream` extension (static link only)
-- **Size:** ~2.5 MB source, builds to ~245 KB static lib
+- **Size:** ~2.5 MB source, builds to ~2.1 MB static lib (PIC)
 
 **Why vendored:**
-- Source reference for future use on platforms where a PIC-enabled
-  static libzmq is available (e.g. built from source with `-fPIC`)
-- Currently **not built** — see Build System Integration below
+- Statically linked into the `dp_stream` Python extension for
+  zero-dependency `pip install doppler` (no system libzmq needed)
+- Vendored source is built with `-fPIC` and three compiler-flag
+  workarounds for GCC ≥ 13 PCH include-order bugs — see
+  Build System Integration below
 
 **What we modified:**
 1. `CMakeLists.txt:2` - Changed `cmake_minimum_required(VERSION 2.8.12)` → `VERSION 3.5` for modern CMake compatibility
@@ -139,41 +141,44 @@ See: `python/vendor/libzmq/LICENSE`
 
 ## Build System Integration
 
-### Current Approach: dynamic link + auditwheel
+### Current Approach: static link from vendored source
 
-`dp_stream` links against the shared `libdoppler.so` (which depends on
-`libzmq.so`).  For a self-contained wheel, the `pyext` make target runs
-`auditwheel repair` which inspects the wheel and bundles both `.so` files
-automatically.  This is the standard approach used by numpy, scipy, etc.
+`dp_stream` links against `doppler_static` (the static C library archive)
+and `zmq_vendor_static` (a PIC static archive built from this vendor tree).
+The result is a single self-contained `.so` with no external zmq runtime
+dependency — `pip install doppler` just works with no system packages needed.
 
 ```bash
-make pyext   # builds extensions + auditwheel repairs the wheel
+make pyext   # builds vendored libzmq + all extensions
 ```
 
-### Why not static link the vendored source?
+The build is a two-pass configure to work around GCC ≥ 13:
 
-Two blockers:
-1. **System `libzmq.a` is not PIC** — Debian/Ubuntu ship `libzmq.a`
-   without `-fPIC`, so it cannot be linked into a `.so`.
-2. **Building from source with GCC ≥ 13** — libzmq 4.3.5 has systematic
-   precompiled-header include-order bugs across 116 source files that
-   GCC 13 now rejects as hard errors.  Patching them fixes the order
-   issues but exposes deeper C++ type-resolution errors.
+**Pass 1** — plain `cmake` configure, no extra flags.  This lets CMake's
+internal compiler tests run cleanly and generates `platform.hpp` in the
+build directory.
 
-The vendored source is kept for reference.  When libzmq ships a release
-that compiles cleanly with GCC 13, or when a PIC-enabled static archive
-is available, revisit static linking.
+**Pass 2** — reconfigure with three forced includes that restore the
+include order the PCH used to guarantee:
+- `-include precompiled.hpp` — pulls in `platform.hpp` + `zmq.h`
+- `-include macros.hpp` — defines `ZMQ_NON_COPYABLE_NOR_MOVABLE`
+- `-include command.hpp` — forward-declares `command_t` for `i_mailbox.hpp`
+
+No source files are modified.  All fixes are at the compiler-flag level.
+
+**What we modified in the vendor tree:**
+1. `CMakeLists.txt:2` — `cmake_minimum_required(VERSION 2.8.12)` →
+   `VERSION 3.5` for modern CMake compatibility (unchanged from 4.3.5)
 
 ### Verification
 
 ```bash
-# Dynamic libzmq dependency (expected — auditwheel will bundle it)
+# No zmq dynamic dependency (fully static):
 ldd python/doppler/dp_stream*.so | grep zmq
-# → libzmq.so.5 => /usr/lib/x86_64-linux-gnu/libzmq.so.5
+# (no output expected)
 
-# After auditwheel repair, the wheel is self-contained:
-unzip -l wheelhouse/doppler-*.whl | grep zmq
-# → doppler.libs/libzmq-....so
+# Confirm zmq symbols are present (baked in):
+nm -D python/doppler/dp_stream*.so | grep zmq_ctx_new
 ```
 
 ---

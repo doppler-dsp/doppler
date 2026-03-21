@@ -19,7 +19,7 @@ Produces the following artifacts in `build/` (extensions differ by platform):
 | Examples | `transmitter`, `receiver`, … | `transmitter.exe`, … | Streaming and DSP demos |
 
 And the top level Python package containing the above modules is
-in `dist/`: `doppler-*.whl` & `doppler-*.tar.gz`
+in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
 
 ### Targets
 
@@ -27,7 +27,8 @@ in `dist/`: `doppler-*.whl` & `doppler-*.tar.gz`
 | ------ | ----------- |
 | `make` | Configure + build (Release by default) |
 | `make test` | Run CTest suite |
-| `make pyext` | Build Python extension into `python/doppler/` and `dist/` |
+| `make test-all` | Run all test suites (C + Python + Rust) |
+| `make pyext` | Build Python extensions into `python/doppler/` |
 | `make install` | Install headers + libs to system (default `/usr/local`) |
 | `make python-test` | Run pytest |
 | `make docker` | Build Docker image |
@@ -52,7 +53,7 @@ make && sudo make install
 pip install python/
 ```
 
-The `libdoppler.so` streaming library is bundled inside the wheel. The FFT extension (`dp_fft*.so`) and streaming extension (`dp_stream*.so`) are compiled against your Python headers at build time.
+The wheel contains three compiled extension modules (`dp_fft`, `dp_buffer`, `dp_stream`). The streaming extension (`dp_stream`) statically links vendored libzmq — no system packages required at runtime.
 
 ## CMake directly
 
@@ -94,7 +95,7 @@ All dependencies are available via the standard package manager on each platform
 | FFTW3 | ≥ 3.3 | `libfftw3-dev` | `fftw` | `mingw-w64-x86_64-fftw` |
 | CMake | ≥ 3.16 | `cmake` | `cmake` | `mingw-w64-x86_64-cmake` |
 | Python | ≥ 3.12 | `python3-dev` | `python` | `mingw-w64-x86_64-python` |
-| NumPy | ≥ 1.24 | `python3-numpy` | `numpy` | `mingw-w64-x86_64-python-numpy` |
+| NumPy | ≥ 2.4 | `python3-numpy` | `numpy` | `mingw-w64-x86_64-python-numpy` |
 
 **Ubuntu/Debian:**
 

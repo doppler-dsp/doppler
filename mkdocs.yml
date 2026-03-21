@@ -1,7 +1,7 @@
 site_name: doppler
 site_description: Dead-simple, ultra-fast digital signal processing
 site_url: https://github.com/hunter-dsp/doppler
-repo_url: https://github.com/hunterdsp/doppler
+repo_url: https://github.com/doppler-dsp/doppler
 repo_name: doppler
 edit_uri: edit/main/docs/
 

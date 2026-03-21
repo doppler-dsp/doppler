@@ -38,7 +38,7 @@ WORKDIR /app
 COPY --from=builder /build/build/c/libdoppler.so /usr/local/lib/
 
 # Copy headers for development use
-COPY --from=builder /build/c/include/dp.h /usr/local/include/
+COPY --from=builder /build/c/include/doppler.h /usr/local/include/
 COPY --from=builder /build/c/include/dp/ /usr/local/include/dp/
 
 # Copy all example binaries and tests

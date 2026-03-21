@@ -101,19 +101,61 @@ set_target_properties(dp_buffer PROPERTIES
 )
 
 # =========================================================================
-# Streaming extension — thin wrapper over libdoppler
+# Vendored libzmq -- build a PIC static archive from vendor/libzmq/
 #
-# dp_stream links against the shared libdoppler.so (which in turn
-# depends on libzmq.so).  For a self-contained wheel, the pyext target
-# below runs `auditwheel repair` which finds and bundles both .so files
-# automatically.  This is the standard approach for Python wheels
-# (numpy, scipy, etc. all use it).
+# libzmq 4.3.5 has precompiled-header include-order bugs that GCC >= 13
+# rejects.  The fix is three forced includes that restore the include
+# order the PCH used to guarantee:
+#   1. precompiled.hpp -- pulls in platform.hpp + zmq.h
+#   2. macros.hpp      -- defines ZMQ_NON_COPYABLE_NOR_MOVABLE
+#   3. command.hpp     -- forward-declares command_t for i_mailbox.hpp
+# No source files are modified; all fixes are at the compiler-flag level.
+# =========================================================================
+set(_ZMQ_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/libzmq")
+set(_ZMQ_BLD "${CMAKE_CURRENT_BINARY_DIR}/libzmq-vendor")
+set(_ZMQ_LIB "${_ZMQ_BLD}/lib/libzmq.a")
+
+# Two-pass configure:
+#   Pass 1 -- plain configure so CMake's compiler test runs cleanly and
+#             generates platform.hpp (needed by the forced includes).
+#   Pass 2 -- reconfigure adding the forced-include flags; fast because
+#             platform.hpp already exists and compiler tests are cached.
+#   Build  -- normal cmake --build.
+add_custom_command(
+    OUTPUT  "${_ZMQ_LIB}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_ZMQ_BLD}"
+    COMMAND ${CMAKE_COMMAND} -B "${_ZMQ_BLD}" -S "${_ZMQ_SRC}"
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            -DBUILD_SHARED=OFF -DBUILD_STATIC=ON
+            -DWITH_DOCS=OFF -DZMQ_BUILD_TESTS=OFF
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            "-DCMAKE_CXX_FLAGS="
+    COMMAND ${CMAKE_COMMAND} -B "${_ZMQ_BLD}" -S "${_ZMQ_SRC}"
+            "-DCMAKE_CXX_FLAGS=-I${_ZMQ_BLD} -I${_ZMQ_SRC}/src\
+ -include precompiled.hpp -include macros.hpp -include command.hpp"
+    COMMAND ${CMAKE_COMMAND} --build "${_ZMQ_BLD}"
+            --parallel
+    COMMENT "Building vendored libzmq (static, PIC)"
+    VERBATIM
+)
+
+add_custom_target(libzmq_vendor DEPENDS "${_ZMQ_LIB}")
+
+add_library(zmq_vendor_static STATIC IMPORTED)
+set_target_properties(zmq_vendor_static PROPERTIES
+    IMPORTED_LOCATION             "${_ZMQ_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES "${_ZMQ_SRC}/include"
+)
+add_dependencies(zmq_vendor_static libzmq_vendor)
+
+# =========================================================================
+# Streaming extension -- statically linked against vendored libzmq
 #
-# Note: the vendor/libzmq tree holds the libzmq 4.3.5 source for
-# reference.  We do not build it here because:
-#  - System libzmq.a is not compiled with -fPIC (cannot link into .so)
-#  - Building libzmq 4.3.5 from source with GCC ≥ 13 requires patching
-#    116 files for a precompiled-header include-order bug
+# dp_stream links against doppler_static (the full C library archive)
+# and zmq_vendor_static (the PIC static libzmq built above).  The
+# result is a single self-contained .so with no external zmq runtime
+# dependency -- no auditwheel bundling required for zmq.
 # =========================================================================
 
 add_library(dp_stream MODULE src/dp_stream.c)
@@ -125,9 +167,11 @@ target_include_directories(dp_stream PRIVATE
 )
 
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_stream PRIVATE doppler Python3::Python m)
+    target_link_libraries(dp_stream PRIVATE
+        doppler_static zmq_vendor_static stdc++ Python3::Python m pthread)
 else()
-    target_link_libraries(dp_stream PRIVATE doppler m)
+    target_link_libraries(dp_stream PRIVATE
+        doppler_static zmq_vendor_static stdc++ m pthread)
 endif()
 
 set_target_properties(dp_stream PROPERTIES
@@ -138,7 +182,7 @@ set_target_properties(dp_stream PROPERTIES
 )
 
 # =========================================================================
-# pyext — build all extensions and copy into the Python package
+# pyext -- build all extensions and copy into the Python package
 # =========================================================================
 set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
 
@@ -153,7 +197,5 @@ add_custom_target(pyext
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_stream>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_stream>"
-    COMMENT "Copying Python extensions (dp_fft, dp_buffer, dp_stream) into python/doppler/"
-    COMMAND uv build --directory ${CMAKE_SOURCE_DIR}
-    COMMAND uvx auditwheel repair ${CMAKE_SOURCE_DIR}/dist/doppler_dsp-*.whl
+    COMMENT "Copying Python extensions into python/doppler/"
 )

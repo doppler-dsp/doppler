@@ -5,7 +5,7 @@
 ### 1D FFT (out-of-place)
 
 ```c
-#include <dp/doppler.h>
+#include <doppler.h>
 #include <dp/fft.h>
 #include <complex.h>
 #include <math.h>

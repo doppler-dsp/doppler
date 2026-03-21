@@ -18,7 +18,7 @@ doppler is a high‑performance signal processing library laser focused on maxim
 **C:**
 
 ```c
-#include <dp/doppler.h>
+#include <doppler.h>
 #include <dp/fft.h>
 #include <complex.h>
 

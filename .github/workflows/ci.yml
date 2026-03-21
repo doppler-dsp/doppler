@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # ------------------------------------------------------------------
+  # Native C build + CTest on Ubuntu and macOS
+  # ------------------------------------------------------------------
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libzmq3-dev \
+          libfftw3-dev \
+          libfftw3-bin \
+          cmake \
+          pkg-config
+
+    - name: Install dependencies (macOS)
+      if: startsWith(matrix.os, 'macos')
+      run: |
+        brew install zeromq fftw cmake
+
+    - name: Install dependencies (Windows / MSYS2)
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >
+          mingw-w64-x86_64-uv
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-zeromq
+          mingw-w64-x86_64-fftw
+          make
+
+    - name: Build
+      if: matrix.os != 'windows-latest'
+      run: make build
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: |
+        make build
+
+    - name: Test
+      if: matrix.os != 'windows-latest'
+      run: make test
+
+    - name: Test (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: make test
+
+  # ------------------------------------------------------------------
+  # Python package build + pytest
+  # ------------------------------------------------------------------
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          libzmq3-dev \
+          libfftw3-dev \
+          cmake \
+          pkg-config \
+          python3-dev
+
+    - name: Install uv + Python + package deps
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python package + dev deps
+      run: uv sync --group dev
+
+    - name: Build
+      run: make build
+
+    - name: Install
+      run: sudo cmake --install build && sudo ldconfig
+
+    - name: Verify install
+      run: make install-test
+
+    - name: Copy extensions into Python package
+      run: make pyext
+
+    - name: Test with coverage
+      run: |
+        uv run pytest python/doppler/tests/ -v \
+          --cov=python/doppler \
+          --cov-report=term-missing \
+          --cov-report=xml:coverage.xml
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: matrix.python-version == '3.12'
+      with:
+        name: coverage-report
+        path: coverage.xml
+
+  # ------------------------------------------------------------------
+  # MkDocs documentation build (strict — zero warnings)
+  # ------------------------------------------------------------------
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends doxygen
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dev deps (includes mkdocs + mkdocs-material + mkdoxy)
+      run: uv sync --group dev
+
+    - name: Build docs (strict)
+      run: uv run mkdocs build --strict
+
+  # ------------------------------------------------------------------
+  # Docker image build + container tests
+  # ------------------------------------------------------------------
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build image
+      run: docker build -t doppler:test .
+
+    - name: Run unit tests
+      run: docker run --rm doppler:test /app/test_stream
+
+    - name: Smoke-test FFT testbench
+      run: docker run --rm doppler:test /app/fft_testbench

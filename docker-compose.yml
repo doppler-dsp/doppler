@@ -1,0 +1,62 @@
+services:
+  # Transmitter — generates and publishes signal samples
+  transmitter:
+    build: .
+    container_name: doppler-tx
+    ports:
+      - "5555:5555"
+    command: ./transmitter tcp://*:5555 cf64
+    networks:
+      - doppler-net
+    stop_signal: SIGTERM
+    restart: unless-stopped
+
+  # Receiver — subscribes and prints signal stats
+  receiver-1:
+    build: .
+    container_name: doppler-rx-1
+    depends_on:
+      - transmitter
+    command: ./receiver tcp://transmitter:5555
+    networks:
+      - doppler-net
+    stop_signal: SIGTERM
+    restart: unless-stopped
+
+  # Second receiver (demonstrates PUB/SUB fan-out)
+  receiver-2:
+    build: .
+    container_name: doppler-rx-2
+    depends_on:
+      - transmitter
+    command: ./receiver tcp://transmitter:5555
+    networks:
+      - doppler-net
+    stop_signal: SIGTERM
+    restart: unless-stopped
+
+  # Spectrum analyzer — ASCII spectrum display
+  spectrum-analyzer:
+    build: .
+    container_name: doppler-spectrum
+    depends_on:
+      - transmitter
+    command: ./spectrum_analyzer tcp://transmitter:5555 512
+    networks:
+      - doppler-net
+    stop_signal: SIGTERM
+    restart: unless-stopped
+
+  # Run unit tests (one-shot)
+  tests:
+    build: .
+    container_name: doppler-tests
+    command: ./test_stream
+    profiles:
+      - test
+    networks:
+      - doppler-net
+
+networks:
+  doppler-net:
+    driver: bridge

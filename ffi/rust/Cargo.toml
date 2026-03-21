@@ -1,0 +1,22 @@
+[package]
+name = "doppler"
+version = "0.1.0"
+edition = "2021"
+description = "Rust FFI bindings for the doppler C library"
+license = "MIT"
+
+[[example]]
+name = "fft_demo"
+path = "examples/fft_demo.rs"
+
+[[example]]
+name = "simd_demo"
+path = "examples/simd_demo.rs"
+
+[[example]]
+name = "fft_bench"
+path = "examples/fft_bench.rs"
+
+[dependencies]
+num-complex = "0.4"
+rustfft = "6.4.1"

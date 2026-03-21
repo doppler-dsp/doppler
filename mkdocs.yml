@@ -1,0 +1,104 @@
+site_name: doppler
+site_description: Dead-simple, ultra-fast digital signal processing
+site_url: https://github.com/hunter-dsp/doppler
+repo_url: https://github.com/hunterdsp/doppler
+repo_name: doppler
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo_transparent.png
+  palette:
+    - scheme: slate
+      primary: deep purple
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+hooks:
+  - docs/hooks.py
+
+plugins:
+  - search
+  - mkdoxy:
+      projects:
+        c-api:
+          src-dirs: c/include
+          full-doc: true
+          doxy-cfg-file: Doxyfile
+          api-path: api/c
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - python
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Overview: overview.md
+  - Build & Install: build.md
+  - pkg-config Guide: pkg-config-guide.md
+  - Examples: examples.md
+  - API Reference:
+      - Python API:
+          - Streaming: api/python-streaming.md
+          - FFT: api/python-fft.md
+      - C Streaming API (doppler.h):
+          - Types & Constants: api/c/group__types.md
+          - Error Codes: api/c/group__errors.md
+          - PUB/SUB: api/c/group__pubsub.md
+          - PUSH/PULL: api/c/group__pipeline.md
+          - REQ/REP: api/c/group__reqrep.md
+          - Utilities: api/c/group__utils.md
+          - Full Header: api/c/stream_8h.md
+          - Struct dp_header_t: api/c/structdp__header__t.md
+          - Struct dp_cf64_t: api/c/structdp__cf64__t.md
+          - Struct dp_ci32_t: api/c/structdp__ci32__t.md
+          - Struct dp_cf128_t: api/c/structdp__cf128__t.md
+      - C DSP API:
+          - Core (core.h): api/c/core_8h.md
+          - FFT (fft.h): api/c/fft_8h.md
+          - SIMD (simd.h): api/c/simd_8h.md
+          - Buffer (buffer.h): api/c/buffer_8h.md
+          - All Functions: api/c/functions.md

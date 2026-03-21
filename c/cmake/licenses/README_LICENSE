@@ -1,0 +1,9 @@
+This binary was built with FFTW support.
+
+The source code of this project is licensed under the MIT License.
+FFTW is licensed under the GNU General Public License (GPL). Because this
+binary links against FFTW, the distributed binary is covered by the GPL.
+
+Included:
+- LICENSE_MIT   – MIT license for this project
+- LICENSE_FFTW  – GPL license for FFTW

@@ -1,0 +1,17 @@
+PROJECT_NAME           = "doppler"
+INPUT                  = c/include c/src
+FILE_PATTERNS          = *.h *.hpp *.c *.cpp
+RECURSIVE              = YES
+
+EXCLUDE_PATTERNS       = */pocketfft* \
+                         */signal_stream.h
+
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+
+EXTRACT_ALL            = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+MARKDOWN_SUPPORT       = YES

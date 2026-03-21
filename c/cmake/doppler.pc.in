@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: doppler
+Description: Complex signal streaming library using ZeroMQ for SDR and signal processing
+Version: @PROJECT_VERSION@
+Requires: libzmq
+Libs: -L${libdir} -ldoppler -lm
+Cflags: -I${includedir}

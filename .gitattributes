@@ -1,0 +1,8 @@
+# Exclude vendored code from language statistics
+python/vendor/** linguist-vendored
+c/src/pocketfft.cc linguist-vendored
+
+# Mark generated files
+build/** linguist-generated
+dist/** linguist-generated
+*.egg-info/** linguist-generated

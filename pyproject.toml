@@ -1,0 +1,49 @@
+[project]
+name = "doppler-dsp"
+version = "0.1.0"
+description = "Dead-simple, ultra-fast signal processing in C"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.4.2",
+]
+license-files = [
+    "c/cmake/licenses/README_LICENSE",
+    "c/cmake/licenses/FFTW_LICENSE",
+    "c/cmake/licenses/POCKETFFT_LICENSE"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=6.0",
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings-python>=2.0.2",
+    "mkdoxy>=1.2.8",
+]
+
+[tool.pytest.ini_options]
+addopts = "--tb=short"
+testpaths = ["python/doppler/tests"]
+
+[tool.coverage.run]
+source = ["python/doppler"]
+omit = ["python/doppler/tests/*", "python/doppler/examples/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.uv.build-backend]
+module-root = "python"
+module-name = "doppler"
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"

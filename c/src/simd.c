@@ -4,9 +4,10 @@
 /*
  * dp_c16_mul — complex128 multiply.
  *
- * On x86/x86-64 we use SSE2 (two double registers, no loop overhead).
- * On every other architecture (ARM, RISC-V, …) we fall back to the
- * C99 _Complex multiply, which the compiler optimises well.
+ * Three compile-time paths:
+ *   x86 / x86-64  — SSE2 128-bit intrinsics (__m128d)
+ *   AArch64        — NEON 128-bit intrinsics (float64x2_t)
+ *   Other          — C99 _Complex fallback (scalar / compiler auto-vec)
  */
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)               \
@@ -49,12 +50,52 @@ dp_c16_mul (double complex a, double complex b)
   return out;
 }
 
-#else /* ARM, Apple Silicon, RISC-V, WASM, … */
+#elif defined(__aarch64__) || defined(_M_ARM64)
+
+#include <arm_neon.h>
 
 double complex
 dp_c16_mul (double complex a, double complex b)
 {
-  /* C99 _Complex arithmetic — compiler emits FMUL/FADD pairs on NEON. */
+  float64x2_t va = vld1q_f64 ((const double *)&a); /* [re(a), im(a)] */
+  float64x2_t vb = vld1q_f64 ((const double *)&b); /* [re(b), im(b)] */
+
+  /*
+   * NEON complex multiply (mirrors the SSE2 path above):
+   *   re(a*b) = re(a)*re(b) - im(a)*im(b)  = ac - bd
+   *   im(a*b) = re(a)*im(b) + im(a)*re(b)  = ad + bc
+   *
+   * Step 1: broadcast re(a) and im(a) into separate registers.
+   * Step 2: swap lanes of b → [im(b), re(b)].
+   * Step 3: term1 = [ac, ad],  term2 = [bd, bc].
+   * Step 4: negate lane 0 of term2 → [-bd, +bc].
+   * Step 5: add → [ac-bd, ad+bc].
+   */
+  float64x2_t va_rr = vdupq_laneq_f64 (va, 0);  /* [re(a), re(a)] */
+  float64x2_t va_ii = vdupq_laneq_f64 (va, 1);  /* [im(a), im(a)] */
+  float64x2_t vb_ir = vextq_f64 (vb, vb, 1);    /* [im(b), re(b)] */
+
+  float64x2_t term1 = vmulq_f64 (va_rr, vb);    /* [ac, ad] */
+  float64x2_t term2 = vmulq_f64 (va_ii, vb_ir); /* [bd, bc] */
+
+  /* negate lane 0 only → [-bd, +bc] */
+  static const double sign_arr[2] = {-1.0, 1.0};
+  float64x2_t sign = vld1q_f64 (sign_arr);
+  term2 = vmulq_f64 (term2, sign);
+
+  float64x2_t res = vaddq_f64 (term1, term2);   /* [ac-bd, ad+bc] */
+
+  double complex out;
+  vst1q_f64 ((double *)&out, res);
+  return out;
+}
+
+#else /* RISC-V, WASM, and other architectures */
+
+double complex
+dp_c16_mul (double complex a, double complex b)
+{
+  /* C99 _Complex arithmetic — best-effort scalar/auto-vec fallback. */
   return a * b;
 }
 

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
+    "zensical>=0.0.29",
 ]
 license-files = [
     "c/cmake/licenses/README_LICENSE",
@@ -21,6 +22,7 @@ dev = [
     "mkdocs-material>=9.5",
     "mkdocstrings-python>=2.0.2",
     "mkdoxy>=1.2.8",
+    "zensical>=0.0.29",
 ]
 
 [tool.pytest.ini_options]

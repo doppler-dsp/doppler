@@ -38,7 +38,7 @@ bench_1d (size_t n, int iters)
   printf ("\n=== 1D FFT Benchmark (n = %zu) ===\n", n);
 
   size_t shape[1] = { n };
-  dp_fft_global_setup (shape, 1, +1, 4, "patient", "");
+  dp_fft_global_setup (shape, 1, +1, 1, "estimate", "");
 
   double complex *x = malloc (n * sizeof (double complex));
   double complex *y = malloc (n * sizeof (double complex));
@@ -59,7 +59,7 @@ bench_1d (size_t n, int iters)
   printf ("fft1d_execute:          dt = %.6f s, MS/s = %.2f\n", dt, Msps);
 
   /* In-place: separate setup, separate plan */
-  dp_fft_global_setup (shape, 1, +1, 4, "patient", "");
+  dp_fft_global_setup (shape, 1, +1, 1, "estimate", "");
 
   fill_signal (x, n);
   dp_fft1d_execute_inplace (x); /* first call binds plan */
@@ -86,7 +86,7 @@ bench_2d (size_t ny, size_t nx, int iters)
   size_t shape[2] = { ny, nx };
   size_t total = ny * nx;
 
-  dp_fft_global_setup (shape, 2, +1, 4, "patient", "");
+  dp_fft_global_setup (shape, 2, +1, 1, "estimate", "");
 
   double complex *x = malloc (total * sizeof (double complex));
   double complex *y = malloc (total * sizeof (double complex));
@@ -107,7 +107,7 @@ bench_2d (size_t ny, size_t nx, int iters)
   printf ("fft2d_execute:          dt = %.6f s, MS/s = %.2f\n", dt, Msps);
 
   /* In-place: separate setup, separate plan */
-  dp_fft_global_setup (shape, 2, +1, 4, "patient", "");
+  dp_fft_global_setup (shape, 2, +1, 1, "estimate", "");
 
   for (size_t i = 0; i < total; i++)
     x[i] = sin ((double)i);

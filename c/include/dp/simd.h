@@ -2,9 +2,10 @@
  * @file simd.h
  * @brief SIMD-accelerated complex arithmetic.
  *
- * On x86-64 with AVX2, operations use 256-bit vector instructions.
- * On AArch64 (ARM), the compiler emits equivalent NEON code from the
- * scalar C99 fallback.
+ * Dispatch is compile-time by architecture:
+ *   - x86 / x86-64: SSE2 128-bit intrinsics (baseline for all x86-64)
+ *   - AArch64 (ARM64): NEON 128-bit float64x2 intrinsics
+ *   - Other: C99 `a * b` scalar fallback
  *
  * ```c
  * #include <dp/simd.h>
@@ -24,9 +25,8 @@
 /**
  * @brief Multiply two complex doubles using the fastest available SIMD path.
  *
- * On x86-64 with AVX2, uses 256-bit FMA instructions.  On other
- * architectures falls back to a plain C99 `a * b` (which the compiler
- * typically auto-vectorises to NEON on AArch64).
+ * Uses SSE2 on x86/x86-64, NEON float64x2 intrinsics on AArch64, and
+ * a plain C99 `a * b` scalar fallback on all other architectures.
  *
  * @param a First complex operand.
  * @param b Second complex operand.

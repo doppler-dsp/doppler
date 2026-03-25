@@ -102,14 +102,18 @@ doppler/
 │   │       ├── stream.h        # Streaming (PUB/SUB, PUSH/PULL,
 │   │       │                   #   REQ/REP)
 │   │       ├── fft.h           # FFT (FFTW-backed)
+│   │       ├── fir.h           # FIR filter (AVX-512/scalar)
+│   │       ├── nco.h           # NCO (32-bit accumulator, 2^16 LUT)
 │   │       ├── simd.h          # SIMD (SSE2/scalar)
 │   │       └── buffer.h        # Lock-free ring buffer
 │   ├── src/                     # Implementations
 │   ├── examples/                # transmitter, receiver,
 │   │                            #   spectrum_analyzer,
-│   │                            #   pipeline_demo, etc.
+│   │                            #   pipeline_demo, nco_demo, etc.
 │   ├── tests/
 │   │   ├── test_stream.c       # 26 streaming tests
+│   │   ├── test_fir.c          # FIR unit tests
+│   │   ├── test_nco.c          # 38 NCO unit tests
 │   │   └── fft_testbench.c     # FFT round-trip tests
 │   ├── bench/                   # Benchmarks
 │   └── CMakeLists.txt
@@ -154,6 +158,11 @@ doppler/
 
 - FFT: `dp_fft_global_setup`, `dp_fft1d_execute`, etc. (FFTW or
   pocketfft backend)
+- FIR: `dp_fir_create`, `dp_fir_execute_*` (AVX-512 / scalar,
+  real and complex taps, CI8/CI16/CI32/CF32 inputs)
+- NCO: `dp_nco_create`, `dp_nco_execute_cf32`,
+  `dp_nco_execute_cf32_ctrl` — 32-bit phase accumulator,
+  2^16-entry sine LUT (~96 dBc SFDR), FM control port
 - SIMD: `dp_c16_mul` (SSE2 on x86, scalar fallback)
 - Buffer: `dp/buffer.h` -- lock-free SPSC ring buffer
 
@@ -167,6 +176,12 @@ make python-test    # pytest (54/54)
 make install        # System install
 make install-test   # 9-check post-install verification
 make docs-build     # mkdocs build --strict
+make blazing        # Release + -march=native (max CPU speed)
+```
+
+Extra cmake flags can be threaded through all configure steps:
+```sh
+make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 ```
 
 - Backend: cmake (C), uv (Python)
@@ -178,11 +193,14 @@ make docs-build     # mkdocs build --strict
 |----------------|-------|---------|
 | C streaming    | 26    | CTest   |
 | C FFT          | 6     | CTest   |
+| C FIR          | ?     | CTest   |
+| C NCO          | 59    | CTest   |
 | Python buffer  | 20    | pytest  |
 | Python FFT     | 20    | pytest  |
 | Python stream  | 14    | pytest  |
+| Python NCO     | 26    | pytest  |
 | Rust FFI       | 13    | cargo   |
-| **Total**      | **99**|         |
+| **Total**      | **184+**|       |
 
 ## Next Up
 
@@ -200,4 +218,5 @@ make docs-build     # mkdocs build --strict
   - Add benchmarks
 
 - new features
-  - 64-bit unsigned overflowing accumulator with overflow bit output
+  - NCO: Python bindings
+  - NCO: AVX-512 SIMD execute path for batch generation

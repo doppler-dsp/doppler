@@ -36,6 +36,12 @@ NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 CTEST       := ctest
 CMAKE       := cmake
+# Extra cmake args passed through to every configure step.
+# Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
+CMAKE_ARGS  ?=
+# C flags used by the `blazing` target (-march=native enables all CPU
+# extensions: SSE2/AVX on x86-64, NEON/SVE on AArch64, etc.)
+BLAZING_CFLAGS ?= -march=native
 
 # ── MSYS2: use the MinGW-native cmake, not the MSYS POSIX cmake ─────────────
 # /usr/bin/cmake.exe is the MSYS build; it does not understand Windows drive-
@@ -62,8 +68,9 @@ endif
 
 .PHONY: all build test rust-test install install-test pyext \
         python-test test-all docs-build docs-serve \
+        docs-zensical docs-zensical-serve \
         docker docker-test \
-        debug release clean help
+        debug release blazing gen-pyext clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -72,7 +79,8 @@ all: build
 $(BUILD_DIR)/CMakeCache.txt:
 	$(CMAKE) -B $(BUILD_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
-		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		$(CMAKE_ARGS)
 
 # ── build ─────────────────────────────────────────────────────────────────────
 build: $(BUILD_DIR)/CMakeCache.txt
@@ -100,7 +108,7 @@ install-test:
 
 # ── pyext ─────────────────────────────────────────────────────────────────────
 pyext: build
-	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S .
+	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . $(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --target pyext
 
 # ── test-all ──────────────────────────────────────────────────────────────────
@@ -118,6 +126,12 @@ docs-build:
 docs-serve:
 	uv run mkdocs serve
 
+docs-zensical:
+	uv run zensical build
+
+docs-zensical-serve:
+	uv run zensical serve
+
 # ── docker ────────────────────────────────────────────────────────────────────
 docker:
 	docker build -t $(DOCKER_IMAGE) .
@@ -132,6 +146,25 @@ debug: clean
 
 release: clean
 	$(MAKE) build BUILD_TYPE=Release
+
+blazing: clean
+	$(CMAKE) -B $(BUILD_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		"-DCMAKE_C_FLAGS=$(BLAZING_CFLAGS)" \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+
+# ── gen-pyext ─────────────────────────────────────────────────────────────────
+# Generate a thin Python C extension from a C module.
+#   make gen-pyext MOD=fir            # writes python/src/dp_fir.c
+#   make gen-pyext MOD=fir DRY_RUN=1  # preview only
+gen-pyext:
+ifndef MOD
+	@echo "usage: make gen-pyext MOD=<module>  (e.g. MOD=fir)"
+	@exit 1
+endif
+	python3 tools/gen_pyext.py $(if $(DRY_RUN),--dry-run) $(C_DIR)/src/$(MOD).c
 
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:
@@ -154,16 +187,22 @@ help:
 	@echo "  make pyext         Build Python C extensions"
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"
-	@echo "  make docs-build    Build MkDocs site (strict)"
-	@echo "  make docs-serve    Serve MkDocs site locally"
+	@echo "  make docs-build          Build MkDocs site (strict)"
+	@echo "  make docs-serve          Serve MkDocs site locally"
+	@echo "  make docs-zensical       Build Zensical site"
+	@echo "  make docs-zensical-serve Serve Zensical site locally"
 	@echo "  make docker        Build Docker image"
 	@echo "  make docker-test   Build + run container tests"
 	@echo "  make debug         Clean + Debug build"
 	@echo "  make release       Clean + Release build"
+	@echo "  make blazing       Clean + Release + -march=native (max speed)"
+	@echo "  make gen-pyext MOD=fir  Generate Python C extension for a module"
 	@echo "  make clean         Remove build/ and Python .so files"
 	@echo "  make help          Show this message"
 	@echo ""
 	@echo "Overrides:"
 	@echo "  BUILD_DIR=$(BUILD_DIR)  BUILD_TYPE=$(BUILD_TYPE)"
 	@echo "  PREFIX=$(PREFIX)  NPROC=$(NPROC)"
+	@echo "  CMAKE_ARGS=        Extra cmake -D flags passed to all configure steps"
+	@echo "  BLAZING_CFLAGS=    C flags for 'make blazing' (default: -march=native)"
 	@echo ""

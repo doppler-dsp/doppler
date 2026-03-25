@@ -181,13 +181,39 @@ set_target_properties(dp_stream PROPERTIES
     OUTPUT_NAME "dp_stream"
 )
 
+# NCO extension
+add_library(dp_nco MODULE
+    src/dp_nco.c
+)
+
+target_include_directories(dp_nco
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(dp_nco
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(dp_nco
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(dp_nco PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
 # =========================================================================
 # pyext -- build all extensions and copy into the Python package
 # =========================================================================
 set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
 
 add_custom_target(pyext
-    DEPENDS dp_fft dp_buffer dp_stream
+    DEPENDS dp_fft dp_buffer dp_stream dp_nco
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_fft>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_fft>"
@@ -197,5 +223,8 @@ add_custom_target(pyext
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_stream>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_stream>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:dp_nco>"
+        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_nco>"
     COMMENT "Copying Python extensions into python/doppler/"
 )

@@ -39,6 +39,7 @@
 #include "dp/core.h"
 #include "dp/fft.h"
 #include "dp/fir.h"
+#include "dp/nco.h"
 #include "dp/simd.h"
 #include "dp/stream.h"
 

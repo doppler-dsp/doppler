@@ -22,6 +22,7 @@ FFT quick-start
 
 from . import fft
 from . import dp_buffer
+from . import dp_nco
 from . import dp_stream
 
 from .dp_buffer import (
@@ -29,6 +30,8 @@ from .dp_buffer import (
     F64Buffer,
     I16Buffer,
 )
+
+from .dp_nco import Nco
 
 from .dp_stream import (
     # Socket classes (C extension - zero-copy, fast!)
@@ -49,7 +52,10 @@ from .dp_stream import (
 __all__ = [
     "fft",
     "dp_buffer",
+    "dp_nco",
     "dp_stream",
+    # NCO
+    "Nco",
     # Circular buffers
     "F32Buffer",
     "F64Buffer",

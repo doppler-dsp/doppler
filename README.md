@@ -2,16 +2,74 @@
 
 **Dead-simple, ultra-fast, digital signal processing.**
 
-doppler is a high‑performance signal processing library laser focused on maximizing both speed and ease of use -- __from any language__. Built on a lean portable C99 base with pluggable FFT backend (FFTW or pocketfft), AVX2 SIMD kernels, and ZMQ-based streaming transport. Fully cross-platform: Linux, macOS, and Windows (MinGW-w64).
+doppler is a lean C99 signal processing library built for one goal: maximum throughput with minimum friction — from any language. The full DSP stack lives in one portable core with paper-thin Python bindings and a Rust FFI. No runtime surprises, no framework lock-in.
 
 ## What's inside
 
+- **NCO** — 32-bit phase accumulator, 2¹⁶-entry LUT, AVX-512 batch generation, FM ctrl port
+- **FIR filter** — AVX-512 complex taps, CI8/CI16/CI32/CF32 input types
 - **FFT** — 1D and 2D, selectable backend (FFTW or pocketfft)
-- **SIMD arithmetic** — AVX2 complex multiply via `dp_c16_mul`
+- **SIMD arithmetic** — SSE2/AVX2 complex multiply via `dp_c16_mul`
 - **Signal streaming** — low-latency ZMQ transport (PUB/SUB, PUSH/PULL, REQ/REP)
 - **Circular buffers** — double-mapped ring buffers for zero-copy, lock-free IPC (F32/F64/I16)
-- **Extensible sample types** — CI32, CF64, CF128 today; more as needed
-- **Multi-language** — clean C ABI; Python bindings (FFT + streaming + buffers) and Rust FFI included
+- **Multi-language** — clean C ABI; Python bindings (NCO, FFT, streaming, buffers) and Rust FFI
+
+## Benchmarks
+
+Measured on **AMD Ryzen AI 7 350**, Release build (`-O3 -march=native`).
+Re-run any suite with `make blazing` then the binary listed below.
+
+### NCO (`dp_nco_*`)
+
+`block=1 048 576 samples × 200 iterations` — `./build/c/bench_nco_c`
+
+| Rank | Variant | MSa/s | Notes |
+|------|---------|------:|-------|
+| 🥇 | `u32` | 20 341 | Raw phase only — store + add, no LUT |
+| 🥈 | `u32_ovf` | 3 028 | Raw phase + carry bit (ADD + SETB) |
+| 🥉 | `cf32` | 2 094 | Free-running IQ — AVX-512 16-wide gather |
+| 4 | `u32_ovf_ctrl` | 1 424 | FM ctrl + raw phase + carry |
+| 5 | `u32_ctrl` | 1 095 | FM ctrl + raw phase |
+| 6 | `cf32_ctrl` | 525 | FM ctrl + IQ — LUT + ctrl overhead |
+
+### FIR (`dp_fir_execute_*`)
+
+`taps=19  block=409 600 samples × 100 iterations` — `./build/c/bench_fir_c`
+
+| Input type | MSa/s | Notes |
+|------------|------:|-------|
+| `CI8` | 317 | 8-bit complex integer input |
+| `CF32` | 280 | 32-bit complex float input |
+| `CI16` | 235 | 16-bit complex integer input |
+
+### FFT (`dp_fft*`)
+
+FFTW backend, `estimate` plan, 1 thread, complex double — `./build/c/bench_fft_c`
+
+**1D (`fft1d_execute` / `fft1d_execute_inplace`)**
+
+| Size | Out-of-place MSa/s | In-place MSa/s |
+|-----:|-------------------:|---------------:|
+| 1 024 | 925 | 757 |
+| 4 096 | 474 | 379 |
+| 16 384 | 146 | 139 |
+
+**2D (`fft2d_execute` / `fft2d_execute_inplace`)**
+
+| Size | Out-of-place MSa/s | In-place MSa/s |
+|-----:|-------------------:|---------------:|
+| 64 × 64 | 722 | 616 |
+| 128 × 128 | 252 | 241 |
+| 256 × 256 | 33 | 30 |
+
+### Ring buffer (`dp_f32 / dp_f64`)
+
+Lock-free SPSC, 268 M samples, batch=4096 — `./build/c/bench_buffer_c`
+
+| Type | MSa/s | GB/s |
+|------|------:|-----:|
+| `f32` (8 B/sample) | 5 129 | 38.2 |
+| `f64` (16 B/sample) | 2 401 | 35.8 |
 
 ## Quick example
 

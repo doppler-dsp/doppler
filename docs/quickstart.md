@@ -62,6 +62,20 @@ See [Build Guide](build.md) for CMake options and platform-specific notes.
 
 ## Signal processing in Python
 
+**NCO — generate a tone:**
+
+```python
+from doppler import Nco
+import numpy as np
+
+with Nco(0.25) as nco:       # f_n = 0.25 → quarter-rate tone
+    iq = nco.execute_cf32(8)
+    print(iq)
+    # [ 1.+0.j  0.+1.j -1.+0.j  0.-1.j ... ]
+```
+
+**FFT:**
+
 ```python
 from doppler.fft import fft
 import numpy as np

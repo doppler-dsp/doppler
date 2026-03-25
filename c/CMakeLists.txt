@@ -70,6 +70,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(DOPPLER_SOURCES
     src/core.c
     src/fir.c
+    src/nco.c
     src/simd.c
     src/stream.c
     ${FFT_BACKEND_SOURCES}
@@ -153,6 +154,7 @@ install(FILES
     include/dp/core.h
     include/dp/fft.h
     include/dp/fir.h
+    include/dp/nco.h
     include/dp/simd.h
     include/dp/stream.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dp
@@ -207,6 +209,9 @@ target_link_libraries(fft_demo PRIVATE doppler_static m pthread)
 add_executable(fir_demo examples/fir_demo.c)
 target_link_libraries(fir_demo PRIVATE doppler_static m)
 
+add_executable(nco_demo examples/nco_demo.c)
+target_link_libraries(nco_demo PRIVATE doppler_static m)
+
 add_executable(simd_demo examples/simd_demo.c)
 target_link_libraries(simd_demo PRIVATE doppler_static m)
 
@@ -218,6 +223,9 @@ target_link_libraries(bench_fir_c PRIVATE doppler_static m)
 
 add_executable(bench_buffer_c bench/bench_buffer.c)
 target_link_libraries(bench_buffer_c PRIVATE doppler_static m pthread)
+
+add_executable(bench_nco_c bench/bench_nco.c)
+target_link_libraries(bench_nco_c PRIVATE doppler_static m)
 
 add_executable(fft_testbench tests/fft_testbench.c)
 target_link_libraries(fft_testbench PRIVATE doppler_static m pthread)
@@ -248,6 +256,10 @@ target_link_libraries(test_stream PRIVATE doppler_static m pthread)
 add_executable(test_fir tests/test_fir.c)
 target_link_libraries(test_fir PRIVATE doppler_static m)
 
+# NCO unit tests
+add_executable(test_nco tests/test_nco.c)
+target_link_libraries(test_nco PRIVATE doppler_static m)
+
 # ------------------------------------------------------------
 # CTest registration
 # ------------------------------------------------------------
@@ -256,6 +268,7 @@ enable_testing()
 add_test(NAME streaming_unit_tests COMMAND test_stream)
 add_test(NAME fft_testbench        COMMAND fft_testbench)
 add_test(NAME fir_unit_tests       COMMAND test_fir)
+add_test(NAME nco_unit_tests       COMMAND test_nco)
 
 # ------------------------------------------------------------
 # Windows: stage runtime DLLs next to the executables so they

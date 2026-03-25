@@ -7,6 +7,9 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
     "zensical>=0.0.29",
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "websockets>=12.0",
 ]
 license-files = [
     "c/cmake/licenses/README_LICENSE",
@@ -41,6 +44,9 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[project.scripts]
+doppler-specan = "doppler.specan.__main__:main"
 
 [tool.uv.build-backend]
 module-root = "python"

@@ -204,19 +204,21 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 
 ## Next Up
 
-- docs
-  - We need a logo!
+- specan (`doppler.specan`)
+  - `make specan` / `uvx --from doppler-dsp doppler-specan` — shipped!
+  - Move Hann window + FFT magnitude helper into the C library
+  - Add frequency-domain peak annotation (label tone frequencies)
+  - Interactive tone editor (click to add/remove/move tones)
+  - Connect specan to real IQ source via doppler streaming (PUB/SUB)
+
+- big feature: continuously variable resampler
+  - NCO (done) + complex mixer + brickwall FIR = tunable filter
+  - "tune and zoom" — any rate, any range, like an SDR frontend
+  - specan is the visual front-end for this
 
 - examples
   - Console outputs so users can see expected results
-  - More verbose demos that explain what they're doing
   - Benchmarks: C vs Rust-wrap-C vs rustfft
-  - Move specan window function into the library
-  - Add examples for any new features
-
-- test
-  - Add benchmarks
 
 - new features
-  - NCO: Python bindings
-  - NCO: AVX-512 SIMD execute path for batch generation
+  - NCO: AVX-512 execute path for cf32_ctrl (currently scalar)

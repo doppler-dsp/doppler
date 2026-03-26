@@ -68,7 +68,6 @@ endif
 
 .PHONY: all build test rust-test install install-test pyext \
         python-test test-all docs-build docs-serve \
-        docs-zensical docs-zensical-serve \
         specan \
         docker docker-test \
         debug release blazing gen-pyext clean help
@@ -122,15 +121,9 @@ python-test:
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 docs-build:
-	uv run mkdocs build --strict
+	uv run zensical build --clean
 
 docs-serve:
-	uv run mkdocs serve
-
-docs-zensical:
-	uv run zensical build
-
-docs-zensical-serve:
 	uv run zensical serve
 
 # ── specan ────────────────────────────────────────────────────────────────────
@@ -193,10 +186,8 @@ help:
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
-	@echo "  make docs-build          Build MkDocs site (strict)"
-	@echo "  make docs-serve          Serve MkDocs site locally"
-	@echo "  make docs-zensical       Build Zensical site"
-	@echo "  make docs-zensical-serve Serve Zensical site locally"
+	@echo "  make docs-build    Build Zensical site"
+	@echo "  make docs-serve    Serve Zensical site locally"
 	@echo "  make docker        Build Docker image"
 	@echo "  make docker-test   Build + run container tests"
 	@echo "  make debug         Clean + Debug build"

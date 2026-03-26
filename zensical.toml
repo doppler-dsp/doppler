@@ -11,12 +11,14 @@ repo_url         = "https://github.com/doppler-dsp/doppler"
 copyright        = "Copyright &copy; 2026 doppler contributors — MIT License"
 
 nav = [
-  { "Home"            = "index.md"            },
-  { "Quick Start"     = "quickstart.md"       },
-  { "Overview"        = "overview.md"         },
-  { "Build & Install" = "build.md"            },
-  { "Examples"        = "examples.md"         },
-  { "pkg-config"      = "pkg-config-guide.md" },
+  { "Home"            = "index.md"                },
+  { "Quick Start"     = "quickstart.md"           },
+  { "Overview"        = "overview.md"             },
+  { "Build & Install" = "build.md"                },
+  { "Examples"        = "examples.md"             },
+  { "pkg-config"      = "pkg-config-guide.md"     },
+  { "API: FFT"        = "api/python-fft.md"       },
+  { "API: Streaming"  = "api/python-streaming.md" },
 ]
 
 # ----------------------------------------------------------------------------

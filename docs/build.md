@@ -14,9 +14,12 @@ Produces the following artifacts in `build/` (extensions differ by platform):
 | -------- | ----------- | --------------- | ----------- |
 | Shared Library | `libdoppler.so/dylib` | `libdoppler.dll` | DSP + streaming |
 | Static Library | `libdoppler.a` | `libdoppler.a` | Static link (no runtime dep) |
-| Python Extension Module| `dp_fft*.so` | `dp_fft*.pyd` | Python FFT Library |
-| Python Extension Module| `dp_buffer*.so` | `dp_buffer*.pyd` | Python ring-buffer C extension |
-| Examples | `transmitter`, `receiver`, … | `transmitter.exe`, … | Streaming and DSP demos |
+| Python extension | `dp_fft*.so` | `dp_fft*.pyd` | FFT |
+| Python extension | `dp_buffer*.so` | `dp_buffer*.pyd` | Lock-free ring buffer |
+| Python extension | `dp_stream*.so` | `dp_stream*.pyd` | ZMQ streaming (vendored libzmq) |
+| Python extension | `dp_nco*.so` | `dp_nco*.pyd` | NCO |
+| C examples | `transmitter`, `receiver`, … | `transmitter.exe`, … | Streaming and DSP demos |
+| Rust examples | `ffi/rust/target/…/nco_demo`, … | same | NCO, FFT, SIMD demos |
 
 And the top level Python package containing the above modules is
 in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
@@ -31,6 +34,8 @@ in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
 | `make pyext` | Build Python extensions into `python/doppler/` |
 | `make install` | Install headers + libs to system (default `/usr/local`) |
 | `make python-test` | Run pytest |
+| `make rust-test` | Run Rust FFI tests (single-threaded) |
+| `make rust-examples` | Build Rust examples and list their paths |
 | `make docker` | Build Docker image |
 | `make docker-test` | Build image + run container tests |
 | `make debug` | Clean + Debug build |
@@ -189,6 +194,71 @@ gcc -o app main.c \
 ```cmake
 add_subdirectory(path/to/doppler/c)
 target_link_libraries(my_app PRIVATE doppler)
+```
+
+## Rust FFI bindings
+
+The `ffi/rust/` crate provides idiomatic Rust wrappers around the C library.
+It requires no extra Rust dependencies beyond `num-complex` — all DSP logic
+runs in the C library.
+
+### Prerequisites
+
+- Rust toolchain (`rustup` recommended)
+- The C library built first: `make build`
+
+### Build and test
+
+```sh
+make rust-test       # build C library + run all 23 Rust tests
+make rust-examples   # build examples and list their paths
+```
+
+The `build.rs` script bakes an rpath into every binary pointing at
+`build/c/`, so examples run directly without setting `LD_LIBRARY_PATH`:
+
+```sh
+./ffi/rust/target/debug/examples/nco_demo
+./ffi/rust/target/debug/examples/fft_demo
+./ffi/rust/target/debug/examples/simd_demo
+```
+
+After `make install` the installed library path is used instead.
+
+### Modules
+
+| Module | Wraps | Description |
+| ------ | ----- | ----------- |
+| `fft` | `dp_fft_global_setup`, `dp_fft1d/2d_execute` | 1-D and 2-D FFT |
+| `nco` | `dp_nco_*` | Numerically-controlled oscillator |
+| `fir` | `dp_fir_*` | FIR filter (complex and real taps) |
+| `c16_mul` | `dp_c16_mul` | SIMD complex multiplication |
+
+### Sample types
+
+The crate exposes `#[repr(C)]` structs that match the C ABI exactly:
+
+| Rust type | C type | Description |
+| --------- | ------ | ----------- |
+| `DpCf32` | `dp_cf32_t` | Complex f32 (I+Q) — converts to/from `Complex<f32>` |
+| `DpCi8` | `dp_ci8_t` | Complex i8 |
+| `DpCi16` | `dp_ci16_t` | Complex i16 |
+| `DpCi32` | `dp_ci32_t` | Complex i32 |
+
+### Using from another crate
+
+Point Cargo at the local path:
+
+```toml
+[dependencies]
+doppler = { path = "path/to/doppler/ffi/rust" }
+```
+
+Or after publishing to crates.io:
+
+```toml
+[dependencies]
+doppler = "0.1"
 ```
 
 ## Docker

@@ -155,7 +155,7 @@ blazing: clean
 
 # ── gen-pyext ─────────────────────────────────────────────────────────────────
 # Generate a thin Python C extension from a C module.
-#   make gen-pyext MOD=fir            # writes python/src/dp_fir.c
+#   make gen-pyext MOD=fir            # writes python/ext/dp_fir.c
 #   make gen-pyext MOD=fir DRY_RUN=1  # preview only
 gen-pyext:
 ifndef MOD

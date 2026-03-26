@@ -1,5 +1,5 @@
 # =========================================================================
-# Python extension modules (sources live in python/src/)
+# Python extension modules (sources live in python/ext/)
 # =========================================================================
 
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
@@ -48,7 +48,7 @@ string(FIND ${PY_EXT_SUFFIX} "so" LINUX_MACHINE)
 
 # FFT extension
 add_library(dp_fft MODULE
-    src/dp_fft.c
+    ext/dp_fft.c
 )
 
 target_include_directories(dp_fft
@@ -75,7 +75,7 @@ set_target_properties(dp_fft PROPERTIES
 
 # Circular buffer extension
 add_library(dp_buffer MODULE
-    src/dp_buffer.c
+    ext/dp_buffer.c
 )
 
 target_include_directories(dp_buffer
@@ -158,7 +158,7 @@ add_dependencies(zmq_vendor_static libzmq_vendor)
 # dependency -- no auditwheel bundling required for zmq.
 # =========================================================================
 
-add_library(dp_stream MODULE src/dp_stream.c)
+add_library(dp_stream MODULE ext/dp_stream.c)
 
 target_include_directories(dp_stream PRIVATE
     ${NumPy_INCLUDE_DIR}
@@ -183,7 +183,7 @@ set_target_properties(dp_stream PROPERTIES
 
 # NCO extension
 add_library(dp_nco MODULE
-    src/dp_nco.c
+    ext/dp_nco.c
 )
 
 target_include_directories(dp_nco

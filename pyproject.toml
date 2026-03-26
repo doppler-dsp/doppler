@@ -7,21 +7,29 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
     "zensical>=0.0.29",
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.23",
-    "websockets>=12.0",
 ]
 license-files = [
     "c/cmake/licenses/README_LICENSE",
     "c/cmake/licenses/FFTW_LICENSE",
-    "c/cmake/licenses/POCKETFFT_LICENSE"
+    "c/cmake/licenses/POCKETFFT_LICENSE",
 ]
+
+[project.optional-dependencies]
+specan = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "websockets>=12.0",
+]
+
+[project.scripts]
+doppler-specan = "doppler.specan.__main__:main"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pytest-cov>=6.0",
     "zensical>=0.0.29",
+    "doppler-dsp[specan]",
 ]
 
 [tool.pytest.ini_options]
@@ -40,9 +48,6 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
-
-[project.scripts]
-doppler-specan = "doppler.specan.__main__:main"
 
 [tool.uv.build-backend]
 module-root = "python"

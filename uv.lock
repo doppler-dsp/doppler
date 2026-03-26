@@ -156,15 +156,20 @@ name = "doppler-dsp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "fastapi" },
     { name = "numpy" },
+    { name = "zensical" },
+]
+
+[package.optional-dependencies]
+specan = [
+    { name = "fastapi" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
-    { name = "zensical" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "doppler-dsp", extra = ["specan"] },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "zensical" },
@@ -172,15 +177,17 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.100" },
+    { name = "fastapi", marker = "extra == 'specan'", specifier = ">=0.100" },
     { name = "numpy", specifier = ">=2.4.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.23" },
-    { name = "websockets", specifier = ">=12.0" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'specan'", specifier = ">=0.23" },
+    { name = "websockets", marker = "extra == 'specan'", specifier = ">=12.0" },
     { name = "zensical", specifier = ">=0.0.29" },
 ]
+provides-extras = ["specan"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "doppler-dsp", extras = ["specan"] },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "zensical", specifier = ">=0.0.29" },

@@ -31,6 +31,7 @@ shorter and the last sample is zero-padded before reshaping.
 
 from __future__ import annotations
 
+import dataclasses
 import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +39,62 @@ from typing import Sequence
 
 import numpy as np
 
-__all__ = ["design_bank", "plot_response", "to_c_header", "to_npy"]
+__all__ = ["PolyphaseBank", "design_bank", "plot_response",
+           "to_c_header", "to_npy"]
+
+
+# ---------------------------------------------------------------------------
+# Result type
+# ---------------------------------------------------------------------------
+
+@dataclasses.dataclass
+class PolyphaseBank:
+    """Filter bank returned by :func:`design_bank`.
+
+    Carries the coefficient array together with the design parameters
+    used to create it, so downstream functions (:func:`plot_response`,
+    :func:`to_c_header`, :func:`to_npy`) need no extra arguments.
+
+    Attributes
+    ----------
+    bank:           ``(num_phases, num_taps)`` float32 array.
+    bands:          Band-edge frequencies used during design.
+    amps:           Amplitude at each band edge.
+    attenuation_db: Stopband attenuation target (dB).
+    method:         Design method (``"kaiser"`` or ``"firls"``).
+    """
+
+    bank: np.ndarray
+    bands: tuple[float, ...]
+    amps: tuple[float, ...]
+    attenuation_db: float
+    method: str
+
+    # ------------------------------------------------------------------
+    # Proxy key ndarray properties so callers can treat this like an
+    # array for shape-checking, indexing, etc.
+    # ------------------------------------------------------------------
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self.bank.shape  # type: ignore[return-value]
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self.bank.dtype
+
+    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        arr = self.bank if dtype is None else self.bank.astype(dtype)
+        if copy:
+            return arr.copy()
+        return arr
+
+    def __getitem__(self, key):
+        return self.bank[key]
+
+    def ravel(self) -> np.ndarray:
+        return self.bank.ravel()
+
 
 # ---------------------------------------------------------------------------
 # Kaiser β formula (Harris 1978)
@@ -58,23 +114,7 @@ def _kaiser_beta(attenuation_db: float) -> float:
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _kaiser_prototype(
-    N: int,
-    fc: float,
-    beta: float,
-) -> np.ndarray:
-    """Kaiser-windowed sinc lowpass prototype of length N.
-
-    Parameters
-    ----------
-    N:     Filter length.
-    fc:    Cutoff frequency, normalized to [0, 1] where 1 = Nyquist.
-    beta:  Kaiser window shape parameter.
-
-    Returns
-    -------
-    float32 array of length N.
-    """
+def _kaiser_prototype(N: int, fc: float, beta: float) -> np.ndarray:
     n = np.arange(N, dtype=np.float64)
     mid = (N - 1) / 2.0
     h = fc * np.sinc(fc * (n - mid))
@@ -87,22 +127,6 @@ def _firls_prototype(
     bands: Sequence[float],
     amps: Sequence[float],
 ) -> np.ndarray:
-    """Least-squares lowpass prototype of length N (zero-padded if needed).
-
-    scipy.signal.firls requires an odd number of taps (Type I).  If N is
-    even the prototype is designed with N-1 taps and a trailing zero is
-    appended before the caller reshapes.
-
-    Parameters
-    ----------
-    N:      Target length (num_phases * num_taps).
-    bands:  Band-edge frequencies normalised to [0, 1] (1 = Nyquist).
-    amps:   Desired amplitude at each band edge.
-
-    Returns
-    -------
-    float32 array of length N.
-    """
     try:
         from scipy.signal import firls
     except ImportError as exc:
@@ -129,7 +153,7 @@ def design_bank(
     amps: Sequence[float] = (1.0, 1.0, 0.0, 0.0),
     attenuation_db: float = 60.0,
     method: str = "kaiser",
-) -> np.ndarray:
+) -> PolyphaseBank:
     """Design a polyphase FIR filter bank.
 
     Parameters
@@ -143,8 +167,8 @@ def design_bank(
         ``num_phases * num_taps``.
     bands:
         Band-edge frequencies in normalised units [0, 1] where 1 =
-        Nyquist.  Must have an even number of entries that alternate
-        between the start and end of each band.
+        Nyquist at the baseband rate (input rate for interpolation,
+        output rate for decimation).
     amps:
         Desired amplitude at each band edge.  Same length as *bands*.
     attenuation_db:
@@ -156,64 +180,63 @@ def design_bank(
 
     Returns
     -------
-    ndarray, shape ``(num_phases, num_taps)``, dtype float32.
-        Row ``k`` is the sub-filter for phase index ``k``.  Select the
-        row at run time via ``phase >> (32 - log2(num_phases))`` from a
-        32-bit NCO accumulator.
+    PolyphaseBank
+        Carries the ``(num_phases, num_taps)`` float32 coefficient
+        array together with all design parameters.  Pass directly to
+        :func:`plot_response`, :func:`to_c_header`, or :func:`to_npy`.
 
     Examples
     --------
-    >>> bank = design_bank()
-    >>> bank.shape
+    >>> pb = design_bank()
+    >>> pb.shape
     (4096, 19)
-
-    >>> bank_ls = design_bank(method="firls")
-    >>> bank_ls.shape
-    (4096, 19)
+    >>> pb.plot_response()          # uses stored design parameters
+    >>> to_c_header(pb, path="bank.h")
     """
-    bands = list(bands)
-    amps = list(amps)
+    bands = tuple(bands)
+    amps = tuple(amps)
     N = num_phases * num_taps
 
     if method == "kaiser":
-        # Cutoff at the midpoint of the first transition band.
-        fc = (bands[1] + bands[2]) / 2.0
+        # Cutoff at the midpoint of the transition band, expressed in
+        # prototype-rate normalised units (÷ num_phases converts from
+        # baseband-normalised to prototype-rate-normalised).
+        fc = (bands[1] + bands[2]) / 2.0 / num_phases
         beta = _kaiser_beta(attenuation_db)
         h = _kaiser_prototype(N, fc, beta)
     elif method == "firls":
-        h = _firls_prototype(N, bands, amps)
+        # Scale band edges to prototype-rate normalised units.
+        bands_scaled = tuple(f / num_phases for f in bands)
+        h = _firls_prototype(N, bands_scaled, amps)
     else:
         raise ValueError(
             f"Unknown method {method!r}. Choose 'kaiser' or 'firls'."
         )
 
-    return h.reshape(num_phases, num_taps)
+    return PolyphaseBank(
+        bank=h.reshape(num_phases, num_taps),
+        bands=bands,
+        amps=amps,
+        attenuation_db=attenuation_db,
+        method=method,
+    )
 
 
 def plot_response(
-    bank: np.ndarray,
+    pb: PolyphaseBank,
     *,
-    attenuation_db: float = 0.0,
-    bands: Sequence[float] | None = None,
-    amps: Sequence[float] | None = None,
     title: str = "Polyphase bank — prototype frequency response",
     show: bool = True,
 ) -> "plt.Figure":
     """Plot the frequency response of the prototype filter.
 
-    The prototype is the full flattened bank (``bank.ravel()``).  The
-    magnitude response is plotted in dB on a linear frequency axis
-    normalised to [0, 1] (1 = Nyquist).
+    Design parameters (bands, attenuation) are read from *pb* — no
+    need to pass them again.
 
     Parameters
     ----------
-    bank:
-        Filter bank array of shape ``(num_phases, num_taps)``.
-    attenuation_db:
-        If non-zero, draws a horizontal reference line at -attenuation_db.
-    bands / amps:
-        If given, overlays the design band specification as a shaded
-        ideal response for visual comparison.
+    pb:
+        :class:`PolyphaseBank` returned by :func:`design_bank`.
     title:
         Plot title.
     show:
@@ -231,38 +254,50 @@ def plot_response(
             "Install it with: uv add matplotlib"
         ) from exc
 
-    h = bank.ravel().astype(np.float64)
+    num_phases, num_taps = pb.shape
+    h = pb.ravel().astype(np.float64)
     N = len(h)
     nfft = max(8 * N, 65536)
 
     H = np.fft.rfft(h, n=nfft)
-    # rfftfreq is 0..0.5; normalise to 0..1 (1 = Nyquist)
+    # rfftfreq is 0..0.5 of the prototype rate.
+    # × 2 → 0..1 normalised to prototype Nyquist.
+    # ÷ num_phases → 0..1 normalised to baseband Nyquist
+    # (input rate for interpolation, output rate for decimation).
+    # rfftfreq is 0..0.5; × 2 → 0..1 normalised to prototype Nyquist.
     freqs = np.fft.rfftfreq(nfft) * 2
     mag_db = 20.0 * np.log10(np.abs(H) + 1e-300)
 
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    # Ideal response overlay
-    if bands is not None and amps is not None:
-        b, a = list(bands), list(amps)
-        ideal = np.interp(freqs, b, a)
-        ax.fill_between(
-            freqs, 20 * np.log10(ideal + 1e-300), -120,
-            alpha=0.08, color="steelblue", label="Ideal",
-        )
+    # Ideal response overlay from stored band spec
+    b = list(pb.bands)
+    a = list(pb.amps)
+    # Scale band edges to the same baseband-normalised axis
+    b_scaled = [f / num_phases for f in b]
+    ideal = np.interp(freqs, b_scaled, a)
+    ax.fill_between(
+        freqs, 20 * np.log10(ideal + 1e-300), -120,
+        alpha=0.08, color="steelblue", label="Ideal",
+    )
 
     ax.plot(freqs, mag_db, linewidth=0.8, color="steelblue",
             label=f"Prototype ({N} taps)")
 
-    if attenuation_db > 0:
+    if pb.attenuation_db > 0:
         ax.axhline(
-            -attenuation_db, color="tomato", linewidth=0.8,
-            linestyle="--", label=f"−{attenuation_db:.0f} dB",
+            -pb.attenuation_db, color="tomato", linewidth=0.8,
+            linestyle="--",
+            label=f"−{pb.attenuation_db:.0f} dB",
         )
 
-    ax.set_xlim(0, 1)
+    ax.set_xlim(0, 2.0 / num_phases)
     ax.set_ylim(-120, 5)
-    ax.set_xlabel("Normalised frequency  [0 = DC, 1 = Nyquist]")
+    ax.set_xlabel(
+        "Normalised frequency  "
+        "[0 = DC, 1 = Nyquist at prototype rate = "
+        f"{num_phases}× baseband rate]"
+    )
     ax.set_ylabel("Magnitude (dB)")
     ax.set_title(title)
     ax.legend(fontsize=8)
@@ -276,40 +311,29 @@ def plot_response(
 
 
 def to_c_header(
-    bank: np.ndarray,
+    pb: PolyphaseBank,
     name: str = "dp_polyphase_bank",
     path: str | Path | None = None,
-    *,
-    method: str = "",
-    attenuation_db: float = 0.0,
 ) -> str:
     """Render the filter bank as a C99 header string.
 
+    Design metadata (method, attenuation) is read from *pb*.
+
     Parameters
     ----------
-    bank:
-        Array of shape ``(num_phases, num_taps)`` as returned by
-        :func:`design_bank`.
-    name:
-        Base identifier used for the C array and ``#define`` names.
-    path:
-        If given, the header is written to this file path in addition
-        to being returned as a string.
-    method:
-        Design method string embedded in the auto-generated comment.
-    attenuation_db:
-        Attenuation embedded in the auto-generated comment.
+    pb:    :class:`PolyphaseBank` returned by :func:`design_bank`.
+    name:  Base identifier for the C array and ``#define`` names.
+    path:  If given, the header is also written to this file.
 
     Returns
     -------
     str — the full header text.
     """
-    num_phases, num_taps = bank.shape
-    guard = name.upper().replace(" ", "_") + "_H"
+    num_phases, num_taps = pb.shape
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     rows = []
-    for row in bank:
+    for row in pb.bank:
         coeffs = ", ".join(f"{v:.8e}f" for v in row)
         rows.append(f"    {{ {coeffs} }}")
     array_body = ",\n".join(rows)
@@ -319,8 +343,8 @@ def to_c_header(
          * Generated: {ts}
          * Phases:    {num_phases}
          * Taps/phase:{num_taps}
-         * Method:    {method or 'unknown'}
-         * Atten:     {attenuation_db:.1f} dB
+         * Method:    {pb.method}
+         * Atten:     {pb.attenuation_db:.1f} dB
          *
          * Usage:
          *   uint32_t phase = nco_u32 >> (32 - {num_phases.bit_length() - 1});
@@ -344,12 +368,12 @@ def to_c_header(
     return header
 
 
-def to_npy(bank: np.ndarray, path: str | Path) -> None:
+def to_npy(pb: PolyphaseBank, path: str | Path) -> None:
     """Save the filter bank as a NumPy .npy file.
 
     Parameters
     ----------
-    bank:  Array of shape ``(num_phases, num_taps)``.
+    pb:    :class:`PolyphaseBank` returned by :func:`design_bank`.
     path:  Destination file path (conventionally ``.npy``).
     """
-    np.save(str(path), bank)
+    np.save(str(path), pb.bank)

@@ -4,7 +4,7 @@ Python bindings for the `dp_*` C streaming library via zero-copy C extension.
 All socket types support the context manager protocol and clean up automatically
 on garbage collection.
 
-Source: [`python/src/dp_stream.c`](https://github.com/hunter-dsp/doppler/blob/main/python/src/dp_stream.c)
+Source: [`python/ext/dp_stream.c`](https://github.com/hunter-dsp/doppler/blob/main/python/ext/dp_stream.c)
 
 ---
 

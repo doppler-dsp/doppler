@@ -1,36 +1,36 @@
 fn main() {
-    // Try pkg-config first (works after `make install` or with PKG_CONFIG_PATH set).
-    // If not available, fall back to the cmake build directory.
-    let pkg_ok = std::process::Command::new("pkg-config")
-        .args(["--libs", "doppler"])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS")
+        .unwrap_or_default();
+    let use_rpath = matches!(target_os.as_str(), "linux" | "macos");
 
-    if pkg_ok {
-        // Let the linker pick up whatever pkg-config says.
-        // pkg-config already emits -L and -l flags; pass them through rustc.
-        let output = std::process::Command::new("pkg-config")
-            .args(["--libs", "--static", "doppler"])
-            .output()
-            .expect("pkg-config failed");
-        let flags = String::from_utf8(output.stdout).unwrap();
-        for flag in flags.split_whitespace() {
-            if let Some(path) = flag.strip_prefix("-L") {
-                println!("cargo:rustc-link-search=native={path}");
-            } else if let Some(lib) = flag.strip_prefix("-l") {
-                println!("cargo:rustc-link-lib=dylib={lib}");
-            }
-        }
-        return;
-    }
-
-    // Fallback: look for libdoppler.so in the cmake build dir.
+    // Locate the cmake build dir (ffi/rust/../../build/c).
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let build_dir = manifest.join("../../build/c"); // ffi/rust → ffi → doppler/build/c
+    let build_dir = manifest
+        .join("../../build/c")
+        .canonicalize()
+        .unwrap_or_else(|_| manifest.join("../../build/c"));
+
     println!("cargo:rustc-link-search=native={}", build_dir.display());
-    println!("cargo:rustc-link-lib=dylib=doppler");
     println!("cargo:rustc-link-lib=dylib=zmq");
     println!("cargo:rustc-link-lib=dylib=fftw3");
-    println!("cargo:rustc-link-lib=dylib=m");
+
+    if target_os == "windows" {
+        // Static link on Windows: avoids pseudo-relocation failures and
+        // the DLL runtime dependency. LTO is disabled on MinGW in CMake
+        // so the static archive contains plain object files.
+        println!("cargo:rustc-link-lib=static=doppler");
+        println!("cargo:rustc-link-lib=dylib=fftw3_threads");
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+    } else {
+        // Dynamic link on Linux/macOS: avoids lld single-pass ordering
+        // issues with static archives. rpath points at the build tree.
+        println!("cargo:rustc-link-lib=dylib=doppler");
+        println!("cargo:rustc-link-lib=dylib=m");
+        if use_rpath {
+            println!(
+                "cargo:rustc-link-arg=-Wl,-rpath,{}",
+                build_dir.display()
+            );
+        }
+    }
 }

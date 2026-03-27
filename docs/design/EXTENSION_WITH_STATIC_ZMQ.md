@@ -312,7 +312,7 @@ pytest python/doppler/tests/ -v
 
 ## C Extension Stub (Minimal Starting Point)
 
-### python/src/dp_stream.c
+### python/ext/dp_stream.c
 
 ```c
 #define PY_SSIZE_T_CLEAN

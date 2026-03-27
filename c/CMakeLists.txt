@@ -260,6 +260,10 @@ target_link_libraries(test_fir PRIVATE doppler_static m)
 add_executable(test_nco tests/test_nco.c)
 target_link_libraries(test_nco PRIVATE doppler_static m)
 
+# Cross-language integration helper (used by Python pytest)
+add_executable(xmit_cf64 tests/xmit_cf64.c)
+target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
+
 # ------------------------------------------------------------
 # CTest registration
 # ------------------------------------------------------------

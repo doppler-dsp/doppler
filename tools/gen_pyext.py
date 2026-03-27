@@ -14,7 +14,7 @@ Usage
 
 Output
 ------
-    python/src/dp_{module}.c
+    python/ext/dp_{module}.c
 
 The generated code is a starting point.  Hand-tune afterward for
 GIL release on blocking calls, zero-copy recv, or ergonomics.

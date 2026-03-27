@@ -1,8 +1,8 @@
 """
 doppler-specan entry point.
 
-    uvx --from doppler-dsp doppler-specan
-    doppler-specan --port 8765 --fft-size 2048 --no-browser
+    uvx --from doppler-dsp[specan] doppler-specan
+    doppler-specan --port 8765 --fft-size 512 --no-browser
 """
 
 from __future__ import annotations
@@ -11,7 +11,25 @@ import argparse
 import sys
 
 
+def _check_deps() -> None:
+    missing = []
+    for pkg in ("fastapi", "uvicorn", "websockets"):
+        try:
+            __import__(pkg)
+        except ImportError:
+            missing.append(pkg)
+    if missing:
+        print(
+            "doppler-specan requires the 'specan' extra:\n\n"
+            "    pip install 'doppler-dsp[specan]'\n\n"
+            f"Missing: {', '.join(missing)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main() -> None:
+    _check_deps()
     parser = argparse.ArgumentParser(
         prog="doppler-specan",
         description="Live spectrum analyzer — doppler NCO + FFT",
@@ -26,7 +44,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--fft-size", type=int, default=512,
-        help="FFT size, must be power of two (default: 2048)",
+        help="FFT size, must be power of two (default: 512)",
     )
     parser.add_argument(
         "--no-browser", action="store_true",

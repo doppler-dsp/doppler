@@ -221,6 +221,8 @@ CTestTestfile.cmake
 *.cmake
 !CMakeLists.txt
 !cmake/*.cmake.in
+# cmake-generated Makefile in python/ (not a hand-written build file)
+python/Makefile
 
 # Compiled binaries
 *.o

@@ -35,6 +35,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "dp/accumulator.h"
 #include "dp/buffer.h"
 #include "dp/core.h"
 #include "dp/fft.h"

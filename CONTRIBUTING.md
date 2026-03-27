@@ -20,6 +20,10 @@ See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 
 ### 1. Header — `c/include/dp/<module>.h`
 
+The C header is the **single source of truth** for the entire API.
+The Python and Rust docstrings are derived from it — write it once,
+write it well.
+
 ```c
 #ifndef DP_FOO_H
 #define DP_FOO_H
@@ -31,15 +35,50 @@ See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 extern "C" {
 #endif
 
+/**
+ * @file foo.h
+ * @brief One-line description of what foo does.
+ *
+ * Longer description covering the algorithm, its assumptions, and any
+ * key implementation choices (e.g. phase encoding, coefficient layout).
+ * Include a usage example:
+ *
+ * @code
+ * dp_foo_t *h = dp_foo_create(0.5f);
+ * dp_cf32_t out[1024];
+ * dp_foo_execute(h, in, 1024, out, 1024);
+ * dp_foo_destroy(h);
+ * @endcode
+ */
+
 /** @brief Opaque foo state. */
 typedef struct dp_foo dp_foo_t;
 
+/**
+ * @brief Create a foo processor.
+ * @param param  Description of param; units, valid range.
+ * @return       Heap-allocated handle, or NULL on failure.
+ */
 dp_foo_t *dp_foo_create(float param);
-void      dp_foo_destroy(dp_foo_t *h);  /* NULL-safe */
-void      dp_foo_reset(dp_foo_t *h);
-size_t    dp_foo_execute(dp_foo_t *h,
-                         const dp_cf32_t *in, size_t n,
-                         dp_cf32_t *out, size_t max_out);
+
+/** @brief Free a foo processor.  May be NULL (no-op). */
+void dp_foo_destroy(dp_foo_t *h);
+
+/** @brief Reset internal state without reallocating. */
+void dp_foo_reset(dp_foo_t *h);
+
+/**
+ * @brief Process a block of cf32 samples.
+ * @param h        Must be non-NULL.
+ * @param in       Input samples (may be NULL if n == 0).
+ * @param n        Number of input samples.
+ * @param out      Output buffer (must hold >= max_out samples).
+ * @param max_out  Capacity of out.
+ * @return         Number of output samples written.
+ */
+size_t dp_foo_execute(dp_foo_t *h,
+                      const dp_cf32_t *in, size_t n,
+                      dp_cf32_t *out, size_t max_out);
 
 #ifdef __cplusplus
 }
@@ -53,13 +92,12 @@ Rules:
 - Opaque handles hide the `struct` definition.
 - Coefficients/state passed to `_create` are **copied internally** — the
   caller may free them immediately.
-- Document the header with Doxygen `@brief` / `@param` / `@return`.
 - Add `#include <dp/foo.h>` to `c/include/doppler.h`.
 
 ### 2. Implementation — `c/src/<module>.c`
 
 Plain C99, no VLAs in hot paths.
-Follow the existing style: helpers at the top, public API at the bottom.
+Helpers at the top, public API at the bottom.
 
 ### 3. Register in CMake — `c/CMakeLists.txt`
 
@@ -72,8 +110,8 @@ set(DOPPLER_SOURCES
 
 ### 4. Tests — `c/tests/test_<module>.c`
 
-Self-contained: embed any coefficients or design helpers you need.
-Use the same `pass/fail` counter pattern as `test_nco.c`.
+**Mandatory.**  Self-contained: embed any coefficients or design helpers
+you need.  Use the same `pass/fail` counter pattern as `test_nco.c`.
 
 Register in `c/CMakeLists.txt`:
 
@@ -83,9 +121,17 @@ target_link_libraries(test_foo PRIVATE doppler_static m)
 add_test(NAME foo_unit_tests COMMAND test_foo)
 ```
 
-### 5. Benchmark (optional) — `c/bench/bench_<module>.c`
+### 5. Benchmark — `c/bench/bench_<module>.c`
 
-Same self-contained pattern.  Register as `bench_foo_c`.
+**Mandatory.**  Reports input MSamples/s at representative block sizes
+and rates.  Self-contained — no external setup required.
+Register as `bench_foo_c` in CMakeLists.txt.
+
+### 6. Example — `c/examples/<module>_demo.c`
+
+**Mandatory.**  A minimal, runnable program showing the typical use case.
+The same scenario should be ported to Python and Rust (see below) — the
+three examples should be recognisably parallel.
 
 ### Verify
 
@@ -122,15 +168,66 @@ set_target_properties(dp_foo PROPERTIES
 Add `dp_foo` to the `DEPENDS` list of the `pyext` target and add its
 `copy` command alongside the others.
 
-### 3. Python wrapper (if needed) — `python/doppler/<module>/`
+### 3. Python wrapper — `python/doppler/<module>/`
 
-Keep it thin.  Import the C extension and re-export with a Pythonic
-interface.  Type annotations and docstrings live here; logic does not.
+Keep it thin: type conversion, error translation, lifetime bridging.
+Logic lives in C, not here.
 
-### 4. Tests — `python/doppler/tests/test_<module>.py`
+**Docstrings are mandatory, NumPy style, with runnable examples.**
+The C header is the source of truth — translate it, don't replace it:
 
-pytest.  Exercise the round-trip through the C library — don't just
-test the Python layer in isolation.
+```python
+def execute(self, x: np.ndarray) -> np.ndarray:
+    """Process a block of cf32 samples.
+
+    Parameters
+    ----------
+    x : np.ndarray, dtype=complex64
+        Input samples.
+
+    Returns
+    -------
+    np.ndarray, dtype=complex64
+        Output samples.  Length depends on the configured rate.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.foo import Foo
+    >>> f = Foo(param=0.5)
+    >>> y = f.execute(np.ones(64, dtype=np.complex64))
+    >>> y.dtype
+    dtype('complex64')
+    """
+```
+
+All examples must pass `pytest --doctest-modules` without skipping.
+
+### 4. Type stubs — `python/doppler/<module>/__init__.pyi`
+
+**Mandatory, fully typed.**  Every public function and class needs a
+stub.  Use `np.ndarray` with `np.dtype` comments where array shapes
+and dtypes matter.
+
+```python
+import numpy as np
+
+class Foo:
+    def __init__(self, param: float) -> None: ...
+    def execute(self, x: np.ndarray) -> np.ndarray: ...
+    def reset(self) -> None: ...
+```
+
+### 5. Tests — `python/doppler/tests/test_<module>.py`
+
+**Mandatory.**  pytest.  Exercise the round-trip through the C library —
+don't just test the Python layer in isolation.
+
+### 6. Example — `python/doppler/examples/<module>_demo.py`
+
+**Mandatory.**  Port of the C example.  Should produce the same
+observable result with the same algorithm, demonstrating the Python
+ergonomics over the C ABI.
 
 ### Verify
 
@@ -199,10 +296,42 @@ impl Drop for Foo {
 
 Declare the module in `lib.rs`: `pub mod foo;`
 
+**Docstrings are derived from the Python docstrings** (which are
+themselves derived from the C header).  Translate parameter names and
+types to Rust idioms; keep the description and example parallel:
+
+```rust
+/// Process a block of cf32 samples.
+///
+/// # Arguments
+///
+/// * `input`  – Input samples as `&[DpCf32]`.
+/// * `output` – Output buffer (must be pre-allocated).
+///
+/// # Returns
+///
+/// Number of output samples written.
+///
+/// # Example
+///
+/// ```no_run
+/// use doppler::foo::Foo;
+/// use doppler::DpCf32;
+///
+/// let mut f = Foo::new(0.5);
+/// let input  = vec![DpCf32 { i: 1.0, q: 0.0 }; 64];
+/// let mut output = vec![DpCf32::default(); 128];
+/// let n = f.execute(&input, &mut output);
+/// ```
+```
+
 ### 3. Tests / examples
 
 Add tests inline or in `ffi/rust/tests/`.
-Register examples in `Cargo.toml` as `[[example]]` entries.
+
+**Example — `ffi/rust/examples/<module>_demo.rs` — mandatory.**
+Register in `Cargo.toml` as `[[example]]`.
+Port of the C and Python examples: same scenario, Rust idioms.
 
 ### Verify
 
@@ -220,7 +349,7 @@ make rust-test    # single-threaded — see Gotchas
 | `make blazing` | Release + `-march=native` |
 | `make test` | CTest (C tests) |
 | `make pyext` | Build + copy Python C extensions |
-| `make python-test` | pytest with coverage |
+| `make python-test` | pytest with coverage + doctest |
 | `make rust-test` | `cargo test -- --test-threads=1` |
 | `make install` | System install |
 | `make docs-build` | Build documentation site |

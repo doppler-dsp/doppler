@@ -341,6 +341,31 @@ make rust-test    # single-threaded — see Gotchas
 
 ---
 
+## Cross-language testing
+
+There is no special cross-language test framework.
+
+Pure Python in doppler is rare by design — it exists only for things
+that are genuinely better expressed in Python: filter design, polynomial
+fitting, LP optimisation.  All of it produces **parameters that get
+handed to a C runtime**.  The integration test is therefore just a
+normal pytest that exercises the full path:
+
+```python
+_, bank = kaiser_prototype(...)      # pure Python — design
+r = Resamp(L, N, bank, rate=2.0)    # C extension  — create
+y = r.execute(x)                     # C extension  — execute
+assert stopband_attenuation(y) > 60  # validate end-to-end
+```
+
+This lives in the module's regular `test_<module>.py`.  No subprocess,
+no golden vectors, no special harness.
+
+Rust wraps C directly, so Rust tests already are the Rust-C integration
+tests.  Nothing extra needed there either.
+
+---
+
 ## Build commands
 
 | Command | What it does |

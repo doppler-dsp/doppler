@@ -19,34 +19,34 @@
 static int passed = 0;
 static int failed = 0;
 
-#define PASS(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  PASS  %s\n", (msg));                                          \
-      passed++;                                                                \
-    }                                                                          \
+#define PASS(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  PASS  %s\n", (msg));                                         \
+      passed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define FAIL(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  FAIL  %s\n", (msg));                                          \
-      failed++;                                                                \
-    }                                                                          \
+#define FAIL(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  FAIL  %s\n", (msg));                                         \
+      failed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define CHECK(cond, msg)                                                       \
-  do                                                                           \
-    {                                                                          \
-      if (cond)                                                                \
-        PASS (msg);                                                            \
-      else                                                                     \
-        FAIL (msg);                                                            \
-    }                                                                          \
+#define CHECK(cond, msg)                                                      \
+  do                                                                          \
+    {                                                                         \
+      if (cond)                                                               \
+        PASS (msg);                                                           \
+      else                                                                    \
+        FAIL (msg);                                                           \
+    }                                                                         \
   while (0)
 
-#define TOL_F32  1e-5f
-#define TOL_F64  1e-12
+#define TOL_F32 1e-5f
+#define TOL_F64 1e-12
 
 static int
 near_f32 (float a, float b, float tol)
@@ -70,8 +70,7 @@ test_create_f32 (void)
   printf ("\nTest 1  create/destroy f32\n");
   dp_acc_f32_t *acc = dp_acc_f32_create ();
   CHECK (acc != NULL, "create returns non-NULL");
-  CHECK (near_f32 (dp_acc_f32_get (acc), 0.0f, TOL_F32),
-         "initial value is 0");
+  CHECK (near_f32 (dp_acc_f32_get (acc), 0.0f, TOL_F32), "initial value is 0");
   dp_acc_f32_destroy (acc);
   dp_acc_f32_destroy (NULL); /* must not crash */
   PASS ("destroy(NULL) is safe");
@@ -127,7 +126,7 @@ test_dump (void)
   dp_acc_f32_t *af = dp_acc_f32_create ();
   dp_acc_f32_push (af, 7.5f);
   float v = dp_acc_f32_dump (af);
-  CHECK (near_f32 (v, 7.5f, TOL_F32),       "f32 dump returns value");
+  CHECK (near_f32 (v, 7.5f, TOL_F32), "f32 dump returns value");
   CHECK (near_f32 (dp_acc_f32_get (af), 0.0f, TOL_F32),
          "f32 dump resets to 0");
   dp_acc_f32_destroy (af);
@@ -156,8 +155,7 @@ test_push (void)
   dp_acc_f32_push (af, 1.0f);
   dp_acc_f32_push (af, 2.0f);
   dp_acc_f32_push (af, 3.0f);
-  CHECK (near_f32 (dp_acc_f32_get (af), 6.0f, TOL_F32),
-         "f32 push: 1+2+3 = 6");
+  CHECK (near_f32 (dp_acc_f32_get (af), 6.0f, TOL_F32), "f32 push: 1+2+3 = 6");
   dp_acc_f32_destroy (af);
 
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
@@ -186,7 +184,7 @@ test_add_1d (void)
          "f32 add: sum(1..8) = 36");
   dp_acc_f32_destroy (af);
 
-  dp_cf64_t xc[4] = { {1,2},{3,4},{5,6},{7,8} };
+  dp_cf64_t xc[4] = { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 7, 8 } };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_add (ac, xc, 4);
   dp_cf64_t v = dp_acc_cf64_get (ac);
@@ -215,8 +213,8 @@ test_madd_1d (void)
   /* complex x = [(1,2),(3,4)], real h = [2,3]
    * I:  1*2 + 3*3 = 2+9 = 11
    * Q:  2*2 + 4*3 = 4+12 = 16 */
-  dp_cf64_t xc[2] = { {1.0,2.0},{3.0,4.0} };
-  float     hc[2] = { 2.0f, 3.0f };
+  dp_cf64_t xc[2] = { { 1.0, 2.0 }, { 3.0, 4.0 } };
+  float hc[2] = { 2.0f, 3.0f };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_madd (ac, xc, hc, 2);
   dp_cf64_t v = dp_acc_cf64_get (ac);
@@ -235,8 +233,8 @@ test_accumulation (void)
   printf ("\nTest 8  accumulation across calls\n");
   dp_acc_f32_t *af = dp_acc_f32_create ();
   float x[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-  dp_acc_f32_add (af, x, 4); /* +4 */
-  dp_acc_f32_add (af, x, 4); /* +4 = 8 */
+  dp_acc_f32_add (af, x, 4);  /* +4 */
+  dp_acc_f32_add (af, x, 4);  /* +4 = 8 */
   dp_acc_f32_push (af, 2.0f); /* +2 = 10 */
   CHECK (near_f32 (dp_acc_f32_get (af), 10.0f, TOL_F32),
          "f32 state preserved across calls: 4+4+2 = 10");
@@ -252,14 +250,14 @@ test_add_2d (void)
 {
   printf ("\nTest 9  2-D add\n");
   /* 2×3 matrix: sum = 1+2+3+4+5+6 = 21 */
-  float x[2][3] = { {1,2,3},{4,5,6} };
+  float x[2][3] = { { 1, 2, 3 }, { 4, 5, 6 } };
   dp_acc_f32_t *af = dp_acc_f32_create ();
   dp_acc_f32_add2d (af, &x[0][0], 2, 3);
   CHECK (near_f32 (dp_acc_f32_get (af), 21.0f, TOL_F32),
          "f32 add2d: sum of 2×3 matrix = 21");
   dp_acc_f32_destroy (af);
 
-  dp_cf64_t xc[2][2] = { {{1,2},{3,4}},{{5,6},{7,8}} };
+  dp_cf64_t xc[2][2] = { { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_add2d (ac, &xc[0][0], 2, 2);
   dp_cf64_t v = dp_acc_cf64_get (ac);
@@ -277,15 +275,15 @@ test_madd_2d (void)
 {
   printf ("\nTest 10  2-D madd\n");
   /* 2×2 element-wise: [[1,2],[3,4]] · [[1,1],[1,1]] = 1+2+3+4 = 10 */
-  float x[2][2] = { {1,2},{3,4} };
-  float h[2][2] = { {1,1},{1,1} };
+  float x[2][2] = { { 1, 2 }, { 3, 4 } };
+  float h[2][2] = { { 1, 1 }, { 1, 1 } };
   dp_acc_f32_t *af = dp_acc_f32_create ();
   dp_acc_f32_madd2d (af, &x[0][0], &h[0][0], 2, 2);
   CHECK (near_f32 (dp_acc_f32_get (af), 10.0f, TOL_F32),
          "f32 madd2d: [[1,2],[3,4]]·ones = 10");
 
   /* with non-unity weights: [[1,2],[3,4]] · [[2,2],[2,2]] = 20 */
-  float h2[2][2] = { {2,2},{2,2} };
+  float h2[2][2] = { { 2, 2 }, { 2, 2 } };
   dp_acc_f32_reset (af);
   dp_acc_f32_madd2d (af, &x[0][0], &h2[0][0], 2, 2);
   CHECK (near_f32 (dp_acc_f32_get (af), 20.0f, TOL_F32),
@@ -294,8 +292,8 @@ test_madd_2d (void)
 
   /* cf64 × real: 2×2, x=[(1,2),(3,4),(5,6),(7,8)], h=all 1
    * I=1+3+5+7=16, Q=2+4+6+8=20 */
-  dp_cf64_t xc[2][2] = { {{1,2},{3,4}},{{5,6},{7,8}} };
-  float     hc[2][2] = { {1,1},{1,1} };
+  dp_cf64_t xc[2][2] = { { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } };
+  float hc[2][2] = { { 1, 1 }, { 1, 1 } };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_madd2d (ac, &xc[0][0], &hc[0][0], 2, 2);
   dp_cf64_t v = dp_acc_cf64_get (ac);

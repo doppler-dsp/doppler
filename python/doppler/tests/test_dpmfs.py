@@ -14,12 +14,13 @@ Checks:
 import numpy as np
 import pytest
 
-from doppler.polyphase import kaiser_prototype, fit_dpmfs, DPMFSCoeffs
+from doppler.polyphase import kaiser_prototype, fit_dpmfs
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_bank(atten=60.0, image=80.0, pb=0.4, sb=0.6):
     """Return (prototype_flat, polyphase[L, N])."""
@@ -35,6 +36,7 @@ def _build_bank(atten=60.0, image=80.0, pb=0.4, sb=0.6):
 # ---------------------------------------------------------------------------
 # Basic shape / dtype
 # ---------------------------------------------------------------------------
+
 
 class TestFitDPMFSShape:
     def test_c_shape(self):
@@ -81,6 +83,7 @@ class TestFitDPMFSShape:
 # Fit quality — polynomial reconstructs the source bank
 # ---------------------------------------------------------------------------
 
+
 class TestFitQuality:
     """RMS and max-absolute coefficient error vs the reference bank."""
 
@@ -112,6 +115,7 @@ class TestFitQuality:
 # evaluate() — matches the source bank at sampled μ
 # ---------------------------------------------------------------------------
 
+
 class TestEvaluate:
     def test_evaluate_at_phase_boundaries(self):
         """evaluate(0) and evaluate(0.5) should match bank rows 0 and L/2."""
@@ -139,9 +143,7 @@ class TestEvaluate:
         bank = _build_bank()
         coeffs = fit_dpmfs(bank, M=3)
         mu = 0.37
-        np.testing.assert_array_equal(
-            coeffs.evaluate(mu), coeffs.evaluate(mu + 1.0)
-        )
+        np.testing.assert_array_equal(coeffs.evaluate(mu), coeffs.evaluate(mu + 1.0))
 
     def test_evaluate_grid_rms(self):
         """RMS error over 256 uniformly spaced μ values < 5e-4."""
@@ -162,6 +164,7 @@ class TestEvaluate:
 # ---------------------------------------------------------------------------
 # validate()
 # ---------------------------------------------------------------------------
+
 
 class TestValidate:
     def test_validate_returns_dict(self):
@@ -190,6 +193,7 @@ class TestValidate:
 # ---------------------------------------------------------------------------
 # to_c_header()
 # ---------------------------------------------------------------------------
+
 
 class TestToCHeader:
     def test_contains_define_M(self):

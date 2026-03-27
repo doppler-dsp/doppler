@@ -22,7 +22,7 @@ from doppler.polyphase import (
     optimize_pbf,
     DPMFSCoeffs,
 )
-from doppler.polyphase.matlab_optimization import (
+from doppler.polyphase.farrow_opt import (
     pbf_freq_resp,
     pbf_imp_resp,
 )
@@ -32,14 +32,20 @@ from doppler.polyphase.matlab_optimization import (
 # Helpers                                                             #
 # ------------------------------------------------------------------ #
 
+
 def _default_C(N=6, M=3, pb=0.4, sb=0.6):
     """Run optimize_pbf with default DPMFS settings."""
     C, delta = optimize_pbf(
-        N=N, M=M,
-        passband=pb, stopband=sb,
-        a=1.0, b=-0.5,
-        K_pass=10.0, K_stop=1.0,
-        n_pass=80, n_stop=200,
+        N=N,
+        M=M,
+        passband=pb,
+        stopband=sb,
+        a=1.0,
+        b=-0.5,
+        K_pass=10.0,
+        K_stop=1.0,
+        n_pass=80,
+        n_stop=200,
         num_der=-1,
     )
     return C, delta
@@ -48,6 +54,7 @@ def _default_C(N=6, M=3, pb=0.4, sb=0.6):
 # ------------------------------------------------------------------ #
 # optimize_pbf                                                        #
 # ------------------------------------------------------------------ #
+
 
 class TestOptimizePbf:
     def test_c_shape(self):
@@ -68,9 +75,7 @@ class TestOptimizePbf:
         C, delta = _default_C()
         omega_pb = np.linspace(2 * np.pi * 0.01, 2 * np.pi * 0.4, 50)
         H = pbf_freq_resp(C, omega_pb, a=1.0, b=-0.5)
-        pb_real = np.real(
-            np.exp(1j * omega_pb * (C.shape[0] / 2)) * H
-        )
+        pb_real = np.real(np.exp(1j * omega_pb * (C.shape[0] / 2)) * H)
         # LP passband weight K_pass=10 → passband error ≤ delta/10
         tol = delta / 10.0 + 0.01
         assert np.max(np.abs(pb_real - 1.0)) < tol
@@ -87,14 +92,22 @@ class TestOptimizePbf:
         n_pass=100, n_stop=500 → expected δ = 0.0020.
         """
         C, delta = optimize_pbf(
-            N=6, M=3, passband=0.2, stopband=0.8,
-            a=1.0, b=-0.5, K_pass=10.0, K_stop=1.0,
-            n_pass=100, n_stop=500,
+            N=6,
+            M=3,
+            passband=0.2,
+            stopband=0.8,
+            a=1.0,
+            b=-0.5,
+            K_pass=10.0,
+            K_stop=1.0,
+            n_pass=100,
+            n_stop=500,
         )
         assert delta == pytest.approx(0.0020, abs=1e-4)
         # First row of C matches known values
         np.testing.assert_allclose(
-            C[0, :], [0.0138, 0.0687, -0.0079, -0.1415],
+            C[0, :],
+            [0.0138, 0.0687, -0.0079, -0.1415],
             atol=1e-4,
         )
 
@@ -102,6 +115,7 @@ class TestOptimizePbf:
 # ------------------------------------------------------------------ #
 # optimize_dpmfs — shape / dtype                                      #
 # ------------------------------------------------------------------ #
+
 
 class TestOptimizeDpmfsShape:
     def test_returns_dpmfscoeffs(self):
@@ -127,8 +141,7 @@ class TestOptimizeDpmfsShape:
         assert coeffs.N == 3
 
     def test_passband_stored(self):
-        coeffs = optimize_dpmfs(passband=0.35, N=6, M=3,
-                                n_pass=50, n_stop=100)
+        coeffs = optimize_dpmfs(passband=0.35, N=6, M=3, n_pass=50, n_stop=100)
         assert coeffs.passband == pytest.approx(0.35)
 
     def test_linear_M1(self):
@@ -140,6 +153,7 @@ class TestOptimizeDpmfsShape:
 # ------------------------------------------------------------------ #
 # optimize_dpmfs — spectral quality                                   #
 # ------------------------------------------------------------------ #
+
 
 class TestOptimizeDpmfsSpectral:
     """Evaluate the filter using DPMFSCoeffs.evaluate() at μ=0.25.
@@ -160,19 +174,26 @@ class TestOptimizeDpmfsSpectral:
         has 6 total pieces, 3 per DPMFS branch.  Deeper stopband
         requires larger N.
         """
-        from doppler.polyphase.matlab_optimization import (
-            optimize_pbf, pbf_freq_resp,
+        from doppler.polyphase.farrow_opt import (
+            optimize_pbf,
+            pbf_freq_resp,
         )
+
         C, delta = optimize_pbf(
-            N=6, M=3, passband=0.4, stopband=0.6,
-            a=1.0, b=-0.5, K_pass=10.0, K_stop=1.0,
-            n_pass=80, n_stop=200,
+            N=6,
+            M=3,
+            passband=0.4,
+            stopband=0.6,
+            a=1.0,
+            b=-0.5,
+            K_pass=10.0,
+            K_stop=1.0,
+            n_pass=80,
+            n_stop=200,
         )
         omega_sb = np.linspace(2 * np.pi * 0.6, 2 * np.pi * 1.0, 50)
         H = pbf_freq_resp(C, omega_sb, a=1.0, b=-0.5)
-        H_E = np.abs(
-            np.real(np.exp(1j * omega_sb * (C.shape[0] / 2)) * H)
-        )
+        H_E = np.abs(np.real(np.exp(1j * omega_sb * (C.shape[0] / 2)) * H))
         # LP guarantees the constraint on its training grid; off-grid
         # evaluation may exceed delta by a small margin (< 0.5%)
         assert H_E.max() <= delta * 1.01 + 1e-4
@@ -181,6 +202,7 @@ class TestOptimizeDpmfsSpectral:
 # ------------------------------------------------------------------ #
 # Basis conversion: evaluate() matches pbf_freq_resp                  #
 # ------------------------------------------------------------------ #
+
 
 class TestBasisConversion:
     """The monomial expansion in DPMFSCoeffs.evaluate() should give
@@ -199,20 +221,35 @@ class TestBasisConversion:
         a, b = 1.0, -0.5
         N_pieces, M = 6, 3
         C, _ = optimize_pbf(
-            N=N_pieces, M=M, passband=0.4, stopband=0.6,
-            a=a, b=b, K_pass=10.0, K_stop=1.0,
-            n_pass=60, n_stop=150, num_der=-1,
+            N=N_pieces,
+            M=M,
+            passband=0.4,
+            stopband=0.6,
+            a=a,
+            b=b,
+            K_pass=10.0,
+            K_stop=1.0,
+            n_pass=60,
+            n_stop=150,
+            num_der=-1,
         )
         coeffs = optimize_dpmfs(
-            N=N_pieces, M=M, passband=0.4, stopband=0.6,
-            a=a, b=b, n_pass=60, n_stop=150, num_der=-1,
+            N=N_pieces,
+            M=M,
+            passband=0.4,
+            stopband=0.6,
+            a=a,
+            b=b,
+            n_pass=60,
+            n_stop=150,
+            num_der=-1,
         )
         # pbf_imp_resp at a single μ value
         mu = np.array([0.25])
         _, ha = pbf_imp_resp(C, mu, a=a, b=b)
         # ha has N_pieces=6 values: ha[n] = h_n(μ=0.25)
         # Even pieces (n=0,2,4) map to j=0 branch (μ=0.25 → j=0)
-        ha_j0 = ha[[0, 2, 4]]                        # taps for j=0
+        ha_j0 = ha[[0, 2, 4]]  # taps for j=0
 
         # evaluate(0.25) → j=0, μ_J=0.5; monomial Horner
         h_eval = coeffs.evaluate(0.25).astype(np.float64)
@@ -224,30 +261,38 @@ class TestBasisConversion:
 # Continuity constraint                                               #
 # ------------------------------------------------------------------ #
 
+
 class TestContinuityConstraint:
     def test_num_der0_runs(self):
         """num_der=0 should succeed without error."""
         coeffs = optimize_dpmfs(
-            N=6, M=3, num_der=0, n_pass=60, n_stop=120,
+            N=6,
+            M=3,
+            num_der=0,
+            n_pass=60,
+            n_stop=120,
         )
         assert isinstance(coeffs, DPMFSCoeffs)
 
     def test_num_der0_continuous_at_boundary(self):
         """With num_der=0 the IR at μ=1.0 should ≈ μ=0.0 shifted by 1."""
         coeffs = optimize_dpmfs(
-            N=6, M=3, num_der=0, n_pass=60, n_stop=120,
+            N=6,
+            M=3,
+            num_der=0,
+            n_pass=60,
+            n_stop=120,
         )
-        h0 = coeffs.evaluate(0.0).astype(np.float64)
-        h1 = coeffs.evaluate(1.0).astype(np.float64)  # wraps to 0.0
+        _ = coeffs.evaluate(0.0).astype(np.float64)
+        _ = coeffs.evaluate(1.0).astype(np.float64)  # wraps to 0.0
         # evaluate wraps, so they should be identical
-        np.testing.assert_array_equal(
-            coeffs.evaluate(0.0), coeffs.evaluate(1.0)
-        )
+        np.testing.assert_array_equal(coeffs.evaluate(0.0), coeffs.evaluate(1.0))
 
 
 # ------------------------------------------------------------------ #
 # Comparison: fit_dpmfs vs optimize_dpmfs                             #
 # ------------------------------------------------------------------ #
+
 
 class TestFitVsOptimize:
     """Sanity comparison — both methods should produce plausible filters.
@@ -259,13 +304,16 @@ class TestFitVsOptimize:
 
     def test_both_have_small_evaluate_magnitude(self):
         """Evaluate at μ=0.5 should give a non-trivial filter for both."""
-        bank = kaiser_prototype(attenuation=60.0, passband=0.4,
-                                stopband=0.6)[1]
+        bank = kaiser_prototype(attenuation=60.0, passband=0.4, stopband=0.6)[1]
         fit = fit_dpmfs(bank, M=3)
 
         opt = optimize_dpmfs(
-            passband=0.4, stopband=0.6, N=6, M=3,
-            n_pass=60, n_stop=120,
+            passband=0.4,
+            stopband=0.6,
+            N=6,
+            M=3,
+            n_pass=60,
+            n_stop=120,
         )
 
         # Both should produce filter taps with non-zero energy

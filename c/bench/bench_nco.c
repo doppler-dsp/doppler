@@ -24,8 +24,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define BLOCK_SIZE 1048576  /* 1 M samples per iteration             */
-#define ITERATIONS 200      /* 200 M samples total per variant        */
+#define BLOCK_SIZE 1048576 /* 1 M samples per iteration             */
+#define ITERATIONS 200     /* 200 M samples total per variant        */
 
 /* ------------------------------------------------------------------ */
 
@@ -117,20 +117,18 @@ int
 main (void)
 {
   printf ("=== doppler NCO benchmark ===\n");
-  printf ("  block=%d  iters=%d  (%.0f M samples/variant)\n\n",
-          BLOCK_SIZE, ITERATIONS,
-          (double)BLOCK_SIZE * ITERATIONS / 1e6);
+  printf ("  block=%d  iters=%d  (%.0f M samples/variant)\n\n", BLOCK_SIZE,
+          ITERATIONS, (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
   /* Allocate output buffers */
   dp_cf32_t *cf32_out = malloc (BLOCK_SIZE * sizeof *cf32_out);
-  uint32_t  *u32_out  = malloc (BLOCK_SIZE * sizeof *u32_out);
-  uint8_t   *carry    = malloc (BLOCK_SIZE * sizeof *carry);
+  uint32_t *u32_out = malloc (BLOCK_SIZE * sizeof *u32_out);
+  uint8_t *carry = malloc (BLOCK_SIZE * sizeof *carry);
 
   /* Ctrl signal: low-deviation FM sine wave */
   float *ctrl = malloc (BLOCK_SIZE * sizeof *ctrl);
   for (int i = 0; i < BLOCK_SIZE; i++)
-    ctrl[i] = 0.002f
-              * (float)sin (2.0 * M_PI * 0.01 * i);
+    ctrl[i] = 0.002f * (float)sin (2.0 * M_PI * 0.01 * i);
 
   if (!cf32_out || !u32_out || !carry || !ctrl)
     {
@@ -141,8 +139,7 @@ main (void)
   dp_nco_t *nco = dp_nco_create (0.1f);
 
   printf ("  %-18s  %10s\n", "variant", "MSa/s");
-  printf ("  %-18s  %10s\n", "------------------",
-          "----------");
+  printf ("  %-18s  %10s\n", "------------------", "----------");
 
   double msa;
 

@@ -26,11 +26,11 @@
 
 struct dp_delay_cf64
 {
-  dp_cf64_t *buf;      /* 2 × capacity elements, heap-allocated */
-  size_t     head;     /* index of most-recent sample           */
-  size_t     capacity; /* next power of two ≥ num_taps          */
-  size_t     num_taps; /* number of taps the caller requested   */
-  size_t     mask;     /* capacity - 1 (bitmask for wrap)       */
+  dp_cf64_t *buf;  /* 2 × capacity elements, heap-allocated */
+  size_t head;     /* index of most-recent sample           */
+  size_t capacity; /* next power of two ≥ num_taps          */
+  size_t num_taps; /* number of taps the caller requested   */
+  size_t mask;     /* capacity - 1 (bitmask for wrap)       */
 };
 
 /* =========================================================================
@@ -59,10 +59,10 @@ dp_delay_cf64_create (size_t num_taps)
       return NULL;
     }
 
-  dl->head     = 0;
+  dl->head = 0;
   dl->capacity = capacity;
   dl->num_taps = num_taps;
-  dl->mask     = capacity - 1;
+  dl->mask = capacity - 1;
   return dl;
 }
 
@@ -106,8 +106,8 @@ void
 dp_delay_cf64_push (dp_delay_cf64_t *dl, dp_cf64_t x)
 {
   /* Decrement head first so ptr[0] == the sample we are about to write */
-  dl->head                       = (dl->head - 1) & dl->mask;
-  dl->buf[dl->head]               = x;
+  dl->head = (dl->head - 1) & dl->mask;
+  dl->buf[dl->head] = x;
   dl->buf[dl->head + dl->capacity] = x;
 }
 
@@ -125,9 +125,7 @@ dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, dp_cf64_t x)
 }
 
 void
-dp_delay_cf64_write (dp_delay_cf64_t *dl,
-                     const dp_cf64_t *in,
-                     size_t           n)
+dp_delay_cf64_write (dp_delay_cf64_t *dl, const dp_cf64_t *in, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     dp_delay_cf64_push (dl, in[i]);

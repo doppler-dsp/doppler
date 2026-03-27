@@ -71,19 +71,19 @@ dp_c16_mul (double complex a, double complex b)
    * Step 4: negate lane 0 of term2 → [-bd, +bc].
    * Step 5: add → [ac-bd, ad+bc].
    */
-  float64x2_t va_rr = vdupq_laneq_f64 (va, 0);  /* [re(a), re(a)] */
-  float64x2_t va_ii = vdupq_laneq_f64 (va, 1);  /* [im(a), im(a)] */
-  float64x2_t vb_ir = vextq_f64 (vb, vb, 1);    /* [im(b), re(b)] */
+  float64x2_t va_rr = vdupq_laneq_f64 (va, 0); /* [re(a), re(a)] */
+  float64x2_t va_ii = vdupq_laneq_f64 (va, 1); /* [im(a), im(a)] */
+  float64x2_t vb_ir = vextq_f64 (vb, vb, 1);   /* [im(b), re(b)] */
 
   float64x2_t term1 = vmulq_f64 (va_rr, vb);    /* [ac, ad] */
   float64x2_t term2 = vmulq_f64 (va_ii, vb_ir); /* [bd, bc] */
 
   /* negate lane 0 only → [-bd, +bc] */
-  static const double sign_arr[2] = {-1.0, 1.0};
+  static const double sign_arr[2] = { -1.0, 1.0 };
   float64x2_t sign = vld1q_f64 (sign_arr);
   term2 = vmulq_f64 (term2, sign);
 
-  float64x2_t res = vaddq_f64 (term1, term2);   /* [ac-bd, ad+bc] */
+  float64x2_t res = vaddq_f64 (term1, term2); /* [ac-bd, ad+bc] */
 
   double complex out;
   vst1q_f64 ((double *)&out, res);

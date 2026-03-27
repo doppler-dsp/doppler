@@ -23,8 +23,7 @@
 
 typedef struct
 {
-  PyObject_HEAD
-  dp_resamp_dpmfs_t *handle;
+  PyObject_HEAD dp_resamp_dpmfs_t *handle;
 } ResampDpmfsObject;
 
 static void
@@ -38,8 +37,7 @@ ResampDpmfs_dealloc (ResampDpmfsObject *self)
 static PyObject *
 ResampDpmfs_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  ResampDpmfsObject *self
-      = (ResampDpmfsObject *)type->tp_alloc (type, 0);
+  ResampDpmfsObject *self = (ResampDpmfsObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
@@ -64,15 +62,14 @@ ResampDpmfs_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
  * coeffs immediately after __init__ returns.
  */
 static int
-ResampDpmfs_init (ResampDpmfsObject *self, PyObject *args,
-                  PyObject *kwds)
+ResampDpmfs_init (ResampDpmfsObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"coeffs", "rate", NULL};
+  static char *kwlist[] = { "coeffs", "rate", NULL };
   PyObject *coeffs_obj = NULL;
-  double    rate       = 1.0;
+  double rate = 1.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", kwlist,
-                                    &coeffs_obj, &rate))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", kwlist, &coeffs_obj,
+                                    &rate))
     return -1;
 
   /* Extract .c attribute (shape (2, M+1, N)) */
@@ -86,25 +83,23 @@ ResampDpmfs_init (ResampDpmfsObject *self, PyObject *args,
   if (!c_arr)
     return -1;
 
-  if (PyArray_NDIM (c_arr) != 3
-      || PyArray_DIM (c_arr, 0) != 2)
+  if (PyArray_NDIM (c_arr) != 3 || PyArray_DIM (c_arr, 0) != 2)
     {
       Py_DECREF (c_arr);
-      PyErr_SetString (
-          PyExc_ValueError,
-          "coeffs.c must have shape (2, M+1, N) — "
-          "use doppler.polyphase.fit_dpmfs() to generate it");
+      PyErr_SetString (PyExc_ValueError,
+                       "coeffs.c must have shape (2, M+1, N) — "
+                       "use doppler.polyphase.fit_dpmfs() to generate it");
       return -1;
     }
 
   /* c[j, m, k] — axes: j=0..1, m=0..M, k=0..N-1 */
   size_t M1 = (size_t)PyArray_DIM (c_arr, 1); /* M+1 */
-  size_t N  = (size_t)PyArray_DIM (c_arr, 2);
-  size_t M  = M1 - 1;
+  size_t N = (size_t)PyArray_DIM (c_arr, 2);
+  size_t M = M1 - 1;
 
   const float *data = (const float *)PyArray_DATA (c_arr);
-  const float *c0   = data;           /* c[0, :, :] — (M+1)*N floats */
-  const float *c1   = data + M1 * N;  /* c[1, :, :] — (M+1)*N floats */
+  const float *c0 = data;          /* c[0, :, :] — (M+1)*N floats */
+  const float *c1 = data + M1 * N; /* c[1, :, :] — (M+1)*N floats */
 
   self->handle = dp_resamp_dpmfs_create (M, N, c0, c1, rate);
   Py_DECREF (c_arr);
@@ -120,44 +115,51 @@ ResampDpmfs_init (ResampDpmfsObject *self, PyObject *args,
 
 /* reset() */
 static PyObject *
-ResampDpmfs_reset (ResampDpmfsObject *self,
-                   PyObject *Py_UNUSED (ignored))
+ResampDpmfs_reset (ResampDpmfsObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
-    { PyErr_SetString (PyExc_RuntimeError, "destroyed"); return NULL; }
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   dp_resamp_dpmfs_reset (self->handle);
   Py_RETURN_NONE;
 }
 
 /* rate -> float */
 static PyObject *
-ResampDpmfs_rate (ResampDpmfsObject *self,
-                  PyObject *Py_UNUSED (ignored))
+ResampDpmfs_rate (ResampDpmfsObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
-    { PyErr_SetString (PyExc_RuntimeError, "destroyed"); return NULL; }
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyFloat_FromDouble (dp_resamp_dpmfs_rate (self->handle));
 }
 
 /* num_taps -> int */
 static PyObject *
-ResampDpmfs_num_taps (ResampDpmfsObject *self,
-                      PyObject *Py_UNUSED (ignored))
+ResampDpmfs_num_taps (ResampDpmfsObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
-    { PyErr_SetString (PyExc_RuntimeError, "destroyed"); return NULL; }
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromSize_t (dp_resamp_dpmfs_num_taps (self->handle));
 }
 
 /* poly_order -> int */
 static PyObject *
-ResampDpmfs_poly_order (ResampDpmfsObject *self,
-                        PyObject *Py_UNUSED (ignored))
+ResampDpmfs_poly_order (ResampDpmfsObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
-    { PyErr_SetString (PyExc_RuntimeError, "destroyed"); return NULL; }
-  return PyLong_FromSize_t (
-      dp_resamp_dpmfs_poly_order (self->handle));
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dp_resamp_dpmfs_poly_order (self->handle));
 }
 
 /* execute(x) -> np.ndarray[complex64] */
@@ -165,7 +167,10 @@ static PyObject *
 ResampDpmfs_execute (ResampDpmfsObject *self, PyObject *args)
 {
   if (!self->handle)
-    { PyErr_SetString (PyExc_RuntimeError, "destroyed"); return NULL; }
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
 
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
@@ -176,26 +181,26 @@ ResampDpmfs_execute (ResampDpmfsObject *self, PyObject *args)
   if (!in_arr)
     return NULL;
 
-  size_t num_in  = (size_t)PyArray_SIZE (in_arr);
-  double rate    = dp_resamp_dpmfs_rate (self->handle);
-  size_t N       = dp_resamp_dpmfs_num_taps (self->handle);
+  size_t num_in = (size_t)PyArray_SIZE (in_arr);
+  double rate = dp_resamp_dpmfs_rate (self->handle);
+  size_t N = dp_resamp_dpmfs_num_taps (self->handle);
   size_t max_out = (size_t)ceil (num_in * rate) + N + 4;
 
   npy_intp out_dim = (npy_intp)max_out;
   PyObject *out_arr = PyArray_SimpleNew (1, &out_dim, NPY_COMPLEX64);
   if (!out_arr)
-    { Py_DECREF (in_arr); return NULL; }
+    {
+      Py_DECREF (in_arr);
+      return NULL;
+    }
 
   size_t n_out = dp_resamp_dpmfs_execute (
-      self->handle,
-      (const dp_cf32_t *)PyArray_DATA (in_arr),
-      num_in,
-      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
-      max_out);
+      self->handle, (const dp_cf32_t *)PyArray_DATA (in_arr), num_in,
+      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr), max_out);
   Py_DECREF (in_arr);
 
-  PyObject *slice = PySlice_New (
-      PyLong_FromLong (0), PyLong_FromSsize_t ((npy_intp)n_out), NULL);
+  PyObject *slice = PySlice_New (PyLong_FromLong (0),
+                                 PyLong_FromSsize_t ((npy_intp)n_out), NULL);
   PyObject *result = PyObject_GetItem (out_arr, slice);
   Py_DECREF (slice);
   Py_DECREF (out_arr);
@@ -204,8 +209,7 @@ ResampDpmfs_execute (ResampDpmfsObject *self, PyObject *args)
 
 /* context manager */
 static PyObject *
-ResampDpmfs_enter (ResampDpmfsObject *self,
-                   PyObject *Py_UNUSED (ignored))
+ResampDpmfs_enter (ResampDpmfsObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
@@ -216,38 +220,37 @@ ResampDpmfs_exit (ResampDpmfsObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
-    { dp_resamp_dpmfs_destroy (self->handle); self->handle = NULL; }
+    {
+      dp_resamp_dpmfs_destroy (self->handle);
+      self->handle = NULL;
+    }
   Py_RETURN_NONE;
 }
 
-static PyMethodDef ResampDpmfs_methods[] = {
-  {"reset",      (PyCFunction)ResampDpmfs_reset,
-   METH_NOARGS,  "Zero history and reset phase accumulator."},
-  {"rate",       (PyCFunction)ResampDpmfs_rate,
-   METH_NOARGS,  "Return fs_out / fs_in."},
-  {"num_taps",   (PyCFunction)ResampDpmfs_num_taps,
-   METH_NOARGS,  "Return taps per phase (N)."},
-  {"poly_order", (PyCFunction)ResampDpmfs_poly_order,
-   METH_NOARGS,  "Return polynomial order (M)."},
-  {"execute",    (PyCFunction)ResampDpmfs_execute,
-   METH_VARARGS, "execute(x) -> np.ndarray[complex64]"},
-  {"__enter__",  (PyCFunction)ResampDpmfs_enter,
-   METH_NOARGS,  NULL},
-  {"__exit__",   (PyCFunction)ResampDpmfs_exit,
-   METH_VARARGS, NULL},
-  {NULL}
-};
+static PyMethodDef ResampDpmfs_methods[]
+    = { { "reset", (PyCFunction)ResampDpmfs_reset, METH_NOARGS,
+          "Zero history and reset phase accumulator." },
+        { "rate", (PyCFunction)ResampDpmfs_rate, METH_NOARGS,
+          "Return fs_out / fs_in." },
+        { "num_taps", (PyCFunction)ResampDpmfs_num_taps, METH_NOARGS,
+          "Return taps per phase (N)." },
+        { "poly_order", (PyCFunction)ResampDpmfs_poly_order, METH_NOARGS,
+          "Return polynomial order (M)." },
+        { "execute", (PyCFunction)ResampDpmfs_execute, METH_VARARGS,
+          "execute(x) -> np.ndarray[complex64]" },
+        { "__enter__", (PyCFunction)ResampDpmfs_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)ResampDpmfs_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject ResampDpmfsType = {
-    PyVarObject_HEAD_INIT (NULL, 0)
-    .tp_name      = "dp_resamp_dpmfs.ResampDpmfs",
-    .tp_basicsize = sizeof (ResampDpmfsObject),
-    .tp_dealloc   = (destructor)ResampDpmfs_dealloc,
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Wraps dp_resamp_dpmfs_t — DPMFS polyphase resampler.",
-    .tp_methods   = ResampDpmfs_methods,
-    .tp_new       = ResampDpmfs_new,
-    .tp_init      = (initproc)ResampDpmfs_init,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dp_resamp_dpmfs.ResampDpmfs",
+  .tp_basicsize = sizeof (ResampDpmfsObject),
+  .tp_dealloc = (destructor)ResampDpmfs_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "Wraps dp_resamp_dpmfs_t — DPMFS polyphase resampler.",
+  .tp_methods = ResampDpmfs_methods,
+  .tp_new = ResampDpmfs_new,
+  .tp_init = (initproc)ResampDpmfs_init,
 };
 
 /* ======================================================== */
@@ -255,11 +258,11 @@ static PyTypeObject ResampDpmfsType = {
 /* ======================================================== */
 
 static PyModuleDef dp_resamp_dpmfs_module = {
-    PyModuleDef_HEAD_INIT,
-    .m_name    = "dp_resamp_dpmfs",
-    .m_doc     = "Python binding for dp/resamp_dpmfs.h.",
-    .m_size    = -1,
-    .m_methods = NULL,
+  PyModuleDef_HEAD_INIT,
+  .m_name = "dp_resamp_dpmfs",
+  .m_doc = "Python binding for dp/resamp_dpmfs.h.",
+  .m_size = -1,
+  .m_methods = NULL,
 };
 
 PyMODINIT_FUNC
@@ -274,8 +277,7 @@ PyInit_dp_resamp_dpmfs (void)
     return NULL;
 
   Py_INCREF (&ResampDpmfsType);
-  if (PyModule_AddObject (m, "ResampDpmfs",
-                          (PyObject *)&ResampDpmfsType) < 0)
+  if (PyModule_AddObject (m, "ResampDpmfs", (PyObject *)&ResampDpmfsType) < 0)
     {
       Py_DECREF (&ResampDpmfsType);
       Py_DECREF (m);

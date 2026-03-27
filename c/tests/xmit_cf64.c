@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#define N_SAMPLES   4
+#define N_SAMPLES 4
 #define SAMPLE_RATE 2048000
 #define CENTER_FREQ 1420405752
 

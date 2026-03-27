@@ -57,13 +57,13 @@ class DPMFSCoeffs:
         h[k] = Horner(c[j, :, k], mu_J)
     """
 
-    c: np.ndarray       # float32, shape (2, M+1, N)
-    M: int              # polynomial order
-    N: int              # taps per phase
+    c: np.ndarray  # float32, shape (2, M+1, N)
+    M: int  # polynomial order
+    N: int  # taps per phase
     passband: float
     stopband: float
     attenuation: float
-    residual_rms: float # RMS coefficient fit error
+    residual_rms: float  # RMS coefficient fit error
 
     # ------------------------------------------------------------------
     # Evaluation
@@ -116,16 +116,13 @@ class DPMFSCoeffs:
         polyphase = np.asarray(polyphase, dtype=np.float64)
         L, N = polyphase.shape
         mu_vals = np.arange(L) / L
-        h_approx = np.array(
-            [self.evaluate(mu).astype(np.float64) for mu in mu_vals]
-        )
+        h_approx = np.array([self.evaluate(mu).astype(np.float64) for mu in mu_vals])
         err = h_approx - polyphase
-        rms = float(np.sqrt(np.mean(err ** 2)))
+        rms = float(np.sqrt(np.mean(err**2)))
         max_abs = float(np.max(np.abs(err)))
         if verbose:
             print(
-                f"  DPMFS fit  M={self.M}  N={self.N}"
-                f"  rms={rms:.2e}  max={max_abs:.2e}"
+                f"  DPMFS fit  M={self.M}  N={self.N}  rms={rms:.2e}  max={max_abs:.2e}"
             )
         return {"rms": rms, "max_abs": max_abs}
 
@@ -151,12 +148,9 @@ class DPMFSCoeffs:
         ]
         for j in range(2):
             for m in range(self.M + 1):
-                vals = ", ".join(
-                    f"{v:.8e}f" for v in self.c[j, m, :]
-                )
+                vals = ", ".join(f"{v:.8e}f" for v in self.c[j, m, :])
                 lines.append(
-                    f"static const float {name}_c{j}_m{m}"
-                    f"[{self.N}] = {{{vals}}};"
+                    f"static const float {name}_c{j}_m{m}[{self.N}] = {{{vals}}};"
                 )
             lines.append("")
         return "\n".join(lines)
@@ -165,6 +159,7 @@ class DPMFSCoeffs:
 # ----------------------------------------------------------------------
 # Design
 # ----------------------------------------------------------------------
+
 
 def fit_dpmfs(
     polyphase: np.ndarray,
@@ -210,7 +205,7 @@ def fit_dpmfs(
     # For j=0: μ ∈ [0, 0.5) → μ_J = 2μ ∈ [0, 1)
     # For j=1: μ ∈ [0.5, 1) → μ_J = 2μ-1 ∈ [0, 1)
     # Both halves map identically to μ_J ∈ [0, 1).
-    mu_J = np.arange(half) / half              # (half,)
+    mu_J = np.arange(half) / half  # (half,)
     V = np.vander(mu_J, M + 1, increasing=True)  # (half, M+1)
 
     c = np.zeros((2, M + 1, N), dtype=np.float64)
@@ -223,7 +218,7 @@ def fit_dpmfs(
         coeffs, _, _, _ = np.linalg.lstsq(V, rows, rcond=None)
         c[j] = coeffs
         residuals = V @ coeffs - rows
-        total_sq_err += float(np.sum(residuals ** 2))
+        total_sq_err += float(np.sum(residuals**2))
 
     rms = float(np.sqrt(total_sq_err / (L * N)))
 

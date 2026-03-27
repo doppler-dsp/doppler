@@ -89,8 +89,8 @@ async def tune(body: dict):
 # WebSocket — stream FFT frames
 # ---------------------------------------------------------------------------
 
-_FRAME_RATE = 30   # target frames per second
-_FRAME_DT   = 1.0 / _FRAME_RATE
+_FRAME_RATE = 30  # target frames per second
+_FRAME_DT = 1.0 / _FRAME_RATE
 
 
 @app.websocket("/ws")
@@ -105,12 +105,14 @@ async def websocket_endpoint(ws: WebSocket):
             loop = asyncio.get_event_loop()
             db = await loop.run_in_executor(None, generate_frame, _state)
 
-            payload = json.dumps({
-                "fft_size": _state.fft_size,
-                "sample_rate": _state.sample_rate,
-                "center_freq": _state.center_freq,
-                "db": db,
-            })
+            payload = json.dumps(
+                {
+                    "fft_size": _state.fft_size,
+                    "sample_rate": _state.sample_rate,
+                    "center_freq": _state.center_freq,
+                    "db": db,
+                }
+            )
             await ws.send_text(payload)
 
             # Check for incoming tune commands over the same socket
@@ -121,8 +123,7 @@ async def websocket_endpoint(ws: WebSocket):
                     _state.center_freq = float(cmd["center_freq"])
                 if "fft_size" in cmd:
                     fft_size = int(cmd["fft_size"])
-                    if fft_size & (fft_size - 1) == 0 and \
-                            64 <= fft_size <= 65536:
+                    if fft_size & (fft_size - 1) == 0 and 64 <= fft_size <= 65536:
                         _state.fft_size = fft_size
                 if "tone_freq" in cmd:
                     _state.tone_freq = float(cmd["tone_freq"])
@@ -144,6 +145,7 @@ async def websocket_endpoint(ws: WebSocket):
 # Entry point (called by __main__.py)
 # ---------------------------------------------------------------------------
 
+
 def _is_wsl() -> bool:
     try:
         return "microsoft" in Path("/proc/version").read_text().lower()
@@ -162,14 +164,17 @@ def main(
     print(f"  doppler specan  →  {url}")
 
     if open_browser and not _is_wsl():
-        import threading   # noqa: PLC0415
+        import threading  # noqa: PLC0415
         import webbrowser  # noqa: PLC0415
+
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 
     # ws_ping_interval=None disables uvicorn's keepalive pings, which
     # trigger an AssertionError in websockets >= 13 legacy protocol.
     uvicorn.run(
-        app, host=host, port=port,
+        app,
+        host=host,
+        port=port,
         log_level="warning",
         ws_ping_interval=None,
     )

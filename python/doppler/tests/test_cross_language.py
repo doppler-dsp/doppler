@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import time
 from pathlib import Path
 
 import numpy as np
@@ -38,11 +37,9 @@ def _binary_available() -> bool:
 
 
 # Known payload — must match xmit_cf64.c exactly
-_EXPECTED_SAMPLES = np.array(
-    [1 + 2j, 3 + 4j, 5 + 6j, 7 + 8j], dtype=np.complex128
-)
+_EXPECTED_SAMPLES = np.array([1 + 2j, 3 + 4j, 5 + 6j, 7 + 8j], dtype=np.complex128)
 _EXPECTED_SAMPLE_RATE = 2_048_000
-_EXPECTED_CENTER_FREQ = 1_420_405_752   # hydrogen line
+_EXPECTED_CENTER_FREQ = 1_420_405_752  # hydrogen line
 
 
 # ---------------------------------------------------------------------------

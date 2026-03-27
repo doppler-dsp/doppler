@@ -99,10 +99,8 @@ extern "C"
    *                    Must be > 0.
    * @return            Heap-allocated resampler, or NULL on failure.
    */
-  dp_resamp_cf32_t *dp_resamp_cf32_create (size_t       num_phases,
-                                           size_t       num_taps,
-                                           const float *bank,
-                                           double       rate);
+  dp_resamp_cf32_t *dp_resamp_cf32_create (size_t num_phases, size_t num_taps,
+                                           const float *bank, double rate);
 
   /**
    * @brief Free a resampler.
@@ -158,11 +156,9 @@ extern "C"
    * @param max_out  Capacity of @p out in samples.
    * @return         Number of output samples written to @p out.
    */
-  size_t dp_resamp_cf32_execute (dp_resamp_cf32_t *r,
-                                 const dp_cf32_t  *in,
-                                 size_t            num_in,
-                                 dp_cf32_t        *out,
-                                 size_t            max_out);
+  size_t dp_resamp_cf32_execute (dp_resamp_cf32_t *r, const dp_cf32_t *in,
+                                 size_t num_in, dp_cf32_t *out,
+                                 size_t max_out);
 
 #ifdef __cplusplus
 }

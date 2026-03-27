@@ -158,8 +158,7 @@ extern "C"
    * @param x   New sample.
    * @return    Updated contiguous read pointer.
    */
-  const dp_cf64_t *dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl,
-                                           dp_cf64_t x);
+  const dp_cf64_t *dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, dp_cf64_t x);
 
   /**
    * @brief Push @p n samples from an array into the delay line.
@@ -180,9 +179,8 @@ extern "C"
    * @param in   Input array of @p n cf64 samples (oldest first).
    * @param n    Number of samples to push.
    */
-  void dp_delay_cf64_write (dp_delay_cf64_t  *dl,
-                            const dp_cf64_t  *in,
-                            size_t            n);
+  void dp_delay_cf64_write (dp_delay_cf64_t *dl, const dp_cf64_t *in,
+                            size_t n);
 
 #ifdef __cplusplus
 }

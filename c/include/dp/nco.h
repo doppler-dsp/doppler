@@ -262,8 +262,8 @@ extern "C"
    * @param carry  Output array of @p n uint8_t carry flags.
    * @param n      Number of samples.
    */
-  void dp_nco_execute_u32_ovf (dp_nco_t *nco, uint32_t *out,
-                               uint8_t *carry, size_t n);
+  void dp_nco_execute_u32_ovf (dp_nco_t *nco, uint32_t *out, uint8_t *carry,
+                               size_t n);
 
   /**
    * @brief Output raw uint32 phase + carry bit with ctrl port.
@@ -275,8 +275,7 @@ extern "C"
    * @param n      Number of samples.
    */
   void dp_nco_execute_u32_ovf_ctrl (dp_nco_t *nco, const float *ctrl,
-                                    uint32_t *out, uint8_t *carry,
-                                    size_t n);
+                                    uint32_t *out, uint8_t *carry, size_t n);
 
 #ifdef __cplusplus
 }

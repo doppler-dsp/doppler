@@ -18,6 +18,8 @@ Quick start
 >>> to_npy(bank, "polyphase_bank.npy")           # write numpy array
 """
 
-from ._polyphase import design_bank, plot_response, to_c_header, to_npy
+from ._polyphase import (PolyphaseBank, design_bank, plot_response,
+                         to_c_header, to_npy)
 
-__all__ = ["design_bank", "plot_response", "to_c_header", "to_npy"]
+__all__ = ["PolyphaseBank", "design_bank", "plot_response",
+           "to_c_header", "to_npy"]

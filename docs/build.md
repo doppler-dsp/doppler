@@ -114,15 +114,29 @@ sudo apt-get install libzmq3-dev libfftw3-dev cmake pkg-config python3-dev pytho
 brew install zeromq fftw cmake python numpy
 ```
 
-**Windows (MSYS2 / MinGW-w64):**
+**Windows (MSYS2 / UCRT64):**
 
-Install [MSYS2](https://www.msys2.org/) and run the following in the **MinGW64** shell:
+Install [MSYS2](https://www.msys2.org/) and open the **UCRT64** shell
+(not MSYS2, not MinGW64 — the UCRT64 environment uses the modern
+Universal C Runtime and avoids header-mixing issues).
 
 ```bash
-pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-zeromq \
-          mingw-w64-x86_64-fftw mingw-w64-x86_64-python mingw-w64-x86_64-python-numpy \
+pacman -S mingw-w64-ucrt-x86_64-gcc \
+          mingw-w64-ucrt-x86_64-cmake \
+          mingw-w64-ucrt-x86_64-zeromq \
+          mingw-w64-ucrt-x86_64-fftw \
+          mingw-w64-ucrt-x86_64-python \
+          mingw-w64-ucrt-x86_64-python-numpy \
+          mingw-w64-ucrt-x86_64-rust \
           make pkg-config
 ```
+
+> **Why UCRT64?** The MSYS POSIX environment (`/usr/bin/cc`) and the
+> UCRT64 native environment (`/ucrt64/bin/cc`) have incompatible headers.
+> If cmake picks up the wrong `cc` you'll see errors like
+> `expected ';' before 'extern'` in `stddef.h`. Always launch from the
+> UCRT64 shortcut so `/ucrt64/bin` is first on `PATH`, and clear any
+> stale `build/` directory before reconfiguring.
 
 ### Python Extension: Vendored Dependencies
 
@@ -204,7 +218,9 @@ runs in the C library.
 
 ### Prerequisites
 
-- Rust toolchain (`rustup` recommended)
+- Rust toolchain — install via the MSYS2 package manager on Windows
+  (`mingw-w64-ucrt-x86_64-rust`) or via [rustup](https://rustup.rs/)
+  on Linux/macOS
 - The C library built first: `make build`
 
 ### Build and test
@@ -214,8 +230,8 @@ make rust-test       # build C library + run all 23 Rust tests
 make rust-examples   # build examples and list their paths
 ```
 
-The `build.rs` script bakes an rpath into every binary pointing at
-`build/c/`, so examples run directly without setting `LD_LIBRARY_PATH`:
+**Linux/macOS** — `build.rs` bakes an rpath into every binary so
+examples run directly without setting `LD_LIBRARY_PATH`:
 
 ```sh
 ./ffi/rust/target/debug/examples/nco_demo
@@ -223,7 +239,20 @@ The `build.rs` script bakes an rpath into every binary pointing at
 ./ffi/rust/target/debug/examples/simd_demo
 ```
 
-After `make install` the installed library path is used instead.
+**Windows (UCRT64)** — the Rust crate links `libdoppler.a` statically,
+so there is no `libdoppler.dll` runtime dependency. Examples run
+directly from the UCRT64 shell:
+
+```sh
+./ffi/rust/target/debug/examples/nco_demo.exe
+./ffi/rust/target/debug/examples/fft_demo.exe
+```
+
+`zmq.dll` and `fftw3.dll` are still loaded dynamically; they live in
+`/ucrt64/bin/` which is on `PATH` by default in the UCRT64 shell.
+
+After `make install` on Linux/macOS the installed library path is used
+instead of the build tree.
 
 ### Modules
 

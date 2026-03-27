@@ -229,6 +229,9 @@ target_link_libraries(bench_buffer_c PRIVATE doppler_static m pthread)
 add_executable(bench_nco_c bench/bench_nco.c)
 target_link_libraries(bench_nco_c PRIVATE doppler_static m)
 
+add_executable(bench_accumulator_c bench/bench_accumulator.c)
+target_link_libraries(bench_accumulator_c PRIVATE doppler_static m)
+
 add_executable(fft_testbench tests/fft_testbench.c)
 target_link_libraries(fft_testbench PRIVATE doppler_static m pthread)
 

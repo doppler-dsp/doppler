@@ -1,0 +1,5 @@
+# Override Rust's default -fno-use-linker-plugin on Windows GNU targets.
+# The C library is built with -flto=auto; the LTO plugin must be active
+# to link LTO objects from libdoppler.a.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-linker-plugin"]

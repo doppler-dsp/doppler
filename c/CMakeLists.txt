@@ -68,6 +68,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Source list shared by both library variants
 # ------------------------------------------------------------
 set(DOPPLER_SOURCES
+    src/accumulator.c
     src/core.c
     src/fir.c
     src/nco.c
@@ -150,6 +151,7 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 install(FILES
+    include/dp/accumulator.h
     include/dp/buffer.h
     include/dp/core.h
     include/dp/fft.h
@@ -260,6 +262,10 @@ target_link_libraries(test_fir PRIVATE doppler_static m)
 add_executable(test_nco tests/test_nco.c)
 target_link_libraries(test_nco PRIVATE doppler_static m)
 
+# Accumulator unit tests
+add_executable(test_accumulator tests/test_accumulator.c)
+target_link_libraries(test_accumulator PRIVATE doppler_static m)
+
 # Cross-language integration helper (used by Python pytest)
 add_executable(xmit_cf64 tests/xmit_cf64.c)
 target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
@@ -269,10 +275,11 @@ target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
 # ------------------------------------------------------------
 enable_testing()
 
-add_test(NAME streaming_unit_tests COMMAND test_stream)
-add_test(NAME fft_testbench        COMMAND fft_testbench)
-add_test(NAME fir_unit_tests       COMMAND test_fir)
-add_test(NAME nco_unit_tests       COMMAND test_nco)
+add_test(NAME streaming_unit_tests   COMMAND test_stream)
+add_test(NAME fft_testbench          COMMAND fft_testbench)
+add_test(NAME fir_unit_tests         COMMAND test_fir)
+add_test(NAME nco_unit_tests         COMMAND test_nco)
+add_test(NAME accumulator_unit_tests COMMAND test_accumulator)
 
 # ------------------------------------------------------------
 # Windows: stage runtime DLLs next to the executables so they

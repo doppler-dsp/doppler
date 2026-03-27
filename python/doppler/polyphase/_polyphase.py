@@ -194,7 +194,7 @@ def design_bank(
     >>> pb = design_bank()
     >>> pb.shape
     (4096, 19)
-    >>> pb.plot_response()          # uses stored design parameters
+    >>> _ = pb.plot_response()      # shows for 1 s then continues
     >>> to_c_header(pb, path="bank.h")
     """
     bands = tuple(bands)
@@ -309,7 +309,8 @@ def plot_response(
     fig.tight_layout()
 
     if show:
-        plt.show()
+        plt.show(block=False)
+        plt.pause(1.0)
 
     return fig
 

@@ -69,6 +69,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # ------------------------------------------------------------
 set(DOPPLER_SOURCES
     src/accumulator.c
+    src/delay.c
     src/core.c
     src/fir.c
     src/nco.c
@@ -154,6 +155,7 @@ install(FILES
     include/dp/accumulator.h
     include/dp/buffer.h
     include/dp/core.h
+    include/dp/delay.h
     include/dp/fft.h
     include/dp/fir.h
     include/dp/nco.h
@@ -269,6 +271,10 @@ target_link_libraries(test_nco PRIVATE doppler_static m)
 add_executable(test_accumulator tests/test_accumulator.c)
 target_link_libraries(test_accumulator PRIVATE doppler_static m)
 
+# Delay line unit tests
+add_executable(test_delay tests/test_delay.c)
+target_link_libraries(test_delay PRIVATE doppler_static m)
+
 # Cross-language integration helper (used by Python pytest)
 add_executable(xmit_cf64 tests/xmit_cf64.c)
 target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
@@ -283,6 +289,7 @@ add_test(NAME fft_testbench          COMMAND fft_testbench)
 add_test(NAME fir_unit_tests         COMMAND test_fir)
 add_test(NAME nco_unit_tests         COMMAND test_nco)
 add_test(NAME accumulator_unit_tests COMMAND test_accumulator)
+add_test(NAME delay_unit_tests       COMMAND test_delay)
 
 # ------------------------------------------------------------
 # Windows: stage runtime DLLs next to the executables so they

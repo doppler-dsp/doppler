@@ -93,6 +93,40 @@ extern "C"
   void dp_nco_set_freq (dp_nco_t *nco, float norm_freq);
 
   /**
+   * @brief Return the current normalised frequency.
+   *
+   * Returns the value last passed to dp_nco_create() or
+   * dp_nco_set_freq() — no conversion from the phase accumulator.
+   *
+   * @param nco  Must be non-NULL.
+   */
+  float dp_nco_get_freq (const dp_nco_t *nco);
+
+  /**
+   * @brief Return the current raw 32-bit phase accumulator value.
+   *
+   * The phase advances by @c phase_inc on every execute tick.
+   * Convert to normalised units: @c phase / 2^32.
+   *
+   * @param nco  Must be non-NULL.
+   */
+  uint32_t dp_nco_get_phase (const dp_nco_t *nco);
+
+  /**
+   * @brief Return the phase increment (fixed-point frequency).
+   *
+   * This is the value added to the phase accumulator on every execute
+   * tick: @c phase_inc = round(norm_freq × 2^32).  Directly usable as
+   * the NCO step in a polyphase branch selector:
+   * @code
+   *   branch = (phase + phase_inc) >> (32 - log2(num_phases));
+   * @endcode
+   *
+   * @param nco  Must be non-NULL.
+   */
+  uint32_t dp_nco_get_phase_inc (const dp_nco_t *nco);
+
+  /**
    * @brief Reset the phase accumulator to zero.
    *
    * Does not change the centre frequency.  Use after a stream

@@ -14,8 +14,8 @@ Quick start
 >>> bank_ls = design_bank(method="firls")   # least-squares (needs SciPy)
 
 >>> from doppler.polyphase import to_c_header, to_npy
->>> to_c_header(bank, path="polyphase_bank.h")  # write C header
->>> to_npy(bank, "polyphase_bank.npy")           # write numpy array
+>>> to_c_header(bank, path="polyphase_bank.h")  # doctest: +SKIP
+>>> to_npy(bank, "polyphase_bank.npy")           # doctest: +SKIP
 """
 
 from ._polyphase import (PolyphaseBank, design_bank, plot_response,

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_SRC = ROOT / "python" / "src"
+PY_SRC = ROOT / "python" / "ext"
 
 # ── type tables ────────────────────────────────────────────
 

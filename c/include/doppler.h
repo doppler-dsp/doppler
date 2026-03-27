@@ -37,6 +37,7 @@
 
 #include "dp/accumulator.h"
 #include "dp/buffer.h"
+#include "dp/delay.h"
 #include "dp/core.h"
 #include "dp/fft.h"
 #include "dp/fir.h"

@@ -30,11 +30,20 @@ dev = [
     "pytest-cov>=6.0",
     "zensical>=0.0.29",
     "doppler-dsp[specan]",
+    "matplotlib>=3.10.8",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--tb=short"
-testpaths = ["python/doppler/tests"]
+addopts = "--tb=short --doctest-modules"
+testpaths = [
+    "python/doppler/tests",
+    "python/doppler/accumulator",
+    "python/doppler/delay",
+    "python/doppler/fft",
+    "python/doppler/polyphase",
+    "python/doppler/resample",
+]
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
 
 [tool.coverage.run]
 source = ["python/doppler"]

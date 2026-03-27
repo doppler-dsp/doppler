@@ -284,3 +284,7 @@ core
 a.out
 wheelhouse/
 .devcontainer/
+
+# Reference documents / scratch files
+*.pdf
+python/doppler/polyphase/opt_example.py

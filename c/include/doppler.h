@@ -42,6 +42,8 @@
 #include "dp/fft.h"
 #include "dp/fir.h"
 #include "dp/nco.h"
+#include "dp/resamp.h"
+#include "dp/resamp_dpmfs.h"
 #include "dp/simd.h"
 #include "dp/stream.h"
 

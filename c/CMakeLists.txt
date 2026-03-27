@@ -73,6 +73,8 @@ set(DOPPLER_SOURCES
     src/core.c
     src/fir.c
     src/nco.c
+    src/resamp.c
+    src/resamp_dpmfs.c
     src/simd.c
     src/stream.c
     ${FFT_BACKEND_SOURCES}
@@ -159,6 +161,8 @@ install(FILES
     include/dp/fft.h
     include/dp/fir.h
     include/dp/nco.h
+    include/dp/resamp.h
+    include/dp/resamp_dpmfs.h
     include/dp/simd.h
     include/dp/stream.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dp
@@ -234,6 +238,12 @@ target_link_libraries(bench_nco_c PRIVATE doppler_static m)
 add_executable(bench_accumulator_c bench/bench_accumulator.c)
 target_link_libraries(bench_accumulator_c PRIVATE doppler_static m)
 
+add_executable(bench_resamp_c bench/bench_resamp.c)
+target_link_libraries(bench_resamp_c PRIVATE doppler_static m)
+
+add_executable(bench_resamp_dpmfs_c bench/bench_resamp_dpmfs.c)
+target_link_libraries(bench_resamp_dpmfs_c PRIVATE doppler_static m)
+
 add_executable(fft_testbench tests/fft_testbench.c)
 target_link_libraries(fft_testbench PRIVATE doppler_static m pthread)
 
@@ -275,6 +285,14 @@ target_link_libraries(test_accumulator PRIVATE doppler_static m)
 add_executable(test_delay tests/test_delay.c)
 target_link_libraries(test_delay PRIVATE doppler_static m)
 
+# Resampler unit tests
+add_executable(test_resamp tests/test_resamp.c)
+target_link_libraries(test_resamp PRIVATE doppler_static m)
+
+# DPMFS resampler unit tests
+add_executable(test_resamp_dpmfs tests/test_resamp_dpmfs.c)
+target_link_libraries(test_resamp_dpmfs PRIVATE doppler_static m)
+
 # Cross-language integration helper (used by Python pytest)
 add_executable(xmit_cf64 tests/xmit_cf64.c)
 target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
@@ -290,6 +308,8 @@ add_test(NAME fir_unit_tests         COMMAND test_fir)
 add_test(NAME nco_unit_tests         COMMAND test_nco)
 add_test(NAME accumulator_unit_tests COMMAND test_accumulator)
 add_test(NAME delay_unit_tests       COMMAND test_delay)
+add_test(NAME resamp_unit_tests      COMMAND test_resamp)
+add_test(NAME resamp_dpmfs_unit_tests COMMAND test_resamp_dpmfs)
 
 # ------------------------------------------------------------
 # Windows: stage runtime DLLs next to the executables so they

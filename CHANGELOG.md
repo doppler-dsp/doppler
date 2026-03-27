@@ -1,158 +1,140 @@
 # Changelog
 
-Development history moved from CLAUDE.md for readability.
+All notable changes to this project will be documented in this file.
 
-## Test Coverage Expansion
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- **C streaming tests** (`c/tests/test_stream.c`): Expanded from
-  8 to 26 tests covering:
-  - Utilities: sample types, timestamps, error codes
-  - dp_msg_t: NULL safety for all accessors
-  - PUB/SUB: CF64/CI32/CF128 roundtrips, multiple subscribers,
-    sequence numbering
-  - SUB timeout: verifies DP_ERR_TIMEOUT return
-  - PUSH/PULL: CF64/CI32/CF128 roundtrips, multiple frames in
-    order, timeout
-  - REQ/REP raw bytes: request-reply roundtrip with string data
-  - REQ/REP signal frames: CF64/CI32/CF128 full roundtrips
-    (request + reply)
-  - Error handling: NULL endpoints, invalid send args,
-    destroy(NULL) safety, invalid recv args
-  - Header validation: all fields (magic, version, protocol,
-    stream_id, flags, sequence, timestamp, sample_rate,
-    center_freq, num_samples, reserved[4])
-  - **26/26 pass**, 2/2 CTest pass
-- **Removed stale `c/tests/test_doppler.c`** — used
-  pre-refactor API, not registered in CTest
-- **Python FFT tests** (`python/doppler/tests/test_fft.py`):
-  Replaced demo script with 20 proper pytest tests:
-  - 1D FFT: impulse, DC, cosine tone energy, round-trip,
-    matches NumPy
-  - 1D in-place: matches NumPy, verifies array mutation
-  - 2D FFT: impulse, round-trip, matches NumPy fft2
-  - 2D in-place: matches NumPy fft2
-  - Dispatcher: execute/execute_inplace for 1D and 2D,
-    ValueError for 3D
-  - One-shot fft(): 1D, 2D, inverse round-trip
-  - **20/20 pass**, full suite **54/54 pass**
-    (20 buffer + 20 FFT + 14 streaming)
-- **Rust FFI tests** (`ffi/rust/src/lib.rs`): Added
-  `#[cfg(test)]` module with 11 tests:
-  - SIMD: c16_mul basic, identity, zero, conjugate,
-    matches num-complex
-  - Version: non-empty string containing a dot
-  - 1D FFT: impulse, round-trip (forward+inverse), cosine
-    energy at correct bins
-  - 2D FFT: impulse, round-trip (forward+inverse)
-  - **11/11 unit tests + 2/2 doc-tests pass**
-- **Rust build.rs fix**: fallback search path
-  `../../build` -> `../../build/c`
+---
 
-## Zero-Copy Streaming Refactor
+## [Unreleased]
 
-- **Phase 1 -- Header API** (`c/include/dp/stream.h`):
-  - `dp_header_t` expanded: added `protocol`
-    (dp_protocol_t), `stream_id`, `flags` fields for
-    DIFI/VITA 49 future-proofing
-  - Added `dp_protocol_t` enum
-    (DP_PROTO_SIGS=0, DP_PROTO_DIFI=1)
-  - Added `dp_msg_t` opaque handle + 5 accessors
-  - Changed recv signatures to return `dp_msg_t` instead
-    of malloc'd buffer
-  - Added signal-frame REQ/REP send/recv functions
-  - Added timeout setters for all socket types
-  - Removed `dp_sub_free_samples` (replaced by
-    `dp_msg_free`)
-  - Bumped version to 2.0.0
-- **Phase 2 -- C Implementation**
-  (`c/src/stream.c`, ~380 lines, was 675):
-  - `dp_msg_t` struct wraps `zmq_msg_t` + metadata
-  - De-duplicated socket creation: single `ctx_create()`
-  - Zero-copy recv via `zmq_msg_recv`
-  - `DP_ERR_TIMEOUT` on `EAGAIN`
-- **Phase 3 -- C Callsites** (4 files, ~12 recv/free pairs):
-  - Updated test_stream.c, receiver.c, pipeline_demo.c,
-    spectrum_analyzer.c
-  - **2/2 CTest pass**
-- **Phase 4 -- Python Extension Rewrite**
-  (`python/ext/dp_stream.c`, 540 lines, was 1693):
-  - Thin wrapper over libdoppler (no direct zmq calls)
-  - `dpMsgObject` wraps `dp_msg_t*` for zero-copy lifetime
-  - Shared `do_send()`/`do_recv()` helpers
-  - GIL release on all blocking C calls
-  - `python/CMakeLists.txt`: links `doppler` shared lib
-    instead of vendored `libzmq-static`
-  - **Wire format compatible**: Python and C share the
-    same `dp_header_t`
-  - **34/34 pytest pass**
+### Added
 
-## Python Streaming C Extension + Vendoring
+- **Rust FFI — NCO bindings** (`ffi/rust/src/nco.rs`): Full Rust
+  wrapper for the C NCO API — `Nco::new`, `execute_cf32`,
+  `execute_cf32_ctrl`, `execute_u32`, `execute_u32_ovf`, `reset`,
+  `set_freq`, `get_freq`; 13 new Rust unit tests
+- **Rust FFI — FIR bindings** (`ffi/rust/src/fir.rs`): Full Rust
+  wrapper for `dp_fir_t` — `FirFilter::lowpass_f32`,
+  `execute_cf32`; included in Rust test suite
+- **NCO Rust example** (`ffi/rust/examples/nco_demo.rs`): prints
+  IQ samples, FM control-port demo, raw phase accumulator, overflow
+  detection
+- **`make rust-examples` target**: builds all Rust examples and
+  prints their paths (cross-platform, handles `.exe` on Windows)
+- **Windows / MSYS2 UCRT64 support** for Rust FFI: static link to
+  `libdoppler.a`, `fftw3_threads`, correct MinGW `stdc++`; full
+  build + test verified on Windows
+- **Release workflow** (`.github/workflows/release.yml`):
+  tag-triggered CI that verifies version consistency across
+  `pyproject.toml`, `Cargo.toml`, and `CMakeLists.txt`, builds
+  Python wheel, publishes to PyPI via OIDC trusted publishing, and
+  creates a GitHub Release with auto-generated notes
+- **`make bump-version VERSION=x.y.z`**: atomically updates the
+  three version locations
+- **`make tag-release VERSION=x.y.z`**: commits the version bump,
+  creates an annotated tag, and pushes
+- **Zensical documentation**: migrated from mkdocs/Material to
+  Zensical (`uv run zensical build --clean`); docs job updated in
+  CI; `make docs-build` / `make docs-serve` targets added
+- **`make specan` target**: launches live spectrum analyzer in
+  browser via `uv run doppler-specan`
+- **Windows build guide** in `docs/build.md`: step-by-step MSYS2
+  UCRT64 instructions covering all dependencies, cmake, and Rust
+  FFI testing
 
-- **C Extension** (`python/ext/dp_stream.c`): All 6 socket
-  types (Publisher, Subscriber, Push, Pull, Requester,
-  Replier) as zero-copy Python C extension (1692 lines)
-  - GIL release on all blocking zmq calls
-  - Zero-copy recv on all receiver types
-- **Static libzmq**: vendored libzmq 4.3.5 linked statically
-  - Symbol hiding: only `PyInit_dp_stream` exported
-  - No runtime libzmq dependency
-- **Removed ctypes client.py** (310 lines)
-- **Vendoring policy**: `VENDORED.md` with checksums,
-  licensing, update process
+### Changed
 
-## CI + Coverage
+- **CI — Windows MSYS2 environment**: switched from `MINGW64` to
+  `UCRT64` to match the rest of the toolchain; added
+  `mingw-w64-ucrt-x86_64-rust` to the MSYS2 package list
+- **CI — added `make rust-test` steps** to all four OS matrix
+  entries (Ubuntu 22.04, 24.04, macOS, Windows)
+- **`ffi/rust/build.rs`**: platform-split link strategy — dylib +
+  rpath on Linux/macOS, static + `fftw3_threads` + `stdc++` on
+  Windows; MinGW LTO workaround removed (handled in CMake)
+- **CMakeLists.txt**: LTO disabled on MinGW (`if(NOT MINGW)` guard)
+  to prevent `plugin needed to handle lto object` errors when Rust
+  links the static archive
+- **`python/ext/` renamed to `python/src/`** for clarity (no longer
+  looks like a Maturin/Rust extension directory)
+- **`docs/build.md`**: added Rust FFI section, UCRT64 Windows
+  guide, updated artifact table
 
-- `pyproject.toml`: pytest-cov, coverage config
-- Coverage baseline: 76% overall on 26 tests
-- CI uploads coverage.xml artifact
+### Fixed
 
-## Makefile Restore + CI Fixes
+- **Rust static link on Windows**: `libdoppler.dll` loaded beyond
+  the 2 GB boundary causing pseudo-relocation overflows; fixed by
+  linking statically on Windows
+- **`make rust-examples` empty output on Windows**: `grep -v '[.\-]'`
+  excluded `.exe` files; fixed with `grep -E '^[a-z_]+(\.exe)?$'`
 
-- Hand-written project wrapper Makefile recreated
-- Root cmake artifacts cleaned up
-- CI jobs use `make build` + `make test`
+---
 
-## Install Test Fixes
+## [0.1.0] — 2025-01-01
 
-- `c/CMakeLists.txt`: full install wiring (GNUInstallDirs,
-  cmake package config, pkg-config)
-- `c/tests/test_install.sh`: 9-check post-install verification
+### Added
 
-## Buffer Python Extension
+- **NCO** (`c/include/dp/nco.h`, `c/src/nco.c`): 32-bit phase
+  accumulator, 2^16-entry sine LUT (~96 dBc SFDR), FM control port
+  (`dp_nco_execute_cf32_ctrl`); 59 CTest unit tests
+- **FIR filter** (`c/include/dp/fir.h`, `c/src/fir.c`): real and
+  complex taps, AVX-512 / scalar paths, CI8/CI16/CI32/CF32 inputs;
+  `dp_fir_create`, `dp_fir_execute_*`
+- **Lock-free ring buffer** (`c/include/dp/buffer.h`): SPSC ring
+  buffer; Python `_buffer` module (`F32Buffer`, `F64Buffer`,
+  `I16Buffer`); 20 pytest tests
+- **Python FFT tests** (`python/doppler/tests/test_fft.py`): 20
+  pytest tests covering 1D/2D FFT, impulse response, round-trip,
+  NumPy parity, dispatcher, one-shot `fft()`
+- **Python streaming C extension** (`python/src/dp_stream.c`): all
+  6 socket types (Publisher, Subscriber, Push, Pull, Requester,
+  Replier) as a zero-copy Python C extension; GIL release on all
+  blocking calls; replaces ctypes `client.py`
+- **Python buffer C extension** (`python/src/dp_buffer.c`): thin
+  wrapper exposing the lock-free ring buffer to Python
+- **Rust FFI** (`ffi/rust/`): initial bindings — version, SIMD
+  `c16_mul`, 1D/2D FFT; 11 unit tests + 2 doc-tests; `fft_demo`,
+  `simd_demo`, `fft_bench` examples; `build.rs` with rpath baking
+- **C streaming tests** (`c/tests/test_stream.c`): 26 tests
+  covering all socket types (PUB/SUB, PUSH/PULL, REQ/REP), zero-
+  copy `dp_msg_t`, timeouts, header validation, error handling
+- **Post-install verification** (`c/tests/test_install.sh`): 9
+  checks for pkg-config, headers, and linkage
+- **Docker**: multi-stage Dockerfile, 130 MB image; `docker-compose.yml`
+- **CI** (`.github/workflows/ci.yml`): Ubuntu 22.04/24.04 + macOS
+  + Windows matrix; Python 3.12/3.13 pytest job; Docker build + smoke-
+  test job; coverage upload
+- **Makefile**: project wrapper with `build`, `test`, `rust-test`,
+  `install`, `install-test`, `pyext`, `python-test`, `test-all`,
+  `docker`, `docker-test`, `debug`, `release`, `blazing`, `clean`,
+  `help` targets
+- **Documentation**: `docs/` site with build guide, API reference,
+  quickstart, examples, and design docs
 
-- `c/include/dp/buffer.h`: ARM compatibility
-- `_buffer` module: F32Buffer, F64Buffer, I16Buffer
-- 20 tests, all passing
+### Changed
 
-## ARM / CI Fixes
+- **Zero-copy streaming refactor**: `dp_header_t` expanded with
+  `protocol` (`dp_protocol_t`), `stream_id`, `flags` fields;
+  `dp_msg_t` opaque handle replaces malloc'd buffers; version
+  bumped to 2.0.0; Python extension rewritten from 1693 → 540 lines
+- **Static libzmq replaced with system libzmq**: Python extension
+  now links the system `libzmq` shared library; `VENDORED.md`
+  documents vendoring policy
+- **`-Ofast` replaced with `-O3 -ffast-math`** for standards
+  compliance
+- **SIMD**: x86 intrinsics guarded; ARM scalar fallback added in
+  `c/src/simd.c`
 
-- `simd.c`: guarded x86 intrinsics, ARM scalar fallback
-- `-Ofast` -> `-O3 -ffast-math`
-- CI: fixed Python executable matching for extensions
+### Fixed
 
-## Docs + API Reference
+- **ARM CI**: guarded x86 intrinsics in `simd.c`
+- **NumPy ABI**: compatibility fix for 1.x vs 2.x
+- **cmake scatter**: all build artifacts confined to `build/`;
+  root-level cmake artifacts cleaned up
+- **Python executable matching** in CI for C extension builds
 
-- mkdocs Material theme with dark/light toggle
-- mkdoxy for C API docs, mkdocstrings for Python
-- Full docstrings on all Python FFT functions
-- `mkdocs build --strict` 0 warnings
-
-## Python Streaming Bindings (ctypes, later replaced)
-
-- `client.py`: Publisher, Subscriber, Push, Pull,
-  Requester, Replier via ctypes
-- test_pubsub.py: 6 tests
-
-## Docker + CI + Build System
-
-- Dockerfile overhauled: multi-stage, 130 MB image
-- docker-compose.yml modernized
-- CI: Ubuntu + macOS matrix, Docker job
-- CMakeLists.txt: CTest registration, static library target
-- NumPy ABI compatibility fix (1.x vs 2.x)
-
-## Initial Integration
-
-- Merged unified `doppler_*` API
-- Python C extension separated from pure C
-- Unified streaming: PUSH/PULL merged into doppler
+[Unreleased]: https://github.com/hunter-dsp/doppler/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/hunter-dsp/doppler/releases/tag/v0.1.0

@@ -119,7 +119,7 @@ Python → dp_stream.so (C extension) → libzmq.so
 
 ### Module Structure
 
-#### File: `python/src/dp_stream.c`
+#### File: `python/ext/dp_stream.c`
 
 ```c
 /* Python C extension for doppler streaming
@@ -541,7 +541,7 @@ data, hdr = sub.recv(timeout_ms=500)
 ## Implementation Phases
 
 ### Phase 1: Core Extension (Publisher + Subscriber)
-- `python/src/dp_stream.c` — basic PUB/SUB only
+- `python/ext/dp_stream.c` — basic PUB/SUB only
 - Zero-copy recv
 - Context manager support
 - Timeout handling (direct ZMQ API)

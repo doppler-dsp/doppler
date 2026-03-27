@@ -75,7 +75,7 @@ Development history moved from CLAUDE.md for readability.
     spectrum_analyzer.c
   - **2/2 CTest pass**
 - **Phase 4 -- Python Extension Rewrite**
-  (`python/src/dp_stream.c`, 540 lines, was 1693):
+  (`python/ext/dp_stream.c`, 540 lines, was 1693):
   - Thin wrapper over libdoppler (no direct zmq calls)
   - `dpMsgObject` wraps `dp_msg_t*` for zero-copy lifetime
   - Shared `do_send()`/`do_recv()` helpers
@@ -88,7 +88,7 @@ Development history moved from CLAUDE.md for readability.
 
 ## Python Streaming C Extension + Vendoring
 
-- **C Extension** (`python/src/dp_stream.c`): All 6 socket
+- **C Extension** (`python/ext/dp_stream.c`): All 6 socket
   types (Publisher, Subscriber, Push, Pull, Requester,
   Replier) as zero-copy Python C extension (1692 lines)
   - GIL release on all blocking zmq calls

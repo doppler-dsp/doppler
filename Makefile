@@ -66,9 +66,8 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
   endif
 endif
 
-.PHONY: all build test rust-test install install-test pyext \
+.PHONY: all build test rust-test rust-examples install install-test pyext \
         python-test test-all docs-build docs-serve \
-        docs-zensical docs-zensical-serve \
         specan \
         docker docker-test \
         debug release blazing gen-pyext clean help
@@ -93,11 +92,23 @@ test:
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
 # FFT tests share global plan state — run single-threaded.
-# build.rs resolves the link path; LD_LIBRARY_PATH covers runtime loading.
+# build.rs bakes rpath on Linux/macOS; PATH is used on Windows.
 rust-test: build
 	cd $(RUST_DIR) && \
 		LD_LIBRARY_PATH=$(CURDIR)/$(BUILD_DIR)/$(C_DIR) \
+		PATH="$(CURDIR)/$(BUILD_DIR)/$(C_DIR):$(PATH)" \
 		cargo test -- --test-threads=1
+
+# ── rust-examples ─────────────────────────────────────────────────────────────
+# Build all Rust examples and print their locations.
+rust-examples: build
+	cd $(RUST_DIR) && cargo build --examples
+	@echo ""
+	@echo "Rust examples (run directly):"
+	@ls $(RUST_DIR)/target/debug/examples/ \
+		| grep -E '^[a-z_]+(\.exe)?$$' \
+		| sed "s|^|    $(RUST_DIR)/target/debug/examples/|"
+	@echo ""
 
 # ── install ───────────────────────────────────────────────────────────────────
 install: build
@@ -122,15 +133,9 @@ python-test:
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 docs-build:
-	uv run mkdocs build --strict
+	uv run zensical build --clean
 
 docs-serve:
-	uv run mkdocs serve
-
-docs-zensical:
-	uv run zensical build
-
-docs-zensical-serve:
 	uv run zensical serve
 
 # ── specan ────────────────────────────────────────────────────────────────────
@@ -162,7 +167,7 @@ blazing: clean
 
 # ── gen-pyext ─────────────────────────────────────────────────────────────────
 # Generate a thin Python C extension from a C module.
-#   make gen-pyext MOD=fir            # writes python/src/dp_fir.c
+#   make gen-pyext MOD=fir            # writes python/ext/dp_fir.c
 #   make gen-pyext MOD=fir DRY_RUN=1  # preview only
 gen-pyext:
 ifndef MOD
@@ -187,16 +192,15 @@ help:
 	@echo "  make build         Same as above"
 	@echo "  make test          Run CTest suite"
 	@echo "  make rust-test     Run Rust FFI tests (single-threaded)"
+	@echo "  make rust-examples Build Rust examples and list paths"
 	@echo "  make install       Install to PREFIX (default: $(PREFIX))"
 	@echo "  make install-test  Verify installed pkg-config + headers"
 	@echo "  make pyext         Build Python C extensions"
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
-	@echo "  make docs-build          Build MkDocs site (strict)"
-	@echo "  make docs-serve          Serve MkDocs site locally"
-	@echo "  make docs-zensical       Build Zensical site"
-	@echo "  make docs-zensical-serve Serve Zensical site locally"
+	@echo "  make docs-build    Build Zensical site"
+	@echo "  make docs-serve    Serve Zensical site locally"
 	@echo "  make docker        Build Docker image"
 	@echo "  make docker-test   Build + run container tests"
 	@echo "  make debug         Clean + Debug build"

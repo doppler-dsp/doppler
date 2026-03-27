@@ -20,6 +20,9 @@ specan = [
     "uvicorn[standard]>=0.23",
     "websockets>=12.0",
 ]
+optimize = [
+    "scipy>=1.11",
+]
 
 [project.scripts]
 doppler-specan = "doppler.specan.__main__:main"
@@ -31,6 +34,7 @@ dev = [
     "zensical>=0.0.29",
     "doppler-dsp[specan]",
     "matplotlib>=3.10.8",
+    "scipy>=1.11",
 ]
 
 [tool.pytest.ini_options]

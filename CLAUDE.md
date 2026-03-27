@@ -199,8 +199,9 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 | Python FFT     | 20    | pytest  |
 | Python stream  | 14    | pytest  |
 | Python NCO     | 26    | pytest  |
+| Python DPMFS   | 40    | pytest  |
 | Rust FFI       | 13    | cargo   |
-| **Total**      | **184+**|       |
+| **Total**      | **224+**|       |
 
 ## Next Up
 
@@ -213,6 +214,9 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 
 - big feature: continuously variable resampler
   - NCO (done) + complex mixer + brickwall FIR = tunable filter
+  - DPMFS resampler: C runtime done (`dp_resamp_dpmfs_*`)
+  - Python design tools done: `fit_dpmfs`, `optimize_dpmfs`
+  - Next: Python bindings for `dp_resamp_cf32` and `dp_resamp_dpmfs`
   - "tune and zoom" — any rate, any range, like an SDR frontend
   - specan is the visual front-end for this
 

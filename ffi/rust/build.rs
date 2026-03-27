@@ -1,4 +1,7 @@
 fn main() {
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS")
+        .unwrap_or_default();
+    let use_rpath = matches!(target_os.as_str(), "linux" | "macos");
     // Try pkg-config first (works after `make install` or with PKG_CONFIG_PATH set).
     // If not available, fall back to the cmake build directory.
     let pkg_ok = std::process::Command::new("pkg-config")
@@ -19,8 +22,10 @@ fn main() {
             if let Some(path) = flag.strip_prefix("-L") {
                 println!("cargo:rustc-link-search=native={path}");
                 // Bake the installed lib dir into the rpath so the binary
-                // runs without LD_LIBRARY_PATH.
-                println!("cargo:rustc-link-arg=-Wl,-rpath,{path}");
+                // runs without LD_LIBRARY_PATH (ELF platforms only).
+                if use_rpath {
+                    println!("cargo:rustc-link-arg=-Wl,-rpath,{path}");
+                }
             } else if let Some(lib) = flag.strip_prefix("-l") {
                 println!("cargo:rustc-link-lib=dylib={lib}");
             }
@@ -40,6 +45,9 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=fftw3");
     println!("cargo:rustc-link-lib=dylib=m");
     // Bake the build-dir path into the rpath so examples and tests run
-    // without needing LD_LIBRARY_PATH.
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", build_dir.display());
+    // without needing LD_LIBRARY_PATH (ELF platforms only — Windows uses
+    // PATH / same-directory DLL loading instead).
+    if use_rpath {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", build_dir.display());
+    }
 }

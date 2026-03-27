@@ -14,6 +14,13 @@ license-files = [
     "c/cmake/licenses/POCKETFFT_LICENSE",
 ]
 
+[project.urls]
+Homepage      = "https://doppler-dsp.github.io/doppler/"
+Documentation = "https://doppler-dsp.github.io/doppler/"
+Repository    = "https://github.com/doppler-dsp/doppler"
+"Bug Tracker" = "https://github.com/doppler-dsp/doppler/issues"
+Changelog     = "https://github.com/doppler-dsp/doppler/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 specan = [
     "fastapi>=0.100",

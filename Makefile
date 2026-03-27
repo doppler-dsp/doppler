@@ -92,10 +92,11 @@ test:
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
 # FFT tests share global plan state — run single-threaded.
-# build.rs resolves the link path; LD_LIBRARY_PATH covers runtime loading.
+# build.rs bakes rpath on Linux/macOS; PATH is used on Windows.
 rust-test: build
 	cd $(RUST_DIR) && \
 		LD_LIBRARY_PATH=$(CURDIR)/$(BUILD_DIR)/$(C_DIR) \
+		PATH="$(CURDIR)/$(BUILD_DIR)/$(C_DIR):$(PATH)" \
 		cargo test -- --test-threads=1
 
 # ── rust-examples ─────────────────────────────────────────────────────────────
@@ -191,7 +192,7 @@ help:
 	@echo "  make build         Same as above"
 	@echo "  make test          Run CTest suite"
 	@echo "  make rust-test     Run Rust FFI tests (single-threaded)"
-	@echo "  make rust-examples Build Rust examples + show run commands"
+	@echo "  make rust-examples Build Rust examples and list paths"
 	@echo "  make install       Install to PREFIX (default: $(PREFIX))"
 	@echo "  make install-test  Verify installed pkg-config + headers"
 	@echo "  make pyext         Build Python C extensions"

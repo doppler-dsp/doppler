@@ -251,8 +251,9 @@ directly from the UCRT64 shell:
 `zmq.dll` and `fftw3.dll` are still loaded dynamically; they live in
 `/ucrt64/bin/` which is on `PATH` by default in the UCRT64 shell.
 
-After `make install` on Linux/macOS the installed library path is used
-instead of the build tree.
+The rpath always points at `build/c/`. After `make install`, use the
+installed system library by passing `-DCMAKE_SKIP_RPATH=ON` or by
+running `cargo build` with `PKG_CONFIG_PATH` set to the install prefix.
 
 ### Modules
 

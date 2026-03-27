@@ -104,9 +104,9 @@ rust-test: build
 rust-examples: build
 	cd $(RUST_DIR) && cargo build --examples
 	@echo ""
-	@echo "Rust examples (rpath baked in — run directly):"
+	@echo "Rust examples (run directly):"
 	@ls $(RUST_DIR)/target/debug/examples/ \
-		| grep -v '[.\-]' \
+		| grep -E '^[a-z_]+(\.exe)?$$' \
 		| sed "s|^|    $(RUST_DIR)/target/debug/examples/|"
 	@echo ""
 

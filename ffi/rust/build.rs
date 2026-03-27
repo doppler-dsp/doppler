@@ -11,14 +11,20 @@ fn main() {
         .unwrap_or_else(|_| manifest.join("../../build/c"));
 
     println!("cargo:rustc-link-search=native={}", build_dir.display());
-    println!("cargo:rustc-link-lib=static=doppler");
     println!("cargo:rustc-link-lib=dylib=zmq");
     println!("cargo:rustc-link-lib=dylib=fftw3");
 
     if target_os == "windows" {
+        // Static link on Windows: avoids pseudo-relocation failures and
+        // the DLL runtime dependency. LTO is disabled on MinGW in CMake
+        // so the static archive contains plain object files.
+        println!("cargo:rustc-link-lib=static=doppler");
         println!("cargo:rustc-link-lib=dylib=fftw3_threads");
         println!("cargo:rustc-link-lib=dylib=stdc++");
     } else {
+        // Dynamic link on Linux/macOS: avoids lld single-pass ordering
+        // issues with static archives. rpath points at the build tree.
+        println!("cargo:rustc-link-lib=dylib=doppler");
         println!("cargo:rustc-link-lib=dylib=m");
         if use_rpath {
             println!(

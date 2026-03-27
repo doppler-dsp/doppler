@@ -95,6 +95,10 @@ class PolyphaseBank:
     def ravel(self) -> np.ndarray:
         return self.bank.ravel()
 
+    def plot_response(self, **kwargs) -> "plt.Figure":
+        """Plot the frequency response. See :func:`plot_response`."""
+        return plot_response(self, **kwargs)
+
 
 # ---------------------------------------------------------------------------
 # Kaiser β formula (Harris 1978)

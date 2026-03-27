@@ -70,7 +70,7 @@ endif
         python-test test-all docs-build docs-serve \
         specan \
         docker docker-test \
-        debug release blazing gen-pyext clean help
+        debug release blazing gen-pyext bump-version tag-release clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -176,6 +176,34 @@ ifndef MOD
 endif
 	python3 tools/gen_pyext.py $(if $(DRY_RUN),--dry-run) $(C_DIR)/src/$(MOD).c
 
+# ── bump-version ──────────────────────────────────────────────────────────────
+# Update version in all three places atomically.
+#   make bump-version VERSION=0.2.0
+bump-version:
+ifndef VERSION
+	@echo "usage: make bump-version VERSION=<x.y.z>"
+	@exit 1
+endif
+	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' pyproject.toml
+	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' $(RUST_DIR)/Cargo.toml
+	sed -i 's/^project(doppler VERSION [0-9.]*/project(doppler VERSION $(VERSION)/' CMakeLists.txt
+	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt"
+	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
+
+# ── tag-release ───────────────────────────────────────────────────────────────
+# Commit the version bump and push the release tag.
+#   make tag-release VERSION=0.2.0
+tag-release:
+ifndef VERSION
+	@echo "usage: make tag-release VERSION=<x.y.z>"
+	@exit 1
+endif
+	git add pyproject.toml $(RUST_DIR)/Cargo.toml CMakeLists.txt
+	git commit -m "chore: release v$(VERSION)"
+	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
+	git push origin main "v$(VERSION)"
+	@echo "Tagged and pushed v$(VERSION) — release workflow starting on GitHub"
+
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:
 	rm -rf $(BUILD_DIR)
@@ -207,6 +235,8 @@ help:
 	@echo "  make release       Clean + Release build"
 	@echo "  make blazing       Clean + Release + -march=native (max speed)"
 	@echo "  make gen-pyext MOD=fir  Generate Python C extension for a module"
+	@echo "  make bump-version VERSION=x.y.z  Update version everywhere"
+	@echo "  make tag-release  VERSION=x.y.z  Commit + tag + push release"
 	@echo "  make clean         Remove build/ and Python .so files"
 	@echo "  make help          Show this message"
 	@echo ""

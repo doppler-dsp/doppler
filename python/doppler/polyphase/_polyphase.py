@@ -33,11 +33,7 @@ def kaiser_taps(
     stopband: float = 0.6,
 ) -> int:
     """Return prototype filter length for the given Kaiser spec."""
-    return int(
-        1 + (attenuation - 8)
-        / 2.285
-        / (2.0 * np.pi * (stopband - passband))
-    )
+    return int(1 + (attenuation - 8) / 2.285 / (2.0 * np.pi * (stopband - passband)))
 
 
 def kaiser_prototype(
@@ -48,14 +44,14 @@ def kaiser_prototype(
 ) -> np.ndarray:
     """Return a Kaiser-windowed sinc prototype filter (float32)."""
     db_per_bit = 6.02
-    phases = 1 << int(np.ceil(
-        (20.0 * np.log10(passband) + image_attenuation) / db_per_bit
-    ))
-    halflen = kaiser_taps(attenuation, passband/phases, stopband/phases) // 2
+    phases = 1 << int(
+        np.ceil((20.0 * np.log10(passband) + image_attenuation) / db_per_bit)
+    )
+    halflen = kaiser_taps(attenuation, passband / phases, stopband / phases) // 2
     htaps = 2 * halflen + 1
     m = np.arange(0, htaps) - halflen
     window = np.kaiser(htaps, kaiser_beta(attenuation))
-    wc = 2 * np.pi * (passband/phases + (stopband - passband) / (2 * phases))
+    wc = 2 * np.pi * (passband / phases + (stopband - passband) / (2 * phases))
     h = window * wc / np.pi * np.sinc(wc / np.pi * m)
     taps_per_phase = int(htaps / phases) + 1
     g = np.zeros(phases * taps_per_phase)
@@ -133,12 +129,18 @@ def plot_group_delay(
         ax.plot(freqs, gd, color=color, linewidth=0.7, alpha=0.75)
 
     ax.axvspan(
-        0, passband,
-        alpha=0.10, color="steelblue", zorder=0, label="passband",
+        0,
+        passband,
+        alpha=0.10,
+        color="steelblue",
+        zorder=0,
+        label="passband",
     )
     ax.axhline(
         ideal_gd,
-        color="0.5", linewidth=1.0, linestyle="--",
+        color="0.5",
+        linewidth=1.0,
+        linestyle="--",
         label=f"ideal = {ideal_gd:.1f} samples",
     )
 
@@ -157,10 +159,7 @@ def plot_group_delay(
 
     ax.set_xlabel("normalised frequency  (cycles/sample)")
     ax.set_ylabel("group delay  (samples)")
-    ax.set_title(
-        f"polyphase bank group delay — "
-        f"L={L} phases × N={N} taps/phase"
-    )
+    ax.set_title(f"polyphase bank group delay — L={L} phases × N={N} taps/phase")
     ax.legend(loc="upper right", fontsize=9)
 
     return fig, ax

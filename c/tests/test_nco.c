@@ -20,30 +20,30 @@
 static int passed = 0;
 static int failed = 0;
 
-#define PASS(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  PASS  %s\n", (msg));                                          \
-      passed++;                                                                \
-    }                                                                          \
+#define PASS(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  PASS  %s\n", (msg));                                         \
+      passed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define FAIL(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  FAIL  %s\n", (msg));                                          \
-      failed++;                                                                \
-    }                                                                          \
+#define FAIL(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  FAIL  %s\n", (msg));                                         \
+      failed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define CHECK(cond, msg)                                                       \
-  do                                                                           \
-    {                                                                          \
-      if (cond)                                                                \
-        PASS (msg);                                                            \
-      else                                                                     \
-        FAIL (msg);                                                            \
-    }                                                                          \
+#define CHECK(cond, msg)                                                      \
+  do                                                                          \
+    {                                                                         \
+      if (cond)                                                               \
+        PASS (msg);                                                           \
+      else                                                                    \
+        FAIL (msg);                                                           \
+    }                                                                         \
   while (0)
 
 /* Tolerance matched to 2^16 LUT entry precision (floats at LUT points
@@ -88,7 +88,7 @@ test_zero_freq (void)
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
-    if (!cf32_near (out[i], (dp_cf32_t){1.0f, 0.0f}, TOL))
+    if (!cf32_near (out[i], (dp_cf32_t){ 1.0f, 0.0f }, TOL))
       ok = 0;
   CHECK (ok, "f_n=0 → all samples (1, 0)");
   dp_nco_destroy (nco);
@@ -113,13 +113,13 @@ test_quarter_rate (void)
   dp_cf32_t out[8];
   dp_nco_execute_cf32 (nco, out, 8);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f,  1.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
          "sample 1: (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){-1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 2: (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
          "sample 3: (0, -1)");
   CHECK (cf32_near (out[4], out[0], TOL), "sample 4 == sample 0 (wrap)");
   CHECK (cf32_near (out[5], out[1], TOL), "sample 5 == sample 1");
@@ -141,13 +141,13 @@ test_half_rate (void)
   dp_cf32_t out[4];
   dp_nco_execute_cf32 (nco, out, 4);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){-1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 1: (-1, 0)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 2: (1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){-1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 3: (-1, 0)");
 
   dp_nco_destroy (nco);
@@ -202,7 +202,7 @@ test_phase_continuity (void)
   int ok = 1;
   for (int i = 0; i < 4; i++)
     {
-      if (!cf32_near (out_a[i], ref_out[i],     TOL))
+      if (!cf32_near (out_a[i], ref_out[i], TOL))
         ok = 0;
       if (!cf32_near (out_b[i], ref_out[4 + i], TOL))
         ok = 0;
@@ -230,13 +230,13 @@ test_reset (void)
   dp_nco_execute_cf32 (nco, out, 4);
 
   /* After reset, should see the same sequence as from phase 0 */
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "after reset: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f,  1.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
          "after reset: sample 1 = (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){-1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "after reset: sample 2 = (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
          "after reset: sample 3 = (0, -1)");
 
   dp_nco_destroy (nco);
@@ -255,21 +255,21 @@ test_set_freq (void)
 
   /* At DC: 2 samples all (1, 0) */
   dp_nco_execute_cf32 (nco, out, 2);
-  CHECK (cf32_near (out[0], (dp_cf32_t){1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "pre set_freq: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "pre set_freq: sample 1 = (1, 0)");
 
   /* Switch to f_n = 0.25 (phase stays at 0, so next sample is (1,0)) */
   dp_nco_set_freq (nco, 0.25f);
   dp_nco_execute_cf32 (nco, out, 4);
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "post set_freq: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f,  1.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
          "post set_freq: sample 1 = (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){-1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "post set_freq: sample 2 = (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
          "post set_freq: sample 3 = (0, -1)");
 
   dp_nco_destroy (nco);
@@ -293,13 +293,13 @@ test_negative_freq (void)
   dp_cf32_t out[4];
   dp_nco_execute_cf32 (nco, out, 4);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, -1.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
          "sample 1: (0, -1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){-1.0f,  0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 2: (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f,  1.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
          "sample 3: (0, 1)");
 
   dp_nco_destroy (nco);
@@ -313,12 +313,12 @@ static void
 test_ctrl_zero (void)
 {
   printf ("--- ctrl port: zero deviation = free-running\n");
-  float     ctrl[8] = {0};
-  dp_nco_t *ref     = dp_nco_create (0.25f);
-  dp_nco_t *nco     = dp_nco_create (0.25f);
+  float ctrl[8] = { 0 };
+  dp_nco_t *ref = dp_nco_create (0.25f);
+  dp_nco_t *nco = dp_nco_create (0.25f);
   dp_cf32_t ref_out[8], ctrl_out[8];
 
-  dp_nco_execute_cf32      (ref, ref_out,  8);
+  dp_nco_execute_cf32 (ref, ref_out, 8);
   dp_nco_execute_cf32_ctrl (nco, ctrl, ctrl_out, 8);
 
   int ok = 1;
@@ -341,26 +341,26 @@ test_ctrl_freq_shift (void)
   printf ("--- ctrl port: +0.25 deviation doubles quarter-rate\n");
 
   /* Base f_n=0.25, ctrl=+0.25 → effective f_n=0.5 each sample */
-  float     ctrl[4] = {0.25f, 0.25f, 0.25f, 0.25f};
-  dp_nco_t *nco     = dp_nco_create (0.25f);
+  float ctrl[4] = { 0.25f, 0.25f, 0.25f, 0.25f };
+  dp_nco_t *nco = dp_nco_create (0.25f);
   dp_cf32_t out[4];
   dp_nco_execute_cf32_ctrl (nco, ctrl, out, 4);
 
   /* At effective f_n=0.5 the expected sequence is (1,0),(-1,0),(1,0),(-1,0) */
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){-1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[1], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 1: (-1, 0)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
          "sample 2: (1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){-1.0f, 0.0f}, TOL),
+  CHECK (cf32_near (out[3], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
          "sample 3: (-1, 0)");
 
   /* Base phase_inc must be unchanged after ctrl call */
   dp_cf32_t after[4];
   dp_nco_reset (nco);
   dp_nco_execute_cf32 (nco, after, 4);
-  CHECK (cf32_near (after[1], (dp_cf32_t){0.0f, 1.0f}, TOL),
+  CHECK (cf32_near (after[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
          "base phase_inc unchanged after ctrl execute");
 
   dp_nco_destroy (nco);
@@ -378,18 +378,18 @@ test_u32_phase_values (void)
 {
   printf ("--- u32 free-running: exact phase values\n");
   dp_nco_t *nco = dp_nco_create (0.25f);
-  uint32_t  out[8];
+  uint32_t out[8];
   dp_nco_execute_u32 (nco, out, 8);
 
   const uint32_t q = 1073741824u; /* 2^30 */
-  CHECK (out[0] == 0u,   "out[0] = 0");
-  CHECK (out[1] == q,    "out[1] = 2^30");
-  CHECK (out[2] == 2*q,  "out[2] = 2^31");
-  CHECK (out[3] == 3*q,  "out[3] = 3*2^30");
-  CHECK (out[4] == 0u,   "out[4] = 0 (wrap)");
-  CHECK (out[5] == q,    "out[5] = 2^30");
-  CHECK (out[6] == 2*q,  "out[6] = 2^31");
-  CHECK (out[7] == 3*q,  "out[7] = 3*2^30");
+  CHECK (out[0] == 0u, "out[0] = 0");
+  CHECK (out[1] == q, "out[1] = 2^30");
+  CHECK (out[2] == 2 * q, "out[2] = 2^31");
+  CHECK (out[3] == 3 * q, "out[3] = 3*2^30");
+  CHECK (out[4] == 0u, "out[4] = 0 (wrap)");
+  CHECK (out[5] == q, "out[5] = 2^30");
+  CHECK (out[6] == 2 * q, "out[6] = 2^31");
+  CHECK (out[7] == 3 * q, "out[7] = 3*2^30");
 
   dp_nco_destroy (nco);
 }
@@ -402,12 +402,12 @@ static void
 test_u32_lut_consistency (void)
 {
   printf ("--- u32 / cf32 LUT index consistency\n");
-  dp_nco_t *a   = dp_nco_create (0.137f);
-  dp_nco_t *b   = dp_nco_create (0.137f);
-  uint32_t  pu[64];
+  dp_nco_t *a = dp_nco_create (0.137f);
+  dp_nco_t *b = dp_nco_create (0.137f);
+  uint32_t pu[64];
   dp_cf32_t pc[64];
 
-  dp_nco_execute_u32  (a, pu, 64);
+  dp_nco_execute_u32 (a, pu, 64);
   dp_nco_execute_cf32 (b, pc, 64);
 
   /* For each sample, re-derive what the cf32 path would produce from
@@ -433,9 +433,9 @@ test_u32_lut_consistency (void)
   /* Structural test: after executing the same number of samples both
    * NCOs must be at the same phase — advance one more step and check
    * the cf32 output matches the phase from the u32 path. */
-  uint32_t  next_ph[1];
+  uint32_t next_ph[1];
   dp_cf32_t next_cf[1];
-  dp_nco_execute_u32  (a, next_ph, 1);
+  dp_nco_execute_u32 (a, next_ph, 1);
   dp_nco_execute_cf32 (b, next_cf, 1);
 
   /* Compute expected I/Q from next_ph[0] (top 16 bits → LUT index). */
@@ -443,7 +443,7 @@ test_u32_lut_consistency (void)
   /* by checking that reset+replay produces matching output.           */
   dp_nco_reset (a);
   dp_nco_reset (b);
-  dp_nco_execute_u32  (a, pu, 64);
+  dp_nco_execute_u32 (a, pu, 64);
   dp_nco_execute_cf32 (b, pc, 64);
 
   ok = 1;
@@ -452,13 +452,13 @@ test_u32_lut_consistency (void)
       /* The cf32 output uses the same phase as the u32 output, so
        * applying the LUT to pu[i] must reproduce pc[i].           */
       /* Verify: phase[i] >> 16 is the LUT index used for pc[i].  */
-      uint16_t idx     = (uint16_t)(pu[i] >> 16);
+      uint16_t idx = (uint16_t)(pu[i] >> 16);
       uint16_t cos_idx = (uint16_t)(idx + 16384u); /* QTR = N/4   */
       /* We can't reach the static LUT directly from the test; use
        * the invariant cos²+sin²=1 and cross-check I from the cf32
        * output equals cos of the phase angle.                      */
-      float expected_angle = (float)pu[i] / 4294967296.0f
-                             * 2.0f * 3.14159265358979f;
+      float expected_angle
+          = (float)pu[i] / 4294967296.0f * 2.0f * 3.14159265358979f;
       float expected_i = cosf (expected_angle);
       float expected_q = sinf (expected_angle);
       (void)cos_idx;
@@ -480,12 +480,12 @@ static void
 test_u32_ctrl_zero (void)
 {
   printf ("--- u32_ctrl: zero deviation = u32 free-running\n");
-  float     ctrl[16] = {0};
-  dp_nco_t *ref      = dp_nco_create (0.25f);
-  dp_nco_t *nco      = dp_nco_create (0.25f);
-  uint32_t  ref_out[16], ctrl_out[16];
+  float ctrl[16] = { 0 };
+  dp_nco_t *ref = dp_nco_create (0.25f);
+  dp_nco_t *nco = dp_nco_create (0.25f);
+  uint32_t ref_out[16], ctrl_out[16];
 
-  dp_nco_execute_u32      (ref, ref_out,  16);
+  dp_nco_execute_u32 (ref, ref_out, 16);
   dp_nco_execute_u32_ctrl (nco, ctrl, ctrl_out, 16);
 
   int ok = 1;
@@ -514,8 +514,8 @@ test_ovf_quarter_rate (void)
 {
   printf ("--- overflow carry: f_n=0.25, carry every 4th sample\n");
   dp_nco_t *nco = dp_nco_create (0.25f);
-  uint32_t  out[16];
-  uint8_t   carry[16];
+  uint32_t out[16];
+  uint8_t carry[16];
   dp_nco_execute_u32_ovf (nco, out, carry, 16);
 
   int ok = 1;
@@ -550,8 +550,8 @@ test_ovf_half_rate (void)
 {
   printf ("--- overflow carry: f_n=0.5, carry every 2nd sample\n");
   dp_nco_t *nco = dp_nco_create (0.5f);
-  uint32_t  out[8];
-  uint8_t   carry[8];
+  uint32_t out[8];
+  uint8_t carry[8];
   dp_nco_execute_u32_ovf (nco, out, carry, 8);
 
   int ok = 1;
@@ -576,23 +576,25 @@ static void
 test_ovf_ctrl_zero (void)
 {
   printf ("--- ovf_ctrl: zero deviation = u32_ovf free-running\n");
-  float     ctrl[16] = {0};
-  dp_nco_t *ref      = dp_nco_create (0.25f);
-  dp_nco_t *nco      = dp_nco_create (0.25f);
-  uint32_t  ref_out[16], ctrl_out[16];
-  uint8_t   ref_carry[16], ctrl_carry[16];
+  float ctrl[16] = { 0 };
+  dp_nco_t *ref = dp_nco_create (0.25f);
+  dp_nco_t *nco = dp_nco_create (0.25f);
+  uint32_t ref_out[16], ctrl_out[16];
+  uint8_t ref_carry[16], ctrl_carry[16];
 
-  dp_nco_execute_u32_ovf      (ref, ref_out,  ref_carry,  16);
+  dp_nco_execute_u32_ovf (ref, ref_out, ref_carry, 16);
   dp_nco_execute_u32_ovf_ctrl (nco, ctrl, ctrl_out, ctrl_carry, 16);
 
   int ok_ph = 1, ok_c = 1;
   for (int i = 0; i < 16; i++)
     {
-      if (ctrl_out[i]   != ref_out[i])   ok_ph = 0;
-      if (ctrl_carry[i] != ref_carry[i]) ok_c  = 0;
+      if (ctrl_out[i] != ref_out[i])
+        ok_ph = 0;
+      if (ctrl_carry[i] != ref_carry[i])
+        ok_c = 0;
     }
   CHECK (ok_ph, "zero ctrl: phase output matches free-running");
-  CHECK (ok_c,  "zero ctrl: carry output matches free-running");
+  CHECK (ok_c, "zero ctrl: carry output matches free-running");
 
   dp_nco_destroy (ref);
   dp_nco_destroy (nco);
@@ -608,11 +610,10 @@ static void
 test_ovf_ctrl_freq_shift (void)
 {
   printf ("--- ovf_ctrl: +0.25 deviation → half-rate carry pattern\n");
-  float     ctrl[8] = {0.25f, 0.25f, 0.25f, 0.25f,
-                       0.25f, 0.25f, 0.25f, 0.25f};
-  dp_nco_t *nco     = dp_nco_create (0.25f);
-  uint32_t  out[8];
-  uint8_t   carry[8];
+  float ctrl[8] = { 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f };
+  dp_nco_t *nco = dp_nco_create (0.25f);
+  uint32_t out[8];
+  uint8_t carry[8];
   dp_nco_execute_u32_ovf_ctrl (nco, ctrl, out, carry, 8);
 
   /* Effective f_n=0.5 → same carry pattern as test_ovf_half_rate */

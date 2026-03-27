@@ -60,7 +60,7 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   /** @brief Stateful real f32 accumulator. */
-  typedef struct dp_acc_f32  dp_acc_f32_t;
+  typedef struct dp_acc_f32 dp_acc_f32_t;
 
   /** @brief Stateful complex cf64 accumulator. */
   typedef struct dp_acc_cf64 dp_acc_cf64_t;
@@ -175,8 +175,7 @@ extern "C"
    * @param x    Input array of @p n floats.
    * @param n    Number of elements.
    */
-  void dp_acc_f32_add (dp_acc_f32_t *acc,
-                       const float *x, size_t n);
+  void dp_acc_f32_add (dp_acc_f32_t *acc, const float *x, size_t n);
 
   /**
    * @brief Accumulate a 1-D cf64 array: acc += Σ x[k], k=0..n-1.
@@ -185,8 +184,7 @@ extern "C"
    * @param x    Input array of @p n dp_cf64_t samples.
    * @param n    Number of complex samples.
    */
-  void dp_acc_cf64_add (dp_acc_cf64_t *acc,
-                        const dp_cf64_t *x, size_t n);
+  void dp_acc_cf64_add (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t n);
 
   /**
    * @brief 1-D multiply-accumulate (MAC) for f32:
@@ -197,10 +195,8 @@ extern "C"
    * @param h    Coefficient array (@p n floats).
    * @param n    Number of elements.
    */
-  void dp_acc_f32_madd (dp_acc_f32_t *acc,
-                        const float * restrict x,
-                        const float * restrict h,
-                        size_t n);
+  void dp_acc_f32_madd (dp_acc_f32_t *acc, const float *restrict x,
+                        const float *restrict h, size_t n);
 
   /**
    * @brief 1-D multiply-accumulate (MAC) for cf64 × real h:
@@ -214,10 +210,8 @@ extern "C"
    * @param h    Real coefficient array (@p n floats).
    * @param n    Number of samples / taps.
    */
-  void dp_acc_cf64_madd (dp_acc_cf64_t *acc,
-                         const dp_cf64_t * restrict x,
-                         const float    * restrict h,
-                         size_t n);
+  void dp_acc_cf64_madd (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+                         const float *restrict h, size_t n);
 
   /* ------------------------------------------------------------------
    * 2-D array operations
@@ -235,9 +229,8 @@ extern "C"
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_f32_add2d (dp_acc_f32_t *acc,
-                         const float *x,
-                         size_t rows, size_t cols);
+  void dp_acc_f32_add2d (dp_acc_f32_t *acc, const float *x, size_t rows,
+                         size_t cols);
 
   /**
    * @brief Accumulate a row-major 2-D cf64 array:
@@ -248,9 +241,8 @@ extern "C"
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_cf64_add2d (dp_acc_cf64_t *acc,
-                          const dp_cf64_t *x,
-                          size_t rows, size_t cols);
+  void dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t rows,
+                          size_t cols);
 
   /**
    * @brief 2-D multiply-accumulate for f32:
@@ -264,10 +256,8 @@ extern "C"
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_f32_madd2d (dp_acc_f32_t *acc,
-                          const float * restrict x,
-                          const float * restrict h,
-                          size_t rows, size_t cols);
+  void dp_acc_f32_madd2d (dp_acc_f32_t *acc, const float *restrict x,
+                          const float *restrict h, size_t rows, size_t cols);
 
   /**
    * @brief 2-D multiply-accumulate for cf64 × real h:
@@ -279,10 +269,8 @@ extern "C"
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_cf64_madd2d (dp_acc_cf64_t *acc,
-                           const dp_cf64_t * restrict x,
-                           const float     * restrict h,
-                           size_t rows, size_t cols);
+  void dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+                           const float *restrict h, size_t rows, size_t cols);
 
 #ifdef __cplusplus
 }

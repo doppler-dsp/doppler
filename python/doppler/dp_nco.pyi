@@ -16,7 +16,6 @@ class Nco:
     """
 
     def __init__(self, norm_freq: float) -> None: ...
-
     def get_freq(self) -> float:
         """Return the current normalised frequency (f/fs).
 
@@ -90,9 +89,7 @@ class Nco:
         """Return *n* raw 32-bit phase accumulator values."""
         ...
 
-    def execute_u32_ctrl(
-        self, ctrl: NDArray[np.float32] | int
-    ) -> NDArray[np.uint32]:
+    def execute_u32_ctrl(self, ctrl: NDArray[np.float32] | int) -> NDArray[np.uint32]:
         """Raw phase accumulator values with per-sample FM control.
 
         Pass an integer *n* for zero control (free-running).

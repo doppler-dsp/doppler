@@ -18,30 +18,30 @@
 static int passed = 0;
 static int failed = 0;
 
-#define PASS(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  PASS  %s\n", (msg));                                          \
-      passed++;                                                                \
-    }                                                                          \
+#define PASS(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  PASS  %s\n", (msg));                                         \
+      passed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define FAIL(msg)                                                              \
-  do                                                                           \
-    {                                                                          \
-      printf ("  FAIL  %s\n", (msg));                                          \
-      failed++;                                                                \
-    }                                                                          \
+#define FAIL(msg)                                                             \
+  do                                                                          \
+    {                                                                         \
+      printf ("  FAIL  %s\n", (msg));                                         \
+      failed++;                                                               \
+    }                                                                         \
   while (0)
 
-#define CHECK(cond, msg)                                                       \
-  do                                                                           \
-    {                                                                          \
-      if (cond)                                                                \
-        PASS (msg);                                                            \
-      else                                                                     \
-        FAIL (msg);                                                            \
-    }                                                                          \
+#define CHECK(cond, msg)                                                      \
+  do                                                                          \
+    {                                                                         \
+      if (cond)                                                               \
+        PASS (msg);                                                           \
+      else                                                                    \
+        FAIL (msg);                                                           \
+    }                                                                         \
   while (0)
 
 static double
@@ -116,11 +116,11 @@ static void
 test_initial_window_is_zero (void)
 {
   printf ("initial window is all zeros\n");
-  size_t           num_taps = 7;
-  dp_delay_cf64_t *dl       = dp_delay_cf64_create (num_taps);
+  size_t num_taps = 7;
+  dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  int              ok = 1;
+  int ok = 1;
   for (size_t k = 0; k < num_taps; k++)
     if (absd (w[k].i) > 0.0 || absd (w[k].q) > 0.0)
       {
@@ -154,8 +154,8 @@ static void
 test_push_ordering (void)
 {
   printf ("push ordering: ptr[0]=newest, ptr[n-1]=oldest\n");
-  size_t           num_taps = 5;
-  dp_delay_cf64_t *dl       = dp_delay_cf64_create (num_taps);
+  size_t num_taps = 5;
+  dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   /* Push samples 1..5 */
   for (int n = 1; n <= (int)num_taps; n++)
@@ -171,8 +171,7 @@ test_push_ordering (void)
   for (size_t k = 0; k < num_taps; k++)
     {
       double expected = (double)(num_taps - k);
-      if (absd (w[k].i - expected) > 1e-15
-          || absd (w[k].q + expected) > 1e-15)
+      if (absd (w[k].i - expected) > 1e-15 || absd (w[k].q + expected) > 1e-15)
         {
           ok = 0;
           break;
@@ -188,8 +187,8 @@ test_push_more_than_capacity (void)
   printf ("push > capacity wraps correctly\n");
 
   /* num_taps=3 → capacity=4, push 9 samples and verify last 3 */
-  size_t           num_taps = 3;
-  dp_delay_cf64_t *dl       = dp_delay_cf64_create (num_taps);
+  size_t num_taps = 3;
+  dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   for (int n = 1; n <= 9; n++)
     {
@@ -212,8 +211,8 @@ test_window_contiguous (void)
 
   /* Force many wrap-arounds by pushing 4×capacity samples          */
   /* and checking contiguity at every step (ptr addresses increase). */
-  size_t           num_taps = 5;
-  dp_delay_cf64_t *dl       = dp_delay_cf64_create (num_taps);
+  size_t num_taps = 5;
+  dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   int ok = 1;
   for (int n = 0; n < 40; n++)
@@ -248,9 +247,9 @@ test_push_ptr (void)
   printf ("push_ptr returns same pointer as ptr after push\n");
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
-  dp_cf64_t        x  = { 3.14, 2.71 };
+  dp_cf64_t x = { 3.14, 2.71 };
   const dp_cf64_t *wp = dp_delay_cf64_push_ptr (dl, x);
-  const dp_cf64_t *p  = dp_delay_cf64_ptr (dl);
+  const dp_cf64_t *p = dp_delay_cf64_ptr (dl);
 
   CHECK (wp == p, "push_ptr == ptr");
   CHECK (absd (wp[0].i - 3.14) < 1e-15 && absd (wp[0].q - 2.71) < 1e-15,
@@ -264,8 +263,8 @@ static void
 test_reset (void)
 {
   printf ("reset zeroes history and head\n");
-  size_t           num_taps = 6;
-  dp_delay_cf64_t *dl       = dp_delay_cf64_create (num_taps);
+  size_t num_taps = 6;
+  dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   for (int n = 0; n < 10; n++)
     {
@@ -276,7 +275,7 @@ test_reset (void)
   dp_delay_cf64_reset (dl);
 
   const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  int              ok = 1;
+  int ok = 1;
   for (size_t k = 0; k < num_taps; k++)
     if (absd (w[k].i) > 0.0 || absd (w[k].q) > 0.0)
       {
@@ -311,14 +310,12 @@ test_mac_inner_product (void)
 
   /* At this point ptr[num_taps-1] == impulse, ptr[0..n-2] == zero */
   const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  CHECK (absd (w[num_taps - 1].i - 7.0) < 1e-15,
-         "oldest sample == impulse.i");
-  CHECK (absd (w[num_taps - 1].q + 3.0) < 1e-15,
-         "oldest sample == impulse.q");
+  CHECK (absd (w[num_taps - 1].i - 7.0) < 1e-15, "oldest sample == impulse.i");
+  CHECK (absd (w[num_taps - 1].q + 3.0) < 1e-15, "oldest sample == impulse.q");
 
   /* h = [0, 0, 0, 1] — select oldest tap only */
-  float    h[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-  double   si = 0.0, sq = 0.0;
+  float h[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+  double si = 0.0, sq = 0.0;
   for (size_t k = 0; k < num_taps; k++)
     {
       si += w[k].i * (double)h[k];
@@ -337,9 +334,7 @@ test_write_batch (void)
 
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
-  dp_cf64_t in[4] = {
-    { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 }
-  };
+  dp_cf64_t in[4] = { { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 } };
   dp_delay_cf64_write (dl, in, 4);
 
   const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
@@ -360,9 +355,8 @@ test_write_partial (void)
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
   /* Load 4 samples first */
-  dp_cf64_t first[4] = {
-    { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 }
-  };
+  dp_cf64_t first[4]
+      = { { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 } };
   dp_delay_cf64_write (dl, first, 4);
 
   /* Push 2 more via write */

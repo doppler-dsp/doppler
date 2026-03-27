@@ -19,6 +19,7 @@ from doppler.resample import Resampler, ResamplerDpmfs
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _tone(freq: float, n: int, dtype=np.complex64) -> np.ndarray:
     t = np.arange(n, dtype=np.float64)
     return np.exp(2j * np.pi * freq * t).astype(dtype)
@@ -41,10 +42,13 @@ def _peak_bin(spec: np.ndarray) -> int:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def bank():
     _, b = kaiser_prototype(
-        attenuation=60.0, passband=0.4, stopband=0.6,
+        attenuation=60.0,
+        passband=0.4,
+        stopband=0.6,
         image_attenuation=80.0,
     )
     return b
@@ -59,6 +63,7 @@ def dpmfs_coeffs(bank):
 # Resampler — construction
 # ---------------------------------------------------------------------------
 
+
 class TestResamplerCreate:
     def test_interpolation_rate(self, bank):
         r = Resampler(bank, rate=2.0)
@@ -71,7 +76,7 @@ class TestResamplerCreate:
     def test_bank_shape_reported(self, bank):
         r = Resampler(bank, rate=1.0)
         assert r.num_phases == bank.shape[0]
-        assert r.num_taps   == bank.shape[1]
+        assert r.num_taps == bank.shape[1]
 
     def test_bad_bank_ndim(self):
         with pytest.raises(ValueError):
@@ -86,6 +91,7 @@ class TestResamplerCreate:
 # ---------------------------------------------------------------------------
 # Resampler — output size and dtype
 # ---------------------------------------------------------------------------
+
 
 class TestResamplerOutput:
     def test_output_dtype(self, bank):
@@ -116,10 +122,9 @@ class TestResamplerOutput:
         """Two half-block calls must equal one full-block call."""
         r1 = Resampler(bank, rate=1.5)
         r2 = Resampler(bank, rate=1.5)
-        x  = _tone(0.1, 512)
+        x = _tone(0.1, 512)
         y_full = r1.execute(x)
-        y_half = np.concatenate([r2.execute(x[:256]),
-                                  r2.execute(x[256:])])
+        y_half = np.concatenate([r2.execute(x[:256]), r2.execute(x[256:])])
         n = min(len(y_full), len(y_half))
         np.testing.assert_allclose(y_full[:n], y_half[:n], atol=1e-5)
 
@@ -127,6 +132,7 @@ class TestResamplerOutput:
 # ---------------------------------------------------------------------------
 # Resampler — spectral quality (Python design → C execution)
 # ---------------------------------------------------------------------------
+
 
 class TestResamplerSpectral:
     """Verify that kaiser_prototype() coefficients give the expected
@@ -142,30 +148,30 @@ class TestResamplerSpectral:
         return r.execute(x)
 
     def test_interpolation_tone_present(self, bank):
-        y    = self._run(bank, rate=2.0, freq_in=0.1)
+        y = self._run(bank, rate=2.0, freq_in=0.1)
         spec = _spectrum_db(y)
         expected_bin = int(0.05 * 2 * (len(spec) - 1))
         assert abs(_peak_bin(spec) - expected_bin) <= 5
 
     def test_interpolation_image_rejected(self, bank):
-        y    = self._run(bank, rate=2.0, freq_in=0.1)
+        y = self._run(bank, rate=2.0, freq_in=0.1)
         spec = _spectrum_db(y)
-        peak_db   = spec[_peak_bin(spec)]
+        peak_db = spec[_peak_bin(spec)]
         image_bin = int(0.45 * 2 * (len(spec) - 1))
-        lo, hi    = max(0, image_bin - 10), min(len(spec), image_bin + 10)
-        image_db  = float(np.max(spec[lo:hi]))
+        lo, hi = max(0, image_bin - 10), min(len(spec), image_bin + 10)
+        image_db = float(np.max(spec[lo:hi]))
         assert peak_db - image_db > 55.0
 
     def test_decimation_tone_present(self, bank):
-        y    = self._run(bank, rate=0.5, freq_in=0.1)
+        y = self._run(bank, rate=0.5, freq_in=0.1)
         spec = _spectrum_db(y)
         expected_bin = int(0.2 * 2 * (len(spec) - 1))
         assert abs(_peak_bin(spec) - expected_bin) <= 5
 
     def test_decimation_alias_rejected(self, bank):
-        y    = self._run(bank, rate=0.5, freq_in=0.1)
+        y = self._run(bank, rate=0.5, freq_in=0.1)
         spec = _spectrum_db(y)
-        peak_db  = spec[_peak_bin(spec)]
+        peak_db = spec[_peak_bin(spec)]
         noise_db = float(np.median(spec))
         assert peak_db - noise_db > 20.0
 
@@ -173,6 +179,7 @@ class TestResamplerSpectral:
 # ---------------------------------------------------------------------------
 # ResamplerDpmfs — construction
 # ---------------------------------------------------------------------------
+
 
 class TestResamplerDpmfsCreate:
     def test_rate(self, dpmfs_coeffs):
@@ -191,6 +198,7 @@ class TestResamplerDpmfsCreate:
 # ---------------------------------------------------------------------------
 # ResamplerDpmfs — output size, dtype, statefulness
 # ---------------------------------------------------------------------------
+
 
 class TestResamplerDpmfsOutput:
     def test_output_dtype(self, dpmfs_coeffs):
@@ -220,10 +228,9 @@ class TestResamplerDpmfsOutput:
     def test_stateful_across_calls(self, dpmfs_coeffs):
         r1 = ResamplerDpmfs(dpmfs_coeffs, rate=1.5)
         r2 = ResamplerDpmfs(dpmfs_coeffs, rate=1.5)
-        x  = _tone(0.1, 512)
+        x = _tone(0.1, 512)
         y_full = r1.execute(x)
-        y_half = np.concatenate([r2.execute(x[:256]),
-                                  r2.execute(x[256:])])
+        y_half = np.concatenate([r2.execute(x[:256]), r2.execute(x[256:])])
         n = min(len(y_full), len(y_half))
         np.testing.assert_allclose(y_full[:n], y_half[:n], atol=1e-5)
 
@@ -231,6 +238,7 @@ class TestResamplerDpmfsOutput:
 # ---------------------------------------------------------------------------
 # Cross-implementation agreement
 # ---------------------------------------------------------------------------
+
 
 class TestCrossImplementation:
     """Table resampler and DPMFS resampler must agree in the passband.
@@ -249,8 +257,10 @@ class TestCrossImplementation:
             r.reset()
         y_table = r_table.execute(x)
         y_dpmfs = r_dpmfs.execute(x)
-        n    = min(len(y_table), len(y_dpmfs))
+        n = min(len(y_table), len(y_dpmfs))
         skip = 30  # skip initial filter transient
         np.testing.assert_allclose(
-            y_table[skip:n], y_dpmfs[skip:n], atol=5e-3,
+            y_table[skip:n],
+            y_dpmfs[skip:n],
+            atol=5e-3,
         )

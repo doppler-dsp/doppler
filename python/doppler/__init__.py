@@ -26,6 +26,7 @@ DSP building blocks
 >>> from doppler.polyphase import design_bank
 """
 
+# ruff: noqa: F401
 from . import accumulator
 from . import delay
 from . import fft

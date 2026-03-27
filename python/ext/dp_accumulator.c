@@ -16,7 +16,7 @@
 #include <numpy/arrayobject.h>
 
 #include <dp/accumulator.h>
-#include <dp/stream.h>  /* dp_cf64_t */
+#include <dp/stream.h> /* dp_cf64_t */
 
 /* ======================================================== */
 /* AccF32Object — wraps dp_acc_f32_t *
@@ -24,8 +24,7 @@
 
 typedef struct
 {
-  PyObject_HEAD
-  dp_acc_f32_t *handle;
+  PyObject_HEAD dp_acc_f32_t *handle;
 } AccF32Object;
 
 static void
@@ -48,12 +47,12 @@ AccF32_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AccF32_init (AccF32Object *self, PyObject *args, PyObject *kwds)
 {
-  (void)args; (void)kwds;
+  (void)args;
+  (void)kwds;
   self->handle = dp_acc_f32_create ();
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_acc_f32_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_f32_create returned NULL");
       return -1;
     }
   return 0;
@@ -132,8 +131,7 @@ AccF32_add (AccF32Object *self, PyObject *args)
   if (!xa)
     return NULL;
 
-  dp_acc_f32_add (self->handle,
-                  (const float *)PyArray_DATA (xa),
+  dp_acc_f32_add (self->handle, (const float *)PyArray_DATA (xa),
                   (size_t)PyArray_SIZE (xa));
   Py_DECREF (xa);
   Py_RETURN_NONE;
@@ -169,10 +167,8 @@ AccF32_madd (AccF32Object *self, PyObject *args)
   if (PyArray_SIZE (ha) < n)
     n = PyArray_SIZE (ha);
 
-  dp_acc_f32_madd (self->handle,
-                   (const float *)PyArray_DATA (xa),
-                   (const float *)PyArray_DATA (ha),
-                   (size_t)n);
+  dp_acc_f32_madd (self->handle, (const float *)PyArray_DATA (xa),
+                   (const float *)PyArray_DATA (ha), (size_t)n);
   Py_DECREF (xa);
   Py_DECREF (ha);
   Py_RETURN_NONE;
@@ -211,35 +207,30 @@ AccF32_exit (AccF32Object *self, PyObject *args)
 }
 
 static PyMethodDef AccF32_methods[] = {
-  {"reset",   (PyCFunction)AccF32_reset, METH_NOARGS,
-   "dp_acc_f32_reset."},
-  {"get",     (PyCFunction)AccF32_get,   METH_NOARGS,
-   "dp_acc_f32_get."},
-  {"dump",    (PyCFunction)AccF32_dump,  METH_NOARGS,
-   "dp_acc_f32_dump — read and zero."},
-  {"push",    (PyCFunction)AccF32_push,  METH_VARARGS,
-   "push(x: float)."},
-  {"add",     (PyCFunction)AccF32_add,   METH_VARARGS,
-   "add(x: np.ndarray[f32])."},
-  {"madd",    (PyCFunction)AccF32_madd,  METH_VARARGS,
-   "madd(x: np.ndarray[f32], h: np.ndarray[f32])."},
-  {"destroy", (PyCFunction)AccF32_destroy, METH_NOARGS,
-   "Release resources."},
-  {"__enter__", (PyCFunction)AccF32_enter, METH_NOARGS,  NULL},
-  {"__exit__",  (PyCFunction)AccF32_exit,  METH_VARARGS, NULL},
-  {NULL}
+  { "reset", (PyCFunction)AccF32_reset, METH_NOARGS, "dp_acc_f32_reset." },
+  { "get", (PyCFunction)AccF32_get, METH_NOARGS, "dp_acc_f32_get." },
+  { "dump", (PyCFunction)AccF32_dump, METH_NOARGS,
+    "dp_acc_f32_dump — read and zero." },
+  { "push", (PyCFunction)AccF32_push, METH_VARARGS, "push(x: float)." },
+  { "add", (PyCFunction)AccF32_add, METH_VARARGS, "add(x: np.ndarray[f32])." },
+  { "madd", (PyCFunction)AccF32_madd, METH_VARARGS,
+    "madd(x: np.ndarray[f32], h: np.ndarray[f32])." },
+  { "destroy", (PyCFunction)AccF32_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AccF32_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AccF32_exit, METH_VARARGS, NULL },
+  { NULL }
 };
 
 static PyTypeObject AccF32Type = {
-    PyVarObject_HEAD_INIT (NULL, 0)
-    .tp_name      = "dp_accumulator.AccF32",
-    .tp_basicsize = sizeof (AccF32Object),
-    .tp_dealloc   = (destructor)AccF32_dealloc,
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Wraps dp_acc_f32_t.",
-    .tp_methods   = AccF32_methods,
-    .tp_new       = AccF32_new,
-    .tp_init      = (initproc)AccF32_init,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dp_accumulator.AccF32",
+  .tp_basicsize = sizeof (AccF32Object),
+  .tp_dealloc = (destructor)AccF32_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "Wraps dp_acc_f32_t.",
+  .tp_methods = AccF32_methods,
+  .tp_new = AccF32_new,
+  .tp_init = (initproc)AccF32_init,
 };
 
 /* ======================================================== */
@@ -248,8 +239,7 @@ static PyTypeObject AccF32Type = {
 
 typedef struct
 {
-  PyObject_HEAD
-  dp_acc_cf64_t *handle;
+  PyObject_HEAD dp_acc_cf64_t *handle;
 } AccCf64Object;
 
 static void
@@ -272,12 +262,12 @@ AccCf64_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AccCf64_init (AccCf64Object *self, PyObject *args, PyObject *kwds)
 {
-  (void)args; (void)kwds;
+  (void)args;
+  (void)kwds;
   self->handle = dp_acc_cf64_create ();
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "dp_acc_cf64_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "dp_acc_cf64_create returned NULL");
       return -1;
     }
   return 0;
@@ -359,8 +349,7 @@ AccCf64_add (AccCf64Object *self, PyObject *args)
   if (!xa)
     return NULL;
 
-  dp_acc_cf64_add (self->handle,
-                   (const dp_cf64_t *)PyArray_DATA (xa),
+  dp_acc_cf64_add (self->handle, (const dp_cf64_t *)PyArray_DATA (xa),
                    (size_t)PyArray_SIZE (xa));
   Py_DECREF (xa);
   Py_RETURN_NONE;
@@ -396,10 +385,8 @@ AccCf64_madd (AccCf64Object *self, PyObject *args)
   if (PyArray_SIZE (ha) < n)
     n = PyArray_SIZE (ha);
 
-  dp_acc_cf64_madd (self->handle,
-                    (const dp_cf64_t *)PyArray_DATA (xa),
-                    (const float *)PyArray_DATA (ha),
-                    (size_t)n);
+  dp_acc_cf64_madd (self->handle, (const dp_cf64_t *)PyArray_DATA (xa),
+                    (const float *)PyArray_DATA (ha), (size_t)n);
   Py_DECREF (xa);
   Py_DECREF (ha);
   Py_RETURN_NONE;
@@ -438,35 +425,32 @@ AccCf64_exit (AccCf64Object *self, PyObject *args)
 }
 
 static PyMethodDef AccCf64_methods[] = {
-  {"reset",   (PyCFunction)AccCf64_reset,  METH_NOARGS,
-   "dp_acc_cf64_reset."},
-  {"get",     (PyCFunction)AccCf64_get,    METH_NOARGS,
-   "dp_acc_cf64_get — read without clearing."},
-  {"dump",    (PyCFunction)AccCf64_dump,   METH_NOARGS,
-   "dp_acc_cf64_dump — read and zero."},
-  {"push",    (PyCFunction)AccCf64_push,   METH_VARARGS,
-   "push(x: complex)."},
-  {"add",     (PyCFunction)AccCf64_add,    METH_VARARGS,
-   "add(x: np.ndarray[complex128])."},
-  {"madd",    (PyCFunction)AccCf64_madd,   METH_VARARGS,
-   "madd(x: np.ndarray[complex128], h: np.ndarray[f32])."},
-  {"destroy", (PyCFunction)AccCf64_destroy, METH_NOARGS,
-   "Release resources."},
-  {"__enter__", (PyCFunction)AccCf64_enter, METH_NOARGS,  NULL},
-  {"__exit__",  (PyCFunction)AccCf64_exit,  METH_VARARGS, NULL},
-  {NULL}
+  { "reset", (PyCFunction)AccCf64_reset, METH_NOARGS, "dp_acc_cf64_reset." },
+  { "get", (PyCFunction)AccCf64_get, METH_NOARGS,
+    "dp_acc_cf64_get — read without clearing." },
+  { "dump", (PyCFunction)AccCf64_dump, METH_NOARGS,
+    "dp_acc_cf64_dump — read and zero." },
+  { "push", (PyCFunction)AccCf64_push, METH_VARARGS, "push(x: complex)." },
+  { "add", (PyCFunction)AccCf64_add, METH_VARARGS,
+    "add(x: np.ndarray[complex128])." },
+  { "madd", (PyCFunction)AccCf64_madd, METH_VARARGS,
+    "madd(x: np.ndarray[complex128], h: np.ndarray[f32])." },
+  { "destroy", (PyCFunction)AccCf64_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AccCf64_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AccCf64_exit, METH_VARARGS, NULL },
+  { NULL }
 };
 
 static PyTypeObject AccCf64Type = {
-    PyVarObject_HEAD_INIT (NULL, 0)
-    .tp_name      = "dp_accumulator.AccCf64",
-    .tp_basicsize = sizeof (AccCf64Object),
-    .tp_dealloc   = (destructor)AccCf64_dealloc,
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Wraps dp_acc_cf64_t.",
-    .tp_methods   = AccCf64_methods,
-    .tp_new       = AccCf64_new,
-    .tp_init      = (initproc)AccCf64_init,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dp_accumulator.AccCf64",
+  .tp_basicsize = sizeof (AccCf64Object),
+  .tp_dealloc = (destructor)AccCf64_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "Wraps dp_acc_cf64_t.",
+  .tp_methods = AccCf64_methods,
+  .tp_new = AccCf64_new,
+  .tp_init = (initproc)AccCf64_init,
 };
 
 /* ======================================================== */
@@ -474,10 +458,10 @@ static PyTypeObject AccCf64Type = {
 /* ======================================================== */
 
 static PyModuleDef dp_accumulator_module = {
-    PyModuleDef_HEAD_INIT,
-    .m_name = "dp_accumulator",
-    .m_doc  = "Python binding for dp/accumulator.h.",
-    .m_size = -1,
+  PyModuleDef_HEAD_INIT,
+  .m_name = "dp_accumulator",
+  .m_doc = "Python binding for dp/accumulator.h.",
+  .m_size = -1,
 };
 
 PyMODINIT_FUNC
@@ -495,8 +479,7 @@ PyInit_dp_accumulator (void)
     return NULL;
 
   Py_INCREF (&AccF32Type);
-  if (PyModule_AddObject (m, "AccF32",
-                          (PyObject *)&AccF32Type) < 0)
+  if (PyModule_AddObject (m, "AccF32", (PyObject *)&AccF32Type) < 0)
     {
       Py_DECREF (&AccF32Type);
       Py_DECREF (m);
@@ -504,8 +487,7 @@ PyInit_dp_accumulator (void)
     }
 
   Py_INCREF (&AccCf64Type);
-  if (PyModule_AddObject (m, "AccCf64",
-                          (PyObject *)&AccCf64Type) < 0)
+  if (PyModule_AddObject (m, "AccCf64", (PyObject *)&AccCf64Type) < 0)
     {
       Py_DECREF (&AccCf64Type);
       Py_DECREF (m);

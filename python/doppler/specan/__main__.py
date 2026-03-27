@@ -35,19 +35,25 @@ def main() -> None:
         description="Live spectrum analyzer — doppler NCO + FFT",
     )
     parser.add_argument(
-        "--port", type=int, default=8765,
+        "--port",
+        type=int,
+        default=8765,
         help="HTTP/WebSocket port (default: 8765)",
     )
     parser.add_argument(
-        "--host", default="127.0.0.1",
+        "--host",
+        default="127.0.0.1",
         help="Bind address (default: 127.0.0.1)",
     )
     parser.add_argument(
-        "--fft-size", type=int, default=512,
+        "--fft-size",
+        type=int,
+        default=512,
         help="FFT size, must be power of two (default: 512)",
     )
     parser.add_argument(
-        "--no-browser", action="store_true",
+        "--no-browser",
+        action="store_true",
         help="Do not open a browser window automatically",
     )
     args = parser.parse_args()
@@ -58,9 +64,11 @@ def main() -> None:
 
     # Apply initial FFT size to shared state before starting server
     from doppler.specan.server import _state  # noqa: PLC0415
+
     _state.fft_size = args.fft_size
 
     from doppler.specan.server import main as serve  # noqa: PLC0415
+
     serve(host=args.host, port=args.port, open_browser=not args.no_browser)
 
 

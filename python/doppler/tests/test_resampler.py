@@ -24,27 +24,28 @@ from doppler.resample.reference import Resampler
 # Test parameters
 # ---------------------------------------------------------------------------
 
-N_IN             = 8192
+N_IN = 8192
 
-R_INTERP         = 2.0333
-FREQS_INTERP     = [0.1, 0.4]      # normalised to Fin
+R_INTERP = 2.0333
+FREQS_INTERP = [0.1, 0.4]  # normalised to Fin
 
-R_DECIM          = 0.50333
-FREQS_DECIM_IN   = [0.4 * R_DECIM, 0.6 * R_DECIM]   # in Fin units
+R_DECIM = 0.50333
+FREQS_DECIM_IN = [0.4 * R_DECIM, 0.6 * R_DECIM]  # in Fin units
 
 AMPLITUDE_TOL_DB = 0.1
-ARTIFACT_DB      = -60
+ARTIFACT_DB = -60
 
 
 # ---------------------------------------------------------------------------
 # Spectral helpers
 # ---------------------------------------------------------------------------
 
+
 def _blackman_harris(n):
     """4-term Blackman-Harris window (Nuttall 1981)."""
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    return a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
 
 
 def _spectrum(signal):
@@ -53,10 +54,10 @@ def _spectrum(signal):
     Returns (bins, amplitude_db) where a unit-amplitude complex tone
     reads 0 dBFS.
     """
-    n  = len(signal)
-    w  = _blackman_harris(n)
+    n = len(signal)
+    w = _blackman_harris(n)
     cg = w.mean()
-    S  = np.fft.fft(signal * w, 4 * n)
+    S = np.fft.fft(signal * w, 4 * n)
     amp_db = 20 * np.log10(np.abs(S) / (n * cg) + 1e-300)
     return np.fft.fftfreq(4 * n), amp_db
 
@@ -75,6 +76,7 @@ def _peak_near(bins, db, freq, tol=0.02):
 # ---------------------------------------------------------------------------
 # Interpolator tests  (r = 2.0333)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("f_in", FREQS_INTERP)
 def test_interp_passband_amplitude(f_in):
@@ -102,7 +104,7 @@ def test_interp_output_frequency(f_in):
 
     f_out_expected = _wrap(f_in / R_INTERP)
     bins, db = _spectrum(y)
-    peak_idx   = np.argmax(db)
+    peak_idx = np.argmax(db)
     f_out_meas = float(bins[peak_idx])
 
     assert abs(f_out_meas - f_out_expected) < 0.01, (
@@ -118,7 +120,7 @@ def test_interp_spectral_artifacts():
     y = Resampler(r=R_INTERP).execute(x)
 
     bins, db = _spectrum(y)
-    sig_peak  = db.max()
+    sig_peak = db.max()
 
     mask = np.ones(len(bins), dtype=bool)
     for f_in in FREQS_INTERP:
@@ -136,14 +138,15 @@ def test_interp_spectral_artifacts():
 # Decimator tests  (r = 0.50333)
 # ---------------------------------------------------------------------------
 
+
 def test_decim_passband_amplitude():
     """Tone 1 amplitude change through decimator is < AMPLITUDE_TOL_DB."""
-    f_in = FREQS_DECIM_IN[0]          # 0.4·Fout expressed in Fin units
+    f_in = FREQS_DECIM_IN[0]  # 0.4·Fout expressed in Fin units
     t = np.arange(N_IN)
     x = np.exp(2j * np.pi * f_in * t)
     y = Resampler(r=R_DECIM).execute(x)
 
-    f_out = _wrap(f_in / R_DECIM)     # should be 0.4
+    f_out = _wrap(f_in / R_DECIM)  # should be 0.4
     bins, db = _spectrum(y)
     amp_db = _peak_near(bins, db, f_out)
 
@@ -162,7 +165,7 @@ def test_decim_output_frequency():
 
     f_out_expected = _wrap(f_in / R_DECIM)
     bins, db = _spectrum(y)
-    peak_idx   = np.argmax(db)
+    peak_idx = np.argmax(db)
     f_out_meas = float(bins[peak_idx])
 
     assert abs(f_out_meas - f_out_expected) < 0.01, (
@@ -178,7 +181,7 @@ def test_decim_spectral_artifacts():
     y = Resampler(r=R_DECIM).execute(x)
 
     bins, db = _spectrum(y)
-    sig_peak  = db.max()
+    sig_peak = db.max()
 
     # Exclude ±0.02 around tone 1 output frequency only
     f_out_tone1 = _wrap(FREQS_DECIM_IN[0] / R_DECIM)
@@ -186,6 +189,5 @@ def test_decim_spectral_artifacts():
 
     artifact_dbc = float(db[mask].max()) - sig_peak
     assert artifact_dbc < ARTIFACT_DB, (
-        f"decim r={R_DECIM}: artifacts {artifact_dbc:.1f} dBc "
-        f"(limit {ARTIFACT_DB} dBc)"
+        f"decim r={R_DECIM}: artifacts {artifact_dbc:.1f} dBc (limit {ARTIFACT_DB} dBc)"
     )

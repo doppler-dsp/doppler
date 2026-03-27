@@ -6,10 +6,9 @@ from doppler.dp_delay import DelayCf64
 from doppler.dp_accumulator import AccCf64
 from doppler.polyphase import kaiser_prototype
 
-class Resampler:
-    """Continuously variable sample rate converter.
 
-    """
+class Resampler:
+    """Continuously variable sample rate converter."""
 
     def __init__(self, r=1.1):
 
@@ -17,7 +16,7 @@ class Resampler:
         # sample rate. Decide which here.
         self.r = r
         if self.r >= 1:
-            self.nco = Nco(1/r)
+            self.nco = Nco(1 / r)
             self.upsample = True
         else:
             self.nco = Nco(r)
@@ -97,7 +96,7 @@ class Resampler:
         n_in = len(x)
         out = np.empty(int(n_in * self.r) + 1, dtype=np.complex128)
         out_idx = 0
-        N = self.taps
+        _ = self.taps
 
         for xi in x:
             phase, ovf = self.nco.execute_u32_ovf()
@@ -125,9 +124,7 @@ class Resampler:
         return self._interpolate(x) if self.upsample else self._decimate(x)
 
 
-
 if __name__ == "__main__":
-
     resampler = Resampler()
     print(resampler.nco.get_freq())
     print(resampler.nco.get_phase_inc())

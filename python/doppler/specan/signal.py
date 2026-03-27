@@ -22,6 +22,7 @@ def _get_nco():
     global _nco
     if _nco is None:
         from doppler import Nco  # noqa: PLC0415
+
         _nco = Nco
     return _nco
 
@@ -29,6 +30,7 @@ def _get_nco():
 def _ensure_fft(n: int) -> None:
     if n not in _fft_setup_done:
         from doppler.fft import setup  # noqa: PLC0415
+
         setup((n,))
         _fft_setup_done[n] = True
 
@@ -49,6 +51,7 @@ def _hann(n: int) -> np.ndarray:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 class SpecanState:
     """Mutable tuning state, shared between WebSocket handler and generator."""
 
@@ -59,11 +62,11 @@ class SpecanState:
         fft_size: int = 2048,
     ) -> None:
         self.sample_rate = sample_rate
-        self.center_freq = center_freq   # Hz offset from DC
+        self.center_freq = center_freq  # Hz offset from DC
         self.fft_size = fft_size
         # Single tone: normalised frequency in [-0.5, 0.5)
-        self.tone_freq: float = 0.1      # fraction of sample_rate
-        self.tone_amp_db: float = -6.0   # dBFS
+        self.tone_freq: float = 0.1  # fraction of sample_rate
+        self.tone_amp_db: float = -6.0  # dBFS
         # AWGN floor in dBFS (e.g. -40 = visible noise, -80 = very clean)
         self.noise_floor_db: float = -40.0
 
@@ -93,10 +96,14 @@ def generate_frame(state: SpecanState) -> list[float]:
     # slider value regardless of FFT size (FFT processing gain spreads
     # noise power across N bins, each seeing ~10·log10(N) dB less).
     noise_lin = 10.0 ** (state.noise_floor_db / 20.0) * math.sqrt(n)
-    sig += noise_lin * (
-        np.random.standard_normal(n).astype(np.float32)
-        + 1j * np.random.standard_normal(n).astype(np.float32)
-    ) / math.sqrt(2)
+    sig += (
+        noise_lin
+        * (
+            np.random.standard_normal(n).astype(np.float32)
+            + 1j * np.random.standard_normal(n).astype(np.float32)
+        )
+        / math.sqrt(2)
+    )
 
     # Hann window → complex128 for FFTW
     windowed = (sig * _hann(n)).astype(np.complex128)
@@ -105,8 +112,8 @@ def generate_frame(state: SpecanState) -> list[float]:
     # Magnitude in dBFS (referenced to window power)
     mag = np.abs(spectrum)
     # Normalise by FFT size and window coherent gain (Hann ≈ 0.5)
-    mag /= (n * 0.5)
-    mag = np.maximum(mag, 1e-6)           # -120 dBFS floor
+    mag /= n * 0.5
+    mag = np.maximum(mag, 1e-6)  # -120 dBFS floor
     db = 20.0 * np.log10(mag)
 
     # FFT-shift so DC is in the centre

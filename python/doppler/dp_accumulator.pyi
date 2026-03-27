@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 class AccF32:
     """General-purpose float32 scalar accumulator wrapping dp_acc_f32_t.
 
@@ -26,7 +25,6 @@ class AccF32:
     """
 
     def __init__(self) -> None: ...
-
     def reset(self) -> None:
         """Zero the accumulator without reading it."""
         ...
@@ -70,7 +68,6 @@ class AccF32:
     def __enter__(self) -> "AccF32": ...
     def __exit__(self, *args: object) -> None: ...
 
-
 class AccCf64:
     """General-purpose complex128 accumulator wrapping dp_acc_cf64_t.
 
@@ -89,7 +86,6 @@ class AccCf64:
     """
 
     def __init__(self) -> None: ...
-
     def reset(self) -> None:
         """Zero both I and Q accumulators."""
         ...

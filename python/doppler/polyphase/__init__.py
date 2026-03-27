@@ -13,7 +13,7 @@ from ._polyphase import (
     plot_group_delay,
 )
 from ._dpmfs import DPMFSCoeffs, fit_dpmfs
-from .matlab_optimization import optimize_dpmfs, optimize_pbf
+from .farrow_opt import optimize_dpmfs, optimize_pbf
 
 __all__ = [
     "kaiser_beta",

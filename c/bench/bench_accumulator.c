@@ -17,18 +17,20 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* ── Parameters ──────────────────────────────────────────────────────────── */
+/* ── Parameters ────────────────────────────────────────────────────────────
+ */
 
 /* Polyphase bank dimensions (matches resampler defaults) */
-#define NUM_PHASES  4096
-#define NUM_TAPS    19
+#define NUM_PHASES 4096
+#define NUM_TAPS 19
 
 /* 1-D block: enough for cache-pressure to show                              */
-#define BLOCK       (NUM_PHASES * NUM_TAPS)   /* 77 824 elements */
+#define BLOCK (NUM_PHASES * NUM_TAPS) /* 77 824 elements */
 
-#define ITERATIONS  500
+#define ITERATIONS 500
 
-/* ── Timing ──────────────────────────────────────────────────────────────── */
+/* ── Timing ────────────────────────────────────────────────────────────────
+ */
 
 static double
 elapsed_sec (struct timespec *t0, struct timespec *t1)
@@ -37,7 +39,8 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
          + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
 }
 
-/* ── f32 benchmarks ──────────────────────────────────────────────────────── */
+/* ── f32 benchmarks ────────────────────────────────────────────────────────
+ */
 
 static void
 bench_f32_add (const float *x)
@@ -52,9 +55,9 @@ bench_f32_add (const float *x)
   clock_gettime (CLOCK_MONOTONIC, &t1);
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
-  double gfl = msa / 1e3;   /* 1 add per element */
-  printf ("  f32   add    %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e)\n",
-          msa, gfl, (double)dp_acc_f32_get (acc));
+  double gfl = msa / 1e3; /* 1 add per element */
+  printf ("  f32   add    %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e)\n", msa, gfl,
+          (double)dp_acc_f32_get (acc));
   dp_acc_f32_destroy (acc);
 }
 
@@ -72,8 +75,8 @@ bench_f32_madd (const float *x, const float *h)
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
   double gfl = msa * 2.0 / 1e3;
-  printf ("  f32   madd   %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e)\n",
-          msa, gfl, (double)dp_acc_f32_get (acc));
+  printf ("  f32   madd   %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e)\n", msa, gfl,
+          (double)dp_acc_f32_get (acc));
   dp_acc_f32_destroy (acc);
 }
 
@@ -93,8 +96,7 @@ bench_f32_add2d (const float *x)
   double gfl = msa / 1e3;
   printf ("  f32   add2d  %9.1f MSa/s  %6.2f GFlop/s"
           "  [%d×%d]  (sum=%.3e)\n",
-          msa, gfl, NUM_PHASES, NUM_TAPS,
-          (double)dp_acc_f32_get (acc));
+          msa, gfl, NUM_PHASES, NUM_TAPS, (double)dp_acc_f32_get (acc));
   dp_acc_f32_destroy (acc);
 }
 
@@ -114,12 +116,12 @@ bench_f32_madd2d (const float *x, const float *h)
   double gfl = msa * 2.0 / 1e3;
   printf ("  f32   madd2d %9.1f MSa/s  %6.2f GFlop/s"
           "  [%d×%d]  (sum=%.3e)\n",
-          msa, gfl, NUM_PHASES, NUM_TAPS,
-          (double)dp_acc_f32_get (acc));
+          msa, gfl, NUM_PHASES, NUM_TAPS, (double)dp_acc_f32_get (acc));
   dp_acc_f32_destroy (acc);
 }
 
-/* ── cf64 benchmarks ─────────────────────────────────────────────────────── */
+/* ── cf64 benchmarks ───────────────────────────────────────────────────────
+ */
 
 static void
 bench_cf64_add (const dp_cf64_t *x)
@@ -134,10 +136,10 @@ bench_cf64_add (const dp_cf64_t *x)
   clock_gettime (CLOCK_MONOTONIC, &t1);
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
-  double gfl = msa * 2.0 / 1e3;   /* 2 adds per complex sample */
+  double gfl = msa * 2.0 / 1e3; /* 2 adds per complex sample */
   dp_cf64_t v = dp_acc_cf64_get (acc);
-  printf ("  cf64  add    %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n",
-          msa, gfl, v.i, v.q);
+  printf ("  cf64  add    %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n", msa,
+          gfl, v.i, v.q);
   dp_acc_cf64_destroy (acc);
 }
 
@@ -156,8 +158,8 @@ bench_cf64_madd (const dp_cf64_t *x, const float *h)
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
   double gfl = msa * 4.0 / 1e3;
   dp_cf64_t v = dp_acc_cf64_get (acc);
-  printf ("  cf64  madd   %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n",
-          msa, gfl, v.i, v.q);
+  printf ("  cf64  madd   %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n", msa,
+          gfl, v.i, v.q);
   dp_acc_cf64_destroy (acc);
 }
 
@@ -182,15 +184,16 @@ bench_cf64_madd2d (const dp_cf64_t *x, const float *h)
   dp_acc_cf64_destroy (acc);
 }
 
-/* ── main ────────────────────────────────────────────────────────────────── */
+/* ── main ──────────────────────────────────────────────────────────────────
+ */
 
 int
 main (void)
 {
   /* Allocate and fill input buffers */
-  float      *xf = (float *)     malloc (BLOCK * sizeof (float));
-  float      *hf = (float *)     malloc (BLOCK * sizeof (float));
-  dp_cf64_t  *xc = (dp_cf64_t *) malloc (BLOCK * sizeof (dp_cf64_t));
+  float *xf = (float *)malloc (BLOCK * sizeof (float));
+  float *hf = (float *)malloc (BLOCK * sizeof (float));
+  dp_cf64_t *xc = (dp_cf64_t *)malloc (BLOCK * sizeof (dp_cf64_t));
 
   if (!xf || !hf || !xc)
     {
@@ -210,14 +213,14 @@ main (void)
   printf ("block = %d elements,  %d iterations\n\n", BLOCK, ITERATIONS);
 
   printf ("── f32 ───────────────────────────────────────────────────\n");
-  bench_f32_add   (xf);
-  bench_f32_madd  (xf, hf);
+  bench_f32_add (xf);
+  bench_f32_madd (xf, hf);
   bench_f32_add2d (xf);
   bench_f32_madd2d (xf, hf);
 
   printf ("\n── cf64 ──────────────────────────────────────────────────\n");
-  bench_cf64_add   (xc);
-  bench_cf64_madd  (xc, hf);
+  bench_cf64_add (xc);
+  bench_cf64_madd (xc, hf);
   bench_cf64_madd2d (xc, hf);
 
   printf ("\n");

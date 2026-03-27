@@ -79,7 +79,7 @@ dp_acc_cf64_reset (dp_acc_cf64_t *acc)
 float
 dp_acc_f32_dump (dp_acc_f32_t *acc)
 {
-  float v  = acc->val;
+  float v = acc->val;
   acc->val = 0.0f;
   return v;
 }
@@ -88,8 +88,8 @@ dp_cf64_t
 dp_acc_cf64_dump (dp_acc_cf64_t *acc)
 {
   dp_cf64_t v = { acc->i, acc->q };
-  acc->i       = 0.0;
-  acc->q       = 0.0;
+  acc->i = 0.0;
+  acc->q = 0.0;
   return v;
 }
 
@@ -154,10 +154,8 @@ dp_acc_cf64_add (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t n)
 }
 
 void
-dp_acc_f32_madd (dp_acc_f32_t *acc,
-                 const float * restrict x,
-                 const float * restrict h,
-                 size_t n)
+dp_acc_f32_madd (dp_acc_f32_t *acc, const float *restrict x,
+                 const float *restrict h, size_t n)
 {
   float sum = 0.0f;
   for (size_t k = 0; k < n; k++)
@@ -166,10 +164,8 @@ dp_acc_f32_madd (dp_acc_f32_t *acc,
 }
 
 void
-dp_acc_cf64_madd (dp_acc_cf64_t *acc,
-                  const dp_cf64_t * restrict x,
-                  const float     * restrict h,
-                  size_t n)
+dp_acc_cf64_madd (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+                  const float *restrict h, size_t n)
 {
   double si = 0.0, sq = 0.0;
   for (size_t k = 0; k < n; k++)
@@ -187,35 +183,28 @@ dp_acc_cf64_madd (dp_acc_cf64_t *acc,
  * ========================================================================= */
 
 void
-dp_acc_f32_add2d (dp_acc_f32_t *acc,
-                  const float *x,
-                  size_t rows, size_t cols)
+dp_acc_f32_add2d (dp_acc_f32_t *acc, const float *x, size_t rows, size_t cols)
 {
   dp_acc_f32_add (acc, x, rows * cols);
 }
 
 void
-dp_acc_cf64_add2d (dp_acc_cf64_t *acc,
-                   const dp_cf64_t *x,
-                   size_t rows, size_t cols)
+dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t rows,
+                   size_t cols)
 {
   dp_acc_cf64_add (acc, x, rows * cols);
 }
 
 void
-dp_acc_f32_madd2d (dp_acc_f32_t *acc,
-                   const float * restrict x,
-                   const float * restrict h,
-                   size_t rows, size_t cols)
+dp_acc_f32_madd2d (dp_acc_f32_t *acc, const float *restrict x,
+                   const float *restrict h, size_t rows, size_t cols)
 {
   dp_acc_f32_madd (acc, x, h, rows * cols);
 }
 
 void
-dp_acc_cf64_madd2d (dp_acc_cf64_t *acc,
-                    const dp_cf64_t * restrict x,
-                    const float     * restrict h,
-                    size_t rows, size_t cols)
+dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+                    const float *restrict h, size_t rows, size_t cols)
 {
   dp_acc_cf64_madd (acc, x, h, rows * cols);
 }

@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 class DelayCf64:
     """Dual-buffer circular delay line for complex128 IQ samples.
 

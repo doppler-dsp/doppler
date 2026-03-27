@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 def fft_global_setup(
     shape: tuple[int, ...],
     sign: int = -1,
@@ -35,13 +34,11 @@ def fft_global_setup(
     """
     ...
 
-
 def fft1d_execute(
     x: NDArray[np.complex128],
 ) -> NDArray[np.complex128]:
     """Out-of-place 1-D FFT.  *x* is not modified."""
     ...
-
 
 def fft1d_execute_inplace(
     x: NDArray[np.complex128],
@@ -49,13 +46,11 @@ def fft1d_execute_inplace(
     """In-place 1-D FFT.  *x* is overwritten with the transform output."""
     ...
 
-
 def fft2d_execute(
     x: NDArray[np.complex128],
 ) -> NDArray[np.complex128]:
     """Out-of-place 2-D FFT.  *x* is not modified."""
     ...
-
 
 def fft2d_execute_inplace(
     x: NDArray[np.complex128],

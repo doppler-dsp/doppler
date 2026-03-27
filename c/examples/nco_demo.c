@@ -20,10 +20,10 @@
 #include <math.h>
 #include <stdio.h>
 
-#define N_FREE   16    /* free-running samples to print         */
-#define N_FM     32    /* FM-modulated samples to generate      */
-#define FM_RATE  0.25f /* modulating tone: f_n of the sine wave */
-#define FM_DEV   0.05f /* peak frequency deviation (normalised) */
+#define N_FREE 16     /* free-running samples to print         */
+#define N_FM 32       /* FM-modulated samples to generate      */
+#define FM_RATE 0.25f /* modulating tone: f_n of the sine wave */
+#define FM_DEV 0.05f  /* peak frequency deviation (normalised) */
 
 int
 main (void)
@@ -40,8 +40,7 @@ main (void)
   dp_nco_execute_cf32 (nco, out, N_FREE);
 
   for (int i = 0; i < N_FREE; i++)
-    printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)out[i].i,
-            (double)out[i].q);
+    printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)out[i].i, (double)out[i].q);
 
   dp_nco_destroy (nco);
 
@@ -61,7 +60,7 @@ main (void)
   for (int i = 0; i < N_FM; i++)
     ctrl[i] = FM_DEV * sinf (2.0f * (float)M_PI * FM_RATE * (float)i);
 
-  dp_nco_t *fm  = dp_nco_create (0.1f);
+  dp_nco_t *fm = dp_nco_create (0.1f);
   dp_cf32_t fmo[N_FM];
   dp_nco_execute_cf32_ctrl (fm, ctrl, fmo, N_FM);
 

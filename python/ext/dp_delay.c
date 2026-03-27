@@ -15,7 +15,7 @@
 #include <string.h>
 
 #include <dp/delay.h>
-#include <dp/stream.h>  /* dp_cf64_t */
+#include <dp/stream.h> /* dp_cf64_t */
 
 /* ======================================================== */
 /* DelayCf64Object — wraps dp_delay_cf64_t *
@@ -23,8 +23,7 @@
 
 typedef struct
 {
-  PyObject_HEAD
-  dp_delay_cf64_t *handle;
+  PyObject_HEAD dp_delay_cf64_t *handle;
 } DelayCf64Object;
 
 static void
@@ -38,8 +37,7 @@ DelayCf64_dealloc (DelayCf64Object *self)
 static PyObject *
 DelayCf64_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  DelayCf64Object *self
-      = (DelayCf64Object *)type->tp_alloc (type, 0);
+  DelayCf64Object *self = (DelayCf64Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
@@ -48,11 +46,10 @@ DelayCf64_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DelayCf64_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = {"num_taps", NULL};
+  static char *kwlist[] = { "num_taps", NULL };
   Py_ssize_t num_taps = 0;
 
-  if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "n", kwlist, &num_taps))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "n", kwlist, &num_taps))
     return -1;
 
   self->handle = dp_delay_cf64_create ((size_t)num_taps);
@@ -69,8 +66,7 @@ DelayCf64_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
 /* ── reset ─────────────────────────────────────────────── */
 
 static PyObject *
-DelayCf64_cf64_reset (DelayCf64Object *self,
-                      PyObject *Py_UNUSED (ignored))
+DelayCf64_cf64_reset (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -84,8 +80,7 @@ DelayCf64_cf64_reset (DelayCf64Object *self,
 /* ── num_taps / capacity ───────────────────────────────── */
 
 static PyObject *
-DelayCf64_cf64_num_taps (DelayCf64Object *self,
-                         PyObject *Py_UNUSED (ignored))
+DelayCf64_cf64_num_taps (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -96,8 +91,7 @@ DelayCf64_cf64_num_taps (DelayCf64Object *self,
 }
 
 static PyObject *
-DelayCf64_cf64_capacity (DelayCf64Object *self,
-                         PyObject *Py_UNUSED (ignored))
+DelayCf64_cf64_capacity (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -129,15 +123,14 @@ DelayCf64_cf64_push (DelayCf64Object *self, PyObject *args)
 /* ── ptr → numpy complex128 array (copy of the window) ─── */
 
 static PyObject *
-DelayCf64_cf64_ptr (DelayCf64Object *self,
-                    PyObject *Py_UNUSED (ignored))
+DelayCf64_cf64_ptr (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t           n = dp_delay_cf64_num_taps (self->handle);
+  size_t n = dp_delay_cf64_num_taps (self->handle);
   const dp_cf64_t *p = dp_delay_cf64_ptr (self->handle);
 
   npy_intp dims[1] = { (npy_intp)n };
@@ -145,8 +138,7 @@ DelayCf64_cf64_ptr (DelayCf64Object *self,
   if (!arr)
     return NULL;
 
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), p,
-          n * sizeof (dp_cf64_t));
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (dp_cf64_t));
   return arr;
 }
 
@@ -164,17 +156,16 @@ DelayCf64_cf64_push_ptr (DelayCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &z))
     return NULL;
 
-  dp_cf64_t        x  = { z.real, z.imag };
-  size_t           n  = dp_delay_cf64_num_taps (self->handle);
-  const dp_cf64_t *p  = dp_delay_cf64_push_ptr (self->handle, x);
+  dp_cf64_t x = { z.real, z.imag };
+  size_t n = dp_delay_cf64_num_taps (self->handle);
+  const dp_cf64_t *p = dp_delay_cf64_push_ptr (self->handle, x);
 
   npy_intp dims[1] = { (npy_intp)n };
   PyObject *arr = PyArray_SimpleNew (1, dims, NPY_COMPLEX128);
   if (!arr)
     return NULL;
 
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), p,
-          n * sizeof (dp_cf64_t));
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (dp_cf64_t));
   return arr;
 }
 
@@ -194,28 +185,23 @@ DelayCf64_cf64_write (DelayCf64Object *self, PyObject *args)
     return NULL;
 
   /* Require 1-D complex128 C-contiguous array */
-  if (PyArray_NDIM (arr) != 1
-      || PyArray_TYPE (arr) != NPY_COMPLEX128
+  if (PyArray_NDIM (arr) != 1 || PyArray_TYPE (arr) != NPY_COMPLEX128
       || !PyArray_IS_C_CONTIGUOUS (arr))
     {
-      PyErr_SetString (PyExc_TypeError,
-                       "write() requires a 1-D C-contiguous "
-                       "complex128 array");
+      PyErr_SetString (PyExc_TypeError, "write() requires a 1-D C-contiguous "
+                                        "complex128 array");
       return NULL;
     }
 
   size_t n = (size_t)PyArray_SIZE (arr);
-  dp_delay_cf64_write (self->handle,
-                       (const dp_cf64_t *)PyArray_DATA (arr),
-                       n);
+  dp_delay_cf64_write (self->handle, (const dp_cf64_t *)PyArray_DATA (arr), n);
   Py_RETURN_NONE;
 }
 
 /* ── destroy / context manager ─────────────────────────── */
 
 static PyObject *
-DelayCf64_cf64_destroy (DelayCf64Object *self,
-                        PyObject *Py_UNUSED (ignored))
+DelayCf64_cf64_destroy (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -226,8 +212,7 @@ DelayCf64_cf64_destroy (DelayCf64Object *self,
 }
 
 static PyObject *
-DelayCf64_enter (DelayCf64Object *self,
-                 PyObject *Py_UNUSED (ignored))
+DelayCf64_enter (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
@@ -247,41 +232,36 @@ DelayCf64_exit (DelayCf64Object *self, PyObject *args)
 
 /* ── method table ──────────────────────────────────────── */
 
-static PyMethodDef DelayCf64_methods[] = {
-  {"reset",     (PyCFunction)DelayCf64_cf64_reset,
-   METH_NOARGS,    "dp_delay_cf64_reset."},
-  {"num_taps",  (PyCFunction)DelayCf64_cf64_num_taps,
-   METH_NOARGS,    "dp_delay_cf64_num_taps."},
-  {"capacity",  (PyCFunction)DelayCf64_cf64_capacity,
-   METH_NOARGS,    "dp_delay_cf64_capacity."},
-  {"push",      (PyCFunction)DelayCf64_cf64_push,
-   METH_VARARGS,   "push(x: complex) — push one cf64 sample."},
-  {"ptr",       (PyCFunction)DelayCf64_cf64_ptr,
-   METH_NOARGS,
-   "ptr() -> np.ndarray  — copy of the contiguous num_taps-window."},
-  {"push_ptr",  (PyCFunction)DelayCf64_cf64_push_ptr,
-   METH_VARARGS,
-   "push_ptr(x: complex) -> np.ndarray  — push then return window."},
-  {"write",     (PyCFunction)DelayCf64_cf64_write,
-   METH_VARARGS,
-   "write(x: np.ndarray) — push all samples from a complex128 array."},
-  {"destroy",   (PyCFunction)DelayCf64_cf64_destroy,
-   METH_NOARGS,    "Release resources."},
-  {"__enter__", (PyCFunction)DelayCf64_enter,  METH_NOARGS,  NULL},
-  {"__exit__",  (PyCFunction)DelayCf64_exit,   METH_VARARGS, NULL},
-  {NULL}
-};
+static PyMethodDef DelayCf64_methods[]
+    = { { "reset", (PyCFunction)DelayCf64_cf64_reset, METH_NOARGS,
+          "dp_delay_cf64_reset." },
+        { "num_taps", (PyCFunction)DelayCf64_cf64_num_taps, METH_NOARGS,
+          "dp_delay_cf64_num_taps." },
+        { "capacity", (PyCFunction)DelayCf64_cf64_capacity, METH_NOARGS,
+          "dp_delay_cf64_capacity." },
+        { "push", (PyCFunction)DelayCf64_cf64_push, METH_VARARGS,
+          "push(x: complex) — push one cf64 sample." },
+        { "ptr", (PyCFunction)DelayCf64_cf64_ptr, METH_NOARGS,
+          "ptr() -> np.ndarray  — copy of the contiguous num_taps-window." },
+        { "push_ptr", (PyCFunction)DelayCf64_cf64_push_ptr, METH_VARARGS,
+          "push_ptr(x: complex) -> np.ndarray  — push then return window." },
+        { "write", (PyCFunction)DelayCf64_cf64_write, METH_VARARGS,
+          "write(x: np.ndarray) — push all samples from a complex128 array." },
+        { "destroy", (PyCFunction)DelayCf64_cf64_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)DelayCf64_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)DelayCf64_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject DelayCf64Type = {
-    PyVarObject_HEAD_INIT (NULL, 0)
-    .tp_name      = "dp_delay.DelayCf64",
-    .tp_basicsize = sizeof (DelayCf64Object),
-    .tp_dealloc   = (destructor)DelayCf64_dealloc,
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Wraps dp_delay_cf64_t.",
-    .tp_methods   = DelayCf64_methods,
-    .tp_new       = DelayCf64_new,
-    .tp_init      = (initproc)DelayCf64_init,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dp_delay.DelayCf64",
+  .tp_basicsize = sizeof (DelayCf64Object),
+  .tp_dealloc = (destructor)DelayCf64_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "Wraps dp_delay_cf64_t.",
+  .tp_methods = DelayCf64_methods,
+  .tp_new = DelayCf64_new,
+  .tp_init = (initproc)DelayCf64_init,
 };
 
 /* ======================================================== */
@@ -289,10 +269,10 @@ static PyTypeObject DelayCf64Type = {
 /* ======================================================== */
 
 static PyModuleDef dp_delay_module = {
-    PyModuleDef_HEAD_INIT,
-    .m_name = "dp_delay",
-    .m_doc  = "Python binding for dp/delay.h.",
-    .m_size = -1,
+  PyModuleDef_HEAD_INIT,
+  .m_name = "dp_delay",
+  .m_doc = "Python binding for dp/delay.h.",
+  .m_size = -1,
 };
 
 PyMODINIT_FUNC
@@ -308,8 +288,7 @@ PyInit_dp_delay (void)
     return NULL;
 
   Py_INCREF (&DelayCf64Type);
-  if (PyModule_AddObject (m, "DelayCf64",
-                          (PyObject *)&DelayCf64Type) < 0)
+  if (PyModule_AddObject (m, "DelayCf64", (PyObject *)&DelayCf64Type) < 0)
     {
       Py_DECREF (&DelayCf64Type);
       Py_DECREF (m);

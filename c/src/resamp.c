@@ -35,9 +35,8 @@
 /* Overflow detection (same as nco.c)                                 */
 /* ------------------------------------------------------------------ */
 #if defined(__GNUC__) || defined(__clang__)
-#define ADD_OVF(a, b, res)                                     \
-  ((uint8_t)__builtin_add_overflow ((uint32_t)(a),             \
-                                    (uint32_t)(b),             \
+#define ADD_OVF(a, b, res)                                                    \
+  ((uint8_t)__builtin_add_overflow ((uint32_t)(a), (uint32_t)(b),             \
                                     (uint32_t *)(res)))
 #else
 static inline uint8_t
@@ -78,11 +77,11 @@ log2_u (size_t v)
 struct dp_resamp_cf32
 {
   /* Configuration */
-  double   rate;
-  size_t   num_phases;
-  size_t   num_taps;
+  double rate;
+  size_t num_phases;
+  size_t num_taps;
   unsigned log2_phases;
-  int      upsample;       /* 1 = interpolation, 0 = decimation */
+  int upsample; /* 1 = interpolation, 0 = decimation */
 
   /* Coefficient bank [num_phases][num_taps], float32.
    * For decimation the bank is pre-reversed and pre-scaled by r. */
@@ -94,10 +93,10 @@ struct dp_resamp_cf32
 
   /* Interpolator state: dual-buffer delay line.
    * Capacity = next power of 2 >= num_taps. */
-  dp_cf32_t *delay_buf;    /* 2 * delay_cap elements              */
-  size_t     delay_cap;
-  size_t     delay_mask;
-  size_t     delay_head;
+  dp_cf32_t *delay_buf; /* 2 * delay_cap elements              */
+  size_t delay_cap;
+  size_t delay_mask;
+  size_t delay_head;
 
   /* Decimator state (transposed form):
    *   iad[num_taps]     — integrate-and-dump accumulators
@@ -114,7 +113,7 @@ static inline void
 dl_push (struct dp_resamp_cf32 *r, dp_cf32_t x)
 {
   r->delay_head = (r->delay_head - 1) & r->delay_mask;
-  r->delay_buf[r->delay_head]                = x;
+  r->delay_buf[r->delay_head] = x;
   r->delay_buf[r->delay_head + r->delay_cap] = x;
 }
 
@@ -140,10 +139,8 @@ get_branch (const struct dp_resamp_cf32 *r, uint32_t phase)
 /* ================================================================== */
 
 dp_resamp_cf32_t *
-dp_resamp_cf32_create (size_t       num_phases,
-                       size_t       num_taps,
-                       const float *bank,
-                       double       rate)
+dp_resamp_cf32_create (size_t num_phases, size_t num_taps, const float *bank,
+                       double rate)
 {
   if (!num_phases || !num_taps || !bank || rate <= 0.0)
     return NULL;
@@ -152,11 +149,11 @@ dp_resamp_cf32_create (size_t       num_phases,
   if (!r)
     return NULL;
 
-  r->rate        = rate;
-  r->num_phases  = num_phases;
-  r->num_taps    = num_taps;
+  r->rate = rate;
+  r->num_phases = num_phases;
+  r->num_taps = num_taps;
   r->log2_phases = log2_u (num_phases);
-  r->upsample    = (rate >= 1.0);
+  r->upsample = (rate >= 1.0);
 
   /* Copy and condition the coefficient bank */
   size_t bank_len = num_phases * num_taps;
@@ -178,24 +175,23 @@ dp_resamp_cf32_create (size_t       num_phases,
       for (size_t p = 0; p < num_phases; p++)
         {
           const float *src = &bank[p * num_taps];
-          float       *dst = &r->bank[p * num_taps];
+          float *dst = &r->bank[p * num_taps];
           for (size_t t = 0; t < num_taps; t++)
             dst[t] = src[num_taps - 1 - t] * scale;
         }
     }
 
   /* NCO phase accumulator */
-  r->phase     = 0;
-  r->phase_inc = r->upsample ? norm_to_inc (1.0 / rate)
-                              : norm_to_inc (rate);
+  r->phase = 0;
+  r->phase_inc = r->upsample ? norm_to_inc (1.0 / rate) : norm_to_inc (rate);
 
   /* Delay line (interpolator) — power-of-2 dual buffer */
-  r->delay_cap  = 1;
+  r->delay_cap = 1;
   while (r->delay_cap < num_taps)
     r->delay_cap <<= 1;
   r->delay_mask = r->delay_cap - 1;
   r->delay_head = 0;
-  r->delay_buf  = calloc (2 * r->delay_cap, sizeof (dp_cf32_t));
+  r->delay_buf = calloc (2 * r->delay_cap, sizeof (dp_cf32_t));
   if (!r->delay_buf)
     {
       free (r->bank);
@@ -239,10 +235,9 @@ dp_resamp_cf32_destroy (dp_resamp_cf32_t *r)
 void
 dp_resamp_cf32_reset (dp_resamp_cf32_t *r)
 {
-  r->phase      = 0;
+  r->phase = 0;
   r->delay_head = 0;
-  memset (r->delay_buf, 0,
-          2 * r->delay_cap * sizeof (dp_cf32_t));
+  memset (r->delay_buf, 0, 2 * r->delay_cap * sizeof (dp_cf32_t));
   memset (r->iad, 0, r->num_taps * sizeof (dp_cf32_t));
   size_t tfd_n = r->num_taps > 1 ? r->num_taps - 1 : 1;
   memset (r->tfd, 0, tfd_n * sizeof (dp_cf32_t));
@@ -296,13 +291,12 @@ dp_resamp_cf32_num_taps (const dp_resamp_cf32_t *r)
  *   ...
  *   pos 14,15 → h7 = index 7
  */
-static const int32_t dup_idx_arr[16] = {
-    0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7
-};
+static const int32_t dup_idx_arr[16]
+    = { 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7 };
 
 static inline void
-dot_cf32_f32 (const dp_cf32_t *win, const float *h,
-              size_t N, float *out_i, float *out_q)
+dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
+              float *out_q)
 {
   __m512 acc = _mm512_setzero_ps ();
   __m512i dup_idx = _mm512_loadu_si512 (dup_idx_arr);
@@ -311,22 +305,21 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h,
   for (; j + 8 <= N; j += 8)
     {
       __m256 hraw = _mm256_loadu_ps (&h[j]);
-      __m512 hb   = _mm512_broadcast_f32x8 (hraw);
+      __m512 hb = _mm512_broadcast_f32x8 (hraw);
       __m512 hdup = _mm512_permutexvar_ps (dup_idx, hb);
-      __m512 w    = _mm512_loadu_ps ((const float *)&win[j]);
+      __m512 w = _mm512_loadu_ps ((const float *)&win[j]);
       acc = _mm512_fmadd_ps (w, hdup, acc);
     }
 
   /* Horizontal reduce: sum 16 floats, split even/odd for I and Q */
-  __m256 lo  = _mm512_castps512_ps256 (acc);
-  __m256 hi  = _mm512_extractf32x8_ps (acc, 1);
-  __m256 s8  = _mm256_add_ps (lo, hi);
+  __m256 lo = _mm512_castps512_ps256 (acc);
+  __m256 hi = _mm512_extractf32x8_ps (acc, 1);
+  __m256 s8 = _mm256_add_ps (lo, hi);
   __m128 s4l = _mm256_castps256_ps128 (s8);
   __m128 s4h = _mm256_extractf128_ps (s8, 1);
-  __m128 s4  = _mm_add_ps (s4l, s4h);
+  __m128 s4 = _mm_add_ps (s4l, s4h);
   /* s4 = [i0+i2, q0+q2, i1+i3, q1+q3] */
-  __m128 s2  = _mm_add_ps (s4,
-                            _mm_movehl_ps (s4, s4));
+  __m128 s2 = _mm_add_ps (s4, _mm_movehl_ps (s4, s4));
   /* s2[0] = I sum, s2[1] = Q sum */
   float si = _mm_cvtss_f32 (s2);
   float sq = _mm_cvtss_f32 (_mm_shuffle_ps (s2, s2, 0x1));
@@ -345,8 +338,8 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h,
 #else /* scalar fallback */
 
 static inline void
-dot_cf32_f32 (const dp_cf32_t *win, const float *h,
-              size_t N, float *out_i, float *out_q)
+dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
+              float *out_q)
 {
   float si = 0.0f, sq = 0.0f;
   for (size_t j = 0; j < N; j++)
@@ -361,26 +354,23 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h,
 #endif /* __AVX512F__ */
 
 static size_t
-interp_execute (dp_resamp_cf32_t *r,
-                const dp_cf32_t  *in,
-                size_t            num_in,
-                dp_cf32_t        *out,
-                size_t            max_out)
+interp_execute (dp_resamp_cf32_t *r, const dp_cf32_t *in, size_t num_in,
+                dp_cf32_t *out, size_t max_out)
 {
-  size_t   xi  = 0;
-  size_t   oi  = 0;
-  size_t   N   = r->num_taps;
-  uint32_t ph  = r->phase;
+  size_t xi = 0;
+  size_t oi = 0;
+  size_t N = r->num_taps;
+  uint32_t ph = r->phase;
   uint32_t inc = r->phase_inc;
 
   while (xi < num_in && oi < max_out)
     {
       /* Advance NCO */
       uint32_t new_ph;
-      uint8_t  ovf = ADD_OVF (ph, inc, &new_ph);
+      uint8_t ovf = ADD_OVF (ph, inc, &new_ph);
 
       /* Select branch and MAC */
-      const float     *h   = get_branch (r, ph);
+      const float *h = get_branch (r, ph);
       const dp_cf32_t *win = dl_ptr (r);
       dot_cf32_f32 (win, h, N, &out[oi].i, &out[oi].q);
       oi++;
@@ -414,12 +404,10 @@ interp_execute (dp_resamp_cf32_t *r,
 #ifdef __AVX512F__
 
 static inline void
-iad_madd (dp_cf32_t *iad, const float *h, size_t N,
-          float xi_i, float xi_q)
+iad_madd (dp_cf32_t *iad, const float *h, size_t N, float xi_i, float xi_q)
 {
   /* Build [xi_i, xi_q] × 8 across 512 bits */
-  __m256 xp = _mm256_set_ps (xi_q, xi_i, xi_q, xi_i,
-                              xi_q, xi_i, xi_q, xi_i);
+  __m256 xp = _mm256_set_ps (xi_q, xi_i, xi_q, xi_i, xi_q, xi_i, xi_q, xi_i);
   __m512 xv = _mm512_broadcast_f32x8 (xp);
   __m512i dup_idx = _mm512_loadu_si512 (dup_idx_arr);
 
@@ -427,11 +415,11 @@ iad_madd (dp_cf32_t *iad, const float *h, size_t N,
   for (; j + 8 <= N; j += 8)
     {
       __m256 hraw = _mm256_loadu_ps (&h[j]);
-      __m512 hb   = _mm512_broadcast_f32x8 (hraw);
+      __m512 hb = _mm512_broadcast_f32x8 (hraw);
       __m512 hdup = _mm512_permutexvar_ps (dup_idx, hb);
 
-      float  *p   = (float *)&iad[j];
-      __m512  av  = _mm512_loadu_ps (p);
+      float *p = (float *)&iad[j];
+      __m512 av = _mm512_loadu_ps (p);
       av = _mm512_fmadd_ps (xv, hdup, av);
       _mm512_storeu_ps (p, av);
     }
@@ -447,8 +435,7 @@ iad_madd (dp_cf32_t *iad, const float *h, size_t N,
 #else /* scalar fallback */
 
 static inline void
-iad_madd (dp_cf32_t *iad, const float *h, size_t N,
-          float xi_i, float xi_q)
+iad_madd (dp_cf32_t *iad, const float *h, size_t N, float xi_i, float xi_q)
 {
   for (size_t j = 0; j < N; j++)
     {
@@ -460,16 +447,13 @@ iad_madd (dp_cf32_t *iad, const float *h, size_t N,
 #endif /* __AVX512F__ */
 
 static size_t
-decim_execute (dp_resamp_cf32_t *r,
-               const dp_cf32_t  *in,
-               size_t            num_in,
-               dp_cf32_t        *out,
-               size_t            max_out)
+decim_execute (dp_resamp_cf32_t *r, const dp_cf32_t *in, size_t num_in,
+               dp_cf32_t *out, size_t max_out)
 {
-  size_t    oi  = 0;
-  size_t    N   = r->num_taps;
-  uint32_t  ph  = r->phase;
-  uint32_t  inc = r->phase_inc;
+  size_t oi = 0;
+  size_t N = r->num_taps;
+  uint32_t ph = r->phase;
+  uint32_t inc = r->phase_inc;
   dp_cf32_t *iad = r->iad;
   dp_cf32_t *tfd = r->tfd;
 
@@ -477,7 +461,7 @@ decim_execute (dp_resamp_cf32_t *r,
     {
       /* Advance NCO */
       uint32_t new_ph;
-      uint8_t  ovf = ADD_OVF (ph, inc, &new_ph);
+      uint8_t ovf = ADD_OVF (ph, inc, &new_ph);
 
       /* Scalar × all N branch coefficients → I&D */
       const float *h = get_branch (r, ph);
@@ -498,12 +482,9 @@ decim_execute (dp_resamp_cf32_t *r,
           size_t j = 0;
           for (; j + 2 + 8 <= N; j += 8)
             {
-              __m512 a = _mm512_loadu_ps (
-                  (const float *)&iad[j + 1]);
-              __m512 b = _mm512_loadu_ps (
-                  (const float *)&tfd[j + 1]);
-              _mm512_storeu_ps ((float *)&tfd[j],
-                                _mm512_add_ps (a, b));
+              __m512 a = _mm512_loadu_ps ((const float *)&iad[j + 1]);
+              __m512 b = _mm512_loadu_ps ((const float *)&tfd[j + 1]);
+              _mm512_storeu_ps ((float *)&tfd[j], _mm512_add_ps (a, b));
             }
           for (; j + 2 < N; j++)
             {
@@ -538,11 +519,8 @@ decim_execute (dp_resamp_cf32_t *r,
 /* ================================================================== */
 
 size_t
-dp_resamp_cf32_execute (dp_resamp_cf32_t *r,
-                        const dp_cf32_t  *in,
-                        size_t            num_in,
-                        dp_cf32_t        *out,
-                        size_t            max_out)
+dp_resamp_cf32_execute (dp_resamp_cf32_t *r, const dp_cf32_t *in,
+                        size_t num_in, dp_cf32_t *out, size_t max_out)
 {
   if (r->upsample)
     return interp_execute (r, in, num_in, out, max_out);

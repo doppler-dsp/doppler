@@ -259,6 +259,58 @@ set_target_properties(dp_nco PROPERTIES
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
+# Resampler extension
+add_library(dp_resamp MODULE
+    ext/dp_resamp.c
+)
+
+target_include_directories(dp_resamp
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(dp_resamp
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(dp_resamp
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(dp_resamp PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
+# DPMFS resampler extension
+add_library(dp_resamp_dpmfs MODULE
+    ext/dp_resamp_dpmfs.c
+)
+
+target_include_directories(dp_resamp_dpmfs
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(dp_resamp_dpmfs
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(dp_resamp_dpmfs
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(dp_resamp_dpmfs PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
 # =========================================================================
 # pyext -- build all extensions and copy into the Python package
 # =========================================================================
@@ -266,6 +318,7 @@ set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
 
 add_custom_target(pyext
     DEPENDS dp_fft dp_buffer dp_stream dp_nco dp_delay dp_accumulator
+            dp_resamp dp_resamp_dpmfs
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_fft>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_fft>"
@@ -284,5 +337,11 @@ add_custom_target(pyext
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_accumulator>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_accumulator>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:dp_resamp>"
+        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_resamp>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:dp_resamp_dpmfs>"
+        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_resamp_dpmfs>"
     COMMENT "Copying Python extensions into python/doppler/"
 )

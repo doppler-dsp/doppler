@@ -1,0 +1,151 @@
+name: Release
+
+# Triggered by pushing a version tag: git tag v0.2.0 && git push --tags
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Sanity check: tag version matches pyproject.toml
+  # ------------------------------------------------------------------
+  verify-version:
+    name: Verify version consistency
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract tag version
+        id: get
+        run: |
+          TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.0
+          VERSION="${TAG#v}"                # e.g.   0.2.0
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check pyproject.toml matches tag
+        run: |
+          PY=$(grep '^version' pyproject.toml | head -1 | \
+               sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$PY" != "$TAG" ]; then
+            echo "ERROR: pyproject.toml version ($PY) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check Cargo.toml matches tag
+        run: |
+          CARGO=$(grep '^version' ffi/rust/Cargo.toml | head -1 | \
+                  sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CARGO" != "$TAG" ]; then
+            echo "ERROR: Cargo.toml version ($CARGO) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check CMakeLists.txt matches tag
+        run: |
+          CMAKE=$(grep '^project' CMakeLists.txt | \
+                  sed 's/.*VERSION \([0-9.]*\).*/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CMAKE" != "$TAG" ]; then
+            echo "ERROR: CMakeLists.txt version ($CMAKE) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------
+  # Build Python wheel and source distribution
+  # ------------------------------------------------------------------
+  build-python:
+    name: Build Python wheel
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential libzmq3-dev libfftw3-dev cmake pkg-config \
+            python3-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: '3.12'
+
+      - name: Build C library
+        run: make build
+
+      - name: Install C library
+        run: sudo cmake --install build && sudo ldconfig
+
+      - name: Build wheel + sdist
+        run: uv build --out-dir dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+  # ------------------------------------------------------------------
+  # Publish to PyPI (uses trusted publishing — configure in PyPI)
+  # ------------------------------------------------------------------
+  publish-python:
+    name: Publish to PyPI
+    needs: [verify-version, build-python]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC trusted publishing
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ------------------------------------------------------------------
+  # GitHub Release with auto-generated notes
+  # ------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    needs: [verify-version, publish-python]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            ## Install
+
+            ```sh
+            pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
+            ```
+
+            See [CHANGELOG.md](CHANGELOG.md) for details.

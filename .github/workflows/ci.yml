@@ -44,14 +44,15 @@ jobs:
       if: matrix.os == 'windows-latest'
       uses: msys2/setup-msys2@v2
       with:
-        msystem: MINGW64
+        msystem: UCRT64
         update: true
         install: >
-          mingw-w64-x86_64-uv
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-cmake
-          mingw-w64-x86_64-zeromq
-          mingw-w64-x86_64-fftw
+          mingw-w64-ucrt-x86_64-uv
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-zeromq
+          mingw-w64-ucrt-x86_64-fftw
+          mingw-w64-ucrt-x86_64-rust
           make
 
     - name: Build
@@ -72,6 +73,15 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: make test
+
+    - name: Rust FFI tests
+      if: matrix.os != 'windows-latest'
+      run: make rust-test
+
+    - name: Rust FFI tests (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: make rust-test
 
   # ------------------------------------------------------------------
   # Python package build + pytest

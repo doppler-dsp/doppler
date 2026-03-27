@@ -67,6 +67,42 @@ Nco_init (NcoObject *self, PyObject *args,
 }
 
 static PyObject *
+Nco_get_freq (NcoObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (
+      (double)dp_nco_get_freq (self->handle));
+}
+
+static PyObject *
+Nco_get_phase (NcoObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_nco_get_phase (self->handle));
+}
+
+static PyObject *
+Nco_get_phase_inc (NcoObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLong (
+      (unsigned long)dp_nco_get_phase_inc (self->handle));
+}
+
+static PyObject *
 Nco_set_freq (NcoObject *self, PyObject *args)
 {
   if (!self->handle)
@@ -105,8 +141,8 @@ Nco_execute_cf32 (NcoObject *self, PyObject *args)
                        "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 0;
-  if (!PyArg_ParseTuple (args, "n", &n))
+  Py_ssize_t n = 1;
+  if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
 
   npy_intp dims0[] = {n};
@@ -129,13 +165,26 @@ Nco_execute_cf32_ctrl (NcoObject *self, PyObject *args)
 {
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_RuntimeError,
-                       "destroyed");
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
+
+  /* int → zero control: delegate to free-running path */
+  if (PyLong_Check (in_obj))
+    {
+      Py_ssize_t n = PyLong_AsSsize_t (in_obj);
+      npy_intp   dims[] = {n};
+      PyObject  *out = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
+      if (!out) return NULL;
+      dp_nco_execute_cf32 (
+          self->handle,
+          (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out),
+          (size_t)n);
+      return out;
+    }
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
@@ -144,8 +193,7 @@ Nco_execute_cf32_ctrl (NcoObject *self, PyObject *args)
   Py_ssize_t n = PyArray_SIZE (in_arr);
 
   npy_intp dims0[] = {n};
-  PyObject *out_arr
-      = PyArray_SimpleNew (1, dims0, NPY_COMPLEX64);
+  PyObject *out_arr = PyArray_SimpleNew (1, dims0, NPY_COMPLEX64);
   if (!out_arr)
     {
       Py_DECREF (in_arr);
@@ -154,9 +202,9 @@ Nco_execute_cf32_ctrl (NcoObject *self, PyObject *args)
 
   dp_nco_execute_cf32_ctrl (
       self->handle,
-      (const float *) PyArray_DATA (in_arr),
-      (dp_cf32_t *) PyArray_DATA ((PyArrayObject *)out_arr),
-      (size_t) n);
+      (const float *)PyArray_DATA (in_arr),
+      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+      (size_t)n);
   Py_DECREF (in_arr);
   return out_arr;
 }
@@ -170,8 +218,8 @@ Nco_execute_u32 (NcoObject *self, PyObject *args)
                        "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 0;
-  if (!PyArg_ParseTuple (args, "n", &n))
+  Py_ssize_t n = 1;
+  if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
 
   npy_intp dims0[] = {n};
@@ -194,13 +242,26 @@ Nco_execute_u32_ctrl (NcoObject *self, PyObject *args)
 {
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_RuntimeError,
-                       "destroyed");
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
+
+  /* int → zero control: delegate to free-running path */
+  if (PyLong_Check (in_obj))
+    {
+      Py_ssize_t n = PyLong_AsSsize_t (in_obj);
+      npy_intp   dims[] = {n};
+      PyObject  *out = PyArray_SimpleNew (1, dims, NPY_UINT32);
+      if (!out) return NULL;
+      dp_nco_execute_u32 (
+          self->handle,
+          (uint32_t *)PyArray_DATA ((PyArrayObject *)out),
+          (size_t)n);
+      return out;
+    }
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
@@ -209,8 +270,7 @@ Nco_execute_u32_ctrl (NcoObject *self, PyObject *args)
   Py_ssize_t n = PyArray_SIZE (in_arr);
 
   npy_intp dims0[] = {n};
-  PyObject *out_arr
-      = PyArray_SimpleNew (1, dims0, NPY_UINT32);
+  PyObject *out_arr = PyArray_SimpleNew (1, dims0, NPY_UINT32);
   if (!out_arr)
     {
       Py_DECREF (in_arr);
@@ -219,9 +279,9 @@ Nco_execute_u32_ctrl (NcoObject *self, PyObject *args)
 
   dp_nco_execute_u32_ctrl (
       self->handle,
-      (const float *) PyArray_DATA (in_arr),
-      (uint32_t *) PyArray_DATA ((PyArrayObject *)out_arr),
-      (size_t) n);
+      (const float *)PyArray_DATA (in_arr),
+      (uint32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+      (size_t)n);
   Py_DECREF (in_arr);
   return out_arr;
 }
@@ -235,8 +295,8 @@ Nco_execute_u32_ovf (NcoObject *self, PyObject *args)
                        "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 0;
-  if (!PyArg_ParseTuple (args, "n", &n))
+  Py_ssize_t n = 1;
+  if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
 
   npy_intp dims0[] = {n};
@@ -273,13 +333,31 @@ Nco_execute_u32_ovf_ctrl (NcoObject *self, PyObject *args)
 {
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_RuntimeError,
-                       "destroyed");
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
   PyObject *in_obj = NULL;
   if (!PyArg_ParseTuple (args, "O", &in_obj))
     return NULL;
+
+  /* int → zero control: delegate to free-running path */
+  if (PyLong_Check (in_obj))
+    {
+      Py_ssize_t n = PyLong_AsSsize_t (in_obj);
+      npy_intp   dims[] = {n};
+      PyObject  *out0 = PyArray_SimpleNew (1, dims, NPY_UINT32);
+      if (!out0) return NULL;
+      PyObject  *out1 = PyArray_SimpleNew (1, dims, NPY_UINT8);
+      if (!out1) { Py_DECREF (out0); return NULL; }
+      dp_nco_execute_u32_ovf (
+          self->handle,
+          (uint32_t *)PyArray_DATA ((PyArrayObject *)out0),
+          (uint8_t  *)PyArray_DATA ((PyArrayObject *)out1),
+          (size_t)n);
+      PyObject *result = PyTuple_Pack (2, out0, out1);
+      Py_DECREF (out0); Py_DECREF (out1);
+      return result;
+    }
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
@@ -351,6 +429,15 @@ Nco_exit (NcoObject *self, PyObject *args)
 }
 
 static PyMethodDef Nco_methods[] = {
+  {"get_freq", (PyCFunction)Nco_get_freq,
+   METH_NOARGS,
+   "dp_nco_get_freq — return current normalised frequency."},
+  {"get_phase", (PyCFunction)Nco_get_phase,
+   METH_NOARGS,
+   "dp_nco_get_phase — return raw 32-bit phase accumulator value."},
+  {"get_phase_inc", (PyCFunction)Nco_get_phase_inc,
+   METH_NOARGS,
+   "dp_nco_get_phase_inc — return uint32 phase increment (fixed-point freq)."},
   {"set_freq", (PyCFunction)Nco_set_freq,
    METH_VARARGS,
    "dp_nco_set_freq."},

@@ -181,6 +181,58 @@ set_target_properties(dp_stream PROPERTIES
     OUTPUT_NAME "dp_stream"
 )
 
+# Delay line extension
+add_library(dp_delay MODULE
+    ext/dp_delay.c
+)
+
+target_include_directories(dp_delay
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(dp_delay
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(dp_delay
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(dp_delay PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
+# Accumulator extension
+add_library(dp_accumulator MODULE
+    ext/dp_accumulator.c
+)
+
+target_include_directories(dp_accumulator
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(dp_accumulator
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(dp_accumulator
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(dp_accumulator PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
 # NCO extension
 add_library(dp_nco MODULE
     ext/dp_nco.c
@@ -213,7 +265,7 @@ set_target_properties(dp_nco PROPERTIES
 set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
 
 add_custom_target(pyext
-    DEPENDS dp_fft dp_buffer dp_stream dp_nco
+    DEPENDS dp_fft dp_buffer dp_stream dp_nco dp_delay dp_accumulator
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_fft>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_fft>"
@@ -226,5 +278,11 @@ add_custom_target(pyext
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:dp_nco>"
         "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_nco>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:dp_delay>"
+        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_delay>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:dp_accumulator>"
+        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_accumulator>"
     COMMENT "Copying Python extensions into python/doppler/"
 )

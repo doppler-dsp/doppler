@@ -90,6 +90,7 @@ struct dp_nco
 {
   uint32_t phase;
   uint32_t phase_inc;
+  float    norm_freq;
 };
 
 /* ------------------------------------------------------------------
@@ -105,6 +106,7 @@ dp_nco_create (float norm_freq)
     return NULL;
   nco->phase     = 0;
   nco->phase_inc = norm_to_inc (norm_freq);
+  nco->norm_freq = norm_freq;
   return nco;
 }
 
@@ -112,6 +114,25 @@ void
 dp_nco_set_freq (dp_nco_t *nco, float norm_freq)
 {
   nco->phase_inc = norm_to_inc (norm_freq);
+  nco->norm_freq = norm_freq;
+}
+
+float
+dp_nco_get_freq (const dp_nco_t *nco)
+{
+  return nco->norm_freq;
+}
+
+uint32_t
+dp_nco_get_phase (const dp_nco_t *nco)
+{
+  return nco->phase;
+}
+
+uint32_t
+dp_nco_get_phase_inc (const dp_nco_t *nco)
+{
+  return nco->phase_inc;
 }
 
 void

@@ -29,13 +29,20 @@ if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
             -march=native
         )
 
-        include(CheckIPOSupported)
-        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-        if (ipo_supported)
-            message(STATUS "IPO/LTO enabled")
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        # LTO is disabled on MinGW: the GNU LTO plugin in static archives
+        # cannot be consumed by linkers outside GCC's own toolchain (e.g.
+        # Rust's MinGW linker), causing "plugin needed to handle lto object".
+        if (NOT MINGW)
+            include(CheckIPOSupported)
+            check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+            if (ipo_supported)
+                message(STATUS "IPO/LTO enabled")
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            else()
+                message(WARNING "IPO/LTO not supported: ${ipo_error}")
+            endif()
         else()
-            message(WARNING "IPO/LTO not supported: ${ipo_error}")
+            message(STATUS "IPO/LTO disabled (MinGW)")
         endif()
 
     # -------------------------
@@ -66,12 +73,16 @@ if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
             -fno-omit-frame-pointer
         )
 
-        # Optional: enable LTO here too
-        include(CheckIPOSupported)
-        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-        if (ipo_supported)
-            message(STATUS "IPO/LTO enabled for RelWithDebInfo")
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+        # Optional: enable LTO here too (disabled on MinGW, see above)
+        if (NOT MINGW)
+            include(CheckIPOSupported)
+            check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+            if (ipo_supported)
+                message(STATUS "IPO/LTO enabled for RelWithDebInfo")
+                set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            endif()
+        else()
+            message(STATUS "IPO/LTO disabled (MinGW)")
         endif()
 
     # -------------------------

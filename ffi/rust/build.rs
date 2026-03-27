@@ -16,6 +16,7 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=fftw3");
 
     if target_os == "windows" {
+        println!("cargo:rustc-link-lib=dylib=fftw3_threads");
         println!("cargo:rustc-link-lib=dylib=stdc++");
     } else {
         println!("cargo:rustc-link-lib=dylib=m");

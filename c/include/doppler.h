@@ -7,7 +7,7 @@
  * - Buffer: Lock-free circular buffers (dp_f32_buffer_*, etc.)
  * - FFT: Fast Fourier Transform (dp_fft_*)
  * - FIR: Finite Impulse Response filters (dp_fir_*)
- * - SIMD: SIMD-accelerated operations (dp_c16_mul)
+ * - Util: SIMD-accelerated operations (dp_c16_mul)
  * - Stream: PUB/SUB, PUSH/PULL, REQ/REP streaming (dp_pub_*, dp_sub_*, etc.)
  *
  * For selective inclusion, use individual headers:
@@ -16,7 +16,7 @@
  * #include <dp/buffer.h>
  * #include <dp/fft.h>
  * #include <dp/fir.h>
- * #include <dp/simd.h>
+ * #include <dp/util.h>
  * #include <dp/stream.h>
  * ```
  *
@@ -35,12 +35,18 @@
 #define _GNU_SOURCE
 #endif
 
+#include "dp/accumulator.h"
 #include "dp/buffer.h"
 #include "dp/core.h"
+#include "dp/delay.h"
 #include "dp/fft.h"
 #include "dp/fir.h"
+#include "dp/hbdecim.h"
 #include "dp/nco.h"
-#include "dp/simd.h"
+#include "dp/resamp.h"
+#include "dp/resamp_dpmfs.h"
 #include "dp/stream.h"
+#include "dp/util.h"
+#include "dp/window.h"
 
 #endif /* DP_H */

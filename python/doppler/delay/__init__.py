@@ -59,6 +59,6 @@ MAC against a polyphase coefficient row:
 (3+0j)
 """
 
-from ..dp_delay import DelayCf64
+from ._delay import DelayCf64
 
 __all__ = ["DelayCf64"]

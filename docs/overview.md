@@ -144,31 +144,31 @@ wraps the buffer behind the first, so reads never straddle the edge.
 ```c
 #include <dp/buffer.h>
 
-dp_f32 *buf = dp_f32_create(1 << 20);   // 1M complex32 samples
+dp_f32 *buf = dp_f32_create(1 << 20);   // 1M float32 elements
 
 /* producer */
 dp_f32_write(buf, samples, N);
 
-/* consumer */
-dp_f32_wait(buf, N);
-float *view = dp_f32_read_ptr(buf);
-/* ... process view[0..2N-1] ... */
+/* consumer — wait returns a contiguous view, no copy needed */
+float *view = dp_f32_wait(buf, N);
+/* ... process view[0..N-1] ... */
 dp_f32_consume(buf, N);
 
 dp_f32_destroy(buf);
 ```
 
-Types: `dp_f32` (complex32, 8 B/sample), `dp_f64` (complex64, 16 B/sample).
+Types: `dp_f32` (float32 elements), `dp_f64` (float64 elements),
+`dp_i16` (int16 elements).  See [Data Types](api/datatypes.md) for
+how buffer element types relate to complex sample types.
 
-### SIMD arithmetic
+### Utility arithmetic
 
-Header: [c/include/dp/simd.h](../c/include/dp/simd.h)
+Header: [c/include/dp/util.h](../c/include/dp/util.h)
 
-SSE2/scalar complex multiply (`dp_c16_mul`); AVX2 path available where
-supported.
+SSE2/NEON/scalar complex multiply (`dp_c16_mul`).
 
 ```c
-#include <dp/simd.h>
+#include <dp/util.h>
 #include <complex.h>
 
 double complex a = 1.0 + 2.0*I;
@@ -277,7 +277,7 @@ Input arrays must be `complex128` (double-precision complex).
 
 ### Streaming (Python)
 
-Full Python bindings are provided by the `dp_stream` C extension module.
+Full Python bindings are provided by the `doppler.stream` subpackage.
 
 ```python
 from doppler import Publisher, Subscriber, Push, Pull, CF64
@@ -327,7 +327,7 @@ directly.
 | Language | Status |
 | -------- | ------ |
 | C | Native — full API |
-| Python | NCO, FFT, streaming, circular buffers (`doppler` package) |
+| Python | NCO, FFT, FIR, resample, streaming, buffers, accumulator, delay (`doppler` package) |
 | Rust | FFI bindings (`ffi/rust/`) |
 | C++ | Works via `extern "C"` headers |
 
@@ -346,7 +346,7 @@ directly.
 │  • NCO  (AVX-512 batch IQ / phase)  │
 │  • FIR  (AVX-512, CI8/CI16/CF32)    │
 │  • FFT  (FFTW or pocketfft)         │
-│  • SIMD (SSE2/AVX2 complex mul)     │
+│  • Util (SSE2/NEON complex mul)      │
 │  • Ring buffers (lock-free SPSC)    │
 │  • Streaming (ZMQ, optional)        │
 └──────────────┬──────────────────────┘

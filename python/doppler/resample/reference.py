@@ -1,9 +1,9 @@
 """Resampler reference for validation."""
 
 import numpy as np
-from doppler.dp_nco import Nco
-from doppler.dp_delay import DelayCf64
-from doppler.dp_accumulator import AccCf64
+from doppler.nco import Nco
+from doppler.delay import DelayCf64
+from doppler.accumulator import AccCf64
 from doppler.polyphase import kaiser_prototype
 
 

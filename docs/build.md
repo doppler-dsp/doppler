@@ -14,10 +14,15 @@ Produces the following artifacts in `build/` (extensions differ by platform):
 | -------- | ----------- | --------------- | ----------- |
 | Shared Library | `libdoppler.so/dylib` | `libdoppler.dll` | DSP + streaming |
 | Static Library | `libdoppler.a` | `libdoppler.a` | Static link (no runtime dep) |
-| Python extension | `dp_fft*.so` | `dp_fft*.pyd` | FFT |
-| Python extension | `dp_buffer*.so` | `dp_buffer*.pyd` | Lock-free ring buffer |
-| Python extension | `dp_stream*.so` | `dp_stream*.pyd` | ZMQ streaming (vendored libzmq) |
-| Python extension | `dp_nco*.so` | `dp_nco*.pyd` | NCO |
+| Python extension | `fft/_fft*.so` | `fft/_fft*.pyd` | FFT |
+| Python extension | `buffer/_buffer*.so` | `buffer/_buffer*.pyd` | Lock-free ring buffer |
+| Python extension | `stream/_stream*.so` | `stream/_stream*.pyd` | ZMQ streaming (vendored libzmq) |
+| Python extension | `nco/_nco*.so` | `nco/_nco*.pyd` | NCO |
+| Python extension | `accumulator/_accumulator*.so` | `accumulator/_accumulator*.pyd` | Accumulator |
+| Python extension | `delay/_delay*.so` | `delay/_delay*.pyd` | Delay line |
+| Python extension | `resample/_resamp*.so` | `resample/_resamp*.pyd` | Polyphase resampler |
+| Python extension | `resample/_resamp_dpmfs*.so` | `resample/_resamp_dpmfs*.pyd` | DPMFS resampler |
+| Python extension | `resample/_hbdecim*.so` | `resample/_hbdecim*.pyd` | Halfband decimator |
 | C examples | `transmitter`, `receiver`, … | `transmitter.exe`, … | Streaming and DSP demos |
 | Rust examples | `ffi/rust/target/…/nco_demo`, … | same | NCO, FFT, SIMD demos |
 
@@ -58,7 +63,11 @@ make && sudo make install
 pip install python/
 ```
 
-The wheel contains three compiled extension modules (`dp_fft`, `dp_buffer`, `dp_stream`). The streaming extension (`dp_stream`) statically links vendored libzmq — no system packages required at runtime.
+The wheel contains nine compiled extension modules, each installed inside
+its own subpackage (`doppler.fft`, `doppler.nco`, `doppler.buffer`,
+`doppler.stream`, `doppler.accumulator`, `doppler.delay`,
+`doppler.resample`).  The streaming extension statically links vendored
+libzmq — no system packages required at runtime.
 
 ## CMake directly
 
@@ -226,7 +235,7 @@ runs in the C library.
 ### Build and test
 
 ```sh
-make rust-test       # build C library + run all 23 Rust tests
+make rust-test       # build C library + run all 33 Rust tests
 make rust-examples   # build examples and list their paths
 ```
 
@@ -236,7 +245,7 @@ examples run directly without setting `LD_LIBRARY_PATH`:
 ```sh
 ./ffi/rust/target/debug/examples/nco_demo
 ./ffi/rust/target/debug/examples/fft_demo
-./ffi/rust/target/debug/examples/simd_demo
+./ffi/rust/target/debug/examples/acc_demo
 ```
 
 **Windows (UCRT64)** — the Rust crate links `libdoppler.a` statically,
@@ -259,10 +268,11 @@ running `cargo build` with `PKG_CONFIG_PATH` set to the install prefix.
 
 | Module | Wraps | Description |
 | ------ | ----- | ----------- |
+| `acc` | `dp_acc_f32_*`, `dp_acc_cf64_*` | f32 and cf64 accumulators |
 | `fft` | `dp_fft_global_setup`, `dp_fft1d/2d_execute` | 1-D and 2-D FFT |
-| `nco` | `dp_nco_*` | Numerically-controlled oscillator |
 | `fir` | `dp_fir_*` | FIR filter (complex and real taps) |
-| `c16_mul` | `dp_c16_mul` | SIMD complex multiplication |
+| `nco` | `dp_nco_*` | Numerically-controlled oscillator |
+| `util::c16_mul` | `dp_c16_mul` | SIMD complex multiplication |
 
 ### Sample types
 

@@ -2,8 +2,12 @@
 
 The short version: **C first, then Python, then Rust.**
 Every algorithm lives in the C library exactly once.
-Language bindings are glue — they call C, they don't reimplement it.
+Language bindings are interface — they call C, they don't
+reimplement it.
+
 See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
+
+
 
 ## Table of contents
 
@@ -20,9 +24,9 @@ See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 
 ### 1. Header — `c/include/dp/<module>.h`
 
-The C header is the **single source of truth** for the entire API.
-The Python and Rust docstrings are derived from it — write it once,
-write it well.
+Document the API thoroughly here — this is the C source of truth.
+The semantics described in this header will be translated into the
+Python stub (see below), which becomes the public-facing documentation.
 
 ```c
 #ifndef DP_FOO_H
@@ -36,19 +40,10 @@ extern "C" {
 #endif
 
 /**
- * @file foo.h
  * @brief One-line description of what foo does.
  *
  * Longer description covering the algorithm, its assumptions, and any
  * key implementation choices (e.g. phase encoding, coefficient layout).
- * Include a usage example:
- *
- * @code
- * dp_foo_t *h = dp_foo_create(0.5f);
- * dp_cf32_t out[1024];
- * dp_foo_execute(h, in, 1024, out, 1024);
- * dp_foo_destroy(h);
- * @endcode
  */
 
 /** @brief Opaque foo state. */
@@ -129,9 +124,8 @@ Register as `bench_foo_c` in CMakeLists.txt.
 
 ### 6. Example — `c/examples/<module>_demo.c`
 
-**Mandatory.**  A minimal, runnable program showing the typical use case.
-The same scenario should be ported to Python and Rust (see below) — the
-three examples should be recognisably parallel.
+**Mandatory.**  A minimal, runnable program showing the typical use
+case with console output so users can see expected results.
 
 ### Verify
 
@@ -170,52 +164,84 @@ Add `dp_foo` to the `DEPENDS` list of the `pyext` target and add its
 
 ### 3. Python wrapper — `python/doppler/<module>/`
 
-Keep it thin: type conversion, error translation, lifetime bridging.
-Logic lives in C, not here.
+> [!IMPORTANT] **No `dp_` PREFIX!**
+>
+> Python has dotted module names `doppler.foo`.
 
-**Docstrings are mandatory, NumPy style, with runnable examples.**
-The C header is the source of truth — translate it, don't replace it:
+Keep it thin: type conversion, error translation, lifetime bridging.
+Logic lives in C, not here.  If the wrapper is a direct pass-through,
+skip module-level docstrings and let the stub own the documentation
+(see step 4).  Docstrings in `.py` files belong to pure-Python
+modules (polyphase design tools, optimisation helpers, etc.) where
+there is no stub.
+
+### 4. Type stub — `python/doppler/dp_foo.pyi`
+
+> [!IMPORTANT] **THIS IS THE CANONICAL DOCUMENTATION FOR THE MODULE.**
+
+The stub is what mkdocstrings reads to generate the API reference
+page.  Write it as if it were the primary user-facing documentation,
+because it is.  Full NumPy-style docstrings with runnable examples
+are mandatory on every public class and method.
 
 ```python
-def execute(self, x: np.ndarray) -> np.ndarray:
-    """Process a block of cf32 samples.
+"""Type stubs for the dp_foo C extension."""
+
+from __future__ import annotations
+
+import numpy as np
+from numpy.typing import NDArray
+
+class Foo:
+    """One-line description.
+
+    Longer description capturing the key behaviour, any invariants,
+    and how this maps to the underlying C type (dp_foo_t).
 
     Parameters
     ----------
-    x : np.ndarray, dtype=complex64
-        Input samples.
-
-    Returns
-    -------
-    np.ndarray, dtype=complex64
-        Output samples.  Length depends on the configured rate.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from doppler.foo import Foo
-    >>> f = Foo(param=0.5)
-    >>> y = f.execute(np.ones(64, dtype=np.complex64))
-    >>> y.dtype
-    dtype('complex64')
+    param:
+        Description; units and valid range.
     """
-```
 
-All examples must pass `pytest --doctest-modules` without skipping.
-
-### 4. Type stubs — `python/doppler/<module>/__init__.pyi`
-
-**Mandatory, fully typed.**  Every public function and class needs a
-stub.  Use `np.ndarray` with `np.dtype` comments where array shapes
-and dtypes matter.
-
-```python
-import numpy as np
-
-class Foo:
     def __init__(self, param: float) -> None: ...
-    def execute(self, x: np.ndarray) -> np.ndarray: ...
-    def reset(self) -> None: ...
+
+    def execute(
+        self, x: NDArray[np.complex64]
+    ) -> NDArray[np.complex64]:
+        """Process a block of cf32 samples.
+
+        Parameters
+        ----------
+        x:
+            Input samples, dtype=complex64.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output samples.  Length depends on the configured rate.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dp_foo import Foo
+        >>> f = Foo(param=0.5)
+        >>> y = f.execute(np.ones(64, dtype=np.complex64))
+        >>> y.dtype
+        dtype('complex64')
+        """
+        ...
+
+    def reset(self) -> None:
+        """Reset internal state without reallocating."""
+        ...
+
+    def destroy(self) -> None:
+        """Release the underlying C resource (also called on GC)."""
+        ...
+
+    def __enter__(self) -> "Foo": ...
+    def __exit__(self, *args: object) -> None: ...
 ```
 
 ### 5. Tests — `python/doppler/tests/test_<module>.py`
@@ -223,16 +249,38 @@ class Foo:
 **Mandatory.**  pytest.  Exercise the round-trip through the C library —
 don't just test the Python layer in isolation.
 
-### 6. Example — `python/doppler/examples/<module>_demo.py`
+### 6. Documentation page — `docs/api/python-<module>.md`
 
-**Mandatory.**  Port of the C example.  Should produce the same
-observable result with the same algorithm, demonstrating the Python
-ergonomics over the C ABI.
+Create a page with a brief intro and an autodoc directive:
+
+```markdown
+# Python Foo API
+
+One sentence describing what this does and which C functions back it.
+
+Source: [`python/doppler/dp_foo.pyi`](https://github.com/doppler-dsp/doppler/blob/main/python/doppler/dp_foo.pyi)
+
+---
+
+::: doppler.dp_foo.Foo
+```
+
+Then add it to the nav in `zensical.toml`:
+
+```toml
+nav = [
+  ...
+  { "API: Foo" = "api/python-foo.md" },
+]
+```
+
+Run `make docs-build` to verify it renders.  No hand-written API table
+is needed — the stub docstrings are the source of truth.
 
 ### Verify
 
 ```sh
-make pyext && make python-test
+make pyext && make python-test && make docs-build
 ```
 
 ---
@@ -296,42 +344,12 @@ impl Drop for Foo {
 
 Declare the module in `lib.rs`: `pub mod foo;`
 
-**Docstrings are derived from the Python docstrings** (which are
-themselves derived from the C header).  Translate parameter names and
-types to Rust idioms; keep the description and example parallel:
-
-```rust
-/// Process a block of cf32 samples.
-///
-/// # Arguments
-///
-/// * `input`  – Input samples as `&[DpCf32]`.
-/// * `output` – Output buffer (must be pre-allocated).
-///
-/// # Returns
-///
-/// Number of output samples written.
-///
-/// # Example
-///
-/// ```no_run
-/// use doppler::foo::Foo;
-/// use doppler::DpCf32;
-///
-/// let mut f = Foo::new(0.5);
-/// let input  = vec![DpCf32 { i: 1.0, q: 0.0 }; 64];
-/// let mut output = vec![DpCf32::default(); 128];
-/// let n = f.execute(&input, &mut output);
-/// ```
-```
+Docstrings are derived from the Python stub — translate parameter
+names and types to Rust idioms; keep the description parallel.
 
 ### 3. Tests / examples
 
 Add tests inline or in `ffi/rust/tests/`.
-
-**Example — `ffi/rust/examples/<module>_demo.rs` — mandatory.**
-Register in `Cargo.toml` as `[[example]]`.
-Port of the C and Python examples: same scenario, Rust idioms.
 
 ### Verify
 
@@ -346,10 +364,10 @@ make rust-test    # single-threaded — see Gotchas
 There is no special cross-language test framework.
 
 Pure Python in doppler is rare by design — it exists only for things
-that are genuinely better expressed in Python: filter design, polynomial
-fitting, LP optimisation.  All of it produces **parameters that get
-handed to a C runtime**.  The integration test is therefore just a
-normal pytest that exercises the full path:
+that are genuinely better expressed in Python: filter design,
+polynomial fitting, LP optimisation.  All of it produces **parameters
+that get handed to a C runtime**.  The integration test is therefore
+just a normal pytest that exercises the full path:
 
 ```python
 _, bank = kaiser_prototype(...)      # pure Python — design
@@ -361,8 +379,8 @@ assert stopband_attenuation(y) > 60  # validate end-to-end
 This lives in the module's regular `test_<module>.py`.  No subprocess,
 no golden vectors, no special harness.
 
-Rust wraps C directly, so Rust tests already are the Rust-C integration
-tests.  Nothing extra needed there either.
+Rust wraps C directly, so Rust tests already are the Rust-C
+integration tests.  Nothing extra needed there either.
 
 ---
 
@@ -401,7 +419,8 @@ Never `cmake -B . -S c`.
 
 **FFT tests must be single-threaded.**
 The global plan state is not thread-safe.
-Always `cargo test -- --test-threads=1` and `ctest` (sequential by default).
+Always `cargo test -- --test-threads=1` and `ctest`
+(sequential by default).
 
 **Python extensions are auto-generated scaffolding.**
 `gen_pyext.py` produces a starting point — review and hand-tune every

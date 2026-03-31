@@ -72,10 +72,12 @@ set(DOPPLER_SOURCES
     src/delay.c
     src/core.c
     src/fir.c
+    src/hbdecim.c
     src/nco.c
     src/resamp.c
     src/resamp_dpmfs.c
-    src/simd.c
+    src/util.c
+    src/window.c
     src/stream.c
     ${FFT_BACKEND_SOURCES}
 )
@@ -160,10 +162,12 @@ install(FILES
     include/dp/delay.h
     include/dp/fft.h
     include/dp/fir.h
+    include/dp/hbdecim.h
     include/dp/nco.h
     include/dp/resamp.h
     include/dp/resamp_dpmfs.h
-    include/dp/simd.h
+    include/dp/util.h
+    include/dp/window.h
     include/dp/stream.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/dp
 )
@@ -223,6 +227,9 @@ target_link_libraries(nco_demo PRIVATE doppler_static m)
 add_executable(simd_demo examples/simd_demo.c)
 target_link_libraries(simd_demo PRIVATE doppler_static m)
 
+add_executable(hbdecim_demo examples/hbdecim_demo.c)
+target_link_libraries(hbdecim_demo PRIVATE doppler_static m)
+
 add_executable(bench_fft_c bench/bench_fft.c)
 target_link_libraries(bench_fft_c PRIVATE doppler_static m pthread)
 
@@ -243,6 +250,9 @@ target_link_libraries(bench_resamp_c PRIVATE doppler_static m)
 
 add_executable(bench_resamp_dpmfs_c bench/bench_resamp_dpmfs.c)
 target_link_libraries(bench_resamp_dpmfs_c PRIVATE doppler_static m)
+
+add_executable(bench_hbdecim_c bench/bench_hbdecim.c)
+target_link_libraries(bench_hbdecim_c PRIVATE doppler_static m)
 
 add_executable(fft_testbench tests/fft_testbench.c)
 target_link_libraries(fft_testbench PRIVATE doppler_static m pthread)
@@ -293,6 +303,14 @@ target_link_libraries(test_resamp PRIVATE doppler_static m)
 add_executable(test_resamp_dpmfs tests/test_resamp_dpmfs.c)
 target_link_libraries(test_resamp_dpmfs PRIVATE doppler_static m)
 
+# Halfband decimator unit tests
+add_executable(test_hbdecim tests/test_hbdecim.c)
+target_link_libraries(test_hbdecim PRIVATE doppler_static m)
+
+# Window function unit tests
+add_executable(test_window tests/test_window.c)
+target_link_libraries(test_window PRIVATE doppler_static m)
+
 # Cross-language integration helper (used by Python pytest)
 add_executable(xmit_cf64 tests/xmit_cf64.c)
 target_link_libraries(xmit_cf64 PRIVATE doppler_static m)
@@ -310,6 +328,8 @@ add_test(NAME accumulator_unit_tests COMMAND test_accumulator)
 add_test(NAME delay_unit_tests       COMMAND test_delay)
 add_test(NAME resamp_unit_tests      COMMAND test_resamp)
 add_test(NAME resamp_dpmfs_unit_tests COMMAND test_resamp_dpmfs)
+add_test(NAME hbdecim_unit_tests      COMMAND test_hbdecim)
+add_test(NAME window_unit_tests       COMMAND test_window)
 
 # ------------------------------------------------------------
 # Windows: stage runtime DLLs next to the executables so they

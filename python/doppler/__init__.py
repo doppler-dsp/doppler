@@ -28,26 +28,20 @@ DSP building blocks
 
 # ruff: noqa: F401
 from . import accumulator
+from . import buffer
 from . import delay
 from . import fft
+from . import nco
 from . import polyphase
 from . import resample
-from . import dp_buffer
-from . import dp_nco
-from . import dp_stream
+from . import stream
+from . import window
 
 from .accumulator import AccCf64, AccF32
 from .delay import DelayCf64
-
-from .dp_buffer import (
-    F32Buffer,
-    F64Buffer,
-    I16Buffer,
-)
-
-from .dp_nco import Nco
-
-from .dp_stream import (
+from .nco import Nco
+from .buffer import F32Buffer, F64Buffer, I16Buffer
+from .stream import (
     Publisher,
     Subscriber,
     Push,
@@ -63,10 +57,14 @@ from .dp_stream import (
 __all__ = [
     # Subpackages
     "accumulator",
+    "buffer",
     "delay",
     "fft",
+    "nco",
     "polyphase",
     "resample",
+    "stream",
+    "window",
     # DSP building blocks
     "AccF32",
     "AccCf64",

@@ -67,6 +67,6 @@ Context-manager form:
 (2+3j)
 """
 
-from ..dp_accumulator import AccCf64, AccF32
+from ._accumulator import AccCf64, AccF32
 
 __all__ = ["AccF32", "AccCf64"]

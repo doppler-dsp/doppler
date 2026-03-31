@@ -1,19 +1,22 @@
 """doppler.resample — continuously-variable polyphase resampler.
 
-Two implementations are provided and share the same interface:
+Three implementations are provided:
 
 * :class:`Resampler` — Kaiser polyphase table resampler backed by the
-  C library (``dp_resamp_cf32``).  This is the default choice: fast,
-  cache-resident for small banks, and tested against the reference.
+  C library (``dp_resamp_cf32``).  Default choice: fast, cache-resident
+  for small banks.
 
 * :class:`ResamplerDpmfs` — Dual Phase Modified Farrow Structure
-  resampler backed by the C library (``dp_resamp_dpmfs``).  Uses
-  608 bytes of coefficients regardless of quality — ideal for
-  multi-channel or cache-sensitive pipelines.
+  resampler (``dp_resamp_dpmfs``).  608-byte coefficient footprint;
+  ideal for multi-channel pipelines.
 
-Both classes accept complex64 NumPy arrays and return complex64
-NumPy arrays.  Internal state is preserved across calls so they can
-be used in a streaming pipeline without buffering.
+* :class:`HalfbandDecimator` — dedicated 2:1 halfband decimator
+  (``dp_hbdecim_cf32``).  Exploits halfband symmetry to halve the
+  multiply count vs a general 2-phase polyphase decimator.
+
+All classes accept complex64 NumPy arrays and return complex64 NumPy
+arrays.  Internal state is preserved across calls — suitable for
+streaming pipelines.
 
 Typical usage
 -------------
@@ -37,10 +40,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from doppler.dp_resamp import ResampCf32
-from doppler.dp_resamp_dpmfs import ResampDpmfs as _ResampDpmfs
+from ._resamp import ResampCf32
+from ._resamp_dpmfs import ResampDpmfs as _ResampDpmfs
+from ._hbdecim import HbDecimCf32 as _HbDecimCf32
 
-__all__ = ["Resampler", "ResamplerDpmfs"]
+__all__ = ["Resampler", "ResamplerDpmfs", "HalfbandDecimator"]
 
 
 class Resampler:
@@ -226,6 +230,108 @@ class ResamplerDpmfs:
         return self._r.poly_order()
 
     def __enter__(self) -> "ResamplerDpmfs":
+        return self
+
+    def __exit__(self, *_) -> None:
+        self._r.__exit__()
+
+
+class HalfbandDecimator:
+    """Halfband 2:1 decimator for cf32 IQ samples.
+
+    Wraps ``dp_hbdecim_cf32_t`` from the C library.  Exploits halfband
+    filter symmetry to reduce the multiply count to N/2 + 2 per output
+    sample (vs N for a general 2-phase polyphase decimator).
+
+    Parameters
+    ----------
+    bank : np.ndarray, shape (2, N), dtype=float32
+        Polyphase bank from :func:`doppler.polyphase.kaiser_prototype`
+        called with ``phases=2``.  One row is the symmetric FIR branch;
+        the other is a pure-delay branch (unit gain at the centre tap).
+        This class detects and selects the correct row automatically.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.polyphase import kaiser_prototype
+    >>> from doppler.resample import HalfbandDecimator
+    >>> _, bank = kaiser_prototype(phases=2)
+    >>> r = HalfbandDecimator(bank)
+    >>> x = np.zeros(256, dtype=np.complex64)
+    >>> x[0] = 1.0          # impulse
+    >>> y = r.execute(x)
+    >>> y.dtype
+    dtype('complex64')
+    >>> len(y) == 128
+    True
+    """
+
+    def __init__(self, bank: np.ndarray) -> None:
+        bank = np.asarray(bank, dtype=np.float32)
+        if bank.ndim != 2 or bank.shape[0] != 2:
+            raise ValueError(
+                "bank must be shape (2, N) — pass the second return "
+                "value of kaiser_prototype(phases=2)"
+            )
+        N = bank.shape[1]
+        centre = N // 2
+        # One row has a dominant centre tap (pure delay, gain ≈ 1.0);
+        # the other is the symmetric FIR branch.  Select FIR branch.
+        if abs(float(bank[0, centre])) > abs(float(bank[1, centre])):
+            h_fir = np.ascontiguousarray(bank[1])
+        else:
+            h_fir = np.ascontiguousarray(bank[0])
+        self._r = _HbDecimCf32(N, h_fir)
+
+    def execute(self, x: np.ndarray) -> np.ndarray:
+        """Decimate a block of cf32 samples by 2.
+
+        State is preserved across calls — suitable for streaming.
+        Odd-length blocks are handled transparently: the dangling even
+        sample is buffered and consumed on the next call.
+
+        Parameters
+        ----------
+        x : np.ndarray, dtype=complex64
+            Input samples.
+
+        Returns
+        -------
+        np.ndarray, dtype=complex64
+            Output samples.  Length == ``len(x) // 2`` for even-length
+            input (or one less when the previous call left a pending
+            sample).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.polyphase import kaiser_prototype
+        >>> from doppler.resample import HalfbandDecimator
+        >>> _, bank = kaiser_prototype(phases=2)
+        >>> r = HalfbandDecimator(bank)
+        >>> y = r.execute(np.ones(128, dtype=np.complex64))
+        >>> len(y) == 64
+        True
+        """
+        x = np.asarray(x, dtype=np.complex64)
+        return self._r.execute(x)
+
+    def reset(self) -> None:
+        """Zero the sample history and clear any pending sample."""
+        self._r.reset()
+
+    @property
+    def rate(self) -> float:
+        """Decimation rate (always 0.5)."""
+        return self._r.rate()
+
+    @property
+    def num_taps(self) -> int:
+        """FIR branch length (*N*)."""
+        return self._r.num_taps()
+
+    def __enter__(self) -> "HalfbandDecimator":
         return self
 
     def __exit__(self, *_) -> None:

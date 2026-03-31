@@ -41,11 +41,14 @@ def kaiser_prototype(
     passband: float = 0.4,
     stopband: float = 0.6,
     image_attenuation: float = 80.0,
+    phases: int = None,
 ) -> np.ndarray:
     """Return a Kaiser-windowed sinc prototype filter (float32)."""
     db_per_bit = 6.02
-    phases = 1 << int(
-        np.ceil((20.0 * np.log10(passband) + image_attenuation) / db_per_bit)
+    phases = (
+        1 << int(np.ceil((20.0 * np.log10(passband) + image_attenuation) / db_per_bit))
+        if phases is None
+        else phases
     )
     halflen = kaiser_taps(attenuation, passband / phases, stopband / phases) // 2
     htaps = 2 * halflen + 1

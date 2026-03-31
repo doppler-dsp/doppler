@@ -54,7 +54,7 @@ fn bench_na_1d(n: usize, iters: usize) {
         let planner = CString::new("patient").unwrap();
         let wisdom  = CString::new("").unwrap();
         unsafe {
-            doppler::dp_fft_global_setup(
+            doppler::fft::dp_fft_global_setup(
                 shape.as_ptr(), 1, 1, 4,
                 planner.as_ptr(), wisdom.as_ptr(),
             );
@@ -112,7 +112,7 @@ fn bench_na_2d(ny: usize, nx: usize, iters: usize) {
         let planner = CString::new("patient").unwrap();
         let wisdom  = CString::new("").unwrap();
         unsafe {
-            doppler::dp_fft_global_setup(
+            doppler::fft::dp_fft_global_setup(
                 shape.as_ptr(), 2, 1, 4,
                 planner.as_ptr(), wisdom.as_ptr(),
             );

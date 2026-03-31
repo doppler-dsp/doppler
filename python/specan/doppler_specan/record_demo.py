@@ -1,7 +1,7 @@
 """
 doppler_specan.record_demo — generate a pre-recorded demo trace.
 
-Runs the real C DSP pipeline (DemoSource → SpEcanEngine) for a fixed
+Runs the real C DSP pipeline (DemoSource → SpecanEngine) for a fixed
 number of frames and writes the result as a JSON array to stdout or a
 file.  The output is consumed by the static docs/specan demo player.
 
@@ -64,8 +64,8 @@ def record(
     list of dict
         Each dict has keys: db, fft_size, fs_out, center_freq, span, rbw.
     """
-    from doppler_specan.config import SpEcanConfig, DemoConfig
-    from doppler_specan.engine import SpEcanEngine
+    from doppler_specan.config import SpecanConfig, DemoConfig
+    from doppler_specan.engine import SpecanEngine
     from doppler_specan.source import DemoSource
 
     # Build config — force span so fft_size comes out exactly right.
@@ -75,7 +75,7 @@ def record(
     fs_out = span / 0.8  # = sample_rate
     rbw = fs_out / fft_size  # forces the desired FFT size
 
-    cfg = SpEcanConfig(
+    cfg = SpecanConfig(
         source="demo",
         fs=sample_rate,
         center=center_freq,
@@ -96,7 +96,7 @@ def record(
         tone_power=tone_power,
         noise_floor=noise_floor,
     )
-    engine = SpEcanEngine(cfg)
+    engine = SpecanEngine(cfg)
 
     source.set_fft_size(fft_size)
 

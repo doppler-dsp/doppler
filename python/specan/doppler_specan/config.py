@@ -25,7 +25,7 @@ class DemoConfig:
 
 
 @dataclass
-class SpEcanConfig:
+class SpecanConfig:
     """
     Complete specan configuration.
 
@@ -130,9 +130,9 @@ def _load_yaml(path: Path) -> dict:
 def load_config(
     yml_path: Optional[Path] = None,
     **cli_overrides,
-) -> SpEcanConfig:
+) -> SpecanConfig:
     """
-    Build a :class:`SpEcanConfig` from yml file + CLI overrides.
+    Build a :class:`SpecanConfig` from yml file + CLI overrides.
 
     Parameters
     ----------
@@ -152,7 +152,7 @@ def load_config(
         noise_floor=demo_data.get("noise_floor", DemoConfig.noise_floor),
     )
 
-    cfg = SpEcanConfig(
+    cfg = SpecanConfig(
         source=data.get("source", "demo"),
         address=data.get("address", data.get("path", "")),
         fs=data.get("fs", 0.0),

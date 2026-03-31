@@ -298,7 +298,7 @@ def make_source(cfg) -> Source:
 
     Parameters
     ----------
-    cfg : SpEcanConfig
+    cfg : SpecanConfig
 
     Returns
     -------

@@ -168,8 +168,8 @@ class TerminalDisplay:
 
     Parameters
     ----------
-    engine : SpEcanEngine
-    cfg : SpEcanConfig
+    engine : SpecanEngine
+    cfg : SpecanConfig
     source : Source
     """
 

@@ -11,7 +11,7 @@ The engine owns the complete signal chain:
       → Magnitude → dBm
 
 All doppler primitives are lazy-initialised on the first call to
-:meth:`SpEcanEngine.process` so the engine can be constructed before
+:meth:`SpecanEngine.process` so the engine can be constructed before
 the source's sample rate is known.
 """
 
@@ -40,13 +40,13 @@ class SpectrumFrame:
     span: float  # Hz — display span = 0.8 * fs_out
 
 
-class SpEcanEngine:
+class SpecanEngine:
     """
     DDC + spectral analysis engine.
 
     Parameters
     ----------
-    cfg : SpEcanConfig
+    cfg : SpecanConfig
         Specan configuration (center, span, rbw, beta, level).
     """
 

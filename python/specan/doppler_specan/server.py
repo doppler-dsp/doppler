@@ -194,12 +194,12 @@ def main(
 
     import uvicorn  # noqa: PLC0415
 
-    from doppler_specan.engine import SpEcanEngine  # noqa: PLC0415
+    from doppler_specan.engine import SpecanEngine  # noqa: PLC0415
     from doppler_specan.source import make_source  # noqa: PLC0415
 
     _cfg = cfg
     _source = make_source(cfg)
-    _engine = SpEcanEngine(cfg)
+    _engine = SpecanEngine(cfg)
 
     url = f"http://{host}:{port}"
     print(f"  doppler specan  →  {url}")

@@ -194,8 +194,8 @@
   </div>
   <div class="ctrl-group">
     <label>Range</label>
-    <input type="range" id="range-slider" min="20" max="120" step="10" value="120">
-    <span class="val-label" id="range-val">120 dB</span>
+    <input type="range" id="range-slider" min="20" max="160" step="10" value="160">
+    <span class="val-label" id="range-val">160 dB</span>
   </div>
 </div>
 
@@ -217,7 +217,7 @@ const TUNE_URL = `/tune`;
 
 // ── State ──────────────────────────────────────────────────────────────────
 let refLevel  = 10;      // dBm (matches default +10 dBm ref)
-let dbRange   = 120;     // dB shown
+let dbRange   = 160;     // dB shown
 let currentFs = 2.048e6; // updated from each frame
 let fpsAcc    = 0;
 let fpsCnt    = 0;

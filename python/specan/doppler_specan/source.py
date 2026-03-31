@@ -321,6 +321,9 @@ def make_source(cfg) -> Source:
         return FileSource(cfg.address, cfg.fs, cfg.center)
     if s == "socket":
         if not cfg.address:
-            raise ValueError("source=socket requires an address (ZMQ endpoint)")
-        return SocketSource(cfg.address)
+            raise ValueError(
+                "source=socket requires an address (ZMQ endpoint), "
+                "e.g. tcp://localhost:5555"
+            )
+        return SocketSource(cfg.address, timeout_ms=cfg.timeout)
     raise ValueError(f"Unknown source: {cfg.source!r}")

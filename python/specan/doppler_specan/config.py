@@ -25,7 +25,7 @@ class DemoConfig:
 
 
 @dataclass
-class SpEcanConfig:
+class SpecanConfig:
     """
     Complete specan configuration.
 
@@ -69,6 +69,7 @@ class SpEcanConfig:
     rbw: float = 0.0
     level: float = 0.0
     beta: float = 6.0
+    timeout: int = 2000  # socket receive timeout in milliseconds
     web: bool = False
     host: str = "127.0.0.1"
     port: int = 8765
@@ -129,9 +130,9 @@ def _load_yaml(path: Path) -> dict:
 def load_config(
     yml_path: Optional[Path] = None,
     **cli_overrides,
-) -> SpEcanConfig:
+) -> SpecanConfig:
     """
-    Build a :class:`SpEcanConfig` from yml file + CLI overrides.
+    Build a :class:`SpecanConfig` from yml file + CLI overrides.
 
     Parameters
     ----------
@@ -151,7 +152,7 @@ def load_config(
         noise_floor=demo_data.get("noise_floor", DemoConfig.noise_floor),
     )
 
-    cfg = SpEcanConfig(
+    cfg = SpecanConfig(
         source=data.get("source", "demo"),
         address=data.get("address", data.get("path", "")),
         fs=data.get("fs", 0.0),
@@ -160,6 +161,7 @@ def load_config(
         rbw=data.get("rbw", 0.0),
         level=data.get("level", 0.0),
         beta=data.get("beta", 6.0),
+        timeout=data.get("timeout", 2000),
         demo=demo,
     )
 

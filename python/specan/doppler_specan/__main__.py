@@ -30,7 +30,10 @@ def main() -> None:
         "--address",
         default=None,
         metavar="PATH_OR_ADDR",
-        help="File path (source=file) or ZMQ address (source=socket)",
+        help=(
+            "File path (source=file) or ZMQ endpoint (source=socket). "
+            "ZMQ endpoints are auto-detected: tcp://, ipc://, inproc://"
+        ),
     )
     parser.add_argument(
         "--fs",
@@ -38,6 +41,13 @@ def main() -> None:
         default=None,
         metavar="HZ",
         help="Input sample rate (required for source=file)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        metavar="MS",
+        help="Socket receive timeout in milliseconds (source=socket, default: 2000)",
     )
 
     # Display
@@ -155,9 +165,16 @@ def main() -> None:
     if args.noise_floor is not None:
         demo_overrides["noise_floor"] = args.noise_floor
 
+    # Auto-infer source=socket from ZMQ address prefix
+    source = args.source
+    if source is None and args.address:
+        _ZMQ_PREFIXES = ("tcp://", "ipc://", "inproc://", "pgm://", "epgm://")
+        if any(args.address.startswith(p) for p in _ZMQ_PREFIXES):
+            source = "socket"
+
     cfg = load_config(
         yml_path=yml_path,
-        source=args.source,
+        source=source,
         address=args.address,
         fs=args.fs,
         center=args.center,
@@ -169,6 +186,7 @@ def main() -> None:
         host=args.host,
         port=args.port,
         no_browser=args.no_browser,
+        timeout=args.timeout,
     )
 
     # Apply demo sub-overrides
@@ -186,12 +204,12 @@ def main() -> None:
 
 def _run_terminal(cfg) -> None:
     """Launch the terminal spectrum display."""
-    from doppler_specan.engine import SpEcanEngine  # noqa: PLC0415
+    from doppler_specan.engine import SpecanEngine  # noqa: PLC0415
     from doppler_specan.source import make_source  # noqa: PLC0415
     from doppler_specan.terminal import TerminalDisplay  # noqa: PLC0415
 
     source = make_source(cfg)
-    engine = SpEcanEngine(cfg)
+    engine = SpecanEngine(cfg)
     display = TerminalDisplay(engine, cfg, source)
     try:
         display.run()

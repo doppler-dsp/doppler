@@ -69,6 +69,7 @@ class SpEcanConfig:
     rbw: float = 0.0
     level: float = 0.0
     beta: float = 6.0
+    timeout: int = 2000  # socket receive timeout in milliseconds
     web: bool = False
     host: str = "127.0.0.1"
     port: int = 8765
@@ -160,6 +161,7 @@ def load_config(
         rbw=data.get("rbw", 0.0),
         level=data.get("level", 0.0),
         beta=data.get("beta", 6.0),
+        timeout=data.get("timeout", 2000),
         demo=demo,
     )
 

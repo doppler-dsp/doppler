@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>doppler specan — live demo</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --accent:  #22d3ee;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --grid:    rgba(48,54,61,0.8);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "JetBrains Mono", "Fira Mono", monospace;
+    font-size: 12px;
+    height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .pill {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  /* ── Canvas area ── */
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  #spectrum  { flex: 3; }
+  #waterfall { flex: 2; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 4px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  footer a:hover { text-decoration: underline; }
+  .badge {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>doppler specan</h1>
+  <span class="pill" id="sr-pill">Fs = —</span>
+  <span class="pill" id="fc-pill">Fc = —</span>
+  <span class="pill" id="fft-pill">FFT = —</span>
+  <span class="pill" id="rbw-pill">RBW = —</span>
+  <div class="status">
+    <div class="dot"></div>
+    <span id="fps-label">-- fps</span>
+  </div>
+</header>
+
+<div class="canvas-wrap">
+  <canvas id="spectrum"></canvas>
+  <canvas id="waterfall"></canvas>
+</div>
+
+<footer>
+  <span>Recorded with
+    <a href="https://doppler-dsp.github.io/doppler/" target="_blank">
+      doppler
+    </a>
+    — NCO + Kaiser window + FFTW
+  </span>
+  <span id="frame-label"></span>
+  <span class="badge">no server · no JS DSP · pure C output</span>
+</footer>
+
+<script>
+// ── Load pre-recorded frames ───────────────────────────────────────────────
+let frames  = [];
+let frameIdx = 0;
+
+fetch("frames.json")
+  .then(r => r.json())
+  .then(data => {
+    frames = data;
+    const f = frames[0];
+    updatePills(f);
+    startLoop();
+  })
+  .catch(err => console.error("Failed to load frames.json:", err));
+
+// ── Canvas setup ───────────────────────────────────────────────────────────
+const specCanvas = document.getElementById("spectrum");
+const wfCanvas   = document.getElementById("waterfall");
+const specCtx    = specCanvas.getContext("2d");
+const wfCtx      = wfCanvas.getContext("2d");
+
+let wfImageData = null;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  for (const c of [specCanvas, wfCanvas]) {
+    const r = c.getBoundingClientRect();
+    c.width  = Math.round(r.width  * dpr);
+    c.height = Math.round(r.height * dpr);
+  }
+  wfImageData = null;
+}
+
+const ro = new ResizeObserver(resize);
+ro.observe(specCanvas);
+ro.observe(wfCanvas);
+resize();
+
+// ── Waterfall colormap (dark blue → cyan → yellow → white) ────────────────
+const REF_DBM   = 10;
+const DB_RANGE  = 120;
+
+function dbToColor(v) {
+  const t = Math.max(0, Math.min(1, (v - (REF_DBM - DB_RANGE)) / DB_RANGE));
+  let r, g, b;
+  if (t < 0.25) {
+    const s = t / 0.25;
+    r = 0; g = 0; b = Math.round(s * 200);
+  } else if (t < 0.5) {
+    const s = (t - 0.25) / 0.25;
+    r = 0; g = Math.round(s * 220); b = Math.round(200 + s * 55);
+  } else if (t < 0.75) {
+    const s = (t - 0.5) / 0.25;
+    r = Math.round(s * 255); g = 220; b = Math.round(255 * (1 - s));
+  } else {
+    const s = (t - 0.75) / 0.25;
+    r = 255; g = 220; b = Math.round(s * 255);
+  }
+  return [r, g, b];
+}
+
+// ── Spectrum draw ─────────────────────────────────────────────────────────
+const TRACE_COLOR = "#22d3ee";
+const FILL_TOP    = "rgba(34,211,238,0.25)";
+const FILL_BOT    = "rgba(34,211,238,0.00)";
+
+function fmtFreq(hz) {
+  const a = Math.abs(hz);
+  if (a >= 1e6) return `${(hz/1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${(hz/1e3).toFixed(1)}k`;
+  return `${hz.toFixed(0)}`;
+}
+
+function drawSpectrum(db, fsOut, centerFreq) {
+  const W = specCanvas.width;
+  const H = specCanvas.height;
+  const N = db.length;
+  const dpr = window.devicePixelRatio || 1;
+  const PAD = { l: 52*dpr, r: 8*dpr, t: 8*dpr, b: 24*dpr };
+  const pw = W - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+
+  specCtx.clearRect(0, 0, W, H);
+
+  // Grid
+  specCtx.font = `${10*dpr}px "JetBrains Mono",monospace`;
+  const nLines = DB_RANGE / 10;
+  for (let i = 0; i <= nLines; i++) {
+    const dbVal = REF_DBM - i * 10;
+    const y = PAD.t + (i / nLines) * ph;
+    specCtx.strokeStyle = "rgba(48,54,61,0.8)";
+    specCtx.lineWidth = 1;
+    specCtx.beginPath();
+    specCtx.moveTo(PAD.l, y); specCtx.lineTo(W - PAD.r, y);
+    specCtx.stroke();
+    specCtx.fillStyle = "#8b949e";
+    specCtx.textAlign = "right";
+    specCtx.textBaseline = "middle";
+    const lbl = dbVal >= 0 ? `+${dbVal}` : `${dbVal}`;
+    specCtx.fillText(lbl, PAD.l - 4*dpr, y);
+  }
+
+  // Freq ticks
+  specCtx.textBaseline = "top";
+  specCtx.textAlign = "center";
+  for (let i = 0; i <= 4; i++) {
+    const frac = i / 4;
+    const x = PAD.l + frac * pw;
+    const freq = centerFreq + (frac - 0.5) * fsOut;
+    specCtx.fillStyle = "#8b949e";
+    specCtx.fillText(fmtFreq(freq), x, H - PAD.b + 4*dpr);
+    specCtx.strokeStyle = "rgba(48,54,61,0.8)";
+    specCtx.beginPath();
+    specCtx.moveTo(x, PAD.t); specCtx.lineTo(x, H - PAD.b);
+    specCtx.stroke();
+  }
+
+  const toX = i => PAD.l + (i / (N-1)) * pw;
+  const toY = v => PAD.t + ((REF_DBM - v) / DB_RANGE) * ph;
+
+  // Fill
+  const grad = specCtx.createLinearGradient(0, PAD.t, 0, PAD.t + ph);
+  grad.addColorStop(0, FILL_TOP);
+  grad.addColorStop(1, FILL_BOT);
+  specCtx.fillStyle = grad;
+  specCtx.beginPath();
+  specCtx.moveTo(toX(0), H - PAD.b);
+  for (let i = 0; i < N; i++) {
+    specCtx.lineTo(toX(i), Math.max(PAD.t, Math.min(PAD.t+ph, toY(db[i]))));
+  }
+  specCtx.lineTo(toX(N-1), H - PAD.b);
+  specCtx.closePath();
+  specCtx.fill();
+
+  // Line
+  specCtx.strokeStyle = TRACE_COLOR;
+  specCtx.lineWidth = 1.5 * dpr;
+  specCtx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const y = Math.max(PAD.t, Math.min(PAD.t+ph, toY(db[i])));
+    if (i === 0) specCtx.moveTo(toX(i), y);
+    else         specCtx.lineTo(toX(i), y);
+  }
+  specCtx.stroke();
+}
+
+// ── Waterfall draw ────────────────────────────────────────────────────────
+function drawWaterfall(db) {
+  const W = wfCanvas.width;
+  const H = wfCanvas.height;
+  const N = db.length;
+
+  if (!wfImageData || wfImageData.width !== W || wfImageData.height !== H) {
+    wfImageData = wfCtx.createImageData(W, H);
+  }
+
+  // Scroll down
+  const rowBytes = W * 4;
+  wfImageData.data.copyWithin(rowBytes, 0, (H-1) * rowBytes);
+
+  // New top row
+  for (let x = 0; x < W; x++) {
+    const idx = Math.round((x / W) * (N-1));
+    const [r, g, b] = dbToColor(db[idx]);
+    const px = x * 4;
+    wfImageData.data[px]   = r;
+    wfImageData.data[px+1] = g;
+    wfImageData.data[px+2] = b;
+    wfImageData.data[px+3] = 255;
+  }
+  wfCtx.putImageData(wfImageData, 0, 0);
+}
+
+// ── Playback loop ─────────────────────────────────────────────────────────
+let fpsAcc = 0, fpsCnt = 0, fpsTs = performance.now();
+
+function updatePills(f) {
+  document.getElementById("sr-pill").textContent =
+    `Fs = ${(f.fs_out/1e6).toFixed(3)} MHz`;
+  document.getElementById("fc-pill").textContent =
+    `Fc = ${(f.center_freq/1e6).toFixed(3)} MHz`;
+  document.getElementById("fft-pill").textContent =
+    `FFT = ${f.fft_size}`;
+  document.getElementById("rbw-pill").textContent =
+    `RBW = ${f.rbw >= 1000
+        ? (f.rbw/1e3).toFixed(1)+"k"
+        : f.rbw.toFixed(0)}Hz`;
+}
+
+function tick() {
+  if (!frames.length) return;
+
+  const f = frames[frameIdx];
+  frameIdx = (frameIdx + 1) % frames.length;
+
+  drawSpectrum(f.db, f.fs_out, f.center_freq);
+  drawWaterfall(f.db);
+
+  document.getElementById("frame-label").textContent =
+    `frame ${frameIdx+1} / ${frames.length}`;
+
+  // FPS counter
+  fpsCnt++;
+  const now = performance.now();
+  if (now - fpsTs >= 500) {
+    document.getElementById("fps-label").textContent =
+      `${(fpsCnt / (now - fpsTs) * 1000).toFixed(1)} fps`;
+    fpsCnt = 0;
+    fpsTs  = now;
+  }
+}
+
+function startLoop() {
+  // 30 fps — same rate as the live server
+  setInterval(tick, 1000 / 30);
+}
+</script>
+</body>
+</html>

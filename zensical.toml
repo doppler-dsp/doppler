@@ -11,14 +11,19 @@ repo_url         = "https://github.com/doppler-dsp/doppler"
 copyright        = "Copyright &copy; 2026 doppler contributors — MIT License"
 
 nav = [
-  { "Home"            = "index.md"                },
-  { "Quick Start"     = "quickstart.md"           },
-  { "Overview"        = "overview.md"             },
-  { "Build & Install" = "build.md"                },
-  { "Examples"        = "examples.md"             },
-  { "pkg-config"      = "pkg-config-guide.md"     },
-  { "API: FFT"        = "api/python-fft.md"       },
-  { "API: Streaming"  = "api/python-streaming.md" },
+  { "Home"            = "index.md"                  },
+  { "Quick Start"     = "quickstart.md"             },
+  { "Overview"        = "overview.md"               },
+  { "Build & Install" = "build.md"                  },
+  { "Examples"        = "examples.md"               },
+  { "pkg-config"      = "pkg-config-guide.md"       },
+  { "API: FFT"        = "api/python-fft.md"         },
+  { "API: Streaming"  = "api/python-streaming.md"   },
+  { "API: NCO"        = "api/python-nco.md"         },
+  { "API: Resample"   = "api/python-resample.md"    },
+  { "API: Polyphase"  = "api/python-polyphase.md"   },
+  { "API: Data Types" = "api/datatypes.md"          },
+  { "Spectrum Analyzer" = "specan/"                 },
 ]
 
 # ----------------------------------------------------------------------------
@@ -69,3 +74,28 @@ toggle.name = "Switch to dark mode"
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
 link = "https://github.com/doppler-dsp/doppler"
+
+# ----------------------------------------------------------------------------
+# mkdocstrings — auto-generate API reference from Python docstrings
+# ----------------------------------------------------------------------------
+[project.plugins.mkdocstrings.config]
+default_handler = "python"
+
+[project.plugins.mkdocstrings.config.handlers.python]
+paths = ["python"]
+
+[project.plugins.mkdocstrings.config.handlers.python.options]
+docstring_style          = "numpy"
+show_source              = false
+show_root_heading        = true
+show_root_full_path      = false
+show_symbol_type_heading = true
+show_symbol_type_toc     = true
+members_order            = "source"
+separate_signature       = true
+show_signature_annotations = true
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]

@@ -18,49 +18,63 @@ FFT quick-start
 >>> import doppler as dp
 >>> dp.fft.setup((1024,))
 >>> result = dp.fft.execute1d(samples)
+
+DSP building blocks
+-------------------
+>>> from doppler.delay import DelayCf64
+>>> from doppler.accumulator import AccCf64
+>>> from doppler.polyphase import design_bank
 """
 
+# ruff: noqa: F401
+from . import accumulator
+from . import buffer
+from . import delay
 from . import fft
-from . import dp_buffer
-from . import dp_nco
-from . import dp_stream
+from . import nco
+from . import polyphase
+from . import resample
+from . import stream
+from . import window
 
-from .dp_buffer import (
-    F32Buffer,
-    F64Buffer,
-    I16Buffer,
-)
-
-from .dp_nco import Nco
-
-from .dp_stream import (
-    # Socket classes (C extension - zero-copy, fast!)
+from .accumulator import AccCf64, AccF32
+from .delay import DelayCf64
+from .nco import Nco
+from .buffer import F32Buffer, F64Buffer, I16Buffer
+from .stream import (
     Publisher,
     Subscriber,
     Push,
     Pull,
     Requester,
     Replier,
-    # Sample-type constants
     CI32,
     CF64,
     CF128,
-    # Utilities
     get_timestamp_ns,
 )
 
 __all__ = [
+    # Subpackages
+    "accumulator",
+    "buffer",
+    "delay",
     "fft",
-    "dp_buffer",
-    "dp_nco",
-    "dp_stream",
-    # NCO
+    "nco",
+    "polyphase",
+    "resample",
+    "stream",
+    "window",
+    # DSP building blocks
+    "AccF32",
+    "AccCf64",
+    "DelayCf64",
     "Nco",
     # Circular buffers
     "F32Buffer",
     "F64Buffer",
     "I16Buffer",
-    # Sockets (C extension)
+    # Sockets
     "Publisher",
     "Subscriber",
     "Push",

@@ -146,7 +146,7 @@ dp_fft2d_execute_inplace(in2d);
 ## C: SIMD arithmetic
 
 ```c
-#include <dp/simd.h>
+#include <dp/util.h>
 #include <complex.h>
 #include <stdio.h>
 

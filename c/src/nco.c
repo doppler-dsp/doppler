@@ -23,10 +23,10 @@
  * ------------------------------------------------------------------ */
 #define NCO_LUT_BITS 16u
 #define NCO_LUT_SIZE (1u << NCO_LUT_BITS) /* 65536               */
-#define NCO_LUT_QTR  (NCO_LUT_SIZE >> 2u) /* 16384  (π/2 offset) */
+#define NCO_LUT_QTR (NCO_LUT_SIZE >> 2u)  /* 16384  (π/2 offset) */
 
 static float nco_lut[NCO_LUT_SIZE];
-static int   nco_lut_ready = 0;
+static int nco_lut_ready = 0;
 
 static void
 nco_lut_init (void)
@@ -34,8 +34,7 @@ nco_lut_init (void)
   if (nco_lut_ready)
     return;
   for (unsigned i = 0; i < NCO_LUT_SIZE; i++)
-    nco_lut[i] = sinf (2.0f * (float)M_PI * (float)i
-                       / (float)NCO_LUT_SIZE);
+    nco_lut[i] = sinf (2.0f * (float)M_PI * (float)i / (float)NCO_LUT_SIZE);
   nco_lut_ready = 1;
 }
 
@@ -55,9 +54,9 @@ nco_lut_init (void)
  *      the addition and the comparison before emitting a branch.
  * ------------------------------------------------------------------ */
 #if defined(__GNUC__) || defined(__clang__)
-#define NCO_ADD_OVF(a, b, res)                                                 \
-  ((uint8_t) __builtin_add_overflow ((uint32_t)(a), (uint32_t)(b),            \
-                                     (uint32_t *)(res)))
+#define NCO_ADD_OVF(a, b, res)                                                \
+  ((uint8_t)__builtin_add_overflow ((uint32_t)(a), (uint32_t)(b),             \
+                                    (uint32_t *)(res)))
 #else
 static inline uint8_t
 nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
@@ -79,7 +78,7 @@ static uint32_t
 norm_to_inc (float norm_freq)
 {
   double d = (double)norm_freq;
-  d       -= floor (d); /* fold into [0, 1) */
+  d -= floor (d); /* fold into [0, 1) */
   return (uint32_t)(d * 4294967296.0);
 }
 
@@ -90,6 +89,7 @@ struct dp_nco
 {
   uint32_t phase;
   uint32_t phase_inc;
+  float norm_freq;
 };
 
 /* ------------------------------------------------------------------
@@ -103,8 +103,9 @@ dp_nco_create (float norm_freq)
   dp_nco_t *nco = malloc (sizeof *nco);
   if (!nco)
     return NULL;
-  nco->phase     = 0;
+  nco->phase = 0;
   nco->phase_inc = norm_to_inc (norm_freq);
+  nco->norm_freq = norm_freq;
   return nco;
 }
 
@@ -112,6 +113,25 @@ void
 dp_nco_set_freq (dp_nco_t *nco, float norm_freq)
 {
   nco->phase_inc = norm_to_inc (norm_freq);
+  nco->norm_freq = norm_freq;
+}
+
+float
+dp_nco_get_freq (const dp_nco_t *nco)
+{
+  return nco->norm_freq;
+}
+
+uint32_t
+dp_nco_get_phase (const dp_nco_t *nco)
+{
+  return nco->phase;
+}
+
+uint32_t
+dp_nco_get_phase_inc (const dp_nco_t *nco)
+{
+  return nco->phase_inc;
 }
 
 void
@@ -148,7 +168,7 @@ dp_nco_destroy (dp_nco_t *nco)
 void
 dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   /* Permutation index vectors — constant across all iterations.
@@ -161,35 +181,30 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
    * perm1: gathers lo/hi lanes 2,3 → output samples 8-15
    *
    * Index bit 4 selects source: 0 = lo (a), 1 = hi (b).          */
-  static const int32_t perm0_arr[16] = {
-    0,  1,  2,  3,  16, 17, 18, 19,
-    4,  5,  6,  7,  20, 21, 22, 23
-  };
-  static const int32_t perm1_arr[16] = {
-    8,  9,  10, 11, 24, 25, 26, 27,
-    12, 13, 14, 15, 28, 29, 30, 31
-  };
+  static const int32_t perm0_arr[16]
+      = { 0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23 };
+  static const int32_t perm1_arr[16]
+      = { 8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31 };
   __m512i vperm0 = _mm512_loadu_si512 (perm0_arr);
   __m512i vperm1 = _mm512_loadu_si512 (perm1_arr);
 
   /* Lane-offset vector {0,1,...,15} and broadcast increment */
-  __m512i vsamp = _mm512_setr_epi32 (
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-  __m512i vinc  = _mm512_set1_epi32 ((int32_t)inc);
+  __m512i vsamp = _mm512_setr_epi32 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                                     13, 14, 15);
+  __m512i vinc = _mm512_set1_epi32 ((int32_t)inc);
 
   size_t i = 0;
   for (; i + 16 <= n; i += 16, ph += 16u * inc)
     {
       /* Phase for each of the 16 lanes */
-      __m512i vph = _mm512_add_epi32 (
-        _mm512_set1_epi32 ((int32_t)ph),
-        _mm512_mullo_epi32 (vsamp, vinc));
+      __m512i vph = _mm512_add_epi32 (_mm512_set1_epi32 ((int32_t)ph),
+                                      _mm512_mullo_epi32 (vsamp, vinc));
 
       /* Top 16 bits → LUT index [0, 65535] */
       __m512i vsin_idx = _mm512_srli_epi32 (vph, 16);
       __m512i vcos_idx = _mm512_and_epi32 (
-        _mm512_add_epi32 (vsin_idx, _mm512_set1_epi32 (NCO_LUT_QTR)),
-        _mm512_set1_epi32 (0xFFFF));
+          _mm512_add_epi32 (vsin_idx, _mm512_set1_epi32 (NCO_LUT_QTR)),
+          _mm512_set1_epi32 (0xFFFF));
 
       /* Gather from the float LUT (scale=4: byte_offset = idx*4) */
       __m512 vsin = _mm512_i32gather_ps (vsin_idx, nco_lut, 4);
@@ -209,9 +224,9 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
   for (; i < n; i++)
     {
       uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i     = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q     = nco_lut[idx];
-      ph          += inc;
+      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
+      out[i].q = nco_lut[idx];
+      ph += inc;
     }
 
   nco->phase = ph;
@@ -222,15 +237,15 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
 void
 dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
       uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i     = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q     = nco_lut[idx];
-      ph          += inc;
+      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
+      out[i].q = nco_lut[idx];
+      ph += inc;
     }
 
   nco->phase = ph;
@@ -243,23 +258,21 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
  * ------------------------------------------------------------------ */
 
 void
-dp_nco_execute_cf32_ctrl (dp_nco_t    *nco,
-                          const float *ctrl,
-                          dp_cf32_t   *out,
-                          size_t       n)
+dp_nco_execute_cf32_ctrl (dp_nco_t *nco, const float *ctrl, dp_cf32_t *out,
+                          size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
-      double   d        = (double)ctrl[i];
-      d                -= floor (d);
+      double d = (double)ctrl[i];
+      d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
-      uint16_t idx      = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i          = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q          = nco_lut[idx];
-      ph               += inc + ctrl_inc;
+      uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
+      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
+      out[i].q = nco_lut[idx];
+      ph += inc + ctrl_inc;
     }
 
   nco->phase = ph;
@@ -272,34 +285,32 @@ dp_nco_execute_cf32_ctrl (dp_nco_t    *nco,
 void
 dp_nco_execute_u32 (dp_nco_t *nco, uint32_t *out, size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
       out[i] = ph;
-      ph    += inc;
+      ph += inc;
     }
 
   nco->phase = ph;
 }
 
 void
-dp_nco_execute_u32_ctrl (dp_nco_t    *nco,
-                         const float *ctrl,
-                         uint32_t    *out,
-                         size_t       n)
+dp_nco_execute_u32_ctrl (dp_nco_t *nco, const float *ctrl, uint32_t *out,
+                         size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
-      double   d        = (double)ctrl[i];
-      d                -= floor (d);
+      double d = (double)ctrl[i];
+      d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
-      out[i]            = ph;
-      ph               += inc + ctrl_inc;
+      out[i] = ph;
+      ph += inc + ctrl_inc;
     }
 
   nco->phase = ph;
@@ -310,17 +321,14 @@ dp_nco_execute_u32_ctrl (dp_nco_t    *nco,
  * ------------------------------------------------------------------ */
 
 void
-dp_nco_execute_u32_ovf (dp_nco_t *nco,
-                        uint32_t *out,
-                        uint8_t  *carry,
-                        size_t    n)
+dp_nco_execute_u32_ovf (dp_nco_t *nco, uint32_t *out, uint8_t *carry, size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
-      out[i]   = ph;
+      out[i] = ph;
       carry[i] = NCO_ADD_OVF (ph, inc, &ph);
     }
 
@@ -328,23 +336,20 @@ dp_nco_execute_u32_ovf (dp_nco_t *nco,
 }
 
 void
-dp_nco_execute_u32_ovf_ctrl (dp_nco_t    *nco,
-                              const float *ctrl,
-                              uint32_t    *out,
-                              uint8_t     *carry,
-                              size_t       n)
+dp_nco_execute_u32_ovf_ctrl (dp_nco_t *nco, const float *ctrl, uint32_t *out,
+                             uint8_t *carry, size_t n)
 {
-  uint32_t ph  = nco->phase;
+  uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
 
   for (size_t i = 0; i < n; i++)
     {
-      double   d        = (double)ctrl[i];
-      d                -= floor (d);
+      double d = (double)ctrl[i];
+      d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
-      uint32_t eff_inc  = inc + ctrl_inc;
-      out[i]            = ph;
-      carry[i]          = NCO_ADD_OVF (ph, eff_inc, &ph);
+      uint32_t eff_inc = inc + ctrl_inc;
+      out[i] = ph;
+      carry[i] = NCO_ADD_OVF (ph, eff_inc, &ph);
     }
 
   nco->phase = ph;

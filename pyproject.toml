@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
-    "zensical>=0.0.29",
 ]
 license-files = [
     "c/cmake/licenses/README_LICENSE",
@@ -14,27 +13,40 @@ license-files = [
     "c/cmake/licenses/POCKETFFT_LICENSE",
 ]
 
-[project.optional-dependencies]
-specan = [
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.23",
-    "websockets>=12.0",
-]
+[project.urls]
+Homepage      = "https://doppler-dsp.github.io/doppler/"
+Documentation = "https://doppler-dsp.github.io/doppler/"
+Repository    = "https://github.com/doppler-dsp/doppler"
+"Bug Tracker" = "https://github.com/doppler-dsp/doppler/issues"
+Changelog     = "https://github.com/doppler-dsp/doppler/blob/main/CHANGELOG.md"
 
-[project.scripts]
-doppler-specan = "doppler.specan.__main__:main"
+[project.optional-dependencies]
+optimize = [
+    "scipy>=1.11",
+]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pytest-cov>=6.0",
     "zensical>=0.0.29",
-    "doppler-dsp[specan]",
+    "mkdocstrings[python]>=0.29",
+    "doppler-specan[web]",
+    "matplotlib>=3.10.8",
+    "scipy>=1.11",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--tb=short"
-testpaths = ["python/doppler/tests"]
+addopts = "--tb=short --doctest-modules"
+testpaths = [
+    "python/doppler/tests",
+    "python/doppler/accumulator",
+    "python/doppler/delay",
+    "python/doppler/fft",
+    "python/doppler/polyphase",
+    "python/doppler/resample",
+]
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
 
 [tool.coverage.run]
 source = ["python/doppler"]
@@ -48,6 +60,13 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[tool.uv.workspace]
+members = ["python/specan"]
+
+[tool.uv.sources]
+doppler-dsp = { workspace = true }
+doppler-specan = { workspace = true }
 
 [tool.uv.build-backend]
 module-root = "python"

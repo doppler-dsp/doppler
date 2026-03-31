@@ -225,18 +225,18 @@ dp__buf_alloc (size_t bytes, void **handle_out)
   /* Use memfd_create when available; otherwise fall back to the raw
    * syscall to avoid implicit-declaration warnings on older libc. */
 #if defined(__GLIBC__)
-# include <features.h>
+#include <features.h>
 #endif
-# include <sys/syscall.h>
-# ifndef SYS_memfd_create
-#  if defined(__x86_64__)
-#   define SYS_memfd_create 319
-#  elif defined(__aarch64__)
-#   define SYS_memfd_create 279
-#  elif defined(__i386__)
-#   define SYS_memfd_create 356
-#  endif
-# endif
+#include <sys/syscall.h>
+#ifndef SYS_memfd_create
+#if defined(__x86_64__)
+#define SYS_memfd_create 319
+#elif defined(__aarch64__)
+#define SYS_memfd_create 279
+#elif defined(__i386__)
+#define SYS_memfd_create 356
+#endif
+#endif
   fd = (int)syscall (SYS_memfd_create, "dp_shm", 0);
 #else
   char name[64];

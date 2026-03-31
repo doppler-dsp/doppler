@@ -104,7 +104,7 @@ doppler/
 │   │       ├── fft.h           # FFT (FFTW-backed)
 │   │       ├── fir.h           # FIR filter (AVX-512/scalar)
 │   │       ├── nco.h           # NCO (32-bit accumulator, 2^16 LUT)
-│   │       ├── simd.h          # SIMD (SSE2/scalar)
+│   │       ├── util.h          # SIMD utils (SSE2/scalar)
 │   │       └── buffer.h        # Lock-free ring buffer
 │   ├── src/                     # Implementations
 │   ├── examples/                # transmitter, receiver,
@@ -118,10 +118,11 @@ doppler/
 │   ├── bench/                   # Benchmarks
 │   └── CMakeLists.txt
 ├── python/
-│   ├── src/
-│   │   ├── dp_fft.c            # FFT C extension
-│   │   ├── dp_buffer.c         # Buffer C extension
-│   │   └── dp_stream.c         # Streaming C extension
+│   ├── ext/
+│   │   ├── _fft.c              # FFT C extension
+│   │   ├── _buffer.c           # Buffer C extension
+│   │   ├── _stream.c           # Streaming C extension
+│   │   └── ...                 # _nco, _delay, _accumulator, etc.
 │   └── doppler/               # Python package
 │       ├── __init__.py
 │       ├── fft/                 # FFT wrappers
@@ -199,8 +200,9 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 | Python FFT     | 20    | pytest  |
 | Python stream  | 14    | pytest  |
 | Python NCO     | 26    | pytest  |
+| Python DPMFS   | 40    | pytest  |
 | Rust FFI       | 13    | cargo   |
-| **Total**      | **184+**|       |
+| **Total**      | **224+**|       |
 
 ## Next Up
 
@@ -213,12 +215,18 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 
 - big feature: continuously variable resampler
   - NCO (done) + complex mixer + brickwall FIR = tunable filter
+  - DPMFS resampler: C runtime done (`dp_resamp_dpmfs_*`)
+  - Python design tools done: `fit_dpmfs`, `optimize_dpmfs`
+  - Next: Python bindings for `dp_resamp_cf32` and `dp_resamp_dpmfs`
   - "tune and zoom" — any rate, any range, like an SDR frontend
   - specan is the visual front-end for this
 
 - examples
   - Console outputs so users can see expected results
   - Benchmarks: C vs Rust-wrap-C vs rustfft
+  - **DONE** (2026-03-27): Added C example for hbdecim, Python examples for nco & hbdecim,
+    type stubs for dp_resamp & dp_resamp_dpmfs. All public C extensions now have
+    type stubs. hbdecim C example registered in CMakeLists. Tests pass (167 pytest, 9 CTest).
 
 - new features
   - NCO: AVX-512 execute path for cf32_ctrl (currently scalar)

@@ -20,6 +20,7 @@ Q = 1073741824
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _cf32_near(a: complex, b: complex, tol: float = TOL) -> bool:
     return abs(a.real - b.real) <= tol and abs(a.imag - b.imag) <= tol
 
@@ -27,6 +28,7 @@ def _cf32_near(a: complex, b: complex, tol: float = TOL) -> bool:
 # ---------------------------------------------------------------------------
 # 1. create / destroy / context manager
 # ---------------------------------------------------------------------------
+
 
 class TestLifecycle:
     def test_create_destroy(self):
@@ -42,12 +44,13 @@ class TestLifecycle:
     def test_double_destroy_safe(self):
         nco = Nco(0.0)
         nco.destroy()
-        nco.destroy()          # second destroy must not crash
+        nco.destroy()  # second destroy must not crash
 
 
 # ---------------------------------------------------------------------------
 # 2. zero frequency → all (1, 0)
 # ---------------------------------------------------------------------------
+
 
 class TestZeroFreq:
     def test_all_dc(self):
@@ -63,6 +66,7 @@ class TestZeroFreq:
 # 3. quarter-rate tone: 4-sample period with known I/Q
 # ---------------------------------------------------------------------------
 
+
 class TestQuarterRate:
     @pytest.fixture
     def out(self):
@@ -70,16 +74,16 @@ class TestQuarterRate:
             return nco.execute_cf32(8)
 
     def test_sample_0(self, out):
-        assert _cf32_near(out[0],  1+0j)
+        assert _cf32_near(out[0], 1 + 0j)
 
     def test_sample_1(self, out):
-        assert _cf32_near(out[1],  0+1j)
+        assert _cf32_near(out[1], 0 + 1j)
 
     def test_sample_2(self, out):
-        assert _cf32_near(out[2], -1+0j)
+        assert _cf32_near(out[2], -1 + 0j)
 
     def test_sample_3(self, out):
-        assert _cf32_near(out[3],  0-1j)
+        assert _cf32_near(out[3], 0 - 1j)
 
     def test_wrap(self, out):
         assert _cf32_near(out[4], out[0])
@@ -92,19 +96,21 @@ class TestQuarterRate:
 # 4. half-rate: alternates (1,0) / (-1,0)
 # ---------------------------------------------------------------------------
 
+
 class TestHalfRate:
     def test_alternates(self):
         with Nco(0.5) as nco:
             out = nco.execute_cf32(4)
-        assert _cf32_near(out[0],  1+0j)
-        assert _cf32_near(out[1], -1+0j)
-        assert _cf32_near(out[2],  1+0j)
-        assert _cf32_near(out[3], -1+0j)
+        assert _cf32_near(out[0], 1 + 0j)
+        assert _cf32_near(out[1], -1 + 0j)
+        assert _cf32_near(out[2], 1 + 0j)
+        assert _cf32_near(out[3], -1 + 0j)
 
 
 # ---------------------------------------------------------------------------
 # 5. unity amplitude over 1024 samples
 # ---------------------------------------------------------------------------
+
 
 class TestUnitAmplitude:
     def test_amplitude(self):
@@ -117,6 +123,7 @@ class TestUnitAmplitude:
 # ---------------------------------------------------------------------------
 # 6. phase continuity across execute calls
 # ---------------------------------------------------------------------------
+
 
 class TestPhaseContinuity:
     def test_split_equals_single(self):
@@ -135,21 +142,23 @@ class TestPhaseContinuity:
 # 7. reset restores phase to zero
 # ---------------------------------------------------------------------------
 
+
 class TestReset:
     def test_reset(self):
         with Nco(0.25) as nco:
-            nco.execute_cf32(3)   # advance 3 samples
+            nco.execute_cf32(3)  # advance 3 samples
             nco.reset()
             out = nco.execute_cf32(4)
-        assert _cf32_near(out[0],  1+0j)
-        assert _cf32_near(out[1],  0+1j)
-        assert _cf32_near(out[2], -1+0j)
-        assert _cf32_near(out[3],  0-1j)
+        assert _cf32_near(out[0], 1 + 0j)
+        assert _cf32_near(out[1], 0 + 1j)
+        assert _cf32_near(out[2], -1 + 0j)
+        assert _cf32_near(out[3], 0 - 1j)
 
 
 # ---------------------------------------------------------------------------
 # 8. set_freq changes frequency without resetting phase
 # ---------------------------------------------------------------------------
+
 
 class TestSetFreq:
     def test_set_freq(self):
@@ -158,30 +167,32 @@ class TestSetFreq:
             nco.set_freq(0.25)
             post = nco.execute_cf32(4)
 
-        assert np.allclose(pre, [1+0j, 1+0j], atol=TOL)
-        assert _cf32_near(post[0],  1+0j)
-        assert _cf32_near(post[1],  0+1j)
-        assert _cf32_near(post[2], -1+0j)
-        assert _cf32_near(post[3],  0-1j)
+        assert np.allclose(pre, [1 + 0j, 1 + 0j], atol=TOL)
+        assert _cf32_near(post[0], 1 + 0j)
+        assert _cf32_near(post[1], 0 + 1j)
+        assert _cf32_near(post[2], -1 + 0j)
+        assert _cf32_near(post[3], 0 - 1j)
 
 
 # ---------------------------------------------------------------------------
 # 9. negative frequency → conjugate rotation
 # ---------------------------------------------------------------------------
 
+
 class TestNegativeFreq:
     def test_negative_quarter(self):
         with Nco(-0.25) as nco:
             out = nco.execute_cf32(4)
-        assert _cf32_near(out[0],  1+0j)
-        assert _cf32_near(out[1],  0-1j)
-        assert _cf32_near(out[2], -1+0j)
-        assert _cf32_near(out[3],  0+1j)
+        assert _cf32_near(out[0], 1 + 0j)
+        assert _cf32_near(out[1], 0 - 1j)
+        assert _cf32_near(out[2], -1 + 0j)
+        assert _cf32_near(out[3], 0 + 1j)
 
 
 # ---------------------------------------------------------------------------
 # 10. ctrl port: zero deviation = free-running
 # ---------------------------------------------------------------------------
+
 
 class TestCtrlZero:
     def test_zero_ctrl_matches_free(self):
@@ -204,15 +215,16 @@ class TestCtrlZero:
 # 11. ctrl port: +0.25 deviation doubles quarter-rate frequency
 # ---------------------------------------------------------------------------
 
+
 class TestCtrlFreqShift:
     def test_doubled_rate(self):
         ctrl = np.full(4, 0.25, dtype=np.float32)
         with Nco(0.25) as nco:
             out = nco.execute_cf32_ctrl(ctrl)
-        assert _cf32_near(out[0],  1+0j)
-        assert _cf32_near(out[1], -1+0j)
-        assert _cf32_near(out[2],  1+0j)
-        assert _cf32_near(out[3], -1+0j)
+        assert _cf32_near(out[0], 1 + 0j)
+        assert _cf32_near(out[1], -1 + 0j)
+        assert _cf32_near(out[2], 1 + 0j)
+        assert _cf32_near(out[3], -1 + 0j)
 
     def test_base_inc_unchanged(self):
         ctrl = np.full(4, 0.25, dtype=np.float32)
@@ -221,26 +233,27 @@ class TestCtrlFreqShift:
             nco.reset()
             after = nco.execute_cf32(4)
         # base freq still 0.25 → quarter-rate sequence
-        assert _cf32_near(after[1], 0+1j)
+        assert _cf32_near(after[1], 0 + 1j)
 
 
 # ---------------------------------------------------------------------------
 # 12. u32: exact phase values at f_n = 0.25
 # ---------------------------------------------------------------------------
 
+
 class TestU32PhaseValues:
     def test_phase_sequence(self):
         with Nco(0.25) as nco:
             ph = nco.execute_u32(8)
         assert ph.dtype == np.uint32
-        expected = np.array([0, Q, 2*Q, 3*Q, 0, Q, 2*Q, 3*Q],
-                             dtype=np.uint32)
+        expected = np.array([0, Q, 2 * Q, 3 * Q, 0, Q, 2 * Q, 3 * Q], dtype=np.uint32)
         np.testing.assert_array_equal(ph, expected)
 
 
 # ---------------------------------------------------------------------------
 # 13. u32 / cf32 consistency: same phase → same cos/sin
 # ---------------------------------------------------------------------------
+
 
 class TestU32CF32Consistency:
     def test_phase_to_iq(self):
@@ -261,6 +274,7 @@ class TestU32CF32Consistency:
 # 14. u32_ctrl: zero deviation = u32 free-running
 # ---------------------------------------------------------------------------
 
+
 class TestU32CtrlZero:
     def test_zero_ctrl(self):
         ctrl = np.zeros(16, dtype=np.float32)
@@ -276,13 +290,14 @@ class TestU32CtrlZero:
 # 15. u32_ovf: carry fires every 4th sample at f_n = 0.25
 # ---------------------------------------------------------------------------
 
+
 class TestOvfQuarterRate:
     def test_carry_pattern(self):
         with Nco(0.25) as nco:
             ph, carry = nco.execute_u32_ovf(16)
-        assert ph.dtype    == np.uint32
+        assert ph.dtype == np.uint32
         assert carry.dtype == np.uint8
-        assert ph.shape    == (16,)
+        assert ph.shape == (16,)
         assert carry.shape == (16,)
 
         # carry fires at indices 3, 7, 11, 15
@@ -297,6 +312,7 @@ class TestOvfQuarterRate:
 # 16. u32_ovf: carry fires every 2nd sample at f_n = 0.5
 # ---------------------------------------------------------------------------
 
+
 class TestOvfHalfRate:
     def test_carry_pattern(self):
         with Nco(0.5) as nco:
@@ -309,6 +325,7 @@ class TestOvfHalfRate:
 # 17. u32_ovf_ctrl: zero deviation = u32_ovf free-running
 # ---------------------------------------------------------------------------
 
+
 class TestOvfCtrlZero:
     def test_zero_ctrl(self):
         ctrl = np.zeros(16, dtype=np.float32)
@@ -317,14 +334,15 @@ class TestOvfCtrlZero:
         with Nco(0.25) as nco:
             ph, c = nco.execute_u32_ovf_ctrl(ctrl)
         assert ph.dtype == np.uint32
-        assert c.dtype  == np.uint8
+        assert c.dtype == np.uint8
         np.testing.assert_array_equal(ph, ph_ref)
-        np.testing.assert_array_equal(c,  c_ref)
+        np.testing.assert_array_equal(c, c_ref)
 
 
 # ---------------------------------------------------------------------------
 # 18. u32_ovf_ctrl: +0.25 deviation → half-rate carry pattern
 # ---------------------------------------------------------------------------
+
 
 class TestOvfCtrlFreqShift:
     def test_carry_doubled(self):

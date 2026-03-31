@@ -222,7 +222,7 @@ def demo_pub_sub():
 
 if __name__ == "__main__":
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║  doppler IQ Signal Streaming Demo                      ║")
+    print("║  doppler IQ Signal Streaming Demo                        ║")
     print("╚══════════════════════════════════════════════════════════╝")
     try:
         demo_push_pull()

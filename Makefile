@@ -68,7 +68,7 @@ endif
 
 .PHONY: all build test rust-test rust-examples install install-test pyext \
         python-test test-all docs-build docs-serve \
-        specan \
+        specan record-demo \
         docker docker-test \
         debug release blazing gen-pyext bump-version tag-release clean help
 
@@ -141,6 +141,11 @@ docs-serve:
 # ── specan ────────────────────────────────────────────────────────────────────
 specan:
 	uv run doppler-specan
+
+record-demo:
+	uv run python -m doppler_specan.record_demo \
+	    --frames 120 --fft-size 512 \
+	    -o docs/specan/frames.json
 
 # ── docker ────────────────────────────────────────────────────────────────────
 docker:

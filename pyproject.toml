@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
-    "zensical>=0.0.29",
 ]
 license-files = [
     "c/cmake/licenses/README_LICENSE",
@@ -22,24 +21,17 @@ Repository    = "https://github.com/doppler-dsp/doppler"
 Changelog     = "https://github.com/doppler-dsp/doppler/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-specan = [
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.23",
-    "websockets>=12.0",
-]
 optimize = [
     "scipy>=1.11",
 ]
-
-[project.scripts]
-doppler-specan = "doppler.specan.__main__:main"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pytest-cov>=6.0",
     "zensical>=0.0.29",
-    "doppler-dsp[specan]",
+    "mkdocstrings[python]>=0.29",
+    "doppler-specan[web]",
     "matplotlib>=3.10.8",
     "scipy>=1.11",
 ]
@@ -68,6 +60,13 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[tool.uv.workspace]
+members = ["python/specan"]
+
+[tool.uv.sources]
+doppler-dsp = { workspace = true }
+doppler-specan = { workspace = true }
 
 [tool.uv.build-backend]
 module-root = "python"

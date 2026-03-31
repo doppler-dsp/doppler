@@ -47,54 +47,54 @@ execute_process(
 string(FIND ${PY_EXT_SUFFIX} "so" LINUX_MACHINE)
 
 # FFT extension
-add_library(dp_fft MODULE
-    ext/dp_fft.c
+add_library(_fft MODULE
+    ext/_fft.c
 )
 
-target_include_directories(dp_fft
+target_include_directories(_fft
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_fft
+    target_link_libraries(_fft
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_fft
+    target_link_libraries(_fft
         PRIVATE doppler m
     )
 endif()
 
 
-set_target_properties(dp_fft PROPERTIES
+set_target_properties(_fft PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
 # Circular buffer extension
-add_library(dp_buffer MODULE
-    ext/dp_buffer.c
+add_library(_buffer MODULE
+    ext/_buffer.c
 )
 
-target_include_directories(dp_buffer
+target_include_directories(_buffer
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
         ${CMAKE_BASE_DIR}/include
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_buffer
+    target_link_libraries(_buffer
         PRIVATE Python3::Python m
     )
 else()
-    target_link_libraries(dp_buffer
+    target_link_libraries(_buffer
         PRIVATE m
     )
 endif()
 
-set_target_properties(dp_buffer PROPERTIES
+set_target_properties(_buffer PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
@@ -158,154 +158,206 @@ add_dependencies(zmq_vendor_static libzmq_vendor)
 # dependency -- no auditwheel bundling required for zmq.
 # =========================================================================
 
-add_library(dp_stream MODULE ext/dp_stream.c)
+add_library(_stream MODULE ext/_stream.c)
 
-target_include_directories(dp_stream PRIVATE
+target_include_directories(_stream PRIVATE
     ${NumPy_INCLUDE_DIR}
     ${Python3_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/c/include
 )
 
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_stream PRIVATE
+    target_link_libraries(_stream PRIVATE
         doppler_static zmq_vendor_static stdc++ Python3::Python m pthread)
 else()
-    target_link_libraries(dp_stream PRIVATE
+    target_link_libraries(_stream PRIVATE
         doppler_static zmq_vendor_static stdc++ m pthread)
 endif()
 
-set_target_properties(dp_stream PROPERTIES
+set_target_properties(_stream PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
-    OUTPUT_NAME "dp_stream"
+    OUTPUT_NAME "_stream"
 )
 
 # Delay line extension
-add_library(dp_delay MODULE
-    ext/dp_delay.c
+add_library(_delay MODULE
+    ext/_delay.c
 )
 
-target_include_directories(dp_delay
+target_include_directories(_delay
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_delay
+    target_link_libraries(_delay
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_delay
+    target_link_libraries(_delay
         PRIVATE doppler m
     )
 endif()
 
-set_target_properties(dp_delay PROPERTIES
+set_target_properties(_delay PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
 # Accumulator extension
-add_library(dp_accumulator MODULE
-    ext/dp_accumulator.c
+add_library(_accumulator MODULE
+    ext/_accumulator.c
 )
 
-target_include_directories(dp_accumulator
+target_include_directories(_accumulator
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_accumulator
+    target_link_libraries(_accumulator
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_accumulator
+    target_link_libraries(_accumulator
         PRIVATE doppler m
     )
 endif()
 
-set_target_properties(dp_accumulator PROPERTIES
+set_target_properties(_accumulator PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
 # NCO extension
-add_library(dp_nco MODULE
-    ext/dp_nco.c
+add_library(_nco MODULE
+    ext/_nco.c
 )
 
-target_include_directories(dp_nco
+target_include_directories(_nco
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_nco
+    target_link_libraries(_nco
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_nco
+    target_link_libraries(_nco
         PRIVATE doppler m
     )
 endif()
 
-set_target_properties(dp_nco PROPERTIES
+set_target_properties(_nco PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
 # Resampler extension
-add_library(dp_resamp MODULE
-    ext/dp_resamp.c
+add_library(_resamp MODULE
+    ext/_resamp.c
 )
 
-target_include_directories(dp_resamp
+target_include_directories(_resamp
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_resamp
+    target_link_libraries(_resamp
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_resamp
+    target_link_libraries(_resamp
         PRIVATE doppler m
     )
 endif()
 
-set_target_properties(dp_resamp PROPERTIES
+set_target_properties(_resamp PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
 # DPMFS resampler extension
-add_library(dp_resamp_dpmfs MODULE
-    ext/dp_resamp_dpmfs.c
+add_library(_resamp_dpmfs MODULE
+    ext/_resamp_dpmfs.c
 )
 
-target_include_directories(dp_resamp_dpmfs
+target_include_directories(_resamp_dpmfs
     PRIVATE
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
 if(${LINUX_MACHINE} EQUAL -1)
-    target_link_libraries(dp_resamp_dpmfs
+    target_link_libraries(_resamp_dpmfs
         PRIVATE doppler Python3::Python m
     )
 else()
-    target_link_libraries(dp_resamp_dpmfs
+    target_link_libraries(_resamp_dpmfs
         PRIVATE doppler m
     )
 endif()
 
-set_target_properties(dp_resamp_dpmfs PROPERTIES
+set_target_properties(_resamp_dpmfs PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
+# Halfband decimator extension
+add_library(_hbdecim MODULE
+    ext/_hbdecim.c
+)
+
+target_include_directories(_hbdecim
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(_hbdecim
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(_hbdecim
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(_hbdecim PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
+# Window function extension
+add_library(_window MODULE
+    ext/dp_window.c
+)
+
+target_include_directories(_window
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+if(${LINUX_MACHINE} EQUAL -1)
+    target_link_libraries(_window
+        PRIVATE doppler Python3::Python m
+    )
+else()
+    target_link_libraries(_window
+        PRIVATE doppler m
+    )
+endif()
+
+set_target_properties(_window PROPERTIES
     LANGUAGE C
     PREFIX ""
     SUFFIX "${PY_EXT_SUFFIX}"
@@ -317,31 +369,37 @@ set_target_properties(dp_resamp_dpmfs PROPERTIES
 set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
 
 add_custom_target(pyext
-    DEPENDS dp_fft dp_buffer dp_stream dp_nco dp_delay dp_accumulator
-            dp_resamp dp_resamp_dpmfs
+    DEPENDS _fft _buffer _stream _nco _delay _accumulator
+            _resamp _resamp_dpmfs _hbdecim _window
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_fft>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_fft>"
+        "$<TARGET_FILE:_fft>"
+        "${PY_PKG_DIR}/fft/$<TARGET_FILE_NAME:_fft>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_buffer>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_buffer>"
+        "$<TARGET_FILE:_buffer>"
+        "${PY_PKG_DIR}/buffer/$<TARGET_FILE_NAME:_buffer>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_stream>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_stream>"
+        "$<TARGET_FILE:_stream>"
+        "${PY_PKG_DIR}/stream/$<TARGET_FILE_NAME:_stream>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_nco>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_nco>"
+        "$<TARGET_FILE:_nco>"
+        "${PY_PKG_DIR}/nco/$<TARGET_FILE_NAME:_nco>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_delay>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_delay>"
+        "$<TARGET_FILE:_delay>"
+        "${PY_PKG_DIR}/delay/$<TARGET_FILE_NAME:_delay>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_accumulator>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_accumulator>"
+        "$<TARGET_FILE:_accumulator>"
+        "${PY_PKG_DIR}/accumulator/$<TARGET_FILE_NAME:_accumulator>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_resamp>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_resamp>"
+        "$<TARGET_FILE:_resamp>"
+        "${PY_PKG_DIR}/resample/$<TARGET_FILE_NAME:_resamp>"
     COMMAND ${CMAKE_COMMAND} -E copy
-        "$<TARGET_FILE:dp_resamp_dpmfs>"
-        "${PY_PKG_DIR}/$<TARGET_FILE_NAME:dp_resamp_dpmfs>"
-    COMMENT "Copying Python extensions into python/doppler/"
+        "$<TARGET_FILE:_resamp_dpmfs>"
+        "${PY_PKG_DIR}/resample/$<TARGET_FILE_NAME:_resamp_dpmfs>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:_hbdecim>"
+        "${PY_PKG_DIR}/resample/$<TARGET_FILE_NAME:_hbdecim>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:_window>"
+        "${PY_PKG_DIR}/window/$<TARGET_FILE_NAME:_window>"
+    COMMENT "Copying Python extensions into subpackage directories"
 )

@@ -21,6 +21,10 @@ path = "examples/fft_bench.rs"
 name = "nco_demo"
 path = "examples/nco_demo.rs"
 
+[[example]]
+name = "acc_demo"
+path = "examples/acc_demo.rs"
+
 [dependencies]
 num-complex = "0.4"
 rustfft = "6.4.1"

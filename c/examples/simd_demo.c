@@ -12,7 +12,7 @@
  * Usage: simd_demo [--help]
  */
 
-#include "dp/simd.h"
+#include "dp/util.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>

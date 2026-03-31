@@ -13,6 +13,7 @@
   dot-product with delay line, emit one output sample
 - On NCO overflow: push next input sample into delay line
 
+
 ```
                                   ┌────────────────────────────┐
                                   │   Polyphase filter bank    │

@@ -20,6 +20,7 @@ doppler is a lean C99 signal processing library built for one goal: maximum thro
 - **FIR filter** — AVX-512 complex taps, CI8/CI16/CI32/CF32 input types
 - **FFT** — 1D and 2D, selectable backend (FFTW or pocketfft)
 - **Polyphase resampler** — continuously-variable rate, Kaiser-designed bank; DPMFS variant (608 B, L1-resident) for cache-sensitive pipelines
+- **Halfband decimator** — dedicated 2:1 decimator exploiting halfband symmetry; 375 MSa/s at 60 dB attenuation
 - **SIMD arithmetic** — SSE2/AVX2 complex multiply via `dp_c16_mul`
 - **Signal streaming** — low-latency ZMQ transport (PUB/SUB, PUSH/PULL, REQ/REP)
 - **Circular buffers** — double-mapped ring buffers for zero-copy, lock-free IPC (F32/F64/I16)
@@ -52,6 +53,20 @@ Re-run any suite with `make blazing` then the binary listed below.
 | `CI8` | 317 | 8-bit complex integer input |
 | `CF32` | 280 | 32-bit complex float input |
 | `CI16` | 235 | 16-bit complex integer input |
+
+### Halfband decimator (`dp_hbdecim_cf32`)
+
+`block=65 536 samples × 400 iterations` — `./build/c/bench_hbdecim_c`
+
+| N taps | Attenuation | MSa/s (input) |
+|-------:|------------:|--------------:|
+| 10 | 40 dB | 540 |
+| 19 | 60 dB | 375 |
+| 37 | 80 dB | 201 |
+| 73 | 80 dB | 105 |
+
+The halfband structure halves the FIR multiply count by exploiting
+coefficient symmetry; the pure-delay branch costs one multiply instead of N.
 
 ### FFT (`dp_fft*`)
 

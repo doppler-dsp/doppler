@@ -140,11 +140,11 @@ class TestFirBlock:
 class TestSpecanBlock:
     def test_default_config(self):
         cfg = SpecanConfig()
-        assert cfg.mode == "terminal"
+        assert cfg.mode == "web"
         assert cfg.web_port == 8080
 
     def test_terminal_command(self):
-        cfg = SpecanConfig()
+        cfg = SpecanConfig(mode="terminal")
         cmd = SpecanBlock().command(cfg, "tcp://127.0.0.1:5601", None)
         assert "--source" in cmd
         assert "socket" in cmd

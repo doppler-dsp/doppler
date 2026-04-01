@@ -8,7 +8,7 @@ from doppler_cli.blocks import Block, BlockConfig, register
 
 
 class SpecanConfig(BlockConfig):
-    mode: Literal["terminal", "web"] = "terminal"
+    mode: Literal["terminal", "web"] = "web"
     center: float = 0.0
     span: float | None = None
     rbw: float | None = None

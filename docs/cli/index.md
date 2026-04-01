@@ -96,7 +96,7 @@ chain:
 
 sink:
   type: specan
-  mode: terminal
+  mode: web        # terminal mode requires a foreground TTY; use web in pipelines
   center: 0.0
   span: null
   rbw: null

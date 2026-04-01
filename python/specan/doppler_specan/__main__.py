@@ -23,7 +23,7 @@ def main() -> None:
     parser.add_argument(
         "--source",
         default=None,
-        choices=["demo", "file", "socket"],
+        choices=["demo", "file", "socket", "pull"],
         help="Signal source",
     )
     parser.add_argument(

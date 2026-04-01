@@ -24,6 +24,7 @@ nav = [
   { "API: Polyphase"  = "api/python-polyphase.md"   },
   { "API: Data Types" = "api/datatypes.md"          },
   { "Spectrum Analyzer" = "specan/"                 },
+  { "CLI & Pipelines"  = "cli/"                     },
 ]
 
 # ----------------------------------------------------------------------------

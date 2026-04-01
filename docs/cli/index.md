@@ -243,6 +243,78 @@ manually or with `doppler stop <ID>` (gracefully handles dead PIDs).
 
 ---
 
+## Creating a new block
+
+All pipeline blocks follow the same pattern. Here is a minimal
+example — a `noise` source that emits pure AWGN:
+
+**1. Config schema** — declare fields with defaults using pydantic:
+
+```python
+# python/cli/doppler_cli/blocks/noise.py
+from doppler_cli.blocks import Block, BlockConfig, register
+
+
+class NoiseConfig(BlockConfig):
+    sample_rate: float = 2.048e6
+    noise_floor: float = -60.0
+
+
+@register
+class NoiseBlock(Block):
+    name = "noise"
+    Config = NoiseConfig
+    role = "source"  # "source" | "chain" | "sink"
+
+    def command(self, config, input_addr, output_addr):
+        assert output_addr is not None
+        return [
+            "doppler-noise",
+            "--bind", output_addr,
+            "--fs", str(config.sample_rate),
+            "--noise-floor", str(config.noise_floor),
+        ]
+```
+
+**2. Register it** — import the module in `__main__.py`:
+
+```python
+import doppler_cli.blocks.noise  # noqa: F401
+```
+
+**3. Entry point** — add a `doppler-noise` script in `pyproject.toml`:
+
+```toml
+[project.scripts]
+doppler-noise = "doppler_cli.noise_source:main"
+```
+
+**4. Startup log** — every block entry point must print a health line
+on startup so `doppler logs` confirms what's running:
+
+```python
+from datetime import datetime, timezone
+
+def _log(msg):
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] {msg}", flush=True)
+
+# In main(), before the processing loop:
+_log(f"doppler-noise started — bind={args.bind} fs={args.fs:.0f}")
+```
+
+**5. Use it:**
+
+```sh
+doppler compose init noise specan
+doppler compose up ~/.doppler/chains/<ID>.yml
+doppler logs <ID>
+# [2026-04-01T10:00:00Z] doppler-noise started — bind=tcp://127.0.0.1:5600 fs=2048000
+# [2026-04-01T10:00:00Z] doppler-specan started — mode=web source=pull address=tcp://127.0.0.1:5600
+```
+
+---
+
 ## Port allocation
 
 Ports are auto-assigned from the range `5600–5700` by scanning

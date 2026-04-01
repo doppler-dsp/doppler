@@ -33,12 +33,17 @@
   header {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 8px 16px;
+    gap: 8px;
+    padding: 8px 12px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    white-space: nowrap;
   }
+  header::-webkit-scrollbar { display: none; }
   header h1 {
     font-size: 15px;
     font-weight: 700;
@@ -78,7 +83,11 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;         /* Firefox */
+    -ms-overflow-style: none;      /* IE / Edge */
   }
+  .controls::-webkit-scrollbar { display: none; }
   .ctrl-group {
     display: flex;
     align-items: center;
@@ -89,7 +98,7 @@
   input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
-    width: 160px;
+    width: clamp(80px, 12vw, 160px);
     height: 4px;
     border-radius: 2px;
     background: var(--border);
@@ -135,13 +144,16 @@
   canvas {
     display: block;
     width: 100%;
+    min-height: 0;                 /* allow flex shrink below intrinsic size */
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg);
   }
 
-  #spectrum   { flex: 3; }
-  #waterfall  { flex: 2; }
+  #spectrum   { flex: 3; min-height: 0; }
+  #waterfall  { flex: 2; min-height: 0; }
+
+  .canvas-wrap { min-height: 0; }
 
   /* ── Footer ── */
   footer {

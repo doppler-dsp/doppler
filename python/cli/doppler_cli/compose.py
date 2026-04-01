@@ -21,7 +21,11 @@ _CHAINS_DIR = Path.home() / ".doppler" / "chains"
 # ------------------------------------------------------------------
 
 
-def init(block_names: list[str], out: Path | None = None) -> Path:
+def init(
+    block_names: list[str],
+    out: Path | None = None,
+    name: str | None = None,
+) -> Path:
     """Scaffold a compose file with defaults for the given block names.
 
     The first block must be a source, the last a sink.  Ports are
@@ -34,6 +38,10 @@ def init(block_names: list[str], out: Path | None = None) -> Path:
     out:
         Path to write the compose file.  Defaults to
         ``~/.doppler/chains/<ID>.yml``.
+    name:
+        Human-readable chain name / ID.  Used as the filename stem and
+        the ``id`` field in the compose file.  Defaults to a random
+        6-hex-digit ID.
 
     Returns
     -------
@@ -62,7 +70,7 @@ def init(block_names: list[str], out: Path | None = None) -> Path:
     n_ports = len(block_names) - 1
     ports = allocate(n_ports)
 
-    chain_id = secrets.token_hex(3)  # e.g. "a3f7c2"
+    chain_id = name or secrets.token_hex(3)  # e.g. "a3f7c2"
 
     # Build YAML document
     doc: dict = {"id": chain_id}

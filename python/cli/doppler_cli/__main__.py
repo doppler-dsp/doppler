@@ -81,7 +81,13 @@ def main() -> None:
     )
 
     p_up = compose_sub.add_parser("up", help="Start a chain from a compose file")
-    p_up.add_argument("file", metavar="FILE")
+    p_up.add_argument(
+        "file",
+        metavar="FILE",
+        nargs="?",
+        default=None,
+        help="Compose file to start (default: most recently created)",
+    )
 
     p_down = compose_sub.add_parser("down", help="Stop a running chain")
     p_down.add_argument("id", metavar="ID")
@@ -124,8 +130,22 @@ def main() -> None:
 
         elif args.compose_cmd == "up":
             from doppler_cli.compose import up  # noqa: PLC0415
+            from doppler_cli.state import _CHAINS_DIR  # noqa: PLC0415
 
-            state = up(Path(args.file))
+            if args.file:
+                compose_file = Path(args.file)
+            else:
+                ymls = sorted(
+                    _CHAINS_DIR.glob("*.yml"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if not ymls:
+                    print("no compose files found in ~/.doppler/chains/")
+                    sys.exit(1)
+                compose_file = ymls[0]
+                print(f"using {compose_file}")
+            state = up(compose_file)
             print(f"started chain {state.id} ({len(state.blocks)} blocks)")
 
         elif args.compose_cmd == "down":

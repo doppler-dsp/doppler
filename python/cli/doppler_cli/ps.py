@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -96,21 +97,20 @@ def cmd_logs(chain_id: str, block_name: str | None = None) -> None:
         )
         sys.exit(1)
 
-    pids = [str(b.pid) for b in targets]
+    log_files = [b.log_file for b in targets if b.log_file]
+    if not log_files:
+        pids = [str(b.pid) for b in targets]
+        console.print(
+            "[yellow]No log files for this chain.[/yellow] "
+            f"(Chain may have been started before log support was added.) "
+            f"Block PIDs: {', '.join(pids)}"
+        )
+        return
 
-    # Try journalctl first (systemd systems)
-    try:
-        subprocess.run(  # noqa: S603
-            ["journalctl", "--follow", "--output=short-iso"]
-            + [f"_PID={p}" for p in pids],
-            check=False,
-        )
-    except FileNotFoundError:
-        # No journalctl — tell the user the PIDs
-        console.print(
-            f"[yellow]journalctl not available.[/yellow] Block PIDs: {', '.join(pids)}"
-        )
-        console.print(
-            "Use: [bold]tail -f /proc/<PID>/fd/1[/bold] on Linux, "
-            "or attach your preferred log viewer."
-        )
+    available = [f for f in log_files if Path(f).exists()]
+    for f in log_files:
+        if f not in available:
+            console.print(f"[yellow]Log file not found:[/yellow] {f}")
+
+    if available:
+        subprocess.run(["tail", "-f", *available], check=False)  # noqa: S603

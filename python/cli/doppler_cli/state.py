@@ -17,6 +17,7 @@ class BlockState:
     pid: int
     bind_port: int | None = None  # output port this block binds
     connect_port: int | None = None  # input port this block connects to
+    log_file: str | None = None  # stderr/stdout log path
 
 
 @dataclass
@@ -46,6 +47,7 @@ class ChainState:
                     "pid": b.pid,
                     "bind_port": b.bind_port,
                     "connect_port": b.connect_port,
+                    "log_file": b.log_file,
                 }
                 for b in self.blocks
             ],
@@ -63,6 +65,7 @@ class ChainState:
                 pid=b["pid"],
                 bind_port=b.get("bind_port"),
                 connect_port=b.get("connect_port"),
+                log_file=b.get("log_file"),
             )
             for b in data.get("blocks", [])
         ]

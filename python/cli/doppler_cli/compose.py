@@ -114,17 +114,27 @@ def up(compose_file: Path) -> ChainState:
     sink_type = sink_doc.pop("type")
 
     block_states: list[BlockState] = []
+    _CHAINS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _spawn(name: str, cmd: list[str]) -> tuple[subprocess.Popen, str]:
+        log_path = _CHAINS_DIR / f"{chain_id}-{name}.log"
+        log_fh = open(log_path, "w")  # noqa: SIM115
+        proc = subprocess.Popen(  # noqa: S603
+            cmd, stdout=log_fh, stderr=log_fh
+        )
+        return proc, str(log_path)
 
     # --- spawn source ---
     src_cls = block_registry.get(source_type)
     src_cfg = src_cls.Config(**source_doc)
     src_cmd = src_cls().command(src_cfg, None, source_addr)
-    src_proc = subprocess.Popen(src_cmd)  # noqa: S603
+    src_proc, src_log = _spawn(source_type, src_cmd)
     block_states.append(
         BlockState(
             name=source_type,
             pid=src_proc.pid,
             bind_port=source_port,
+            log_file=src_log,
         )
     )
 
@@ -139,13 +149,14 @@ def up(compose_file: Path) -> ChainState:
         blk_cls = block_registry.get(name)
         blk_cfg = blk_cls.Config(**cfg_dict)
         blk_cmd = blk_cls().command(blk_cfg, prev_addr, out_addr)
-        blk_proc = subprocess.Popen(blk_cmd)  # noqa: S603
+        blk_proc, blk_log = _spawn(name, blk_cmd)
         block_states.append(
             BlockState(
                 name=name,
                 pid=blk_proc.pid,
                 connect_port=in_port,
                 bind_port=out_port,
+                log_file=blk_log,
             )
         )
         prev_addr = out_addr
@@ -155,11 +166,12 @@ def up(compose_file: Path) -> ChainState:
     snk_cls = block_registry.get(sink_type)
     snk_cfg = snk_cls.Config(**sink_doc)
     snk_cmd = snk_cls().command(snk_cfg, prev_addr, None)
-    snk_proc = subprocess.Popen(snk_cmd)  # noqa: S603
+    snk_proc, snk_log = _spawn(sink_type, snk_cmd)
     block_states.append(
         BlockState(
             name=sink_type,
             pid=snk_proc.pid,
+            log_file=snk_log,
             connect_port=sink_in_port,
         )
     )

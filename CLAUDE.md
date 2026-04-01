@@ -217,9 +217,9 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
   - NCO (done) + complex mixer + brickwall FIR = tunable filter
   - DPMFS resampler: C runtime done (`dp_resamp_dpmfs_*`)
   - Python design tools done: `fit_dpmfs`, `optimize_dpmfs`
-  - Next: Python bindings for `dp_resamp_cf32` and `dp_resamp_dpmfs`
+  - Python bindings done: `Resampler`, `ResamplerDpmfs`, `HalfbandDecimator`
   - "tune and zoom" — any rate, any range, like an SDR frontend
-  - specan is the visual front-end for this
+  - specan is the visual front-end for this; connect via doppler compose
 
 - examples
   - Console outputs so users can see expected results

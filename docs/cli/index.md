@@ -16,19 +16,19 @@ pip install doppler-cli
 ## Quick start
 
 ```sh
-# Scaffold a tone → specan chain and start it
-doppler compose init tone specan
-doppler compose up ~/.doppler/chains/<ID>.yml
+# Scaffold a named chain and start it
+doppler compose init tone specan --name my-chain
+doppler compose up my-chain
 
-# One-shot: scaffold and start in two lines
+# Or use a hex ID (auto-generated without --name)
 doppler compose init tone fir specan
-doppler compose up $(ls -t ~/.doppler/chains/*.yml | head -1)
+doppler compose up          # defaults to most recently created
 
 # Check what's running
 doppler ps
 
 # Tear it down
-doppler stop <ID>
+doppler stop my-chain
 ```
 
 ---
@@ -125,9 +125,10 @@ them explicitly to pin a chain to fixed addresses.
 | Command | Description |
 |---------|-------------|
 | `doppler compose init <BLOCKS...>` | Scaffold a compose file with defaults |
+| `doppler compose init <BLOCKS...> --name NAME` | Give the chain a human-readable name |
 | `doppler compose init <BLOCKS...> --out FILE` | Write to a specific path |
-| `doppler compose up <FILE>` | Spawn all blocks described in FILE |
-| `doppler compose down <ID>` | Stop a running chain (alias for `stop`) |
+| `doppler compose up [FILE\|NAME]` | Spawn all blocks described in FILE (defaults to latest) |
+| `doppler compose down <ID\|NAME>` | Stop a running chain (alias for `stop`) |
 
 ---
 
@@ -240,6 +241,78 @@ Running chain state is persisted in `~/.doppler/chains/`:
 `doppler stop` and `doppler kill` remove the `.json` file on
 completion. Orphaned `.json` files from crashed chains can be removed
 manually or with `doppler stop <ID>` (gracefully handles dead PIDs).
+
+---
+
+## Creating a new block
+
+All pipeline blocks follow the same pattern. Here is a minimal
+example — a `noise` source that emits pure AWGN:
+
+**1. Config schema** — declare fields with defaults using pydantic:
+
+```python
+# python/cli/doppler_cli/blocks/noise.py
+from doppler_cli.blocks import Block, BlockConfig, register
+
+
+class NoiseConfig(BlockConfig):
+    sample_rate: float = 2.048e6
+    noise_floor: float = -60.0
+
+
+@register
+class NoiseBlock(Block):
+    name = "noise"
+    Config = NoiseConfig
+    role = "source"  # "source" | "chain" | "sink"
+
+    def command(self, config, input_addr, output_addr):
+        assert output_addr is not None
+        return [
+            "doppler-noise",
+            "--bind", output_addr,
+            "--fs", str(config.sample_rate),
+            "--noise-floor", str(config.noise_floor),
+        ]
+```
+
+**2. Register it** — import the module in `__main__.py`:
+
+```python
+import doppler_cli.blocks.noise  # noqa: F401
+```
+
+**3. Entry point** — add a `doppler-noise` script in `pyproject.toml`:
+
+```toml
+[project.scripts]
+doppler-noise = "doppler_cli.noise_source:main"
+```
+
+**4. Startup log** — every block entry point must print a health line
+on startup so `doppler logs` confirms what's running:
+
+```python
+from datetime import datetime, timezone
+
+def _log(msg):
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] {msg}", flush=True)
+
+# In main(), before the processing loop:
+_log(f"doppler-noise started — bind={args.bind} fs={args.fs:.0f}")
+```
+
+**5. Use it:**
+
+```sh
+doppler compose init noise specan --name noise-test
+doppler compose up noise-test
+doppler logs noise-test
+# [2026-04-01T10:00:00Z] doppler-noise started — bind=tcp://127.0.0.1:5600 fs=2048000
+# [2026-04-01T10:00:00Z] doppler-specan started — mode=web source=pull address=tcp://127.0.0.1:5600
+```
 
 ---
 

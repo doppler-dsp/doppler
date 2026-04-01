@@ -13,8 +13,14 @@ from __future__ import annotations
 
 import argparse
 import signal
+from datetime import datetime, timezone
 
 BLOCK_SIZE = 4096  # samples per push frame
+
+
+def _log(msg: str) -> None:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] {msg}", flush=True)
 
 
 def main() -> None:
@@ -76,6 +82,12 @@ def main() -> None:
     from doppler.stream import CF64, Push  # noqa: PLC0415
     from doppler_specan.source import DemoSource  # noqa: PLC0415
 
+    _log(
+        f"doppler-source started — type=tone bind={args.bind}"
+        f" fs={args.fs:.0f} tone_freq={args.tone_freq:.0f}Hz"
+        f" tone_power={args.tone_power}dBm noise_floor={args.noise_floor}dBm"
+    )
+
     source = DemoSource(
         sample_rate=args.fs,
         center_freq=args.center,
@@ -106,6 +118,7 @@ def main() -> None:
         pass
     finally:
         source.close()
+        _log("doppler-source stopped")
 
 
 if __name__ == "__main__":

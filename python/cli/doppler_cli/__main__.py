@@ -74,6 +74,15 @@ def main() -> None:
         help="Ordered block names, e.g. tone fir specan",
     )
     p_init.add_argument(
+        "--name",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Human-readable chain name (default: random hex ID). "
+            "Used as the filename stem and chain ID."
+        ),
+    )
+    p_init.add_argument(
         "--out",
         default=None,
         metavar="FILE",
@@ -125,7 +134,7 @@ def main() -> None:
             from doppler_cli.compose import init  # noqa: PLC0415
 
             out = Path(args.out) if args.out else None
-            path = init(args.blocks, out=out)
+            path = init(args.blocks, out=out, name=args.name)
             print(f"wrote {path}")
 
         elif args.compose_cmd == "up":
@@ -133,7 +142,11 @@ def main() -> None:
             from doppler_cli.state import _CHAINS_DIR  # noqa: PLC0415
 
             if args.file:
-                compose_file = Path(args.file)
+                p = Path(args.file)
+                # Bare name (no path separators) → resolve to chains dir
+                if not p.parts[1:] and not p.suffix:
+                    p = _CHAINS_DIR / f"{args.file}.yml"
+                compose_file = p
             else:
                 ymls = sorted(
                     _CHAINS_DIR.glob("*.yml"),

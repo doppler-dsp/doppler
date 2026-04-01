@@ -5,7 +5,7 @@ all backed by the native C library, accepting and returning complex64
 NumPy arrays with state preserved across calls.
 
 Source:
-[`python/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/python/doppler/resample/__init__.py)
+[`python/dsp/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/python/dsp/doppler/resample/__init__.py)
 
 ---
 

@@ -122,7 +122,7 @@ set_target_properties(dp_stream PROPERTIES
 # Copy extension to Python package
 # =========================================================================
 
-set(PY_PKG_DIR "${CMAKE_SOURCE_DIR}/python/doppler")
+set(PY_PKG_DIR "${CMAKE_SOURCE_DIR}/python/dsp")
 
 add_custom_command(TARGET dp_stream POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
@@ -183,7 +183,7 @@ cmake -B build -S . \
 cmake --build build --target dp_stream
 
 # Verify NO dynamic libzmq dependency
-ldd build/python/doppler/dp_stream*.so
+ldd build/python/dsp/doppler/dp_stream*.so
 
 # Expected output:
 #   linux-vdso.so.1
@@ -193,12 +193,12 @@ ldd build/python/doppler/dp_stream*.so
 # ✅ NO libzmq.so!
 
 # Verify symbols are hidden
-nm -D build/python/doppler/dp_stream*.so | grep ' T '
+nm -D build/python/dsp/doppler/dp_stream*.so | grep ' T '
 # Expected output:
 #   000000000001a2b0 T PyInit_dp_stream
 # ✅ Only one export!
 
-nm -D build/python/doppler/dp_stream*.so | grep zmq
+nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 # Expected output:
 #   (empty)
 # ✅ All zmq symbols hidden!
@@ -226,7 +226,7 @@ cmake --build build --target dp_stream
 # Test import
 python3 << EOF
 import sys
-sys.path.insert(0, 'python/doppler')
+sys.path.insert(0, 'python/dsp')
 import dp_stream
 print("✅ Success! dp_stream loaded with no system libzmq!")
 print(f"Module: {dp_stream}")
@@ -237,7 +237,7 @@ EOF
 ### Size Analysis
 
 ```bash
-$ ls -lh build/python/doppler/dp_stream*.so
+$ ls -lh build/python/dsp/doppler/dp_stream*.so
 -rwxr-xr-x  580K  dp_stream.cpython-312-x86_64-linux-gnu.so
 
 # Breakdown:
@@ -259,7 +259,7 @@ $ ls -lh build/python/doppler/dp_stream*.so
 ### __init__.py Changes
 
 ```python
-# python/doppler/__init__.py
+# python/dsp/doppler/__init__.py
 
 # OLD (ctypes):
 # from .client import (
@@ -302,10 +302,10 @@ __all__ = [
 
 ```bash
 # After C extension is working and tested:
-rm python/doppler/client.py
+rm python/dsp/doppler/client.py
 
 # Update tests to verify they still pass
-pytest python/doppler/tests/ -v
+pytest python/dsp/doppler/tests/ -v
 ```
 
 ---
@@ -384,7 +384,7 @@ cmake --build build --target dp_stream
 # Test
 python3 << EOF
 import sys
-sys.path.insert(0, 'python/doppler')
+sys.path.insert(0, 'python/dsp')
 import dp_stream
 
 print(f"Module loaded: {dp_stream}")
@@ -403,13 +403,13 @@ EOF
 
 ```bash
 # Check what's exported
-nm -D build/python/doppler/dp_stream*.so | grep ' T '
+nm -D build/python/dsp/doppler/dp_stream*.so | grep ' T '
 
 # Should see ONLY:
 000000000001a2b0 T PyInit_dp_stream
 
 # Should NOT see ANY zmq_ symbols:
-nm -D build/python/doppler/dp_stream*.so | grep zmq
+nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 # (empty output = good!)
 
 # If you see zmq symbols, add these flags:
@@ -488,7 +488,7 @@ nm -D build/python/doppler/dp_stream*.so | grep zmq
    ```bash
    cmake -B build -S . -DBUILD_PYTHON=ON
    cmake --build build --target dp_stream
-   ldd build/python/doppler/dp_stream*.so  # No libzmq!
+   ldd build/python/dsp/doppler/dp_stream*.so  # No libzmq!
    ```
 
 4. **Implement stub** (start with minimal module)

@@ -39,18 +39,18 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "--tb=short --doctest-modules"
 testpaths = [
-    "python/doppler/tests",
-    "python/doppler/accumulator",
-    "python/doppler/delay",
-    "python/doppler/fft",
-    "python/doppler/polyphase",
-    "python/doppler/resample",
+    "python/dsp/doppler/tests",
+    "python/dsp/doppler/accumulator",
+    "python/dsp/doppler/delay",
+    "python/dsp/doppler/fft",
+    "python/dsp/doppler/polyphase",
+    "python/dsp/doppler/resample",
 ]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
 
 [tool.coverage.run]
-source = ["python/doppler"]
-omit = ["python/doppler/tests/*", "python/doppler/examples/*"]
+source = ["python/dsp/doppler"]
+omit = ["python/dsp/doppler/tests/*", "python/dsp/doppler/examples/*"]
 
 [tool.coverage.report]
 show_missing = true
@@ -62,14 +62,15 @@ exclude_lines = [
 ]
 
 [tool.uv.workspace]
-members = ["python/specan"]
+members = ["python/specan", "python/cli"]
 
 [tool.uv.sources]
 doppler-dsp = { workspace = true }
 doppler-specan = { workspace = true }
+doppler-cli = { workspace = true }
 
 [tool.uv.build-backend]
-module-root = "python"
+module-root = "python/dsp"
 module-name = "doppler"
 
 [build-system]

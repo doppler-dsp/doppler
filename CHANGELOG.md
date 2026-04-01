@@ -86,7 +86,7 @@ and this project adheres to
 - **Lock-free ring buffer** (`c/include/dp/buffer.h`): SPSC ring
   buffer; Python `_buffer` module (`F32Buffer`, `F64Buffer`,
   `I16Buffer`); 20 pytest tests
-- **Python FFT tests** (`python/doppler/tests/test_fft.py`): 20
+- **Python FFT tests** (`python/dsp/doppler/tests/test_fft.py`): 20
   pytest tests covering 1D/2D FFT, impulse response, round-trip,
   NumPy parity, dispatcher, one-shot `fft()`
 - **Python streaming C extension** (`python/src/dp_stream.c`): all

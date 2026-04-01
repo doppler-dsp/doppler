@@ -32,7 +32,7 @@ class SpecanBlock(Block):
         cmd = [
             "doppler-specan",
             "--source",
-            "socket",
+            "pull",
             "--address",
             input_addr,
         ]

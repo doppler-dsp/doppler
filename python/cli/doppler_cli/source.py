@@ -73,7 +73,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    from doppler.stream import CF64, Publisher  # noqa: PLC0415
+    from doppler.stream import CF64, Push  # noqa: PLC0415
     from doppler_specan.source import DemoSource  # noqa: PLC0415
 
     source = DemoSource(
@@ -94,10 +94,10 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _stop)
 
     try:
-        with Publisher(args.bind, CF64) as pub:
+        with Push(args.bind, CF64) as push:
             while _running:
                 iq, fs, cf = source.read(BLOCK_SIZE)
-                pub.send(
+                push.send(
                     iq.astype("complex128"),
                     sample_rate=fs,
                     center_freq=cf,

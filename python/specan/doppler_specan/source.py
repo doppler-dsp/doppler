@@ -288,6 +288,73 @@ class SocketSource(Source):
 
 
 # ------------------------------------------------------------------
+# Pull source
+# ------------------------------------------------------------------
+
+
+class PullSource(Source):
+    """
+    ZMQ PUSH/PULL receiver.
+
+    Connects to a doppler streaming PUSH socket and auto-configures
+    sample rate and center frequency from the ``dp_header_t`` carried
+    in each packet.  Use this source when receiving from a doppler
+    pipeline (``doppler compose``), which uses PUSH/PULL for
+    backpressure.
+
+    Parameters
+    ----------
+    address : str
+        ZMQ endpoint of the upstream PUSH socket,
+        e.g. ``"tcp://127.0.0.1:5600"``.
+    timeout_ms : int
+        Receive timeout in milliseconds.
+    """
+
+    def __init__(
+        self,
+        address: str,
+        timeout_ms: int = 2000,
+    ) -> None:
+        self._address = address
+        self._timeout_ms = timeout_ms
+        self._pull = None
+        self._fs: float = 0.0
+        self._cf: float = 0.0
+        self._buf = np.empty(0, dtype=np.complex64)
+
+    def _get_pull(self):
+        if self._pull is None:
+            from doppler import Pull  # noqa: PLC0415
+
+            self._pull = Pull(self._address)
+            self._pull.__enter__()
+        return self._pull
+
+    def read(self, n: int) -> tuple[np.ndarray, float, float]:
+        pull = self._get_pull()
+
+        while len(self._buf) < n:
+            data, hdr = pull.recv(timeout_ms=self._timeout_ms)
+            if data is None:
+                break
+            if data.dtype != np.complex64:
+                data = data.astype(np.complex64)
+            self._fs = float(hdr["sample_rate"])
+            self._cf = float(hdr["center_freq"])
+            self._buf = np.concatenate([self._buf, data.ravel()])
+
+        out = self._buf[:n].copy()
+        self._buf = self._buf[n:]
+        return out, self._fs, self._cf
+
+    def close(self) -> None:
+        if self._pull is not None:
+            self._pull.__exit__(None, None, None)
+            self._pull = None
+
+
+# ------------------------------------------------------------------
 # Factory
 # ------------------------------------------------------------------
 
@@ -326,4 +393,11 @@ def make_source(cfg) -> Source:
                 "e.g. tcp://localhost:5555"
             )
         return SocketSource(cfg.address, timeout_ms=cfg.timeout)
+    if s == "pull":
+        if not cfg.address:
+            raise ValueError(
+                "source=pull requires an address (ZMQ endpoint), "
+                "e.g. tcp://127.0.0.1:5600"
+            )
+        return PullSource(cfg.address, timeout_ms=cfg.timeout)
     raise ValueError(f"Unknown source: {cfg.source!r}")

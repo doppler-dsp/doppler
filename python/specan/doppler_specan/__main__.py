@@ -10,6 +10,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timezone
+
+
+def _log(msg: str) -> None:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] {msg}", flush=True)
 
 
 def main() -> None:
@@ -196,6 +202,12 @@ def main() -> None:
     # ----------------------------------------------------------------
     # Dispatch to terminal or web mode
     # ----------------------------------------------------------------
+    mode = "web" if cfg.web else "terminal"
+    source_info = f"source={cfg.source}"
+    if cfg.address:
+        source_info += f" address={cfg.address}"
+    _log(f"doppler-specan started — mode={mode} {source_info}")
+
     if cfg.web:
         _run_web(cfg)
     else:

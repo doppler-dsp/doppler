@@ -50,6 +50,20 @@ class TestComposeInit:
         assert "id" in doc
         assert len(doc["id"]) == 6  # 3 hex bytes → 6 chars
 
+    def test_named_chain_id(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(compose_mod, "_CHAINS_DIR", tmp_path)
+        monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
+        path = compose_mod.init(["tone", "specan"], name="filter-test")
+        doc = yaml.safe_load(path.read_text())
+        assert doc["id"] == "filter-test"
+        assert path.name == "filter-test.yml"
+
+    def test_named_chain_filename(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(compose_mod, "_CHAINS_DIR", tmp_path)
+        monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
+        path = compose_mod.init(["tone", "specan"], name="my-chain")
+        assert path == tmp_path / "my-chain.yml"
+
     def test_source_type(self, tmp_path, monkeypatch):
         _, doc = _init(tmp_path, monkeypatch, ["tone", "specan"])
         assert doc["source"]["type"] == "tone"

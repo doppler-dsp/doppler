@@ -74,6 +74,15 @@ def main() -> None:
         help="Ordered block names, e.g. tone fir specan",
     )
     p_init.add_argument(
+        "--name",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Human-readable chain name (default: random hex ID). "
+            "Used as the filename stem and chain ID."
+        ),
+    )
+    p_init.add_argument(
         "--out",
         default=None,
         metavar="FILE",
@@ -81,7 +90,13 @@ def main() -> None:
     )
 
     p_up = compose_sub.add_parser("up", help="Start a chain from a compose file")
-    p_up.add_argument("file", metavar="FILE")
+    p_up.add_argument(
+        "file",
+        metavar="FILE",
+        nargs="?",
+        default=None,
+        help="Compose file to start (default: most recently created)",
+    )
 
     p_down = compose_sub.add_parser("down", help="Stop a running chain")
     p_down.add_argument("id", metavar="ID")
@@ -119,13 +134,31 @@ def main() -> None:
             from doppler_cli.compose import init  # noqa: PLC0415
 
             out = Path(args.out) if args.out else None
-            path = init(args.blocks, out=out)
+            path = init(args.blocks, out=out, name=args.name)
             print(f"wrote {path}")
 
         elif args.compose_cmd == "up":
             from doppler_cli.compose import up  # noqa: PLC0415
+            from doppler_cli.state import _CHAINS_DIR  # noqa: PLC0415
 
-            state = up(Path(args.file))
+            if args.file:
+                p = Path(args.file)
+                # Bare name (no path separators) → resolve to chains dir
+                if not p.parts[1:] and not p.suffix:
+                    p = _CHAINS_DIR / f"{args.file}.yml"
+                compose_file = p
+            else:
+                ymls = sorted(
+                    _CHAINS_DIR.glob("*.yml"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if not ymls:
+                    print("no compose files found in ~/.doppler/chains/")
+                    sys.exit(1)
+                compose_file = ymls[0]
+                print(f"using {compose_file}")
+            state = up(compose_file)
             print(f"started chain {state.id} ({len(state.blocks)} blocks)")
 
         elif args.compose_cmd == "down":

@@ -147,7 +147,7 @@ class TestSpecanBlock:
         cfg = SpecanConfig(mode="terminal")
         cmd = SpecanBlock().command(cfg, "tcp://127.0.0.1:5601", None)
         assert "--source" in cmd
-        assert "socket" in cmd
+        assert "pull" in cmd
         assert "--address" in cmd
         assert "tcp://127.0.0.1:5601" in cmd
         assert "--web" not in cmd

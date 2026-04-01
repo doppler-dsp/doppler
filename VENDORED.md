@@ -87,7 +87,7 @@ nm -D build/python/dp_stream*.so | grep zmq
 # Should be empty (all zmq symbols hidden)
 
 # 8. Verify size
-ls -lh python/doppler/dp_stream*.so
+ls -lh python/dsp/doppler/stream/_stream*.so
 # Should be ~270-280 KB
 
 # 9. Update this file with new version/SHA256/date
@@ -174,11 +174,11 @@ No source files are modified.  All fixes are at the compiler-flag level.
 
 ```bash
 # No zmq dynamic dependency (fully static):
-ldd python/doppler/dp_stream*.so | grep zmq
+ldd python/dsp/doppler/stream/_stream*.so | grep zmq
 # (no output expected)
 
 # Confirm zmq symbols are present (baked in):
-nm -D python/doppler/dp_stream*.so | grep zmq_ctx_new
+nm -D python/dsp/doppler/stream/_stream*.so | grep zmq_ctx_new
 ```
 
 ---

@@ -5,7 +5,7 @@ fitting — used to generate the coefficient banks consumed by
 `doppler.resample`.
 
 Source:
-[`python/doppler/polyphase/`](https://github.com/doppler-dsp/doppler/blob/main/python/doppler/polyphase/)
+[`python/dsp/doppler/polyphase/`](https://github.com/doppler-dsp/doppler/blob/main/python/dsp/doppler/polyphase/)
 
 ---
 

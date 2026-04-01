@@ -41,21 +41,20 @@ assigns ports, spawns processes, and tracks their state in
 `~/.doppler/chains/`.
 
 ```mermaid
-flowchart LR
+flowchart TB
+    subgraph Runner ["doppler compose up"]
+        CFG["compose file\n~/.doppler/chains/a3f7c2.yml"]
+        STATE["chain state\n~/.doppler/chains/a3f7c2.json"]
+    end
+
     subgraph Pipeline ["Signal Chain"]
-        direction LR
+        direction TB
         SRC["Source\n(e.g. tone)"]
         DSP["DSP Block\n(e.g. fir)"]
         SINK["Sink\n(e.g. specan)"]
 
-        SRC -- "PUSH\ntcp://127.0.0.1:5600" --> DSP
-        DSP -- "PUSH\ntcp://127.0.0.1:5601" --> SINK
-    end
-
-    subgraph Runner ["doppler compose up"]
-        direction TB
-        CFG["compose file\n~/.doppler/chains/a3f7c2.yml"]
-        STATE["chain state\n~/.doppler/chains/a3f7c2.json"]
+        SRC -- "PUSH  tcp://127.0.0.1:5600" --> DSP
+        DSP -- "PUSH  tcp://127.0.0.1:5601" --> SINK
     end
 
     Runner -- "spawns + tracks" --> Pipeline
@@ -204,7 +203,7 @@ doppler compose up filter_test.yml
 ```
 
 ```mermaid
-flowchart LR
+flowchart TB
     T["tone\n−20 dBm @ 100 kHz"]
     F["fir\nlowpass taps"]
     S["specan\n500 kHz span"]

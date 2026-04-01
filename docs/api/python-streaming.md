@@ -5,7 +5,7 @@ all backed by the native C `dp_*` streaming functions.  All socket
 types support the context manager protocol.
 
 Source:
-[`python/doppler/stream/_stream.pyi`](https://github.com/doppler-dsp/doppler/blob/main/python/doppler/stream/_stream.pyi)
+[`python/dsp/doppler/stream/_stream.pyi`](https://github.com/doppler-dsp/doppler/blob/main/python/dsp/doppler/stream/_stream.pyi)
 
 ---
 

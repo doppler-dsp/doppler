@@ -36,7 +36,7 @@ in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
 | `make` | Configure + build (Release by default) |
 | `make test` | Run CTest suite |
 | `make test-all` | Run all test suites (C + Python + Rust) |
-| `make pyext` | Build Python extensions into `python/doppler/` |
+| `make pyext` | Build Python extensions into `python/dsp/doppler/` |
 | `make install` | Install headers + libs to system (default `/usr/local`) |
 | `make python-test` | Run pytest |
 | `make rust-test` | Run Rust FFI tests (single-threaded) |

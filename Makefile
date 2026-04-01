@@ -28,7 +28,7 @@ SHELL        = /bin/sh
 BUILD_DIR   ?= build
 BUILD_TYPE  ?= RelWithDebInfo
 PREFIX      ?= /usr/local
-PYEXT_DIR   ?= python/doppler
+PYEXT_DIR   ?= python/dsp/doppler
 RUST_DIR    ?= ffi/rust
 C_DIR       ?= c
 DOCKER_IMAGE ?= doppler
@@ -70,7 +70,8 @@ endif
         python-test test-all docs-build docs-serve \
         specan record-demo \
         docker docker-test \
-        debug release blazing gen-pyext bump-version tag-release clean help
+        debug release blazing gen-pyext bump-version tag-release clean help \
+        install-cli
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -117,6 +118,10 @@ install: build
 # ── install-test ──────────────────────────────────────────────────────────────
 install-test:
 	bash $(C_DIR)/tests/test_install.sh $(PREFIX)
+
+# ── install-cli ───────────────────────────────────────────────────────────────
+install-cli:
+	uv pip install python/cli/
 
 # ── pyext ─────────────────────────────────────────────────────────────────────
 pyext: build
@@ -228,6 +233,7 @@ help:
 	@echo "  make rust-examples Build Rust examples and list paths"
 	@echo "  make install       Install to PREFIX (default: $(PREFIX))"
 	@echo "  make install-test  Verify installed pkg-config + headers"
+	@echo "  make install-cli   Install doppler-cli (adds doppler command)"
 	@echo "  make pyext         Build Python C extensions"
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"

@@ -646,7 +646,7 @@ add_custom_command(TARGET dp_stream POST_BUILD
 
 ### Unit Tests (existing tests should pass unchanged)
 ```bash
-pytest python/doppler/tests/test_pubsub.py -v
+pytest python/dsp/doppler/tests/test_pubsub.py -v
 # All 6 tests should pass with C extension backend
 ```
 

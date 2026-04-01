@@ -162,7 +162,7 @@ set_target_properties(dp_foo PROPERTIES
 Add `dp_foo` to the `DEPENDS` list of the `pyext` target and add its
 `copy` command alongside the others.
 
-### 3. Python wrapper — `python/doppler/<module>/`
+### 3. Python wrapper — `python/dsp/doppler/<module>/`
 
 > [!IMPORTANT] **No `dp_` PREFIX!**
 >
@@ -175,7 +175,7 @@ skip module-level docstrings and let the stub own the documentation
 modules (polyphase design tools, optimisation helpers, etc.) where
 there is no stub.
 
-### 4. Type stub — `python/doppler/dp_foo.pyi`
+### 4. Type stub — `python/dsp/doppler/dp_foo.pyi`
 
 > [!IMPORTANT] **THIS IS THE CANONICAL DOCUMENTATION FOR THE MODULE.**
 
@@ -244,7 +244,7 @@ class Foo:
     def __exit__(self, *args: object) -> None: ...
 ```
 
-### 5. Tests — `python/doppler/tests/test_<module>.py`
+### 5. Tests — `python/dsp/doppler/tests/test_<module>.py`
 
 **Mandatory.**  pytest.  Exercise the round-trip through the C library —
 don't just test the Python layer in isolation.
@@ -258,7 +258,7 @@ Create a page with a brief intro and an autodoc directive:
 
 One sentence describing what this does and which C functions back it.
 
-Source: [`python/doppler/dp_foo.pyi`](https://github.com/doppler-dsp/doppler/blob/main/python/doppler/dp_foo.pyi)
+Source: [`python/dsp/doppler/dp_foo.pyi`](https://github.com/doppler-dsp/doppler/blob/main/python/dsp/doppler/dp_foo.pyi)
 
 ---
 

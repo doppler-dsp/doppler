@@ -366,7 +366,7 @@ set_target_properties(_window PROPERTIES
 # =========================================================================
 # pyext -- build all extensions and copy into the Python package
 # =========================================================================
-set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doppler")
+set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dsp/doppler")
 
 add_custom_target(pyext
     DEPENDS _fft _buffer _stream _nco _delay _accumulator

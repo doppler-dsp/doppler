@@ -130,8 +130,8 @@ jobs:
 
     - name: Test with coverage
       run: |
-        uv run pytest python/doppler/tests/ -v \
-          --cov=python/doppler \
+        uv run pytest python/dsp/doppler/tests/ -v \
+          --cov=python/dsp/doppler \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml
 

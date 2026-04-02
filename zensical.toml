@@ -25,6 +25,7 @@ nav = [
   { "API: Data Types" = "api/datatypes.md"          },
   { "Spectrum Analyzer" = "specan/"                 },
   { "CLI & Pipelines"  = "cli/"                     },
+  { "Dopplerfile"      = "cli/dopplerfile.md"       },
 ]
 
 # ----------------------------------------------------------------------------

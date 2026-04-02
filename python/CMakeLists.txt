@@ -11,8 +11,8 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 # ------------------------------------------------------------
 if(NOT NumPy_INCLUDE_DIR)
     execute_process(
-        COMMAND bash -c "(command -v uv &>/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh)"
-        COMMAND uv run python -c "import numpy; print(numpy.get_include())"
+        COMMAND ${Python3_EXECUTABLE} -c
+            "import numpy; print(numpy.get_include())"
         OUTPUT_VARIABLE NumPy_INCLUDE_DIR
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
@@ -21,7 +21,7 @@ endif()
 message(STATUS "NumPy include: ${NumPy_INCLUDE_DIR}")
 
 execute_process(
-    COMMAND uv run python -c
+    COMMAND ${Python3_EXECUTABLE} -c
         "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
     OUTPUT_VARIABLE PY_EXT_SUFFIX
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -44,8 +44,6 @@ execute_process(
 # meaning that any wheel that did depend on libpythonX.Y.so.1
 # could fail to import.
 # ------------------------------------------------------------
-string(FIND ${PY_EXT_SUFFIX} "so" LINUX_MACHINE)
-
 # FFT extension
 add_library(_fft MODULE
     ext/_fft.c
@@ -56,7 +54,7 @@ target_include_directories(_fft
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_fft
         PRIVATE doppler Python3::Python m
     )
@@ -84,7 +82,7 @@ target_include_directories(_buffer
         ${Python3_INCLUDE_DIRS}
         ${CMAKE_BASE_DIR}/include
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_buffer
         PRIVATE Python3::Python m
     )
@@ -166,7 +164,7 @@ target_include_directories(_stream PRIVATE
     ${CMAKE_SOURCE_DIR}/c/include
 )
 
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_stream PRIVATE
         doppler_static zmq_vendor_static stdc++ Python3::Python m pthread)
 else()
@@ -191,7 +189,7 @@ target_include_directories(_delay
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_delay
         PRIVATE doppler Python3::Python m
     )
@@ -217,7 +215,7 @@ target_include_directories(_accumulator
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_accumulator
         PRIVATE doppler Python3::Python m
     )
@@ -243,7 +241,7 @@ target_include_directories(_nco
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_nco
         PRIVATE doppler Python3::Python m
     )
@@ -269,7 +267,7 @@ target_include_directories(_resamp
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_resamp
         PRIVATE doppler Python3::Python m
     )
@@ -295,7 +293,7 @@ target_include_directories(_resamp_dpmfs
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_resamp_dpmfs
         PRIVATE doppler Python3::Python m
     )
@@ -321,7 +319,7 @@ target_include_directories(_hbdecim
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_hbdecim
         PRIVATE doppler Python3::Python m
     )
@@ -347,7 +345,7 @@ target_include_directories(_window
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(${LINUX_MACHINE} EQUAL -1)
+if(NOT (UNIX AND NOT APPLE))
     target_link_libraries(_window
         PRIVATE doppler Python3::Python m
     )

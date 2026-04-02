@@ -89,6 +89,7 @@ build-backend = "uv_build"
 build = ["cp312-*", "cp313-*"]
 before-build = """
 find python/dsp/doppler -name '*.so' -delete
+pip install "numpy>=2.4.2"
 make pyext CMAKE_ARGS="-DBUILD_PYTHON=ON -DPython3_EXECUTABLE=$(python -c 'import sys; print(sys.executable)')"
 """
 

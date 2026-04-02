@@ -1,6 +1,6 @@
 # Spectrum Analyzer
 
-Live spectrum analysis recorded with doppler's C DSP pipeline:
+Live spectrum analysis recorded with Doppler's C DSP pipeline:
 NCO → Kaiser window → FFTW → dBm calibration.
 
 No server. No JavaScript DSP. Pure C output, looped at 30 fps.
@@ -9,11 +9,11 @@ No server. No JavaScript DSP. Pure C output, looped at 30 fps.
   <iframe
     src="demo.html"
     style="position:absolute; top:0; left:0; width:100%; height:100%; border:none;"
-    title="doppler spectrum analyzer demo">
+    title="Doppler spectrum analyzer demo">
   </iframe>
 </div>
 
-[Open full screen :octicons-arrow-up-right-16:](demo.html){ .md-button }
+[Open full screen ↗](demo.html){ .md-button }
 
 ---
 

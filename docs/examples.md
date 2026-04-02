@@ -1,4 +1,4 @@
-# doppler — Examples
+# Doppler — Examples
 
 ## C: NCO
 

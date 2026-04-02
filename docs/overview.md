@@ -1,6 +1,6 @@
-# doppler — Overview
+# Doppler — Overview
 
-doppler is a lean C99 signal processing library. The full DSP stack —
+Doppler is a lean C99 signal processing library. The full DSP stack —
 NCO, FIR, FFT, SIMD arithmetic, ring buffers, and ZMQ streaming — lives
 in one portable core with a clean C ABI. Python and Rust bindings call
 straight through to C with no reimplementation. ZMQ streaming is optional:
@@ -321,7 +321,7 @@ See [Examples](examples.md) for all buffer types and a threaded example.
 
 ## Language support
 
-doppler exposes a clean C ABI. Any language with C FFI can call it
+Doppler exposes a clean C ABI. Any language with C FFI can call it
 directly.
 
 | Language | Status |
@@ -342,7 +342,7 @@ directly.
 └──────────────┬──────────────────────┘
                │ C ABI / ctypes / FFI
 ┌──────────────▼──────────────────────┐
-│  doppler (C library)                │
+│  Doppler (C library)                │
 │  • NCO  (AVX-512 batch IQ / phase)  │
 │  • FIR  (AVX-512, CI8/CI16/CF32)    │
 │  • FFT  (FFTW or pocketfft)         │

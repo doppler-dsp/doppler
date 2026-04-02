@@ -91,8 +91,7 @@ verify-version
     │
     ▼
 build-python ── matrix ──┬── ubuntu-latest  (manylinux_2_28 x86_64 wheels via cibuildwheel)
-                         ├── macos-14       (arm64 wheels via cibuildwheel)
-                         └── macos-13       (x86_64 wheels via cibuildwheel)
+                         └── macos-14       (arm64 wheels via cibuildwheel)
     │
     ▼
 publish-python  ──  PyPI (OIDC trusted publishing, no token needed)

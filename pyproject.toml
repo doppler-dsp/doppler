@@ -1,6 +1,6 @@
 [project]
 name = "doppler-dsp"
-version = "0.2.2"
+version = "0.2.3"
 description = "Dead-simple, ultra-fast signal processing in C"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -89,7 +89,7 @@ build-backend = "uv_build"
 build = ["cp312-*", "cp313-*"]
 before-build = """
 find python/dsp/doppler -name '*.so' -delete
-make pyext CMAKE_ARGS="-DBUILD_PYTHON=ON -DPython3_EXECUTABLE={python}"
+make pyext CMAKE_ARGS="-DBUILD_PYTHON=ON -DPython3_EXECUTABLE=$(python -c 'import sys; print(sys.executable)')"
 """
 
 [tool.cibuildwheel.linux]

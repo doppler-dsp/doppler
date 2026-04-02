@@ -118,9 +118,11 @@ jobs:
               dnf install -y cmake zeromq-devel fftw-devel pkg-config
               make build
               PYTHON=/opt/python/${{ matrix.python }}-${{ matrix.python }}/bin/python
+              PYBIN=\$(dirname \$PYTHON)
               \$PYTHON -m pip install --quiet numpy
               make pyext PYTHON_EXECUTABLE=\$PYTHON
               \$PYTHON -m pip install --quiet 'uv_build>=0.10.2,<0.11.0' build uv
+              export PATH=\"\$PYBIN:\$PATH\"
               mkdir -p /tmp/wheel_out dist
               \$PYTHON -m build --no-isolation --wheel --outdir /tmp/wheel_out
               bash scripts/retag_wheel.sh \

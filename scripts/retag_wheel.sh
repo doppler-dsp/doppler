@@ -16,15 +16,19 @@ WHEEL_DIR="$(dirname "$WHEEL")"
 PYTAG=$(python -c \
     "import sys; v=sys.version_info; print(f'cp{v.major}{v.minor}')")
 
+PLATFORMTAG=$(python -c \
+    "import sysconfig; print(sysconfig.get_platform().replace('-','_').replace('.','_'))")
+
 pip install --quiet wheel
 
 # Replace py3-none-any tags with cpXYZ-cpXYZ-<platform>
 python -m wheel tags \
-    --python-tag "$PYTAG" \
-    --abi-tag    "$PYTAG" \
-    --remove     "$WHEEL"
+    --python-tag   "$PYTAG" \
+    --abi-tag      "$PYTAG" \
+    --platform-tag "$PLATFORMTAG" \
+    --remove       "$WHEEL"
 
-RETAGGED=$(ls "${WHEEL_DIR}/${PYTAG}-${PYTAG}"-*.whl | head -1)
+RETAGGED=$(ls "${WHEEL_DIR}"/*-"${PYTAG}-${PYTAG}-${PLATFORMTAG}".whl | head -1)
 
 if [[ "$(uname)" == "Darwin" ]]; then
     pip install --quiet delocate

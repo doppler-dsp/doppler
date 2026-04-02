@@ -36,6 +36,12 @@ NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 CTEST       := ctest
 CMAKE       := cmake
+# Python executable used when building extensions with `make pyext`.
+# Defaults to the uv-managed venv Python so the extension suffix always
+# matches the active interpreter.  Override on the command line:
+#   make pyext PYTHON_EXECUTABLE=/usr/bin/python3.13
+PYTHON_EXECUTABLE ?= $(shell uv run python -c \
+    'import sys; print(sys.executable)' 2>/dev/null || which python3)
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 CMAKE_ARGS  ?=
@@ -125,7 +131,8 @@ install-cli:
 
 # ── pyext ─────────────────────────────────────────────────────────────────────
 pyext: build
-	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . $(CMAKE_ARGS)
+	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . \
+		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) $(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --target pyext
 
 # ── wheel ─────────────────────────────────────────────────────────────────────

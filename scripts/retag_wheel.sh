@@ -30,7 +30,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     pip install --quiet delocate
     delocate-wheel --wheel-dir "$DEST_DIR" "$RETAGGED"
 else
-    auditwheel repair --wheel-dir "$DEST_DIR" "$RETAGGED"
+    uvx auditwheel repair --wheel-dir "$DEST_DIR" "$RETAGGED"
 fi
 
 rm -f "$RETAGGED"

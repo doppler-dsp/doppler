@@ -10,11 +10,26 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 # (e.g. from a uv venv instead of the system Python).
 # ------------------------------------------------------------
 if(NOT NumPy_INCLUDE_DIR)
+    # Try the configured Python first (correct in cibuildwheel after
+    # pip install numpy; also works when Python3_EXECUTABLE is the venv
+    # Python in a normal dev/CI environment).
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -c
             "import numpy; print(numpy.get_include())"
         OUTPUT_VARIABLE NumPy_INCLUDE_DIR
         OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+if(NOT NumPy_INCLUDE_DIR)
+    # Fall back to uv run python for dev environments where cmake finds
+    # the system Python but numpy lives in the uv workspace venv.
+    execute_process(
+        COMMAND uv run python -c
+            "import numpy; print(numpy.get_include())"
+        OUTPUT_VARIABLE NumPy_INCLUDE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
     )
 endif()
 

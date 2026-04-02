@@ -276,11 +276,13 @@ function syntheticDb(N, toneFn) {
   const sigma      = 0.008;   // peak width in normalised freq
   const db = new Array(N);
   for (let i = 0; i < N; i++) {
-    const fn    = (i / (N - 1)) - 0.5;
-    const delta = fn - toneFn;
-    const peak  = tonePower * Math.exp(-(delta * delta) / (2 * sigma * sigma));
-    const noise = noiseFloor + (Math.random() * 6 - 3);
-    db[i] = Math.max(peak, noise);
+    const fn      = (i / (N - 1)) - 0.5;
+    const delta   = fn - toneFn;
+    const gaussian = Math.exp(-(delta * delta) / (2 * sigma * sigma));
+    // Blend from noise floor up to tone power at the peak
+    const toneDb  = noiseFloor + (tonePower - noiseFloor) * gaussian;
+    const noiseDb = noiseFloor + (Math.random() * 6 - 3);
+    db[i] = Math.max(toneDb, noiseDb);
   }
   return db;
 }

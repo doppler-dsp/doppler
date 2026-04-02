@@ -1,143 +1,208 @@
-# Doppler — Quick Start
+# Quick Start
 
-## Option 1: Docker (recommended for fastest setup)
-
-```bash
-# Build the image (~130 MB)
-docker build -t doppler .
-
-# Run tests
-docker run --rm doppler /app/test_stream
-```
-
-Run the full streaming stack with docker compose:
+## Install
 
 ```bash
-# Transmitter + 2 receivers + spectrum analyzer
-docker compose up
+pip install doppler-dsp
 ```
 
-Or run individual containers (two terminals):
+That's it. The wheel bundles all native dependencies — no system
+libraries required.
+
+Optional extras:
 
 ```bash
-# Terminal 1: transmitter (publishes on port 5555)
-docker run --rm -p 5555:5555 doppler /app/transmitter tcp://*:5555 cf64
-
-# Terminal 2: receiver (connects to host port)
-docker run --rm --network host doppler /app/receiver tcp://localhost:5555
+pip install doppler-specan    # live spectrum analyzer web UI
+pip install doppler-cli       # compose / Dopplerfile pipeline CLI
 ```
-
-## Option 2: Native build
-
-### Dependencies
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt-get install build-essential libzmq3-dev libfftw3-dev cmake python3 python3-dev
-```
-
-**macOS:**
-
-```bash
-brew install zeromq fftw cmake python3
-python3 -m pip install --break-system-packages numpy
-```
-
-### Build
-
-```bash
-make
-```
-
-Then install the Python package:
-
-```bash
-uv sync
-```
-
-See [Build Guide](build.md) for CMake options and platform-specific notes.
 
 ---
 
-## Signal processing in Python
+## Signal processing
 
-**NCO — generate a tone:**
+### NCO — generate a complex tone
 
 ```python
 from doppler import Nco
-import numpy as np
 
-with Nco(0.25) as nco:       # f_n = 0.25 → quarter-rate tone
+with Nco(0.25) as nco:        # normalised frequency: 0.25 → Fs/4
     iq = nco.execute_cf32(8)
     print(iq)
-    # [ 1.+0.j  0.+1.j -1.+0.j  0.-1.j ... ]
+    # [1.+0.j  0.+1.j  -1.+0.j  0.-1.j ...]
 ```
 
-**FFT:**
+### FFT
 
 ```python
 from doppler.fft import fft
 import numpy as np
 
 x = np.random.randn(1024) + 1j * np.random.randn(1024)
-spectrum = fft(x)
-print(f"FFT bins: {len(spectrum)}")
+X = fft(x)                    # complex spectrum, same length
+```
+
+### FIR filter
+
+```python
+from doppler import FirFilter
+import numpy as np
+
+filt = FirFilter.lowpass_cf32(cutoff=0.1, num_taps=63)
+y = filt.execute(x.astype(np.complex64))
+```
+
+### Resample
+
+```python
+from doppler.resample import HalfbandDecimator
+
+decim = HalfbandDecimator()
+y = decim.execute(x.astype(np.complex64))  # 2:1 decimation
 ```
 
 ---
 
-## Streaming demo
+## Streaming
 
-### Single machine (3 terminals)
+Doppler streams IQ data over ZMQ. Transmit and receive on the same
+machine or across a network — the API is identical.
 
-```bash
-# Terminal 1: transmitter (binds to all interfaces)
-./build/transmitter tcp://*:5555 cf64
+### Publisher (Python)
 
-# Terminal 2: receiver (connects to localhost)
-./build/receiver tcp://localhost:5555
+```python
+from doppler.stream import Publisher
+import numpy as np
 
-# Terminal 3: spectrum analyzer
-./build/spectrum_analyzer tcp://localhost:5555 512
+pub = Publisher("tcp://*:5555")
+
+samples = np.ones(1024, dtype=np.complex64)
+pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
 ```
 
-### Two machines over LAN
+### Subscriber (Python)
 
-**Machine A (transmitter):**
+```python
+from doppler.stream import Subscriber
 
-```bash
-# Find your IP address
-ip addr show | grep inet  # or: hostname -I
+sub = Subscriber("tcp://localhost:5555")
 
-# Open firewall (if needed)
-sudo ufw allow 5555/tcp
-
-# Start transmitter (binds to all interfaces)
-./build/transmitter tcp://*:5555 cf64
+msg = sub.recv()
+print(f"Received {len(msg.samples)} samples @ {msg.sample_rate/1e6:.1f} MHz")
 ```
 
-**Machine B (receiver):**
+### C transmitter → Python subscriber
+
+Build the C examples once, then mix and match:
 
 ```bash
-# Connect to Machine A's IP (replace 192.168.1.100 with actual IP)
-./build/receiver tcp://192.168.1.100:5555
+make          # builds ./build/c/transmitter, receiver, etc.
 
-# Or run spectrum analyzer
-./build/spectrum_analyzer tcp://192.168.1.100:5555 512
+# Terminal 1
+./build/c/transmitter tcp://*:5555 cf32
+
+# Terminal 2 (Python)
+python - <<'EOF'
+from doppler.stream import Subscriber
+sub = Subscriber("tcp://localhost:5555")
+while True:
+    msg = sub.recv()
+    print(f"seq={msg.seq}  samples={len(msg.samples)}")
+EOF
 ```
 
-**Troubleshooting:** If the receiver hangs at "Waiting for packets...", verify:
-1. You're using the transmitter's IP, not `localhost`
-2. Port 5555 is open: `nc -zv 192.168.1.100 5555`
-3. Firewall allows the connection: `sudo ufw status`
+---
 
-See [Examples](examples.md#troubleshooting) for detailed troubleshooting.
+## Spectrum analyzer
+
+`doppler-specan` opens a live FFT display in your browser.
+
+**Demo mode** (no hardware needed):
+
+```bash
+doppler-specan --source demo
+```
+
+**From a live IQ stream:**
+
+```bash
+doppler-specan --source socket --endpoint tcp://localhost:5555
+```
+
+The web UI is served at `http://127.0.0.1:8765` by default.
+See [Spectrum Analyzer](specan/index.md) for configuration options.
+
+---
+
+## Pipeline CLI
+
+`doppler compose` wires blocks into a processing pipeline defined in a
+YAML file.
+
+```bash
+# Create a named pipeline file
+doppler compose init --name my_pipeline
+
+# Edit my_pipeline.yaml, then start it
+doppler compose up --file my_pipeline.yaml
+
+# Monitor running blocks
+doppler ps
+doppler logs
+```
+
+See [CLI & Pipelines](cli/index.md) and [Dopplerfile](cli/dopplerfile.md)
+for writing custom blocks.
+
+---
+
+## Build from source
+
+If you need the C library, examples, or Rust FFI bindings:
+
+**Dependencies:**
+
+=== "Ubuntu / Debian"
+
+    ```bash
+    sudo apt-get install \
+        build-essential cmake pkg-config \
+        libzmq3-dev libfftw3-dev python3-dev
+    ```
+
+=== "macOS"
+
+    ```bash
+    brew install cmake zeromq fftw
+    ```
+
+=== "Windows (MSYS2 UCRT64)"
+
+    ```bash
+    pacman -S mingw-w64-ucrt-x86_64-gcc \
+              mingw-w64-ucrt-x86_64-cmake \
+              mingw-w64-ucrt-x86_64-zeromq \
+              mingw-w64-ucrt-x86_64-fftw make
+    ```
+
+**Build:**
+
+```bash
+git clone https://github.com/doppler-dsp/doppler
+cd doppler
+make                      # C library + examples
+make pyext                # Python extensions (requires uv)
+make test-all             # C + Python + Rust test suites
+```
+
+See [Build & Install](build.md) for CMake options, Docker, and
+platform-specific notes.
 
 ---
 
 ## Next steps
 
-- [Examples](examples.md) — C and Python code examples
-- [Overview](overview.md) — Architecture and full API reference
-- [Build Guide](build.md) — CMake options, platform notes, Docker details
+- [Overview](overview.md) — architecture and full API reference
+- [Examples](examples/index.md) — C, Python, and streaming examples
+- [API reference](api/python-fft.md) — full Python API docs
+- [Spectrum Analyzer](specan/index.md) — specan configuration
+- [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

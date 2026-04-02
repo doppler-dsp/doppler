@@ -1,6 +1,6 @@
 [project]
 name = "doppler-dsp"
-version = "0.2.0"
+version = "0.2.1a1"
 description = "Dead-simple, ultra-fast signal processing in C"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -76,3 +76,34 @@ module-name = "doppler"
 [build-system]
 requires = ["uv_build>=0.10.2,<0.11.0"]
 build-backend = "uv_build"
+
+# ── cibuildwheel ──────────────────────────────────────────────────────────────
+# Builds platform wheels for Linux (manylinux_2_28) and macOS (arm64 + x86_64).
+#
+# before-all  -- runs once per OS; installs system deps + builds the C library
+# before-build -- runs per Python version; cleans stale .so files, then builds
+#                 and copies extensions for the active interpreter
+# repair-wheel-command -- retags py3-none-any → cpXYZ-cpXYZ, then repairs deps
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.cibuildwheel]
+build = ["cp312-*", "cp313-*"]
+before-build = """
+find python/dsp/doppler -name '*.so' -delete
+make pyext CMAKE_ARGS="-DBUILD_PYTHON=ON -DPython3_EXECUTABLE={python}"
+"""
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+manylinux-x86_64-image = "manylinux_2_28"
+before-all = """
+dnf install -y cmake zeromq-devel fftw-devel pkg-config
+make build
+"""
+repair-wheel-command = "bash scripts/retag_wheel.sh {wheel} {dest_dir}"
+
+[tool.cibuildwheel.macos]
+before-all = """
+brew install zeromq fftw cmake
+make build
+"""
+repair-wheel-command = "bash scripts/retag_wheel.sh {wheel} {dest_dir}"

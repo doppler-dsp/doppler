@@ -93,6 +93,15 @@ async def _apply_cmd(cmd: dict) -> None:
             _source.set_tone_power(float(cmd["tone_power"]))
         if "noise_floor" in cmd:
             _source.set_noise_floor(float(cmd["noise_floor"]))
+        if "chirp" in cmd:
+            # true → default sweep rate; false → off; float → explicit rate
+            v = cmd["chirp"]
+            if v is True:
+                _source.set_chirp(0.005)
+            elif v is False or v == 0:
+                _source.set_chirp(0.0)
+            else:
+                _source.set_chirp(float(v))
 
 
 @app.post("/tune")

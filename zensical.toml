@@ -26,6 +26,8 @@ nav = [
   { "Spectrum Analyzer" = "specan/"                 },
   { "CLI & Pipelines"  = "cli/"                     },
   { "Dopplerfile"      = "cli/dopplerfile.md"       },
+  { "For Developers"   = "dev/"                     },
+  { "Release"          = "dev/release.md"           },
 ]
 
 # ----------------------------------------------------------------------------

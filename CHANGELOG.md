@@ -8,7 +8,114 @@ and this project adheres to
 
 ---
 
+> **API stability notice** — doppler is pre-1.0. Minor releases may
+> make breaking changes. Check this file before upgrading.
+
 ## [Unreleased]
+
+### Added
+
+- **`doppler-cli`** (`python/cli/`): `doppler compose` pipeline
+  orchestrator — `init`, `up`, `down`, `ps`, `inspect`, `logs`
+  subcommands; ships as a separate pip-installable package
+- **Dopplerfile** (`doppler_cli/dopplerfile.py`): YAML-defined
+  custom pipeline blocks; `uv run --with` dep isolation; discovery
+  from `~/.doppler/blocks/` or CWD; zero Python required to write
+  a new block
+- **Named compose chains**: `--name` flag on `doppler compose init`;
+  name used as the pipeline ID and filename
+- **`doppler logs`**: redirects per-block stdout/stderr to dated log
+  files; `doppler ps` shows log paths
+- **`doppler-source` entry point**: standalone IQ source block for
+  use in compose pipelines
+- **PUSH/PULL pipeline transport** between CLI blocks; blocks
+  discover upstream/downstream ports automatically
+- **Timestamped health logging**: all blocks print a startup banner
+  with endpoint, PID, and timestamp
+- **`web_host` config** in `SpecanConfig` (default `127.0.0.1`);
+  allows binding the spectrum analyzer web server to a non-loopback
+  address
+- **specan: chirp sweep source** — synthetic linear chirp across the
+  full display bandwidth; rate and depth configurable
+- **specan: max-hold trace** — persists per-bin peak magnitude; can
+  be toggled and reset from the UI
+- **Recorded chirp demo** (`docs/specan/chirp_frames.json`, 150
+  frames, ~470 KB): pre-captured WS frames served by the static
+  docs demo without a live server
+- **`scripts/capture_specan.py`**: captures live spectrum analyzer
+  WS frames to JSON for use as a static demo recording
+- **DPMFS resampler Python bindings** (`doppler.resample`):
+  `Resampler`, `ResamplerDpmfs`, `HalfbandDecimator`; 40 new pytest
+  tests; `fit_dpmfs` / `optimize_dpmfs` design tools
+- **Accumulator module** (`doppler.accumulator`): `F32Accumulator`,
+  `CF64Accumulator`; typed `.pyi` stubs
+- **Delay line module** (`doppler.delay`): `DelayLine`; typed stubs
+- **`doppler-specan` standalone package** (`python/specan/`):
+  separately pip-installable (`pip install doppler-specan`); serves
+  live FFT frames via WebSocket + static HTML UI
+- **CONTRIBUTING.md**: mandatory checklist — benchmarks, examples,
+  NumPy docstrings, typed stubs, cross-language test chain
+
+### Changed
+
+- **`python/doppler/` → `python/dsp/`**: Python source tree renamed
+  to avoid collision with the installed `doppler` package name
+- **`SpEcan` → `Specan`** throughout (`SpecanEngine`,
+  `SpecanConfig`): removed non-standard capitalisation
+- **specan: demo controls hidden** when source is not `demo`,
+  reducing UI clutter for real-signal use
+- **specan: 100dvh layout** — fixes mobile viewport cutoff on
+  iOS/Android browsers
+- **`doppler compose up`** defaults to the most recently created
+  compose file when `--file` is omitted
+- **`docs/examples/`**: split `examples.md` into
+  `examples/{index,c,python,streaming}.md` for easier navigation
+- **Docs index**: rewrote introduction for clarity; added complete
+  feature matrix
+
+### Fixed
+
+- **specan: inverted Gaussian** in synthetic chirp magnitude frame
+  (peak appeared as a trough)
+- **specan: socket source** — CLI option parsing and noise floor
+  visibility corrected
+- **specan: stale chirp state** not cleared when switching sources
+
+---
+
+## [0.2.1a1] — 2026-04-02
+
+### Added
+
+- **cibuildwheel** (`release.yml`, `pyproject.toml`): builds proper
+  platform wheels for Linux (manylinux_2_28 x86_64) and macOS
+  (arm64 via `macos-14`, x86_64 via `macos-13`); replaces the
+  single ubuntu-latest wheel build
+- **`scripts/retag_wheel.sh`**: retags the `py3-none-any` wheel
+  produced by `uv_build` to the correct `cpXYZ-cpXYZ` ABI tag,
+  then runs `auditwheel` (Linux) or `delocate` (macOS) to bundle
+  shared-lib dependencies
+- **`make wheel` target**: local equivalent of the CI wheel build —
+  runs `uv build --wheel` then `uvx auditwheel repair` via a new
+  CMake `wheel` target (Linux only)
+- **Release workflow — all three packages**: `release.yml` now
+  builds and publishes `doppler-dsp`, `doppler-specan`, and
+  `doppler-cli` to PyPI via a matrix over Linux and macOS;
+  `verify-version` checks all three `pyproject.toml` files against
+  the tag
+- **`make bump-version`** now updates `python/specan/pyproject.toml`
+  and `python/cli/pyproject.toml` in addition to the root,
+  `Cargo.toml`, and `CMakeLists.txt`
+
+### Changed
+
+- **`docs/build.md`**: corrected all `pip install doppler` →
+  `pip install doppler-dsp`; added install instructions for
+  `doppler-specan` and `doppler-cli`; fixed from-source commands
+
+---
+
+## [0.2.0] — 2026-03-26
 
 ### Added
 
@@ -136,5 +243,7 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/hunter-dsp/doppler/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/hunter-dsp/doppler/releases/tag/v0.1.0
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.1a1...HEAD
+[0.2.1a1]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.1a1
+[0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/doppler-dsp/doppler/releases/tag/v0.1.0

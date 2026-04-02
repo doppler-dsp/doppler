@@ -26,8 +26,9 @@ Produces the following artifacts in `build/` (extensions differ by platform):
 | C examples | `transmitter`, `receiver`, … | `transmitter.exe`, … | Streaming and DSP demos |
 | Rust examples | `ffi/rust/target/…/nco_demo`, … | same | NCO, FFT, SIMD demos |
 
-And the top level Python package containing the above modules is
-in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
+And the Python packages are in `dist/`:
+`doppler_dsp-*.whl`, `doppler_specan-*.whl`, `doppler_cli-*.whl`
+(plus `*.tar.gz` sdists)
 
 ### Targets
 
@@ -50,24 +51,36 @@ in `dist/`: `doppler_dsp-*.whl` & `doppler_dsp-*.tar.gz`
 
 ## Python bindings
 
-The Python package is a standard pip-installable package:
+Three packages are published to PyPI:
+
+| Package | PyPI name | Description |
+| ------- | --------- | ----------- |
+| Core DSP | `doppler-dsp` | FFT, FIR, NCO, streaming, buffer |
+| Spectrum analyzer | `doppler-specan` | Live spectrum analyzer web app |
+| CLI | `doppler-cli` | `doppler compose` pipeline orchestrator |
 
 ```bash
-pip install doppler
+pip install doppler-dsp
+pip install doppler-specan    # spectrum analyzer
+pip install doppler-cli       # compose / Dopplerfile CLI
 ```
 
-**From source** — build and install the C library first, then install the Python package:
+**From source** — build and install the C library first, then install
+the Python packages:
 
 ```bash
-make && sudo make install
-pip install python/
+make && sudo make install && sudo ldconfig
+pip install .
+pip install python/specan/
+pip install python/cli/
 ```
 
-The wheel contains nine compiled extension modules, each installed inside
-its own subpackage (`doppler.fft`, `doppler.nco`, `doppler.buffer`,
-`doppler.stream`, `doppler.accumulator`, `doppler.delay`,
-`doppler.resample`).  The streaming extension statically links vendored
-libzmq — no system packages required at runtime.
+The `doppler-dsp` wheel contains nine compiled extension modules, each
+installed inside its own subpackage (`doppler.fft`, `doppler.nco`,
+`doppler.buffer`, `doppler.stream`, `doppler.accumulator`,
+`doppler.delay`, `doppler.resample`). The streaming extension
+statically links vendored libzmq — no system packages required at
+runtime.
 
 ## CMake directly
 
@@ -149,7 +162,7 @@ pacman -S mingw-w64-ucrt-x86_64-gcc \
 
 ### Python Extension: Vendored Dependencies
 
-The Python `dp_stream` extension statically links a **vendored copy of libzmq** to eliminate runtime dependencies. This means `pip install doppler` requires **no system packages** on the user's machine.
+The Python `dp_stream` extension statically links a **vendored copy of libzmq** to eliminate runtime dependencies. This means `pip install doppler-dsp` requires **no system packages** on the user's machine.
 
 | Dependency | Version | Location | License | Why Vendored |
 | ---------- | ------- | -------- | ------- | ------------ |
@@ -158,7 +171,7 @@ The Python `dp_stream` extension statically links a **vendored copy of libzmq** 
 
 **For developers:** Vendored libzmq is built automatically when you run `make pyext`. No manual steps needed.
 
-**For users:** `pip install doppler` includes the vendored libzmq (statically linked). You don't need to install `libzmq-dev` or any other system packages.
+**For users:** `pip install doppler-dsp` includes the vendored libzmq (statically linked). You don't need to install `libzmq-dev` or any other system packages.
 
 **See:** [VENDORED.md](../VENDORED.md) for vendoring policy, update procedures, and licensing details.
 
@@ -188,7 +201,7 @@ pkg-config --modversion doppler
 **Python:**
 
 ```bash
-pip install doppler
+pip install doppler-dsp
 ```
 
 ### Linking directly from the build tree (no install)

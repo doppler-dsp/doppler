@@ -14,6 +14,7 @@ class SpecanConfig(BlockConfig):
     rbw: float | None = None
     level: float | None = None
     web_port: int = 8080
+    web_host: str = "127.0.0.1"
 
 
 @register
@@ -45,5 +46,11 @@ class SpecanBlock(Block):
         if config.level is not None:
             cmd += ["--level", str(config.level)]
         if config.mode == "web":
-            cmd += ["--web", "--port", str(config.web_port)]
+            cmd += [
+                "--web",
+                "--port",
+                str(config.web_port),
+                "--host",
+                config.web_host,
+            ]
         return cmd

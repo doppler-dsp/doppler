@@ -101,6 +101,7 @@ class DemoSource(Source):
         sample_rate: float = 2.048e6,
         center_freq: float = 0.0,
         tone_freq: float = 100e3,
+        chirp_rate: float = 0.0,
         tone_power: float = -20.0,
         noise_floor: float = -90.0,
     ) -> None:
@@ -114,6 +115,9 @@ class DemoSource(Source):
         # Store dBm values for external readback
         self._tone_power_dbm = float(tone_power)
         self._noise_floor_dbm = float(noise_floor)
+        # Chirp: sweep tone_fn back and forth at chirp_rate per read()
+        self._chirp_rate: float = float(chirp_rate)
+        self._chirp_dir: int = 1
 
     def set_fft_size(self, n: int) -> None:
         self._fft_size = n
@@ -122,8 +126,19 @@ class DemoSource(Source):
         """Set tone frequency (normalised [0, 1))."""
         self._tone_fn = float(fn) % 1.0
         if self._nco is not None:
-            self._nco.__exit__(None, None, None)
-            self._nco = None  # recreated lazily on next read
+            self._nco.set_freq(self._tone_fn)
+
+    def set_chirp(self, rate: float) -> None:
+        """Enable/disable chirp sweep.
+
+        Parameters
+        ----------
+        rate:
+            Normalised frequency step per ``read()`` call.  Set to 0
+            to disable chirp.  A value of 0.005 sweeps the full span
+            in ~3 s at 30 fps.
+        """
+        self._chirp_rate = float(rate)
 
     def set_tone_power(self, dbm: float) -> None:
         """Set tone power in dBm."""
@@ -143,6 +158,18 @@ class DemoSource(Source):
         return self._nco
 
     def read(self, n: int) -> tuple[np.ndarray, float, float]:
+        # Advance chirp before generating samples
+        if self._chirp_rate != 0.0:
+            self._tone_fn += self._chirp_rate * self._chirp_dir
+            if self._tone_fn >= 0.49:
+                self._tone_fn = 0.49
+                self._chirp_dir = -1
+            elif self._tone_fn <= -0.49:
+                self._tone_fn = -0.49
+                self._chirp_dir = 1
+            if self._nco is not None:
+                self._nco.set_freq(self._tone_fn)
+
         nco = self._get_nco()
         # Tone: NCO at normalised frequency
         sig = nco.execute_cf32(n).astype(np.complex64) * self._tone_amp

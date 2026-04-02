@@ -45,7 +45,7 @@ def main() -> None:
         "--fs",
         type=float,
         default=None,
-        metavar="HZ",
+        metavar="Hz",
         help="Input sample rate (required for source=file)",
     )
     parser.add_argument(
@@ -61,21 +61,21 @@ def main() -> None:
         "--center",
         type=float,
         default=None,
-        metavar="HZ",
+        metavar="Hz",
         help="Center frequency in Hz",
     )
     parser.add_argument(
         "--span",
         type=float,
         default=None,
-        metavar="HZ",
+        metavar="Hz",
         help="Display span in Hz (default: full input bandwidth)",
     )
     parser.add_argument(
         "--rbw",
         type=float,
         default=None,
-        metavar="HZ",
+        metavar="Hz",
         help="Resolution bandwidth in Hz (default: span/401)",
     )
     parser.add_argument(
@@ -98,7 +98,7 @@ def main() -> None:
         "--tone-freq",
         type=float,
         default=None,
-        metavar="HZ",
+        metavar="Hz",
         help="Demo tone frequency offset from center in Hz",
     )
     parser.add_argument(

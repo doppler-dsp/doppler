@@ -1,7 +1,7 @@
 # Examples
 
-Short, focused code snippets for every Doppler API. Each page covers
-one language or topic — copy-paste and go.
+Short, focused code snippets for every Doppler API, organized by
+language and topic.
 
 | Page | Contents |
 | ---- | -------- |

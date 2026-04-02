@@ -196,17 +196,23 @@ endif
 # ── bump-version ──────────────────────────────────────────────────────────────
 # Update version in all places atomically.
 #   make bump-version VERSION=0.2.0
+#   make bump-version VERSION=0.2.1a1
+#
+# Python files (PEP 440) receive the full version string.
+# Cargo.toml and CMakeLists.txt only support X.Y.Z, so the pre-release
+# suffix (aN/bN/rcN) is stripped for those files.
 bump-version:
 ifndef VERSION
 	@echo "usage: make bump-version VERSION=<x.y.z>"
 	@exit 1
 endif
+	$(eval BASE_VERSION := $(shell echo "$(VERSION)" | sed 's/[a-z][0-9]*$$//'))
 	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' pyproject.toml
 	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' python/specan/pyproject.toml
 	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' python/cli/pyproject.toml
-	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' $(RUST_DIR)/Cargo.toml
-	sed -i 's/^project(doppler VERSION [0-9.]*/project(doppler VERSION $(VERSION)/' CMakeLists.txt
-	@echo "Bumped to $(VERSION) in pyproject.toml, specan, cli, Cargo.toml, CMakeLists.txt"
+	sed -i 's/^version = "[0-9a-z.]*"/version = "$(BASE_VERSION)"/' $(RUST_DIR)/Cargo.toml
+	sed -i 's/^project(doppler VERSION [0-9.]*/project(doppler VERSION $(BASE_VERSION)/' CMakeLists.txt
+	@echo "Bumped Python to $(VERSION), Cargo+CMake to $(BASE_VERSION)"
 	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
 
 # ── tag-release ───────────────────────────────────────────────────────────────

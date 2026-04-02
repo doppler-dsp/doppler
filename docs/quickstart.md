@@ -1,4 +1,4 @@
-# doppler — Quick Start
+# Doppler — Quick Start
 
 ## Option 1: Docker (recommended for fastest setup)
 

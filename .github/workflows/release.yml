@@ -24,12 +24,9 @@ jobs:
       - name: Extract tag version
         id: get
         run: |
-          TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1a1
-          VERSION="${TAG#v}"                # e.g.   0.2.1a1
-          # Cargo/CMake only support X.Y.Z — strip PEP 440 pre-release suffix
-          BASE=$(echo "$VERSION" | sed 's/[a-z][0-9]*$//')   # e.g. 0.2.1
+          TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1
+          VERSION="${TAG#v}"                # e.g.   0.2.1
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
 
       - name: Check pyproject.toml matches tag
         run: |
@@ -42,25 +39,25 @@ jobs:
             exit 1
           fi
 
-      - name: Check Cargo.toml matches tag (base version)
+      - name: Check Cargo.toml matches tag
         run: |
           CARGO=$(grep '^version' ffi/rust/Cargo.toml | head -1 | \
                   sed 's/version = "\(.*\)"/\1/')
-          BASE="${{ steps.get.outputs.base_version }}"
-          if [ "$CARGO" != "$BASE" ]; then
-            echo "ERROR: Cargo.toml version ($CARGO) != base version ($BASE)"
-            echo "Run: make bump-version VERSION=${{ steps.get.outputs.version }}"
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CARGO" != "$TAG" ]; then
+            echo "ERROR: Cargo.toml version ($CARGO) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
             exit 1
           fi
 
-      - name: Check CMakeLists.txt matches tag (base version)
+      - name: Check CMakeLists.txt matches tag
         run: |
           CMAKE=$(grep '^project' CMakeLists.txt | \
                   sed 's/.*VERSION \([0-9.]*\).*/\1/')
-          BASE="${{ steps.get.outputs.base_version }}"
-          if [ "$CMAKE" != "$BASE" ]; then
-            echo "ERROR: CMakeLists.txt version ($CMAKE) != base version ($BASE)"
-            echo "Run: make bump-version VERSION=${{ steps.get.outputs.version }}"
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CMAKE" != "$TAG" ]; then
+            echo "ERROR: CMakeLists.txt version ($CMAKE) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
             exit 1
           fi
 

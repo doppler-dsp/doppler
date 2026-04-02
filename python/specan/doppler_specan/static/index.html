@@ -131,6 +131,21 @@
     color: var(--accent);
   }
 
+  .btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--text); }
+  .btn.active { border-color: var(--accent2); color: var(--accent2); }
+
   /* ── Canvas area ── */
   .canvas-wrap {
     flex: 1;
@@ -209,6 +224,11 @@
     <input type="range" id="range-slider" min="20" max="160" step="10" value="160">
     <span class="val-label" id="range-val">160 dB</span>
   </div>
+  <div class="ctrl-group" style="gap:6px">
+    <button class="btn" id="chirp-btn">Chirp</button>
+    <button class="btn" id="maxhold-btn">Max hold</button>
+    <button class="btn" id="reset-btn">Reset</button>
+  </div>
 </div>
 
 <div class="canvas-wrap">
@@ -235,6 +255,13 @@ let fpsAcc    = 0;
 let fpsCnt    = 0;
 let fpsTs     = performance.now();
 let lastFrame = null;    // most recent db[] array
+
+// Max-hold state
+let maxHoldEnabled = false;
+let maxHold        = null;  // Float32Array, same length as db[]
+
+// Chirp state (UI toggle only — actual sweep runs server-side)
+let chirpEnabled = false;
 
 // Waterfall image buffer
 let wfImageData = null;
@@ -354,6 +381,19 @@ function drawSpectrum(db, sampleRate, centerFreq) {
   const toX = i => PAD.l + (i / (N - 1)) * pw;
   const toY = v => PAD.t + ((refLevel - v) / dbRange) * ph;
 
+  // Max-hold trace (drawn first, behind live trace)
+  if (maxHold && maxHold.length === N) {
+    specCtx.strokeStyle = "#a855f7";
+    specCtx.lineWidth   = 1 * dpr;
+    specCtx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const y = Math.max(PAD.t, Math.min(PAD.t + ph, toY(maxHold[i])));
+      if (i === 0) specCtx.moveTo(toX(i), y);
+      else         specCtx.lineTo(toX(i), y);
+    }
+    specCtx.stroke();
+  }
+
   // Filled gradient
   const grad = specCtx.createLinearGradient(0, PAD.t, 0, PAD.t + ph);
   grad.addColorStop(0, FILL_TOP);
@@ -450,6 +490,17 @@ function connect() {
     document.getElementById("fft-pill").textContent =
       `FFT = ${msg.fft_size}`;
 
+    // Accumulate max-hold
+    if (maxHoldEnabled) {
+      if (!maxHold || maxHold.length !== msg.db.length) {
+        maxHold = new Float32Array(msg.db);
+      } else {
+        for (let i = 0; i < msg.db.length; i++) {
+          if (msg.db[i] > maxHold[i]) maxHold[i] = msg.db[i];
+        }
+      }
+    }
+
     drawSpectrum(msg.db, msg.fs_out, msg.center_freq);
     drawWaterfall(msg.db);
   };
@@ -510,6 +561,27 @@ refSlider.addEventListener("input", () => {
 rangeSlider.addEventListener("input", () => {
   dbRange = parseInt(rangeSlider.value);
   rangeVal.textContent = `${dbRange} dB`;
+});
+
+// ── Chirp / Max-hold buttons ──────────────────────────────────────
+const chirpBtn   = document.getElementById("chirp-btn");
+const maxholdBtn = document.getElementById("maxhold-btn");
+const resetBtn   = document.getElementById("reset-btn");
+
+chirpBtn.addEventListener("click", () => {
+  chirpEnabled = !chirpEnabled;
+  chirpBtn.classList.toggle("active", chirpEnabled);
+  send({ chirp: chirpEnabled });
+});
+
+maxholdBtn.addEventListener("click", () => {
+  maxHoldEnabled = !maxHoldEnabled;
+  maxholdBtn.classList.toggle("active", maxHoldEnabled);
+  if (!maxHoldEnabled) maxHold = null;
+});
+
+resetBtn.addEventListener("click", () => {
+  maxHold = null;
 });
 </script>
 </body>

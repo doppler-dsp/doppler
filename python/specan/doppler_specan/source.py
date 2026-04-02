@@ -101,6 +101,7 @@ class DemoSource(Source):
         sample_rate: float = 2.048e6,
         center_freq: float = 0.0,
         tone_freq: float = 100e3,
+        chirp_rate: float = 0.0,
         tone_power: float = -20.0,
         noise_floor: float = -90.0,
     ) -> None:
@@ -115,7 +116,7 @@ class DemoSource(Source):
         self._tone_power_dbm = float(tone_power)
         self._noise_floor_dbm = float(noise_floor)
         # Chirp: sweep tone_fn back and forth at chirp_rate per read()
-        self._chirp_rate: float = 0.0
+        self._chirp_rate: float = float(chirp_rate)
         self._chirp_dir: int = 1
 
     def set_fft_size(self, n: int) -> None:

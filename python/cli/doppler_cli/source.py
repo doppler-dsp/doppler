@@ -45,21 +45,21 @@ def main() -> None:
         "--fs",
         type=float,
         default=2.048e6,
-        metavar="HZ",
+        metavar="Hz",
         help="Sample rate",
     )
     parser.add_argument(
         "--center",
         type=float,
         default=0.0,
-        metavar="HZ",
+        metavar="Hz",
         help="Center frequency (metadata only)",
     )
     parser.add_argument(
         "--tone-freq",
         type=float,
         default=100e3,
-        metavar="HZ",
+        metavar="Hz",
         help="Tone offset from DC",
     )
     parser.add_argument(

@@ -452,6 +452,16 @@ function drawWaterfall(db) {
 // ── WebSocket ─────────────────────────────────────────────────────────────
 let ws = null;
 
+// Fetch state once on load to show/hide demo-only controls
+fetch("/state").then(r => r.json()).then(state => {
+  if (state.source !== "demo") {
+    document.getElementById("chirp-btn").style.display = "none";
+    document.getElementById("tone-freq-slider").closest(".ctrl-group").style.display = "none";
+    document.getElementById("tone-amp-slider").closest(".ctrl-group").style.display = "none";
+    document.getElementById("noise-slider").closest(".ctrl-group").style.display = "none";
+  }
+}).catch(() => {});
+
 function connect() {
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {

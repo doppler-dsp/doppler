@@ -1,6 +1,6 @@
 # doppler
 
-**Dead-simple, ultra-fast, digital signal processing.**
+**Dead-simple, ultra-fast digital signal processing.**
 
 [![CI](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg)](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-doppler--dsp.github.io-blue)](https://doppler-dsp.github.io/doppler/)

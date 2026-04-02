@@ -83,10 +83,20 @@ and this project adheres to
 
 ---
 
-## [0.2.4] — 2026-04-02
+## [0.2.5] — 2026-04-02
+
+### Changed
+
+- **Default build type `Release`**: `make build` now compiles at
+  `-O3 + LTO`, matching the performance numbers in published
+  benchmarks (previously `RelWithDebInfo` / `-O2`)
 
 ### Fixed
 
+- **`pipeline_demo` missing `pthread`**: LTO resolves all symbols
+  directly at link time; `pipeline_demo` used pthreads transitively
+  but didn't declare it, causing an undefined reference to
+  `pthread_join` under GCC 14 in the manylinux container
 - **`python/CMakeLists.txt`: manylinux Python extension build**:
   replaced `uv run python` with `${Python3_EXECUTABLE}` for NumPy
   include-dir and `EXT_SUFFIX` discovery — uv is not present inside
@@ -103,6 +113,9 @@ and this project adheres to
 - **`release.yml`**: removed `macos-14` from the cibuildwheel build
   matrix (macOS arm64 wheels can be added back once the macOS
   extension build is validated end-to-end)
+- **`make pyext`**: passes `-DPython3_EXECUTABLE` from the uv venv
+  so extension suffixes always match the active interpreter; fixes
+  `ModuleNotFoundError` when running pytest under Python 3.13
 
 ---
 
@@ -266,8 +279,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.4...HEAD
-[0.2.4]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.4
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/doppler-dsp/doppler/releases/tag/v0.1.0

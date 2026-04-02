@@ -1,8 +1,8 @@
-# doppler
+# Doppler
 
 **Dead-simple, ultra-fast, digital signal processing.**
 
-doppler is a lean C99 signal processing library built for one goal:
+Doppler is a lean C99 signal processing library built for one goal:
 maximum throughput with minimum friction — from any language. The full
 DSP stack lives in one portable core with paper-thin Python bindings
 and a Rust FFI. No runtime surprises, no framework lock-in.

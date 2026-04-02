@@ -56,10 +56,20 @@ def register(cls: Type[Block]) -> Type[Block]:
 
 
 def get(name: str) -> Type[Block]:
-    if name not in _REGISTRY:
-        available = ", ".join(sorted(_REGISTRY))
-        raise KeyError(f"Unknown block {name!r}. Available: {available}")
-    return _REGISTRY[name]
+    if name in _REGISTRY:
+        return _REGISTRY[name]
+    # Fall back to dopplerfile discovery
+    from doppler_cli import dopplerfile  # noqa: PLC0415
+
+    cls = dopplerfile.discover(name)
+    if cls is not None:
+        return cls
+    available = ", ".join(sorted(_REGISTRY))
+    raise KeyError(
+        f"Unknown block {name!r}. Built-ins: {available}\n"
+        f"  Or add a dopplerfile: ~/.doppler/blocks/{name}.yml "
+        f"or ./{name}.yml"
+    )
 
 
 def all_blocks() -> dict[str, Type[Block]]:

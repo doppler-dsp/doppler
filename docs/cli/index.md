@@ -1,6 +1,6 @@
-# doppler CLI
+# Doppler CLI
 
-`doppler-cli` is a pipeline orchestrator for doppler signal processing
+`doppler-cli` is a pipeline orchestrator for Doppler signal processing
 chains. It lets you wire sources, DSP blocks, and sinks together with
 a single command — or a declarative compose file — and manages the
 lifetime of every process.
@@ -246,8 +246,16 @@ manually or with `doppler stop <ID>` (gracefully handles dead PIDs).
 
 ## Creating a new block
 
-All pipeline blocks follow the same pattern. Here is a minimal
-example — a `noise` source that emits pure AWGN:
+!!! tip "No Python required"
+    The fastest way to add a custom block is a **dopplerfile** — a
+    small YAML file that registers any script as a pipeline block with
+    zero Python.  See the [Dopplerfile guide](dopplerfile.md).
+
+The following shows how to add a built-in block in Python.  Use this
+path when you need full control over config validation, complex arg
+building, or want to ship the block as part of `doppler-cli` itself.
+
+Here is a minimal example — a `noise` source that emits pure AWGN:
 
 **1. Config schema** — declare fields with defaults using pydantic:
 

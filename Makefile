@@ -67,7 +67,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
 endif
 
 .PHONY: all build test rust-test rust-examples install install-test pyext \
-        python-test test-all docs-build docs-serve \
+        wheel python-test test-all docs-build docs-serve \
         specan record-demo \
         docker docker-test \
         debug release blazing gen-pyext bump-version tag-release clean help \
@@ -128,6 +128,13 @@ pyext: build
 	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . $(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --target pyext
 
+# ── wheel ─────────────────────────────────────────────────────────────────────
+# Build the doppler-dsp wheel and repair it with auditwheel (Linux only).
+# Output: dist/doppler_dsp-*-cp3XX-cp3XX-manylinux_*.whl
+wheel: build
+	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . $(CMAKE_ARGS)
+	$(CMAKE) --build $(BUILD_DIR) --target wheel
+
 # ── test-all ──────────────────────────────────────────────────────────────────
 test-all: test python-test rust-test
 
@@ -187,17 +194,19 @@ endif
 	python3 tools/gen_pyext.py $(if $(DRY_RUN),--dry-run) $(C_DIR)/src/$(MOD).c
 
 # ── bump-version ──────────────────────────────────────────────────────────────
-# Update version in all three places atomically.
+# Update version in all places atomically.
 #   make bump-version VERSION=0.2.0
 bump-version:
 ifndef VERSION
 	@echo "usage: make bump-version VERSION=<x.y.z>"
 	@exit 1
 endif
-	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' pyproject.toml
-	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' $(RUST_DIR)/Cargo.toml
+	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' pyproject.toml
+	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' python/specan/pyproject.toml
+	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' python/cli/pyproject.toml
+	sed -i 's/^version = "[0-9a-z.]*"/version = "$(VERSION)"/' $(RUST_DIR)/Cargo.toml
 	sed -i 's/^project(doppler VERSION [0-9.]*/project(doppler VERSION $(VERSION)/' CMakeLists.txt
-	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt"
+	@echo "Bumped to $(VERSION) in pyproject.toml, specan, cli, Cargo.toml, CMakeLists.txt"
 	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
 
 # ── tag-release ───────────────────────────────────────────────────────────────
@@ -235,6 +244,7 @@ help:
 	@echo "  make install-test  Verify installed pkg-config + headers"
 	@echo "  make install-cli   Install doppler-cli (adds doppler command)"
 	@echo "  make pyext         Build Python C extensions"
+	@echo "  make wheel         Build + auditwheel-repair doppler-dsp wheel (Linux)"
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"
 	@echo "  make specan              Launch live spectrum analyzer in browser"

@@ -403,3 +403,32 @@ add_custom_target(pyext
         "${PY_PKG_DIR}/window/$<TARGET_FILE_NAME:_window>"
     COMMENT "Copying Python extensions into subpackage directories"
 )
+
+# =========================================================================
+# wheel -- build wheel + auditwheel repair (Linux only)
+#
+# auditwheel repair:
+#   - bundles any non-system shared libs (e.g. libfftw3) into the wheel
+#   - retags the wheel from py3-none-any to the correct manylinux tag
+#     (e.g. cp312-cp312-manylinux_2_35_x86_64)
+#   - removes the original unrepaired wheel
+#
+# Note: for broadly-compatible manylinux wheels run this inside a
+# manylinux container (e.g. quay.io/pypa/manylinux_2_28_x86_64).
+# The CI release workflow handles this via the manylinux job.
+# =========================================================================
+if(UNIX AND NOT APPLE)
+    set(WHEEL_OUT_DIR "${CMAKE_SOURCE_DIR}/dist")
+
+    add_custom_target(wheel
+        DEPENDS pyext
+        COMMAND uv build --wheel --out-dir "${WHEEL_OUT_DIR}"
+        COMMAND bash -c
+            "uvx auditwheel repair ${WHEEL_OUT_DIR}/doppler_dsp-*.whl \
+             --wheel-dir ${WHEEL_OUT_DIR}"
+        COMMAND bash -c
+            "rm -f ${WHEEL_OUT_DIR}/doppler_dsp-*-py3-none-any.whl"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Building and auditing doppler-dsp wheel"
+    )
+endif()

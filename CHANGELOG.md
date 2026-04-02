@@ -13,6 +13,25 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- **`python/CMakeLists.txt`: manylinux Python extension build**:
+  replaced `uv run python` with `${Python3_EXECUTABLE}` for NumPy
+  include-dir and `EXT_SUFFIX` discovery — uv is not present inside
+  the manylinux container; added `pip install numpy` to cibuildwheel
+  `before-build` so cmake can locate the NumPy headers (numpy is a
+  project dep, not a build dep, and is not installed before the
+  build step runs)
+- **`python/CMakeLists.txt`: macOS Python extension linking**:
+  replaced the `string(FIND suffix "so" ...)` hack with
+  `if(NOT (UNIX AND NOT APPLE))` — the old check incorrectly treated
+  macOS `.cpython-312-darwin.so` as Linux and skipped linking
+  `Python3::Python`, causing `_PyExc_ImportError` undefined-symbol
+  errors with cibuildwheel's isolated Python on macOS
+- **`release.yml`**: removed `macos-14` from the cibuildwheel build
+  matrix (macOS arm64 wheels can be added back once the macOS
+  extension build is validated end-to-end)
+
 ### Added
 
 - **`doppler-cli`** (`python/cli/`): `doppler compose` pipeline

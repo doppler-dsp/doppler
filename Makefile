@@ -26,7 +26,7 @@
 
 SHELL        = /bin/sh
 BUILD_DIR   ?= build
-BUILD_TYPE  ?= RelWithDebInfo
+BUILD_TYPE  ?= Release
 PREFIX      ?= /usr/local
 PYEXT_DIR   ?= python/dsp/doppler
 RUST_DIR    ?= ffi/rust

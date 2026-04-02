@@ -28,7 +28,8 @@
   body {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100vh;       /* fallback */
+    height: 100dvh;      /* dynamic viewport — excludes browser chrome on mobile */
     overflow: hidden;
   }
 

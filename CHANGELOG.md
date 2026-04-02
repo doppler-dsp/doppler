@@ -13,25 +13,6 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Fixed
-
-- **`python/CMakeLists.txt`: manylinux Python extension build**:
-  replaced `uv run python` with `${Python3_EXECUTABLE}` for NumPy
-  include-dir and `EXT_SUFFIX` discovery — uv is not present inside
-  the manylinux container; added `pip install numpy` to cibuildwheel
-  `before-build` so cmake can locate the NumPy headers (numpy is a
-  project dep, not a build dep, and is not installed before the
-  build step runs)
-- **`python/CMakeLists.txt`: macOS Python extension linking**:
-  replaced the `string(FIND suffix "so" ...)` hack with
-  `if(NOT (UNIX AND NOT APPLE))` — the old check incorrectly treated
-  macOS `.cpython-312-darwin.so` as Linux and skipped linking
-  `Python3::Python`, causing `_PyExc_ImportError` undefined-symbol
-  errors with cibuildwheel's isolated Python on macOS
-- **`release.yml`**: removed `macos-14` from the cibuildwheel build
-  matrix (macOS arm64 wheels can be added back once the macOS
-  extension build is validated end-to-end)
-
 ### Added
 
 - **`doppler-cli`** (`python/cli/`): `doppler compose` pipeline
@@ -99,6 +80,29 @@ and this project adheres to
 - **specan: socket source** — CLI option parsing and noise floor
   visibility corrected
 - **specan: stale chirp state** not cleared when switching sources
+
+---
+
+## [0.2.4] — 2026-04-02
+
+### Fixed
+
+- **`python/CMakeLists.txt`: manylinux Python extension build**:
+  replaced `uv run python` with `${Python3_EXECUTABLE}` for NumPy
+  include-dir and `EXT_SUFFIX` discovery — uv is not present inside
+  the manylinux container; added `pip install numpy` to cibuildwheel
+  `before-build` so cmake can locate the NumPy headers (numpy is a
+  project dep, not a build dep, and is not installed before the
+  build step runs)
+- **`python/CMakeLists.txt`: macOS Python extension linking**:
+  replaced the `string(FIND suffix "so" ...)` hack with
+  `if(NOT (UNIX AND NOT APPLE))` — the old check incorrectly treated
+  macOS `.cpython-312-darwin.so` as Linux and skipped linking
+  `Python3::Python`, causing `_PyExc_ImportError` undefined-symbol
+  errors with cibuildwheel's isolated Python on macOS
+- **`release.yml`**: removed `macos-14` from the cibuildwheel build
+  matrix (macOS arm64 wheels can be added back once the macOS
+  extension build is validated end-to-end)
 
 ---
 
@@ -262,7 +266,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/doppler-dsp/doppler/releases/tag/v0.1.0

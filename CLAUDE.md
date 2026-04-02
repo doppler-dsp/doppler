@@ -131,11 +131,13 @@ doppler/
 ├── docs/                        # All documentation (mkdocs site)
 │   ├── build.md                # Build & install guide
 │   ├── overview.md             # Architecture & API reference
-│   ├── examples.md             # C & Python examples
+│   ├── examples/               # C, Python, Streaming sub-pages
 │   ├── quickstart.md           # Getting started
 │   ├── index.md → ../README.md # Symlink for mkdocs
 │   ├── design/                 # Historical design docs
 │   ├── api/                    # API reference pages
+│   ├── specan/                 # Spectrum analyzer docs + demo
+│   ├── cli/                    # CLI & Dopplerfile docs
 │   └── hooks.py                # Link-rewriting hook
 ├── .github/workflows/ci.yml
 ├── Makefile                     # Project wrapper
@@ -204,29 +206,33 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 | Rust FFI       | 13    | cargo   |
 | **Total**      | **224+**|       |
 
+## Recent — doppler-cli + specan session (2026-04-02, PR #8)
+
+- **doppler-cli shipped** — `doppler compose init/up/down/ps/inspect/logs`
+- **Named chains** — `--name` flag on `compose init`; name used as ID + filename
+- **Dopplerfile** — YAML-defined custom blocks, zero Python required;
+  `uv run --with` dep isolation; discovery from `~/.doppler/blocks/` or CWD
+- **specan enhancements** — chirp sweep, max-hold trace, `web_host` config,
+  hide demo-only controls when source ≠ demo, mobile `100dvh` fix
+- **Recorded chirp demo** — `scripts/capture_specan.py` captures WS frames;
+  `docs/specan/chirp_frames.json` (150 frames) used in static demo
+- **Examples split** — `docs/examples.md` → `examples/{index,c,python,streaming}.md`
+- **Docs index** — honest intro, complete feature list, copy fixes
+
 ## Next Up
 
-- specan (`doppler.specan`)
-  - `make specan` / `uvx --from doppler-dsp doppler-specan` — shipped!
+- specan
   - Move Hann window + FFT magnitude helper into the C library
   - Add frequency-domain peak annotation (label tone frequencies)
   - Interactive tone editor (click to add/remove/move tones)
   - Connect specan to real IQ source via doppler streaming (PUB/SUB)
 
-- big feature: continuously variable resampler
-  - NCO (done) + complex mixer + brickwall FIR = tunable filter
+- continuously variable resampler ("tune and zoom")
+  - NCO + complex mixer + brickwall FIR = tunable filter
   - DPMFS resampler: C runtime done (`dp_resamp_dpmfs_*`)
   - Python design tools done: `fit_dpmfs`, `optimize_dpmfs`
   - Python bindings done: `Resampler`, `ResamplerDpmfs`, `HalfbandDecimator`
-  - "tune and zoom" — any rate, any range, like an SDR frontend
-  - specan is the visual front-end for this; connect via doppler compose
-
-- examples
-  - Console outputs so users can see expected results
-  - Benchmarks: C vs Rust-wrap-C vs rustfft
-  - **DONE** (2026-03-27): Added C example for hbdecim, Python examples for nco & hbdecim,
-    type stubs for dp_resamp & dp_resamp_dpmfs. All public C extensions now have
-    type stubs. hbdecim C example registered in CMakeLists. Tests pass (167 pytest, 9 CTest).
+  - Connect specan to live IQ source via doppler compose
 
 - new features
   - NCO: AVX-512 execute path for cf32_ctrl (currently scalar)

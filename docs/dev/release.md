@@ -156,18 +156,14 @@ git push origin main
 
 ## Version conventions
 
-| Version | When to use |
-|---------|-------------|
-| `X.Y.Z` | Stable release |
-| `X.Y.Za0`, `a1`, … | Alpha — API may change |
-| `X.Y.Zb0`, `b1`, … | Beta — feature-complete, stabilising |
-| `X.Y.Zrc0`, `rc1`, … | Release candidate — no new features |
+Doppler uses [Semantic Versioning](https://semver.org) with stable
+`X.Y.Z` releases only — no alpha/beta/rc suffixes.
 
-Doppler follows [Semantic Versioning](https://semver.org):
-
-- **Patch** (`Z`) — bug fixes only, no API changes
-- **Minor** (`Y`) — new features, backwards-compatible
-- **Major** (`X`) — breaking API changes (rare before 1.0)
+| Increment | When to use |
+|-----------|-------------|
+| **Patch** (`Z`) | Bug fixes, no API changes |
+| **Minor** (`Y`) | New features, backwards-compatible |
+| **Major** (`X`) | Breaking API changes |
 
 !!! note "Pre-1.0"
     Minor releases **may** contain breaking changes before `1.0.0`.

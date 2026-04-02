@@ -235,7 +235,7 @@ wheels = [
 
 [[package]]
 name = "doppler-cli"
-version = "0.1.0"
+version = "0.2.1"
 source = { editable = "python/cli" }
 dependencies = [
     { name = "doppler-dsp" },
@@ -256,7 +256,7 @@ requires-dist = [
 
 [[package]]
 name = "doppler-dsp"
-version = "0.2.1a1"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
@@ -298,7 +298,7 @@ dev = [
 
 [[package]]
 name = "doppler-specan"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "python/specan" }
 dependencies = [
     { name = "doppler-dsp" },

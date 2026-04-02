@@ -232,6 +232,46 @@ class TestDiscover:
 
 
 # ---------------------------------------------------------------------------
+# Dependency isolation
+# ---------------------------------------------------------------------------
+
+
+class TestDependencies:
+    def _block_with_deps(self, tmp_path, deps):
+        doc = {**SIMPLE_DOC, "dependencies": deps}
+        path = _write_dopplerfile(tmp_path, doc)
+        return df.load(path)()
+
+    def test_no_deps_no_uv_wrap(self, tmp_path):
+        path = _write_dopplerfile(tmp_path, SIMPLE_DOC)
+        blk = df.load(path)()
+        cmd = blk.command(blk.__class__.Config(), None, "tcp://127.0.0.1:5600")
+        assert cmd[0] != "uv"
+
+    def test_deps_wrap_with_uv_run(self, tmp_path):
+        blk = self._block_with_deps(tmp_path, ["numpy", "scipy"])
+        cmd = blk.command(blk.__class__.Config(), None, "tcp://127.0.0.1:5600")
+        assert cmd[:2] == ["uv", "run"]
+
+    def test_deps_each_get_with_flag(self, tmp_path):
+        blk = self._block_with_deps(tmp_path, ["numpy", "scipy"])
+        cmd = blk.command(blk.__class__.Config(), None, "tcp://127.0.0.1:5600")
+        assert "--with" in cmd
+        assert cmd[cmd.index("--with") + 1] == "numpy"
+        assert cmd[cmd.index("--with", cmd.index("--with") + 2) + 1] == "scipy"
+
+    def test_deps_executable_still_present(self, tmp_path):
+        blk = self._block_with_deps(tmp_path, ["numpy"])
+        cmd = blk.command(blk.__class__.Config(), None, "tcp://127.0.0.1:5600")
+        assert "./chirp.py" in cmd
+
+    def test_deps_bind_addr_still_present(self, tmp_path):
+        blk = self._block_with_deps(tmp_path, ["numpy"])
+        cmd = blk.command(blk.__class__.Config(), None, "tcp://127.0.0.1:5600")
+        assert "tcp://127.0.0.1:5600" in cmd
+
+
+# ---------------------------------------------------------------------------
 # blocks.get() fallback
 # ---------------------------------------------------------------------------
 

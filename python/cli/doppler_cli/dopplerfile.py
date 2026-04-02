@@ -77,6 +77,7 @@ def _make_block(
     executable: str,
     config_defaults: dict[str, Any],
     args_template: dict[str, str] | None,
+    dependencies: list[str] | None = None,
 ) -> Type[Block]:
     """Return a live Block subclass described by a dopplerfile document."""
 
@@ -115,6 +116,14 @@ def _make_block(
                 else:
                     cmd += [flag, str(value)]
 
+        # Wrap with uv run --with <dep> ... for dependency isolation
+        deps = self.__class__._dependencies
+        if deps:
+            with_flags: list[str] = []
+            for dep in deps:
+                with_flags += ["--with", dep]
+            cmd = ["uv", "run"] + with_flags + cmd
+
         return cmd
 
     cls = type(
@@ -126,6 +135,7 @@ def _make_block(
             "Config": ConfigClass,
             "_exe": executable,
             "_args_template": args_template,
+            "_dependencies": dependencies or [],
             "command": _command,
         },
     )
@@ -161,6 +171,7 @@ def load(path: Path) -> Type[Block]:
         executable=doc["executable"],
         config_defaults=doc.get("config", {}),
         args_template=doc.get("args"),
+        dependencies=doc.get("dependencies"),
     )
 
 

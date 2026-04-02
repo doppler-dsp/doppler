@@ -1,21 +1,24 @@
 # Doppler
 
-**Dead-simple, ultra-fast, digital signal processing.**
+**Dead-simple, ultra-fast digital signal processing.**
 
-Doppler is a lean C99 signal processing library built for one goal:
-maximum throughput with minimum friction — from any language. The full
-DSP stack lives in one portable core with paper-thin Python bindings
-and a Rust FFI. No runtime surprises, no framework lock-in.
+Doppler is a C99 DSP library covering the core building blocks: NCO,
+FIR filter, FFT, polyphase resampling, and ZMQ-based signal streaming.
+Python and Rust bindings wrap the same C core — no reimplementation,
+no divergence between languages, C throughput from Python.
 
 ## What's inside
 
 - **NCO** — 32-bit phase accumulator, 2¹⁶-entry LUT, AVX-512 batch generation, FM ctrl port
 - **FIR filter** — AVX-512 complex taps, CI8/CI16/CI32/CF32 input types
 - **FFT** — 1D and 2D, selectable backend (FFTW or pocketfft)
-- **SIMD arithmetic** — SSE2/AVX2 complex multiply via `dp_c16_mul`
-- **Signal streaming** — low-latency ZMQ transport (PUB/SUB, PUSH/PULL, REQ/REP)
-- **Circular buffers** — double-mapped ring buffers for zero-copy, lock-free IPC (F32/F64/I16)
-- **Multi-language** — clean C ABI; Python bindings (NCO, FFT, streaming, buffers) and Rust FFI
+- **Resampler** — polyphase and DPMFS (608 B coefficient bank, L1-resident); halfband 2:1 decimator
+- **Polyphase design tools** — `fit_dpmfs`, `optimize_dpmfs`, `kaiser_prototype` in Python
+- **Signal streaming** — ZMQ transport (PUB/SUB, PUSH/PULL, REQ/REP); C and Python; multi-machine
+- **Circular buffers** — double-mapped ring buffers, lock-free SPSC, zero-copy IPC (F32/F64/I16)
+- **Spectrum analyzer** — `doppler-specan`: real-time FFT display, waterfall, web UI
+- **Pipeline CLI** — `doppler compose`: wire blocks into processing chains with a YAML file
+- **Multi-language** — clean C ABI; Python bindings and Rust FFI; Dopplerfile for custom blocks
 
 ## Benchmarks
 

@@ -28,7 +28,8 @@
   body {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100vh;       /* fallback */
+    height: 100dvh;      /* dynamic viewport — excludes browser chrome on mobile */
     overflow: hidden;
   }
 
@@ -190,35 +191,42 @@
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────
-let frames   = [];
-let frameIdx = 0;
-let meta     = null;   // metadata from first real frame
+let frames      = [];    // tone demo frames (frames.json)
+let chirpFrames = [];    // chirp sweep frames (chirp_frames.json)
+let chirpMaxHold = null; // pre-computed max-hold across all chirp frames
 
-// Chirp
-let chirpEnabled = false;
-let chirpFn      = -0.45;   // normalised tone position [-0.5, 0.5)
-let chirpDir     = 1;
-const CHIRP_RATE = 0.025;   // normalised freq per frame (~1.5 s sweep)
+let frameIdx      = 0;
+let chirpFrameIdx = 0;
+let chirpEnabled  = false;
 
-// Max-hold
+// Max-hold (user-toggled, live accumulation during playback)
 let maxHoldEnabled = false;
-let maxHold        = null;   // Float32Array
+let maxHold        = null;
 
-fetch("frames.json")
-  .then(r => r.json())
-  .then(data => {
-    frames = data;
-    meta = {
-      fs_out:      frames[0].fs_out,
-      center_freq: frames[0].center_freq,
-      fft_size:    frames[0].fft_size,
-      rbw:         frames[0].rbw,
-      span:        frames[0].fs_out,
-    };
-    updatePills(frames[0]);
-    startLoop();
-  })
-  .catch(err => console.error("Failed to load frames.json:", err));
+// Load both datasets in parallel, start loop when tone frames are ready
+Promise.all([
+  fetch("frames.json").then(r => r.json()),
+  fetch("chirp_frames.json").then(r => r.json()).catch(() => null),
+]).then(([toneData, chirpData]) => {
+  frames = toneData;
+  if (chirpData) {
+    chirpFrames = chirpData;
+    // Pre-compute max-hold across all chirp frames
+    const N = chirpFrames[0].db.length;
+    chirpMaxHold = new Float32Array(N).fill(-Infinity);
+    for (const f of chirpFrames) {
+      for (let i = 0; i < N; i++) {
+        if (f.db[i] > chirpMaxHold[i]) chirpMaxHold[i] = f.db[i];
+      }
+    }
+  } else {
+    // chirp_frames.json not yet recorded — hide button
+    const btn = document.getElementById("chirp-btn");
+    if (btn) btn.style.display = "none";
+  }
+  updatePills(frames[0]);
+  startLoop();
+}).catch(err => console.error("Failed to load frames:", err));
 
 // ── Canvas setup ───────────────────────────────────────────────────────────
 const specCanvas = document.getElementById("spectrum");
@@ -266,24 +274,6 @@ function dbToColor(v) {
   return [r, g, b];
 }
 
-// ── Synthetic chirp frame ─────────────────────────────────────────────────
-// Generates N dB values: noise floor + Gaussian tone peak at toneFn.
-// toneFn is normalised position across the display [-0.5, 0.5).
-function syntheticDb(N, toneFn) {
-  const noiseFloor = -90;
-  const tonePower  = -20;
-  const sigma      = 0.008;   // peak width in normalised freq
-  const db = new Array(N);
-  for (let i = 0; i < N; i++) {
-    const fn    = (i / (N - 1)) - 0.5;
-    const delta = fn - toneFn;
-    const peak  = tonePower * Math.exp(-(delta * delta) / (2 * sigma * sigma));
-    const noise = noiseFloor + (Math.random() * 6 - 3);
-    db[i] = Math.max(peak, noise);
-  }
-  return db;
-}
-
 // ── Spectrum draw ─────────────────────────────────────────────────────────
 const TRACE_COLOR = "#22d3ee";
 const FILL_TOP    = "rgba(34,211,238,0.25)";
@@ -296,7 +286,7 @@ function fmtFreq(hz) {
   return `${hz.toFixed(0)}`;
 }
 
-function drawSpectrum(db, fsOut, centerFreq) {
+function drawSpectrum(db, fsOut, centerFreq, holdTrace) {
   const W = specCanvas.width;
   const H = specCanvas.height;
   const N = db.length;
@@ -344,12 +334,12 @@ function drawSpectrum(db, fsOut, centerFreq) {
   const toY = v => PAD.t + ((REF_DBM - v) / DB_RANGE) * ph;
 
   // Max-hold trace (behind live trace)
-  if (maxHold && maxHold.length === N) {
+  if (holdTrace && holdTrace.length === N) {
     specCtx.strokeStyle = "#a855f7";
     specCtx.lineWidth   = 1 * dpr;
     specCtx.beginPath();
     for (let i = 0; i < N; i++) {
-      const y = Math.max(PAD.t, Math.min(PAD.t + ph, toY(maxHold[i])));
+      const y = Math.max(PAD.t, Math.min(PAD.t + ph, toY(holdTrace[i])));
       if (i === 0) specCtx.moveTo(toX(i), y);
       else         specCtx.lineTo(toX(i), y);
     }
@@ -428,30 +418,22 @@ function updatePills(f) {
 function tick() {
   if (!frames.length) return;
 
-  let db, fsOut, centerFreq;
-
-  if (chirpEnabled && meta) {
-    // Advance chirp position
-    chirpFn += CHIRP_RATE * chirpDir;
-    if (chirpFn >= 0.45)  { chirpFn = 0.45;  chirpDir = -1; }
-    if (chirpFn <= -0.45) { chirpFn = -0.45; chirpDir =  1; }
-
-    const N = meta.fft_size || 401;
-    db         = syntheticDb(N, chirpFn);
-    fsOut      = meta.fs_out;
-    centerFreq = meta.center_freq;
-
+  let f;
+  if (chirpEnabled && chirpFrames.length) {
+    f = chirpFrames[chirpFrameIdx];
+    chirpFrameIdx = (chirpFrameIdx + 1) % chirpFrames.length;
     document.getElementById("frame-label").textContent =
-      `chirp ${(chirpFn * meta.fs_out / 1e3).toFixed(1)} kHz`;
+      `chirp frame ${chirpFrameIdx + 1} / ${chirpFrames.length}`;
   } else {
-    const f = frames[frameIdx];
+    f = frames[frameIdx];
     frameIdx = (frameIdx + 1) % frames.length;
-    db = f.db; fsOut = f.fs_out; centerFreq = f.center_freq;
     document.getElementById("frame-label").textContent =
       `frame ${frameIdx + 1} / ${frames.length}`;
   }
 
-  // Accumulate max-hold
+  const { db, fs_out: fsOut, center_freq: centerFreq } = f;
+
+  // Live max-hold accumulation (user-toggled)
   if (maxHoldEnabled) {
     if (!maxHold || maxHold.length !== db.length) {
       maxHold = new Float32Array(db);
@@ -462,10 +444,12 @@ function tick() {
     }
   }
 
-  drawSpectrum(db, fsOut, centerFreq);
+  // In chirp mode, always show the pre-computed full-sweep max-hold
+  const holdTrace = chirpEnabled ? chirpMaxHold : maxHold;
+
+  drawSpectrum(db, fsOut, centerFreq, holdTrace);
   drawWaterfall(db);
 
-  // FPS counter
   fpsCnt++;
   const now = performance.now();
   if (now - fpsTs >= 500) {
@@ -486,7 +470,9 @@ document.getElementById("chirp-btn").addEventListener("click", function() {
   this.classList.toggle("active", chirpEnabled);
   document.getElementById("mode-label").textContent =
     chirpEnabled ? "chirp" : "playback";
-  if (!chirpEnabled) maxHold = null;  // reset hold when leaving chirp
+  // Clear waterfall and max-hold when switching modes
+  wfImageData = null;
+  maxHold = null;
 });
 
 document.getElementById("maxhold-btn").addEventListener("click", function() {

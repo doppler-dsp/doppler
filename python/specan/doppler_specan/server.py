@@ -97,7 +97,7 @@ async def _apply_cmd(cmd: dict) -> None:
             # true → default sweep rate; false → off; float → explicit rate
             v = cmd["chirp"]
             if v is True:
-                _source.set_chirp(0.005)
+                _source.set_chirp(0.025)
             elif v is False or v == 0:
                 _source.set_chirp(0.0)
             else:

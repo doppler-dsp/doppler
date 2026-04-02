@@ -105,7 +105,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v3
+        uses: pypa/cibuildwheel@v2
         with:
           output-dir: dist/
 

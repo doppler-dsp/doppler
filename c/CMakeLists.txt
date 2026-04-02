@@ -272,7 +272,7 @@ target_link_libraries(spectrum_analyzer PRIVATE doppler_static m)
 
 add_executable(pipeline_demo examples/pipeline_demo.c)
 target_include_directories(pipeline_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(pipeline_demo PRIVATE doppler_static m)
+target_link_libraries(pipeline_demo PRIVATE doppler_static m pthread)
 
 # Streaming unit tests
 add_executable(test_stream tests/test_stream.c)

@@ -100,6 +100,8 @@ members_order            = "source"
 separate_signature       = true
 show_signature_annotations = true
 
+[project.markdown_extensions.attr_list]
+
 [project.markdown_extensions.pymdownx.superfences]
 custom_fences = [
   { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }

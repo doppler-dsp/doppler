@@ -13,6 +13,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+---
+
+## [0.2.6] — 2026-04-02
+
 ### Added
 
 - **`doppler-cli`** (`python/cli/`): `doppler compose` pipeline
@@ -80,6 +84,14 @@ and this project adheres to
 - **specan: socket source** — CLI option parsing and noise floor
   visibility corrected
 - **specan: stale chirp state** not cleared when switching sources
+
+### Build
+
+- **Switched to `just-buildit` PEP 517 backend**: replaces
+  `uv_build` + `scripts/retag_wheel.sh`; `just-buildit` calls
+  `make just-build`, detects platform from the `.so` suffix, tags
+  the wheel correctly, and runs `uvx auditwheel repair` — all in
+  one `python -m build` invocation
 
 ---
 
@@ -279,7 +291,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/doppler-dsp/doppler/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0

@@ -429,25 +429,25 @@ function drawWaterfall(db) {
   const dpr = window.devicePixelRatio || 1;
   // Same PAD as drawSpectrum — pixel-exact alignment guaranteed.
   const PAD = { l: 52 * dpr, r: 8 * dpr };
-  const pw = W - PAD.l - PAD.r;
+  const pw  = Math.round(W - PAD.l - PAD.r);
 
-  // Allocate or reallocate ImageData
-  if (!wfImageData || wfImageData.width !== W || wfImageData.height !== H) {
-    wfImageData = wfCtx.createImageData(W, H);
+  // Allocate or reallocate ImageData sized to the PLOT AREA only.
+  // putImageData(data, PAD.l, 0) places it at the right offset;
+  // the left/right margin columns are never written and show the
+  // canvas CSS background — no per-pixel margin logic needed.
+  if (!wfImageData || wfImageData.width !== pw || wfImageData.height !== H) {
+    wfImageData = wfCtx.createImageData(pw, H);
+    wfCtx.clearRect(0, 0, W, H);
   }
 
   // Scroll existing content down by one row
-  const rowBytes = W * 4;
+  const rowBytes = pw * 4;
   wfImageData.data.copyWithin(rowBytes, 0, (H - 1) * rowBytes);
 
-  // Write new top row — only the plot columns [PAD.l, W-PAD.r).
-  // Pixels outside that range are left black (from createImageData).
-  for (let x = 0; x < W; x++) {
-    let r = 0, g = 0, b = 0;
-    if (x >= PAD.l && x < W - PAD.r) {
-      const idx = Math.round(((x - PAD.l) / (pw - 1)) * (N - 1));
-      [r, g, b] = dbToColor(db[idx]);
-    }
+  // Write new top row: map each plot pixel to a bin
+  for (let x = 0; x < pw; x++) {
+    const idx = Math.round((x / (pw - 1)) * (N - 1));
+    const [r, g, b] = dbToColor(db[idx]);
     const px = x * 4;
     wfImageData.data[px]     = r;
     wfImageData.data[px + 1] = g;
@@ -455,7 +455,7 @@ function drawWaterfall(db) {
     wfImageData.data[px + 3] = 255;
   }
 
-  wfCtx.putImageData(wfImageData, 0, 0);
+  wfCtx.putImageData(wfImageData, Math.round(PAD.l), 0);
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────────────

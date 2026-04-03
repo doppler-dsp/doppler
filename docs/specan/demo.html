@@ -377,18 +377,25 @@ function drawWaterfall(db) {
   const W = wfCanvas.width;
   const H = wfCanvas.height;
   const N = db.length;
+  const dpr = window.devicePixelRatio || 1;
+  // Same PAD as drawSpectrum — pixel-exact alignment guaranteed.
+  const PAD = { l: 52*dpr, r: 8*dpr };
+  const pw  = Math.round(W - PAD.l - PAD.r);
 
-  if (!wfImageData || wfImageData.width !== W || wfImageData.height !== H) {
-    wfImageData = wfCtx.createImageData(W, H);
+  // imageData covers the plot area only; putImageData offsets it into
+  // position so the margin columns show the canvas CSS background.
+  if (!wfImageData || wfImageData.width !== pw || wfImageData.height !== H) {
+    wfImageData = wfCtx.createImageData(pw, H);
+    wfCtx.clearRect(0, 0, W, H);
   }
 
   // Scroll down
-  const rowBytes = W * 4;
+  const rowBytes = pw * 4;
   wfImageData.data.copyWithin(rowBytes, 0, (H-1) * rowBytes);
 
   // New top row
-  for (let x = 0; x < W; x++) {
-    const idx = Math.round((x / W) * (N-1));
+  for (let x = 0; x < pw; x++) {
+    const idx = Math.round((x / (pw-1)) * (N-1));
     const [r, g, b] = dbToColor(db[idx]);
     const px = x * 4;
     wfImageData.data[px]   = r;
@@ -396,7 +403,7 @@ function drawWaterfall(db) {
     wfImageData.data[px+2] = b;
     wfImageData.data[px+3] = 255;
   }
-  wfCtx.putImageData(wfImageData, 0, 0);
+  wfCtx.putImageData(wfImageData, Math.round(PAD.l), 0);
 }
 
 // ── Playback loop ─────────────────────────────────────────────────────────

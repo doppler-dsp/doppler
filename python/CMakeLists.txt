@@ -134,7 +134,8 @@ add_custom_command(
             "-DCMAKE_CXX_FLAGS="
     COMMAND ${CMAKE_COMMAND} -B "${_ZMQ_BLD}" -S "${_ZMQ_SRC}"
             "-DCMAKE_CXX_FLAGS=-I${_ZMQ_BLD} -I${_ZMQ_SRC}/src\
- -include precompiled.hpp -include macros.hpp -include command.hpp"
+ -include precompiled.hpp -include macros.hpp -include command.hpp\
+ -Wno-missing-field-initializers -Wno-missing-braces"
     COMMAND ${CMAKE_COMMAND} --build "${_ZMQ_BLD}"
             --parallel
     COMMENT "Building vendored libzmq (static, PIC)"

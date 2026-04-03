@@ -278,6 +278,26 @@ set_target_properties(_resamp_dpmfs PROPERTIES
     SUFFIX "${PY_EXT_SUFFIX}"
 )
 
+# DDC extension
+add_library(_ddc MODULE
+    ext/_ddc.c
+)
+
+target_include_directories(_ddc
+    PRIVATE
+        ${NumPy_INCLUDE_DIR}
+        ${Python3_INCLUDE_DIRS}
+)
+target_link_libraries(_ddc
+    PRIVATE doppler Python3::Module m
+)
+
+set_target_properties(_ddc PROPERTIES
+    LANGUAGE C
+    PREFIX ""
+    SUFFIX "${PY_EXT_SUFFIX}"
+)
+
 # Halfband decimator extension
 add_library(_hbdecim MODULE
     ext/_hbdecim.c
@@ -325,7 +345,7 @@ set(PY_PKG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dsp/doppler")
 
 add_custom_target(pyext
     DEPENDS _fft _buffer _stream _nco _delay _accumulator
-            _resamp _resamp_dpmfs _hbdecim _window
+            _resamp _resamp_dpmfs _hbdecim _window _ddc
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:_fft>"
         "${PY_PKG_DIR}/fft/$<TARGET_FILE_NAME:_fft>"
@@ -356,6 +376,9 @@ add_custom_target(pyext
     COMMAND ${CMAKE_COMMAND} -E copy
         "$<TARGET_FILE:_window>"
         "${PY_PKG_DIR}/window/$<TARGET_FILE_NAME:_window>"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:_ddc>"
+        "${PY_PKG_DIR}/ddc/$<TARGET_FILE_NAME:_ddc>"
     COMMENT "Copying Python extensions into subpackage directories"
 )
 

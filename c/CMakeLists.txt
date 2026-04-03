@@ -69,6 +69,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # ------------------------------------------------------------
 set(DOPPLER_SOURCES
     src/accumulator.c
+    src/ddc.c
     src/delay.c
     src/core.c
     src/fir.c
@@ -159,6 +160,7 @@ install(FILES
     include/dp/accumulator.h
     include/dp/buffer.h
     include/dp/core.h
+    include/dp/ddc.h
     include/dp/delay.h
     include/dp/fft.h
     include/dp/fir.h
@@ -251,6 +253,15 @@ target_link_libraries(bench_resamp_c PRIVATE doppler_static m)
 add_executable(bench_resamp_dpmfs_c bench/bench_resamp_dpmfs.c)
 target_link_libraries(bench_resamp_dpmfs_c PRIVATE doppler_static m)
 
+add_executable(bench_ddc_c bench/bench_ddc.c)
+target_link_libraries(bench_ddc_c PRIVATE doppler_static m)
+
+add_executable(bench_ddc_hb_c bench/bench_ddc_hb.c)
+target_link_libraries(bench_ddc_hb_c PRIVATE doppler_static m)
+
+add_executable(bench_ddc_hb2_c bench/bench_ddc_hb2.c)
+target_link_libraries(bench_ddc_hb2_c PRIVATE doppler_static m)
+
 add_executable(bench_hbdecim_c bench/bench_hbdecim.c)
 target_link_libraries(bench_hbdecim_c PRIVATE doppler_static m)
 
@@ -307,6 +318,10 @@ target_link_libraries(test_resamp_dpmfs PRIVATE doppler_static m)
 add_executable(test_hbdecim tests/test_hbdecim.c)
 target_link_libraries(test_hbdecim PRIVATE doppler_static m)
 
+# DDC unit tests
+add_executable(test_ddc tests/test_ddc.c)
+target_link_libraries(test_ddc PRIVATE doppler_static m)
+
 # Window function unit tests
 add_executable(test_window tests/test_window.c)
 target_link_libraries(test_window PRIVATE doppler_static m)
@@ -328,6 +343,7 @@ add_test(NAME accumulator_unit_tests COMMAND test_accumulator)
 add_test(NAME delay_unit_tests       COMMAND test_delay)
 add_test(NAME resamp_unit_tests      COMMAND test_resamp)
 add_test(NAME resamp_dpmfs_unit_tests COMMAND test_resamp_dpmfs)
+add_test(NAME ddc_unit_tests          COMMAND test_ddc)
 add_test(NAME hbdecim_unit_tests      COMMAND test_hbdecim)
 add_test(NAME window_unit_tests       COMMAND test_window)
 

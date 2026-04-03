@@ -167,19 +167,7 @@
   }
 
   #spectrum   { flex: 3; min-height: 0; }
-  #waterfall  {
-    flex: 2; min-height: 0;
-    /* Inset left/right margins to align with the spectrum plot area.
-       drawSpectrum uses PAD = {l:52, r:8} CSS px (= 52*dpr / dpr),
-       so margin-left:52px / margin-right:8px puts the waterfall canvas
-       left edge exactly on the spectrum plot left edge, right edge on
-       the spectrum plot right edge — for any devicePixelRatio.
-       width:auto lets flex stretch account for the margins correctly
-       (overrides canvas { width:100% }). */
-    margin-left: 52px;
-    margin-right: 8px;
-    width: auto;
-  }
+  #waterfall  { flex: 2; min-height: 0; }
 
   .canvas-wrap { min-height: 0; }
 
@@ -438,6 +426,10 @@ function drawWaterfall(db) {
   const W = wfCanvas.width;
   const H = wfCanvas.height;
   const N = db.length;
+  const dpr = window.devicePixelRatio || 1;
+  // Same PAD as drawSpectrum — pixel-exact alignment guaranteed.
+  const PAD = { l: 52 * dpr, r: 8 * dpr };
+  const pw = W - PAD.l - PAD.r;
 
   // Allocate or reallocate ImageData
   if (!wfImageData || wfImageData.width !== W || wfImageData.height !== H) {
@@ -448,12 +440,14 @@ function drawWaterfall(db) {
   const rowBytes = W * 4;
   wfImageData.data.copyWithin(rowBytes, 0, (H - 1) * rowBytes);
 
-  // Write new top row.  The waterfall canvas is inset with CSS margins
-  // (left:52px, right:8px) to match the spectrum plot area, so the
-  // canvas spans exactly that plot area — map x linearly over all bins.
+  // Write new top row — only the plot columns [PAD.l, W-PAD.r).
+  // Pixels outside that range are left black (from createImageData).
   for (let x = 0; x < W; x++) {
-    const idx = Math.round((x / (W - 1)) * (N - 1));
-    const [r, g, b] = dbToColor(db[idx]);
+    let r = 0, g = 0, b = 0;
+    if (x >= PAD.l && x < W - PAD.r) {
+      const idx = Math.round(((x - PAD.l) / (pw - 1)) * (N - 1));
+      [r, g, b] = dbToColor(db[idx]);
+    }
     const px = x * 4;
     wfImageData.data[px]     = r;
     wfImageData.data[px + 1] = g;

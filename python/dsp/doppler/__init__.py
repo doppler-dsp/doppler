@@ -29,6 +29,7 @@ DSP building blocks
 # ruff: noqa: F401
 from . import accumulator
 from . import buffer
+from . import ddc
 from . import delay
 from . import fft
 from . import nco
@@ -58,6 +59,7 @@ __all__ = [
     # Subpackages
     "accumulator",
     "buffer",
+    "ddc",
     "delay",
     "fft",
     "nco",

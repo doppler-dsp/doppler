@@ -178,7 +178,7 @@ static const float _dp_fir_sign[16] __attribute__ ((aligned (64)))
  * ~2^61 iterations — impossible for any real DSP buffer but technically
  * correct UB.  The SIMD path is unaffected by this attribute.
  */
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
@@ -243,7 +243,7 @@ inner_loop_avx512 (const dp_cf32_t *buf, /* scratch: delay | input */
 
 #else /* scalar fallback */
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
@@ -285,7 +285,7 @@ inner_loop_avx512 (const dp_cf32_t *buf, const dp_cf32_t *h, size_t num_taps,
 
 #if defined(__AVX512F__)
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
@@ -327,7 +327,7 @@ inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
 
 #else /* scalar fallback */
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__clang__)
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void

@@ -69,15 +69,9 @@ target_include_directories(_fft
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_fft
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_fft
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_fft
+    PRIVATE doppler Python3::Module m
+)
 
 
 set_target_properties(_fft PROPERTIES
@@ -97,15 +91,9 @@ target_include_directories(_buffer
         ${Python3_INCLUDE_DIRS}
         ${CMAKE_BASE_DIR}/include
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_buffer
-        PRIVATE Python3::Python m
-    )
-else()
-    target_link_libraries(_buffer
-        PRIVATE m
-    )
-endif()
+target_link_libraries(_buffer
+    PRIVATE Python3::Module m
+)
 
 set_target_properties(_buffer PROPERTIES
     LANGUAGE C
@@ -179,13 +167,8 @@ target_include_directories(_stream PRIVATE
     ${CMAKE_SOURCE_DIR}/c/include
 )
 
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_stream PRIVATE
-        doppler_static zmq_vendor_static stdc++ Python3::Python m pthread)
-else()
-    target_link_libraries(_stream PRIVATE
-        doppler_static zmq_vendor_static stdc++ m pthread)
-endif()
+target_link_libraries(_stream PRIVATE
+    doppler_static zmq_vendor_static stdc++ Python3::Module m pthread)
 
 set_target_properties(_stream PROPERTIES
     LANGUAGE C
@@ -204,15 +187,9 @@ target_include_directories(_delay
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_delay
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_delay
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_delay
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_delay PROPERTIES
     LANGUAGE C
@@ -230,15 +207,9 @@ target_include_directories(_accumulator
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_accumulator
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_accumulator
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_accumulator
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_accumulator PROPERTIES
     LANGUAGE C
@@ -256,15 +227,9 @@ target_include_directories(_nco
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_nco
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_nco
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_nco
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_nco PROPERTIES
     LANGUAGE C
@@ -282,15 +247,9 @@ target_include_directories(_resamp
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_resamp
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_resamp
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_resamp
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_resamp PROPERTIES
     LANGUAGE C
@@ -308,15 +267,9 @@ target_include_directories(_resamp_dpmfs
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_resamp_dpmfs
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_resamp_dpmfs
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_resamp_dpmfs
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_resamp_dpmfs PROPERTIES
     LANGUAGE C
@@ -334,15 +287,9 @@ target_include_directories(_hbdecim
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_hbdecim
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_hbdecim
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_hbdecim
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_hbdecim PROPERTIES
     LANGUAGE C
@@ -360,15 +307,9 @@ target_include_directories(_window
         ${NumPy_INCLUDE_DIR}
         ${Python3_INCLUDE_DIRS}
 )
-if(NOT (UNIX AND NOT APPLE))
-    target_link_libraries(_window
-        PRIVATE doppler Python3::Python m
-    )
-else()
-    target_link_libraries(_window
-        PRIVATE doppler m
-    )
-endif()
+target_link_libraries(_window
+    PRIVATE doppler Python3::Module m
+)
 
 set_target_properties(_window PROPERTIES
     LANGUAGE C

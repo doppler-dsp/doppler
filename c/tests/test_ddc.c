@@ -522,12 +522,12 @@ test_nout (void)
  *
  * Test 13 — filter rejection: out-of-band tone is attenuated ≥ 40 dB
  *
- * Same DDC.  Input tone at +0.2 maps to +0.15 (normalised to input fs)
- * after NCO shift.  The filter stopband starts at 0.075 × fs_in, so
- * 0.15 is 2× past the stopband edge → ≥ 60 dB rejection expected.
+ * Same DDC.  Input tone at +0.2 maps to +0.15 (input-normalised) after
+ * NCO shift.  The filter stopband begins at 0.6 × Nyquist_out, which
+ * in input-rate units is 0.6 × rate/2 = 0.6 × 0.125 = 0.075.  So 0.15
+ * is 2× past the stopband edge → ≥ 60 dB rejection expected.
  * The aliased frequency in the output is 0.15/0.25 − 1 = −0.4 × fs_out
- * = 0.4 × fs_out.  We check that power at all output frequencies is
- * very low (< −40 dBFS).
+ * = 0.4 × fs_out.  We check power near that bin is < −40 dBFS.
  * ========================================================================= */
 
 static void
@@ -573,7 +573,9 @@ test_filter_passband_and_rejection (void)
     dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
     size_t total = 0;
 
-    /* +0.2 → +0.15 after NCO.  Stopband starts at 0.075 × fs_in. */
+    /* +0.2 → +0.15 (input-norm) after NCO.
+     * Stopband ≥ 0.6 × Nyquist_out = 0.6 × rate/2 = 0.075 (input-norm).
+     * 0.15 is 2× past the stopband edge → ≥ 60 dB rejection expected. */
     make_tone (in, N_IN, 0.2f);
     for (int b = 0; b < BLOCKS; b++)
       {

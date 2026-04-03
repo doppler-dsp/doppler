@@ -94,9 +94,20 @@ extern "C"
   /**
    * @brief Create a DDC using built-in filter coefficients.
    *
-   * Uses a built-in M=3, N=19 Kaiser–DPMFS lowpass filter
-   * (passband ≤ 0.4·Nyquist, 60 dB stopband attenuation).  Suitable
-   * for decimation rates 2× – 100× without any coefficient design.
+   * Uses a built-in M=3, N=19 Kaiser–DPMFS lowpass filter with
+   * frequency response normalised to the **output** sample rate:
+   *
+   *   passband  ≤ 0.4 × (fs_out / 2)    flat response
+   *   stopband  ≥ 0.6 × (fs_out / 2)    ≥ 60 dB rejection
+   *
+   * Because the cutoffs track fs_out, the same coefficient bank works
+   * for any decimation rate.  In input-rate units:
+   *
+   *   passband edge  = 0.4 × rate/2 × fs_in
+   *   stopband edge  = 0.6 × rate/2 × fs_in
+   *
+   * This matches the doppler spectrum analyser's 80 % bandwidth
+   * convention (fs_out = span / 0.8).
    *
    * Passing @p rate = 1.0 (or any value within 1×10⁻⁶ of 1.0) bypasses
    * the resampler; output equals the mixed signal at the input rate.

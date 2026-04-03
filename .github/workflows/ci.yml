@@ -114,7 +114,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Install Python dev deps
-      run: uv sync --group dev --no-install-project
+      run: uv sync --group dev --no-install-workspace
 
     - name: Build
       run: make build

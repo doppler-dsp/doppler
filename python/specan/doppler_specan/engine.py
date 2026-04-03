@@ -183,14 +183,22 @@ class SpecanEngine:
         db = 20.0 * np.log10(mag) + _DBM_OFFSET - self._cfg.level
 
         # FFT-shift so DC is centred
-        db = np.fft.fftshift(db).tolist()
+        db = np.fft.fftshift(db)
+
+        # Discard transition and stop bands: keep the central passband bins.
+        # fs_out = 1.28 * span → span covers nfft/1.28 bins.
+        # Use odd symmetric count: DC bin + half bins each side.
+        # e.g. nfft=1024 → half=400 → 801 displayed bins.
+        center = nfft // 2
+        half = round(nfft / 2.56)  # = round(nfft / (2 * 1.28))
+        db = db[center - half : center + half + 1]
 
         # RBW is defined on the data frame (N points), not the FFT size
         rbw = self._enbw_bins * self._fs_out / n
 
         return SpectrumFrame(
-            db=db,
-            fft_size=nfft,
+            db=db.tolist(),
+            fft_size=len(db),
             data_size=n,
             fs_out=self._fs_out,
             center_freq=self._center_freq,

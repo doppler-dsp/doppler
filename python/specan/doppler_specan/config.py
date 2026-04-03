@@ -77,11 +77,14 @@ class SpecanConfig:
     # ----------------------------------------------------------------
 
     def effective_span(self, input_fs: float) -> float:
-        """Return the display span in Hz, defaulting to full bandwidth."""
+        """Return the display span in Hz, defaulting to full bandwidth.
+
+        span = fs_out / 1.28, so the display window (±span/2) sits fully
+        inside the DDC passband (±0.4·fs_out = ±0.512·span).
+        """
         if self.span > 0:
             return self.span
-        # Default: full alias-free bandwidth of the input
-        return input_fs * 0.8
+        return input_fs / 1.28
 
     def effective_rbw(self, span: float) -> float:
         """Return the RBW in Hz, defaulting to span / 401."""
@@ -103,9 +106,14 @@ class SpecanConfig:
         return 1 << (n - 1).bit_length()
 
     def fs_out(self, span: float) -> float:
-        """Output sample rate from the resampler, given the span in Hz."""
-        # alias-free BW ≈ 0.8 * fs_out  →  fs_out = span / 0.8
-        return span / 0.8
+        """Output sample rate from the resampler, given the span in Hz.
+
+        fs_out = 1.28 * span so the DDC passband (±0.4·fs_out = ±0.512·span)
+        comfortably contains the display window (±0.5·span).  The transition
+        and stop bands are discarded by cropping the FFT output to the central
+        2·round(nfft/2.56)+1 bins.
+        """
+        return span * 1.28
 
 
 # ------------------------------------------------------------------

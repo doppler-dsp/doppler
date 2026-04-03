@@ -78,5 +78,5 @@ exclude = [
 ]
 
 [build-system]
-requires = ["just-buildit"]
+requires = ["just-buildit>=0.1.1"]
 build-backend = "just_build"

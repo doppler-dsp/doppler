@@ -99,35 +99,6 @@
 
   .canvas-wrap { min-height: 0; }
 
-  /* ── Controls bar ── */
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 6px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .controls::-webkit-scrollbar { display: none; }
-
-  .btn {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 3px 10px;
-    font-size: 11px;
-    font-family: inherit;
-    color: var(--muted);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .btn:hover  { border-color: #22d3ee; color: var(--text); }
-  .btn.active { border-color: #a855f7; color: #a855f7; }
 
   /* ── Footer ── */
   footer {
@@ -166,12 +137,6 @@
   </div>
 </header>
 
-<div class="controls">
-  <button class="btn" id="chirp-btn">Chirp</button>
-  <button class="btn" id="maxhold-btn">Max hold</button>
-  <button class="btn" id="reset-btn">Reset</button>
-  <span style="color:var(--muted);font-size:11px" id="mode-label">playback</span>
-</div>
 
 <div class="canvas-wrap">
   <canvas id="spectrum"></canvas>
@@ -185,45 +150,16 @@
     </a>
     — NCO + Kaiser window + FFTW
   </span>
-  <span id="frame-label"></span>
-  <span class="badge">no server · no JS DSP · pure C output</span>
+<span class="badge">no server · no JS DSP · pure C output</span>
 </footer>
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────
-let frames      = [];    // tone demo frames (frames.json)
-let chirpFrames = [];    // chirp sweep frames (chirp_frames.json)
-let chirpMaxHold = null; // pre-computed max-hold across all chirp frames
+let frames   = [];
+let frameIdx = 0;
 
-let frameIdx      = 0;
-let chirpFrameIdx = 0;
-let chirpEnabled  = false;
-
-// Max-hold (user-toggled, live accumulation during playback)
-let maxHoldEnabled = false;
-let maxHold        = null;
-
-// Load both datasets in parallel, start loop when tone frames are ready
-Promise.all([
-  fetch("frames.json").then(r => r.json()),
-  fetch("chirp_frames.json").then(r => r.json()).catch(() => null),
-]).then(([toneData, chirpData]) => {
-  frames = toneData;
-  if (chirpData) {
-    chirpFrames = chirpData;
-    // Pre-compute max-hold across all chirp frames
-    const N = chirpFrames[0].db.length;
-    chirpMaxHold = new Float32Array(N).fill(-Infinity);
-    for (const f of chirpFrames) {
-      for (let i = 0; i < N; i++) {
-        if (f.db[i] > chirpMaxHold[i]) chirpMaxHold[i] = f.db[i];
-      }
-    }
-  } else {
-    // chirp_frames.json not yet recorded — hide button
-    const btn = document.getElementById("chirp-btn");
-    if (btn) btn.style.display = "none";
-  }
+fetch("frames.json").then(r => r.json()).then(data => {
+  frames = data;
   updatePills(frames[0]);
   startLoop();
 }).catch(err => console.error("Failed to load frames:", err));
@@ -425,36 +361,12 @@ function updatePills(f) {
 function tick() {
   if (!frames.length) return;
 
-  let f;
-  if (chirpEnabled && chirpFrames.length) {
-    f = chirpFrames[chirpFrameIdx];
-    chirpFrameIdx = (chirpFrameIdx + 1) % chirpFrames.length;
-    document.getElementById("frame-label").textContent =
-      `chirp frame ${chirpFrameIdx + 1} / ${chirpFrames.length}`;
-  } else {
-    f = frames[frameIdx];
-    frameIdx = (frameIdx + 1) % frames.length;
-    document.getElementById("frame-label").textContent =
-      `frame ${frameIdx + 1} / ${frames.length}`;
-  }
+  const f = frames[frameIdx];
+  frameIdx = (frameIdx + 1) % frames.length;
 
   const { db, fs_out: fsOut, center_freq: centerFreq } = f;
 
-  // Live max-hold accumulation (user-toggled)
-  if (maxHoldEnabled) {
-    if (!maxHold || maxHold.length !== db.length) {
-      maxHold = new Float32Array(db);
-    } else {
-      for (let i = 0; i < db.length; i++) {
-        if (db[i] > maxHold[i]) maxHold[i] = db[i];
-      }
-    }
-  }
-
-  // In chirp mode, always show the pre-computed full-sweep max-hold
-  const holdTrace = chirpEnabled ? chirpMaxHold : maxHold;
-
-  drawSpectrum(db, fsOut, centerFreq, holdTrace);
+  drawSpectrum(db, fsOut, centerFreq, null);
   drawWaterfall(db);
 
   fpsCnt++;
@@ -471,26 +383,6 @@ function startLoop() {
   setInterval(tick, 1000 / 30);
 }
 
-// ── Buttons ───────────────────────────────────────────────────────────────
-document.getElementById("chirp-btn").addEventListener("click", function() {
-  chirpEnabled = !chirpEnabled;
-  this.classList.toggle("active", chirpEnabled);
-  document.getElementById("mode-label").textContent =
-    chirpEnabled ? "chirp" : "playback";
-  // Clear waterfall and max-hold when switching modes
-  wfImageData = null;
-  maxHold = null;
-});
-
-document.getElementById("maxhold-btn").addEventListener("click", function() {
-  maxHoldEnabled = !maxHoldEnabled;
-  this.classList.toggle("active", maxHoldEnabled);
-  if (!maxHoldEnabled) maxHold = null;
-});
-
-document.getElementById("reset-btn").addEventListener("click", function() {
-  maxHold = null;
-});
 </script>
 </body>
 </html>

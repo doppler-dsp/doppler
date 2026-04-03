@@ -68,7 +68,7 @@ class SpecanEngine:
         """Build or rebuild the DDC chain for a given input rate."""
         from doppler.ddc import Ddc  # noqa: PLC0415
         from doppler.fft import setup  # noqa: PLC0415
-        from doppler.window import kaiser_enbw, kaiser_window  # noqa: PLC0415
+        from doppler.window import kaiser_beta_for_enbw, kaiser_enbw, kaiser_window  # noqa: PLC0415
 
         cfg = self._cfg
         self._fs_in = fs_in
@@ -92,8 +92,13 @@ class SpecanEngine:
         self._ddc = Ddc(norm_freq, self._block_size, rate)
         self._ddc.__enter__()
 
-        # Kaiser window
-        w = kaiser_window(n, cfg.beta)
+        # Kaiser window — beta is the little RBW knob, N the big knob.
+        # target_enbw_bins = rbw / bin_width is always in [1.0, 2.0)
+        # because N is the smallest power-of-two >= fs_out / rbw.
+        bin_width = fs_out / n
+        target_enbw_bins = rbw / bin_width
+        beta = kaiser_beta_for_enbw(target_enbw_bins, n)
+        w = kaiser_window(n, beta)
         self._enbw_bins = kaiser_enbw(w)
         # Normalise so window power = 1 (preserves dBm calibration)
         self._window = w.astype(np.float64) / float(w.sum())

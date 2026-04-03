@@ -26,13 +26,14 @@
  * Designed with:
  *   kaiser_prototype(atten=60.0, passband=0.4, stopband=0.6) → fit_dpmfs(M=3)
  *
- * Frequencies normalised to the OUTPUT sample rate (fs_out/2 = 1):
- *   passband  ≤ 0.4 × (fs_out/2)   →  0.4 × rate/2 × fs_in  (input units)
- *   stopband  ≥ 0.6 × (fs_out/2)   →  0.6 × rate/2 × fs_in  (input units)
+ * Frequencies normalised to the OUTPUT sample rate (1.0 = fs_out):
+ *   passband  ≤ 0.4 × fs_out   →  0.4 × rate × fs_in  (input units)
+ *   stopband  ≥ 0.6 × fs_out   →  0.6 × rate × fs_in  (input units)
  *   rejection ≥ 60 dB
  *
- * The cutoffs scale with rate, so the same bank is valid for any
- * decimation factor.  Fit residual rms ≈ 8×10⁻⁵.
+ * Alias of stopband edge: 1.0 − 0.6 = 0.4 × fs_out = passband edge.
+ * Cutoffs scale with rate; same bank is valid for any decimation factor.
+ * Fit residual rms ≈ 8×10⁻⁵.
  *
  * Arrays are stored row-major [m * N + k] as required by
  * dp_resamp_dpmfs_create.

@@ -522,12 +522,12 @@ test_nout (void)
  *
  * Test 13 — filter rejection: out-of-band tone is attenuated ≥ 40 dB
  *
- * Same DDC.  Input tone at +0.2 maps to +0.15 (input-normalised) after
- * NCO shift.  The filter stopband begins at 0.6 × Nyquist_out, which
- * in input-rate units is 0.6 × rate/2 = 0.6 × 0.125 = 0.075.  So 0.15
- * is 2× past the stopband edge → ≥ 60 dB rejection expected.
- * The aliased frequency in the output is 0.15/0.25 − 1 = −0.4 × fs_out
- * = 0.4 × fs_out.  We check power near that bin is < −40 dBFS.
+ * Same DDC (rate=0.25, NCO=−0.05).  Stopband begins at 0.6 × fs_out
+ * = 0.6 × 0.25 × fs_in = 0.15 × fs_in (input-normalised).
+ * Input tone at +0.25 maps to +0.20 after NCO shift.  That is
+ * 0.20 / 0.25 = 0.80 × fs_out, well into the stopband (≥ 60 dB).
+ * The aliased output frequency is 1.0 − 0.80 = 0.20 × fs_out.
+ * We check power near that bin is < −50 dBFS.
  * ========================================================================= */
 
 static void
@@ -573,10 +573,11 @@ test_filter_passband_and_rejection (void)
     dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
     size_t total = 0;
 
-    /* +0.2 → +0.15 (input-norm) after NCO.
-     * Stopband ≥ 0.6 × Nyquist_out = 0.6 × rate/2 = 0.075 (input-norm).
-     * 0.15 is 2× past the stopband edge → ≥ 60 dB rejection expected. */
-    make_tone (in, N_IN, 0.2f);
+    /* +0.25 → +0.20 (input-norm) after NCO.
+     * Stopband edge: 0.6 × fs_out = 0.6 × 0.25 × fs_in = 0.15 (input-norm).
+     * 0.20 = 0.80 × fs_out — well inside stopband → ≥ 60 dB rejection.
+     * Alias in output: 1.0 − 0.80 = 0.20 × fs_out. */
+    make_tone (in, N_IN, 0.25f);
     for (int b = 0; b < BLOCKS; b++)
       {
         dp_ddc_execute (ddc, in, N_IN, out + total, mo);
@@ -585,11 +586,10 @@ test_filter_passband_and_rejection (void)
     dp_ddc_destroy (ddc);
 
     size_t skip = total / BLOCKS;
-    /* Aliased to 0.4 in output-rate units; scan full spectrum */
-    double db_max = peak_near (out + skip, total - skip, 0.4, 0.1);
+    double db_max = peak_near (out + skip, total - skip, 0.2, 0.05);
     fprintf (stderr, "    stopband: aliased peak = %.1f dB\n", db_max);
-    CHECK (db_max < -40.0,
-           "stopband tone rejected ≥ 40 dB after NCO shift + decimation");
+    CHECK (db_max < -50.0,
+           "stopband tone rejected ≥ 50 dB after NCO shift + decimation");
     free (out);
   }
 }

@@ -71,7 +71,7 @@ make_tone (dp_cf32_t *out, size_t n, float f_n)
 }
 
 /* =========================================================================
- * Test 1 — create / destroy
+ * Test 1 — create / destroy (default coefficients)
  * ========================================================================= */
 
 static void
@@ -79,18 +79,43 @@ test_create_destroy (void)
 {
   printf ("--- create / destroy\n");
 
-  dp_ddc_t *ddc = dp_ddc_create (0.0f, NULL);
-  CHECK (ddc != NULL, "dp_ddc_create returns non-NULL");
+  /* Default: rate=1.0 → no resampler (bypass) */
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, 256, 1.0);
+  CHECK (ddc != NULL, "dp_ddc_create (rate=1.0) returns non-NULL");
+  CHECK (dp_ddc_max_out (ddc) == 256, "max_out == num_in when no resampler");
   dp_ddc_destroy (ddc);
   PASS ("dp_ddc_destroy does not crash");
 
   /* NULL destroy is a no-op */
   dp_ddc_destroy (NULL);
   PASS ("dp_ddc_destroy(NULL) is safe");
+
+  /* create_custom with NULL resampler */
+  ddc = dp_ddc_create_custom (0.0f, 128, NULL);
+  CHECK (ddc != NULL, "dp_ddc_create_custom (r=NULL) returns non-NULL");
+  CHECK (dp_ddc_max_out (ddc) == 128, "max_out == num_in with NULL resampler");
+  dp_ddc_destroy (ddc);
 }
 
 /* =========================================================================
- * Test 2 — get_freq round-trips the constructor value
+ * Test 2 — max_out with decimation
+ * ========================================================================= */
+
+static void
+test_max_out (void)
+{
+  printf ("--- max_out\n");
+
+  /* 4× decimation: max_out ≥ ceil(1024 * 0.25) + 4 = 260 */
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, 1024, 0.25);
+  CHECK (ddc != NULL, "dp_ddc_create (rate=0.25) non-NULL");
+  size_t mo = dp_ddc_max_out (ddc);
+  CHECK (mo >= 256 + 4, "max_out accounts for decimation + guard");
+  dp_ddc_destroy (ddc);
+}
+
+/* =========================================================================
+ * Test 3 — get_freq round-trips the constructor value
  * ========================================================================= */
 
 static void
@@ -101,14 +126,14 @@ test_get_freq (void)
   float freqs[] = { 0.0f, 0.25f, -0.25f, 0.49f, -0.49f };
   for (size_t k = 0; k < sizeof freqs / sizeof *freqs; k++)
     {
-      dp_ddc_t *ddc = dp_ddc_create (freqs[k], NULL);
+      dp_ddc_t *ddc = dp_ddc_create (freqs[k], 256, 1.0);
       float got = dp_ddc_get_freq (ddc);
       CHECK (fabsf (got - freqs[k]) < 1e-7f, "get_freq matches create");
       dp_ddc_destroy (ddc);
     }
 
   /* After set_freq */
-  dp_ddc_t *ddc = dp_ddc_create (0.0f, NULL);
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, 256, 1.0);
   dp_ddc_set_freq (ddc, 0.1f);
   CHECK (fabsf (dp_ddc_get_freq (ddc) - 0.1f) < 1e-7f,
          "get_freq reflects set_freq");
@@ -116,24 +141,25 @@ test_get_freq (void)
 }
 
 /* =========================================================================
- * Test 3 — zero-frequency DDC is a passthrough (no resampler)
+ * Test 4 — rate=1.0 is a passthrough (no resampler)
  * ========================================================================= */
 
 static void
 test_passthrough (void)
 {
-  printf ("--- zero-frequency passthrough\n");
+  printf ("--- rate=1.0 passthrough\n");
 
   /* At f_n=0 the NCO emits (1, 0) every sample, so output == input. */
   enum
   {
     N = 256
   };
-  dp_cf32_t in[N], out[N];
+  dp_cf32_t in[N];
   make_tone (in, N, 0.1f); /* arbitrary input */
 
-  dp_ddc_t *ddc = dp_ddc_create (0.0f, NULL);
-  size_t n = dp_ddc_execute (ddc, in, N, out, N);
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 1.0);
+  dp_cf32_t out[N];
+  size_t n = dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
   dp_ddc_destroy (ddc);
 
   CHECK (n == N, "output count == input count");
@@ -149,7 +175,7 @@ test_passthrough (void)
 }
 
 /* =========================================================================
- * Test 4 — frequency translation: tone at +f_n mixed to DC
+ * Test 5 — frequency translation: tone at +f_n mixed to DC
  *
  * Input: complex tone at normalised frequency +f_n
  * DDC:   norm_freq = -f_n  (translate +f_n → DC)
@@ -174,8 +200,8 @@ test_frequency_translation (void)
       float f_n = test_freqs[k];
       make_tone (in, N, f_n);
 
-      dp_ddc_t *ddc = dp_ddc_create (-f_n, NULL);
-      size_t n = dp_ddc_execute (ddc, in, N, out, N);
+      dp_ddc_t *ddc = dp_ddc_create (-f_n, N, 1.0);
+      size_t n = dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
       dp_ddc_destroy (ddc);
 
       CHECK (n == N, "output count == input count (translation)");
@@ -196,7 +222,7 @@ test_frequency_translation (void)
 }
 
 /* =========================================================================
- * Test 5 — set_freq retunes NCO seamlessly
+ * Test 6 — set_freq retunes NCO seamlessly
  * ========================================================================= */
 
 static void
@@ -212,8 +238,8 @@ test_retune (void)
 
   /* Start at -0.25 to cancel a +0.25 tone */
   make_tone (in, N, 0.25f);
-  dp_ddc_t *ddc = dp_ddc_create (-0.25f, NULL);
-  dp_ddc_execute (ddc, in, N, out, N);
+  dp_ddc_t *ddc = dp_ddc_create (-0.25f, N, 1.0);
+  dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
 
   int ok1 = 1;
   dp_cf32_t dc = { 1.0f, 0.0f };
@@ -231,7 +257,7 @@ test_retune (void)
          "set_freq reflected in get_freq");
 
   make_tone (in, N, 0.1f);
-  dp_ddc_execute (ddc, in, N, out, N);
+  dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
   dp_ddc_destroy (ddc);
 
   int ok2 = 1;
@@ -245,7 +271,7 @@ test_retune (void)
 }
 
 /* =========================================================================
- * Test 6 — reset clears NCO phase
+ * Test 7 — reset clears NCO phase
  * ========================================================================= */
 
 static void
@@ -261,15 +287,15 @@ test_reset (void)
   make_tone (in, N, 0.25f);
 
   /* First run */
-  dp_ddc_t *ddc = dp_ddc_create (-0.25f, NULL);
-  dp_ddc_execute (ddc, in, N, out1, N);
+  dp_ddc_t *ddc = dp_ddc_create (-0.25f, N, 1.0);
+  dp_ddc_execute (ddc, in, N, out1, dp_ddc_max_out (ddc));
 
   /* Advance phase by processing N more samples, then reset */
-  dp_ddc_execute (ddc, in, N, out2, N);
+  dp_ddc_execute (ddc, in, N, out2, dp_ddc_max_out (ddc));
   dp_ddc_reset (ddc);
 
   /* After reset, output should match the first run */
-  dp_ddc_execute (ddc, in, N, out2, N);
+  dp_ddc_execute (ddc, in, N, out2, dp_ddc_max_out (ddc));
   dp_ddc_destroy (ddc);
 
   int ok = 1;
@@ -283,7 +309,7 @@ test_reset (void)
 }
 
 /* =========================================================================
- * Test 7 — max_out clips output when smaller than num_in
+ * Test 8 — max_out clips output
  * ========================================================================= */
 
 static void
@@ -299,7 +325,7 @@ test_max_out_clip (void)
   dp_cf32_t in[N], out[CAP];
   make_tone (in, N, 0.0f);
 
-  dp_ddc_t *ddc = dp_ddc_create (0.0f, NULL);
+  dp_ddc_t *ddc = dp_ddc_create_custom (0.0f, N, NULL);
   size_t n = dp_ddc_execute (ddc, in, N, out, CAP);
   dp_ddc_destroy (ddc);
 
@@ -307,7 +333,7 @@ test_max_out_clip (void)
 }
 
 /* =========================================================================
- * Test 8 — zero num_in returns 0 without crashing
+ * Test 9 — zero num_in returns 0 without crashing
  * ========================================================================= */
 
 static void
@@ -316,11 +342,44 @@ test_empty_block (void)
   printf ("--- empty block\n");
 
   dp_cf32_t out[4];
-  dp_ddc_t *ddc = dp_ddc_create (0.1f, NULL);
+  dp_ddc_t *ddc = dp_ddc_create (0.1f, 64, 1.0);
   size_t n = dp_ddc_execute (ddc, NULL, 0, out, 4);
   dp_ddc_destroy (ddc);
 
   CHECK (n == 0, "empty block returns 0");
+}
+
+/* =========================================================================
+ * Test 10 — default coefficients produce output with decimation
+ * ========================================================================= */
+
+static void
+test_default_decimation (void)
+{
+  printf ("--- default coefficients decimation\n");
+
+  /* 4× decimation: 1024 in → ~256 out */
+  enum
+  {
+    N = 1024
+  };
+  dp_cf32_t in[N];
+  make_tone (in, N, 0.0f); /* DC input (all 1+0j) */
+
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 0.25);
+  CHECK (ddc != NULL, "create with 4× decimation succeeds");
+
+  size_t mo = dp_ddc_max_out (ddc);
+  dp_cf32_t *out = malloc (mo * sizeof *out);
+  size_t n = dp_ddc_execute (ddc, in, N, out, mo);
+  dp_ddc_destroy (ddc);
+
+  /* After transient (N taps), output should be near (1, 0) */
+  int ok = n > 0;
+  CHECK (ok, "decimated output count > 0");
+  CHECK (n <= mo, "decimated output count ≤ max_out");
+
+  free (out);
 }
 
 /* =========================================================================
@@ -333,6 +392,7 @@ main (void)
   printf ("=== DDC unit tests ===\n");
 
   test_create_destroy ();
+  test_max_out ();
   test_get_freq ();
   test_passthrough ();
   test_frequency_translation ();
@@ -340,6 +400,7 @@ main (void)
   test_reset ();
   test_max_out_clip ();
   test_empty_block ();
+  test_default_decimation ();
 
   printf ("\n%d passed, %d failed\n", passed, failed);
   return failed ? 1 : 0;

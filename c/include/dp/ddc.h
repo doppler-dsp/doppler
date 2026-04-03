@@ -18,14 +18,24 @@
  * To translate a signal at offset Δf from DC to baseband, set the NCO
  * normalised frequency to −Δf / fs_in.
  *
- * ### Ownership
+ * ### Fixed block size
  *
- * `dp_ddc_create` takes **ownership** of the resampler @p r.  The caller
- * must not use or destroy @p r after passing it to `dp_ddc_create`.
- * `dp_ddc_destroy` frees both the DDC state and the owned resampler.
+ * The DDC is initialised for a fixed input block size @p num_in and
+ * pre-allocates all internal buffers at creation time — no heap
+ * allocation occurs during processing.  Call `dp_ddc_max_out()` to
+ * learn how large the output buffer must be per `dp_ddc_execute` call.
  *
- * When @p r is NULL the resampler stage is bypassed; output equals the
- * mixed signal at the input sample rate.
+ * ### Default vs. custom filter coefficients
+ *
+ * `dp_ddc_create` uses a built-in M=3, N=19 Kaiser–DPMFS filter
+ * (passband ≤ 0.4·Nyquist, stopband ≥ 0.6·Nyquist, 60 dB rejection)
+ * that works well for decimation rates from 2× to 100× and matches the
+ * 80%-bandwidth convention used by the doppler spectrum analyser.  No
+ * design step required.
+ *
+ * When you need a specific filter — tighter cutoff, higher order, or a
+ * rate-matched design from `doppler.polyphase.optimize_dpmfs` — use
+ * `dp_ddc_create_custom` and pass a pre-built `dp_resamp_dpmfs_t`.
  *
  * ### Retuning vs. rebuilding
  *
@@ -33,21 +43,30 @@
  *   Cheap — updates the NCO phase increment without touching the
  *   resampler history.
  * - **Zoom** (span / decimation-rate change): destroy and recreate the
- *   DDC with a new resampler designed for the new rate.
+ *   DDC for the new rate.
  *
- * ### Usage
+ * ### Usage — default coefficients
  *
  * ```c
  * #include <dp/ddc.h>
  *
- * // 8× decimating DDC; coefficients from doppler.polyphase.fit_dpmfs
- * dp_resamp_dpmfs_t *r = dp_resamp_dpmfs_create(3, 19, c0, c1, 0.125);
+ * // 4× decimating DDC; shift a signal at +0.1·fs to DC
+ * dp_ddc_t *ddc = dp_ddc_create(-0.1f, 4096, 0.25);
  *
- * // Translate a signal at +0.1·fs to DC, then decimate
- * dp_ddc_t *ddc = dp_ddc_create(-0.1f, r);  // takes ownership of r
+ * dp_cf32_t out[dp_ddc_max_out(ddc)]; // or: malloc(dp_ddc_max_out(ddc))
+ * size_t n = dp_ddc_execute(ddc, in, 4096, out, dp_ddc_max_out(ddc));
  *
- * dp_cf32_t out[512];
- * size_t n = dp_ddc_execute(ddc, in, 4096, out, 512);
+ * dp_ddc_destroy(ddc);
+ * ```
+ *
+ * ### Usage — custom coefficients
+ *
+ * ```c
+ * #include <dp/ddc.h>
+ *
+ * // Coefficients designed with doppler.polyphase.optimize_dpmfs
+ * dp_resamp_dpmfs_t *r = dp_resamp_dpmfs_create(M, N, c0, c1, rate);
+ * dp_ddc_t *ddc = dp_ddc_create_custom(-0.1f, 4096, r);
  *
  * dp_ddc_destroy(ddc);  // also destroys r
  * ```
@@ -69,33 +88,81 @@ extern "C"
   typedef struct dp_ddc dp_ddc_t;
 
   /* ------------------------------------------------------------------
-   * Lifecycle
+   * Lifecycle — default coefficients
    * ------------------------------------------------------------------ */
 
   /**
-   * @brief Create a DDC.
+   * @brief Create a DDC using built-in filter coefficients.
+   *
+   * Uses a built-in M=3, N=19 Kaiser–DPMFS lowpass filter
+   * (passband ≤ 0.4·Nyquist, 60 dB stopband attenuation).  Suitable
+   * for decimation rates 2× – 100× without any coefficient design.
+   *
+   * Passing @p rate = 1.0 (or any value within 1×10⁻⁶ of 1.0) bypasses
+   * the resampler; output equals the mixed signal at the input rate.
    *
    * @param norm_freq  NCO normalised frequency f/fs (cycles per sample).
    *                   Negative values shift a positive-offset signal to
-   *                   DC.  Range [−0.5, 0.5); values outside are folded
-   *                   by unsigned 32-bit wrap-around (same as the NCO).
-   * @param r          DPMFS resampler, or NULL to bypass decimation.
-   *                   The DDC takes ownership; the caller must not touch
-   *                   @p r after this call.
+   *                   DC.  Values outside [−0.5, 0.5) are folded.
+   * @param num_in     Fixed input block size in samples.  All subsequent
+   *                   calls to dp_ddc_execute must pass this exact count.
+   * @param rate       fs_out / fs_in.  Must be > 0.
    * @return           Heap-allocated DDC state, or NULL on failure.
-   *                   On failure, @p r is destroyed so the caller does
-   *                   not leak it.
    */
-  dp_ddc_t *dp_ddc_create (float norm_freq, dp_resamp_dpmfs_t *r);
+  dp_ddc_t *dp_ddc_create (float norm_freq, size_t num_in, double rate);
+
+  /* ------------------------------------------------------------------
+   * Lifecycle — custom resampler
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Create a DDC with a caller-supplied resampler.
+   *
+   * Use when the built-in coefficients are not sufficient — for example,
+   * when a rate-matched design from `doppler.polyphase.optimize_dpmfs`
+   * is required.
+   *
+   * The DDC takes **ownership** of @p r.  The caller must not use or
+   * destroy @p r after this call.  On failure, @p r is destroyed so the
+   * caller does not leak it.
+   *
+   * Passing @p r = NULL creates a DDC without a resampler (passthrough
+   * at the input rate, same as dp_ddc_create with rate = 1.0).
+   *
+   * @param norm_freq  NCO normalised frequency (see dp_ddc_create).
+   * @param num_in     Fixed input block size in samples.
+   * @param r          Pre-built DPMFS resampler, or NULL.
+   * @return           Heap-allocated DDC state, or NULL on failure.
+   */
+  dp_ddc_t *dp_ddc_create_custom (float norm_freq, size_t num_in,
+                                  dp_resamp_dpmfs_t *r);
 
   /**
    * @brief Destroy the DDC and release all resources.
    *
-   * Also destroys the resampler that was passed to dp_ddc_create.
+   * Also destroys the resampler that was passed to dp_ddc_create or
+   * dp_ddc_create_custom.
    *
    * @param ddc  May be NULL (no-op).
    */
   void dp_ddc_destroy (dp_ddc_t *ddc);
+
+  /* ------------------------------------------------------------------
+   * Properties
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Return the maximum output samples per dp_ddc_execute call.
+   *
+   * Allocate at least this many CF32 samples for the @p out buffer
+   * passed to dp_ddc_execute.  The value is fixed at creation time.
+   *
+   * Without a resampler: equals @p num_in.
+   * With a resampler at rate @p r: equals ⌈num_in × r⌉ + 4.
+   *
+   * @param ddc  Must be non-NULL.
+   */
+  size_t dp_ddc_max_out (const dp_ddc_t *ddc);
 
   /* ------------------------------------------------------------------
    * Control
@@ -137,18 +204,23 @@ extern "C"
   /**
    * @brief Mix and resample a block of CF32 IQ samples.
    *
-   * Each input sample is multiplied by the NCO phasor, then the
-   * mixed block is fed through the resampler (if configured) into
-   * @p out.  NCO phase and resampler history are preserved across
-   * calls.
+   * Each input sample is multiplied by the NCO phasor, then the mixed
+   * block is fed through the resampler (if configured) into @p out.
+   * NCO phase and resampler history are preserved across calls.
+   *
+   * @p num_in should equal the value passed to dp_ddc_create /
+   * dp_ddc_create_custom.  Passing a smaller value is safe but wastes
+   * the pre-allocated buffer capacity.
+   *
+   * Pass `dp_ddc_max_out(ddc)` as @p max_out to guarantee all output
+   * samples are captured.
    *
    * @param ddc      Must be non-NULL.
-   * @param in       Input samples, CF32, length @p num_in.
-   * @param num_in   Number of input samples.
-   * @param out      Output buffer, CF32, capacity @p max_out samples.
+   * @param in       Input samples, CF32, length ≥ @p num_in.
+   * @param num_in   Number of input samples to process.
+   * @param out      Output buffer, CF32, capacity ≥ @p max_out.
    * @param max_out  Maximum output samples to write.
-   * @return         Number of output samples written (0 if
-   *                 @p num_in == 0 or memory allocation fails).
+   * @return         Number of output samples written (0 if num_in == 0).
    */
   size_t dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
                          dp_cf32_t *out, size_t max_out);

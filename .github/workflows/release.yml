@@ -130,6 +130,44 @@ jobs:
           path: dist/*.whl
 
   # ------------------------------------------------------------------
+  # Build Python wheels (macOS arm64)
+  #
+  # Uses the same just-buildit backend; delocate-wheel (run via uvx)
+  # bundles dylib deps and stamps the macosx platform tag.
+  # ------------------------------------------------------------------
+  build-macos:
+    name: Build wheels (macOS arm64)
+    needs: verify-version
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install system dependencies
+        run: brew install cmake zeromq fftw pkg-config
+
+      - name: Build wheel (Python ${{ matrix.python }})
+        run: |
+          uv python install ${{ matrix.python }}
+          PYTHON=$(uv python find ${{ matrix.python }})
+          export PATH="$(dirname $PYTHON):$PATH"
+          $PYTHON -m pip install --quiet numpy build just-buildit
+          mkdir -p dist
+          $PYTHON -m build --no-isolation --wheel --outdir dist/
+
+      - name: Upload wheel (Python ${{ matrix.python }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-macos-${{ matrix.python }}
+          path: dist/*.whl
+
+  # ------------------------------------------------------------------
   # Build pure-Python workspace packages + sdist on the host runner
   # ------------------------------------------------------------------
   build-pure:
@@ -158,7 +196,7 @@ jobs:
   # ------------------------------------------------------------------
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, build-python, build-pure]
+    needs: [verify-version, build-python, build-macos, build-pure]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -179,7 +217,7 @@ jobs:
   # ------------------------------------------------------------------
   github-release:
     name: Create GitHub Release
-    needs: [verify-version, build-python, build-pure, publish-python]
+    needs: [verify-version, build-python, build-macos, build-pure, publish-python]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -90,8 +90,10 @@ and this project adheres to
 - **Switched to `just-buildit` PEP 517 backend**: replaces
   `uv_build` + `scripts/retag_wheel.sh`; `just-buildit` calls
   `make just-build`, detects platform from the `.so` suffix, tags
-  the wheel correctly, and runs `uvx auditwheel repair` — all in
-  one `python -m build` invocation
+  the wheel correctly, and runs `uvx auditwheel repair` / `uvx
+  delocate-wheel` — all in one `python -m build` invocation
+- **macOS arm64 wheels**: `macos-14` runner added to the release
+  matrix for Python 3.12 and 3.13
 
 ---
 

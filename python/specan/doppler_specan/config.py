@@ -46,9 +46,6 @@ class SpecanConfig:
         Resolution bandwidth in Hz.  0 means auto (span / 401).
     level : float
         Reference level — top of display — in dBm.
-    beta : float
-        Kaiser window shape parameter.  Controls the RBW/sidelobe
-        trade-off.  Default 6.0 (≈ −69 dB sidelobes, 1.47-bin ENBW).
     web : bool
         Launch the browser-based web UI instead of the terminal display.
     host : str
@@ -68,7 +65,6 @@ class SpecanConfig:
     span: float = 0.0
     rbw: float = 0.0
     level: float = 0.0
-    beta: float = 6.0
     timeout: int = 2000  # socket receive timeout in milliseconds
     web: bool = False
     host: str = "127.0.0.1"
@@ -94,9 +90,14 @@ class SpecanConfig:
         return span / 401.0
 
     def fft_size(self, fs_out: float, rbw: float) -> int:
-        """Return FFT size as the next power of two >= fs_out / rbw."""
+        """Return FFT size (big RBW knob).
+
+        Pick the smallest power of two N >= fs_out / rbw so that the
+        bin width fs_out/N is <= rbw.  The engine then adjusts Kaiser
+        beta (little knob) so that ENBW_bins * bin_width == rbw exactly,
+        with ENBW_bins always in [1.0, 2.0).
+        """
         n = math.ceil(fs_out / rbw)
-        # Round up to next power of two
         if n < 1:
             n = 1
         return 1 << (n - 1).bit_length()
@@ -160,7 +161,6 @@ def load_config(
         span=data.get("span", 0.0),
         rbw=data.get("rbw", 0.0),
         level=data.get("level", 0.0),
-        beta=data.get("beta", 6.0),
         timeout=data.get("timeout", 2000),
         demo=demo,
     )

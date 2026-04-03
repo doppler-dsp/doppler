@@ -85,14 +85,6 @@ def main() -> None:
         metavar="DBM",
         help="Reference level — top of display — in dBm",
     )
-    parser.add_argument(
-        "--beta",
-        type=float,
-        default=None,
-        metavar="BETA",
-        help="Kaiser window β (0=rectangular, 6=spectrum analyser)",
-    )
-
     # Demo source
     parser.add_argument(
         "--tone-freq",
@@ -187,7 +179,6 @@ def main() -> None:
         span=args.span,
         rbw=args.rbw,
         level=args.level,
-        beta=args.beta,
         web=args.web,
         host=args.host,
         port=args.port,

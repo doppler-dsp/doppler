@@ -69,10 +69,14 @@ doppler-dsp = { workspace = true }
 doppler-specan = { workspace = true }
 doppler-cli = { workspace = true }
 
-[tool.uv.build-backend]
-module-root = "python/dsp"
-module-name = "doppler"
+[tool.just-build]
+command = "make just-build"
+exclude = [
+    "doppler/tests/**",
+    "doppler/bench/**",
+    "doppler/examples/**",
+]
 
 [build-system]
-requires = ["uv_build>=0.10.2,<0.11.0"]
-build-backend = "uv_build"
+requires = ["just-buildit"]
+build-backend = "just_build"

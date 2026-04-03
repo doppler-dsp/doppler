@@ -86,10 +86,10 @@ jobs:
   # ------------------------------------------------------------------
   # Build Python wheels
   #
-  # doppler-dsp has C extensions built via cmake.  uv_build (the build
-  # backend) produces a py3-none-any wheel that contains the compiled
-  # .so files; scripts/retag_wheel.sh retags it to cpXYZ-cpXYZ and then
-  # auditwheel bundles shared-lib deps and stamps the manylinux tag.
+  # just-buildit is a minimal PEP 517 backend
+  # that calls `make just-build` (cmake + pyext), assembles the wheel
+  # from output_dir, detects the platform tag from the .so suffix, and
+  # runs `uvx auditwheel repair` to produce a manylinux wheel.
   #
   # Each Python version gets its own docker run so the .so suffix
   # (cpXYZ) matches the interpreter that will load it.
@@ -116,17 +116,11 @@ jobs:
             quay.io/pypa/manylinux_2_28_x86_64 \
             bash -euxc "
               dnf install -y cmake zeromq-devel fftw-devel pkg-config
-              make build
               PYTHON=/opt/python/${{ matrix.python }}-${{ matrix.python }}/bin/python
-              PYBIN=\$(dirname \$PYTHON)
-              \$PYTHON -m pip install --quiet numpy
-              make pyext PYTHON_EXECUTABLE=\$PYTHON
-              \$PYTHON -m pip install --quiet 'uv_build>=0.10.2,<0.11.0' build uv
-              export PATH=\"\$PYBIN:\$PATH\"
-              mkdir -p /tmp/wheel_out dist
-              \$PYTHON -m build --no-isolation --wheel --outdir /tmp/wheel_out
-              bash scripts/retag_wheel.sh \
-                /tmp/wheel_out/doppler_dsp-*.whl dist/
+              export PATH=\"\$(dirname \$PYTHON):\$PATH\"
+              \$PYTHON -m pip install --quiet numpy uv build just-buildit
+              mkdir -p dist
+              \$PYTHON -m build --no-build-isolation --wheel --outdir dist/
             "
 
       - name: Upload wheel (${{ matrix.python }})

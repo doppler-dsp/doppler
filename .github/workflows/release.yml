@@ -156,10 +156,9 @@ jobs:
         run: |
           uv python install ${{ matrix.python }}
           uv venv .venv --python ${{ matrix.python }}
-          source .venv/bin/activate
-          pip install --quiet numpy build just-buildit
+          .venv/bin/pip install --quiet numpy build just-buildit
           mkdir -p dist
-          python -m build --no-isolation --wheel --outdir dist/
+          .venv/bin/python -m build --no-isolation --wheel --outdir dist/
 
       - name: Upload wheel (Python ${{ matrix.python }})
         uses: actions/upload-artifact@v4

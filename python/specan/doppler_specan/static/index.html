@@ -426,6 +426,11 @@ function drawWaterfall(db) {
   const W = wfCanvas.width;
   const H = wfCanvas.height;
   const N = db.length;
+  // Mirror the same padding as drawSpectrum so frequency axes align.
+  const dpr   = window.devicePixelRatio || 1;
+  const PAD_L = Math.round(52 * dpr);
+  const PAD_R = Math.round(8  * dpr);
+  const pw    = W - PAD_L - PAD_R;
 
   // Allocate or reallocate ImageData
   if (!wfImageData || wfImageData.width !== W || wfImageData.height !== H) {
@@ -436,15 +441,24 @@ function drawWaterfall(db) {
   const rowBytes = W * 4;
   wfImageData.data.copyWithin(rowBytes, 0, (H - 1) * rowBytes);
 
-  // Write new top row (resampled from db[] via nearest-neighbor)
+  // Write new top row.  Pixels outside the plot area are black; inside,
+  // map x → bin using the same coordinate system as drawSpectrum:
+  //   spectrum: bin i → PAD_L + (i / (N-1)) * pw
+  //   waterfall: pixel x → bin = round(((x - PAD_L) / pw) * (N-1))
   for (let x = 0; x < W; x++) {
-    const idx = Math.round((x / W) * (N - 1));
-    const [r, g, b] = dbToColor(db[idx]);
     const px = x * 4;
-    wfImageData.data[px]     = r;
-    wfImageData.data[px + 1] = g;
-    wfImageData.data[px + 2] = b;
-    wfImageData.data[px + 3] = 255;
+    if (x < PAD_L || x >= W - PAD_R) {
+      wfImageData.data[px] = wfImageData.data[px + 1] =
+        wfImageData.data[px + 2] = 0;
+      wfImageData.data[px + 3] = 255;
+    } else {
+      const idx = Math.round(((x - PAD_L) / pw) * (N - 1));
+      const [r, g, b] = dbToColor(db[idx]);
+      wfImageData.data[px]     = r;
+      wfImageData.data[px + 1] = g;
+      wfImageData.data[px + 2] = b;
+      wfImageData.data[px + 3] = 255;
+    }
   }
 
   wfCtx.putImageData(wfImageData, 0, 0);

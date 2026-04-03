@@ -42,6 +42,7 @@ CMAKE       := cmake
 #   make pyext PYTHON_EXECUTABLE=/usr/bin/python3.13
 PYTHON_EXECUTABLE ?= $(shell uv run python -c \
     'import sys; print(sys.executable)' 2>/dev/null || which python3)
+PYTHON_EXECUTABLE := $(or $(JUST_BUILD_PYTHON),$(PYTHON_EXECUTABLE))
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 CMAKE_ARGS  ?=
@@ -73,7 +74,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
 endif
 
 .PHONY: all build test rust-test rust-examples install install-test pyext \
-        wheel python-test test-all docs-build docs-serve \
+        wheel just-build python-test test-all docs-build docs-serve \
         specan record-demo \
         docker docker-test \
         debug release blazing gen-pyext bump-version tag-release clean help \
@@ -141,6 +142,14 @@ pyext: build
 wheel: build
 	$(CMAKE) -DBUILD_PYTHON=ON -B $(BUILD_DIR) -S . $(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --target wheel
+
+# ── just-build ────────────────────────────────────────────────────────────────
+# PEP 517 build hook for just-buildit.
+# just-buildit sets JUST_BUILD_OUTPUT_DIR and JUST_BUILD_PYTHON before calling
+# this target. The package tree is copied there for just-buildit to package.
+just-build: pyext
+	mkdir -p $(JUST_BUILD_OUTPUT_DIR)
+	cp -r $(PYEXT_DIR) $(JUST_BUILD_OUTPUT_DIR)/doppler
 
 # ── test-all ──────────────────────────────────────────────────────────────────
 test-all: test python-test rust-test

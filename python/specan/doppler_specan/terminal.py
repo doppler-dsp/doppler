@@ -201,7 +201,7 @@ class TerminalDisplay:
                 if frame is not None:
                     if frame.fft_size != last_fft_size:
                         last_fft_size = frame.fft_size
-                        self._source.set_fft_size(frame.fft_size)
+                        self._source.set_fft_size(frame.data_size)
                         block = max(self._engine.block_size, 4096)
                     with self._lock:
                         self._frame = frame

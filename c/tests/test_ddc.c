@@ -383,6 +383,216 @@ test_default_decimation (void)
 }
 
 /* =========================================================================
+ * Spectral helpers (Blackman-Harris windowed FFT, same as test_resamp_dpmfs)
+ * ========================================================================= */
+
+static void
+fft_inplace (double *re, double *im, size_t n)
+{
+  for (size_t i = 1, j = 0; i < n; i++)
+    {
+      size_t bit = n >> 1;
+      for (; j & bit; bit >>= 1)
+        j ^= bit;
+      j ^= bit;
+      if (i < j)
+        {
+          double tr = re[i];
+          re[i] = re[j];
+          re[j] = tr;
+          double ti = im[i];
+          im[i] = im[j];
+          im[j] = ti;
+        }
+    }
+  for (size_t len = 2; len <= n; len <<= 1)
+    {
+      double ang = -2.0 * M_PI / (double)len;
+      double wR = cos (ang), wI = sin (ang);
+      for (size_t i = 0; i < n; i += len)
+        {
+          double curR = 1.0, curI = 0.0;
+          for (size_t j = 0; j < len / 2; j++)
+            {
+              size_t u = i + j, v = i + j + len / 2;
+              double tR = re[v] * curR - im[v] * curI;
+              double tI = re[v] * curI + im[v] * curR;
+              re[v] = re[u] - tR;
+              im[v] = im[u] - tI;
+              re[u] += tR;
+              im[u] += tI;
+              double nR = curR * wR - curI * wI;
+              curI = curR * wI + curI * wR;
+              curR = nR;
+            }
+        }
+    }
+}
+
+/* Return peak dB (relative to full-scale unit tone) near target_freq.
+ * Frequencies are normalised to the output sample rate: 0 = DC, 0.5 = Nyquist.
+ * tol is the half-width of the search window around target_freq. */
+static double
+peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
+{
+  size_t nfft = 1;
+  while (nfft < 4 * n)
+    nfft <<= 1;
+
+  double *re = calloc (nfft, sizeof *re);
+  double *im = calloc (nfft, sizeof *im);
+
+  /* Blackman-Harris window */
+  double a[4] = { 0.35875, 0.48829, 0.14128, 0.01168 };
+  double cg = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      double k = 2.0 * M_PI * (double)i / (double)n;
+      double w
+          = a[0] - a[1] * cos (k) + a[2] * cos (2 * k) - a[3] * cos (3 * k);
+      cg += w;
+      re[i] = (double)sig[i].i * w;
+      im[i] = (double)sig[i].q * w;
+    }
+  cg /= (double)n;
+
+  fft_inplace (re, im, nfft);
+
+  double peak_db = -300.0;
+  for (size_t i = 0; i < nfft; i++)
+    {
+      double freq = (double)i / (double)nfft;
+      if (freq > 0.5)
+        freq -= 1.0;
+      if (fabs (freq - target_freq) < tol)
+        {
+          double mag = sqrt (re[i] * re[i] + im[i] * im[i]);
+          double db = 20.0 * log10 (mag / ((double)n * cg) + 1e-300);
+          if (db > peak_db)
+            peak_db = db;
+        }
+    }
+
+  free (re);
+  free (im);
+  return peak_db;
+}
+
+/* =========================================================================
+ * Test 11 — nout matches execute return value; varies ≤ max_out
+ * ========================================================================= */
+
+static void
+test_nout (void)
+{
+  printf ("--- nout accessor\n");
+
+  enum
+  {
+    N = 1024
+  };
+  dp_cf32_t in[N];
+  make_tone (in, N, 0.0f);
+
+  dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 0.25);
+  size_t mo = dp_ddc_max_out (ddc);
+  dp_cf32_t *out = malloc (mo * sizeof *out);
+
+  /* nout is 0 before any execute */
+  CHECK (dp_ddc_nout (ddc) == 0, "nout is 0 before first execute");
+
+  size_t n1 = dp_ddc_execute (ddc, in, N, out, mo);
+  CHECK (dp_ddc_nout (ddc) == n1, "nout matches return value (block 1)");
+  CHECK (n1 <= mo, "nout ≤ max_out (block 1)");
+
+  size_t n2 = dp_ddc_execute (ddc, in, N, out, mo);
+  CHECK (dp_ddc_nout (ddc) == n2, "nout matches return value (block 2)");
+  CHECK (n2 <= mo, "nout ≤ max_out (block 2)");
+
+  dp_ddc_destroy (ddc);
+  free (out);
+}
+
+/* =========================================================================
+ * Test 12 — filter passband: shifted tone survives decimation
+ *
+ * DDC rate=0.25, NCO=-0.05 → input tone at +0.05 maps to DC.
+ * DC is well within the filter passband (≤ 0.4 × Nyquist_out).
+ * After settling, peak at DC in the output should be > −3 dB.
+ *
+ * Test 13 — filter rejection: out-of-band tone is attenuated ≥ 40 dB
+ *
+ * Same DDC.  Input tone at +0.2 maps to +0.15 (normalised to input fs)
+ * after NCO shift.  The filter stopband starts at 0.075 × fs_in, so
+ * 0.15 is 2× past the stopband edge → ≥ 60 dB rejection expected.
+ * The aliased frequency in the output is 0.15/0.25 − 1 = −0.4 × fs_out
+ * = 0.4 × fs_out.  We check that power at all output frequencies is
+ * very low (< −40 dBFS).
+ * ========================================================================= */
+
+static void
+test_filter_passband_and_rejection (void)
+{
+  printf ("--- filter passband and rejection\n");
+
+  /* Run several blocks to fill the filter pipeline */
+  enum
+  {
+    BLOCKS = 8,
+    N_IN = 1024
+  };
+  dp_cf32_t in[N_IN];
+
+  /* ---- passband ---- */
+  {
+    dp_ddc_t *ddc = dp_ddc_create (-0.05f, N_IN, 0.25);
+    size_t mo = dp_ddc_max_out (ddc);
+    dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
+    size_t total = 0;
+
+    make_tone (in, N_IN, 0.05f); /* +0.05 → DC after NCO */
+    for (int b = 0; b < BLOCKS; b++)
+      {
+        dp_ddc_execute (ddc, in, N_IN, out + total, mo);
+        total += dp_ddc_nout (ddc);
+      }
+    dp_ddc_destroy (ddc);
+
+    /* Skip the first block of output (filter warm-up) */
+    size_t skip = total / BLOCKS;
+    double db_dc = peak_near (out + skip, total - skip, 0.0, 0.02);
+    fprintf (stderr, "    passband: DC peak = %.1f dB\n", db_dc);
+    CHECK (db_dc > -3.0, "passband tone at DC survives decimation (> −3 dB)");
+    free (out);
+  }
+
+  /* ---- stopband ---- */
+  {
+    dp_ddc_t *ddc = dp_ddc_create (-0.05f, N_IN, 0.25);
+    size_t mo = dp_ddc_max_out (ddc);
+    dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
+    size_t total = 0;
+
+    /* +0.2 → +0.15 after NCO.  Stopband starts at 0.075 × fs_in. */
+    make_tone (in, N_IN, 0.2f);
+    for (int b = 0; b < BLOCKS; b++)
+      {
+        dp_ddc_execute (ddc, in, N_IN, out + total, mo);
+        total += dp_ddc_nout (ddc);
+      }
+    dp_ddc_destroy (ddc);
+
+    size_t skip = total / BLOCKS;
+    /* Aliased to 0.4 in output-rate units; scan full spectrum */
+    double db_max = peak_near (out + skip, total - skip, 0.4, 0.1);
+    fprintf (stderr, "    stopband: aliased peak = %.1f dB\n", db_max);
+    CHECK (db_max < -40.0,
+           "stopband tone rejected ≥ 40 dB after NCO shift + decimation");
+    free (out);
+  }
+}
+
+/* =========================================================================
  * main
  * ========================================================================= */
 
@@ -401,6 +611,8 @@ main (void)
   test_max_out_clip ();
   test_empty_block ();
   test_default_decimation ();
+  test_nout ();
+  test_filter_passband_and_rejection ();
 
   printf ("\n%d passed, %d failed\n", passed, failed);
   return failed ? 1 : 0;

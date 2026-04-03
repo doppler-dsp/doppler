@@ -164,6 +164,20 @@ extern "C"
    */
   size_t dp_ddc_max_out (const dp_ddc_t *ddc);
 
+  /**
+   * @brief Return the actual output sample count from the last
+   *        dp_ddc_execute call.
+   *
+   * Equals the value returned by dp_ddc_execute.  With a resampler this
+   * can vary by ±1 from call to call (phase accumulator rounding); it is
+   * always ≤ dp_ddc_max_out().
+   *
+   * Zero before the first dp_ddc_execute call.
+   *
+   * @param ddc  Must be non-NULL.
+   */
+  size_t dp_ddc_nout (const dp_ddc_t *ddc);
+
   /* ------------------------------------------------------------------
    * Control
    * ------------------------------------------------------------------ */

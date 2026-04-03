@@ -26,9 +26,13 @@
  * Designed with:
  *   kaiser_prototype(atten=60.0, passband=0.4, stopband=0.6) → fit_dpmfs(M=3)
  *
- * Passband  ≤ 0.4 × Nyquist  →  suitable for 2× – 100× decimation
- * Stopband  ≥ 0.6 × Nyquist,  60 dB rejection
- * Fit residual rms ≈ 8×10⁻⁵
+ * Frequencies normalised to the OUTPUT sample rate (fs_out/2 = 1):
+ *   passband  ≤ 0.4 × (fs_out/2)   →  0.4 × rate/2 × fs_in  (input units)
+ *   stopband  ≥ 0.6 × (fs_out/2)   →  0.6 × rate/2 × fs_in  (input units)
+ *   rejection ≥ 60 dB
+ *
+ * The cutoffs scale with rate, so the same bank is valid for any
+ * decimation factor.  Fit residual rms ≈ 8×10⁻⁵.
  *
  * Arrays are stored row-major [m * N + k] as required by
  * dp_resamp_dpmfs_create.

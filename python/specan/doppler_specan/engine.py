@@ -4,8 +4,7 @@ doppler_specan.engine — DDC processing engine.
 The engine owns the complete signal chain:
 
     IQ in (cf32, Fs_in)
-      → NCO mix to DC  (dp_nco)
-      → Resample to Fs_out  (dp_resamp_dpmfs)
+      → DDC: NCO mix to DC + DPMFS resample to Fs_out  (dp_ddc)
       → Kaiser window
       → FFT  (dp_fft)
       → Magnitude → dBm
@@ -52,8 +51,7 @@ class SpecanEngine:
 
     def __init__(self, cfg) -> None:
         self._cfg = cfg
-        self._resampler = None
-        self._nco = None
+        self._ddc = None
         self._window: Optional[np.ndarray] = None
         self._fft_size: int = 0
         self._fs_out: float = 0.0
@@ -68,6 +66,10 @@ class SpecanEngine:
 
     def _init_chain(self, fs_in: float, center_freq: float) -> None:
         """Build or rebuild the DDC chain for a given input rate."""
+        from doppler.ddc import Ddc  # noqa: PLC0415
+        from doppler.fft import setup  # noqa: PLC0415
+        from doppler.window import kaiser_enbw, kaiser_window  # noqa: PLC0415
+
         cfg = self._cfg
         self._fs_in = fs_in
         self._center_freq = center_freq
@@ -82,56 +84,22 @@ class SpecanEngine:
         self._fft_size = n
         self._block_size = max(n * 4, 4096)
 
-        # Resampler: output rate = fs_out, input rate = fs_in
-        # Bypass at rate ≈ 1.0 — DPMFS has a degenerate case exactly at 1.0
+        # DDC: mix (center - source_center) to DC, then resample to fs_out
         rate = fs_out / fs_in
-        self._resample_bypass = abs(rate - 1.0) < 0.005
-        if not self._resample_bypass:
-            self._init_resampler(rate)
+        norm_freq = (cfg.center - center_freq) / fs_in
+        if self._ddc is not None:
+            self._ddc.__exit__(None, None, None)
+        self._ddc = Ddc(norm_freq, self._block_size, rate)
+        self._ddc.__enter__()
 
         # Kaiser window
-        from doppler.window import kaiser_enbw, kaiser_window  # noqa: PLC0415
-
         w = kaiser_window(n, cfg.beta)
         self._enbw_bins = kaiser_enbw(w)
         # Normalise so window power = 1 (preserves dBm calibration)
         self._window = w.astype(np.float64) / float(w.sum())
 
         # FFT plan
-        from doppler.fft import setup  # noqa: PLC0415
-
         setup((n,))
-
-        # NCO: mix (center - source_center) to DC
-        self._init_nco(cfg.center, center_freq, fs_in)
-
-    def _init_resampler(self, rate: float) -> None:
-        """Create or reconfigure the DPMFS resampler."""
-        from doppler.polyphase import fit_dpmfs, kaiser_prototype  # noqa: PLC0415
-        from doppler.resample import ResamplerDpmfs  # noqa: PLC0415
-
-        if self._resampler is not None:
-            self._resampler.__exit__(None, None, None)
-
-        # Design filter once and cache — kaiser_prototype is expensive
-        if not hasattr(self, "_dpmfs_coeffs"):
-            _, bank = kaiser_prototype()
-            self._dpmfs_coeffs = fit_dpmfs(bank)
-
-        self._resampler = ResamplerDpmfs(self._dpmfs_coeffs, rate)
-        self._resampler.__enter__()
-
-    def _init_nco(self, center: float, source_center: float, fs_in: float) -> None:
-        """Create or retune the mixing NCO."""
-        from doppler import Nco  # noqa: PLC0415
-
-        if self._nco is not None:
-            self._nco.__exit__(None, None, None)
-
-        # Normalised frequency of offset to mix to DC
-        fn = (center - source_center) / fs_in % 1.0
-        self._nco = Nco(fn)
-        self._nco.__enter__()
 
     # ------------------------------------------------------------------
     # Processing
@@ -165,14 +133,8 @@ class SpecanEngine:
         if not hasattr(self, "_pending"):
             self._pending = np.empty(0, dtype=np.complex64)
 
-        # Mix to DC via NCO
-        mixed = iq.astype(np.complex64) * self._nco.execute_cf32(len(iq))
-
-        # Resample to fs_out (bypass at rate ≈ 1.0)
-        if self._resample_bypass:
-            resampled = mixed
-        else:
-            resampled = self._resampler.execute(mixed)
+        # Mix to DC and resample to fs_out via DDC
+        resampled = self._ddc.execute(iq.astype(np.complex64))
 
         # Accumulate until we have a full FFT frame
         self._pending = np.concatenate([self._pending, resampled])
@@ -223,8 +185,9 @@ class SpecanEngine:
     def retune(self, center: float) -> None:
         """Shift the display center frequency."""
         self._cfg.center = center
-        if self._fs_in > 0:
-            self._init_nco(center, self._center_freq, self._fs_in)
+        if self._fs_in > 0 and self._ddc is not None:
+            norm_freq = (center - self._center_freq) / self._fs_in
+            self._ddc.set_freq(norm_freq)
 
     def zoom(self, span: float) -> None:
         """Change the display span (triggers full chain rebuild)."""
@@ -236,12 +199,9 @@ class SpecanEngine:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        if self._resampler is not None:
-            self._resampler.__exit__(None, None, None)
-            self._resampler = None
-        if self._nco is not None:
-            self._nco.__exit__(None, None, None)
-            self._nco = None
+        if self._ddc is not None:
+            self._ddc.__exit__(None, None, None)
+            self._ddc = None
 
     @property
     def block_size(self) -> int:

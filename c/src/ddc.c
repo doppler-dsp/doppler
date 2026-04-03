@@ -102,10 +102,11 @@ static const float s_c1[(DDC_DEF_M + 1) * DDC_DEF_N] = {
 struct dp_ddc
 {
   dp_nco_t *nco;
-  dp_resamp_dpmfs_t *resampler; /* NULL → bypass */
-  dp_cf32_t *mix_buf;           /* pre-allocated; size == num_in */
-  size_t num_in;                /* fixed input block size         */
-  size_t max_out;               /* guaranteed output capacity     */
+  dp_resamp_dpmfs_t *resampler; /* NULL → bypass                  */
+  dp_cf32_t *mix_buf;           /* pre-allocated; size == num_in  */
+  size_t num_in;                /* fixed input block size          */
+  size_t max_out;               /* upper bound on output per call  */
+  size_t nout;                  /* actual output count (last exec) */
 };
 
 /* ------------------------------------------------------------------
@@ -197,6 +198,12 @@ dp_ddc_max_out (const dp_ddc_t *ddc)
   return ddc->max_out;
 }
 
+size_t
+dp_ddc_nout (const dp_ddc_t *ddc)
+{
+  return ddc->nout;
+}
+
 /* ------------------------------------------------------------------
  * Control
  * ------------------------------------------------------------------ */
@@ -254,11 +261,16 @@ dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
     }
 
   /* Step 3: resample or pass through */
+  size_t n;
   if (ddc->resampler)
-    return dp_resamp_dpmfs_execute (ddc->resampler, ddc->mix_buf, num_in, out,
-                                    max_out);
+    n = dp_resamp_dpmfs_execute (ddc->resampler, ddc->mix_buf, num_in, out,
+                                 max_out);
+  else
+    {
+      n = num_in < max_out ? num_in : max_out;
+      memcpy (out, ddc->mix_buf, n * sizeof *out);
+    }
 
-  size_t n = num_in < max_out ? num_in : max_out;
-  memcpy (out, ddc->mix_buf, n * sizeof *out);
+  ddc->nout = n;
   return n;
 }

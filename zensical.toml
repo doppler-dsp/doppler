@@ -20,6 +20,7 @@ nav = [
   { "API: FFT"        = "api/python-fft.md"         },
   { "API: Streaming"  = "api/python-streaming.md"   },
   { "API: NCO"        = "api/python-nco.md"         },
+  { "API: DDC"        = "ddc.md"                    },
   { "API: Resample"   = "api/python-resample.md"    },
   { "API: Polyphase"  = "api/python-polyphase.md"   },
   { "API: Data Types" = "api/datatypes.md"          },

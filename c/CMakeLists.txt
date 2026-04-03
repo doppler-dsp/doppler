@@ -253,6 +253,15 @@ target_link_libraries(bench_resamp_c PRIVATE doppler_static m)
 add_executable(bench_resamp_dpmfs_c bench/bench_resamp_dpmfs.c)
 target_link_libraries(bench_resamp_dpmfs_c PRIVATE doppler_static m)
 
+add_executable(bench_ddc_c bench/bench_ddc.c)
+target_link_libraries(bench_ddc_c PRIVATE doppler_static m)
+
+add_executable(bench_ddc_hb_c bench/bench_ddc_hb.c)
+target_link_libraries(bench_ddc_hb_c PRIVATE doppler_static m)
+
+add_executable(bench_ddc_hb2_c bench/bench_ddc_hb2.c)
+target_link_libraries(bench_ddc_hb2_c PRIVATE doppler_static m)
+
 add_executable(bench_hbdecim_c bench/bench_hbdecim.c)
 target_link_libraries(bench_hbdecim_c PRIVATE doppler_static m)
 

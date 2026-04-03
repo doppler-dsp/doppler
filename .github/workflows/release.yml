@@ -120,7 +120,7 @@ jobs:
               export PATH=\"\$(dirname \$PYTHON):\$PATH\"
               \$PYTHON -m pip install --quiet numpy uv build just-buildit
               mkdir -p dist
-              \$PYTHON -m build --no-build-isolation --wheel --outdir dist/
+              \$PYTHON -m build --no-isolation --wheel --outdir dist/
             "
 
       - name: Upload wheel (${{ matrix.python }})

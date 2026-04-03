@@ -32,7 +32,8 @@ class SpectrumFrame:
     """One processed FFT frame ready for display."""
 
     db: list[float]  # dBm values, length fft_size, DC-centred
-    fft_size: int
+    fft_size: int  # zero-padded FFT size (= data_size * zero_pad)
+    data_size: int  # N: Kaiser window / RBW frame size
     fs_out: float  # Hz — output (display) sample rate
     center_freq: float  # Hz — source center frequency
     rbw: float  # Hz — actual RBW = enbw_bins * fs_out / N
@@ -49,11 +50,17 @@ class SpecanEngine:
         Specan configuration (center, span, rbw, beta, level).
     """
 
+    # Zero-padding factor: 2× gives smoother display and enables parabolic
+    # peak interpolation without affecting the RBW (which depends only on
+    # the N data points that the window is applied to).
+    _ZERO_PAD = 2
+
     def __init__(self, cfg) -> None:
         self._cfg = cfg
         self._ddc = None
         self._window: Optional[np.ndarray] = None
-        self._fft_size: int = 0
+        self._data_size: int = 0  # N: Kaiser window / RBW frame size
+        self._fft_size: int = 0  # N * _ZERO_PAD: actual FFT and output size
         self._fs_out: float = 0.0
         self._fs_in: float = 0.0
         self._center_freq: float = 0.0
@@ -81,7 +88,8 @@ class SpecanEngine:
 
         self._fs_out = fs_out
         self._span = span
-        self._fft_size = n
+        self._data_size = n
+        self._fft_size = n * self._ZERO_PAD
         self._block_size = max(n * 4, 4096)
 
         # DDC: mix (center - source_center) to DC, then resample to fs_out
@@ -100,11 +108,13 @@ class SpecanEngine:
         beta = kaiser_beta_for_enbw(target_enbw_bins, n)
         w = kaiser_window(n, beta)
         self._enbw_bins = kaiser_enbw(w)
-        # Normalise so window power = 1 (preserves dBm calibration)
+        # Normalise by sum(w) so coherent gain = 1 (preserves dBm calibration).
+        # Zero padding does not affect this: the zeros contribute nothing to
+        # the sum, and the peak amplitude is unchanged by interpolation.
         self._window = w.astype(np.float64) / float(w.sum())
 
-        # FFT plan
-        setup((n,))
+        # FFT plan for the zero-padded size
+        setup((self._fft_size,))
 
     # ------------------------------------------------------------------
     # Processing
@@ -141,42 +151,47 @@ class SpecanEngine:
         # Mix to DC and resample to fs_out via DDC
         resampled = self._ddc.execute(iq.astype(np.complex64))
 
-        # Accumulate until we have a full FFT frame
+        # Accumulate until we have a full data frame (N points).
+        # Zero-padding to 2N happens inside _compute_spectrum.
         self._pending = np.concatenate([self._pending, resampled])
-        if len(self._pending) < self._fft_size:
+        if len(self._pending) < self._data_size:
             return None
 
-        frame_iq = self._pending[: self._fft_size].copy()
-        self._pending = self._pending[self._fft_size :]
+        frame_iq = self._pending[: self._data_size].copy()
+        self._pending = self._pending[self._data_size :]
 
         return self._compute_spectrum(frame_iq)
 
     def _compute_spectrum(self, iq: np.ndarray) -> SpectrumFrame:
-        """Apply window → FFT → magnitude → dBm."""
+        """Apply window → zero-pad → FFT → magnitude → dBm."""
         from doppler.fft import execute1d  # noqa: PLC0415
 
-        n = self._fft_size
-        # Apply Kaiser window and convert to complex128 for FFTW
-        windowed = iq.astype(np.complex128) * self._window.astype(np.complex128)
-        spectrum = execute1d(windowed)
+        n = self._data_size
+        nfft = self._fft_size  # n * _ZERO_PAD
 
-        # Magnitude in linear → dBm.
-        # Window was pre-normalised by sum(w) so coherent gain = 1:
-        # FFT[k_tone] = A directly.  No /N needed.
+        # Apply Kaiser window; zero-pad to nfft for interpolated spectrum.
+        # Calibration is unaffected: window was normalised by sum(w) over
+        # the N data points, and zeros contribute nothing to the FFT peak.
+        windowed = iq.astype(np.complex128) * self._window
+        padded = np.zeros(nfft, dtype=np.complex128)
+        padded[:n] = windowed
+        spectrum = execute1d(padded)
+
+        # Magnitude → dBm
         mag = np.abs(spectrum)
         mag = np.maximum(mag, 1e-12)  # floor at −240 dBm
-
-        # dBm: 20·log10(mag) + _DBM_OFFSET − level_offset
-        db = (20.0 * np.log10(mag) + _DBM_OFFSET - self._cfg.level).tolist()
+        db = 20.0 * np.log10(mag) + _DBM_OFFSET - self._cfg.level
 
         # FFT-shift so DC is centred
         db = np.fft.fftshift(db).tolist()
 
+        # RBW is defined on the data frame (N points), not the FFT size
         rbw = self._enbw_bins * self._fs_out / n
 
         return SpectrumFrame(
             db=db,
-            fft_size=n,
+            fft_size=nfft,
+            data_size=n,
             fs_out=self._fs_out,
             center_freq=self._center_freq,
             rbw=rbw,

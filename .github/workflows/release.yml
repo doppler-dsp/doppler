@@ -156,7 +156,7 @@ jobs:
         run: |
           uv python install ${{ matrix.python }}
           uv venv .venv --python ${{ matrix.python }}
-          .venv/bin/pip install --quiet numpy build just-buildit
+          uv pip install --python .venv/bin/python numpy build just-buildit
           mkdir -p dist
           .venv/bin/python -m build --no-isolation --wheel --outdir dist/
 

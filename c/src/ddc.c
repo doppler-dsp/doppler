@@ -12,6 +12,7 @@
  */
 
 #include "dp/ddc.h"
+#include "dp/hbdecim.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -278,4 +279,145 @@ dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
 
   ddc->nout = n;
   return n;
+}
+
+/* ==================================================================
+ * Architecture D2 — real-input DDC
+ * ==================================================================
+ *
+ * Signal chain:
+ *   float in  (fs_in)
+ *     → dp_hbdecim_r2cf32   (embedded fs/4 mix, 2:1 decimate)
+ *     → fine dp_ddc_t       (NCO + DPMFS at fs_in/2)
+ *   CF32 out  (fs_out = rate * fs_in)
+ *
+ * The fine DDC is given:
+ *   norm_freq = 2 * input_norm_freq + 0.5   (rescaled to half-rate,
+ *               +0.5 cancels the embedded −fs/4 shift in the halfband)
+ *   rate      = 2 * total_rate              (halfband already ÷2)
+ *
+ * Built-in halfband: 19-tap FIR branch from
+ *   kaiser_prototype(attenuation=60, passband=0.4, stopband=0.6,
+ *                    phases=2)
+ * N=19, fir_on_even=0.  Provides ~60 dB image rejection.
+ * ================================================================== */
+
+#define HB_N 19
+
+/* clang-format off */
+static const float s_hb_fir[HB_N] = {
+    +1.5790532343e-03f, -4.6757734381e-03f, +1.0443178937e-02f,
+    -2.0174624398e-02f, +3.5798925906e-02f, -6.0866370797e-02f,
+    +1.0411340743e-01f, -1.9753780961e-01f, +6.3160091639e-01f,
+    +6.3160091639e-01f, -1.9753780961e-01f, +1.0411340743e-01f,
+    -6.0866370797e-02f, +3.5798925906e-02f, -2.0174624398e-02f,
+    +1.0443178937e-02f, -4.6757734381e-03f, +1.5790532343e-03f,
+    +0.0000000000e+00f,
+};
+/* clang-format on */
+
+struct dp_ddc_real
+{
+  dp_hbdecim_r2cf32_t *hb; /* real→CF32 modified halfband     */
+  dp_ddc_t *fine;          /* CF32 fine NCO + DPMFS           */
+  dp_cf32_t *hb_buf;       /* intermediate buffer             */
+  size_t hb_buf_cap;       /* capacity of hb_buf in samples   */
+  float norm_freq;         /* saved for get_freq / set_freq   */
+};
+
+dp_ddc_real_t *
+dp_ddc_real_create (float norm_freq, size_t num_in, double rate)
+{
+  dp_ddc_real_t *d = calloc (1, sizeof *d);
+  if (!d)
+    return NULL;
+
+  d->norm_freq = norm_freq;
+
+  d->hb = dp_hbdecim_r2cf32_create (HB_N, s_hb_fir);
+  if (!d->hb)
+    goto fail;
+
+  /* Halfband produces at most ceil(num_in/2) + 1 outputs per call */
+  d->hb_buf_cap = (num_in + 1) / 2 + 2;
+  d->hb_buf = malloc (d->hb_buf_cap * sizeof *d->hb_buf);
+  if (!d->hb_buf)
+    goto fail;
+
+  /* Fine DDC: operates at fs_in/2.
+   *   A real carrier at f_c = -norm_freq lands at 2(f_c - 0.25)
+   *   after the halfband (embedded -fs/4 shift + 2:1 decimate).
+   *   To bring it to DC: fine_nco = -2(f_c - 0.25)
+   *                                = 2*norm_freq + 0.5
+   *   rate from half-rate to fs_out: 2 * rate                  */
+  d->fine = dp_ddc_create (2.0f * norm_freq + 0.5f, d->hb_buf_cap, 2.0 * rate);
+  if (!d->fine)
+    goto fail;
+
+  return d;
+
+fail:
+  dp_hbdecim_r2cf32_destroy (d->hb);
+  free (d->hb_buf);
+  dp_ddc_destroy (d->fine);
+  free (d);
+  return NULL;
+}
+
+void
+dp_ddc_real_destroy (dp_ddc_real_t *d)
+{
+  if (!d)
+    return;
+  dp_hbdecim_r2cf32_destroy (d->hb);
+  dp_ddc_destroy (d->fine);
+  free (d->hb_buf);
+  free (d);
+}
+
+size_t
+dp_ddc_real_max_out (const dp_ddc_real_t *d)
+{
+  return dp_ddc_max_out (d->fine);
+}
+
+size_t
+dp_ddc_real_nout (const dp_ddc_real_t *d)
+{
+  return dp_ddc_nout (d->fine);
+}
+
+void
+dp_ddc_real_set_freq (dp_ddc_real_t *d, float norm_freq)
+{
+  d->norm_freq = norm_freq;
+  dp_ddc_set_freq (d->fine, 2.0f * norm_freq + 0.5f);
+}
+
+float
+dp_ddc_real_get_freq (const dp_ddc_real_t *d)
+{
+  return d->norm_freq;
+}
+
+void
+dp_ddc_real_reset (dp_ddc_real_t *d)
+{
+  dp_hbdecim_r2cf32_reset (d->hb);
+  dp_ddc_reset (d->fine);
+}
+
+size_t
+dp_ddc_real_execute (dp_ddc_real_t *d, const float *in, size_t num_in,
+                     dp_cf32_t *out, size_t max_out)
+{
+  if (!num_in)
+    return 0;
+
+  /* Step 1: real → CF32 via D2 modified halfband */
+  size_t n_hb = dp_hbdecim_r2cf32_execute (d->hb, in, num_in, d->hb_buf,
+                                           d->hb_buf_cap);
+
+  /* Step 2: fine NCO + DPMFS (CF32 → CF32) */
+  return dp_ddc_execute (d->fine, d->hb_buf, n_hb, out, max_out);
 }

@@ -595,6 +595,166 @@ test_filter_passband_and_rejection (void)
 }
 
 /* =========================================================================
+ * Architecture D2 — dp_ddc_real_t tests
+ * ========================================================================= */
+
+static void
+real_tone_f (float *out, size_t n, double freq)
+{
+  for (size_t k = 0; k < n; k++)
+    out[k] = (float)cos (2.0 * M_PI * freq * (double)k);
+}
+
+static double
+rms_cf32_db (const dp_cf32_t *x, size_t n)
+{
+  double s = 0.0;
+  for (size_t k = 0; k < n; k++)
+    s += (double)x[k].i * x[k].i + (double)x[k].q * x[k].q;
+  return 10.0 * log10 (s / (double)n + 1e-20);
+}
+
+static void
+test_real_create_destroy (void)
+{
+  printf ("\n-- dp_ddc_real: lifecycle --\n");
+
+  /* 4× total decimation from real input: rate=0.25 */
+  dp_ddc_real_t *d = dp_ddc_real_create (-0.1f, 4096, 0.25);
+  CHECK (d != NULL, "ddc_real create non-NULL");
+  CHECK (dp_ddc_real_max_out (d) > 0, "ddc_real max_out > 0");
+  dp_ddc_real_destroy (d);
+  CHECK (1, "ddc_real destroy does not crash");
+
+  dp_ddc_real_destroy (NULL);
+  CHECK (1, "ddc_real destroy(NULL) is safe");
+}
+
+static void
+test_real_get_set_freq (void)
+{
+  printf ("\n-- dp_ddc_real: freq control --\n");
+
+  dp_ddc_real_t *d = dp_ddc_real_create (-0.05f, 4096, 0.25);
+  CHECK (fabsf (dp_ddc_real_get_freq (d) - (-0.05f)) < 1e-6f,
+         "ddc_real initial freq correct");
+
+  dp_ddc_real_set_freq (d, -0.1f);
+  CHECK (fabsf (dp_ddc_real_get_freq (d) - (-0.1f)) < 1e-6f,
+         "ddc_real set_freq updated");
+
+  dp_ddc_real_destroy (d);
+}
+
+static void
+test_real_output_count (void)
+{
+  printf ("\n-- dp_ddc_real: output count --\n");
+
+  /* 4× decimation: 4096 real in → ~1024 CF32 out */
+  dp_ddc_real_t *d = dp_ddc_real_create (0.0f, 4096, 0.25);
+  size_t mo = dp_ddc_real_max_out (d);
+  dp_cf32_t *out = malloc (mo * sizeof *out);
+
+  float in[4096];
+  real_tone_f (in, 4096, 0.05);
+  size_t n = dp_ddc_real_execute (d, in, 4096, out, mo);
+
+  /* Expect ~1024 ± 4 (resampler phase rounding) */
+  CHECK (n >= 1020 && n <= 1028, "ddc_real 4096 in → ~1024 out");
+  CHECK (dp_ddc_real_nout (d) == n, "ddc_real nout matches return value");
+
+  free (out);
+  dp_ddc_real_destroy (d);
+}
+
+static void
+test_real_passband_and_rejection (void)
+{
+  printf ("\n-- dp_ddc_real: passband capture + stopband rejection --\n");
+
+  /* Carrier at +0.1×fs_in (normalised).  D2 captures [0, fs/4].
+   * norm_freq = -0.1 (shift carrier to DC, same convention as ddc).
+   * 4× total decimation.                                            */
+  const size_t N_IN = 4096;
+  const int BLOCKS = 8;
+
+  float *in = malloc (N_IN * sizeof *in);
+  dp_ddc_real_t *ddc_pass = dp_ddc_real_create (-0.1f, N_IN, 0.25);
+  dp_ddc_real_t *ddc_stop = dp_ddc_real_create (-0.1f, N_IN, 0.25);
+  size_t mo = dp_ddc_real_max_out (ddc_pass);
+  dp_cf32_t *out_pass = malloc (mo * BLOCKS * sizeof *out_pass);
+  dp_cf32_t *out_stop = malloc (mo * BLOCKS * sizeof *out_stop);
+  size_t tot_p = 0, tot_s = 0;
+
+  /* Passband: carrier at exactly the tuned frequency → DC output */
+  real_tone_f (in, N_IN, 0.1);
+  for (int b = 0; b < BLOCKS; b++)
+    {
+      dp_ddc_real_execute (ddc_pass, in, N_IN, out_pass + tot_p, mo);
+      tot_p += dp_ddc_real_nout (ddc_pass);
+    }
+
+  /* Stopband: tone at 0.4 × fs_in — well outside [0, fs/4] */
+  real_tone_f (in, N_IN, 0.4);
+  for (int b = 0; b < BLOCKS; b++)
+    {
+      dp_ddc_real_execute (ddc_stop, in, N_IN, out_stop + tot_s, mo);
+      tot_s += dp_ddc_real_nout (ddc_stop);
+    }
+
+  size_t skip = tot_p / BLOCKS; /* skip first block (warm-up) */
+  double db_p = rms_cf32_db (out_pass + skip, tot_p - skip);
+  double db_s = rms_cf32_db (out_stop + skip, tot_s - skip);
+  fprintf (stderr, "    passband pwr=%.1f dB  stopband pwr=%.1f dB\n", db_p,
+           db_s);
+
+  /* Real cosine × complex mixer: one spectral line passes the
+   * halfband; amplitude 0.5 → −6 dBFS floor.  Allow 1 dB droop.    */
+  CHECK (db_p > -7.0, "ddc_real passband tone captured (> −7 dB)");
+  CHECK (db_p - db_s > 30.0, "ddc_real stopband rejected ≥ 30 dB vs passband");
+
+  free (in);
+  free (out_pass);
+  free (out_stop);
+  dp_ddc_real_destroy (ddc_pass);
+  dp_ddc_real_destroy (ddc_stop);
+}
+
+static void
+test_real_reset (void)
+{
+  printf ("\n-- dp_ddc_real: reset --\n");
+
+  const size_t N_IN = 1024;
+  dp_ddc_real_t *d = dp_ddc_real_create (-0.05f, N_IN, 0.25);
+  size_t mo = dp_ddc_real_max_out (d);
+  dp_cf32_t *out1 = malloc (mo * sizeof *out1);
+  dp_cf32_t *out2 = malloc (mo * sizeof *out2);
+  float *in = malloc (N_IN * sizeof *in);
+  real_tone_f (in, N_IN, 0.05);
+
+  size_t n1 = dp_ddc_real_execute (d, in, N_IN, out1, mo);
+  dp_ddc_real_reset (d);
+  size_t n2 = dp_ddc_real_execute (d, in, N_IN, out2, mo);
+
+  CHECK (n1 == n2, "ddc_real reset: same output count");
+  int same = 1;
+  for (size_t k = 0; k < n1 && same; k++)
+    {
+      if (fabsf (out1[k].i - out2[k].i) > 1e-5f
+          || fabsf (out1[k].q - out2[k].q) > 1e-5f)
+        same = 0;
+    }
+  CHECK (same, "ddc_real reset: identical output after reset");
+
+  free (in);
+  free (out1);
+  free (out2);
+  dp_ddc_real_destroy (d);
+}
+
+/* =========================================================================
  * main
  * ========================================================================= */
 
@@ -615,6 +775,14 @@ main (void)
   test_default_decimation ();
   test_nout ();
   test_filter_passband_and_rejection ();
+
+  printf ("\n=== Architecture D2 — dp_ddc_real tests ===\n");
+
+  test_real_create_destroy ();
+  test_real_get_set_freq ();
+  test_real_output_count ();
+  test_real_passband_and_rejection ();
+  test_real_reset ();
 
   printf ("\n%d passed, %d failed\n", passed, failed);
   return failed ? 1 : 0;

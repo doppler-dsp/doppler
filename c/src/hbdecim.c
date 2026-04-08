@@ -264,3 +264,261 @@ dp_hbdecim_cf32_execute (dp_hbdecim_cf32_t *r, const dp_cf32_t *in,
 
   return oi;
 }
+
+/* ================================================================== */
+/* Architecture D2 — real-to-complex halfband with embedded fs/4 mix */
+/* ================================================================== */
+
+/*
+ * D2 real-input halfband: mixes by e^{-j(π/2)n} (fs/4 shift) and
+ * decimates by 2 in a single pass with zero extra multiplications.
+ *
+ * The per-sample rotation e^{j(π/2)k} is absorbed into the FIR taps
+ * at construction (h_mod[k] = h_fir[k] * (-1)^k * 0.5f).  The
+ * output-domain correction e^{-jπm} = (-1)^m is a sign toggle.
+ *
+ * Two cases arise depending on which polyphase branch is the FIR:
+ *
+ *   fir_on_even=1 (N even):
+ *     FIR  on even_dl  → I channel  (antisymmetric: differences)
+ *     Centre from odd_dl[centre]  → Q channel  (delay_sign = ±1)
+ *
+ *   fir_on_even=0 (N odd):
+ *     FIR  on odd_dl   → Q channel  (antisymmetric: differences)
+ *     Centre from even_dl[centre] → I channel  (delay_sign = ±1)
+ *
+ * In both cases h_mod is antisymmetric (h_mod[k] = −h_mod[eff−1−k]
+ * where eff = effective FIR length), so paired terms subtract.
+ */
+
+struct dp_hbdecim_r2cf32
+{
+  size_t num_taps;  /* FIR branch length                              */
+  size_t centre;    /* = num_taps / 2                                 */
+  int fir_on_even;  /* 1 if N even, 0 if N odd                        */
+  float delay_sign; /* ±1: sign applied to the delay-branch output    */
+  float *h;         /* h_fir[k]*(-1)^k*0.5, length num_taps           */
+
+  /* Real delay lines (float, not dp_cf32_t) */
+  float *even_buf; /* x[2m], x[2m-2], ...                              */
+  size_t even_cap;
+  size_t even_mask;
+  size_t even_head;
+
+  float *odd_buf; /* x[2m+1], x[2m-1], ...                             */
+  size_t odd_head;
+
+  int has_pending;
+  float pending;
+  int parity; /* 0 → output sign +1;  1 → output sign -1  ((-1)^m)  */
+};
+
+/* ------------------------------------------------------------------ */
+/* Delay-line helpers (real)                                          */
+/* ------------------------------------------------------------------ */
+
+static inline void
+r2_push_even (struct dp_hbdecim_r2cf32 *r, float x)
+{
+  r->even_head = (r->even_head - 1) & r->even_mask;
+  r->even_buf[r->even_head] = x;
+  r->even_buf[r->even_head + r->even_cap] = x;
+}
+
+static inline void
+r2_push_odd (struct dp_hbdecim_r2cf32 *r, float x)
+{
+  r->odd_head = (r->odd_head - 1) & r->even_mask;
+  r->odd_buf[r->odd_head] = x;
+  r->odd_buf[r->odd_head + r->even_cap] = x;
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-output I/Q computation                                         */
+/* ------------------------------------------------------------------ */
+
+static inline dp_cf32_t
+r2_compute_output (const struct dp_hbdecim_r2cf32 *r)
+{
+  const float *h = r->h;
+  size_t N = r->num_taps;
+  size_t half = N / 2;
+  float ri = 0.0f, rq = 0.0f;
+
+  if (r->fir_on_even)
+    {
+      /* FIR on even_dl → I channel (antisymmetric pairs: subtract)
+       * Delay from odd_dl[centre]  → Q channel                    */
+      const float *e = &r->even_buf[r->even_head];
+      for (size_t k = 0; k < half; k++)
+        ri += h[k] * (e[k] - e[N - 1 - k]);
+
+      const float *o = &r->odd_buf[r->odd_head];
+      rq = r->delay_sign * 0.5f * o[r->centre];
+    }
+  else
+    {
+      /* FIR on odd_dl  → Q channel (antisymmetric pairs: subtract)
+       * Delay from even_dl[centre] → I channel                    */
+      const float *o = &r->odd_buf[r->odd_head];
+      for (size_t k = 0; k < half; k++)
+        rq += h[k] * (o[k + 1] - o[N - 1 - k]);
+
+      const float *e = &r->even_buf[r->even_head];
+      ri = r->delay_sign * 0.5f * e[r->centre];
+    }
+
+  /* Apply output correction (-1)^m */
+  if (r->parity)
+    {
+      ri = -ri;
+      rq = -rq;
+    }
+  return (dp_cf32_t){ ri, rq };
+}
+
+/* ------------------------------------------------------------------ */
+/* Lifecycle                                                          */
+/* ------------------------------------------------------------------ */
+
+dp_hbdecim_r2cf32_t *
+dp_hbdecim_r2cf32_create (size_t num_taps, const float *h)
+{
+  if (!num_taps || !h)
+    return NULL;
+
+  dp_hbdecim_r2cf32_t *r = calloc (1, sizeof *r);
+  if (!r)
+    return NULL;
+
+  r->num_taps = num_taps;
+  r->centre = num_taps / 2;
+  r->fir_on_even = !(num_taps & 1); /* even N → FIR on even inputs */
+
+  /* Compute delay_sign from the prototype centre tap position.
+   *
+   * For fir_on_even=1 (N even):  centre prototype index = N-1 (odd).
+   *   Rotation: e^{j(π/2)(N-1)} = j^{N-1}.
+   *   Im(j^{N-1}) = +1 when (N-1)≡1 (mod 4), i.e. N%4==2.
+   *               = -1 when (N-1)≡3 (mod 4), i.e. N%4==0.
+   *
+   * For fir_on_even=0 (N odd):   centre prototype index = N-1 (even).
+   *   Rotation: e^{j(π/2)(N-1)} = (-1)^{(N-1)/2}.
+   */
+  if (r->fir_on_even)
+    r->delay_sign = ((num_taps & 3) == 2) ? 1.0f : -1.0f;
+  else
+    r->delay_sign = (((num_taps - 1) / 2) & 1) ? -1.0f : 1.0f;
+
+  r->h = malloc (num_taps * sizeof (float));
+  if (!r->h)
+    goto fail;
+
+  /* Bake in alternating sign flip and decimation scale (0.5).
+   * h_mod[k] = h_fir[k] * (-1)^k * 0.5                           */
+  for (size_t k = 0; k < num_taps; k++)
+    r->h[k] = h[k] * ((k & 1) ? -0.5f : 0.5f);
+
+  /* Dual-write circular buffers (real) */
+  r->even_cap = 1;
+  while (r->even_cap < num_taps)
+    r->even_cap <<= 1;
+  r->even_mask = r->even_cap - 1;
+
+  r->even_buf = calloc (2 * r->even_cap, sizeof (float));
+  r->odd_buf = calloc (2 * r->even_cap, sizeof (float));
+  if (!r->even_buf || !r->odd_buf)
+    goto fail;
+
+  return r;
+
+fail:
+  free (r->h);
+  free (r->even_buf);
+  free (r->odd_buf);
+  free (r);
+  return NULL;
+}
+
+void
+dp_hbdecim_r2cf32_destroy (dp_hbdecim_r2cf32_t *r)
+{
+  if (!r)
+    return;
+  free (r->h);
+  free (r->even_buf);
+  free (r->odd_buf);
+  free (r);
+}
+
+void
+dp_hbdecim_r2cf32_reset (dp_hbdecim_r2cf32_t *r)
+{
+  r->even_head = 0;
+  r->odd_head = 0;
+  r->has_pending = 0;
+  r->parity = 0;
+  memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float));
+  memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
+}
+
+/* ------------------------------------------------------------------ */
+/* Properties                                                         */
+/* ------------------------------------------------------------------ */
+
+double
+dp_hbdecim_r2cf32_rate (const dp_hbdecim_r2cf32_t *r)
+{
+  (void)r;
+  return 0.5;
+}
+
+size_t
+dp_hbdecim_r2cf32_num_taps (const dp_hbdecim_r2cf32_t *r)
+{
+  return r->num_taps;
+}
+
+/* ------------------------------------------------------------------ */
+/* Execute                                                            */
+/* ------------------------------------------------------------------ */
+
+size_t
+dp_hbdecim_r2cf32_execute (dp_hbdecim_r2cf32_t *r, const float *in,
+                           size_t num_in, dp_cf32_t *out, size_t max_out)
+{
+  if (!num_in || !max_out)
+    return 0;
+
+  size_t oi = 0;
+  size_t xi = 0;
+
+  /* Complete a pending even sample with the first odd sample */
+  if (r->has_pending && oi < max_out)
+    {
+      r2_push_even (r, r->pending);
+      r2_push_odd (r, in[xi++]);
+      out[oi++] = r2_compute_output (r);
+      r->parity ^= 1;
+      r->has_pending = 0;
+    }
+
+  /* Process complete pairs (even, odd) */
+  while (xi + 1 < num_in && oi < max_out)
+    {
+      r2_push_even (r, in[xi]);
+      r2_push_odd (r, in[xi + 1]);
+      xi += 2;
+      out[oi++] = r2_compute_output (r);
+      r->parity ^= 1;
+    }
+
+  /* Save dangling even sample */
+  if (xi < num_in)
+    {
+      r->pending = in[xi];
+      r->has_pending = 1;
+    }
+
+  return oi;
+}

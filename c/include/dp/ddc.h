@@ -255,6 +255,133 @@ extern "C"
   size_t dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
                          dp_cf32_t *out, size_t max_out);
 
+  /* ==================================================================
+   * Architecture D2 — real-input DDC
+   * ==================================================================
+   *
+   * @brief Digital Down-Converter for real ADC input (Architecture D2).
+   *
+   * Chains a real-to-complex modified halfband (embedded fs/4 shift,
+   * zero extra multiplications) with a fine NCO at fs/2 and a DPMFS
+   * resampler.  Approximately 2× cheaper than Architecture D
+   * (NCO then halfband then DPMFS) for any carrier frequency or
+   * decimation rate.
+   *
+   * ### Signal chain
+   *
+   * ```
+   * float in (fs_in)
+   *   → dp_hbdecim_r2cf32  (fs/4 shift embedded, decimates by 2)
+   *   → fine NCO at fs_in/2  (arbitrary carrier tune)
+   *   → DPMFS resample to fs_out
+   * CF32 out (fs_out)
+   * ```
+   *
+   * ### norm_freq convention
+   *
+   * Same as dp_ddc_create: norm_freq = −carrier_offset / fs_in.
+   * Negative values shift a positive-offset carrier to DC.
+   *
+   * ### Rate
+   *
+   * @p rate = fs_out / fs_in (total, over the full real-input chain).
+   * Must satisfy rate < 0.5 (the halfband already decimates by 2).
+   *
+   * ### Usage
+   *
+   * ```c
+   * #include <dp/ddc.h>
+   *
+   * // Real 4× decimating D2 DDC; carrier at +0.1·fs
+   * dp_ddc_real_t *ddc = dp_ddc_real_create(-0.1f, 4096, 0.25);
+   *
+   * dp_cf32_t out[dp_ddc_real_max_out(ddc)];
+   * size_t n = dp_ddc_real_execute(ddc, in, 4096, out,
+   *                                dp_ddc_real_max_out(ddc));
+   * dp_ddc_real_destroy(ddc);
+   * ```
+   */
+
+  /** @brief Opaque Architecture D2 DDC state. */
+  typedef struct dp_ddc_real dp_ddc_real_t;
+
+  /* ------------------------------------------------------------------
+   * Lifecycle
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Create a D2 DDC using built-in filter coefficients.
+   *
+   * Uses a built-in halfband (60 dB, N=19 taps) and the same M=3 N=19
+   * Kaiser-DPMFS lowpass used by dp_ddc_create.
+   *
+   * @param norm_freq  NCO normalised frequency (see dp_ddc_create).
+   * @param num_in     Fixed real input block size in samples.
+   * @param rate       fs_out / fs_in.  Must be > 0 and < 0.5.
+   * @return           Heap-allocated DDC state, or NULL on failure.
+   */
+  dp_ddc_real_t *dp_ddc_real_create (float norm_freq, size_t num_in,
+                                     double rate);
+
+  /**
+   * @brief Destroy the D2 DDC and free all resources.
+   * @param ddc  May be NULL (no-op).
+   */
+  void dp_ddc_real_destroy (dp_ddc_real_t *ddc);
+
+  /* ------------------------------------------------------------------
+   * Properties
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Return the maximum CF32 output samples per execute call.
+   * @param ddc  Must be non-NULL.
+   */
+  size_t dp_ddc_real_max_out (const dp_ddc_real_t *ddc);
+
+  /**
+   * @brief Return the output sample count from the last execute call.
+   * @param ddc  Must be non-NULL.
+   */
+  size_t dp_ddc_real_nout (const dp_ddc_real_t *ddc);
+
+  /* ------------------------------------------------------------------
+   * Control
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Change the carrier frequency without resetting state.
+   * @param ddc        Must be non-NULL.
+   * @param norm_freq  New normalised frequency.
+   */
+  void dp_ddc_real_set_freq (dp_ddc_real_t *ddc, float norm_freq);
+
+  /** @brief Return the current normalised carrier frequency. */
+  float dp_ddc_real_get_freq (const dp_ddc_real_t *ddc);
+
+  /**
+   * @brief Reset halfband, NCO, and resampler history to zero.
+   * @param ddc  Must be non-NULL.
+   */
+  void dp_ddc_real_reset (dp_ddc_real_t *ddc);
+
+  /* ------------------------------------------------------------------
+   * Processing
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Process a block of real float32 samples.
+   *
+   * @param ddc      Must be non-NULL.
+   * @param in       Real input samples, float32, length >= num_in.
+   * @param num_in   Number of input samples to process.
+   * @param out      CF32 output buffer, capacity >= max_out.
+   * @param max_out  Maximum output samples to write.
+   * @return         Number of CF32 output samples written.
+   */
+  size_t dp_ddc_real_execute (dp_ddc_real_t *ddc, const float *in,
+                              size_t num_in, dp_cf32_t *out, size_t max_out);
+
 #ifdef __cplusplus
 }
 #endif

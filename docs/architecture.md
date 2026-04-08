@@ -5,20 +5,20 @@ useful; together they take you from raw DSP primitives to a
 running multi-process signal pipeline in a handful of commands.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Apps & Tools      specan · your own sinks & UIs        │
-├─────────────────────────────────────────────────────────┤
-│  Pipeline CLI      doppler compose  (YAML + Dopplerfile)│
-├─────────────────────────────────────────────────────────┤
-│  Transport         ZMQ streaming   (PUSH/PULL, PUB/SUB) │
-├─────────────────────────────────────────────────────────┤
-│  DSP Library       C99 core                             │
-│       (NCO · FIR · FFT · DDC · Resampler · Buffer)      │
-│                   ┌───────────────┬──────────────┐      │
-│                   │    Python     │  Rust FFI    │      │
-│                   │ (thin ctypes) │ (safe wrap)  │      │
-│                   └───────────────┴──────────────┘      │
-└─────────────────────────────────────────────────────────┘
++----------------------------------------------------------+
+|  Apps & Tools     specan, your own sinks & UIs          |
++----------------------------------------------------------+
+|  Pipeline CLI     doppler compose  (YAML + Dopplerfile) |
++----------------------------------------------------------+
+|  Transport        ZMQ streaming  (PUSH/PULL, PUB/SUB)   |
++----------------------------------------------------------+
+|  DSP Library      C99 core                              |
+|    (NCO, FIR, FFT, DDC, Resampler, Buffer)              |
+|                  +----------------+---------------+      |
+|                  |    Python      |   Rust FFI    |      |
+|                  | (thin ctypes)  |  (safe wrap)  |      |
+|                  +----------------+---------------+      |
++----------------------------------------------------------+
 ```
 
 ---

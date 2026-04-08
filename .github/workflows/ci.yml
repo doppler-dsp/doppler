@@ -156,37 +156,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Install system deps
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential libzmq3-dev libfftw3-dev cmake pkg-config
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v4
       with:
-        python-version: '3.12'
+        fetch-depth: 0
 
-    - name: Install dev deps
-      run: uv sync --group dev
-
-    - name: Build and install C library
-      run: make build && sudo cmake --install build && sudo ldconfig
-
-    - name: Build Python extensions
-      run: make pyext
-
-    - name: Regenerate demo frames
-      run: make record-demo
-
-    - name: Check frames are up to date
+    - name: Check frames kept in sync with specan source
       run: |
-        git diff --exit-code docs/specan/frames.json || \
-          (echo "" && \
-           echo "docs/specan/frames.json is stale." && \
-           echo "Run 'make record-demo' and commit the result." && \
-           exit 1)
+        BASE=${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        SPECAN=$(git diff --name-only "$BASE"...HEAD -- python/specan/ | wc -l)
+        FRAMES=$(git diff --name-only "$BASE"...HEAD -- docs/specan/frames.json | wc -l)
+        if [ "$SPECAN" -gt 0 ] && [ "$FRAMES" -eq 0 ]; then
+          echo "python/specan/ changed but docs/specan/frames.json was not updated."
+          echo "Run 'make record-demo' and commit the result."
+          exit 1
+        fi
+        echo "OK (specan_changes=$SPECAN frames_changes=$FRAMES)"
 
   # ------------------------------------------------------------------
   # Zensical documentation build

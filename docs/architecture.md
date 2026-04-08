@@ -10,8 +10,9 @@ block-beta
   apps["Apps & Tools — specan, your own sinks & UIs"]
   cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
   transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
-  block:dsp["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:1
+  block:dsp:1
     columns 2
+    core["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:2
     python["Python (thin ctypes)"]
     rust["Rust FFI (safe wrap)"]
   end
@@ -106,32 +107,16 @@ See [Spectrum Analyzer](specan/index.md).
 ```mermaid
 flowchart LR
     subgraph compose ["doppler compose up demo"]
-        direction TB
         CFG["demo.yml"]
     end
 
-    subgraph pipeline ["Signal chain (each = OS process)"]
-        direction LR
-        TONE["tone\n(source)"]
-        FIR["fir\n(DSP block)"]
-        SPECAN["specan\n(sink)"]
+    TONE["tone\nsource"]
+    FIR["fir\nDSP block"]
+    SPECAN["specan\nsink"]
 
-        TONE -- "PUSH :5600" --> FIR
-        FIR  -- "PUSH :5601" --> SPECAN
-    end
-
-    compose -- "spawns + tracks" --> pipeline
-
-    subgraph c ["C library (each process links against)"]
-        direction LR
-        NCO["dp_nco"]
-        FIR2["dp_fir"]
-        FFT["dp_fft"]
-    end
-
-    TONE -.-> NCO
-    FIR  -.-> FIR2
-    SPECAN -.-> FFT
+    compose -- "spawns + tracks" --> TONE & FIR & SPECAN
+    TONE -- "PUSH :5600" --> FIR
+    FIR  -- "PUSH :5601" --> SPECAN
 ```
 
 The compose runner is the only process that knows the full

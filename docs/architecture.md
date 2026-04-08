@@ -4,6 +4,8 @@ Doppler is a stack of four layers. Each layer is independently
 useful; together they take you from raw DSP primitives to a
 running multi-process signal pipeline in a handful of commands.
 
+<div style="max-width: 540px; margin: 0 auto;">
+
 ```mermaid
 block-beta
   columns 1
@@ -17,6 +19,8 @@ block-beta
     rust["Rust FFI (safe wrap)"]
   end
 ```
+
+</div>
 
 ---
 

@@ -4,22 +4,17 @@ Doppler is a stack of four layers. Each layer is independently
 useful; together they take you from raw DSP primitives to a
 running multi-process signal pipeline in a handful of commands.
 
-<div style="max-width: 600px; margin: 0 auto;">
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#2c6fad', 'lineColor': '#2c6fad', 'clusterBkg': '#d0e8ff', 'clusterBorder': '#2c6fad', 'titleColor': '#1a3a5c'}}}%%
-flowchart BT
-    apps["Apps & Tools — specan, your own sinks & UIs"]
-    cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
-    transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
-    subgraph dsp["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]
-        direction LR
-        python["Python (thin ctypes)"]
-        rust["Rust FFI (safe wrap)"]
-    end
-    dsp --> transport --> cli --> apps
-```
-
+<div style="max-width: 520px; margin: 2em auto; font-size: 0.9em; line-height: 1.4;">
+  <div style="border: 2px solid currentColor; padding: 0.6em 1em; text-align: center; border-bottom: none;">Apps &amp; Tools — specan, your own sinks &amp; UIs</div>
+  <div style="border: 2px solid currentColor; padding: 0.6em 1em; text-align: center; border-bottom: none;">Pipeline CLI — doppler compose (YAML + Dopplerfile)</div>
+  <div style="border: 2px solid currentColor; padding: 0.6em 1em; text-align: center; border-bottom: none;">Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)</div>
+  <div style="border: 2px solid currentColor;">
+    <div style="padding: 0.6em 1em; text-align: center; border-bottom: 1px solid currentColor;">DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)</div>
+    <div style="display: flex;">
+      <div style="flex: 1; padding: 0.6em 1em; text-align: center; border-right: 1px solid currentColor;">Python (thin ctypes)</div>
+      <div style="flex: 1; padding: 0.6em 1em; text-align: center;">Rust FFI (safe wrap)</div>
+    </div>
+  </div>
 </div>
 
 ---

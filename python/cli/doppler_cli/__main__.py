@@ -160,6 +160,25 @@ def main() -> None:
                 print(f"using {compose_file}")
             state = up(compose_file)
             print(f"started chain {state.id} ({len(state.blocks)} blocks)")
+            # Print block status lines (e.g. specan web URL)
+            import yaml  # noqa: PLC0415
+
+            import doppler_cli.blocks as _reg  # noqa: PLC0415
+
+            doc = yaml.safe_load(compose_file.read_text())
+            for section in ("source", "sink"):
+                entry = doc.get(section, {})
+                btype = entry.get("type")
+                if not btype:
+                    continue
+                cfg_dict = {k: v for k, v in entry.items() if k != "type"}
+                try:
+                    cls = _reg.get(btype)
+                    cfg = cls.Config(**cfg_dict)
+                    for line in cls().status_lines(cfg):
+                        print(f"  {line}")
+                except Exception:
+                    pass
 
         elif args.compose_cmd == "down":
             from doppler_cli.compose import down  # noqa: PLC0415

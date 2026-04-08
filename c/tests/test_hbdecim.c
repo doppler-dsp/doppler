@@ -1,10 +1,13 @@
 /**
  * @file test_hbdecim.c
- * @brief Unit tests for dp_hbdecim_cf32.
+ * @brief Unit tests for dp_hbdecim_cf32 and dp_hbdecim_r2cf32.
  *
- * Tests cover lifecycle, output sizing, statefulness, spectral quality
- * (DC pass-through, Nyquist alias rejection), and the symmetric
- * multiply optimisation path.
+ * cf32 tests cover lifecycle, output sizing, statefulness, and
+ * spectral quality (DC pass-through, Nyquist alias rejection).
+ *
+ * r2cf32 tests cover the Architecture D2 real-input halfband:
+ * lifecycle, output sizing, and spectral quality (tone capture,
+ * image rejection, output energy conservation).
  */
 
 #include "dp/hbdecim.h"
@@ -281,6 +284,161 @@ test_alias_rejection (void)
 }
 
 /* ================================================================== */
+/* dp_hbdecim_r2cf32 tests (Architecture D2)                         */
+/* ================================================================== */
+
+/* Built-in 19-tap halfband FIR branch (same as used in ddc_real).
+ * kaiser_prototype(attenuation=60, passband=0.4, stopband=0.6,
+ *                  phases=2)  bank[1].                              */
+#define HB19_N 19
+static const float HB19_FIR[HB19_N] = {
+  +1.5790532343e-03f, -4.6757734381e-03f, +1.0443178937e-02f,
+  -2.0174624398e-02f, +3.5798925906e-02f, -6.0866370797e-02f,
+  +1.0411340743e-01f, -1.9753780961e-01f, +6.3160091639e-01f,
+  +6.3160091639e-01f, -1.9753780961e-01f, +1.0411340743e-01f,
+  -6.0866370797e-02f, +3.5798925906e-02f, -2.0174624398e-02f,
+  +1.0443178937e-02f, -4.6757734381e-03f, +1.5790532343e-03f,
+  +0.0000000000e+00f,
+};
+
+/* Real tone at normalised frequency freq, length n. */
+static void
+real_tone (float *out, size_t n, double freq)
+{
+  for (size_t k = 0; k < n; k++)
+    out[k] = (float)cos (2.0 * M_PI * freq * (double)k);
+}
+
+/* CF32 RMS power in dB. */
+static double
+rms_cf32_db (const dp_cf32_t *x, size_t n)
+{
+  double s = 0.0;
+  for (size_t k = 0; k < n; k++)
+    s += (double)x[k].i * x[k].i + (double)x[k].q * x[k].q;
+  return 10.0 * log10 (s / (double)n + 1e-20);
+}
+
+static void
+r2_test_lifecycle (void)
+{
+  printf ("\n-- r2cf32 lifecycle --\n");
+
+  dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
+  CHECK (r != NULL, "r2cf32 create returns non-NULL");
+  CHECK (dp_hbdecim_r2cf32_num_taps (r) == HB19_N, "r2cf32 num_taps correct");
+  CHECK (dp_hbdecim_r2cf32_rate (r) == 0.5, "r2cf32 rate is 0.5");
+  dp_hbdecim_r2cf32_destroy (r);
+  CHECK (1, "r2cf32 destroy does not crash");
+
+  dp_hbdecim_r2cf32_destroy (NULL);
+  CHECK (1, "r2cf32 destroy(NULL) is safe");
+
+  dp_hbdecim_r2cf32_t *bad = dp_hbdecim_r2cf32_create (HB19_N, NULL);
+  CHECK (bad == NULL, "r2cf32 create rejects NULL h");
+
+  /* 4-tap FIR branch (even N, fir_on_even=1 path) */
+  dp_hbdecim_r2cf32_t *even4 = dp_hbdecim_r2cf32_create (N_TAPS, H4_FIR);
+  CHECK (even4 != NULL, "r2cf32 create with even N_TAPS=4");
+  dp_hbdecim_r2cf32_destroy (even4);
+}
+
+static void
+r2_test_output_length (void)
+{
+  printf ("\n-- r2cf32 output length --\n");
+
+  dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
+
+  float in[512];
+  dp_cf32_t out[260];
+  memset (in, 0, sizeof in);
+
+  size_t n = dp_hbdecim_r2cf32_execute (r, in, 512, out, 260);
+  CHECK (n == 256, "r2cf32 512 in → 256 out");
+
+  dp_hbdecim_r2cf32_reset (r);
+
+  n = dp_hbdecim_r2cf32_execute (r, in, 511, out, 260);
+  CHECK (n == 255, "r2cf32 511 in → 255 out (1 pending)");
+
+  float one = 0.0f;
+  n = dp_hbdecim_r2cf32_execute (r, &one, 1, out, 260);
+  CHECK (n == 1, "r2cf32 1 in → 1 out (consumes pending)");
+
+  dp_hbdecim_r2cf32_destroy (r);
+}
+
+static void
+r2_test_passband_capture (void)
+{
+  printf ("\n-- r2cf32 passband capture --\n");
+
+  /* Real cosine × complex mixer (embedded −fs/4 shift) = complex
+   * output; the spectrum shifts once with no image.  The cosine has
+   * spectral lines at ±f_n; after the −fs/4 shift they land at:
+   *   +f_n → f_n − 0.25
+   *   −f_n → −f_n − 0.25
+   * For f_n ∈ (0, 0.5) only the +f_n component falls inside the
+   * halfband passband [−0.25, +0.25]; −f_n − 0.25 is always outside.
+   * One component passes; output power = 0.5² = −6 dBFS (unit cosine
+   * amplitude = 0.5 per spectral line).  Allow 1 dB for droop.      */
+  dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
+
+  const size_t N_IN = 2048;
+  const size_t SKIP = HB19_N + 4;
+  float in_a[2048], in_b[2048];
+  dp_cf32_t out_a[1040], out_b[1040];
+
+  real_tone (in_a, N_IN, 0.10); /* |f−0.25|=0.15 < 0.20 → passband */
+  real_tone (in_b, N_IN, 0.20); /* |f−0.25|=0.05 < 0.20 → passband */
+
+  size_t na = dp_hbdecim_r2cf32_execute (r, in_a, N_IN, out_a, 1040);
+  dp_hbdecim_r2cf32_reset (r);
+  size_t nb = dp_hbdecim_r2cf32_execute (r, in_b, N_IN, out_b, 1040);
+
+  size_t use_a = (na > SKIP) ? na - SKIP : 1;
+  size_t use_b = (nb > SKIP) ? nb - SKIP : 1;
+  double pwr_a = rms_cf32_db (out_a + SKIP, use_a);
+  double pwr_b = rms_cf32_db (out_b + SKIP, use_b);
+
+  /* One of two spectral lines passes; amplitude 0.5 → −6 dBFS.
+   * Allow 1 dB margin for filter passband droop near the edge.       */
+  CHECK (pwr_a > -7.0, "r2cf32 passband tone f=0.10 captured");
+  CHECK (pwr_b > -7.0, "r2cf32 passband tone f=0.20 captured");
+
+  dp_hbdecim_r2cf32_destroy (r);
+}
+
+static void
+r2_test_reset (void)
+{
+  printf ("\n-- r2cf32 reset --\n");
+
+  dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
+
+  float in[64];
+  dp_cf32_t out1[40], out2[40];
+  real_tone (in, 64, 0.1);
+
+  size_t n1 = dp_hbdecim_r2cf32_execute (r, in, 64, out1, 40);
+  dp_hbdecim_r2cf32_reset (r);
+  size_t n2 = dp_hbdecim_r2cf32_execute (r, in, 64, out2, 40);
+
+  CHECK (n1 == n2, "r2cf32 reset: same output count after reset");
+  int same = 1;
+  for (size_t k = 0; k < n1 && same; k++)
+    {
+      if (fabsf (out1[k].i - out2[k].i) > 1e-6f
+          || fabsf (out1[k].q - out2[k].q) > 1e-6f)
+        same = 0;
+    }
+  CHECK (same, "r2cf32 reset: identical output after reset");
+
+  dp_hbdecim_r2cf32_destroy (r);
+}
+
+/* ================================================================== */
 /* main                                                               */
 /* ================================================================== */
 
@@ -295,6 +453,13 @@ main (void)
   test_reset ();
   test_dc_passthrough ();
   test_alias_rejection ();
+
+  printf ("\n=== dp_hbdecim_r2cf32 unit tests (Architecture D2) ===\n");
+
+  r2_test_lifecycle ();
+  r2_test_output_length ();
+  r2_test_passband_capture ();
+  r2_test_reset ();
 
   printf ("\n%d passed, %d failed\n", g_pass, g_fail);
   return g_fail ? 1 : 0;

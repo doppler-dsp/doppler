@@ -136,6 +136,102 @@ extern "C"
                                   size_t num_in, dp_cf32_t *out,
                                   size_t max_out);
 
+  /* ==================================================================
+   * Architecture D2 — real input, embedded fs/4 mix → complex IQ
+   * ==================================================================
+   *
+   * @brief Real-input halfband decimator with embedded fs/4 frequency
+   *        shift (Architecture D2).
+   *
+   * Combines a 2:1 halfband decimation with a zero-multiply fs/4
+   * frequency shift by baking the per-tap rotation
+   * e^{j(π/2)k} into the FIR coefficients at construction time.
+   *
+   * Input: real float32 samples at fs.
+   * Output: complex CF32 at fs/2, containing the full [0, fs/4] band.
+   *
+   * Followed by a fine NCO at fs/2 and a DPMFS resampler, this forms
+   * Architecture D2 — approximately 2× cheaper than Architecture D
+   * for any real ADC input.
+   *
+   * ### Coefficient source
+   *
+   * Same as dp_hbdecim_cf32: pass the FIR branch of the polyphase
+   * bank from `kaiser_prototype(phases=2)`.
+   *
+   * ### Usage
+   *
+   * ```c
+   * #include <dp/hbdecim.h>
+   *
+   * // h[NUM_TAPS] = FIR branch from kaiser_prototype(phases=2)
+   * dp_hbdecim_r2cf32_t *r =
+   *     dp_hbdecim_r2cf32_create(NUM_TAPS, h);
+   *
+   * float  in[IN_LEN];
+   * dp_cf32_t out[IN_LEN / 2 + 2];
+   * size_t n_out = dp_hbdecim_r2cf32_execute(
+   *     r, in, IN_LEN, out,
+   *     sizeof(out) / sizeof(out[0]));
+   *
+   * dp_hbdecim_r2cf32_destroy(r);
+   * ```
+   */
+
+  /** @brief Opaque real-to-complex D2 halfband decimator state. */
+  typedef struct dp_hbdecim_r2cf32 dp_hbdecim_r2cf32_t;
+
+  /* ------------------------------------------------------------------
+   * Lifecycle
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Create a real-input D2 halfband decimator.
+   *
+   * @param num_taps  Length of the FIR branch from kaiser_prototype.
+   * @param h         FIR branch coefficients, float32, length num_taps.
+   * @return          Heap-allocated decimator, or NULL on failure.
+   */
+  dp_hbdecim_r2cf32_t *dp_hbdecim_r2cf32_create (size_t num_taps,
+                                                 const float *h);
+
+  /** @brief Free a real-to-complex D2 halfband decimator. */
+  void dp_hbdecim_r2cf32_destroy (dp_hbdecim_r2cf32_t *r);
+
+  /** @brief Zero history, clear pending sample, reset output parity. */
+  void dp_hbdecim_r2cf32_reset (dp_hbdecim_r2cf32_t *r);
+
+  /* ------------------------------------------------------------------
+   * Properties
+   * ------------------------------------------------------------------ */
+
+  /** @brief Return the decimation rate (always 0.5). */
+  double dp_hbdecim_r2cf32_rate (const dp_hbdecim_r2cf32_t *r);
+
+  /** @brief Return the FIR branch length. */
+  size_t dp_hbdecim_r2cf32_num_taps (const dp_hbdecim_r2cf32_t *r);
+
+  /* ------------------------------------------------------------------
+   * Processing
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Decimate real float32 samples by 2, producing CF32 IQ.
+   *
+   * Applies the embedded fs/4 shift and produces complex output at
+   * half the input rate.  Odd-length blocks are handled transparently.
+   *
+   * @param r        Must be non-NULL.
+   * @param in       Real input samples, float32, length num_in.
+   * @param num_in   Number of input samples.
+   * @param out      CF32 output buffer, capacity >= max_out.
+   * @param max_out  Maximum output samples to write.
+   * @return         Number of output samples written.
+   */
+  size_t dp_hbdecim_r2cf32_execute (dp_hbdecim_r2cf32_t *r, const float *in,
+                                    size_t num_in, dp_cf32_t *out,
+                                    size_t max_out);
+
 #ifdef __cplusplus
 }
 #endif

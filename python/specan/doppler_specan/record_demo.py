@@ -35,6 +35,7 @@ def record(
     tone_freq: float = 100e3,
     tone_power: float = -20.0,
     noise_floor: float = -90.0,
+    warmup: int = 5,
 ) -> list[dict]:
     """
     Run the DSP pipeline and return *n_frames* spectrum frames.
@@ -55,6 +56,8 @@ def record(
         Tone power in dBm.
     noise_floor : float
         Noise floor in dBm.
+    warmup : int
+        Frames to discard before recording (default: 5).
     Returns
     -------
     list of dict
@@ -96,6 +99,7 @@ def record(
     source.set_fft_size(fft_size)
 
     frames: list[dict] = []
+    warmed = 0
     block = max(fft_size * 4, 4096)
 
     while len(frames) < n_frames:
@@ -104,8 +108,11 @@ def record(
         if frame is None:
             continue
         # Notify source of actual FFT size on first frame
-        if len(frames) == 0:
+        if warmed == 0:
             source.set_fft_size(frame.fft_size)
+        if warmed < warmup:
+            warmed += 1
+            continue
         frames.append(
             {
                 "db": [round(v, 1) for v in frame.db],
@@ -138,6 +145,12 @@ def main() -> None:
     ap.add_argument("--tone-freq", type=float, default=100e3)
     ap.add_argument("--tone-power", type=float, default=-20.0)
     ap.add_argument("--noise-floor", type=float, default=-90.0)
+    ap.add_argument(
+        "--warmup",
+        type=int,
+        default=5,
+        help="frames to discard before recording (default: 5)",
+    )
     args = ap.parse_args()
 
     print("Recording demo frames...", file=sys.stderr)
@@ -149,6 +162,7 @@ def main() -> None:
         tone_freq=args.tone_freq,
         tone_power=args.tone_power,
         noise_floor=args.noise_floor,
+        warmup=args.warmup,
     )
     print(
         f"Captured {len(frames)} frames, "

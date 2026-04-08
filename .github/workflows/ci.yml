@@ -147,6 +147,47 @@ jobs:
         path: coverage.xml
 
   # ------------------------------------------------------------------
+  # Specan demo frames staleness check
+  # ------------------------------------------------------------------
+  specan-demo:
+    name: Specan demo frames
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential libzmq3-dev libfftw3-dev cmake pkg-config
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dev deps
+      run: uv sync --group dev
+
+    - name: Build and install C library
+      run: make build && sudo cmake --install build && sudo ldconfig
+
+    - name: Build Python extensions
+      run: make pyext
+
+    - name: Regenerate demo frames
+      run: make record-demo
+
+    - name: Check frames are up to date
+      run: |
+        git diff --exit-code docs/specan/frames.json || \
+          (echo "" && \
+           echo "docs/specan/frames.json is stale." && \
+           echo "Run 'make record-demo' and commit the result." && \
+           exit 1)
+
+  # ------------------------------------------------------------------
   # Zensical documentation build
   # ------------------------------------------------------------------
   docs:

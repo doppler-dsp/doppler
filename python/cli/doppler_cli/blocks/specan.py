@@ -54,3 +54,8 @@ class SpecanBlock(Block):
                 config.web_host,
             ]
         return cmd
+
+    def status_lines(self, config: SpecanConfig) -> list[str]:
+        if config.mode == "web":
+            return [f"specan → http://{config.web_host}:{config.web_port}"]
+        return []

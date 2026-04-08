@@ -44,6 +44,13 @@ class Block(ABC):
         """Return the argv list to spawn this block as a subprocess."""
         ...
 
+    def status_lines(self, config: BlockConfig) -> list[str]:
+        """Return human-readable status lines printed after the block starts.
+
+        Override in sink/source subclasses to surface URLs, ports, etc.
+        """
+        return []
+
 
 # Registry: name → Block subclass
 _REGISTRY: dict[str, Type[Block]] = {}

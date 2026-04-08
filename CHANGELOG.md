@@ -13,6 +13,38 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **Architecture docs** (`docs/architecture.md`): new page explaining
+  the four-layer stack (DSP library → transport → pipeline CLI →
+  apps); HTML stack diagram with DSP layer highlighted; Mermaid
+  compose flow diagram; added to nav between Quick Start and Overview
+- **`doppler compose up` status lines**: prints the specan web URL
+  immediately after startup (`specan → http://127.0.0.1:8080`);
+  extensible via `Block.status_lines()` hook
+- **`record_demo` warmup** (`--warmup N`, default 5): discards the
+  first N frames before recording so the static demo starts clean;
+  fixes startup glitch without patching the player
+
+### Changed
+
+- **`docs/specan/frames.json`** regenerated with warmup; demo player
+  no longer needs the `slice(1)` workaround
+- **Polyphase docstrings** expanded (`kaiser_beta`, `kaiser_taps`,
+  `kaiser_prototype`); `matlab_optimization.py` removed
+
+### Fixed
+
+- **`record_demo`**: removed stale `beta` argument that was rejected
+  by `SpecanConfig` after the field was dropped
+
+### CI
+
+- **Python 3.14** added to the test matrix
+- **Specan demo staleness check**: new `specan-demo` job fails when
+  `python/specan/` changes without a corresponding update to
+  `docs/specan/frames.json`
+
 ---
 
 ## [0.2.6] — 2026-04-02

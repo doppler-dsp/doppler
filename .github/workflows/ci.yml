@@ -89,11 +89,10 @@ jobs:
   python:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.python-version == '3.15' }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.12', '3.13', '3.14', '3.15']
+        python-version: ['3.12', '3.13', '3.14']
 
     steps:
     - uses: actions/checkout@v4
@@ -113,8 +112,6 @@ jobs:
       uses: astral-sh/setup-uv@v4
       with:
         python-version: ${{ matrix.python-version }}
-        python-version-file: ""
-        allow-prereleases: ${{ matrix.python-version == '3.15' }}
 
     - name: Install Python dev deps
       run: uv sync --group dev

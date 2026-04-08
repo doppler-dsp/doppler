@@ -219,6 +219,17 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 - **Examples split** — `docs/examples.md` → `examples/{index,c,python,streaming}.md`
 - **Docs index** — honest intro, complete feature list, copy fixes
 
+## Recent — Architecture D2 real-input DDC (2026-04-03)
+
+- **`dp_hbdecim_r2cf32_t`** — modified halfband (embedded fs/4 mix,
+  zero extra multiplications); real float → CF32 at fs/2; 30 tests
+- **`dp_ddc_real_t`** — Architecture D2 DDC: halfband → fine NCO at
+  fs/2 → DPMFS; real float in, CF32 out; 54 tests; ~2× cheaper than
+  complex DDC for any rate; norm_freq convention identical to
+  `dp_ddc_create`
+- **Key math**: fine NCO = `2×norm_freq + 0.5` (the +0.5 cancels the
+  embedded −fs/4 halfband shift); all 11 CTest suites passing
+
 ## Next Up
 
 - specan

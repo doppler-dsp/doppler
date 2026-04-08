@@ -13,6 +13,7 @@ copyright        = "Copyright &copy; 2026 doppler contributors — MIT License"
 nav = [
   { "Home"            = "index.md"                  },
   { "Quick Start"     = "quickstart.md"             },
+  { "Architecture"    = "architecture.md"           },
   { "Overview"        = "overview.md"               },
   { "Build & Install" = "build.md"                  },
   { "Examples"        = "examples/"                 },

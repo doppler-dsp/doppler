@@ -163,7 +163,7 @@ let frames   = [];
 let frameIdx = 0;
 
 fetch("frames.json").then(r => r.json()).then(data => {
-  frames = data.slice(1);  // skip first frame (startup glitch)
+  frames = data;
   updatePills(frames[0]);
   startLoop();
 }).catch(err => console.error("Failed to load frames:", err));

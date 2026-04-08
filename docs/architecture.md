@@ -12,8 +12,8 @@ running multi-process signal pipeline in a handful of commands.
 ├─────────────────────────────────────────────────────────┤
 │  Transport         ZMQ streaming   (PUSH/PULL, PUB/SUB) │
 ├─────────────────────────────────────────────────────────┤
-│  DSP Library       C99 core                             |
-|       (NCO · FIR · FFT · DDC · Resampler · Buffer)      │
+│  DSP Library       C99 core                             │
+│       (NCO · FIR · FFT · DDC · Resampler · Buffer)      │
 │                   ┌───────────────┬──────────────┐      │
 │                   │    Python     │  Rust FFI    │      │
 │                   │ (thin ctypes) │ (safe wrap)  │      │

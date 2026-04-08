@@ -230,6 +230,19 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 - **Key math**: fine NCO = `2×norm_freq + 0.5` (the +0.5 cancels the
   embedded −fs/4 halfband shift); all 11 CTest suites passing
 
+## Recent — docs + CLI + CI session (2026-04-08)
+
+- **`docs/architecture.md`** — new unifying page; HTML stack diagram
+  with DSP layer highlighted; Mermaid compose flow diagram
+- **`doppler compose up`** now prints `specan → http://...` after start
+- **`record_demo` warmup** — startup glitch fixed at source; `--warmup`
+  arg added (default 5 frames)
+- **Specan demo staleness CI check** — `specan-demo` job guards
+  `docs/specan/frames.json` against drift
+- **Python 3.14** added to CI matrix; 3.15 deferred (Cargo not ready)
+- **`doppler compose` end-to-end verified** — tone → specan pipeline
+  confirmed working in WSL2
+
 ## Next Up
 
 - specan

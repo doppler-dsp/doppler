@@ -264,6 +264,7 @@ help:
 	@echo "  make test-all      Run all test suites (C + Python + Rust)"
 	@echo "  make python-test   Run pytest"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
+	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make docs-build    Build Zensical site"
 	@echo "  make docs-serve    Serve Zensical site locally"
 	@echo "  make docker        Build Docker image"

@@ -35,7 +35,6 @@ def record(
     tone_freq: float = 100e3,
     tone_power: float = -20.0,
     noise_floor: float = -90.0,
-    beta: float = 6.0,
 ) -> list[dict]:
     """
     Run the DSP pipeline and return *n_frames* spectrum frames.
@@ -56,9 +55,6 @@ def record(
         Tone power in dBm.
     noise_floor : float
         Noise floor in dBm.
-    beta : float
-        Kaiser window β.
-
     Returns
     -------
     list of dict
@@ -81,7 +77,6 @@ def record(
         center=center_freq,
         span=span,
         rbw=rbw,
-        beta=beta,
         demo=DemoConfig(
             tone_freq=tone_freq,
             tone_power=tone_power,
@@ -143,7 +138,6 @@ def main() -> None:
     ap.add_argument("--tone-freq", type=float, default=100e3)
     ap.add_argument("--tone-power", type=float, default=-20.0)
     ap.add_argument("--noise-floor", type=float, default=-90.0)
-    ap.add_argument("--beta", type=float, default=6.0)
     args = ap.parse_args()
 
     print("Recording demo frames...", file=sys.stderr)
@@ -155,7 +149,6 @@ def main() -> None:
         tone_freq=args.tone_freq,
         tone_power=args.tone_power,
         noise_floor=args.noise_floor,
-        beta=args.beta,
     )
     print(
         f"Captured {len(frames)} frames, "

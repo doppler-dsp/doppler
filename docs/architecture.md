@@ -4,20 +4,18 @@ Doppler is a stack of four layers. Each layer is independently
 useful; together they take you from raw DSP primitives to a
 running multi-process signal pipeline in a handful of commands.
 
-<div style="max-width: 540px; margin: 0 auto;">
+<div style="max-width: 600px; margin: 0 auto;">
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#2c6fad', 'lineColor': '#2c6fad', 'secondaryColor': '#6ab0f5', 'tertiaryColor': '#d0e8ff'}}}%%
 block-beta
-  columns 1
-  apps["Apps & Tools — specan, your own sinks & UIs"]
-  cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
-  transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
-  block:dsp:1
-    columns 2
-    core["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:2
-    python["Python (thin ctypes)"]
-    rust["Rust FFI (safe wrap)"]
-  end
+  columns 2
+  apps["Apps & Tools — specan, your own sinks & UIs"]:2
+  cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]:2
+  transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]:2
+  core["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:2
+  python["Python (thin ctypes)"]
+  rust["Rust FFI (safe wrap)"]
 ```
 
 </div>

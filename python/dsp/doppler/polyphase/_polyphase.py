@@ -18,7 +18,22 @@ __all__ = [
 
 
 def kaiser_beta(attenuation_db: float) -> float:
-    """Return Kaiser window β for the given stopband attenuation (dB)."""
+    """Return β for the given stopband attenuation (dB).
+
+    Helper function for designing filters using the Kaiser window.
+
+    Parameters
+    ----------
+    attentuation_db
+        The desired attenuation in decibels.
+
+    Examples
+    --------
+    >>> from doppler.polyphase import kaiser_beta
+    >>> print(f"{kaiser_beta(40.0):0.2f}")
+    3.40
+
+    """
     a = float(attenuation_db)
     if a > 50.0:
         return 0.1102 * (a - 8.7)
@@ -32,7 +47,24 @@ def kaiser_taps(
     passband: float = 0.4,
     stopband: float = 0.6,
 ) -> int:
-    """Return prototype filter length for the given Kaiser spec."""
+    """Return prototype filter length for the given Kaiser spec.
+
+    Parameters
+    ----------
+    attenuation
+        Attenuation desired in decibels.
+    passband
+        Filter passband edge in normalized units f/fs between 0 and 1.
+    stopband
+        Filter stopband edge in normalized units f/fs between 0 and 1.
+
+    Examples
+    --------
+    >>> from doppler.polyphase import kaiser_taps
+    >>> kaiser_taps()
+    19
+
+    """
     return int(1 + (attenuation - 8) / 2.285 / (2.0 * np.pi * (stopband - passband)))
 
 
@@ -43,7 +75,43 @@ def kaiser_prototype(
     image_attenuation: float = 80.0,
     phases: int = None,
 ) -> np.ndarray:
-    """Return a Kaiser-windowed sinc prototype filter (float32)."""
+    """Return a Kaiser-window designed polyphase filter.
+
+    Parameters
+    ----------
+    attenuation
+        Attenuation desired in decibels.
+    passband
+        Filter passband edge in normalized units f/fs between 0 and 1.
+    stopband
+        Filter stopband edge in normalized units f/fs between 0 and 1.
+    image_attenuation
+        Use this for fractional resampler design to compute the number
+        of phases required to attenuate spectral artifacts by the
+        provided amount. Ignored if phases is given.
+    phases
+        Use this for polyphase filter design for integer rate change
+        or to fix the number of polyphase branches.
+
+    Returns
+    -------
+    NDArray[float64]
+        Prototype filter.
+    NDArray[float64]
+        Polyphase filter decomposition.
+
+
+    Examples
+    --------
+    >>> from doppler.polyphase import kaiser_prototype
+    >>> h = kaiser_prototype()
+    >>> h[0].shape
+    (77824,)
+    >>> h[1].shape
+    (4096, 19)
+
+    """
+
     db_per_bit = 6.02
     phases = (
         1 << int(np.ceil((20.0 * np.log10(passband) + image_attenuation) / db_per_bit))
@@ -101,9 +169,13 @@ def plot_group_delay(
 
     Examples
     --------
-    >>> import doppler.polyphase as dp  # doctest: +SKIP
+    >>> import matplotlib.pyplot as plt
+    >>> import doppler.polyphase as dp
     >>> _, bank = dp.kaiser_prototype(passband=0.4, stopband=0.6)
-    >>> fig, ax = dp.plot_group_delay(bank, passband=0.4)  # doctest: +SKIP
+    >>> fig, ax = dp.plot_group_delay(bank, passband=0.4)
+    >>> plt.show(block=False)
+    >>> plt.pause(2.0)
+
     """
     import matplotlib.pyplot as plt
     import matplotlib.cm as cm
@@ -166,3 +238,9 @@ def plot_group_delay(
     ax.legend(loc="upper right", fontsize=9)
 
     return fig, ax
+
+
+if __name__ == "__main__":
+    import doctest
+
+    doctest.testmod(verbose=True)

@@ -8,7 +8,7 @@ running multi-process signal pipeline in a handful of commands.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#2c6fad', 'lineColor': '#2c6fad', 'clusterBkg': '#d0e8ff', 'clusterBorder': '#2c6fad', 'titleColor': '#1a3a5c'}}}%%
-flowchart TB
+flowchart BT
     apps["Apps & Tools — specan, your own sinks & UIs"]
     cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
     transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
@@ -17,7 +17,7 @@ flowchart TB
         python["Python (thin ctypes)"]
         rust["Rust FFI (safe wrap)"]
     end
-    apps --> cli --> transport --> dsp
+    dsp --> transport --> cli --> apps
 ```
 
 </div>

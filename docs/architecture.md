@@ -4,21 +4,17 @@ Doppler is a stack of four layers. Each layer is independently
 useful; together they take you from raw DSP primitives to a
 running multi-process signal pipeline in a handful of commands.
 
-```
-+----------------------------------------------------------+
-|  Apps & Tools     specan, your own sinks & UIs          |
-+----------------------------------------------------------+
-|  Pipeline CLI     doppler compose  (YAML + Dopplerfile) |
-+----------------------------------------------------------+
-|  Transport        ZMQ streaming  (PUSH/PULL, PUB/SUB)   |
-+----------------------------------------------------------+
-|  DSP Library      C99 core                              |
-|    (NCO, FIR, FFT, DDC, Resampler, Buffer)              |
-|                  +----------------+---------------+      |
-|                  |    Python      |   Rust FFI    |      |
-|                  | (thin ctypes)  |  (safe wrap)  |      |
-|                  +----------------+---------------+      |
-+----------------------------------------------------------+
+```mermaid
+block-beta
+  columns 1
+  apps["Apps & Tools — specan, your own sinks & UIs"]
+  cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
+  transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
+  block:dsp["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:1
+    columns 2
+    python["Python (thin ctypes)"]
+    rust["Rust FFI (safe wrap)"]
+  end
 ```
 
 ---

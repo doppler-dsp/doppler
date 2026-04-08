@@ -7,15 +7,17 @@ running multi-process signal pipeline in a handful of commands.
 <div style="max-width: 600px; margin: 0 auto;">
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#2c6fad', 'lineColor': '#2c6fad', 'secondaryColor': '#6ab0f5', 'tertiaryColor': '#d0e8ff'}}}%%
-block-beta
-  columns 2
-  apps["Apps & Tools — specan, your own sinks & UIs"]:2
-  cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]:2
-  transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]:2
-  core["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]:2
-  python["Python (thin ctypes)"]
-  rust["Rust FFI (safe wrap)"]
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#4a90d9', 'primaryTextColor': '#ffffff', 'primaryBorderColor': '#2c6fad', 'lineColor': '#2c6fad', 'clusterBkg': '#d0e8ff', 'clusterBorder': '#2c6fad', 'titleColor': '#1a3a5c'}}}%%
+flowchart TB
+    apps["Apps & Tools — specan, your own sinks & UIs"]
+    cli["Pipeline CLI — doppler compose (YAML + Dopplerfile)"]
+    transport["Transport — ZMQ streaming (PUSH/PULL, PUB/SUB)"]
+    subgraph dsp["DSP Library — C99 core (NCO, FIR, FFT, DDC, Resampler, Buffer)"]
+        direction LR
+        python["Python (thin ctypes)"]
+        rust["Rust FFI (safe wrap)"]
+    end
+    apps --> cli --> transport --> dsp
 ```
 
 </div>

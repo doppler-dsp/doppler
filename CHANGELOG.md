@@ -13,6 +13,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+---
+
+## [0.2.7] — 2026-04-08
+
 ### Added
 
 - **Architecture docs** (`docs/architecture.md`): new page explaining
@@ -46,6 +50,8 @@ and this project adheres to
   `docs/specan/frames.json`
 
 ---
+
+
 
 ## [0.2.6] — 2026-04-02
 

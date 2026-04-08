@@ -1,5 +1,5 @@
 """
-doppler.polyphase.matlab_optimization
+doppler.polyphase.farrow_opt
 ======================================
 
 Polynomial-Based Filter (PBF) minimax optimization via linear

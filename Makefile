@@ -42,7 +42,7 @@ CMAKE       := cmake
 #   make pyext PYTHON_EXECUTABLE=/usr/bin/python3.13
 PYTHON_EXECUTABLE ?= $(shell uv run python -c \
     'import sys; print(sys.executable)' 2>/dev/null || which python3)
-PYTHON_EXECUTABLE := $(or $(JUST_BUILD_PYTHON),$(PYTHON_EXECUTABLE))
+PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 CMAKE_ARGS  ?=
@@ -145,11 +145,11 @@ wheel: build
 
 # ── just-build ────────────────────────────────────────────────────────────────
 # PEP 517 build hook for just-buildit.
-# just-buildit sets JUST_BUILD_OUTPUT_DIR and JUST_BUILD_PYTHON before calling
-# this target. The package tree is copied there for just-buildit to package.
+# just-buildit sets JUST_BUILDIT_OUTPUT_DIR and JUST_BUILDIT_PYTHON before
+# calling this target. The package tree is copied there to be packaged.
 just-build: pyext
-	mkdir -p $(JUST_BUILD_OUTPUT_DIR)
-	cp -r $(PYEXT_DIR) $(JUST_BUILD_OUTPUT_DIR)/doppler
+	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
+	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
 
 # ── test-all ──────────────────────────────────────────────────────────────────
 test-all: test python-test rust-test

@@ -159,7 +159,7 @@ jobs:
     - name: Check frames kept in sync with specan source
       run: |
         BASE=${{ github.event.pull_request.base.sha || 'HEAD^' }}
-        SPECAN=$(git diff --name-only "$BASE"...HEAD -- python/specan/ | wc -l)
+        SPECAN=$(git diff --name-only "$BASE"...HEAD -- python/specan/doppler_specan/ | wc -l)
         FRAMES=$(git diff --name-only "$BASE"...HEAD -- docs/specan/frames.json | wc -l)
         if [ "$SPECAN" -gt 0 ] && [ "$FRAMES" -eq 0 ]; then
           echo "python/specan/ changed but docs/specan/frames.json was not updated."

@@ -305,3 +305,123 @@ class TestOneShot:
         x_rec = nfft.fft(X, sign=1) / n
 
         assert np.allclose(x, x_rec, atol=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# CF32 (float complex / complex64) dtype dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestCF32:
+    def test_dtype_preserved_1d(self):
+        """execute1d() on complex64 input returns complex64 output."""
+        n = 64
+        x = np.zeros(n, dtype=np.complex64)
+        x[0] = 1.0
+
+        nfft.setup((n,), sign=-1)
+        X = nfft.execute1d(x)
+
+        assert X.dtype == np.complex64
+        assert X.shape == (n,)
+
+    def test_impulse_1d_cf32(self):
+        """CF32 FFT of a unit impulse is a flat spectrum."""
+        n = 32
+        x = np.zeros(n, dtype=np.complex64)
+        x[0] = 1.0
+
+        nfft.setup((n,), sign=-1)
+        X = nfft.execute1d(x)
+
+        assert X.dtype == np.complex64
+        assert np.allclose(X, np.ones(n, dtype=np.complex64), atol=1e-5)
+
+    def test_round_trip_1d_cf32(self):
+        """Forward + inverse CF32 1D FFT recovers the original signal."""
+        n = 128
+        rng = np.random.default_rng(42)
+        x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+
+        nfft.setup((n,), sign=-1)
+        X = nfft.execute1d(x)
+
+        nfft.setup((n,), sign=1)
+        x_rec = nfft.execute1d(X)
+        x_rec /= n
+
+        assert x_rec.dtype == np.complex64
+        assert np.allclose(x, x_rec, atol=1e-4)
+
+    def test_matches_numpy_1d_cf32(self):
+        """CF32 FFT matches numpy.fft.fft (within single-precision tolerance)."""
+        n = 256
+        rng = np.random.default_rng(77)
+        x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+
+        nfft.setup((n,), sign=-1)
+        X_dp = nfft.execute1d(x)
+        X_np = np.fft.fft(x.astype(np.complex128)).astype(np.complex64)
+
+        assert np.allclose(X_dp, X_np, atol=1e-3)
+
+    def test_inplace_1d_cf32(self):
+        """In-place CF32 1D FFT matches out-of-place result."""
+        n = 64
+        rng = np.random.default_rng(13)
+        x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+
+        nfft.setup((n,), sign=-1)
+        X_oop = nfft.execute1d(x.copy())
+
+        x_ip = x.copy()
+        result = nfft.execute1d_inplace(x_ip)
+
+        assert result is x_ip
+        assert x_ip.dtype == np.complex64
+        assert np.allclose(x_ip, X_oop, atol=1e-5)
+
+    def test_dtype_preserved_2d(self):
+        """execute2d() on complex64 input returns complex64 output."""
+        ny, nx = 8, 8
+        x = np.zeros((ny, nx), dtype=np.complex64)
+        x[0, 0] = 1.0
+
+        nfft.setup((ny, nx), sign=-1)
+        X = nfft.execute2d(x)
+
+        assert X.dtype == np.complex64
+        assert X.shape == (ny, nx)
+
+    def test_round_trip_2d_cf32(self):
+        """Forward + inverse CF32 2D FFT recovers the original signal."""
+        ny, nx = 16, 16
+        rng = np.random.default_rng(99)
+        x = (rng.standard_normal((ny, nx)) + 1j * rng.standard_normal((ny, nx))).astype(
+            np.complex64
+        )
+
+        nfft.setup((ny, nx), sign=-1)
+        X = nfft.execute2d(x)
+
+        nfft.setup((ny, nx), sign=1)
+        x_rec = nfft.execute2d(X)
+        x_rec /= ny * nx
+
+        assert x_rec.dtype == np.complex64
+        assert np.allclose(x, x_rec, atol=1e-4)
+
+    def test_fft_oneshot_cf32(self):
+        """fft() one-shot preserves complex64 dtype."""
+        n = 64
+        rng = np.random.default_rng(55)
+        x = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+
+        X = nfft.fft(x)
+
+        assert X.dtype == np.complex64
+        assert np.allclose(
+            X,
+            np.fft.fft(x.astype(np.complex128)).astype(np.complex64),
+            atol=1e-3,
+        )

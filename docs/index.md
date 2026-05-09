@@ -50,23 +50,23 @@ Re-run any suite with `make blazing` then the binary listed below.
 
 ### FFT (`dp_fft*`)
 
-FFTW backend, `estimate` plan, 1 thread, complex double — `./build/c/bench_fft_c`
+FFTW backend, `estimate` plan, 1 thread — `./build/c/bench_fft_c`
 
-**1D (`fft1d_execute` / `fft1d_execute_inplace`)**
+**1D**
+
+| Size | CF64 OOP MSa/s | CF64 IP MSa/s | CF32 OOP MSa/s | CF32 IP MSa/s |
+|-----:|---------------:|--------------:|---------------:|--------------:|
+| 1 024 | 1 018 | 807 | 1 933 | 1 449 |
+| 4 096 | 492 | 326 | 1 303 | 1 121 |
+| 16 384 | 172 | 180 | 400 | 320 |
+
+**2D (CF64)**
 
 | Size | Out-of-place MSa/s | In-place MSa/s |
 |-----:|-------------------:|---------------:|
-| 1 024 | 925 | 757 |
-| 4 096 | 474 | 379 |
-| 16 384 | 146 | 139 |
-
-**2D (`fft2d_execute` / `fft2d_execute_inplace`)**
-
-| Size | Out-of-place MSa/s | In-place MSa/s |
-|-----:|-------------------:|---------------:|
-| 64 × 64 | 722 | 616 |
-| 128 × 128 | 252 | 241 |
-| 256 × 256 | 33 | 30 |
+| 64 × 64 | 754 | 619 |
+| 128 × 128 | 279 | 264 |
+| 256 × 256 | 38 | 38 |
 
 ### Ring buffer (`dp_f32 / dp_f64`)
 

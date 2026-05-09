@@ -159,8 +159,9 @@ doppler/
 
 ### Core DSP
 
-- FFT: `dp_fft_global_setup`, `dp_fft1d_execute`, etc. (FFTW or
-  pocketfft backend)
+- FFT: `dp_fft_global_setup`, `dp_fft1d_execute`,
+  `dp_fft1d_execute_cf32`, etc. (FFTW or pocketfft backend;
+  CF32 variants ~2× faster than CF64)
 - FIR: `dp_fir_create`, `dp_fir_execute_*` (AVX-512 / scalar,
   real and complex taps, CI8/CI16/CI32/CF32 inputs)
 - NCO: `dp_nco_create`, `dp_nco_execute_cf32`,
@@ -195,16 +196,16 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 | Suite          | Count | Tool    |
 |----------------|-------|---------|
 | C streaming    | 26    | CTest   |
-| C FFT          | 6     | CTest   |
+| C FFT          | 12    | CTest   |
 | C FIR          | ?     | CTest   |
 | C NCO          | 59    | CTest   |
 | Python buffer  | 20    | pytest  |
-| Python FFT     | 20    | pytest  |
+| Python FFT     | 28    | pytest  |
 | Python stream  | 14    | pytest  |
 | Python NCO     | 26    | pytest  |
 | Python DPMFS   | 40    | pytest  |
 | Rust FFI       | 13    | cargo   |
-| **Total**      | **224+**|       |
+| **Total**      | **232+**|       |
 
 ## Recent — doppler-cli + specan session (2026-04-02, PR #8)
 
@@ -229,6 +230,19 @@ make build CMAKE_ARGS="-DUSE_FFTW=OFF"
   `dp_ddc_create`
 - **Key math**: fine NCO = `2×norm_freq + 0.5` (the +0.5 cancels the
   embedded −fs/4 halfband shift); all 11 CTest suites passing
+
+## Recent — FFT CF32 support (2026-05-09)
+
+- **`dp_fft1d_execute_cf32` / `dp_fft1d_execute_inplace_cf32`** — 1D
+  single-precision FFT, FFTW (`fftwf_*`) and pocketfft backends
+- **`dp_fft2d_execute_cf32` / `dp_fft2d_execute_inplace_cf32`** — 2D
+  single-precision FFT
+- **Separate inplace plan slots** for CF32 (FFTW plans encode aliasing
+  assumptions; sharing an OOP plan for inplace is UB)
+- **CMake** — finds and links `libfftw3f` / `libfftw3f_threads`
+- **Python dtype dispatch** — `execute1d/2d` auto-routes on input dtype:
+  `complex64` → CF32 path + `complex64` output; `complex128` → CF64 path
+- **Bench result**: CF32 is ~1.9–2.6× faster than CF64 across 1K–16K sizes
 
 ## Recent — docs + CLI + CI session (2026-04-08)
 

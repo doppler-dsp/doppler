@@ -25,6 +25,19 @@ max_abs_error (const double complex *a, const double complex *b, size_t n)
   return maxerr;
 }
 
+static float
+max_abs_error_cf32 (const float complex *a, const float complex *b, size_t n)
+{
+  float maxerr = 0.0f;
+  for (size_t i = 0; i < n; i++)
+    {
+      float err = cabsf (a[i] - b[i]);
+      if (err > maxerr)
+        maxerr = err;
+    }
+  return maxerr;
+}
+
 static void
 fill_signal (double complex *x, size_t n)
 {
@@ -132,6 +145,104 @@ test_fft_2d (size_t ny, size_t nx)
 }
 
 /* ------------------------------------------------------------
+ * 1D CF32 TEST
+ * ------------------------------------------------------------ */
+static int
+test_fft_1d_cf32 (size_t n)
+{
+  printf ("\n=== Testing 1D CF32 FFT (n = %zu) ===\n", n);
+
+  size_t shape[1] = { n };
+
+  float complex *x = malloc (n * sizeof (float complex));
+  float complex *y = malloc (n * sizeof (float complex));
+  float complex *z = malloc (n * sizeof (float complex));
+
+  for (size_t i = 0; i < n; i++)
+    {
+      float t = 2.0f * (float)M_PI * (float)i / (float)n;
+      x[i] = cosf (t) + I * sinf (2.0f * t);
+    }
+
+  /* Forward plan */
+  dp_fft_global_setup (shape, 1, +1, 1, "measure", "");
+  dp_fft1d_execute_cf32 (x, y);
+
+  /* Inverse plan */
+  dp_fft_global_setup (shape, 1, -1, 1, "measure", "");
+  dp_fft1d_execute_cf32 (y, z);
+
+  for (size_t i = 0; i < n; i++)
+    z[i] /= (float)n;
+
+  float err = max_abs_error_cf32 (x, z, n);
+  printf ("Max error: %.3e\n", err);
+
+  free (x);
+  free (y);
+  free (z);
+
+  if (err < 1e-4f)
+    {
+      printf ("PASS\n");
+      return 1;
+    }
+  else
+    {
+      printf ("FAIL\n");
+      return 0;
+    }
+}
+
+/* ------------------------------------------------------------
+ * 2D CF32 TEST
+ * ------------------------------------------------------------ */
+static int
+test_fft_2d_cf32 (size_t ny, size_t nx)
+{
+  printf ("\n=== Testing 2D CF32 FFT (%zux%zu) ===\n", ny, nx);
+
+  size_t shape[2] = { ny, nx };
+  size_t total = ny * nx;
+
+  float complex *x = malloc (total * sizeof (float complex));
+  float complex *y = malloc (total * sizeof (float complex));
+  float complex *z = malloc (total * sizeof (float complex));
+
+  for (size_t i = 0; i < total; i++)
+    x[i] = sinf ((float)i) + I * cosf ((float)i);
+
+  /* Forward */
+  dp_fft_global_setup (shape, 2, +1, 1, "measure", "");
+  dp_fft2d_execute_cf32 (x, y);
+
+  /* Inverse */
+  dp_fft_global_setup (shape, 2, -1, 1, "measure", "");
+  dp_fft2d_execute_cf32 (y, z);
+
+  for (size_t i = 0; i < total; i++)
+    z[i] /= (float)total;
+
+  float err = max_abs_error_cf32 (x, z, total);
+  printf ("Max error: %.3e\n", err);
+
+  free (x);
+  free (y);
+  free (z);
+
+  if (err < 1e-4f)
+    {
+      printf ("PASS\n");
+      return 1;
+    }
+  else
+    {
+      printf ("FAIL\n");
+      return 0;
+    }
+}
+
+/* ------------------------------------------------------------
  * MAIN
  * ------------------------------------------------------------ */
 int
@@ -148,6 +259,14 @@ main (void)
   ok &= test_fft_2d (8, 8);
   ok &= test_fft_2d (32, 32);
   ok &= test_fft_2d (64, 64);
+
+  ok &= test_fft_1d_cf32 (16);
+  ok &= test_fft_1d_cf32 (1024);
+  ok &= test_fft_1d_cf32 (4096);
+
+  ok &= test_fft_2d_cf32 (8, 8);
+  ok &= test_fft_2d_cf32 (32, 32);
+  ok &= test_fft_2d_cf32 (64, 64);
 
   printf ("\nOverall result: %s\n", ok ? "PASS" : "FAIL");
   return ok ? 0 : 1;

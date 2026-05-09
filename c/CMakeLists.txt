@@ -18,22 +18,35 @@ if(USE_FFTW)
     message(STATUS "FFT backend: FFTW (distributed binary is GPL-licensed)")
     set(FFT_BACKEND_NAME "FFTW")
 
-    find_library(FFTW3_LIB         fftw3         REQUIRED)
-    find_path   (FFTW3_INCLUDE_DIR fftw3.h       REQUIRED)
+    find_library(FFTW3_LIB          fftw3          REQUIRED)
+    find_library(FFTW3F_LIB         fftw3f         REQUIRED)
+    find_path   (FFTW3_INCLUDE_DIR  fftw3.h        REQUIRED)
     # fftw3_threads is a separate .so on Linux; on Windows/MSYS2 thread
     # support is compiled into the main fftw3 library — make it optional.
-    find_library(FFTW3_THREADS_LIB fftw3_threads)
+    find_library(FFTW3_THREADS_LIB  fftw3_threads)
+    find_library(FFTW3F_THREADS_LIB fftw3f_threads)
 
-    message(STATUS "  FFTW include: ${FFTW3_INCLUDE_DIR}")
-    message(STATUS "  FFTW lib:     ${FFTW3_LIB}")
+    message(STATUS "  FFTW include:    ${FFTW3_INCLUDE_DIR}")
+    message(STATUS "  FFTW lib:        ${FFTW3_LIB}")
+    message(STATUS "  FFTW float lib:  ${FFTW3F_LIB}")
     if(FFTW3_THREADS_LIB)
         message(STATUS "  FFTW threads: ${FFTW3_THREADS_LIB}")
     else()
         message(STATUS "  FFTW threads: (not found — using fftw3 built-in)")
     endif()
+    if(FFTW3F_THREADS_LIB)
+        message(STATUS "  FFTW float threads: ${FFTW3F_THREADS_LIB}")
+    else()
+        message(STATUS "  FFTW float threads: (not found — using fftw3f built-in)")
+    endif()
 
     set(FFT_BACKEND_SOURCES  src/fft.c)
-    set(FFT_BACKEND_LIBS     ${FFTW3_LIB} $<$<BOOL:${FFTW3_THREADS_LIB}>:${FFTW3_THREADS_LIB}> m)
+    set(FFT_BACKEND_LIBS
+        ${FFTW3_LIB}
+        ${FFTW3F_LIB}
+        $<$<BOOL:${FFTW3_THREADS_LIB}>:${FFTW3_THREADS_LIB}>
+        $<$<BOOL:${FFTW3F_THREADS_LIB}>:${FFTW3F_THREADS_LIB}>
+        m)
     set(FFT_BACKEND_INCLUDES ${FFTW3_INCLUDE_DIR})
 
 else()

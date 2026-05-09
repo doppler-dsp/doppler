@@ -13,6 +13,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- **CF32 FFT** (`dp_fft1d_execute_cf32`, `dp_fft1d_execute_inplace_cf32`,
+  `dp_fft2d_execute_cf32`, `dp_fft2d_execute_inplace_cf32`): single-
+  precision (float complex) FFT variants backed by FFTW `fftwf_*` and
+  pocketfft; ~1.9–2.6× faster than CF64 across 1K–16K sizes
+- **Python dtype dispatch**: `execute1d`, `execute2d`, `execute`, `fft`
+  now auto-route on input dtype — `complex64` → CF32 path with
+  `complex64` output; `complex128` → CF64 path unchanged
+
+### Changed
+
+- **CMake**: `libfftw3f` and `libfftw3f_threads` added as FFTW-backend
+  dependencies
+
 ---
 
 ## [0.2.7] — 2026-04-08

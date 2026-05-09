@@ -22,8 +22,12 @@ extern "C"
    * in C++.  Using void* keeps the header valid in both languages.
    */
   void pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out);
+  void pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in,
+                                   void *out);
 
   void pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out);
+  void pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in,
+                                   void *out);
 
   /* Destroy plan */
   void pocketfft_destroy_plan (pocketfft_plan *p);

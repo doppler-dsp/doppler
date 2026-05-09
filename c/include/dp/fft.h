@@ -98,6 +98,48 @@ extern "C"
    */
   void dp_fft2d_execute_inplace (double complex *data);
 
+  /* ------------------------------------------------------------------
+   * Single-precision (float complex / CF32) variants
+   * ------------------------------------------------------------------
+   * These share the same global shape and direction set by
+   * dp_fft_global_setup(), but maintain a separate internal plan.
+   * Use them when 32-bit precision is sufficient (e.g. SDR signal
+   * processing) and memory bandwidth or throughput is a concern.
+   * ------------------------------------------------------------------ */
+
+  /**
+   * @brief Execute an out-of-place 1-D FFT on single-precision complex data.
+   *
+   * @param input  Read-only input array of `shape[0]` float complex elements.
+   * @param output Output array (must not alias @p input).
+   */
+  void dp_fft1d_execute_cf32 (const float complex *input,
+                               float complex *output);
+
+  /**
+   * @brief Execute an in-place 1-D FFT on single-precision complex data.
+   *
+   * @param data  Input/output array of `shape[0]` float complex elements.
+   */
+  void dp_fft1d_execute_inplace_cf32 (float complex *data);
+
+  /**
+   * @brief Execute an out-of-place 2-D FFT on single-precision complex data.
+   *
+   * @param input  Read-only input array of `shape[0] * shape[1]` elements.
+   * @param output Output array (must not alias @p input).
+   */
+  void dp_fft2d_execute_cf32 (const float complex *input,
+                               float complex *output);
+
+  /**
+   * @brief Execute an in-place 2-D FFT on single-precision complex data.
+   *
+   * @param data  Input/output array of `shape[0] * shape[1]` float complex
+   *              elements.
+   */
+  void dp_fft2d_execute_inplace_cf32 (float complex *data);
+
 #ifdef __cplusplus
 }
 #endif

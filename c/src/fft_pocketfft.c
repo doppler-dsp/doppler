@@ -28,6 +28,15 @@ static double complex *BOUND_OUT_2D = NULL;
 static pocketfft_plan *PLAN_1D = NULL;
 static pocketfft_plan *PLAN_2D = NULL;
 
+/* CF32 state */
+static float complex *BOUND_IN_1D_F = NULL;
+static float complex *BOUND_OUT_1D_F = NULL;
+static float complex *BOUND_IN_2D_F = NULL;
+static float complex *BOUND_OUT_2D_F = NULL;
+
+static pocketfft_plan *PLAN_1D_F = NULL;
+static pocketfft_plan *PLAN_2D_F = NULL;
+
 /* ------------------------------------------------------------
  * Helpers
  * ------------------------------------------------------------ */
@@ -65,6 +74,19 @@ fft_global_setup (const size_t *shape, size_t ndim, int sign, int nthreads,
 
   BOUND_IN_1D = BOUND_OUT_1D = NULL;
   BOUND_IN_2D = BOUND_OUT_2D = NULL;
+
+  if (PLAN_1D_F)
+    {
+      pocketfft_destroy_plan (PLAN_1D_F);
+      PLAN_1D_F = NULL;
+    }
+  if (PLAN_2D_F)
+    {
+      pocketfft_destroy_plan (PLAN_2D_F);
+      PLAN_2D_F = NULL;
+    }
+  BOUND_IN_1D_F = BOUND_OUT_1D_F = NULL;
+  BOUND_IN_2D_F = BOUND_OUT_2D_F = NULL;
 
   if (ndim == 1)
     {
@@ -163,4 +185,70 @@ fft2d_execute_inplace (double complex *data)
     return;
 
   pocketfft_execute_2d (PLAN_2D, data, data);
+}
+
+/* ------------------------------------------------------------
+ * CF32 (single-precision) execute
+ * ------------------------------------------------------------ */
+
+void
+dp_fft1d_execute_cf32 (const float complex *input, float complex *output)
+{
+  if (!input || !output || GLOBAL_N == 0)
+    return;
+
+  if (!PLAN_1D_F)
+    {
+      BOUND_IN_1D_F = (float complex *)input;
+      BOUND_OUT_1D_F = output;
+      PLAN_1D_F = pocketfft_plan_1d (GLOBAL_N, GLOBAL_FORWARD);
+    }
+
+  pocketfft_execute_1d_cf32 (PLAN_1D_F, input, output);
+}
+
+void
+dp_fft1d_execute_inplace_cf32 (float complex *data)
+{
+  if (!data || GLOBAL_N == 0)
+    return;
+
+  if (!PLAN_1D_F)
+    {
+      BOUND_IN_1D_F = BOUND_OUT_1D_F = data;
+      PLAN_1D_F = pocketfft_plan_1d (GLOBAL_N, GLOBAL_FORWARD);
+    }
+
+  pocketfft_execute_1d_cf32 (PLAN_1D_F, data, data);
+}
+
+void
+dp_fft2d_execute_cf32 (const float complex *input, float complex *output)
+{
+  if (!input || !output || GLOBAL_NY == 0 || GLOBAL_NX == 0)
+    return;
+
+  if (!PLAN_2D_F)
+    {
+      BOUND_IN_2D_F = (float complex *)input;
+      BOUND_OUT_2D_F = output;
+      PLAN_2D_F = pocketfft_plan_2d (GLOBAL_NY, GLOBAL_NX, GLOBAL_FORWARD);
+    }
+
+  pocketfft_execute_2d_cf32 (PLAN_2D_F, input, output);
+}
+
+void
+dp_fft2d_execute_inplace_cf32 (float complex *data)
+{
+  if (!data || GLOBAL_NY == 0 || GLOBAL_NX == 0)
+    return;
+
+  if (!PLAN_2D_F)
+    {
+      BOUND_IN_2D_F = BOUND_OUT_2D_F = data;
+      PLAN_2D_F = pocketfft_plan_2d (GLOBAL_NY, GLOBAL_NX, GLOBAL_FORWARD);
+    }
+
+  pocketfft_execute_2d_cf32 (PLAN_2D_F, data, data);
 }

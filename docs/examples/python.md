@@ -39,8 +39,28 @@ from doppler.fft import fft
 import numpy as np
 
 x = np.random.randn(1024) + 1j * np.random.randn(1024)
-spectrum = fft(x)
+spectrum = fft(x)                    # complex128 in → complex128 out
 print(f"FFT result: {len(spectrum)} bins")
+```
+
+### Single-precision FFT (CF32, ~2× faster)
+
+Pass a `complex64` array — dtype is preserved end-to-end with no
+extra allocation or cast.
+
+```python
+from doppler.fft import fft, setup, execute1d
+import numpy as np
+
+x32 = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
+
+# One-shot: complex64 in → complex64 out
+X32 = fft(x32)
+assert X32.dtype == np.complex64
+
+# Or with an explicit plan
+setup((1024,))
+X32 = execute1d(x32)    # CF32 path selected automatically
 ```
 
 ### Reusing a plan (faster for repeated transforms)

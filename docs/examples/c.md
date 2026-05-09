@@ -98,7 +98,7 @@ int main(void) {
 
 ## FFT
 
-### 1D FFT (out-of-place)
+### 1D FFT (double precision, out-of-place)
 
 ```c
 #include <doppler.h>
@@ -126,7 +126,29 @@ int main(void) {
 }
 ```
 
-### 1D FFT (in-place)
+### 1D FFT (single precision / CF32, ~2× faster)
+
+`dp_fft_global_setup` is shared — set up the shape once, then
+call either the CF64 or CF32 variant.
+
+```c
+#include <dp/fft.h>
+#include <complex.h>
+#include <math.h>
+
+const size_t N = 1024;
+size_t shape[] = {N};
+dp_fft_global_setup(shape, 1, -1, 1, "estimate", NULL);
+
+float complex in32[N], out32[N];
+for (size_t i = 0; i < N; i++)
+    in32[i] = cosf(2.0f * M_PI * 10.0f * i / N) + 0.0f * I;
+
+dp_fft1d_execute_cf32(in32, out32);       // out-of-place
+dp_fft1d_execute_inplace_cf32(in32);      // in-place
+```
+
+### 1D FFT (in-place, double)
 
 ```c
 dp_fft1d_execute_inplace(data);  // modifies data in-place
@@ -137,8 +159,14 @@ dp_fft1d_execute_inplace(data);  // modifies data in-place
 ```c
 size_t shape[] = {64, 64};
 dp_fft_global_setup(shape, 2, -1, 1, "estimate", NULL);
+
+// CF64
 dp_fft2d_execute(in2d, out2d);
 dp_fft2d_execute_inplace(in2d);
+
+// CF32
+dp_fft2d_execute_cf32(in32_2d, out32_2d);
+dp_fft2d_execute_inplace_cf32(in32_2d);
 ```
 
 ---

@@ -4,6 +4,16 @@ Wraps the C ``dp_fft_*`` functions.  A single *global plan* is
 maintained inside the C layer; call :func:`setup` (or the one-shot
 :func:`fft`) before executing any transform.
 
+Dtype dispatch
+--------------
+All execute functions dispatch on the dtype of the input array:
+
+* ``complex64``  (float32 pairs)  → CF32 path, output is ``complex64``.
+* ``complex128`` (float64 pairs)  → CF64 path, output is ``complex128``.
+
+Any other numeric dtype is promoted to ``complex128`` before the
+transform.
+
 Supported backends
 ------------------
 * **PocketFFT** — bundled header-only library, always available.
@@ -15,14 +25,15 @@ Examples
 >>> import numpy as np
 >>> import doppler.fft as nfft
 >>>
->>> x = np.random.randn(1024).astype(np.complex128)
+>>> x64 = np.random.randn(1024).astype(np.complex128)
+>>> X64 = nfft.fft(x64)              # complex128 out
 >>>
->>> # One-shot (setup + execute):
->>> X = nfft.fft(x)
+>>> x32 = np.random.randn(1024).astype(np.complex64)
+>>> X32 = nfft.fft(x32)              # complex64 out
 >>>
 >>> # Or explicit setup then execute:
 >>> nfft.setup((1024,))
->>> X = nfft.execute1d(x)
+>>> X = nfft.execute1d(x64)
 """
 
 from ._fft import (
@@ -90,16 +101,18 @@ def execute1d(x):
     """Execute an out-of-place 1-D FFT.
 
     Uses the plan from the most recent :func:`setup` with a 1-D shape.
+    The output dtype matches the input: ``complex64`` in → ``complex64``
+    out; ``complex128`` (or any other type) in → ``complex128`` out.
 
     Parameters
     ----------
     x : np.ndarray
-        1-D ``complex128`` array.
+        1-D complex array (``complex64`` or ``complex128``).
 
     Returns
     -------
     np.ndarray
-        1-D ``complex128`` output of the same length.
+        1-D output of the same length and dtype as *x*.
 
     Examples
     --------
@@ -114,10 +127,14 @@ def execute1d(x):
 def execute1d_inplace(x):
     """Execute a 1-D FFT in-place, overwriting the input array.
 
+    Dispatches on dtype: ``complex64`` uses the CF32 path;
+    ``complex128`` uses the CF64 path.
+
     Parameters
     ----------
     x : np.ndarray
-        1-D ``complex128`` array.  **Modified in place.**
+        1-D complex array (``complex64`` or ``complex128``).
+        **Modified in place.**
 
     Returns
     -------
@@ -145,15 +162,18 @@ def execute1d_inplace(x):
 def execute2d(x):
     """Execute an out-of-place 2-D FFT.
 
+    Dispatches on dtype: ``complex64`` uses the CF32 path;
+    ``complex128`` uses the CF64 path.
+
     Parameters
     ----------
     x : np.ndarray
-        2-D ``complex128`` array in row-major (C) order.
+        2-D complex array in row-major (C) order.
 
     Returns
     -------
     np.ndarray
-        2-D ``complex128`` output of the same shape.
+        2-D output of the same shape and dtype as *x*.
 
     Examples
     --------
@@ -168,10 +188,13 @@ def execute2d(x):
 def execute2d_inplace(x):
     """Execute a 2-D FFT in-place, overwriting the input array.
 
+    Dispatches on dtype: ``complex64`` uses the CF32 path;
+    ``complex128`` uses the CF64 path.
+
     Parameters
     ----------
     x : np.ndarray
-        2-D ``complex128`` array.  **Modified in place.**
+        2-D complex array.  **Modified in place.**
 
     Returns
     -------
@@ -257,11 +280,14 @@ def fft(x, sign=-1, nthreads=1, planner="estimate", wisdom=None):
     """Set up and execute a 1-D or 2-D FFT in a single call.
 
     Equivalent to :func:`setup` followed by :func:`execute`.
+    The output dtype matches the input: ``complex64`` → ``complex64``,
+    ``complex128`` → ``complex128``.
 
     Parameters
     ----------
     x : np.ndarray
-        1-D or 2-D ``complex128`` input array.
+        1-D or 2-D complex input array (``complex64`` or
+        ``complex128``).
     sign : int, optional
         ``-1`` (default) for forward FFT, ``+1`` for inverse.
     nthreads : int, optional

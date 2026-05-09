@@ -102,8 +102,9 @@ dp_cleanup();   // Clean shutdown, free FFT plans
 
 Header: [c/include/dp/fft.h](../c/include/dp/fft.h)
 
-1D and 2D FFTs. Set up once, execute many times. The FFT backend is
-selectable — FFTW (default, high-performance) or pocketfft (MIT-only).
+1D and 2D FFTs in double (`double complex`) and single (`float complex`)
+precision. Set up once, execute many times. The FFT backend is selectable —
+FFTW (default, high-performance) or pocketfft (MIT-only).
 See [Build Guide](build.md) for details.
 
 ```c
@@ -121,16 +122,25 @@ dp_fft_global_setup(
     NULL         // wisdom path (FFTW only, optional)
 );
 
-// Execute
+// CF64 (double complex) — execute
 double complex in[1024], out[1024];
-dp_fft1d_execute(in, out);          // out-of-place
-dp_fft1d_execute_inplace(in);       // in-place
+dp_fft1d_execute(in, out);           // out-of-place
+dp_fft1d_execute_inplace(in);        // in-place
 
-// 2D
+// CF32 (float complex) — ~2× faster, same setup
+float complex in32[1024], out32[1024];
+dp_fft1d_execute_cf32(in32, out32);
+dp_fft1d_execute_inplace_cf32(in32);
+
+// 2D — CF64
 size_t shape2d[] = {64, 64};
 dp_fft_global_setup(shape2d, 2, -1, 1, "estimate", NULL);
 dp_fft2d_execute(in2d, out2d);
 dp_fft2d_execute_inplace(in2d);
+
+// 2D — CF32
+dp_fft2d_execute_cf32(in32_2d, out32_2d);
+dp_fft2d_execute_inplace_cf32(in32_2d);
 ```
 
 ### Circular buffers
@@ -273,7 +283,8 @@ setup((64, 64))
 out = execute2d(x2d)
 ```
 
-Input arrays must be `complex128` (double-precision complex).
+Dtype dispatch: `complex64` input → `complex64` output (CF32 path, ~2× faster);
+`complex128` (or any other type) → `complex128` output.
 
 ### Streaming (Python)
 

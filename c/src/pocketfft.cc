@@ -82,6 +82,42 @@ extern "C"
   }
 
   /* -------------------------
+   * Execute 1D (float)
+   * ------------------------- */
+  void
+  pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
+  {
+    using namespace pocketfft;
+
+    shape_t shape = { p->n };
+    stride_t stride = { sizeof (std::complex<float>) };
+    shape_t axes = { 0 };
+
+    c2c (shape, stride, stride, axes, p->sign,
+         reinterpret_cast<const std::complex<float> *> (in),
+         reinterpret_cast<std::complex<float> *> (out), 1.0f);
+  }
+
+  /* -------------------------
+   * Execute 2D (float)
+   * ------------------------- */
+  void
+  pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
+  {
+    using namespace pocketfft;
+
+    shape_t shape = { p->ny, p->nx };
+    stride_t stride
+        = { (std::ptrdiff_t)(sizeof (std::complex<float>) * p->nx),
+            (std::ptrdiff_t)sizeof (std::complex<float>) };
+    shape_t axes = { 0, 1 };
+
+    c2c (shape, stride, stride, axes, p->sign,
+         reinterpret_cast<const std::complex<float> *> (in),
+         reinterpret_cast<std::complex<float> *> (out), 1.0f);
+  }
+
+  /* -------------------------
    * Destroy
    * ------------------------- */
   void

@@ -79,6 +79,55 @@ bench_1d (size_t n, int iters)
 }
 
 static void
+bench_1d_cf32 (size_t n, int iters)
+{
+  printf ("\n=== 1D CF32 FFT Benchmark (n = %zu) ===\n", n);
+
+  size_t shape[1] = { n };
+  dp_fft_global_setup (shape, 1, +1, 1, "estimate", "");
+
+  float complex *x = malloc (n * sizeof (float complex));
+  float complex *y = malloc (n * sizeof (float complex));
+
+  for (size_t i = 0; i < n; i++)
+    {
+      float t = 2.0f * (float)M_PI * (float)i / (float)n;
+      x[i] = cosf (t) + I * sinf (2.0f * t);
+    }
+
+  dp_fft1d_execute_cf32 (x, y);
+
+  double t0 = now_sec ();
+  for (int i = 0; i < iters; i++)
+    dp_fft1d_execute_cf32 (x, y);
+  double t1 = now_sec ();
+
+  double dt = (t1 - t0) / iters;
+  double Msps = ((double)n / dt) / 1e6;
+
+  printf ("fft1d_execute_cf32:          dt = %.6f s, MS/s = %.2f\n", dt,
+          Msps);
+
+  dp_fft_global_setup (shape, 1, +1, 1, "estimate", "");
+
+  dp_fft1d_execute_inplace_cf32 (x);
+
+  t0 = now_sec ();
+  for (int i = 0; i < iters; i++)
+    dp_fft1d_execute_inplace_cf32 (x);
+  t1 = now_sec ();
+
+  dt = (t1 - t0) / iters;
+  Msps = ((double)n / dt) / 1e6;
+
+  printf ("fft1d_execute_inplace_cf32:  dt = %.6f s, MS/s = %.2f\n", dt,
+          Msps);
+
+  free (x);
+  free (y);
+}
+
+static void
 bench_2d (size_t ny, size_t nx, int iters)
 {
   printf ("\n=== 2D FFT Benchmark (%zux%zu) ===\n", ny, nx);
@@ -136,6 +185,10 @@ main (void)
   bench_1d (1024, 2000);
   bench_1d (4096, 1000);
   bench_1d (16384, 200);
+
+  bench_1d_cf32 (1024, 2000);
+  bench_1d_cf32 (4096, 1000);
+  bench_1d_cf32 (16384, 200);
 
   bench_2d (64, 64, 2000);
   bench_2d (128, 128, 500);

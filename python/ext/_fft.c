@@ -24,6 +24,21 @@ ensure_complex128 (PyArrayObject **arr, PyObject *obj, int writeable)
   return 0;
 }
 
+static int
+ensure_complex64 (PyArrayObject **arr, PyObject *obj, int writeable)
+{
+  *arr = (PyArrayObject *)PyArray_FROM_OTF (
+      obj, NPY_COMPLEX64,
+      writeable ? (NPY_ARRAY_ALIGNED | NPY_ARRAY_WRITEABLE)
+                : NPY_ARRAY_ALIGNED);
+  if (!*arr)
+    {
+      PyErr_SetString (PyExc_TypeError, "Expected complex64 array");
+      return -1;
+    }
+  return 0;
+}
+
 /* ---------------- GLOBAL SETUP ---------------- */
 
 static PyObject *
@@ -71,33 +86,74 @@ na_fft_global_setup (PyObject *self, PyObject *args)
 static PyObject *
 na_fft1d_execute (PyObject *self, PyObject *args)
 {
-  PyArrayObject *arr_in;
+  PyObject *obj;
 
-  if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr_in))
+  if (!PyArg_ParseTuple (args, "O", &obj))
     return NULL;
 
+  PyArrayObject *arr_in;
+  if (!PyArray_Check (obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "Expected ndarray");
+      return NULL;
+    }
+
+  int dtype = PyArray_TYPE ((PyArrayObject *)obj);
+
+  if (dtype == NPY_COMPLEX64)
+    {
+      if (ensure_complex64 (&arr_in, obj, 0) < 0)
+        return NULL;
+      npy_intp n = PyArray_SIZE (arr_in);
+      PyArrayObject *arr_out
+          = (PyArrayObject *)PyArray_SimpleNew (1, &n, NPY_COMPLEX64);
+      dp_fft1d_execute_cf32 ((const float complex *)PyArray_DATA (arr_in),
+                              (float complex *)PyArray_DATA (arr_out));
+      Py_DECREF (arr_in);
+      return (PyObject *)arr_out;
+    }
+
+  if (ensure_complex128 (&arr_in, obj, 0) < 0)
+    return NULL;
   npy_intp n = PyArray_SIZE (arr_in);
   PyArrayObject *arr_out
       = (PyArrayObject *)PyArray_SimpleNew (1, &n, NPY_COMPLEX128);
-
-  double complex *in = (double complex *)PyArray_DATA (arr_in);
-  double complex *out = (double complex *)PyArray_DATA (arr_out);
-
-  dp_fft1d_execute (in, out);
+  dp_fft1d_execute ((const double complex *)PyArray_DATA (arr_in),
+                    (double complex *)PyArray_DATA (arr_out));
+  Py_DECREF (arr_in);
   return (PyObject *)arr_out;
 }
 
 static PyObject *
 na_fft1d_execute_inplace (PyObject *self, PyObject *args)
 {
-  PyArrayObject *arr;
+  PyObject *obj;
 
-  if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
+  if (!PyArg_ParseTuple (args, "O", &obj))
     return NULL;
 
-  double complex *data = (double complex *)PyArray_DATA (arr);
-  dp_fft1d_execute_inplace (data);
+  if (!PyArray_Check (obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "Expected ndarray");
+      return NULL;
+    }
 
+  int dtype = PyArray_TYPE ((PyArrayObject *)obj);
+  PyArrayObject *arr;
+
+  if (dtype == NPY_COMPLEX64)
+    {
+      if (ensure_complex64 (&arr, obj, 1) < 0)
+        return NULL;
+      dp_fft1d_execute_inplace_cf32 ((float complex *)PyArray_DATA (arr));
+      Py_DECREF (arr);
+      Py_RETURN_NONE;
+    }
+
+  if (ensure_complex128 (&arr, obj, 1) < 0)
+    return NULL;
+  dp_fft1d_execute_inplace ((double complex *)PyArray_DATA (arr));
+  Py_DECREF (arr);
   Py_RETURN_NONE;
 }
 
@@ -106,33 +162,74 @@ na_fft1d_execute_inplace (PyObject *self, PyObject *args)
 static PyObject *
 na_fft2d_execute (PyObject *self, PyObject *args)
 {
-  PyArrayObject *arr_in;
+  PyObject *obj;
 
-  if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr_in))
+  if (!PyArg_ParseTuple (args, "O", &obj))
     return NULL;
 
+  if (!PyArray_Check (obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "Expected ndarray");
+      return NULL;
+    }
+
+  int dtype = PyArray_TYPE ((PyArrayObject *)obj);
+  PyArrayObject *arr_in;
+
+  if (dtype == NPY_COMPLEX64)
+    {
+      if (ensure_complex64 (&arr_in, obj, 0) < 0)
+        return NULL;
+      npy_intp *dims = PyArray_DIMS (arr_in);
+      PyArrayObject *arr_out
+          = (PyArrayObject *)PyArray_SimpleNew (2, dims, NPY_COMPLEX64);
+      dp_fft2d_execute_cf32 ((const float complex *)PyArray_DATA (arr_in),
+                              (float complex *)PyArray_DATA (arr_out));
+      Py_DECREF (arr_in);
+      return (PyObject *)arr_out;
+    }
+
+  if (ensure_complex128 (&arr_in, obj, 0) < 0)
+    return NULL;
   npy_intp *dims = PyArray_DIMS (arr_in);
   PyArrayObject *arr_out
       = (PyArrayObject *)PyArray_SimpleNew (2, dims, NPY_COMPLEX128);
-
-  double complex *in = (double complex *)PyArray_DATA (arr_in);
-  double complex *out = (double complex *)PyArray_DATA (arr_out);
-
-  dp_fft2d_execute (in, out);
+  dp_fft2d_execute ((const double complex *)PyArray_DATA (arr_in),
+                    (double complex *)PyArray_DATA (arr_out));
+  Py_DECREF (arr_in);
   return (PyObject *)arr_out;
 }
 
 static PyObject *
 na_fft2d_execute_inplace (PyObject *self, PyObject *args)
 {
-  PyArrayObject *arr;
+  PyObject *obj;
 
-  if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
+  if (!PyArg_ParseTuple (args, "O", &obj))
     return NULL;
 
-  double complex *data = (double complex *)PyArray_DATA (arr);
-  dp_fft2d_execute_inplace (data);
+  if (!PyArray_Check (obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "Expected ndarray");
+      return NULL;
+    }
 
+  int dtype = PyArray_TYPE ((PyArrayObject *)obj);
+  PyArrayObject *arr;
+
+  if (dtype == NPY_COMPLEX64)
+    {
+      if (ensure_complex64 (&arr, obj, 1) < 0)
+        return NULL;
+      dp_fft2d_execute_inplace_cf32 ((float complex *)PyArray_DATA (arr));
+      Py_DECREF (arr);
+      Py_RETURN_NONE;
+    }
+
+  if (ensure_complex128 (&arr, obj, 1) < 0)
+    return NULL;
+  dp_fft2d_execute_inplace ((double complex *)PyArray_DATA (arr));
+  Py_DECREF (arr);
   Py_RETURN_NONE;
 }
 

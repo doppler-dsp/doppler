@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* fftw3.h declares fftwf_* for single precision — no extra header needed */
+
 /* ------------------------------------------------------------
  * Global state (ALL CAPS)
  * ------------------------------------------------------------ */
@@ -27,6 +29,19 @@ static fftw_complex *BOUND_IN_1D = NULL;
 static fftw_complex *BOUND_OUT_1D = NULL;
 static fftw_complex *BOUND_IN_2D = NULL;
 static fftw_complex *BOUND_OUT_2D = NULL;
+
+/* CF32 (single-precision) plan state — separate plans for OOP and inplace */
+static fftwf_plan PLAN_1D_F = NULL;
+static fftwf_plan PLAN_2D_F = NULL;
+static fftwf_plan PLAN_1D_F_IP = NULL;
+static fftwf_plan PLAN_2D_F_IP = NULL;
+
+static fftwf_complex *BOUND_IN_1D_F = NULL;
+static fftwf_complex *BOUND_OUT_1D_F = NULL;
+static fftwf_complex *BOUND_IN_2D_F = NULL;
+static fftwf_complex *BOUND_OUT_2D_F = NULL;
+static fftwf_complex *BOUND_1D_F_IP = NULL;
+static fftwf_complex *BOUND_2D_F_IP = NULL;
 
 /* ------------------------------------------------------------
  * Helpers
@@ -82,11 +97,39 @@ dp_fft_global_setup (const size_t *shape, size_t ndim, int sign, int nthreads,
       PLAN_2D = NULL;
     }
 
-  /* Reset bound user buffers */
+  /* Reset bound user buffers (double) */
   BOUND_IN_1D = NULL;
   BOUND_OUT_1D = NULL;
   BOUND_IN_2D = NULL;
   BOUND_OUT_2D = NULL;
+
+  /* Destroy CF32 plans and reset buffers */
+  if (PLAN_1D_F)
+    {
+      fftwf_destroy_plan (PLAN_1D_F);
+      PLAN_1D_F = NULL;
+    }
+  if (PLAN_2D_F)
+    {
+      fftwf_destroy_plan (PLAN_2D_F);
+      PLAN_2D_F = NULL;
+    }
+  if (PLAN_1D_F_IP)
+    {
+      fftwf_destroy_plan (PLAN_1D_F_IP);
+      PLAN_1D_F_IP = NULL;
+    }
+  if (PLAN_2D_F_IP)
+    {
+      fftwf_destroy_plan (PLAN_2D_F_IP);
+      PLAN_2D_F_IP = NULL;
+    }
+  BOUND_IN_1D_F = NULL;
+  BOUND_OUT_1D_F = NULL;
+  BOUND_IN_2D_F = NULL;
+  BOUND_OUT_2D_F = NULL;
+  BOUND_1D_F_IP = NULL;
+  BOUND_2D_F_IP = NULL;
 
   if (ndim == 1)
     {
@@ -220,4 +263,116 @@ dp_fft2d_execute_inplace (double complex *data)
     }
 
   fftw_execute (PLAN_2D);
+}
+
+/* ------------------------------------------------------------
+ * CF32 (single-precision) execute
+ * ------------------------------------------------------------ */
+
+void
+dp_fft1d_execute_cf32 (const float complex *input, float complex *output)
+{
+  if (!input || !output || GLOBAL_N == 0)
+    return;
+
+  if (!PLAN_1D_F)
+    {
+      BOUND_IN_1D_F = (fftwf_complex *)input;
+      BOUND_OUT_1D_F = (fftwf_complex *)output;
+
+      fftwf_plan_with_nthreads (GLOBAL_THREADS);
+      PLAN_1D_F = fftwf_plan_dft_1d ((int)GLOBAL_N, BOUND_IN_1D_F,
+                                     BOUND_OUT_1D_F, GLOBAL_FORWARD,
+                                     GLOBAL_FLAGS);
+    }
+
+  if ((fftwf_complex *)input != BOUND_IN_1D_F
+      || (fftwf_complex *)output != BOUND_OUT_1D_F)
+    {
+      fftwf_execute_dft (PLAN_1D_F, (fftwf_complex *)input,
+                         (fftwf_complex *)output);
+      return;
+    }
+
+  fftwf_execute (PLAN_1D_F);
+}
+
+void
+dp_fft1d_execute_inplace_cf32 (float complex *data)
+{
+  if (!data || GLOBAL_N == 0)
+    return;
+
+  if (!PLAN_1D_F_IP)
+    {
+      BOUND_1D_F_IP = (fftwf_complex *)data;
+
+      fftwf_plan_with_nthreads (GLOBAL_THREADS);
+      PLAN_1D_F_IP = fftwf_plan_dft_1d ((int)GLOBAL_N, BOUND_1D_F_IP,
+                                        BOUND_1D_F_IP, GLOBAL_FORWARD,
+                                        GLOBAL_FLAGS);
+    }
+
+  if ((fftwf_complex *)data != BOUND_1D_F_IP)
+    {
+      fftwf_execute_dft (PLAN_1D_F_IP, (fftwf_complex *)data,
+                         (fftwf_complex *)data);
+      return;
+    }
+
+  fftwf_execute (PLAN_1D_F_IP);
+}
+
+void
+dp_fft2d_execute_cf32 (const float complex *input, float complex *output)
+{
+  if (!input || !output || GLOBAL_NY == 0 || GLOBAL_NX == 0)
+    return;
+
+  if (!PLAN_2D_F)
+    {
+      BOUND_IN_2D_F = (fftwf_complex *)input;
+      BOUND_OUT_2D_F = (fftwf_complex *)output;
+
+      fftwf_plan_with_nthreads (GLOBAL_THREADS);
+      PLAN_2D_F = fftwf_plan_dft_2d ((int)GLOBAL_NY, (int)GLOBAL_NX,
+                                     BOUND_IN_2D_F, BOUND_OUT_2D_F,
+                                     GLOBAL_FORWARD, GLOBAL_FLAGS);
+    }
+
+  if ((fftwf_complex *)input != BOUND_IN_2D_F
+      || (fftwf_complex *)output != BOUND_OUT_2D_F)
+    {
+      fftwf_execute_dft (PLAN_2D_F, (fftwf_complex *)input,
+                         (fftwf_complex *)output);
+      return;
+    }
+
+  fftwf_execute (PLAN_2D_F);
+}
+
+void
+dp_fft2d_execute_inplace_cf32 (float complex *data)
+{
+  if (!data || GLOBAL_NY == 0 || GLOBAL_NX == 0)
+    return;
+
+  if (!PLAN_2D_F_IP)
+    {
+      BOUND_2D_F_IP = (fftwf_complex *)data;
+
+      fftwf_plan_with_nthreads (GLOBAL_THREADS);
+      PLAN_2D_F_IP = fftwf_plan_dft_2d ((int)GLOBAL_NY, (int)GLOBAL_NX,
+                                        BOUND_2D_F_IP, BOUND_2D_F_IP,
+                                        GLOBAL_FORWARD, GLOBAL_FLAGS);
+    }
+
+  if ((fftwf_complex *)data != BOUND_2D_F_IP)
+    {
+      fftwf_execute_dft (PLAN_2D_F_IP, (fftwf_complex *)data,
+                         (fftwf_complex *)data);
+      return;
+    }
+
+  fftwf_execute (PLAN_2D_F_IP);
 }

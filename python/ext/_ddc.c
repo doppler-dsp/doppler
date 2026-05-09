@@ -120,8 +120,8 @@ Ddc_execute (DdcObject *self, PyObject *args)
       return NULL;
     }
 
-  dp_ddc_execute (self->handle, (const dp_cf32_t *)PyArray_DATA (in_arr),
-                  num_in, (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+  dp_ddc_execute (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+                  num_in, (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
                   max_out);
   Py_DECREF (in_arr);
 

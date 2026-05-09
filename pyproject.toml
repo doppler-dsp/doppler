@@ -69,7 +69,7 @@ doppler-dsp = { workspace = true }
 doppler-specan = { workspace = true }
 doppler-cli = { workspace = true }
 
-[tool.just-build]
+[tool.just-buildit]
 command = "make just-build"
 editable_path = "python/dsp"
 exclude = [
@@ -79,5 +79,5 @@ exclude = [
 ]
 
 [build-system]
-requires = ["just-buildit>=0.1.2"]
-build-backend = "just_build"
+requires = ["just-buildit"]
+build-backend = "just_buildit"

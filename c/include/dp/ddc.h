@@ -53,7 +53,7 @@
  * // 4× decimating DDC; shift a signal at +0.1·fs to DC
  * dp_ddc_t *ddc = dp_ddc_create(-0.1f, 4096, 0.25);
  *
- * dp_cf32_t out[dp_ddc_max_out(ddc)]; // or: malloc(dp_ddc_max_out(ddc))
+ * float _Complex out[dp_ddc_max_out(ddc)]; // or: malloc(dp_ddc_max_out(ddc))
  * size_t n = dp_ddc_execute(ddc, in, 4096, out, dp_ddc_max_out(ddc));
  *
  * dp_ddc_destroy(ddc);
@@ -252,8 +252,8 @@ extern "C"
    * @param max_out  Maximum output samples to write.
    * @return         Number of output samples written (0 if num_in == 0).
    */
-  size_t dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
-                         dp_cf32_t *out, size_t max_out);
+  size_t dp_ddc_execute (dp_ddc_t *ddc, const float _Complex *in, size_t num_in,
+                         float _Complex *out, size_t max_out);
 
   /* ==================================================================
    * Architecture D2 — real-input DDC
@@ -295,7 +295,7 @@ extern "C"
    * // Real 4× decimating D2 DDC; carrier at +0.1·fs
    * dp_ddc_real_t *ddc = dp_ddc_real_create(-0.1f, 4096, 0.25);
    *
-   * dp_cf32_t out[dp_ddc_real_max_out(ddc)];
+   * float _Complex out[dp_ddc_real_max_out(ddc)];
    * size_t n = dp_ddc_real_execute(ddc, in, 4096, out,
    *                                dp_ddc_real_max_out(ddc));
    * dp_ddc_real_destroy(ddc);
@@ -380,7 +380,7 @@ extern "C"
    * @return         Number of CF32 output samples written.
    */
   size_t dp_ddc_real_execute (dp_ddc_real_t *ddc, const float *in,
-                              size_t num_in, dp_cf32_t *out, size_t max_out);
+                              size_t num_in, float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

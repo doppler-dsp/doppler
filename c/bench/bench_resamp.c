@@ -152,7 +152,7 @@ build_bank_n (double img, size_t *out_phases, size_t *out_taps)
 
 static double
 bench_rate (const float *bank, size_t L, size_t N, double rate,
-            const dp_cf32_t *input, dp_cf32_t *output, size_t max_out)
+            const float _Complex *input, float _Complex *output, size_t max_out)
 {
   dp_resamp_cf32_t *r = dp_resamp_cf32_create (L, N, bank, rate);
 
@@ -177,7 +177,7 @@ bench_rate (const float *bank, size_t L, size_t N, double rate,
 /* ------------------------------------------------------------------ */
 
 static void
-run_bench_fixed (size_t L, size_t N, const dp_cf32_t *input, dp_cf32_t *output,
+run_bench_fixed (size_t L, size_t N, const float _Complex *input, float _Complex *output,
                  size_t max_out)
 {
   size_t tpp;
@@ -203,7 +203,7 @@ run_bench_fixed (size_t L, size_t N, const dp_cf32_t *input, dp_cf32_t *output,
 }
 
 static void
-run_bench (double img_db, const dp_cf32_t *input, dp_cf32_t *output,
+run_bench (double img_db, const float _Complex *input, float _Complex *output,
            size_t max_out)
 {
   size_t L, N;
@@ -238,18 +238,18 @@ main (void)
           BLOCK_SIZE, ITERATIONS, (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
   /* Generate input: two-tone complex signal */
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
   for (size_t i = 0; i < BLOCK_SIZE; i++)
     {
       double t0 = 2.0 * M_PI * 0.1 * (double)i;
       double t1 = 2.0 * M_PI * 0.37 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   /* Output buffer — sized for the highest rate */
   size_t max_out = (size_t)(BLOCK_SIZE * 5.0) + 16;
-  dp_cf32_t *output = malloc (max_out * sizeof *output);
+  float _Complex *output = malloc (max_out * sizeof *output);
 
   if (!input || !output)
     {

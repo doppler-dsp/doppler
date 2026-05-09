@@ -26,6 +26,7 @@
 #include "dp/fir.h"
 #include "dp/stream.h"
 
+#include <complex.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -35,11 +36,11 @@
 
 struct dp_fir
 {
-  dp_cf32_t *taps;    /* complex tap coefficients (NULL if real-tap)    */
-  float *rtaps;       /* real tap coefficients (NULL if complex-tap)    */
-  dp_cf32_t *delay;   /* delay line, length num_taps - 1                */
-  dp_cf32_t *scratch; /* flat [delay | input] workspace, reused         */
-  size_t scratch_cap; /* capacity of scratch in complex samples         */
+  float _Complex *taps;    /* complex tap coefficients (NULL if real-tap)    */
+  float *rtaps;            /* real tap coefficients (NULL if complex-tap)    */
+  float _Complex *delay;   /* delay line, length num_taps - 1               */
+  float _Complex *scratch; /* flat [delay | input] workspace, reused        */
+  size_t scratch_cap;      /* capacity of scratch in complex samples        */
   size_t num_taps;
 };
 
@@ -48,7 +49,7 @@ struct dp_fir
  * ========================================================================= */
 
 dp_fir_t *
-dp_fir_create (const dp_cf32_t *taps, size_t num_taps)
+dp_fir_create (const float _Complex *taps, size_t num_taps)
 {
   if (!taps || num_taps == 0)
     return NULL;
@@ -57,17 +58,17 @@ dp_fir_create (const dp_cf32_t *taps, size_t num_taps)
   if (!f)
     return NULL;
 
-  f->taps = (dp_cf32_t *)malloc (num_taps * sizeof (dp_cf32_t));
+  f->taps = (float _Complex *)malloc (num_taps * sizeof (float _Complex));
   if (!f->taps)
     {
       free (f);
       return NULL;
     }
-  memcpy (f->taps, taps, num_taps * sizeof (dp_cf32_t));
+  memcpy (f->taps, taps, num_taps * sizeof (float _Complex));
 
   if (num_taps > 1)
     {
-      f->delay = (dp_cf32_t *)calloc (num_taps - 1, sizeof (dp_cf32_t));
+      f->delay = (float _Complex *)calloc (num_taps - 1, sizeof (float _Complex));
       if (!f->delay)
         {
           free (f->taps);
@@ -84,7 +85,7 @@ void
 dp_fir_reset (dp_fir_t *f)
 {
   if (f && f->delay && f->num_taps > 1)
-    memset (f->delay, 0, (f->num_taps - 1) * sizeof (dp_cf32_t));
+    memset (f->delay, 0, (f->num_taps - 1) * sizeof (float _Complex));
 }
 
 void
@@ -119,7 +120,7 @@ dp_fir_create_real (const float *taps, size_t num_taps)
 
   if (num_taps > 1)
     {
-      f->delay = (dp_cf32_t *)calloc (num_taps - 1, sizeof (dp_cf32_t));
+      f->delay = (float _Complex *)calloc (num_taps - 1, sizeof (float _Complex));
       if (!f->delay)
         {
           free (f->rtaps);
@@ -148,8 +149,8 @@ ensure_scratch (dp_fir_t *f, size_t num_samples)
   if (needed <= f->scratch_cap)
     return 0;
 
-  dp_cf32_t *tmp
-      = (dp_cf32_t *)realloc (f->scratch, needed * sizeof (dp_cf32_t));
+  float _Complex *tmp
+      = (float _Complex *)realloc (f->scratch, needed * sizeof (float _Complex));
   if (!tmp)
     return -1;
 
@@ -182,8 +183,8 @@ static const float _dp_fir_sign[16] __attribute__ ((aligned (64)))
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
-inner_loop_avx512 (const dp_cf32_t *buf, /* scratch: delay | input */
-                   const dp_cf32_t *h, size_t num_taps, dp_cf32_t *out,
+inner_loop_avx512 (const float _Complex *buf, /* scratch: delay | input */
+                   const float _Complex *h, size_t num_taps, float _Complex *out,
                    size_t num_samples)
 {
   const __m512 SIGN = _mm512_load_ps (_dp_fir_sign);
@@ -207,8 +208,8 @@ inner_loop_avx512 (const dp_cf32_t *buf, /* scratch: delay | input */
           /* Swap I and Q within each complex pair: [r,i]→[i,r] */
           __m512 vx_swap = _mm512_permute_ps (vx, 0xB1);
 
-          __m512 vhr = _mm512_set1_ps (h[k].i); /* broadcast tap real */
-          __m512 vhi = _mm512_set1_ps (h[k].q); /* broadcast tap imag */
+          __m512 vhr = _mm512_set1_ps (crealf(h[k])); /* broadcast tap real */
+          __m512 vhi = _mm512_set1_ps (cimagf(h[k])); /* broadcast tap imag */
 
           /* acc += h_r * [r, i, ...] */
           acc = _mm512_fmadd_ps (vhr, vx, acc);
@@ -231,13 +232,12 @@ inner_loop_avx512 (const dp_cf32_t *buf, /* scratch: delay | input */
       ptrdiff_t base_pos = ii + (ptrdiff_t)(M - 1);
       for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
         {
-          float xr = buf[base_pos - k].i;
-          float xi = buf[base_pos - k].q;
-          re += h[k].i * xr - h[k].q * xi;
-          im += h[k].i * xi + h[k].q * xr;
+          float xr = crealf(buf[base_pos - k]);
+          float xi = cimagf(buf[base_pos - k]);
+          re += crealf(h[k]) * xr - cimagf(h[k]) * xi;
+          im += crealf(h[k]) * xi + cimagf(h[k]) * xr;
         }
-      out[ii].i = re;
-      out[ii].q = im;
+      out[ii] = CMPLXF(re, im);
     }
 }
 
@@ -247,8 +247,8 @@ inner_loop_avx512 (const dp_cf32_t *buf, /* scratch: delay | input */
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
-inner_loop_avx512 (const dp_cf32_t *buf, const dp_cf32_t *h, size_t num_taps,
-                   dp_cf32_t *out, size_t num_samples)
+inner_loop_avx512 (const float _Complex *buf, const float _Complex *h,
+                   size_t num_taps, float _Complex *out, size_t num_samples)
 {
   const ptrdiff_t M = (ptrdiff_t)num_taps;
   for (ptrdiff_t ii = 0; (size_t)ii < num_samples; ii++)
@@ -257,13 +257,12 @@ inner_loop_avx512 (const dp_cf32_t *buf, const dp_cf32_t *h, size_t num_taps,
       ptrdiff_t base_pos = ii + M - 1;
       for (ptrdiff_t k = 0; k < M; k++)
         {
-          float xr = buf[base_pos - k].i;
-          float xi = buf[base_pos - k].q;
-          re += h[k].i * xr - h[k].q * xi;
-          im += h[k].i * xi + h[k].q * xr;
+          float xr = crealf(buf[base_pos - k]);
+          float xi = cimagf(buf[base_pos - k]);
+          re += crealf(h[k]) * xr - cimagf(h[k]) * xi;
+          im += crealf(h[k]) * xi + cimagf(h[k]) * xr;
         }
-      out[ii].i = re;
-      out[ii].q = im;
+      out[ii] = CMPLXF(re, im);
     }
 }
 
@@ -289,8 +288,8 @@ inner_loop_avx512 (const dp_cf32_t *buf, const dp_cf32_t *h, size_t num_taps,
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
-inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
-                        dp_cf32_t *out, size_t num_samples)
+inner_loop_real_avx512 (const float _Complex *buf, const float *h,
+                        size_t num_taps, float _Complex *out, size_t num_samples)
 {
   const size_t M = num_taps;
 
@@ -317,11 +316,10 @@ inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
       ptrdiff_t base_pos = ii + (ptrdiff_t)(M - 1);
       for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
         {
-          re += h[k] * buf[base_pos - k].i;
-          im += h[k] * buf[base_pos - k].q;
+          re += h[k] * crealf(buf[base_pos - k]);
+          im += h[k] * cimagf(buf[base_pos - k]);
         }
-      out[ii].i = re;
-      out[ii].q = im;
+      out[ii] = CMPLXF(re, im);
     }
 }
 
@@ -331,8 +329,8 @@ inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 static void
-inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
-                        dp_cf32_t *out, size_t num_samples)
+inner_loop_real_avx512 (const float _Complex *buf, const float *h,
+                        size_t num_taps, float _Complex *out, size_t num_samples)
 {
   const ptrdiff_t M = (ptrdiff_t)num_taps;
   for (ptrdiff_t ii = 0; (size_t)ii < num_samples; ii++)
@@ -341,11 +339,10 @@ inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
       ptrdiff_t base_pos = ii + M - 1;
       for (ptrdiff_t k = 0; k < M; k++)
         {
-          re += h[k] * buf[base_pos - k].i;
-          im += h[k] * buf[base_pos - k].q;
+          re += h[k] * crealf(buf[base_pos - k]);
+          im += h[k] * cimagf(buf[base_pos - k]);
         }
-      out[ii].i = re;
-      out[ii].q = im;
+      out[ii] = CMPLXF(re, im);
     }
 }
 
@@ -356,14 +353,14 @@ inner_loop_real_avx512 (const dp_cf32_t *buf, const float *h, size_t num_taps,
  * ========================================================================= */
 
 static int
-execute_core (dp_fir_t *f, dp_cf32_t *out, size_t num_samples)
+execute_core (dp_fir_t *f, float _Complex *out, size_t num_samples)
 {
   inner_loop_avx512 (f->scratch, f->taps, f->num_taps, out, num_samples);
 
   /* Update delay line: last (num_taps-1) samples of scratch */
   if (f->num_taps > 1)
     memcpy (f->delay, f->scratch + num_samples,
-            (f->num_taps - 1) * sizeof (dp_cf32_t));
+            (f->num_taps - 1) * sizeof (float _Complex));
 
   return 0;
 }
@@ -373,7 +370,7 @@ execute_core (dp_fir_t *f, dp_cf32_t *out, size_t num_samples)
  * ========================================================================= */
 
 int
-dp_fir_execute_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
+dp_fir_execute_cf32 (dp_fir_t *f, const float _Complex *in, float _Complex *out,
                      size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -386,8 +383,8 @@ dp_fir_execute_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
 
   /* scratch = [delay | in] */
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
-  memcpy (f->scratch + dly, in, num_samples * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
+  memcpy (f->scratch + dly, in, num_samples * sizeof (float _Complex));
 
   return execute_core (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
 }
@@ -397,7 +394,7 @@ dp_fir_execute_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
+dp_fir_execute_ci8 (dp_fir_t *f, const int8_t *in, float _Complex *out,
                     size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -409,10 +406,10 @@ dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
   /* Upcast CI8 → CF32 in-place into scratch[dly..] */
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__) && defined(__AVX512BW__)
   /*
@@ -423,7 +420,7 @@ dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
   for (; n + 16 <= num_samples; n += 16)
     {
       /* Load 32 int8 → 256-bit lane */
-      __m256i v8 = _mm256_loadu_si256 ((const __m256i *)&in[n]);
+      __m256i v8 = _mm256_loadu_si256 ((const __m256i *)(in + 2 * n));
 
       /* Sign-extend each int8 lane to int32: low 16 and high 16 */
       __m512i v32_lo = _mm512_cvtepi8_epi32 (_mm256_castsi256_si128 (v8));
@@ -438,16 +435,10 @@ dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
     }
   /* scalar tail */
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
@@ -458,7 +449,7 @@ dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
+dp_fir_execute_ci16 (dp_fir_t *f, const int16_t *in, float _Complex *out,
                      size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -470,9 +461,9 @@ dp_fir_execute_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__)
   /*
@@ -482,21 +473,15 @@ dp_fir_execute_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
   size_t n = 0;
   for (; n + 8 <= num_samples; n += 8)
     {
-      __m256i v16 = _mm256_loadu_si256 ((const __m256i *)&in[n]);
+      __m256i v16 = _mm256_loadu_si256 ((const __m256i *)(in + 2 * n));
       __m512i v32 = _mm512_cvtepi16_epi32 (v16);
       _mm512_storeu_ps ((float *)(dst + n), _mm512_cvtepi32_ps (v32));
     }
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
@@ -507,7 +492,7 @@ dp_fir_execute_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
+dp_fir_execute_ci32 (dp_fir_t *f, const int32_t *in, float _Complex *out,
                      size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -519,28 +504,22 @@ dp_fir_execute_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__)
   size_t n = 0;
   for (; n + 8 <= num_samples; n += 8)
     {
-      __m512i v32 = _mm512_loadu_si512 ((const __m512i *)&in[n]);
+      __m512i v32 = _mm512_loadu_si512 ((const __m512i *)(in + 2 * n));
       _mm512_storeu_ps ((float *)(dst + n), _mm512_cvtepi32_ps (v32));
     }
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
@@ -551,13 +530,13 @@ dp_fir_execute_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 static int
-execute_core_real (dp_fir_t *f, dp_cf32_t *out, size_t num_samples)
+execute_core_real (dp_fir_t *f, float _Complex *out, size_t num_samples)
 {
   inner_loop_real_avx512 (f->scratch, f->rtaps, f->num_taps, out, num_samples);
 
   if (f->num_taps > 1)
     memcpy (f->delay, f->scratch + num_samples,
-            (f->num_taps - 1) * sizeof (dp_cf32_t));
+            (f->num_taps - 1) * sizeof (float _Complex));
 
   return 0;
 }
@@ -567,8 +546,8 @@ execute_core_real (dp_fir_t *f, dp_cf32_t *out, size_t num_samples)
  * ========================================================================= */
 
 int
-dp_fir_execute_real_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
-                          size_t num_samples)
+dp_fir_execute_real_cf32 (dp_fir_t *f, const float _Complex *in,
+                          float _Complex *out, size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
     return DP_ERR_INVALID;
@@ -579,8 +558,8 @@ dp_fir_execute_real_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
-  memcpy (f->scratch + dly, in, num_samples * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
+  memcpy (f->scratch + dly, in, num_samples * sizeof (float _Complex));
 
   return execute_core_real (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
 }
@@ -590,7 +569,7 @@ dp_fir_execute_real_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_real_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
+dp_fir_execute_real_ci8 (dp_fir_t *f, const int8_t *in, float _Complex *out,
                          size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -602,31 +581,25 @@ dp_fir_execute_real_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__) && defined(__AVX512BW__)
   size_t n = 0;
   for (; n + 16 <= num_samples; n += 16)
     {
-      __m256i v8 = _mm256_loadu_si256 ((const __m256i *)&in[n]);
+      __m256i v8 = _mm256_loadu_si256 ((const __m256i *)(in + 2 * n));
       __m512i v32_lo = _mm512_cvtepi8_epi32 (_mm256_castsi256_si128 (v8));
       __m512i v32_hi = _mm512_cvtepi8_epi32 (_mm256_extracti128_si256 (v8, 1));
       _mm512_storeu_ps ((float *)(dst + n), _mm512_cvtepi32_ps (v32_lo));
       _mm512_storeu_ps ((float *)(dst + n + 8), _mm512_cvtepi32_ps (v32_hi));
     }
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core_real (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
@@ -637,7 +610,7 @@ dp_fir_execute_real_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_real_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
+dp_fir_execute_real_ci16 (dp_fir_t *f, const int16_t *in, float _Complex *out,
                           size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -649,29 +622,23 @@ dp_fir_execute_real_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__)
   size_t n = 0;
   for (; n + 8 <= num_samples; n += 8)
     {
-      __m256i v16 = _mm256_loadu_si256 ((const __m256i *)&in[n]);
+      __m256i v16 = _mm256_loadu_si256 ((const __m256i *)(in + 2 * n));
       __m512i v32 = _mm512_cvtepi16_epi32 (v16);
       _mm512_storeu_ps ((float *)(dst + n), _mm512_cvtepi32_ps (v32));
     }
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core_real (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;
@@ -682,7 +649,7 @@ dp_fir_execute_real_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
  * ========================================================================= */
 
 int
-dp_fir_execute_real_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
+dp_fir_execute_real_ci32 (dp_fir_t *f, const int32_t *in, float _Complex *out,
                           size_t num_samples)
 {
   if (!f || !in || !out || num_samples == 0)
@@ -694,28 +661,22 @@ dp_fir_execute_real_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
   const size_t dly = f->num_taps - 1;
 
   if (dly)
-    memcpy (f->scratch, f->delay, dly * sizeof (dp_cf32_t));
+    memcpy (f->scratch, f->delay, dly * sizeof (float _Complex));
 
-  dp_cf32_t *dst = f->scratch + dly;
+  float _Complex *dst = f->scratch + dly;
 
 #if defined(__AVX512F__)
   size_t n = 0;
   for (; n + 8 <= num_samples; n += 8)
     {
-      __m512i v32 = _mm512_loadu_si512 ((const __m512i *)&in[n]);
+      __m512i v32 = _mm512_loadu_si512 ((const __m512i *)(in + 2 * n));
       _mm512_storeu_ps ((float *)(dst + n), _mm512_cvtepi32_ps (v32));
     }
   for (; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #else
   for (size_t n = 0; n < num_samples; n++)
-    {
-      dst[n].i = (float)in[n].i;
-      dst[n].q = (float)in[n].q;
-    }
+    dst[n] = CMPLXF((float)in[2 * n], (float)in[2 * n + 1]);
 #endif
 
   return execute_core_real (f, out, num_samples) == 0 ? DP_OK : DP_ERR_MEMORY;

@@ -130,11 +130,11 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
 
 /* Generic signal-frame send.  Parses (samples, sample_rate=0, center_freq=0)
  * and dispatches to the appropriate C send function via function pointers. */
-typedef int (*send_ci32_fn) (void *, const dp_ci32_t *, size_t, double,
+typedef int (*send_ci32_fn) (void *, const int32_t *, size_t, double,
                              double);
-typedef int (*send_cf64_fn) (void *, const dp_cf64_t *, size_t, double,
+typedef int (*send_cf64_fn) (void *, const double _Complex *, size_t, double,
                              double);
-typedef int (*send_cf128_fn) (void *, const dp_cf128_t *, size_t, double,
+typedef int (*send_cf128_fn) (void *, const long double _Complex *, size_t, double,
                               double);
 
 static PyObject *
@@ -176,13 +176,13 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
 
   Py_BEGIN_ALLOW_THREADS;
   if (sample_type == DP_CI32)
-    rc = fn_ci32 (ctx, (const dp_ci32_t *)data, (size_t)num_samples,
+    rc = fn_ci32 (ctx, (const int32_t *)data, (size_t)num_samples,
                   sample_rate, center_freq);
   else if (sample_type == DP_CF64)
-    rc = fn_cf64 (ctx, (const dp_cf64_t *)data, (size_t)num_samples,
+    rc = fn_cf64 (ctx, (const double _Complex *)data, (size_t)num_samples,
                   sample_rate, center_freq);
   else
-    rc = fn_cf128 (ctx, (const dp_cf128_t *)data, (size_t)num_samples,
+    rc = fn_cf128 (ctx, (const long double _Complex *)data, (size_t)num_samples,
                    sample_rate, center_freq);
   Py_END_ALLOW_THREADS;
 

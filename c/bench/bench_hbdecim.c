@@ -168,8 +168,8 @@ build_resamp_bank2 (int n_fir, double atten, size_t *N_out)
 /* ------------------------------------------------------------------ */
 
 static double
-bench_hbdecim (size_t N, const float *h_fir, const dp_cf32_t *in,
-               dp_cf32_t *out)
+bench_hbdecim (size_t N, const float *h_fir, const float _Complex *in,
+               float _Complex *out)
 {
   dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create (N, h_fir);
 
@@ -188,8 +188,8 @@ bench_hbdecim (size_t N, const float *h_fir, const dp_cf32_t *in,
 }
 
 static double
-bench_resamp2 (size_t N, const float *bank, const dp_cf32_t *in,
-               dp_cf32_t *out)
+bench_resamp2 (size_t N, const float *bank, const float _Complex *in,
+               float _Complex *out)
 {
   dp_resamp_cf32_t *r = dp_resamp_cf32_create (2, N, bank, 0.5);
 
@@ -219,9 +219,9 @@ main (void)
           ITERATIONS, (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
   /* Two-tone complex input */
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
   size_t max_out = BLOCK_SIZE / 2 + 256;
-  dp_cf32_t *output = malloc (max_out * sizeof *output);
+  float _Complex *output = malloc (max_out * sizeof *output);
   if (!input || !output)
     {
       fprintf (stderr, "allocation failed\n");
@@ -231,8 +231,8 @@ main (void)
     {
       double t0 = 2.0 * M_PI * 0.1 * (double)i;
       double t1 = 2.0 * M_PI * 0.37 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   /* n_fir choices: 10, 19, 37, 73 (covering ~40-80 dB attenuation) */

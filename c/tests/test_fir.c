@@ -48,9 +48,10 @@ static int failed = 0;
   while (0)
 
 static int
-cf32_near (dp_cf32_t a, dp_cf32_t b, float tol)
+cf32_near (float _Complex a, float _Complex b, float tol)
 {
-  return fabsf (a.i - b.i) <= tol && fabsf (a.q - b.q) <= tol;
+  return fabsf (crealf (a) - crealf (b)) <= tol
+         && fabsf (cimagf (a) - cimagf (b)) <= tol;
 }
 
 /* =========================================================================
@@ -62,7 +63,7 @@ test_lifecycle (void)
 {
   printf ("lifecycle\n");
 
-  dp_cf32_t taps[3] = { { 1, 0 }, { 0, 0 }, { 0, 0 } };
+  float _Complex taps[3] = { CMPLXF(1, 0), CMPLXF(0, 0), CMPLXF(0, 0) };
   dp_fir_t *f = dp_fir_create (taps, 3);
   CHECK (f != NULL, "dp_fir_create returns non-NULL");
 
@@ -85,12 +86,12 @@ test_identity (void)
 {
   printf ("identity filter\n");
 
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_cf32_t in[8] = { { 1, 2 }, { 3, 4 },   { 5, 6 }, { 7, 8 },
-                      { 9, 0 }, { -1, -2 }, { 0, 1 }, { 2, 3 } };
-  dp_cf32_t out[8];
+  float _Complex in[8] = { CMPLXF(1, 2), CMPLXF(3, 4),   CMPLXF(5, 6), CMPLXF(7, 8),
+                      CMPLXF(9, 0), CMPLXF(-1, -2), CMPLXF(0, 1), CMPLXF(2, 3) };
+  float _Complex out[8];
 
   dp_fir_execute_cf32 (f, in, out, 8);
 
@@ -113,16 +114,16 @@ test_delay (void)
 {
   printf ("delay filter h=[0,1]\n");
 
-  dp_cf32_t taps[2] = { { 0, 0 }, { 1, 0 } };
+  float _Complex taps[2] = { CMPLXF(0, 0), CMPLXF(1, 0) };
   dp_fir_t *f = dp_fir_create (taps, 2);
 
-  dp_cf32_t in[4] = { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 7, 8 } };
-  dp_cf32_t out[4];
+  float _Complex in[4] = { CMPLXF(1, 2), CMPLXF(3, 4), CMPLXF(5, 6), CMPLXF(7, 8) };
+  float _Complex out[4];
 
   dp_fir_execute_cf32 (f, in, out, 4);
 
   /* y[0] = x[-1] = 0, y[1]=x[0], y[2]=x[1], y[3]=x[2] */
-  dp_cf32_t expect[4] = { { 0, 0 }, { 1, 2 }, { 3, 4 }, { 5, 6 } };
+  float _Complex expect[4] = { CMPLXF(0, 0), CMPLXF(1, 2), CMPLXF(3, 4), CMPLXF(5, 6) };
   int ok = 1;
   for (int i = 0; i < 4; i++)
     ok &= cf32_near (out[i], expect[i], 1e-5f);
@@ -141,25 +142,25 @@ test_stateful (void)
   printf ("stateful (delay line across calls)\n");
 
   /* h = [0, 1]: y[n] = x[n-1] */
-  dp_cf32_t taps[2] = { { 0, 0 }, { 1, 0 } };
+  float _Complex taps[2] = { CMPLXF(0, 0), CMPLXF(1, 0) };
   dp_fir_t *f = dp_fir_create (taps, 2);
 
-  dp_cf32_t in1[2] = { { 1, 0 }, { 2, 0 } };
-  dp_cf32_t in2[2] = { { 3, 0 }, { 4, 0 } };
-  dp_cf32_t out1[2], out2[2];
+  float _Complex in1[2] = { CMPLXF(1, 0), CMPLXF(2, 0) };
+  float _Complex in2[2] = { CMPLXF(3, 0), CMPLXF(4, 0) };
+  float _Complex out1[2], out2[2];
 
   dp_fir_execute_cf32 (f, in1, out1, 2);
   dp_fir_execute_cf32 (f, in2, out2, 2);
 
   /* First call:  y[0]=0, y[1]=1 */
   /* Second call: y[0]=2 (x[-1]=in1[1]), y[1]=3 */
-  CHECK (cf32_near (out1[0], (dp_cf32_t){ 0, 0 }, 1e-5f),
+  CHECK (cf32_near (out1[0], CMPLXF(0, 0), 1e-5f),
          "stateful: call1 y[0]==0");
-  CHECK (cf32_near (out1[1], (dp_cf32_t){ 1, 0 }, 1e-5f),
+  CHECK (cf32_near (out1[1], CMPLXF(1, 0), 1e-5f),
          "stateful: call1 y[1]==1");
-  CHECK (cf32_near (out2[0], (dp_cf32_t){ 2, 0 }, 1e-5f),
+  CHECK (cf32_near (out2[0], CMPLXF(2, 0), 1e-5f),
          "stateful: call2 y[0]==2 (carries over in1[1])");
-  CHECK (cf32_near (out2[1], (dp_cf32_t){ 3, 0 }, 1e-5f),
+  CHECK (cf32_near (out2[1], CMPLXF(3, 0), 1e-5f),
          "stateful: call2 y[1]==3");
 
   dp_fir_destroy (f);
@@ -174,20 +175,20 @@ test_reset (void)
 {
   printf ("reset clears delay line\n");
 
-  dp_cf32_t taps[2] = { { 0, 0 }, { 1, 0 } };
+  float _Complex taps[2] = { CMPLXF(0, 0), CMPLXF(1, 0) };
   dp_fir_t *f = dp_fir_create (taps, 2);
 
-  dp_cf32_t in1[1] = { { 99, 0 } };
-  dp_cf32_t out1[1];
+  float _Complex in1[1] = { CMPLXF(99, 0) };
+  float _Complex out1[1];
   dp_fir_execute_cf32 (f, in1, out1, 1);
 
   dp_fir_reset (f); /* clear delay — forget x[-1]=99 */
 
-  dp_cf32_t in2[1] = { { 1, 0 } };
-  dp_cf32_t out2[1];
+  float _Complex in2[1] = { CMPLXF(1, 0) };
+  float _Complex out2[1];
   dp_fir_execute_cf32 (f, in2, out2, 1);
 
-  CHECK (cf32_near (out2[0], (dp_cf32_t){ 0, 0 }, 1e-5f),
+  CHECK (cf32_near (out2[0], CMPLXF(0, 0), 1e-5f),
          "reset: delay cleared, y[0]==0");
 
   dp_fir_destroy (f);
@@ -202,19 +203,19 @@ test_ci8_identity (void)
 {
   printf ("CI8 identity\n");
 
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_ci8_t in[8] = { { 1, 2 }, { -3, 4 },  { 5, -6 },  { 127, -128 },
-                     { 0, 0 }, { 10, 20 }, { -1, -1 }, { 100, 100 } };
-  dp_cf32_t out[8];
+  int8_t in[16] = { 1, 2, -3, 4, 5, -6, 127, -128,
+                    0, 0, 10, 20, -1, -1, 100, 100 };
+  float _Complex out[8];
 
   dp_fir_execute_ci8 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-5f);
     }
   CHECK (ok, "CI8 identity: out[n] == (float)in[n]");
@@ -231,20 +232,19 @@ test_ci16_identity (void)
 {
   printf ("CI16 identity\n");
 
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_ci16_t in[8]
-      = { { 1000, -2000 }, { 32767, -32768 }, { 0, 1 }, { -1, 0 },
-          { 500, 500 },    { -500, -500 },    { 1, 1 }, { 100, -100 } };
-  dp_cf32_t out[8];
+  int16_t in[16] = { 1000, -2000, 32767, -32768, 0, 1, -1, 0,
+                     500, 500, -500, -500, 1, 1, 100, -100 };
+  float _Complex out[8];
 
   dp_fir_execute_ci16 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-5f);
     }
   CHECK (ok, "CI16 identity: out[n] == (float)in[n]");
@@ -261,20 +261,19 @@ test_ci32_identity (void)
 {
   printf ("CI32 identity\n");
 
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_ci32_t in[8]
-      = { { 1000000, -2000000 }, { 0, 0 },          { -1, 1 }, { 100, -100 },
-          { 500000, 500000 },    { -500, -500000 }, { 1, -1 }, { 99, 77 } };
-  dp_cf32_t out[8];
+  int32_t in[16] = { 1000000, -2000000, 0, 0, -1, 1, 100, -100,
+                     500000, 500000, -500, -500000, 1, -1, 99, 77 };
+  float _Complex out[8];
 
   dp_fir_execute_ci32 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-3f); /* float precision */
     }
   CHECK (ok, "CI32 identity: out[n] ≈ (float)in[n]");
@@ -292,15 +291,15 @@ test_complex_tap (void)
 {
   printf ("complex tap h=j (90-degree rotation)\n");
 
-  dp_cf32_t tap = { 0.0f, 1.0f }; /* j */
+  float _Complex tap = CMPLXF(0.0f, 1.0f); /* j */
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_cf32_t in[4] = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 3, -4 } };
-  dp_cf32_t out[4];
+  float _Complex in[4] = { CMPLXF(1, 0), CMPLXF(0, 1), CMPLXF(1, 1), CMPLXF(3, -4) };
+  float _Complex out[4];
   dp_fir_execute_cf32 (f, in, out, 4);
 
   /* j*(r+jq) = jr + j²q = -q + jr */
-  dp_cf32_t expect[4] = { { 0, 1 }, { -1, 0 }, { -1, 1 }, { 4, 3 } };
+  float _Complex expect[4] = { CMPLXF(0, 1), CMPLXF(-1, 0), CMPLXF(-1, 1), CMPLXF(4, 3) };
   int ok = 1;
   for (int i = 0; i < 4; i++)
     ok &= cf32_near (out[i], expect[i], 1e-5f);
@@ -320,18 +319,18 @@ test_moving_average (void)
   printf ("3-tap moving average\n");
 
   float w = 1.0f / 3.0f;
-  dp_cf32_t taps[3] = { { w, 0 }, { w, 0 }, { w, 0 } };
+  float _Complex taps[3] = { CMPLXF(w, 0), CMPLXF(w, 0), CMPLXF(w, 0) };
   dp_fir_t *f = dp_fir_create (taps, 3);
 
   /* Input: impulse at n=0 */
-  dp_cf32_t in[6]
-      = { { 3, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
-  dp_cf32_t out[6];
+  float _Complex in[6]
+      = { CMPLXF(3, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0) };
+  float _Complex out[6];
   dp_fir_execute_cf32 (f, in, out, 6);
 
   /* Impulse response of 3-tap MA: [1, 1, 1, 0, 0, 0] */
-  dp_cf32_t expect[6]
-      = { { 1, 0 }, { 1, 0 }, { 1, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
+  float _Complex expect[6]
+      = { CMPLXF(1, 0), CMPLXF(1, 0), CMPLXF(1, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0) };
   int ok = 1;
   for (int i = 0; i < 6; i++)
     ok &= cf32_near (out[i], expect[i], 1e-5f);
@@ -350,16 +349,15 @@ test_large_block (void)
   printf ("large block (1024 samples, exercises SIMD)\n");
 
   /* h = [1]: pure delay-0, identity */
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_cf32_t *in = (dp_cf32_t *)malloc (1024 * sizeof (dp_cf32_t));
-  dp_cf32_t *out = (dp_cf32_t *)malloc (1024 * sizeof (dp_cf32_t));
+  float _Complex *in = (float _Complex *)malloc (1024 * sizeof (float _Complex));
+  float _Complex *out = (float _Complex *)malloc (1024 * sizeof (float _Complex));
 
   for (int i = 0; i < 1024; i++)
     {
-      in[i].i = (float)(i % 127);
-      in[i].q = (float)(-(i % 63));
+      in[i] = CMPLXF((float)(i % 127), (float)(-(i % 63)));
     }
 
   dp_fir_execute_cf32 (f, in, out, 1024);
@@ -383,16 +381,16 @@ test_ci16_large (void)
 {
   printf ("CI16 large block (SIMD upcast path)\n");
 
-  dp_cf32_t tap = { 1.0f, 0.0f };
+  float _Complex tap = CMPLXF(1.0f, 0.0f);
   dp_fir_t *f = dp_fir_create (&tap, 1);
 
-  dp_ci16_t *in = (dp_ci16_t *)malloc (256 * sizeof (dp_ci16_t));
-  dp_cf32_t *out = (dp_cf32_t *)malloc (256 * sizeof (dp_cf32_t));
+  int16_t *in = (int16_t *)malloc (256 * 2 * sizeof (int16_t));
+  float _Complex *out = (float _Complex *)malloc (256 * sizeof (float _Complex));
 
   for (int i = 0; i < 256; i++)
     {
-      in[i].i = (int16_t)(i * 100 - 12800);
-      in[i].q = (int16_t)(-i * 50 + 6400);
+      in[2 * i] = (int16_t)(i * 100 - 12800);
+      in[2 * i + 1] = (int16_t)(-i * 50 + 6400);
     }
 
   dp_fir_execute_ci16 (f, in, out, 256);
@@ -400,7 +398,7 @@ test_ci16_large (void)
   int ok = 1;
   for (int i = 0; i < 256; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-3f);
     }
   CHECK (ok, "CI16 large block: 256 samples match");
@@ -424,9 +422,9 @@ test_real_identity (void)
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
   CHECK (f != NULL, "dp_fir_create_real returns non-NULL");
 
-  dp_cf32_t in[8] = { { 1, 2 }, { 3, 4 },   { 5, 6 }, { 7, 8 },
-                      { 9, 0 }, { -1, -2 }, { 0, 1 }, { 2, 3 } };
-  dp_cf32_t out[8];
+  float _Complex in[8] = { CMPLXF(1, 2), CMPLXF(3, 4),   CMPLXF(5, 6), CMPLXF(7, 8),
+                      CMPLXF(9, 0), CMPLXF(-1, -2), CMPLXF(0, 1), CMPLXF(2, 3) };
+  float _Complex out[8];
   dp_fir_execute_real_cf32 (f, in, out, 8);
 
   int ok = 1;
@@ -446,14 +444,15 @@ test_real_scale (void)
   float tap = 0.5f;
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
 
-  dp_cf32_t in[4] = { { 4, -2 }, { 0, 8 }, { -6, 6 }, { 10, 0 } };
-  dp_cf32_t out[4];
+  float _Complex in[4] = { CMPLXF(4, -2), CMPLXF(0, 8), CMPLXF(-6, 6), CMPLXF(10, 0) };
+  float _Complex out[4];
   dp_fir_execute_real_cf32 (f, in, out, 4);
 
   int ok = 1;
   for (int i = 0; i < 4; i++)
     {
-      dp_cf32_t expected = { in[i].i * 0.5f, in[i].q * 0.5f };
+      float _Complex expected
+          = CMPLXF (crealf (in[i]) * 0.5f, cimagf (in[i]) * 0.5f);
       ok &= cf32_near (out[i], expected, 1e-6f);
     }
   CHECK (ok, "real scale: out[n] == 0.5 * in[n]");
@@ -473,13 +472,13 @@ test_real_moving_average (void)
   dp_fir_t *f = dp_fir_create_real (taps, 3);
 
   /* Impulse on I, step on Q */
-  dp_cf32_t in[6]
-      = { { 3, 3 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
-  dp_cf32_t out[6];
+  float _Complex in[6]
+      = { CMPLXF(3, 3), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0) };
+  float _Complex out[6];
   dp_fir_execute_real_cf32 (f, in, out, 6);
 
-  dp_cf32_t expect[6]
-      = { { 1, 1 }, { 1, 1 }, { 1, 1 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
+  float _Complex expect[6]
+      = { CMPLXF(1, 1), CMPLXF(1, 1), CMPLXF(1, 1), CMPLXF(0, 0), CMPLXF(0, 0), CMPLXF(0, 0) };
   int ok = 1;
   for (int i = 0; i < 6; i++)
     ok &= cf32_near (out[i], expect[i], 1e-5f);
@@ -498,47 +497,46 @@ test_real_stateful (void)
   float taps[2] = { 0.0f, 1.0f };
   dp_fir_t *f = dp_fir_create_real (taps, 2);
 
-  dp_cf32_t in1[2] = { { 1, 10 }, { 2, 20 } };
-  dp_cf32_t in2[2] = { { 3, 30 }, { 4, 40 } };
-  dp_cf32_t out1[2], out2[2];
+  float _Complex in1[2] = { CMPLXF(1, 10), CMPLXF(2, 20) };
+  float _Complex in2[2] = { CMPLXF(3, 30), CMPLXF(4, 40) };
+  float _Complex out1[2], out2[2];
 
   dp_fir_execute_real_cf32 (f, in1, out1, 2);
   dp_fir_execute_real_cf32 (f, in2, out2, 2);
 
-  CHECK (cf32_near (out1[0], (dp_cf32_t){ 0, 0 }, 1e-5f),
+  CHECK (cf32_near (out1[0], CMPLXF(0, 0), 1e-5f),
          "real stateful: call1 y[0]==0");
-  CHECK (cf32_near (out1[1], (dp_cf32_t){ 1, 10 }, 1e-5f),
+  CHECK (cf32_near (out1[1], CMPLXF(1, 10), 1e-5f),
          "real stateful: call1 y[1]==in[0]");
-  CHECK (cf32_near (out2[0], (dp_cf32_t){ 2, 20 }, 1e-5f),
+  CHECK (cf32_near (out2[0], CMPLXF(2, 20), 1e-5f),
          "real stateful: call2 y[0]==in1[1] (carries over)");
-  CHECK (cf32_near (out2[1], (dp_cf32_t){ 3, 30 }, 1e-5f),
+  CHECK (cf32_near (out2[1], CMPLXF(3, 30), 1e-5f),
          "real stateful: call2 y[1]==in2[0]");
 
   dp_fir_destroy (f);
 }
 
 /* Real-tap vs complex-tap equivalence:
- * dp_fir_create_real(h) must equal dp_fir_create with {h,0} taps. */
+ * dp_fir_create_real(h) must equal dp_fir_create with CMPLXF(h,0) taps. */
 static void
 test_real_vs_complex_equiv (void)
 {
   printf ("real-tap vs complex-tap equivalence\n");
 
   float rtaps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
-  dp_cf32_t ctaps[5]
-      = { { 0.1f, 0 }, { 0.2f, 0 }, { 0.4f, 0 }, { 0.2f, 0 }, { 0.1f, 0 } };
+  float _Complex ctaps[5]
+      = { CMPLXF(0.1f, 0), CMPLXF(0.2f, 0), CMPLXF(0.4f, 0), CMPLXF(0.2f, 0), CMPLXF(0.1f, 0) };
 
   dp_fir_t *rf = dp_fir_create_real (rtaps, 5);
   dp_fir_t *cf = dp_fir_create (ctaps, 5);
 
-  dp_cf32_t in[16];
+  float _Complex in[16];
   for (int i = 0; i < 16; i++)
     {
-      in[i].i = (float)(i * 3 - 20);
-      in[i].q = (float)(-(i * 2) + 15);
+      in[i] = CMPLXF((float)(i * 3 - 20), (float)(-(i * 2) + 15));
     }
 
-  dp_cf32_t rout[16], cout[16];
+  float _Complex rout[16], cout[16];
   dp_fir_execute_real_cf32 (rf, in, rout, 16);
   dp_fir_execute_cf32 (cf, in, cout, 16);
 
@@ -560,15 +558,15 @@ test_real_ci8 (void)
   float tap = 1.0f;
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
 
-  dp_ci8_t in[8] = { { 1, 2 }, { -3, 4 },  { 5, -6 },  { 127, -128 },
-                     { 0, 0 }, { 10, 20 }, { -1, -1 }, { 100, 100 } };
-  dp_cf32_t out[8];
+  int8_t in[16] = { 1, 2, -3, 4, 5, -6, 127, -128,
+                    0, 0, 10, 20, -1, -1, 100, 100 };
+  float _Complex out[8];
   dp_fir_execute_real_ci8 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-5f);
     }
   CHECK (ok, "real CI8 identity: out[n] == (float)in[n]");
@@ -585,16 +583,15 @@ test_real_ci16 (void)
   float tap = 1.0f;
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
 
-  dp_ci16_t in[8]
-      = { { 1000, -2000 }, { 32767, -32768 }, { 0, 1 }, { -1, 0 },
-          { 500, 500 },    { -500, -500 },    { 1, 1 }, { 100, -100 } };
-  dp_cf32_t out[8];
+  int16_t in[16] = { 1000, -2000, 32767, -32768, 0, 1, -1, 0,
+                     500, 500, -500, -500, 1, 1, 100, -100 };
+  float _Complex out[8];
   dp_fir_execute_real_ci16 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-5f);
     }
   CHECK (ok, "real CI16 identity: out[n] == (float)in[n]");
@@ -611,16 +608,15 @@ test_real_ci32 (void)
   float tap = 1.0f;
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
 
-  dp_ci32_t in[8]
-      = { { 1000000, -2000000 }, { 0, 0 },          { -1, 1 }, { 100, -100 },
-          { 500000, 500000 },    { -500, -500000 }, { 1, -1 }, { 99, 77 } };
-  dp_cf32_t out[8];
+  int32_t in[16] = { 1000000, -2000000, 0, 0, -1, 1, 100, -100,
+                     500000, 500000, -500, -500000, 1, -1, 99, 77 };
+  float _Complex out[8];
   dp_fir_execute_real_ci32 (f, in, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
     {
-      dp_cf32_t expected = { (float)in[i].i, (float)in[i].q };
+      float _Complex expected = CMPLXF ((float)in[2 * i], (float)in[2 * i + 1]);
       ok &= cf32_near (out[i], expected, 1e-3f);
     }
   CHECK (ok, "real CI32 identity: out[n] ≈ (float)in[n]");
@@ -637,13 +633,12 @@ test_real_large_block (void)
   float tap = 1.0f;
   dp_fir_t *f = dp_fir_create_real (&tap, 1);
 
-  dp_cf32_t *in = (dp_cf32_t *)malloc (1024 * sizeof (dp_cf32_t));
-  dp_cf32_t *out = (dp_cf32_t *)malloc (1024 * sizeof (dp_cf32_t));
+  float _Complex *in = (float _Complex *)malloc (1024 * sizeof (float _Complex));
+  float _Complex *out = (float _Complex *)malloc (1024 * sizeof (float _Complex));
 
   for (int i = 0; i < 1024; i++)
     {
-      in[i].i = (float)(i % 127);
-      in[i].q = (float)(-(i % 63));
+      in[i] = CMPLXF((float)(i % 127), (float)(-(i % 63)));
     }
 
   dp_fir_execute_real_cf32 (f, in, out, 1024);

@@ -79,11 +79,11 @@ test_sample_types (void)
 {
   printf ("  sample type sizes and strings... ");
 
-  ASSERT (dp_sample_size (DP_CI32) == sizeof (dp_ci32_t),
+  ASSERT (dp_sample_size (DP_CI32) == 2 * sizeof (int32_t),
           "CI32 size incorrect");
-  ASSERT (dp_sample_size (DP_CF64) == sizeof (dp_cf64_t),
+  ASSERT (dp_sample_size (DP_CF64) == sizeof (double _Complex),
           "CF64 size incorrect");
-  ASSERT (dp_sample_size (DP_CF128) == sizeof (dp_cf128_t),
+  ASSERT (dp_sample_size (DP_CF128) == sizeof (long double _Complex),
           "CF128 size incorrect");
 
   ASSERT (strcmp (dp_sample_type_str (DP_CI32), "CI32") == 0,
@@ -184,12 +184,9 @@ test_pub_send_no_subscriber (void)
   dp_pub *pub = dp_pub_create (ep, DP_CF64);
   ASSERT (pub != NULL, "Publisher creation failed");
 
-  dp_cf64_t samples[10];
+  double _Complex samples[10];
   for (int i = 0; i < 10; i++)
-    {
-      samples[i].i = i * 0.1;
-      samples[i].q = i * 0.2;
-    }
+    samples[i] = CMPLX (i * 0.1, i * 0.2);
 
   int rc = dp_pub_send_cf64 (pub, samples, 10, 1e6, 2.4e9);
   ASSERT (rc == DP_OK, "Send failed");
@@ -222,12 +219,9 @@ pub_cf64_thread (void *arg)
   td->ready = 1;
   usleep (200000); /* 200ms for subscriber to connect */
 
-  dp_cf64_t samples[10];
+  double _Complex samples[10];
   for (int i = 0; i < 10; i++)
-    {
-      samples[i].i = i * 0.1;
-      samples[i].q = i * 0.2;
-    }
+    samples[i] = CMPLX (i * 0.1, i * 0.2);
 
   for (int f = 0; f < td->num_frames; f++)
     {
@@ -276,7 +270,7 @@ test_pubsub_cf64 (void)
           ASSERT (dp_msg_data (msg) != NULL, "msg data NULL");
           ASSERT (dp_msg_num_samples (msg) == 10, "wrong num_samples");
           ASSERT (dp_msg_sample_type (msg) == DP_CF64, "wrong sample_type");
-          ASSERT (dp_msg_size (msg) == 10 * sizeof (dp_cf64_t),
+          ASSERT (dp_msg_size (msg) == 10 * sizeof (double _Complex),
                   "wrong msg size");
 
           /* Validate header fields */
@@ -291,10 +285,10 @@ test_pubsub_cf64 (void)
           ASSERT (hdr.timestamp_ns > 0, "timestamp_ns is zero");
 
           /* Verify sample data */
-          dp_cf64_t *cf64 = (dp_cf64_t *)dp_msg_data (msg);
-          ASSERT (fabs (cf64[0].i - 0.0) < 1e-12, "cf64[0].i wrong");
-          ASSERT (fabs (cf64[1].i - 0.1) < 1e-12, "cf64[1].i wrong");
-          ASSERT (fabs (cf64[1].q - 0.2) < 1e-12, "cf64[1].q wrong");
+          double _Complex *cf64 = (double _Complex *)dp_msg_data (msg);
+          ASSERT (fabs (creal (cf64[0]) - 0.0) < 1e-12, "cf64[0].i wrong");
+          ASSERT (fabs (creal (cf64[1]) - 0.1) < 1e-12, "cf64[1].i wrong");
+          ASSERT (fabs (cimag (cf64[1]) - 0.2) < 1e-12, "cf64[1].q wrong");
 
           dp_msg_free (msg);
           received++;
@@ -327,11 +321,11 @@ test_pubsub_ci32 (void)
 
   usleep (200000);
 
-  dp_ci32_t samples[4];
+  int32_t samples[8];
   for (int i = 0; i < 4; i++)
     {
-      samples[i].i = i * 1000;
-      samples[i].q = i * 2000;
+      samples[2 * i] = i * 1000;
+      samples[2 * i + 1] = i * 2000;
     }
 
   dp_pub_send_ci32 (pub, samples, 4, 2e6, 915e6);
@@ -345,9 +339,9 @@ test_pubsub_ci32 (void)
   ASSERT (hdr.sample_rate == 2e6, "wrong rate");
   ASSERT (hdr.center_freq == 915e6, "wrong freq");
 
-  dp_ci32_t *ci32 = (dp_ci32_t *)dp_msg_data (msg);
-  ASSERT (ci32[2].i == 2000, "ci32[2].i wrong");
-  ASSERT (ci32[2].q == 4000, "ci32[2].q wrong");
+  int32_t *ci32 = (int32_t *)dp_msg_data (msg);
+  ASSERT (ci32[4] == 2000, "ci32[2].i wrong");
+  ASSERT (ci32[5] == 4000, "ci32[2].q wrong");
 
   dp_msg_free (msg);
   dp_sub_destroy (sub);
@@ -374,12 +368,9 @@ test_pubsub_cf128 (void)
 
   usleep (200000);
 
-  dp_cf128_t samples[3];
+  long double _Complex samples[3];
   for (int i = 0; i < 3; i++)
-    {
-      samples[i].i = (long double)i * 1.1L;
-      samples[i].q = (long double)i * 2.2L;
-    }
+    samples[i] = CMPLXL ((long double)i * 1.1L, (long double)i * 2.2L);
 
   dp_pub_send_cf128 (pub, samples, 3, 5e6, 1.42e9);
 
@@ -391,9 +382,9 @@ test_pubsub_cf128 (void)
   ASSERT (dp_msg_num_samples (msg) == 3, "wrong count");
   ASSERT (hdr.sample_type == DP_CF128, "wrong hdr type");
 
-  dp_cf128_t *cf128 = (dp_cf128_t *)dp_msg_data (msg);
-  ASSERT (fabsl (cf128[1].i - 1.1L) < 1e-12L, "cf128[1].i wrong");
-  ASSERT (fabsl (cf128[1].q - 2.2L) < 1e-12L, "cf128[1].q wrong");
+  long double _Complex *cf128 = (long double _Complex *)dp_msg_data (msg);
+  ASSERT (fabsl (creall (cf128[1]) - 1.1L) < 1e-12L, "cf128[1].i wrong");
+  ASSERT (fabsl (cimagl (cf128[1]) - 2.2L) < 1e-12L, "cf128[1].q wrong");
 
   dp_msg_free (msg);
   dp_sub_destroy (sub);
@@ -422,12 +413,9 @@ test_pubsub_multiple_subscribers (void)
 
   usleep (200000);
 
-  dp_cf64_t samples[5];
+  double _Complex samples[5];
   for (int i = 0; i < 5; i++)
-    {
-      samples[i].i = i;
-      samples[i].q = i + 10;
-    }
+    samples[i] = CMPLX (i, i + 10);
   dp_pub_send_cf64 (pub, samples, 5, 1e6, 0);
 
   dp_msg_t *m1 = NULL, *m2 = NULL;
@@ -462,7 +450,7 @@ test_pubsub_sequence (void)
 
   usleep (200000);
 
-  dp_cf64_t s[1] = { { 1.0, 2.0 } };
+  double _Complex s[1] = { CMPLX (1.0, 2.0) };
 
   for (int i = 0; i < 3; i++)
     dp_pub_send_cf64 (pub, s, 1, 1e6, 0);
@@ -537,12 +525,9 @@ test_pushpull_cf64 (void)
 
   usleep (100000);
 
-  dp_cf64_t samples[8];
+  double _Complex samples[8];
   for (int i = 0; i < 8; i++)
-    {
-      samples[i].i = i * 0.5;
-      samples[i].q = i * -0.5;
-    }
+    samples[i] = CMPLX (i * 0.5, i * -0.5);
 
   int rc = dp_push_send_cf64 (push, samples, 8, 3e6, 1.575e9);
   ASSERT (rc == DP_OK, "Push send failed");
@@ -558,9 +543,9 @@ test_pushpull_cf64 (void)
   ASSERT (hdr.center_freq == 1.575e9, "wrong freq");
   ASSERT (hdr.magic == 0x53494753, "wrong magic");
 
-  dp_cf64_t *d = (dp_cf64_t *)dp_msg_data (msg);
-  ASSERT (fabs (d[3].i - 1.5) < 1e-12, "d[3].i wrong");
-  ASSERT (fabs (d[3].q - (-1.5)) < 1e-12, "d[3].q wrong");
+  double _Complex *d = (double _Complex *)dp_msg_data (msg);
+  ASSERT (fabs (creal (d[3]) - 1.5) < 1e-12, "d[3].i wrong");
+  ASSERT (fabs (cimag (d[3]) - (-1.5)) < 1e-12, "d[3].q wrong");
 
   dp_msg_free (msg);
   dp_pull_destroy (pull);
@@ -585,8 +570,7 @@ test_pushpull_ci32 (void)
 
   usleep (100000);
 
-  dp_ci32_t samples[3]
-      = { { 100, 200 }, { -300, 400 }, { 2147483647, -2147483647 } };
+  int32_t samples[6] = { 100, 200, -300, 400, 2147483647, -2147483647 };
 
   int rc = dp_push_send_ci32 (push, samples, 3, 1e6, 0);
   ASSERT (rc == DP_OK, "Push send failed");
@@ -597,10 +581,10 @@ test_pushpull_ci32 (void)
   ASSERT (rc == DP_OK, "Pull recv failed");
   ASSERT (dp_msg_sample_type (msg) == DP_CI32, "wrong type");
 
-  dp_ci32_t *d = (dp_ci32_t *)dp_msg_data (msg);
-  ASSERT (d[0].i == 100, "d[0].i wrong");
-  ASSERT (d[1].i == -300, "d[1].i wrong");
-  ASSERT (d[2].i == 2147483647, "d[2].i wrong (max int32)");
+  int32_t *d = (int32_t *)dp_msg_data (msg);
+  ASSERT (d[0] == 100, "d[0].i wrong");
+  ASSERT (d[2] == -300, "d[1].i wrong");
+  ASSERT (d[4] == 2147483647, "d[2].i wrong (max int32)");
 
   dp_msg_free (msg);
   dp_pull_destroy (pull);
@@ -625,8 +609,10 @@ test_pushpull_cf128 (void)
 
   usleep (100000);
 
-  dp_cf128_t samples[2]
-      = { { 3.14159265358979L, 2.71828182845904L }, { -1.0L, 0.0L } };
+  long double _Complex samples[2] = {
+    CMPLXL (3.14159265358979L, 2.71828182845904L),
+    CMPLXL (-1.0L, 0.0L)
+  };
 
   int rc = dp_push_send_cf128 (push, samples, 2, 10e6, 0);
   ASSERT (rc == DP_OK, "Push send failed");
@@ -638,8 +624,8 @@ test_pushpull_cf128 (void)
   ASSERT (dp_msg_sample_type (msg) == DP_CF128, "wrong type");
   ASSERT (dp_msg_num_samples (msg) == 2, "wrong count");
 
-  dp_cf128_t *d = (dp_cf128_t *)dp_msg_data (msg);
-  ASSERT (fabsl (d[0].i - 3.14159265358979L) < 1e-12L, "d[0].i wrong");
+  long double _Complex *d = (long double _Complex *)dp_msg_data (msg);
+  ASSERT (fabsl (creall (d[0]) - 3.14159265358979L) < 1e-12L, "d[0].i wrong");
 
   dp_msg_free (msg);
   dp_pull_destroy (pull);
@@ -667,7 +653,7 @@ test_pushpull_multiple_frames (void)
   /* Send 5 frames, each with a distinguishing value */
   for (int f = 0; f < 5; f++)
     {
-      dp_cf64_t s[1] = { { (double)f, (double)(f * 10) } };
+      double _Complex s[1] = { CMPLX ((double)f, (double)(f * 10)) };
       dp_push_send_cf64 (push, s, 1, 1e6, 0);
     }
 
@@ -680,9 +666,9 @@ test_pushpull_multiple_frames (void)
       ASSERT (rc == DP_OK, "recv failed");
       ASSERT ((int)hdr.sequence == f, "wrong sequence");
 
-      dp_cf64_t *d = (dp_cf64_t *)dp_msg_data (msg);
-      ASSERT (fabs (d[0].i - (double)f) < 1e-12, "wrong I value");
-      ASSERT (fabs (d[0].q - (double)(f * 10)) < 1e-12, "wrong Q value");
+      double _Complex *d = (double _Complex *)dp_msg_data (msg);
+      ASSERT (fabs (creal (d[0]) - (double)f) < 1e-12, "wrong I value");
+      ASSERT (fabs (cimag (d[0]) - (double)(f * 10)) < 1e-12, "wrong Q value");
 
       dp_msg_free (msg);
     }
@@ -798,12 +784,9 @@ test_reqrep_signal_cf64 (void)
   usleep (100000);
 
   /* REQ sends signal frame */
-  dp_cf64_t req_samples[4];
+  double _Complex req_samples[4];
   for (int i = 0; i < 4; i++)
-    {
-      req_samples[i].i = i * 1.0;
-      req_samples[i].q = i * -1.0;
-    }
+    req_samples[i] = CMPLX (i * 1.0, i * -1.0);
   int rc = dp_req_send_cf64 (req, req_samples, 4, 2e6, 1.42e9);
   ASSERT (rc == DP_OK, "req signal send failed");
 
@@ -817,13 +800,13 @@ test_reqrep_signal_cf64 (void)
   ASSERT (hdr.sample_rate == 2e6, "wrong rate");
   ASSERT (hdr.center_freq == 1.42e9, "wrong freq");
 
-  dp_cf64_t *d = (dp_cf64_t *)dp_msg_data (msg);
-  ASSERT (fabs (d[2].i - 2.0) < 1e-12, "d[2].i wrong");
-  ASSERT (fabs (d[2].q - (-2.0)) < 1e-12, "d[2].q wrong");
+  double _Complex *d = (double _Complex *)dp_msg_data (msg);
+  ASSERT (fabs (creal (d[2]) - 2.0) < 1e-12, "d[2].i wrong");
+  ASSERT (fabs (cimag (d[2]) - (-2.0)) < 1e-12, "d[2].q wrong");
   dp_msg_free (msg);
 
   /* REP replies with signal frame */
-  dp_cf64_t rep_samples[2] = { { 99.0, 88.0 }, { 77.0, 66.0 } };
+  double _Complex rep_samples[2] = { CMPLX (99.0, 88.0), CMPLX (77.0, 66.0) };
   rc = dp_rep_send_cf64 (rep, rep_samples, 2, 5e6, 0);
   ASSERT (rc == DP_OK, "rep signal send failed");
 
@@ -833,9 +816,9 @@ test_reqrep_signal_cf64 (void)
   ASSERT (rc == DP_OK, "req signal recv failed");
   ASSERT (dp_msg_num_samples (msg) == 2, "wrong reply count");
 
-  d = (dp_cf64_t *)dp_msg_data (msg);
-  ASSERT (fabs (d[0].i - 99.0) < 1e-12, "reply d[0].i wrong");
-  ASSERT (fabs (d[1].q - 66.0) < 1e-12, "reply d[1].q wrong");
+  d = (double _Complex *)dp_msg_data (msg);
+  ASSERT (fabs (creal (d[0]) - 99.0) < 1e-12, "reply d[0].i wrong");
+  ASSERT (fabs (cimag (d[1]) - 66.0) < 1e-12, "reply d[1].q wrong");
   dp_msg_free (msg);
 
   dp_req_destroy (req);
@@ -861,7 +844,7 @@ test_reqrep_signal_ci32 (void)
 
   usleep (100000);
 
-  dp_ci32_t req_samples[2] = { { 100, 200 }, { -300, 400 } };
+  int32_t req_samples[4] = { 100, 200, -300, 400 };
   int rc = dp_req_send_ci32 (req, req_samples, 2, 1e6, 0);
   ASSERT (rc == DP_OK, "req send failed");
 
@@ -872,21 +855,21 @@ test_reqrep_signal_ci32 (void)
   ASSERT (dp_msg_sample_type (msg) == DP_CI32, "wrong type");
   ASSERT (dp_msg_num_samples (msg) == 2, "wrong count");
 
-  dp_ci32_t *d = (dp_ci32_t *)dp_msg_data (msg);
-  ASSERT (d[0].i == 100 && d[0].q == 200, "d[0] wrong");
-  ASSERT (d[1].i == -300 && d[1].q == 400, "d[1] wrong");
+  int32_t *d = (int32_t *)dp_msg_data (msg);
+  ASSERT (d[0] == 100 && d[1] == 200, "d[0] wrong");
+  ASSERT (d[2] == -300 && d[3] == 400, "d[1] wrong");
   dp_msg_free (msg);
 
   /* Reply */
-  dp_ci32_t rep_samples[1] = { { 42, 43 } };
+  int32_t rep_samples[2] = { 42, 43 };
   rc = dp_rep_send_ci32 (rep, rep_samples, 1, 1e6, 0);
   ASSERT (rc == DP_OK, "rep send failed");
 
   msg = NULL;
   rc = dp_req_recv_signal (req, &msg, &hdr);
   ASSERT (rc == DP_OK, "req recv failed");
-  d = (dp_ci32_t *)dp_msg_data (msg);
-  ASSERT (d[0].i == 42 && d[0].q == 43, "reply wrong");
+  d = (int32_t *)dp_msg_data (msg);
+  ASSERT (d[0] == 42 && d[1] == 43, "reply wrong");
   dp_msg_free (msg);
 
   dp_req_destroy (req);
@@ -912,7 +895,9 @@ test_reqrep_signal_cf128 (void)
 
   usleep (100000);
 
-  dp_cf128_t req_samples[1] = { { 1.23456789012345L, 9.87654321098765L } };
+  long double _Complex req_samples[1] = {
+    CMPLXL (1.23456789012345L, 9.87654321098765L)
+  };
   int rc = dp_req_send_cf128 (req, req_samples, 1, 1e6, 0);
   ASSERT (rc == DP_OK, "req send failed");
 
@@ -922,13 +907,13 @@ test_reqrep_signal_cf128 (void)
   ASSERT (rc == DP_OK, "rep recv failed");
   ASSERT (dp_msg_sample_type (msg) == DP_CF128, "wrong type");
 
-  dp_cf128_t *d = (dp_cf128_t *)dp_msg_data (msg);
-  ASSERT (fabsl (d[0].i - 1.23456789012345L) < 1e-12L, "I wrong");
-  ASSERT (fabsl (d[0].q - 9.87654321098765L) < 1e-12L, "Q wrong");
+  long double _Complex *d = (long double _Complex *)dp_msg_data (msg);
+  ASSERT (fabsl (creall (d[0]) - 1.23456789012345L) < 1e-12L, "I wrong");
+  ASSERT (fabsl (cimagl (d[0]) - 9.87654321098765L) < 1e-12L, "Q wrong");
   dp_msg_free (msg);
 
   /* Reply */
-  dp_cf128_t rep_samples[1] = { { 0.0L, 0.0L } };
+  long double _Complex rep_samples[1] = { CMPLXL (0.0L, 0.0L) };
   rc = dp_rep_send_cf128 (rep, rep_samples, 1, 1e6, 0);
   ASSERT (rc == DP_OK, "rep send failed");
 
@@ -978,7 +963,7 @@ test_send_invalid_args (void)
           "NULL samples not rejected");
 
   /* Zero count */
-  dp_cf64_t s[1] = { { 1.0, 2.0 } };
+  double _Complex s[1] = { CMPLX (1.0, 2.0) };
   ASSERT (dp_pub_send_cf64 (pub, s, 0, 1e6, 0) == DP_ERR_INVALID,
           "zero count not rejected");
 
@@ -1054,7 +1039,7 @@ test_header_fields (void)
 
   usleep (100000);
 
-  dp_cf64_t s[1] = { { 1.0, 2.0 } };
+  double _Complex s[1] = { CMPLX (1.0, 2.0) };
   dp_push_send_cf64 (push, s, 1, 44100.0, 88200.0);
 
   dp_msg_t *msg = NULL;

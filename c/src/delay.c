@@ -26,7 +26,7 @@
 
 struct dp_delay_cf64
 {
-  dp_cf64_t *buf;  /* 2 × capacity elements, heap-allocated */
+  double _Complex *buf; /* 2 × capacity elements, heap-allocated */
   size_t head;     /* index of most-recent sample           */
   size_t capacity; /* next power of two ≥ num_taps          */
   size_t num_taps; /* number of taps the caller requested   */
@@ -52,7 +52,7 @@ dp_delay_cf64_create (size_t num_taps)
   if (!dl)
     return NULL;
 
-  dl->buf = (dp_cf64_t *)calloc (2 * capacity, sizeof (dp_cf64_t));
+  dl->buf = (double _Complex *)calloc (2 * capacity, sizeof (double _Complex));
   if (!dl->buf)
     {
       free (dl);
@@ -78,7 +78,7 @@ dp_delay_cf64_destroy (dp_delay_cf64_t *dl)
 void
 dp_delay_cf64_reset (dp_delay_cf64_t *dl)
 {
-  memset (dl->buf, 0, 2 * dl->capacity * sizeof (dp_cf64_t));
+  memset (dl->buf, 0, 2 * dl->capacity * sizeof (double _Complex));
   dl->head = 0;
 }
 
@@ -103,7 +103,7 @@ dp_delay_cf64_capacity (const dp_delay_cf64_t *dl)
  * ========================================================================= */
 
 void
-dp_delay_cf64_push (dp_delay_cf64_t *dl, dp_cf64_t x)
+dp_delay_cf64_push (dp_delay_cf64_t *dl, double _Complex x)
 {
   /* Decrement head first so ptr[0] == the sample we are about to write */
   dl->head = (dl->head - 1) & dl->mask;
@@ -111,21 +111,21 @@ dp_delay_cf64_push (dp_delay_cf64_t *dl, dp_cf64_t x)
   dl->buf[dl->head + dl->capacity] = x;
 }
 
-const dp_cf64_t *
+const double _Complex *
 dp_delay_cf64_ptr (const dp_delay_cf64_t *dl)
 {
   return &dl->buf[dl->head];
 }
 
-const dp_cf64_t *
-dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, dp_cf64_t x)
+const double _Complex *
+dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, double _Complex x)
 {
   dp_delay_cf64_push (dl, x);
   return dp_delay_cf64_ptr (dl);
 }
 
 void
-dp_delay_cf64_write (dp_delay_cf64_t *dl, const dp_cf64_t *in, size_t n)
+dp_delay_cf64_write (dp_delay_cf64_t *dl, const double _Complex *in, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     dp_delay_cf64_push (dl, in[i]);

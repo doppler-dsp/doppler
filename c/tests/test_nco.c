@@ -51,9 +51,10 @@ static int failed = 0;
 #define TOL 1e-5f
 
 static int
-cf32_near (dp_cf32_t a, dp_cf32_t b, float tol)
+cf32_near (float _Complex a, float _Complex b, float tol)
 {
-  return fabsf (a.i - b.i) <= tol && fabsf (a.q - b.q) <= tol;
+  return fabsf (crealf (a) - crealf (b)) <= tol
+         && fabsf (cimagf (a) - cimagf (b)) <= tol;
 }
 
 /* =========================================================================
@@ -83,12 +84,12 @@ test_zero_freq (void)
 {
   printf ("--- zero frequency\n");
   dp_nco_t *nco = dp_nco_create (0.0f);
-  dp_cf32_t out[8];
+  float _Complex out[8];
   dp_nco_execute_cf32 (nco, out, 8);
 
   int ok = 1;
   for (int i = 0; i < 8; i++)
-    if (!cf32_near (out[i], (dp_cf32_t){ 1.0f, 0.0f }, TOL))
+    if (!cf32_near (out[i], CMPLXF(1.0f, 0.0f), TOL))
       ok = 0;
   CHECK (ok, "f_n=0 → all samples (1, 0)");
   dp_nco_destroy (nco);
@@ -110,16 +111,16 @@ test_quarter_rate (void)
 {
   printf ("--- quarter-rate tone (f_n = 0.25)\n");
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t out[8];
+  float _Complex out[8];
   dp_nco_execute_cf32 (nco, out, 8);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(0.0f, 1.0f), TOL),
          "sample 1: (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 2: (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(0.0f, -1.0f), TOL),
          "sample 3: (0, -1)");
   CHECK (cf32_near (out[4], out[0], TOL), "sample 4 == sample 0 (wrap)");
   CHECK (cf32_near (out[5], out[1], TOL), "sample 5 == sample 1");
@@ -138,16 +139,16 @@ test_half_rate (void)
 {
   printf ("--- half-rate tone (f_n = 0.5)\n");
   dp_nco_t *nco = dp_nco_create (0.5f);
-  dp_cf32_t out[4];
+  float _Complex out[4];
   dp_nco_execute_cf32 (nco, out, 4);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 1: (-1, 0)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(1.0f, 0.0f), TOL),
          "sample 2: (1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 3: (-1, 0)");
 
   dp_nco_destroy (nco);
@@ -162,13 +163,14 @@ test_unity_amplitude (void)
 {
   printf ("--- unity amplitude (f_n = 0.137, 1024 samples)\n");
   dp_nco_t *nco = dp_nco_create (0.137f);
-  dp_cf32_t out[1024];
+  float _Complex out[1024];
   dp_nco_execute_cf32 (nco, out, 1024);
 
   float max_err = 0.0f;
   for (int i = 0; i < 1024; i++)
     {
-      float amp = sqrtf (out[i].i * out[i].i + out[i].q * out[i].q);
+      float amp = sqrtf (crealf (out[i]) * crealf (out[i])
+                         + cimagf (out[i]) * cimagf (out[i]));
       float err = fabsf (amp - 1.0f);
       if (err > max_err)
         max_err = err;
@@ -190,12 +192,12 @@ test_phase_continuity (void)
 
   /* Reference: generate 8 samples in one shot */
   dp_nco_t *ref = dp_nco_create (0.25f);
-  dp_cf32_t ref_out[8];
+  float _Complex ref_out[8];
   dp_nco_execute_cf32 (ref, ref_out, 8);
 
   /* Test: generate 4+4 */
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t out_a[4], out_b[4];
+  float _Complex out_a[4], out_b[4];
   dp_nco_execute_cf32 (nco, out_a, 4);
   dp_nco_execute_cf32 (nco, out_b, 4);
 
@@ -222,7 +224,7 @@ test_reset (void)
 {
   printf ("--- reset\n");
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t out[4];
+  float _Complex out[4];
 
   /* Advance by 3 samples, then reset */
   dp_nco_execute_cf32 (nco, out, 3);
@@ -230,13 +232,13 @@ test_reset (void)
   dp_nco_execute_cf32 (nco, out, 4);
 
   /* After reset, should see the same sequence as from phase 0 */
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "after reset: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(0.0f, 1.0f), TOL),
          "after reset: sample 1 = (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(-1.0f, 0.0f), TOL),
          "after reset: sample 2 = (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(0.0f, -1.0f), TOL),
          "after reset: sample 3 = (0, -1)");
 
   dp_nco_destroy (nco);
@@ -251,25 +253,25 @@ test_set_freq (void)
 {
   printf ("--- set_freq\n");
   dp_nco_t *nco = dp_nco_create (0.0f); /* start at DC */
-  dp_cf32_t out[4];
+  float _Complex out[4];
 
   /* At DC: 2 samples all (1, 0) */
   dp_nco_execute_cf32 (nco, out, 2);
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "pre set_freq: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(1.0f, 0.0f), TOL),
          "pre set_freq: sample 1 = (1, 0)");
 
   /* Switch to f_n = 0.25 (phase stays at 0, so next sample is (1,0)) */
   dp_nco_set_freq (nco, 0.25f);
   dp_nco_execute_cf32 (nco, out, 4);
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "post set_freq: sample 0 = (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(0.0f, 1.0f), TOL),
          "post set_freq: sample 1 = (0, 1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(-1.0f, 0.0f), TOL),
          "post set_freq: sample 2 = (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(0.0f, -1.0f), TOL),
          "post set_freq: sample 3 = (0, -1)");
 
   dp_nco_destroy (nco);
@@ -290,16 +292,16 @@ test_negative_freq (void)
 {
   printf ("--- negative frequency (f_n = -0.25)\n");
   dp_nco_t *nco = dp_nco_create (-0.25f);
-  dp_cf32_t out[4];
+  float _Complex out[4];
   dp_nco_execute_cf32 (nco, out, 4);
 
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ 0.0f, -1.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(0.0f, -1.0f), TOL),
          "sample 1: (0, -1)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 2: (-1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(0.0f, 1.0f), TOL),
          "sample 3: (0, 1)");
 
   dp_nco_destroy (nco);
@@ -316,7 +318,7 @@ test_ctrl_zero (void)
   float ctrl[8] = { 0 };
   dp_nco_t *ref = dp_nco_create (0.25f);
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t ref_out[8], ctrl_out[8];
+  float _Complex ref_out[8], ctrl_out[8];
 
   dp_nco_execute_cf32 (ref, ref_out, 8);
   dp_nco_execute_cf32_ctrl (nco, ctrl, ctrl_out, 8);
@@ -343,24 +345,24 @@ test_ctrl_freq_shift (void)
   /* Base f_n=0.25, ctrl=+0.25 → effective f_n=0.5 each sample */
   float ctrl[4] = { 0.25f, 0.25f, 0.25f, 0.25f };
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t out[4];
+  float _Complex out[4];
   dp_nco_execute_cf32_ctrl (nco, ctrl, out, 4);
 
   /* At effective f_n=0.5 the expected sequence is (1,0),(-1,0),(1,0),(-1,0) */
-  CHECK (cf32_near (out[0], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[0], CMPLXF(1.0f, 0.0f), TOL),
          "sample 0: (1, 0)");
-  CHECK (cf32_near (out[1], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[1], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 1: (-1, 0)");
-  CHECK (cf32_near (out[2], (dp_cf32_t){ 1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[2], CMPLXF(1.0f, 0.0f), TOL),
          "sample 2: (1, 0)");
-  CHECK (cf32_near (out[3], (dp_cf32_t){ -1.0f, 0.0f }, TOL),
+  CHECK (cf32_near (out[3], CMPLXF(-1.0f, 0.0f), TOL),
          "sample 3: (-1, 0)");
 
   /* Base phase_inc must be unchanged after ctrl call */
-  dp_cf32_t after[4];
+  float _Complex after[4];
   dp_nco_reset (nco);
   dp_nco_execute_cf32 (nco, after, 4);
-  CHECK (cf32_near (after[1], (dp_cf32_t){ 0.0f, 1.0f }, TOL),
+  CHECK (cf32_near (after[1], CMPLXF(0.0f, 1.0f), TOL),
          "base phase_inc unchanged after ctrl execute");
 
   dp_nco_destroy (nco);
@@ -405,7 +407,7 @@ test_u32_lut_consistency (void)
   dp_nco_t *a = dp_nco_create (0.137f);
   dp_nco_t *b = dp_nco_create (0.137f);
   uint32_t pu[64];
-  dp_cf32_t pc[64];
+  float _Complex pc[64];
 
   dp_nco_execute_u32 (a, pu, 64);
   dp_nco_execute_cf32 (b, pc, 64);
@@ -434,7 +436,7 @@ test_u32_lut_consistency (void)
    * NCOs must be at the same phase — advance one more step and check
    * the cf32 output matches the phase from the u32 path. */
   uint32_t next_ph[1];
-  dp_cf32_t next_cf[1];
+  float _Complex next_cf[1];
   dp_nco_execute_u32 (a, next_ph, 1);
   dp_nco_execute_cf32 (b, next_cf, 1);
 
@@ -462,8 +464,8 @@ test_u32_lut_consistency (void)
       float expected_i = cosf (expected_angle);
       float expected_q = sinf (expected_angle);
       (void)cos_idx;
-      if (fabsf (pc[i].i - expected_i) > 1e-4f
-          || fabsf (pc[i].q - expected_q) > 1e-4f)
+      if (fabsf (crealf (pc[i]) - expected_i) > 1e-4f
+          || fabsf (cimagf (pc[i]) - expected_q) > 1e-4f)
         ok = 0;
     }
   CHECK (ok, "cf32 output matches cos/sin of u32 phase for 64 samples");

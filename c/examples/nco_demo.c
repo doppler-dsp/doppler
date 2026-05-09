@@ -36,11 +36,12 @@ main (void)
   printf ("------  ---------  ---------\n");
 
   dp_nco_t *nco = dp_nco_create (0.25f);
-  dp_cf32_t out[N_FREE];
+  float _Complex out[N_FREE];
   dp_nco_execute_cf32 (nco, out, N_FREE);
 
   for (int i = 0; i < N_FREE; i++)
-    printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)out[i].i, (double)out[i].q);
+    printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)crealf (out[i]),
+            (double)cimagf (out[i]));
 
   dp_nco_destroy (nco);
 
@@ -61,12 +62,12 @@ main (void)
     ctrl[i] = FM_DEV * sinf (2.0f * (float)M_PI * FM_RATE * (float)i);
 
   dp_nco_t *fm = dp_nco_create (0.1f);
-  dp_cf32_t fmo[N_FM];
+  float _Complex fmo[N_FM];
   dp_nco_execute_cf32_ctrl (fm, ctrl, fmo, N_FM);
 
   for (int i = 0; i < N_FM; i++)
-    printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)fmo[i].i,
-            (double)fmo[i].q, (double)(0.1f + ctrl[i]));
+    printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)crealf (fmo[i]),
+            (double)cimagf (fmo[i]), (double)(0.1f + ctrl[i]));
 
   dp_nco_destroy (fm);
   return 0;

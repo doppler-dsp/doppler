@@ -17,7 +17,7 @@
  *
  * // Transmitter
  * dp_pub *pub = dp_pub_create("tcp://\*:5555", DP_CF64);
- * dp_cf64_t samples[1024] = { ... };
+ * double _Complex samples[1024] = { ... };
  * dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
  * dp_pub_destroy(pub);
  *
@@ -25,7 +25,7 @@
  * dp_sub *sub = dp_sub_create("tcp://localhost:5555");
  * dp_msg_t *msg;  dp_header_t hdr;
  * dp_sub_recv(sub, &msg, &hdr);
- * dp_cf64_t *cf64 = (dp_cf64_t *)dp_msg_data(msg);
+ * double _Complex *cf64 = (double _Complex *)dp_msg_data(msg);
  * size_t n = dp_msg_num_samples(msg);
  * // use cf64[0..n-1] ...
  * dp_msg_free(msg);
@@ -39,6 +39,18 @@
 #include <complex.h>
 #include <stddef.h>
 #include <stdint.h>
+
+/* CMPLXF/CMPLX/CMPLXL are C11.  Provide them for C99 builds via the
+ * GCC/Clang __builtin_complex extension (available since GCC 4.7). */
+#ifndef CMPLXF
+#  define CMPLXF(x, y) __builtin_complex((float)(x), (float)(y))
+#endif
+#ifndef CMPLX
+#  define CMPLX(x, y)  __builtin_complex((double)(x), (double)(y))
+#endif
+#ifndef CMPLXL
+#  define CMPLXL(x, y) __builtin_complex((long double)(x), (long double)(y))
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -89,59 +101,33 @@ extern "C"
     DP_PROTO_DIFI = 1, /**< DIFI / VITA 49 (reserved for future use). */
   } dp_protocol_t;
 
-  /** @brief Complex int32 sample: signed 32-bit interleaved I/Q. */
-  typedef struct
-  {
-    int32_t i; /**< In-phase component. */
-    int32_t q; /**< Quadrature component. */
-  } dp_ci32_t;
-
-  /** @brief Complex float64 sample: double-precision interleaved I/Q. */
-  typedef struct
-  {
-    double i; /**< In-phase component. */
-    double q; /**< Quadrature component. */
-  } dp_cf64_t;
-
-  /** @brief Complex long-double sample: extended-precision interleaved I/Q. */
-  typedef struct
-  {
-    long double i; /**< In-phase component. */
-    long double q; /**< Quadrature component. */
-  } dp_cf128_t;
-
-  /** @brief Complex int8 sample: signed 8-bit interleaved I/Q.
+  /**
+   * @defgroup sampletypes Sample C types
    *
-   * Lowest-weight IQ transport format.  Used by RTL-SDR and HackRF;
-   * fits 32 complex samples in a single AVX-512 register.
-   */
-  typedef struct
-  {
-    int8_t i; /**< In-phase component. */
-    int8_t q; /**< Quadrature component. */
-  } dp_ci8_t;
-
-  /** @brief Complex int16 sample: signed 16-bit interleaved I/Q.
+   * Floating-point complex types use C99 @c <complex.h>:
    *
-   * Standard IQ transport for LimeSDR, USRP, and PlutoSDR;
-   * fits 16 complex samples in a single AVX-512 register.
-   */
-  typedef struct
-  {
-    int16_t i; /**< In-phase component. */
-    int16_t q; /**< Quadrature component. */
-  } dp_ci16_t;
-
-  /** @brief Complex float32 sample: single-precision interleaved I/Q.
+   * | Wire type | C type               | bytes/sample |
+   * |-----------|----------------------|--------------|
+   * | DP_CF32   | @c float _Complex    | 8            |
+   * | DP_CF64   | @c double _Complex   | 16           |
+   * | DP_CF128  | @c long double _Complex | 32        |
    *
-   * GNU Radio wire-compatible format; fits 8 complex samples in a
-   * single AVX-512 register.
+   * Integer complex types have no C99 equivalent.  They are represented
+   * as interleaved I/Q arrays where each complex sample occupies two
+   * consecutive elements of the underlying integer type:
+   *
+   * | Wire type | C element type | bytes/sample | array length |
+   * |-----------|----------------|--------------|--------------|
+   * | DP_CI8    | @c int8_t      | 2            | 2×n          |
+   * | DP_CI16   | @c int16_t     | 4            | 2×n          |
+   * | DP_CI32   | @c int32_t     | 8            | 2×n          |
+   *
+   * For @p n complex samples the send functions accept a pointer to
+   * @c 2*n elements of the integer type (element 2k = I, 2k+1 = Q).
+   *
+   * @{
    */
-  typedef struct
-  {
-    float i; /**< In-phase component. */
-    float q; /**< Quadrature component. */
-  } dp_cf32_t;
+  /** @} */ /* end group sampletypes */
 
   /**
    * @brief Frame metadata header carried in every ZMQ message.
@@ -274,13 +260,13 @@ extern "C"
    * @brief Send an array of CI32 samples via a Publisher.
    *
    * @param ctx         Publisher context.
-   * @param samples     Pointer to an array of @p num_samples dp_ci32_t values.
+   * @param samples     Interleaved int32_t I/Q pairs; length 2×num_samples.
    * @param num_samples Number of complex samples.
    * @param sample_rate Sample rate in Hz.
    * @param center_freq Centre frequency in Hz.
    * @return DP_OK (0) on success, negative error code on failure.
    */
-  int dp_pub_send_ci32 (dp_pub *ctx, const dp_ci32_t *samples,
+  int dp_pub_send_ci32 (dp_pub *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -288,7 +274,7 @@ extern "C"
    * @brief Send an array of CF64 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf64 (dp_pub *ctx, const dp_cf64_t *samples,
+  int dp_pub_send_cf64 (dp_pub *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -296,7 +282,7 @@ extern "C"
    * @brief Send an array of CF128 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf128 (dp_pub *ctx, const dp_cf128_t *samples,
+  int dp_pub_send_cf128 (dp_pub *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -304,7 +290,7 @@ extern "C"
    * @brief Send an array of CI8 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_ci8 (dp_pub *ctx, const dp_ci8_t *samples,
+  int dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
 
@@ -312,7 +298,7 @@ extern "C"
    * @brief Send an array of CI16 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_ci16 (dp_pub *ctx, const dp_ci16_t *samples,
+  int dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -320,7 +306,7 @@ extern "C"
    * @brief Send an array of CF32 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf32 (dp_pub *ctx, const dp_cf32_t *samples,
+  int dp_pub_send_cf32 (dp_pub *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -403,7 +389,7 @@ extern "C"
    * @brief Send CI32 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_ci32 (dp_push *ctx, const dp_ci32_t *samples,
+  int dp_push_send_ci32 (dp_push *ctx, const int32_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -411,7 +397,7 @@ extern "C"
    * @brief Send CF64 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_cf64 (dp_push *ctx, const dp_cf64_t *samples,
+  int dp_push_send_cf64 (dp_push *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -419,25 +405,25 @@ extern "C"
    * @brief Send CF128 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_cf128 (dp_push *ctx, const dp_cf128_t *samples,
+  int dp_push_send_cf128 (dp_push *ctx, const long double _Complex *samples,
                           size_t num_samples, double sample_rate,
                           double center_freq);
 
   /** @brief Send CI8 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_ci8 (dp_push *ctx, const dp_ci8_t *samples,
+  int dp_push_send_ci8 (dp_push *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI16 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_ci16 (dp_push *ctx, const dp_ci16_t *samples,
+  int dp_push_send_ci16 (dp_push *ctx, const int16_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
   /** @brief Send CF32 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_cf32 (dp_push *ctx, const dp_cf32_t *samples,
+  int dp_push_send_cf32 (dp_push *ctx, const float _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -536,52 +522,52 @@ extern "C"
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
   /** @brief Send CI32 signal frame as a request. */
-  int dp_req_send_ci32 (dp_req *ctx, const dp_ci32_t *samples,
+  int dp_req_send_ci32 (dp_req *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a request. */
-  int dp_req_send_cf64 (dp_req *ctx, const dp_cf64_t *samples,
+  int dp_req_send_cf64 (dp_req *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF128 signal frame as a request. */
-  int dp_req_send_cf128 (dp_req *ctx, const dp_cf128_t *samples,
+  int dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a request. */
-  int dp_req_send_ci8 (dp_req *ctx, const dp_ci8_t *samples,
+  int dp_req_send_ci8 (dp_req *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
   /** @brief Send CI16 signal frame as a request. */
-  int dp_req_send_ci16 (dp_req *ctx, const dp_ci16_t *samples,
+  int dp_req_send_ci16 (dp_req *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a request. */
-  int dp_req_send_cf32 (dp_req *ctx, const dp_cf32_t *samples,
+  int dp_req_send_cf32 (dp_req *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI32 signal frame as a reply. */
-  int dp_rep_send_ci32 (dp_rep *ctx, const dp_ci32_t *samples,
+  int dp_rep_send_ci32 (dp_rep *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a reply. */
-  int dp_rep_send_cf64 (dp_rep *ctx, const dp_cf64_t *samples,
+  int dp_rep_send_cf64 (dp_rep *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF128 signal frame as a reply. */
-  int dp_rep_send_cf128 (dp_rep *ctx, const dp_cf128_t *samples,
+  int dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a reply. */
-  int dp_rep_send_ci8 (dp_rep *ctx, const dp_ci8_t *samples,
+  int dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples,
                        size_t num_samples, double sample_rate,
                        double center_freq);
   /** @brief Send CI16 signal frame as a reply. */
-  int dp_rep_send_ci16 (dp_rep *ctx, const dp_ci16_t *samples,
+  int dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a reply. */
-  int dp_rep_send_cf32 (dp_rep *ctx, const dp_cf32_t *samples,
+  int dp_rep_send_cf32 (dp_rep *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 

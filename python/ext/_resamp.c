@@ -180,8 +180,8 @@ ResampCf32_execute (ResampCf32Object *self, PyObject *args)
     }
 
   size_t n_out = dp_resamp_cf32_execute (
-      self->handle, (const dp_cf32_t *)PyArray_DATA (in_arr), num_in,
-      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr), max_out);
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), num_in,
+      (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr), max_out);
   Py_DECREF (in_arr);
 
   /* Return a view trimmed to the actual output count */

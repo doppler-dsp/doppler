@@ -125,7 +125,7 @@ extern "C"
    * @param dl  Must be non-NULL.
    * @param x   New sample (most recent).
    */
-  void dp_delay_cf64_push (dp_delay_cf64_t *dl, dp_cf64_t x);
+  void dp_delay_cf64_push (dp_delay_cf64_t *dl, double _Complex x);
 
   /**
    * @brief Return a pointer to the contiguous @p num_taps-sample window.
@@ -143,14 +143,14 @@ extern "C"
    * @param dl  Must be non-NULL.
    * @return    Pointer into the dual buffer; valid for @p num_taps reads.
    */
-  const dp_cf64_t *dp_delay_cf64_ptr (const dp_delay_cf64_t *dl);
+  const double _Complex *dp_delay_cf64_ptr (const dp_delay_cf64_t *dl);
 
   /**
    * @brief Push a sample and return the updated read pointer in one call.
    *
    * Convenience wrapper for the interpolation hot loop:
    * @code
-   * const dp_cf64_t *win = dp_delay_cf64_push_ptr(dl, x);
+   * const double _Complex *win = dp_delay_cf64_push_ptr(dl, x);
    * dp_acc_cf64_madd(acc, win, h, num_taps);
    * @endcode
    *
@@ -158,7 +158,7 @@ extern "C"
    * @param x   New sample.
    * @return    Updated contiguous read pointer.
    */
-  const dp_cf64_t *dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, dp_cf64_t x);
+  const double _Complex *dp_delay_cf64_push_ptr (dp_delay_cf64_t *dl, double _Complex x);
 
   /**
    * @brief Push @p n samples from an array into the delay line.
@@ -171,7 +171,7 @@ extern "C"
    * polyphase MAC:
    * @code
    * dp_delay_cf64_write(dl, block, block_len);
-   * const dp_cf64_t *win = dp_delay_cf64_ptr(dl);
+   * const double _Complex *win = dp_delay_cf64_ptr(dl);
    * dp_acc_cf64_madd(acc, win, h, num_taps);
    * @endcode
    *
@@ -179,7 +179,7 @@ extern "C"
    * @param in   Input array of @p n cf64 samples (oldest first).
    * @param n    Number of samples to push.
    */
-  void dp_delay_cf64_write (dp_delay_cf64_t *dl, const dp_cf64_t *in,
+  void dp_delay_cf64_write (dp_delay_cf64_t *dl, const double _Complex *in,
                             size_t n);
 
 #ifdef __cplusplus

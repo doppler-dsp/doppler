@@ -41,11 +41,11 @@ main (int argc, char *argv[])
       return 1;
     }
 
-  dp_cf64_t samples[N_SAMPLES] = {
-    { 1.0, 2.0 },
-    { 3.0, 4.0 },
-    { 5.0, 6.0 },
-    { 7.0, 8.0 },
+  double _Complex samples[N_SAMPLES] = {
+    CMPLX (1.0, 2.0),
+    CMPLX (3.0, 4.0),
+    CMPLX (5.0, 6.0),
+    CMPLX (7.0, 8.0),
   };
 
   /* ZMQ PUB/SUB slow-joiner: subscription filters propagate

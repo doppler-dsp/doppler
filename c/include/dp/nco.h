@@ -32,8 +32,8 @@
  * ```c
  * #include <dp/nco.h>
  *
- * dp_nco_t   *nco = dp_nco_create(0.25f);  // f = fs/4
- * dp_cf32_t   out[256];
+ * dp_nco_t      *nco = dp_nco_create(0.25f);  // f = fs/4
+ * float _Complex out[256];
  * dp_nco_execute_cf32(nco, out, 256);
  * dp_nco_destroy(nco);
  * ```
@@ -41,8 +41,8 @@
  * **Example — FM modulation:**
  * ```c
  * float mod[256] = { ... };           // normalised freq deviations
- * dp_nco_t  *nco = dp_nco_create(0.1f);
- * dp_cf32_t  out[256];
+ * dp_nco_t      *nco = dp_nco_create(0.1f);
+ * float _Complex out[256];
  * dp_nco_execute_cf32_ctrl(nco, mod, out, 256);
  * dp_nco_destroy(nco);
  * ```
@@ -162,7 +162,7 @@ extern "C"
    * @param out  Output array of @p n CF32 samples.
    * @param n    Number of samples to generate.
    */
-  void dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n);
+  void dp_nco_execute_cf32 (dp_nco_t *nco, float _Complex *out, size_t n);
 
   /* ------------------------------------------------------------------
    * Execute — with per-sample phase-increment control port
@@ -188,7 +188,7 @@ extern "C"
    * @param n     Number of samples to generate.
    */
   void dp_nco_execute_cf32_ctrl (dp_nco_t *nco, const float *ctrl,
-                                 dp_cf32_t *out, size_t n);
+                                 float _Complex *out, size_t n);
 
   /* ------------------------------------------------------------------
    * Execute — raw uint32 phase output

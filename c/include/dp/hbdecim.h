@@ -33,7 +33,7 @@
  * // h[NUM_TAPS] = FIR branch from kaiser_prototype(phases=2)
  * dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create(NUM_TAPS, h);
  *
- * dp_cf32_t out[IN_LEN / 2 + 2];
+ * float _Complex out[IN_LEN / 2 + 2];
  * size_t n_out = dp_hbdecim_cf32_execute(
  *     r, in, IN_LEN, out, sizeof(out)/sizeof(out[0]));
  *
@@ -132,8 +132,8 @@ extern "C"
    * @param max_out  Capacity of @p out in samples.
    * @return         Number of output samples written.
    */
-  size_t dp_hbdecim_cf32_execute (dp_hbdecim_cf32_t *r, const dp_cf32_t *in,
-                                  size_t num_in, dp_cf32_t *out,
+  size_t dp_hbdecim_cf32_execute (dp_hbdecim_cf32_t *r, const float _Complex *in,
+                                  size_t num_in, float _Complex *out,
                                   size_t max_out);
 
   /* ==================================================================
@@ -169,7 +169,7 @@ extern "C"
    *     dp_hbdecim_r2cf32_create(NUM_TAPS, h);
    *
    * float  in[IN_LEN];
-   * dp_cf32_t out[IN_LEN / 2 + 2];
+   * float _Complex out[IN_LEN / 2 + 2];
    * size_t n_out = dp_hbdecim_r2cf32_execute(
    *     r, in, IN_LEN, out,
    *     sizeof(out) / sizeof(out[0]));
@@ -229,7 +229,7 @@ extern "C"
    * @return         Number of output samples written.
    */
   size_t dp_hbdecim_r2cf32_execute (dp_hbdecim_r2cf32_t *r, const float *in,
-                                    size_t num_in, dp_cf32_t *out,
+                                    size_t num_in, float _Complex *out,
                                     size_t max_out);
 
 #ifdef __cplusplus

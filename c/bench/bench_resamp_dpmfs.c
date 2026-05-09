@@ -269,7 +269,7 @@ build_flat (const float *m0, const float *m1, const float *m2, const float *m3,
 
 static double
 bench_rate_dpmfs (const float *c0, const float *c1, size_t M, size_t N,
-                  double rate, const dp_cf32_t *input, dp_cf32_t *output,
+                  double rate, const float _Complex *input, float _Complex *output,
                   size_t max_out)
 {
   dp_resamp_dpmfs_t *r = dp_resamp_dpmfs_create (M, N, c0, c1, rate);
@@ -291,7 +291,7 @@ bench_rate_dpmfs (const float *c0, const float *c1, size_t M, size_t N,
 
 static void
 run_bench_dpmfs (size_t M, size_t N, const float *c0, const float *c1,
-                 double img_db, const dp_cf32_t *input, dp_cf32_t *output,
+                 double img_db, const float _Complex *input, float _Complex *output,
                  size_t max_out)
 {
   if (img_db > 0.0)
@@ -331,17 +331,17 @@ main (void)
           "(%.0f M input samples/rate)\n\n",
           BLOCK_SIZE, ITERATIONS, (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
   for (size_t i = 0; i < BLOCK_SIZE; i++)
     {
       double t0 = 2.0 * M_PI * 0.1 * (double)i;
       double t1 = 2.0 * M_PI * 0.37 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   size_t max_out = (size_t)(BLOCK_SIZE * 5.0) + 16;
-  dp_cf32_t *output = malloc (max_out * sizeof *output);
+  float _Complex *output = malloc (max_out * sizeof *output);
   if (!input || !output)
     {
       fprintf (stderr, "allocation failed\n");

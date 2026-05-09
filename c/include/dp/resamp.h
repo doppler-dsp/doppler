@@ -51,7 +51,7 @@
  * dp_resamp_cf32_t *r = dp_resamp_cf32_create(
  *     NUM_PHASES, NUM_TAPS, &bank[0][0], 2.0);
  *
- * dp_cf32_t out[2 * IN_LEN + 4];
+ * float _Complex out[2 * IN_LEN + 4];
  * size_t n_out = dp_resamp_cf32_execute(
  *     r, in, IN_LEN, out, sizeof(out)/sizeof(out[0]));
  *
@@ -156,8 +156,8 @@ extern "C"
    * @param max_out  Capacity of @p out in samples.
    * @return         Number of output samples written to @p out.
    */
-  size_t dp_resamp_cf32_execute (dp_resamp_cf32_t *r, const dp_cf32_t *in,
-                                 size_t num_in, dp_cf32_t *out,
+  size_t dp_resamp_cf32_execute (dp_resamp_cf32_t *r, const float _Complex *in,
+                                 size_t num_in, float _Complex *out,
                                  size_t max_out);
 
 #ifdef __cplusplus

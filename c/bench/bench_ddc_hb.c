@@ -121,8 +121,8 @@ build_hb_fir (int n_fir, double atten, size_t *N_out)
 
 /* Plain DDC: BLOCK_SIZE input at given rate. */
 static double
-bench_plain_ddc (float norm_freq, double rate, const dp_cf32_t *in,
-                 dp_cf32_t *out)
+bench_plain_ddc (float norm_freq, double rate, const float _Complex *in,
+                 float _Complex *out)
 {
   dp_ddc_t *ddc = dp_ddc_create (norm_freq, BLOCK_SIZE, rate);
   if (!ddc)
@@ -146,7 +146,7 @@ bench_plain_ddc (float norm_freq, double rate, const dp_cf32_t *in,
  * Reports effective input MSa/s referred to the HB input.            */
 static double
 bench_hb_ddc (float norm_freq, double rate, size_t hb_N, const float *hb_fir,
-              const dp_cf32_t *in, dp_cf32_t *mid, dp_cf32_t *out)
+              const float _Complex *in, float _Complex *mid, float _Complex *out)
 {
   dp_hbdecim_cf32_t *hb = dp_hbdecim_cf32_create (hb_N, hb_fir);
   if (!hb)
@@ -207,10 +207,10 @@ main (void)
   float *hb_fir = build_hb_fir (19, 60.0, &hb_N);
 
   /* Allocate buffers */
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
-  dp_cf32_t *mid = malloc ((BLOCK_SIZE / 2 + hb_N + 4) * sizeof *mid);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *mid = malloc ((BLOCK_SIZE / 2 + hb_N + 4) * sizeof *mid);
   size_t out_cap = (size_t)(BLOCK_SIZE * 2) + 16;
-  dp_cf32_t *output = malloc (out_cap * sizeof *output);
+  float _Complex *output = malloc (out_cap * sizeof *output);
   if (!input || !mid || !output || !hb_fir)
     {
       fprintf (stderr, "allocation failed\n");
@@ -222,8 +222,8 @@ main (void)
     {
       double t0 = 2.0 * M_PI * 0.05 * (double)i;
       double t1 = 2.0 * M_PI * 0.23 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   /* NCO tunes the +0.05 tone to DC for all cases. */

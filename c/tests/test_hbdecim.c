@@ -75,13 +75,12 @@ static const float H4_FIR[N_TAPS] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
 /* ================================================================== */
 
 static void
-tone (dp_cf32_t *out, size_t n, double freq)
+tone (float _Complex *out, size_t n, double freq)
 {
   for (size_t k = 0; k < n; k++)
     {
       double ph = 2.0 * M_PI * freq * (double)k;
-      out[k].i = (float)cos (ph);
-      out[k].q = (float)sin (ph);
+      out[k] = CMPLXF((float)cos (ph), (float)sin (ph));
     }
 }
 
@@ -90,11 +89,11 @@ tone (dp_cf32_t *out, size_t n, double freq)
 /* ================================================================== */
 
 static double
-rms_db (const dp_cf32_t *x, size_t n)
+rms_db (const float _Complex *x, size_t n)
 {
   double s = 0.0;
   for (size_t k = 0; k < n; k++)
-    s += (double)x[k].i * x[k].i + (double)x[k].q * x[k].q;
+    s += (double)crealf(x[k]) * crealf(x[k]) + (double)cimagf(x[k]) * cimagf(x[k]);
   return 10.0 * log10 (s / (double)n + 1e-20);
 }
 
@@ -135,8 +134,8 @@ test_output_length (void)
 
   dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
 
-  dp_cf32_t in[512] = { 0 };
-  dp_cf32_t out[300];
+  float _Complex in[512] = { 0 };
+  float _Complex out[300];
 
   size_t n = dp_hbdecim_cf32_execute (r, in, 512, out, 300);
   CHECK (n == 256, "512 in → 256 out");
@@ -148,7 +147,7 @@ test_output_length (void)
   CHECK (n == 255, "511 in → 255 out (1 pending)");
 
   /* Next sample: 1 in → 1 out (consumes pending) */
-  dp_cf32_t one = { 0.0f, 0.0f };
+  float _Complex one = CMPLXF(0.0f, 0.0f);
   n = dp_hbdecim_cf32_execute (r, &one, 1, out, 300);
   CHECK (n == 1, "1 in → 1 out after pending");
 
@@ -163,10 +162,10 @@ test_stateful (void)
   dp_hbdecim_cf32_t *r1 = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
   dp_hbdecim_cf32_t *r2 = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
 
-  dp_cf32_t in[512];
+  float _Complex in[512];
   tone (in, 512, 0.1);
 
-  dp_cf32_t full[260], half_a[140], half_b[140];
+  float _Complex full[260], half_a[140], half_b[140];
   size_t nf = dp_hbdecim_cf32_execute (r1, in, 512, full, 260);
   size_t na = dp_hbdecim_cf32_execute (r2, in, 256, half_a, 140);
   size_t nb = dp_hbdecim_cf32_execute (r2, in + 256, 256, half_b, 140);
@@ -179,8 +178,8 @@ test_stateful (void)
   size_t check = (nf < 10) ? nf : 10;
   for (size_t k = 0; k < check; k++)
     {
-      float di = full[k].i - (k < na ? half_a[k].i : half_b[k - na].i);
-      float dq = full[k].q - (k < na ? half_a[k].q : half_b[k - na].q);
+      float di = crealf(full[k]) - (k < na ? crealf(half_a[k]) : crealf(half_b[k - na]));
+      float dq = cimagf(full[k]) - (k < na ? cimagf(half_a[k]) : cimagf(half_b[k - na]));
       if (fabsf (di) > 1e-5f || fabsf (dq) > 1e-5f)
         {
           match = 0;
@@ -200,8 +199,8 @@ test_reset (void)
 
   dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
 
-  dp_cf32_t in[64];
-  dp_cf32_t out1[40], out2[40];
+  float _Complex in[64];
+  float _Complex out1[40], out2[40];
   tone (in, 64, 0.05);
 
   size_t n1 = dp_hbdecim_cf32_execute (r, in, 64, out1, 40);
@@ -213,8 +212,8 @@ test_reset (void)
   int match = 1;
   for (size_t k = 0; k < check; k++)
     {
-      if (fabsf (out1[k].i - out2[k].i) > 1e-5f
-          || fabsf (out1[k].q - out2[k].q) > 1e-5f)
+      if (fabsf (crealf(out1[k]) - crealf(out2[k])) > 1e-5f
+          || fabsf (cimagf(out1[k]) - cimagf(out2[k])) > 1e-5f)
         {
           match = 0;
           break;
@@ -233,10 +232,10 @@ test_dc_passthrough (void)
   /* A DC tone (freq=0) is in the passband and should pass. */
   dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
 
-  dp_cf32_t in[2048], out[1040];
+  float _Complex in[2048], out[1040];
   /* DC = constant 1.0 + 0j */
   for (size_t k = 0; k < 2048; k++)
-    in[k] = (dp_cf32_t){ 1.0f, 0.0f };
+    in[k] = CMPLXF(1.0f, 0.0f);
 
   size_t n = dp_hbdecim_cf32_execute (r, in, 2048, out, 1040);
   size_t skip = N_TAPS; /* skip initial transient */
@@ -262,8 +261,8 @@ test_alias_rejection (void)
    * Python integration tests (kaiser_prototype → C execution).      */
   dp_hbdecim_cf32_t *r = dp_hbdecim_cf32_create (N_TAPS, H4_FIR);
 
-  dp_cf32_t passband_in[2048], stop_in[2048];
-  dp_cf32_t out_p[1040], out_s[1040];
+  float _Complex passband_in[2048], stop_in[2048];
+  float _Complex out_p[1040], out_s[1040];
 
   tone (passband_in, 2048, 0.05); /* well inside passband */
   tone (stop_in, 2048, 0.45);     /* deep stopband (near Nyquist) */
@@ -311,11 +310,11 @@ real_tone (float *out, size_t n, double freq)
 
 /* CF32 RMS power in dB. */
 static double
-rms_cf32_db (const dp_cf32_t *x, size_t n)
+rms_cf32_db (const float _Complex *x, size_t n)
 {
   double s = 0.0;
   for (size_t k = 0; k < n; k++)
-    s += (double)x[k].i * x[k].i + (double)x[k].q * x[k].q;
+    s += (double)crealf(x[k]) * crealf(x[k]) + (double)cimagf(x[k]) * cimagf(x[k]);
   return 10.0 * log10 (s / (double)n + 1e-20);
 }
 
@@ -351,7 +350,7 @@ r2_test_output_length (void)
   dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
 
   float in[512];
-  dp_cf32_t out[260];
+  float _Complex out[260];
   memset (in, 0, sizeof in);
 
   size_t n = dp_hbdecim_r2cf32_execute (r, in, 512, out, 260);
@@ -388,7 +387,7 @@ r2_test_passband_capture (void)
   const size_t N_IN = 2048;
   const size_t SKIP = HB19_N + 4;
   float in_a[2048], in_b[2048];
-  dp_cf32_t out_a[1040], out_b[1040];
+  float _Complex out_a[1040], out_b[1040];
 
   real_tone (in_a, N_IN, 0.10); /* |f−0.25|=0.15 < 0.20 → passband */
   real_tone (in_b, N_IN, 0.20); /* |f−0.25|=0.05 < 0.20 → passband */
@@ -418,7 +417,7 @@ r2_test_reset (void)
   dp_hbdecim_r2cf32_t *r = dp_hbdecim_r2cf32_create (HB19_N, HB19_FIR);
 
   float in[64];
-  dp_cf32_t out1[40], out2[40];
+  float _Complex out1[40], out2[40];
   real_tone (in, 64, 0.1);
 
   size_t n1 = dp_hbdecim_r2cf32_execute (r, in, 64, out1, 40);
@@ -429,8 +428,8 @@ r2_test_reset (void)
   int same = 1;
   for (size_t k = 0; k < n1 && same; k++)
     {
-      if (fabsf (out1[k].i - out2[k].i) > 1e-6f
-          || fabsf (out1[k].q - out2[k].q) > 1e-6f)
+      if (fabsf (crealf(out1[k]) - crealf(out2[k])) > 1e-6f
+          || fabsf (cimagf(out1[k]) - cimagf(out2[k])) > 1e-6f)
         same = 0;
     }
   CHECK (same, "r2cf32 reset: identical output after reset");

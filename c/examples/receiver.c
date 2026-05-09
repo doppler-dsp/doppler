@@ -5,6 +5,7 @@
  */
 
 #include <doppler.h>
+#include <complex.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -22,25 +23,27 @@ signal_handler (int signum)
 }
 
 double
-calculate_power_cf64 (const dp_cf64_t *samples, size_t num_samples)
+calculate_power_cf64 (const double _Complex *samples, size_t num_samples)
 {
   double power = 0.0;
   for (size_t i = 0; i < num_samples; i++)
     {
-      power += samples[i].i * samples[i].i + samples[i].q * samples[i].q;
+      double re = creal (samples[i]);
+      double im = cimag (samples[i]);
+      power += re * re + im * im;
     }
   return power / num_samples;
 }
 
 double
-calculate_power_ci32 (const dp_ci32_t *samples, size_t num_samples)
+calculate_power_ci32 (const int32_t *samples, size_t num_samples)
 {
   double power = 0.0;
   const double scale = 1.0 / 2147483647.0;
   for (size_t i = 0; i < num_samples; i++)
     {
-      double i_val = samples[i].i * scale;
-      double q_val = samples[i].q * scale;
+      double i_val = samples[2 * i] * scale;
+      double q_val = samples[2 * i + 1] * scale;
       power += i_val * i_val + q_val * q_val;
     }
   return power / num_samples;
@@ -72,18 +75,20 @@ print_samples (const void *samples, dp_sample_type_t type, size_t count)
     {
       if (type == DP_CI32)
         {
-          const dp_ci32_t *s = (const dp_ci32_t *)samples;
-          printf ("    [%zu] I: %d, Q: %d\n", i, s[i].i, s[i].q);
+          const int32_t *s = (const int32_t *)samples;
+          printf ("    [%zu] I: %d, Q: %d\n", i, s[2 * i], s[2 * i + 1]);
         }
       else if (type == DP_CF64)
         {
-          const dp_cf64_t *s = (const dp_cf64_t *)samples;
-          printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i, s[i].i, s[i].q);
+          const double _Complex *s = (const double _Complex *)samples;
+          printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i, creal (s[i]),
+                  cimag (s[i]));
         }
       else if (type == DP_CF128)
         {
-          const dp_cf128_t *s = (const dp_cf128_t *)samples;
-          printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i, s[i].i, s[i].q);
+          const long double _Complex *s = (const long double _Complex *)samples;
+          printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i, creall (s[i]),
+                  cimagl (s[i]));
         }
     }
 }
@@ -175,13 +180,12 @@ main (int argc, char *argv[])
       double power = 0.0;
       if (sample_type == DP_CI32)
         {
-          power
-              = calculate_power_ci32 ((const dp_ci32_t *)samples, num_samples);
+          power = calculate_power_ci32 ((const int32_t *)samples, num_samples);
         }
       else if (sample_type == DP_CF64)
         {
-          power
-              = calculate_power_cf64 ((const dp_cf64_t *)samples, num_samples);
+          power = calculate_power_cf64 ((const double _Complex *)samples,
+                                        num_samples);
         }
       double power_db = 10.0 * log10 (power + 1e-12);
 

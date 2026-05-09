@@ -35,12 +35,25 @@ endif()
 
 message(STATUS "NumPy include: ${NumPy_INCLUDE_DIR}")
 
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c
-        "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
-    OUTPUT_VARIABLE PY_EXT_SUFFIX
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+if(NOT PY_EXT_SUFFIX)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c
+            "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
+        OUTPUT_VARIABLE PY_EXT_SUFFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+if(NOT PY_EXT_SUFFIX)
+    execute_process(
+        COMMAND uv run python -c
+            "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
+        OUTPUT_VARIABLE PY_EXT_SUFFIX
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+endif()
+message(STATUS "Python ext suffix: ${PY_EXT_SUFFIX}")
 
 # ------------------------------------------------------------
 # Link shared library for Python extension modules

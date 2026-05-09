@@ -41,8 +41,8 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 /* ------------------------------------------------------------------ */
 
 static double
-bench_ddc (float norm_freq, double rate, const dp_cf32_t *input,
-           dp_cf32_t *output)
+bench_ddc (float norm_freq, double rate, const float _Complex *input,
+           float _Complex *output)
 {
   dp_ddc_t *ddc = dp_ddc_create (norm_freq, BLOCK_SIZE, rate);
   if (!ddc)
@@ -82,11 +82,11 @@ main (void)
   printf ("  (%.0f M input samples total per row)\n\n",
           (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
   /* Output large enough for the slowest decimation (rate=1.0 → same as
    * input size; for interpolation headroom add a generous margin).    */
   size_t max_alloc = (size_t)(BLOCK_SIZE * 2) + 16;
-  dp_cf32_t *output = malloc (max_alloc * sizeof *output);
+  float _Complex *output = malloc (max_alloc * sizeof *output);
   if (!input || !output)
     {
       fprintf (stderr, "allocation failed\n");
@@ -98,8 +98,8 @@ main (void)
     {
       double t0 = 2.0 * M_PI * 0.05 * (double)i;
       double t1 = 2.0 * M_PI * 0.23 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   /* Tune NCO to mix the 0.05 tone to DC for all cases. */

@@ -82,8 +82,8 @@ test_create_cf64 (void)
   printf ("\nTest 2  create/destroy cf64\n");
   dp_acc_cf64_t *acc = dp_acc_cf64_create ();
   CHECK (acc != NULL, "create returns non-NULL");
-  dp_cf64_t v = dp_acc_cf64_get (acc);
-  CHECK (near_f64 (v.i, 0.0, TOL_F64) && near_f64 (v.q, 0.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (acc);
+  CHECK (near_f64 (creal(v), 0.0, TOL_F64) && near_f64 (cimag(v), 0.0, TOL_F64),
          "initial value is (0,0)");
   dp_acc_cf64_destroy (acc);
   dp_acc_cf64_destroy (NULL);
@@ -106,11 +106,11 @@ test_reset (void)
   dp_acc_f32_destroy (af);
 
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
-  dp_cf64_t s = { 1.0, 2.0 };
+  double _Complex s = CMPLX(1.0, 2.0);
   dp_acc_cf64_push (ac, s);
   dp_acc_cf64_reset (ac);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 0.0, TOL_F64) && near_f64 (v.q, 0.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 0.0, TOL_F64) && near_f64 (cimag(v), 0.0, TOL_F64),
          "cf64 reset clears to (0,0)");
   dp_acc_cf64_destroy (ac);
 }
@@ -132,13 +132,13 @@ test_dump (void)
   dp_acc_f32_destroy (af);
 
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
-  dp_cf64_t s = { 3.0, -4.0 };
+  double _Complex s = CMPLX(3.0, -4.0);
   dp_acc_cf64_push (ac, s);
-  dp_cf64_t cv = dp_acc_cf64_dump (ac);
-  CHECK (near_f64 (cv.i, 3.0, TOL_F64) && near_f64 (cv.q, -4.0, TOL_F64),
+  double _Complex cv = dp_acc_cf64_dump (ac);
+  CHECK (near_f64 (creal(cv), 3.0, TOL_F64) && near_f64 (cimag(cv), -4.0, TOL_F64),
          "cf64 dump returns value");
-  dp_cf64_t cv2 = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (cv2.i, 0.0, TOL_F64) && near_f64 (cv2.q, 0.0, TOL_F64),
+  double _Complex cv2 = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(cv2), 0.0, TOL_F64) && near_f64 (cimag(cv2), 0.0, TOL_F64),
          "cf64 dump resets to (0,0)");
   dp_acc_cf64_destroy (ac);
 }
@@ -159,12 +159,12 @@ test_push (void)
   dp_acc_f32_destroy (af);
 
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
-  dp_cf64_t a = { 1.0, 2.0 };
-  dp_cf64_t b = { 3.0, 4.0 };
+  double _Complex a = CMPLX(1.0, 2.0);
+  double _Complex b = CMPLX(3.0, 4.0);
   dp_acc_cf64_push (ac, a);
   dp_acc_cf64_push (ac, b);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 4.0, TOL_F64) && near_f64 (v.q, 6.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 4.0, TOL_F64) && near_f64 (cimag(v), 6.0, TOL_F64),
          "cf64 push: (1+2i)+(3+4i) = (4+6i)");
   dp_acc_cf64_destroy (ac);
 }
@@ -184,11 +184,11 @@ test_add_1d (void)
          "f32 add: sum(1..8) = 36");
   dp_acc_f32_destroy (af);
 
-  dp_cf64_t xc[4] = { { 1, 2 }, { 3, 4 }, { 5, 6 }, { 7, 8 } };
+  double _Complex xc[4] = { CMPLX(1, 2), CMPLX(3, 4), CMPLX(5, 6), CMPLX(7, 8) };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_add (ac, xc, 4);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 16.0, TOL_F64) && near_f64 (v.q, 20.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 16.0, TOL_F64) && near_f64 (cimag(v), 20.0, TOL_F64),
          "cf64 add: sum I=1+3+5+7=16, Q=2+4+6+8=20");
   dp_acc_cf64_destroy (ac);
 }
@@ -213,12 +213,12 @@ test_madd_1d (void)
   /* complex x = [(1,2),(3,4)], real h = [2,3]
    * I:  1*2 + 3*3 = 2+9 = 11
    * Q:  2*2 + 4*3 = 4+12 = 16 */
-  dp_cf64_t xc[2] = { { 1.0, 2.0 }, { 3.0, 4.0 } };
+  double _Complex xc[2] = { CMPLX(1.0, 2.0), CMPLX(3.0, 4.0) };
   float hc[2] = { 2.0f, 3.0f };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_madd (ac, xc, hc, 2);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 11.0, TOL_F64) && near_f64 (v.q, 16.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 11.0, TOL_F64) && near_f64 (cimag(v), 16.0, TOL_F64),
          "cf64 madd: I=11, Q=16");
   dp_acc_cf64_destroy (ac);
 }
@@ -257,11 +257,11 @@ test_add_2d (void)
          "f32 add2d: sum of 2×3 matrix = 21");
   dp_acc_f32_destroy (af);
 
-  dp_cf64_t xc[2][2] = { { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } };
+  double _Complex xc[2][2] = { { CMPLX(1, 2), CMPLX(3, 4) }, { CMPLX(5, 6), CMPLX(7, 8) } };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_add2d (ac, &xc[0][0], 2, 2);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 16.0, TOL_F64) && near_f64 (v.q, 20.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 16.0, TOL_F64) && near_f64 (cimag(v), 20.0, TOL_F64),
          "cf64 add2d: I=1+3+5+7=16, Q=2+4+6+8=20");
   dp_acc_cf64_destroy (ac);
 }
@@ -292,12 +292,12 @@ test_madd_2d (void)
 
   /* cf64 × real: 2×2, x=[(1,2),(3,4),(5,6),(7,8)], h=all 1
    * I=1+3+5+7=16, Q=2+4+6+8=20 */
-  dp_cf64_t xc[2][2] = { { { 1, 2 }, { 3, 4 } }, { { 5, 6 }, { 7, 8 } } };
+  double _Complex xc[2][2] = { { CMPLX(1, 2), CMPLX(3, 4) }, { CMPLX(5, 6), CMPLX(7, 8) } };
   float hc[2][2] = { { 1, 1 }, { 1, 1 } };
   dp_acc_cf64_t *ac = dp_acc_cf64_create ();
   dp_acc_cf64_madd2d (ac, &xc[0][0], &hc[0][0], 2, 2);
-  dp_cf64_t v = dp_acc_cf64_get (ac);
-  CHECK (near_f64 (v.i, 16.0, TOL_F64) && near_f64 (v.q, 20.0, TOL_F64),
+  double _Complex v = dp_acc_cf64_get (ac);
+  CHECK (near_f64 (creal(v), 16.0, TOL_F64) && near_f64 (cimag(v), 20.0, TOL_F64),
          "cf64 madd2d: I=16, Q=20");
   dp_acc_cf64_destroy (ac);
 }

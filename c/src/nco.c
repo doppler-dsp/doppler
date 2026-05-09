@@ -1,5 +1,6 @@
 #include "dp/nco.h"
 
+#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -166,7 +167,7 @@ dp_nco_destroy (dp_nco_t *nco)
 #include <immintrin.h>
 
 void
-dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
+dp_nco_execute_cf32 (dp_nco_t *nco, float _Complex *out, size_t n)
 {
   uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
@@ -224,8 +225,8 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
   for (; i < n; i++)
     {
       uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q = nco_lut[idx];
+      out[i] = CMPLXF(nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)],
+                      nco_lut[idx]);
       ph += inc;
     }
 
@@ -235,7 +236,7 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
 #else /* scalar fallback for non-AVX-512 builds */
 
 void
-dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
+dp_nco_execute_cf32 (dp_nco_t *nco, float _Complex *out, size_t n)
 {
   uint32_t ph = nco->phase;
   uint32_t inc = nco->phase_inc;
@@ -243,8 +244,8 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
   for (size_t i = 0; i < n; i++)
     {
       uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q = nco_lut[idx];
+      out[i] = CMPLXF(nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)],
+                      nco_lut[idx]);
       ph += inc;
     }
 
@@ -258,7 +259,7 @@ dp_nco_execute_cf32 (dp_nco_t *nco, dp_cf32_t *out, size_t n)
  * ------------------------------------------------------------------ */
 
 void
-dp_nco_execute_cf32_ctrl (dp_nco_t *nco, const float *ctrl, dp_cf32_t *out,
+dp_nco_execute_cf32_ctrl (dp_nco_t *nco, const float *ctrl, float _Complex *out,
                           size_t n)
 {
   uint32_t ph = nco->phase;
@@ -270,8 +271,8 @@ dp_nco_execute_cf32_ctrl (dp_nco_t *nco, const float *ctrl, dp_cf32_t *out,
       d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
       uint16_t idx = (uint16_t)(ph >> (32u - NCO_LUT_BITS));
-      out[i].i = nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)];
-      out[i].q = nco_lut[idx];
+      out[i] = CMPLXF(nco_lut[(uint16_t)(idx + (uint16_t)NCO_LUT_QTR)],
+                      nco_lut[idx]);
       ph += inc + ctrl_inc;
     }
 

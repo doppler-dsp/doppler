@@ -164,8 +164,8 @@ build_hb_fir (int n_fir, double atten, size_t *N_out)
 
 /* (A) Plain DDC: default 0.4/0.6 at rate r. */
 static double
-bench_plain_ddc (float norm_freq, double rate, const dp_cf32_t *in,
-                 dp_cf32_t *out)
+bench_plain_ddc (float norm_freq, double rate, const float _Complex *in,
+                 float _Complex *out)
 {
   dp_ddc_t *ddc = dp_ddc_create (norm_freq, BLOCK_SIZE, rate);
   if (!ddc)
@@ -186,8 +186,8 @@ bench_plain_ddc (float norm_freq, double rate, const dp_cf32_t *in,
 /* (B) HB → DDC: halfband ÷2, then default 0.4/0.6 DDC at rate 2r. */
 static double
 bench_hb_then_ddc (float norm_freq, double rate, size_t hb_N,
-                   const float *hb_fir, const dp_cf32_t *in, dp_cf32_t *mid,
-                   dp_cf32_t *out)
+                   const float *hb_fir, const float _Complex *in, float _Complex *mid,
+                   float _Complex *out)
 {
   dp_hbdecim_cf32_t *hb = dp_hbdecim_cf32_create (hb_N, hb_fir);
   size_t hb_max_out = BLOCK_SIZE / 2 + hb_N + 2;
@@ -218,8 +218,8 @@ bench_hb_then_ddc (float norm_freq, double rate, size_t hb_N,
 /* (C) DDC → HB: custom 0.2/0.8 DDC at rate 2r, then halfband ÷2. */
 static double
 bench_ddc28_then_hb (float norm_freq, double rate, size_t hb_N,
-                     const float *hb_fir, const dp_cf32_t *in, dp_cf32_t *mid,
-                     dp_cf32_t *out)
+                     const float *hb_fir, const float _Complex *in, float _Complex *mid,
+                     float _Complex *out)
 {
   dp_resamp_dpmfs_t *r = dp_resamp_dpmfs_create (
       DPMFS28_M, DPMFS28_N, s_dpmfs28_c0, s_dpmfs28_c1, rate * 2.0);
@@ -273,9 +273,9 @@ main (void)
   size_t hb_N;
   float *hb_fir = build_hb_fir (19, 60.0, &hb_N);
 
-  dp_cf32_t *input = malloc (BLOCK_SIZE * sizeof *input);
-  dp_cf32_t *mid = malloc ((BLOCK_SIZE * 2 + 64) * sizeof *mid);
-  dp_cf32_t *output = malloc ((BLOCK_SIZE * 2 + 64) * sizeof *output);
+  float _Complex *input = malloc (BLOCK_SIZE * sizeof *input);
+  float _Complex *mid = malloc ((BLOCK_SIZE * 2 + 64) * sizeof *mid);
+  float _Complex *output = malloc ((BLOCK_SIZE * 2 + 64) * sizeof *output);
   if (!input || !mid || !output || !hb_fir)
     {
       fprintf (stderr, "allocation failed\n");
@@ -286,8 +286,8 @@ main (void)
     {
       double t0 = 2.0 * M_PI * 0.05 * (double)i;
       double t1 = 2.0 * M_PI * 0.23 * (double)i;
-      input[i].i = (float)(cos (t0) + cos (t1));
-      input[i].q = (float)(sin (t0) + sin (t1));
+      input[i] = CMPLXF ((float)(cos (t0) + cos (t1)),
+                         (float)(sin (t0) + sin (t1)));
     }
 
   const float norm_freq = -0.05f;

@@ -53,20 +53,20 @@ static int failed = 0;
 #define TOL 2e-4f
 
 static int
-cf32_near (dp_cf32_t a, dp_cf32_t b, float tol)
+cf32_near (float _Complex a, float _Complex b, float tol)
 {
-  return fabsf (a.i - b.i) <= tol && fabsf (a.q - b.q) <= tol;
+  return fabsf (crealf (a) - crealf (b)) <= tol
+         && fabsf (cimagf (a) - cimagf (b)) <= tol;
 }
 
 /* Generate a complex sinusoid: out[i] = exp(j·2π·f_n·i) */
 static void
-make_tone (dp_cf32_t *out, size_t n, float f_n)
+make_tone (float _Complex *out, size_t n, float f_n)
 {
   for (size_t i = 0; i < n; i++)
     {
       float phi = 2.0f * (float)M_PI * f_n * (float)i;
-      out[i].i = cosf (phi);
-      out[i].q = sinf (phi);
+      out[i] = CMPLXF(cosf (phi), sinf (phi));
     }
 }
 
@@ -154,11 +154,11 @@ test_passthrough (void)
   {
     N = 256
   };
-  dp_cf32_t in[N];
+  float _Complex in[N];
   make_tone (in, N, 0.1f); /* arbitrary input */
 
   dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 1.0);
-  dp_cf32_t out[N];
+  float _Complex out[N];
   size_t n = dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
   dp_ddc_destroy (ddc);
 
@@ -191,7 +191,7 @@ test_frequency_translation (void)
   {
     N = 512
   };
-  dp_cf32_t in[N], out[N];
+  float _Complex in[N], out[N];
 
   float test_freqs[] = { 0.25f, -0.25f, 0.1f, -0.1f, 0.3f };
 
@@ -207,14 +207,14 @@ test_frequency_translation (void)
       CHECK (n == N, "output count == input count (translation)");
 
       /* Skip the first sample (phase ramp starts at 0 regardless) */
-      dp_cf32_t dc = { 1.0f, 0.0f };
+      float _Complex dc = CMPLXF(1.0f, 0.0f);
       int ok = 1;
       for (size_t i = 1; i < N; i++)
         if (!cf32_near (out[i], dc, TOL))
           {
             ok = 0;
             fprintf (stderr, "    f_n=%.3f  i=%zu  got (%.6f, %.6f)\n", f_n, i,
-                     out[i].i, out[i].q);
+                     crealf(out[i]), cimagf(out[i]));
             break;
           }
       CHECK (ok, "translated tone is DC (1, 0)");
@@ -234,7 +234,7 @@ test_retune (void)
   {
     N = 256
   };
-  dp_cf32_t in[N], out[N];
+  float _Complex in[N], out[N];
 
   /* Start at -0.25 to cancel a +0.25 tone */
   make_tone (in, N, 0.25f);
@@ -242,7 +242,7 @@ test_retune (void)
   dp_ddc_execute (ddc, in, N, out, dp_ddc_max_out (ddc));
 
   int ok1 = 1;
-  dp_cf32_t dc = { 1.0f, 0.0f };
+  float _Complex dc = CMPLXF(1.0f, 0.0f);
   for (size_t i = 1; i < N; i++)
     if (!cf32_near (out[i], dc, TOL))
       {
@@ -283,7 +283,7 @@ test_reset (void)
   {
     N = 64
   };
-  dp_cf32_t in[N], out1[N], out2[N];
+  float _Complex in[N], out1[N], out2[N];
   make_tone (in, N, 0.25f);
 
   /* First run */
@@ -322,7 +322,7 @@ test_max_out_clip (void)
     N = 128,
     CAP = 64
   };
-  dp_cf32_t in[N], out[CAP];
+  float _Complex in[N], out[CAP];
   make_tone (in, N, 0.0f);
 
   dp_ddc_t *ddc = dp_ddc_create_custom (0.0f, N, NULL);
@@ -341,7 +341,7 @@ test_empty_block (void)
 {
   printf ("--- empty block\n");
 
-  dp_cf32_t out[4];
+  float _Complex out[4];
   dp_ddc_t *ddc = dp_ddc_create (0.1f, 64, 1.0);
   size_t n = dp_ddc_execute (ddc, NULL, 0, out, 4);
   dp_ddc_destroy (ddc);
@@ -363,14 +363,14 @@ test_default_decimation (void)
   {
     N = 1024
   };
-  dp_cf32_t in[N];
+  float _Complex in[N];
   make_tone (in, N, 0.0f); /* DC input (all 1+0j) */
 
   dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 0.25);
   CHECK (ddc != NULL, "create with 4× decimation succeeds");
 
   size_t mo = dp_ddc_max_out (ddc);
-  dp_cf32_t *out = malloc (mo * sizeof *out);
+  float _Complex *out = malloc (mo * sizeof *out);
   size_t n = dp_ddc_execute (ddc, in, N, out, mo);
   dp_ddc_destroy (ddc);
 
@@ -433,7 +433,7 @@ fft_inplace (double *re, double *im, size_t n)
  * Frequencies are normalised to the output sample rate: 0 = DC, 0.5 = Nyquist.
  * tol is the half-width of the search window around target_freq. */
 static double
-peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
+peak_near (const float _Complex *sig, size_t n, double target_freq, double tol)
 {
   size_t nfft = 1;
   while (nfft < 4 * n)
@@ -451,8 +451,8 @@ peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
       double w
           = a[0] - a[1] * cos (k) + a[2] * cos (2 * k) - a[3] * cos (3 * k);
       cg += w;
-      re[i] = (double)sig[i].i * w;
-      im[i] = (double)sig[i].q * w;
+      re[i] = (double)crealf(sig[i]) * w;
+      im[i] = (double)cimagf(sig[i]) * w;
     }
   cg /= (double)n;
 
@@ -491,12 +491,12 @@ test_nout (void)
   {
     N = 1024
   };
-  dp_cf32_t in[N];
+  float _Complex in[N];
   make_tone (in, N, 0.0f);
 
   dp_ddc_t *ddc = dp_ddc_create (0.0f, N, 0.25);
   size_t mo = dp_ddc_max_out (ddc);
-  dp_cf32_t *out = malloc (mo * sizeof *out);
+  float _Complex *out = malloc (mo * sizeof *out);
 
   /* nout is 0 before any execute */
   CHECK (dp_ddc_nout (ddc) == 0, "nout is 0 before first execute");
@@ -541,13 +541,13 @@ test_filter_passband_and_rejection (void)
     BLOCKS = 8,
     N_IN = 1024
   };
-  dp_cf32_t in[N_IN];
+  float _Complex in[N_IN];
 
   /* ---- passband ---- */
   {
     dp_ddc_t *ddc = dp_ddc_create (-0.05f, N_IN, 0.25);
     size_t mo = dp_ddc_max_out (ddc);
-    dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
+    float _Complex *out = malloc (mo * BLOCKS * sizeof *out);
     size_t total = 0;
 
     make_tone (in, N_IN, 0.05f); /* +0.05 → DC after NCO */
@@ -570,7 +570,7 @@ test_filter_passband_and_rejection (void)
   {
     dp_ddc_t *ddc = dp_ddc_create (-0.05f, N_IN, 0.25);
     size_t mo = dp_ddc_max_out (ddc);
-    dp_cf32_t *out = malloc (mo * BLOCKS * sizeof *out);
+    float _Complex *out = malloc (mo * BLOCKS * sizeof *out);
     size_t total = 0;
 
     /* +0.25 → +0.20 (input-norm) after NCO.
@@ -606,11 +606,11 @@ real_tone_f (float *out, size_t n, double freq)
 }
 
 static double
-rms_cf32_db (const dp_cf32_t *x, size_t n)
+rms_cf32_db (const float _Complex *x, size_t n)
 {
   double s = 0.0;
   for (size_t k = 0; k < n; k++)
-    s += (double)x[k].i * x[k].i + (double)x[k].q * x[k].q;
+    s += (double)crealf(x[k]) * crealf(x[k]) + (double)cimagf(x[k]) * cimagf(x[k]);
   return 10.0 * log10 (s / (double)n + 1e-20);
 }
 
@@ -654,7 +654,7 @@ test_real_output_count (void)
   /* 4× decimation: 4096 real in → ~1024 CF32 out */
   dp_ddc_real_t *d = dp_ddc_real_create (0.0f, 4096, 0.25);
   size_t mo = dp_ddc_real_max_out (d);
-  dp_cf32_t *out = malloc (mo * sizeof *out);
+  float _Complex *out = malloc (mo * sizeof *out);
 
   float in[4096];
   real_tone_f (in, 4096, 0.05);
@@ -683,8 +683,8 @@ test_real_passband_and_rejection (void)
   dp_ddc_real_t *ddc_pass = dp_ddc_real_create (-0.1f, N_IN, 0.25);
   dp_ddc_real_t *ddc_stop = dp_ddc_real_create (-0.1f, N_IN, 0.25);
   size_t mo = dp_ddc_real_max_out (ddc_pass);
-  dp_cf32_t *out_pass = malloc (mo * BLOCKS * sizeof *out_pass);
-  dp_cf32_t *out_stop = malloc (mo * BLOCKS * sizeof *out_stop);
+  float _Complex *out_pass = malloc (mo * BLOCKS * sizeof *out_pass);
+  float _Complex *out_stop = malloc (mo * BLOCKS * sizeof *out_stop);
   size_t tot_p = 0, tot_s = 0;
 
   /* Passband: carrier at exactly the tuned frequency → DC output */
@@ -729,8 +729,8 @@ test_real_reset (void)
   const size_t N_IN = 1024;
   dp_ddc_real_t *d = dp_ddc_real_create (-0.05f, N_IN, 0.25);
   size_t mo = dp_ddc_real_max_out (d);
-  dp_cf32_t *out1 = malloc (mo * sizeof *out1);
-  dp_cf32_t *out2 = malloc (mo * sizeof *out2);
+  float _Complex *out1 = malloc (mo * sizeof *out1);
+  float _Complex *out2 = malloc (mo * sizeof *out2);
   float *in = malloc (N_IN * sizeof *in);
   real_tone_f (in, N_IN, 0.05);
 
@@ -742,8 +742,8 @@ test_real_reset (void)
   int same = 1;
   for (size_t k = 0; k < n1 && same; k++)
     {
-      if (fabsf (out1[k].i - out2[k].i) > 1e-5f
-          || fabsf (out1[k].q - out2[k].q) > 1e-5f)
+      if (fabsf (crealf(out1[k]) - crealf(out2[k])) > 1e-5f
+          || fabsf (cimagf(out1[k]) - cimagf(out2[k])) > 1e-5f)
         same = 0;
     }
   CHECK (same, "ddc_real reset: identical output after reset");

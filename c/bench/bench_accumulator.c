@@ -124,7 +124,7 @@ bench_f32_madd2d (const float *x, const float *h)
  */
 
 static void
-bench_cf64_add (const dp_cf64_t *x)
+bench_cf64_add (const double _Complex *x)
 {
   dp_acc_cf64_t *acc = dp_acc_cf64_create ();
   struct timespec t0, t1;
@@ -137,14 +137,14 @@ bench_cf64_add (const dp_cf64_t *x)
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
   double gfl = msa * 2.0 / 1e3; /* 2 adds per complex sample */
-  dp_cf64_t v = dp_acc_cf64_get (acc);
+  double _Complex v = dp_acc_cf64_get (acc);
   printf ("  cf64  add    %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n", msa,
-          gfl, v.i, v.q);
+          gfl, creal (v), cimag (v));
   dp_acc_cf64_destroy (acc);
 }
 
 static void
-bench_cf64_madd (const dp_cf64_t *x, const float *h)
+bench_cf64_madd (const double _Complex *x, const float *h)
 {
   dp_acc_cf64_t *acc = dp_acc_cf64_create ();
   struct timespec t0, t1;
@@ -157,14 +157,14 @@ bench_cf64_madd (const dp_cf64_t *x, const float *h)
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * BLOCK / sec / 1e6;
   double gfl = msa * 4.0 / 1e3;
-  dp_cf64_t v = dp_acc_cf64_get (acc);
+  double _Complex v = dp_acc_cf64_get (acc);
   printf ("  cf64  madd   %9.1f MSa/s  %6.2f GFlop/s  (sum=%.3e+%.3ej)\n", msa,
-          gfl, v.i, v.q);
+          gfl, creal (v), cimag (v));
   dp_acc_cf64_destroy (acc);
 }
 
 static void
-bench_cf64_madd2d (const dp_cf64_t *x, const float *h)
+bench_cf64_madd2d (const double _Complex *x, const float *h)
 {
   dp_acc_cf64_t *acc = dp_acc_cf64_create ();
   struct timespec t0, t1;
@@ -177,10 +177,10 @@ bench_cf64_madd2d (const dp_cf64_t *x, const float *h)
   double sec = elapsed_sec (&t0, &t1);
   double msa = (double)ITERATIONS * NUM_PHASES * NUM_TAPS / sec / 1e6;
   double gfl = msa * 4.0 / 1e3;
-  dp_cf64_t v = dp_acc_cf64_get (acc);
+  double _Complex v = dp_acc_cf64_get (acc);
   printf ("  cf64  madd2d %9.1f MSa/s  %6.2f GFlop/s"
           "  [%d×%d]  (sum=%.3e+%.3ej)\n",
-          msa, gfl, NUM_PHASES, NUM_TAPS, v.i, v.q);
+          msa, gfl, NUM_PHASES, NUM_TAPS, creal (v), cimag (v));
   dp_acc_cf64_destroy (acc);
 }
 
@@ -193,7 +193,8 @@ main (void)
   /* Allocate and fill input buffers */
   float *xf = (float *)malloc (BLOCK * sizeof (float));
   float *hf = (float *)malloc (BLOCK * sizeof (float));
-  dp_cf64_t *xc = (dp_cf64_t *)malloc (BLOCK * sizeof (dp_cf64_t));
+  double _Complex *xc
+      = (double _Complex *)malloc (BLOCK * sizeof (double _Complex));
 
   if (!xf || !hf || !xc)
     {
@@ -205,8 +206,7 @@ main (void)
     {
       xf[i] = (float)i * 1e-6f;
       hf[i] = (float)(i + 1) * 1e-6f;
-      xc[i].i = (double)i * 1e-6;
-      xc[i].q = (double)(i + 1) * 1e-6;
+      xc[i] = CMPLX ((double)i * 1e-6, (double)(i + 1) * 1e-6);
     }
 
   printf ("=== accumulator benchmark ===\n");

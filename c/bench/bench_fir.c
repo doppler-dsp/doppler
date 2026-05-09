@@ -30,7 +30,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 }
 
 static void
-bench_cf32 (dp_fir_t *fir, dp_cf32_t *in, dp_cf32_t *out)
+bench_cf32 (dp_fir_t *fir, float _Complex *in, float _Complex *out)
 {
   struct timespec t0, t1;
   clock_gettime (CLOCK_MONOTONIC, &t0);
@@ -46,7 +46,7 @@ bench_cf32 (dp_fir_t *fir, dp_cf32_t *in, dp_cf32_t *out)
 }
 
 static void
-bench_ci16 (dp_fir_t *fir, dp_ci16_t *in, dp_cf32_t *out)
+bench_ci16 (dp_fir_t *fir, int16_t *in, float _Complex *out)
 {
   struct timespec t0, t1;
   clock_gettime (CLOCK_MONOTONIC, &t0);
@@ -62,7 +62,7 @@ bench_ci16 (dp_fir_t *fir, dp_ci16_t *in, dp_cf32_t *out)
 }
 
 static void
-bench_ci8 (dp_fir_t *fir, dp_ci8_t *in, dp_cf32_t *out)
+bench_ci8 (dp_fir_t *fir, int8_t *in, float _Complex *out)
 {
   struct timespec t0, t1;
   clock_gettime (CLOCK_MONOTONIC, &t0);
@@ -85,15 +85,14 @@ main (void)
           ITERATIONS);
 
   /* Build a simple real-valued LP filter */
-  dp_cf32_t taps[NUM_TAPS];
+  float _Complex taps[NUM_TAPS];
   int half = NUM_TAPS / 2;
   for (int k = 0; k < NUM_TAPS; k++)
     {
       int n = k - half;
       double sinc = (n == 0) ? 1.0 : sin (M_PI * 0.2 * n) / (M_PI * 0.2 * n);
       double win = 0.5 * (1.0 - cos (2.0 * M_PI * k / (NUM_TAPS - 1)));
-      taps[k].i = (float)(sinc * win);
-      taps[k].q = 0.0f;
+      taps[k] = CMPLXF ((float)(sinc * win), 0.0f);
     }
 
   dp_fir_t *fir = dp_fir_create (taps, NUM_TAPS);
@@ -103,20 +102,23 @@ main (void)
       return 1;
     }
 
-  dp_cf32_t *cf32_in = (dp_cf32_t *)malloc (BLOCK_SIZE * sizeof (dp_cf32_t));
-  dp_ci16_t *ci16_in = (dp_ci16_t *)malloc (BLOCK_SIZE * sizeof (dp_ci16_t));
-  dp_ci8_t *ci8_in = (dp_ci8_t *)malloc (BLOCK_SIZE * sizeof (dp_ci8_t));
-  dp_cf32_t *out = (dp_cf32_t *)malloc (BLOCK_SIZE * sizeof (dp_cf32_t));
+  float _Complex *cf32_in
+      = (float _Complex *)malloc (BLOCK_SIZE * sizeof (float _Complex));
+  int16_t *ci16_in
+      = (int16_t *)malloc (2 * BLOCK_SIZE * sizeof (int16_t));
+  int8_t *ci8_in
+      = (int8_t *)malloc (2 * BLOCK_SIZE * sizeof (int8_t));
+  float _Complex *out
+      = (float _Complex *)malloc (BLOCK_SIZE * sizeof (float _Complex));
 
   for (int i = 0; i < BLOCK_SIZE; i++)
     {
       double phase = 2.0 * M_PI * 0.1 * i;
-      cf32_in[i].i = (float)cos (phase);
-      cf32_in[i].q = (float)sin (phase);
-      ci16_in[i].i = (int16_t)(30000.0 * cos (phase));
-      ci16_in[i].q = (int16_t)(30000.0 * sin (phase));
-      ci8_in[i].i = (int8_t)(100.0 * cos (phase));
-      ci8_in[i].q = (int8_t)(100.0 * sin (phase));
+      cf32_in[i] = CMPLXF ((float)cos (phase), (float)sin (phase));
+      ci16_in[2 * i] = (int16_t)(30000.0 * cos (phase));
+      ci16_in[2 * i + 1] = (int16_t)(30000.0 * sin (phase));
+      ci8_in[2 * i] = (int8_t)(100.0 * cos (phase));
+      ci8_in[2 * i + 1] = (int8_t)(100.0 * sin (phase));
     }
 
   bench_cf32 (fir, cf32_in, out);

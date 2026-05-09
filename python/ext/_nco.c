@@ -142,7 +142,7 @@ Nco_execute_cf32 (NcoObject *self, PyObject *args)
     }
 
   dp_nco_execute_cf32 (self->handle,
-                       (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+                       (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
                        (size_t)n);
   return out_arr;
 }
@@ -168,7 +168,7 @@ Nco_execute_cf32_ctrl (NcoObject *self, PyObject *args)
       if (!out)
         return NULL;
       dp_nco_execute_cf32 (self->handle,
-                           (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out),
+                           (float _Complex *)PyArray_DATA ((PyArrayObject *)out),
                            (size_t)n);
       return out;
     }
@@ -189,7 +189,7 @@ Nco_execute_cf32_ctrl (NcoObject *self, PyObject *args)
 
   dp_nco_execute_cf32_ctrl (
       self->handle, (const float *)PyArray_DATA (in_arr),
-      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
+      (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr), (size_t)n);
   Py_DECREF (in_arr);
   return out_arr;
 }

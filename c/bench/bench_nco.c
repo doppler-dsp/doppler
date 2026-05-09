@@ -45,7 +45,7 @@ bench_msa (double iters, double block, double sec)
 /* ------------------------------------------------------------------ */
 
 static double
-run_cf32 (dp_nco_t *nco, dp_cf32_t *out)
+run_cf32 (dp_nco_t *nco, float _Complex *out)
 {
   struct timespec t0, t1;
   clock_gettime (CLOCK_MONOTONIC, &t0);
@@ -56,7 +56,7 @@ run_cf32 (dp_nco_t *nco, dp_cf32_t *out)
 }
 
 static double
-run_cf32_ctrl (dp_nco_t *nco, const float *ctrl, dp_cf32_t *out)
+run_cf32_ctrl (dp_nco_t *nco, const float *ctrl, float _Complex *out)
 {
   struct timespec t0, t1;
   clock_gettime (CLOCK_MONOTONIC, &t0);
@@ -121,7 +121,7 @@ main (void)
           ITERATIONS, (double)BLOCK_SIZE * ITERATIONS / 1e6);
 
   /* Allocate output buffers */
-  dp_cf32_t *cf32_out = malloc (BLOCK_SIZE * sizeof *cf32_out);
+  float _Complex *cf32_out = malloc (BLOCK_SIZE * sizeof *cf32_out);
   uint32_t *u32_out = malloc (BLOCK_SIZE * sizeof *u32_out);
   uint8_t *carry = malloc (BLOCK_SIZE * sizeof *carry);
 

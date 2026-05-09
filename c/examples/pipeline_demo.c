@@ -50,7 +50,8 @@ producer_thread (void *arg)
   dp_usleep (100000);
 
   // Allocate samples
-  dp_cf64_t *samples = malloc (SAMPLES_PER_BATCH * sizeof (dp_cf64_t));
+  double _Complex *samples
+      = malloc (SAMPLES_PER_BATCH * sizeof (double _Complex));
   if (!samples)
     {
       dp_push_destroy (ctx);
@@ -66,8 +67,8 @@ producer_thread (void *arg)
           double freq_mod
               = 1.0 + 0.5 * sin (2.0 * M_PI * (double)batch / NUM_BATCHES);
 
-          samples[i].i = 0.8 * cos (freq_mod * t);
-          samples[i].q = 0.8 * sin (freq_mod * t);
+          samples[i] = CMPLX (0.8 * cos (freq_mod * t),
+                              0.8 * sin (freq_mod * t));
         }
 
       // Send
@@ -95,11 +96,15 @@ producer_thread (void *arg)
 
 /* Compute mean signal power for a CF64 buffer (I^2+Q^2 averaged). */
 static double
-mean_power_cf64 (const dp_cf64_t *s, size_t n)
+mean_power_cf64 (const double _Complex *s, size_t n)
 {
   double acc = 0.0;
   for (size_t i = 0; i < n; i++)
-    acc += s[i].i * s[i].i + s[i].q * s[i].q;
+    {
+      double re = creal (s[i]);
+      double im = cimag (s[i]);
+      acc += re * re + im * im;
+    }
   return acc / (double)n;
 }
 
@@ -146,7 +151,7 @@ consumer_thread (void *arg)
       /* Compute and accumulate signal power */
       double pwr = 0.0;
       if (type == DP_CF64)
-        pwr = mean_power_cf64 ((const dp_cf64_t *)dp_msg_data (msg),
+        pwr = mean_power_cf64 ((const double _Complex *)dp_msg_data (msg),
                                num_samples);
       power_sum += pwr;
 
@@ -171,7 +176,8 @@ consumer_thread (void *arg)
 
   double mean_pwr
       = (batches_received > 0) ? power_sum / batches_received : 0.0;
-  double total_kb = (double)(total_samples * sizeof (dp_cf64_t)) / 1024.0;
+  double total_kb
+      = (double)(total_samples * sizeof (double _Complex)) / 1024.0;
 
   printf ("Consumer: Done — %d/%d batches  %llu samples  %.2f KB  "
           "mean power=%.4f (%.2f dB)\n",
@@ -210,7 +216,7 @@ main (int argc, char *argv[])
   printf ("  Batches   : %d x %d CF64 samples\n", NUM_BATCHES,
           SAMPLES_PER_BATCH);
   printf ("  Data      : %.2f KB total\n",
-          (double)(NUM_BATCHES * SAMPLES_PER_BATCH * sizeof (dp_cf64_t))
+          (double)(NUM_BATCHES * SAMPLES_PER_BATCH * sizeof (double _Complex))
               / 1024.0);
   printf ("\n");
 

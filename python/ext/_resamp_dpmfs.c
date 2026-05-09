@@ -195,8 +195,8 @@ ResampDpmfs_execute (ResampDpmfsObject *self, PyObject *args)
     }
 
   size_t n_out = dp_resamp_dpmfs_execute (
-      self->handle, (const dp_cf32_t *)PyArray_DATA (in_arr), num_in,
-      (dp_cf32_t *)PyArray_DATA ((PyArrayObject *)out_arr), max_out);
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), num_in,
+      (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr), max_out);
   Py_DECREF (in_arr);
 
   PyObject *slice = PySlice_New (PyLong_FromLong (0),

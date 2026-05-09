@@ -27,12 +27,12 @@
  * float taps[63] = { ... };   // designed with scipy.signal.firwin
  * dp_fir_t *fir = dp_fir_create_real(taps, 63);
  *
- * dp_ci16_t raw[4096];
- * dp_cf32_t out[4096];
+ * int16_t raw[2 * 4096];           // 2 int16_t per complex sample
+ * float _Complex out[4096];
  * dp_fir_execute_real_ci16(fir, raw, out, 4096);
  *
  * // Complex taps (e.g. frequency-shifted filter, Hilbert transformer)
- * dp_cf32_t ctaps[63] = { ... };
+ * float _Complex ctaps[63] = { ... };
  * dp_fir_t *cfir = dp_fir_create(ctaps, 63);
  * dp_fir_execute_cf32(cfir, out, out, 4096);
  *
@@ -71,7 +71,7 @@ extern "C"
    * @param num_taps  Number of taps (filter length ≥ 1).
    * @return          Heap-allocated filter state, or NULL on failure.
    */
-  dp_fir_t *dp_fir_create (const dp_cf32_t *taps, size_t num_taps);
+  dp_fir_t *dp_fir_create (const float _Complex *taps, size_t num_taps);
 
   /**
    * @brief Create a real-coefficient FIR filter for complex (IQ) signals.
@@ -123,8 +123,8 @@ extern "C"
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_cf32 (dp_fir_t *f, const dp_cf32_t *in, dp_cf32_t *out,
-                           size_t num_samples);
+  int dp_fir_execute_cf32 (dp_fir_t *f, const float _Complex *in,
+                           float _Complex *out, size_t num_samples);
 
   /* ------------------------------------------------------------------
    * Execute — compact IQ inputs (upcasting hot paths)
@@ -138,12 +138,12 @@ extern "C"
    * lanes per register before conversion).
    *
    * @param f           Filter state.
-   * @param in          Input array of @p num_samples CI8 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int8_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
+  int dp_fir_execute_ci8 (dp_fir_t *f, const int8_t *in, float _Complex *out,
                           size_t num_samples);
 
   /**
@@ -154,12 +154,12 @@ extern "C"
    * 16 AVX-512 lanes per register before conversion).
    *
    * @param f           Filter state.
-   * @param in          Input array of @p num_samples CI16 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int16_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_ci16 (dp_fir_t *f, const dp_ci16_t *in, dp_cf32_t *out,
+  int dp_fir_execute_ci16 (dp_fir_t *f, const int16_t *in, float _Complex *out,
                            size_t num_samples);
 
   /**
@@ -168,12 +168,12 @@ extern "C"
    * Upcasts int32_t I/Q to float on the fly before filtering.
    *
    * @param f           Filter state.
-   * @param in          Input array of @p num_samples CI32 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int32_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_ci32 (dp_fir_t *f, const dp_ci32_t *in, dp_cf32_t *out,
+  int dp_fir_execute_ci32 (dp_fir_t *f, const int32_t *in, float _Complex *out,
                            size_t num_samples);
 
   /* ------------------------------------------------------------------
@@ -184,49 +184,49 @@ extern "C"
    * @brief Filter CF32 IQ samples through a real-tap filter.
    *
    * @param f           Real-tap filter (from dp_fir_create_real).
-   * @param in          Input array of @p num_samples CF32 samples.
+   * @param in          Input array of @p num_samples float _Complex samples.
    * @param out         Output array (may alias @p in for in-place use).
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_real_cf32 (dp_fir_t *f, const dp_cf32_t *in,
-                                dp_cf32_t *out, size_t num_samples);
+  int dp_fir_execute_real_cf32 (dp_fir_t *f, const float _Complex *in,
+                                float _Complex *out, size_t num_samples);
 
   /**
    * @brief Filter CI8 IQ samples through a real-tap filter, output CF32.
    *
    * @param f           Real-tap filter (from dp_fir_create_real).
-   * @param in          Input array of @p num_samples CI8 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int8_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_real_ci8 (dp_fir_t *f, const dp_ci8_t *in, dp_cf32_t *out,
-                               size_t num_samples);
+  int dp_fir_execute_real_ci8 (dp_fir_t *f, const int8_t *in,
+                               float _Complex *out, size_t num_samples);
 
   /**
    * @brief Filter CI16 IQ samples through a real-tap filter, output CF32.
    *
    * @param f           Real-tap filter (from dp_fir_create_real).
-   * @param in          Input array of @p num_samples CI16 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int16_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_real_ci16 (dp_fir_t *f, const dp_ci16_t *in,
-                                dp_cf32_t *out, size_t num_samples);
+  int dp_fir_execute_real_ci16 (dp_fir_t *f, const int16_t *in,
+                                float _Complex *out, size_t num_samples);
 
   /**
    * @brief Filter CI32 IQ samples through a real-tap filter, output CF32.
    *
    * @param f           Real-tap filter (from dp_fir_create_real).
-   * @param in          Input array of @p num_samples CI32 samples.
-   * @param out         Output array of CF32 samples.
+   * @param in          Interleaved int32_t I/Q; length 2×num_samples.
+   * @param out         Output array of float _Complex samples.
    * @param num_samples Number of complex samples to process.
    * @return            DP_OK on success, DP_ERR_MEMORY on alloc fail.
    */
-  int dp_fir_execute_real_ci32 (dp_fir_t *f, const dp_ci32_t *in,
-                                dp_cf32_t *out, size_t num_samples);
+  int dp_fir_execute_real_ci32 (dp_fir_t *f, const int32_t *in,
+                                float _Complex *out, size_t num_samples);
 
 #ifdef __cplusplus
 }

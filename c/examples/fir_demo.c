@@ -25,7 +25,7 @@
  * ========================================================================= */
 
 static void
-make_lowpass (dp_cf32_t *taps, int N, double cutoff_norm)
+make_lowpass (float _Complex *taps, int N, double cutoff_norm)
 {
   /* Hann-windowed sinc, cutoff_norm in (0, 0.5] */
   int half = N / 2;
@@ -36,8 +36,7 @@ make_lowpass (dp_cf32_t *taps, int N, double cutoff_norm)
                              : sin (M_PI * cutoff_norm * 2 * n)
                                    / (M_PI * cutoff_norm * 2 * n);
       double win = 0.5 * (1.0 - cos (2.0 * M_PI * k / (N - 1)));
-      taps[k].i = (float)(sinc * win);
-      taps[k].q = 0.0f;
+      taps[k] = CMPLXF ((float)(sinc * win), 0.0f);
     }
 }
 
@@ -52,12 +51,12 @@ main (void)
 
   /* Design a 15-tap low-pass filter, cutoff = 0.1 * Fs */
   const int N = 15;
-  dp_cf32_t taps[15];
+  float _Complex taps[15];
   make_lowpass (taps, N, 0.1);
 
   printf ("15-tap Hann-windowed sinc LP taps (real part):\n  ");
   for (int i = 0; i < N; i++)
-    printf ("%7.4f", (double)taps[i].i);
+    printf ("%7.4f", (double)crealf (taps[i]));
   printf ("\n\n");
 
   dp_fir_t *fir = dp_fir_create (taps, N);
@@ -73,14 +72,14 @@ main (void)
   printf ("--- CF32 input (GNU Radio / native float) ---\n");
   {
     const int S = 32;
-    dp_cf32_t in[32], out[32];
+    float _Complex in[32], out[32];
 
     for (int i = 0; i < S; i++)
       {
         double phase_lo = 2.0 * M_PI * 0.05 * i; /* 0.05*Fs tone */
         double phase_hi = 2.0 * M_PI * 0.4 * i;  /* 0.4*Fs tone */
-        in[i].i = (float)(cos (phase_lo) + 0.5 * cos (phase_hi));
-        in[i].q = (float)(sin (phase_lo) + 0.5 * sin (phase_hi));
+        in[i] = CMPLXF ((float)(cos (phase_lo) + 0.5 * cos (phase_hi)),
+                        (float)(sin (phase_lo) + 0.5 * sin (phase_hi)));
       }
 
     dp_fir_execute_cf32 (fir, in, out, S);
@@ -88,8 +87,8 @@ main (void)
     printf ("  first 8 output samples (LF tone survives, HF attenuated):\n");
     for (int i = 0; i < 8; i++)
       printf ("  [%2d]  in=(%6.3f,%6.3f)  out=(%6.3f,%6.3f)\n", i,
-              (double)in[i].i, (double)in[i].q, (double)out[i].i,
-              (double)out[i].q);
+              (double)crealf (in[i]), (double)cimagf (in[i]),
+              (double)crealf (out[i]), (double)cimagf (out[i]));
     printf ("\n");
   }
 
@@ -101,23 +100,24 @@ main (void)
   printf ("--- CI16 input (LimeSDR / USRP, 4 bytes/sample) ---\n");
   {
     const int S = 16;
-    dp_ci16_t in[16];
-    dp_cf32_t out[16];
+    int16_t in[32];
+    float _Complex out[16];
 
     for (int i = 0; i < S; i++)
       {
         /* Scale 0.05*Fs tone to ±16000 */
         double phase = 2.0 * M_PI * 0.05 * i;
-        in[i].i = (int16_t)(16000.0 * cos (phase));
-        in[i].q = (int16_t)(16000.0 * sin (phase));
+        in[2 * i] = (int16_t)(16000.0 * cos (phase));
+        in[2 * i + 1] = (int16_t)(16000.0 * sin (phase));
       }
 
     dp_fir_execute_ci16 (fir, in, out, S);
 
     printf ("  first 4 output samples:\n");
     for (int i = 0; i < 4; i++)
-      printf ("  [%2d]  in=(%6d,%6d)  out=(%10.1f,%10.1f)\n", i, in[i].i,
-              in[i].q, (double)out[i].i, (double)out[i].q);
+      printf ("  [%2d]  in=(%6d,%6d)  out=(%10.1f,%10.1f)\n", i, in[2 * i],
+              in[2 * i + 1], (double)crealf (out[i]),
+              (double)cimagf (out[i]));
     printf ("\n");
   }
 
@@ -129,22 +129,23 @@ main (void)
   printf ("--- CI8 input (RTL-SDR / HackRF, 2 bytes/sample) ---\n");
   {
     const int S = 16;
-    dp_ci8_t in[16];
-    dp_cf32_t out[16];
+    int8_t in[32];
+    float _Complex out[16];
 
     for (int i = 0; i < S; i++)
       {
         double phase = 2.0 * M_PI * 0.05 * i;
-        in[i].i = (int8_t)(100.0 * cos (phase));
-        in[i].q = (int8_t)(100.0 * sin (phase));
+        in[2 * i] = (int8_t)(100.0 * cos (phase));
+        in[2 * i + 1] = (int8_t)(100.0 * sin (phase));
       }
 
     dp_fir_execute_ci8 (fir, in, out, S);
 
     printf ("  first 4 output samples:\n");
     for (int i = 0; i < 4; i++)
-      printf ("  [%2d]  in=(%4d,%4d)  out=(%8.1f,%8.1f)\n", i, in[i].i,
-              in[i].q, (double)out[i].i, (double)out[i].q);
+      printf ("  [%2d]  in=(%4d,%4d)  out=(%8.1f,%8.1f)\n", i, in[2 * i],
+              in[2 * i + 1], (double)crealf (out[i]),
+              (double)cimagf (out[i]));
     printf ("\n");
   }
 
@@ -154,28 +155,26 @@ main (void)
   printf ("--- stateful: 2×8 CF32 blocks (delay line persists) ---\n");
   {
     dp_fir_reset (fir);
-    dp_cf32_t in1[8], in2[8], out1[8], out2[8];
+    float _Complex in1[8], in2[8], out1[8], out2[8];
 
     for (int i = 0; i < 8; i++)
       {
         double phase = 2.0 * M_PI * 0.05 * i;
-        in1[i].i = (float)cos (phase);
-        in1[i].q = (float)sin (phase);
+        in1[i] = CMPLXF ((float)cos (phase), (float)sin (phase));
       }
     for (int i = 0; i < 8; i++)
       {
         double phase = 2.0 * M_PI * 0.05 * (i + 8);
-        in2[i].i = (float)cos (phase);
-        in2[i].q = (float)sin (phase);
+        in2[i] = CMPLXF ((float)cos (phase), (float)sin (phase));
       }
 
     dp_fir_execute_cf32 (fir, in1, out1, 8);
     dp_fir_execute_cf32 (fir, in2, out2, 8);
 
-    printf ("  block 1 last sample out: (%6.3f, %6.3f)\n", (double)out1[7].i,
-            (double)out1[7].q);
-    printf ("  block 2 first sample out: (%6.3f, %6.3f)\n", (double)out2[0].i,
-            (double)out2[0].q);
+    printf ("  block 1 last sample out: (%6.3f, %6.3f)\n",
+            (double)crealf (out1[7]), (double)cimagf (out1[7]));
+    printf ("  block 2 first sample out: (%6.3f, %6.3f)\n",
+            (double)crealf (out2[0]), (double)cimagf (out2[0]));
     printf ("  (continuity demonstrates delay line carries across calls)\n\n");
   }
 

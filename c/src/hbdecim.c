@@ -30,6 +30,7 @@
 
 #include "dp/hbdecim.h"
 
+#include <complex.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -46,18 +47,18 @@ struct dp_hbdecim_cf32
 
   /* Even delay line — stores x[2m], x[2m-2], x[2m-4], ...
    * Dual circular buffer: cap = next power of 2 >= num_taps.   */
-  dp_cf32_t *even_buf;
+  float _Complex *even_buf;
   size_t even_cap;
   size_t even_mask;
   size_t even_head;
 
   /* Odd delay line — stores x[2m+1], x[2m-1], x[2m-3], ...   */
-  dp_cf32_t *odd_buf;
+  float _Complex *odd_buf;
   size_t odd_head;
 
   /* Pending even sample when the last call had an odd input count. */
   int has_pending;
-  dp_cf32_t pending;
+  float _Complex pending;
 };
 
 /* ================================================================== */
@@ -65,7 +66,7 @@ struct dp_hbdecim_cf32
 /* ================================================================== */
 
 static inline void
-dl_push_even (struct dp_hbdecim_cf32 *r, dp_cf32_t x)
+dl_push_even (struct dp_hbdecim_cf32 *r, float _Complex x)
 {
   r->even_head = (r->even_head - 1) & r->even_mask;
   r->even_buf[r->even_head] = x;
@@ -73,7 +74,7 @@ dl_push_even (struct dp_hbdecim_cf32 *r, dp_cf32_t x)
 }
 
 static inline void
-dl_push_odd (struct dp_hbdecim_cf32 *r, dp_cf32_t x)
+dl_push_odd (struct dp_hbdecim_cf32 *r, float _Complex x)
 {
   r->odd_head = (r->odd_head - 1) & r->even_mask;
   r->odd_buf[r->odd_head] = x;
@@ -84,7 +85,7 @@ dl_push_odd (struct dp_hbdecim_cf32 *r, dp_cf32_t x)
 /* Symmetric FIR + pure-delay computation                            */
 /* ================================================================== */
 
-static inline dp_cf32_t
+static inline float _Complex
 compute_output (const struct dp_hbdecim_cf32 *r)
 {
   const float *h = r->h;
@@ -96,16 +97,16 @@ compute_output (const struct dp_hbdecim_cf32 *r)
     {
       /* N even: FIR processes even_dl; delay from odd_dl[centre].
        * Symmetric pairs only — no centre tap for even-length FIR.    */
-      const dp_cf32_t *e = &r->even_buf[r->even_head];
+      const float _Complex *e = &r->even_buf[r->even_head];
       for (size_t k = 0; k < half; k++)
         {
           float hk = h[k];
-          si += hk * (e[k].i + e[N - 1 - k].i);
-          sq += hk * (e[k].q + e[N - 1 - k].q);
+          si += hk * (crealf(e[k]) + crealf(e[N - 1 - k]));
+          sq += hk * (cimagf(e[k]) + cimagf(e[N - 1 - k]));
         }
-      const dp_cf32_t *o = &r->odd_buf[r->odd_head];
-      si += 0.5f * o[r->centre].i;
-      sq += 0.5f * o[r->centre].q;
+      const float _Complex *o = &r->odd_buf[r->odd_head];
+      si += 0.5f * crealf(o[r->centre]);
+      sq += 0.5f * cimagf(o[r->centre]);
     }
   else
     {
@@ -121,19 +122,19 @@ compute_output (const struct dp_hbdecim_cf32 *r)
        * zero-pad from kaiser_prototype).  Symmetric pairs:
        *   h_o[k]*(odd_dl[k+1] + odd_dl[N-1-k]),  k=0..half-1.
        * No centre tap (N-1 effective taps is even for N odd).          */
-      const dp_cf32_t *o = &r->odd_buf[r->odd_head];
+      const float _Complex *o = &r->odd_buf[r->odd_head];
       for (size_t k = 0; k < half; k++)
         {
           float hk = h[k];
-          si += hk * (o[k + 1].i + o[N - 1 - k].i);
-          sq += hk * (o[k + 1].q + o[N - 1 - k].q);
+          si += hk * (crealf(o[k + 1]) + crealf(o[N - 1 - k]));
+          sq += hk * (cimagf(o[k + 1]) + cimagf(o[N - 1 - k]));
         }
-      const dp_cf32_t *e = &r->even_buf[r->even_head];
-      si += 0.5f * e[r->centre].i;
-      sq += 0.5f * e[r->centre].q;
+      const float _Complex *e = &r->even_buf[r->even_head];
+      si += 0.5f * crealf(e[r->centre]);
+      sq += 0.5f * cimagf(e[r->centre]);
     }
 
-  return (dp_cf32_t){ si, sq };
+  return CMPLXF(si, sq);
 }
 
 /* ================================================================== */
@@ -169,8 +170,8 @@ dp_hbdecim_cf32_create (size_t num_taps, const float *h)
     r->even_cap <<= 1;
   r->even_mask = r->even_cap - 1;
 
-  r->even_buf = calloc (2 * r->even_cap, sizeof (dp_cf32_t));
-  r->odd_buf = calloc (2 * r->even_cap, sizeof (dp_cf32_t));
+  r->even_buf = calloc (2 * r->even_cap, sizeof (float _Complex));
+  r->odd_buf = calloc (2 * r->even_cap, sizeof (float _Complex));
   if (!r->even_buf || !r->odd_buf)
     goto fail;
 
@@ -201,8 +202,8 @@ dp_hbdecim_cf32_reset (dp_hbdecim_cf32_t *r)
   r->even_head = 0;
   r->odd_head = 0;
   r->has_pending = 0;
-  memset (r->even_buf, 0, 2 * r->even_cap * sizeof (dp_cf32_t));
-  memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (dp_cf32_t));
+  memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
+  memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
 }
 
 /* ================================================================== */
@@ -227,8 +228,8 @@ dp_hbdecim_cf32_num_taps (const dp_hbdecim_cf32_t *r)
 /* ================================================================== */
 
 size_t
-dp_hbdecim_cf32_execute (dp_hbdecim_cf32_t *r, const dp_cf32_t *in,
-                         size_t num_in, dp_cf32_t *out, size_t max_out)
+dp_hbdecim_cf32_execute (dp_hbdecim_cf32_t *r, const float _Complex *in,
+                         size_t num_in, float _Complex *out, size_t max_out)
 {
   if (!num_in || !max_out)
     return 0;
@@ -337,7 +338,7 @@ r2_push_odd (struct dp_hbdecim_r2cf32 *r, float x)
 /* Per-output I/Q computation                                         */
 /* ------------------------------------------------------------------ */
 
-static inline dp_cf32_t
+static inline float _Complex
 r2_compute_output (const struct dp_hbdecim_r2cf32 *r)
 {
   const float *h = r->h;
@@ -374,7 +375,7 @@ r2_compute_output (const struct dp_hbdecim_r2cf32 *r)
       ri = -ri;
       rq = -rq;
     }
-  return (dp_cf32_t){ ri, rq };
+  return CMPLXF(ri, rq);
 }
 
 /* ------------------------------------------------------------------ */
@@ -485,7 +486,7 @@ dp_hbdecim_r2cf32_num_taps (const dp_hbdecim_r2cf32_t *r)
 
 size_t
 dp_hbdecim_r2cf32_execute (dp_hbdecim_r2cf32_t *r, const float *in,
-                           size_t num_in, dp_cf32_t *out, size_t max_out)
+                           size_t num_in, float _Complex *out, size_t max_out)
 {
   if (!num_in || !max_out)
     return 0;

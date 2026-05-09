@@ -30,6 +30,7 @@
 #include "dp/resamp_dpmfs.h"
 
 #include <assert.h>
+#include <complex.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,15 +88,15 @@ struct dp_resamp_dpmfs
   uint32_t phase_inc;
 
   /* Interpolator: dual-buffer delay line (power-of-2) */
-  dp_cf32_t *delay_buf;
+  float _Complex *delay_buf;
   size_t delay_cap;
   size_t delay_mask;
   size_t delay_head;
 
   /* Decimator (transposed form): single iad[N] + tfd[N-1].
    * iad is rounded up to multiple of 8 for AVX-512 safety. */
-  dp_cf32_t *iad;
-  dp_cf32_t *tfd;
+  float _Complex *iad;
+  float _Complex *tfd;
 };
 
 /* ================================================================== */
@@ -114,14 +115,14 @@ phase_to_j_mu (uint32_t phase, int *j, float *mu_J)
 /* ================================================================== */
 
 static inline void
-dl_push (struct dp_resamp_dpmfs *r, dp_cf32_t x)
+dl_push (struct dp_resamp_dpmfs *r, float _Complex x)
 {
   r->delay_head = (r->delay_head - 1) & r->delay_mask;
   r->delay_buf[r->delay_head] = x;
   r->delay_buf[r->delay_head + r->delay_cap] = x;
 }
 
-static inline const dp_cf32_t *
+static inline const float _Complex *
 dl_ptr (const struct dp_resamp_dpmfs *r)
 {
   return &r->delay_buf[r->delay_head];
@@ -186,8 +187,8 @@ static const int32_t dup_idx_arr[16]
     = { 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7 };
 
 static inline void
-dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
-              float *out_q)
+dot_cf32_f32 (const float _Complex *win, const float *h, size_t N,
+              float *out_i, float *out_q)
 {
   __m512 acc = _mm512_setzero_ps ();
   __m512i dup_idx = _mm512_loadu_si512 (dup_idx_arr);
@@ -214,8 +215,8 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
 
   for (; j < N; j++)
     {
-      si += win[j].i * h[j];
-      sq += win[j].q * h[j];
+      si += crealf(win[j]) * h[j];
+      sq += cimagf(win[j]) * h[j];
     }
   *out_i = si;
   *out_q = sq;
@@ -224,14 +225,14 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
 #else /* scalar fallback */
 
 static inline void
-dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
-              float *out_q)
+dot_cf32_f32 (const float _Complex *win, const float *h, size_t N,
+              float *out_i, float *out_q)
 {
   float si = 0.0f, sq = 0.0f;
   for (size_t j = 0; j < N; j++)
     {
-      si += win[j].i * h[j];
-      sq += win[j].q * h[j];
+      si += crealf(win[j]) * h[j];
+      sq += cimagf(win[j]) * h[j];
     }
   *out_i = si;
   *out_q = sq;
@@ -246,7 +247,7 @@ dot_cf32_f32 (const dp_cf32_t *win, const float *h, size_t N, float *out_i,
 #ifdef __AVX512F__
 
 static inline void
-iad_madd (dp_cf32_t *iad, const float *h, size_t N, float xi_i, float xi_q)
+iad_madd (float _Complex *iad, const float *h, size_t N, float xi_i, float xi_q)
 {
   __m256 xp = _mm256_set_ps (xi_q, xi_i, xi_q, xi_i, xi_q, xi_i, xi_q, xi_i);
   __m512 xv = _mm512_broadcast_f32x8 (xp);
@@ -264,22 +265,16 @@ iad_madd (dp_cf32_t *iad, const float *h, size_t N, float xi_i, float xi_q)
       _mm512_storeu_ps (p, av);
     }
   for (; j < N; j++)
-    {
-      iad[j].i += xi_i * h[j];
-      iad[j].q += xi_q * h[j];
-    }
+    iad[j] += CMPLXF(xi_i * h[j], xi_q * h[j]);
 }
 
 #else /* scalar fallback */
 
 static inline void
-iad_madd (dp_cf32_t *iad, const float *h, size_t N, float xi_i, float xi_q)
+iad_madd (float _Complex *iad, const float *h, size_t N, float xi_i, float xi_q)
 {
   for (size_t j = 0; j < N; j++)
-    {
-      iad[j].i += xi_i * h[j];
-      iad[j].q += xi_q * h[j];
-    }
+    iad[j] += CMPLXF(xi_i * h[j], xi_q * h[j]);
 }
 
 #endif /* __AVX512F__ */
@@ -347,7 +342,7 @@ dp_resamp_dpmfs_create (size_t M, size_t N, const float *c0, const float *c1,
     r->delay_cap <<= 1;
   r->delay_mask = r->delay_cap - 1;
   r->delay_head = 0;
-  r->delay_buf = calloc (2 * r->delay_cap, sizeof (dp_cf32_t));
+  r->delay_buf = calloc (2 * r->delay_cap, sizeof (float _Complex));
   if (!r->delay_buf)
     goto fail_delay;
 
@@ -356,8 +351,8 @@ dp_resamp_dpmfs_create (size_t M, size_t N, const float *c0, const float *c1,
   size_t iad_n = (N + 7) & ~(size_t)7;
   size_t tfd_n = N > 1 ? N - 1 : 1;
   size_t tfd_alloc = (tfd_n + 7) & ~(size_t)7;
-  r->iad = calloc (iad_n, sizeof (dp_cf32_t));
-  r->tfd = calloc (tfd_alloc, sizeof (dp_cf32_t));
+  r->iad = calloc (iad_n, sizeof (float _Complex));
+  r->tfd = calloc (tfd_alloc, sizeof (float _Complex));
   if (!r->iad || !r->tfd)
     goto fail_iad;
 
@@ -398,9 +393,9 @@ dp_resamp_dpmfs_reset (dp_resamp_dpmfs_t *r)
 
   r->phase = 0;
   r->delay_head = 0;
-  memset (r->delay_buf, 0, 2 * r->delay_cap * sizeof (dp_cf32_t));
-  memset (r->iad, 0, iad_n * sizeof (dp_cf32_t));
-  memset (r->tfd, 0, tfd_alloc * sizeof (dp_cf32_t));
+  memset (r->delay_buf, 0, 2 * r->delay_cap * sizeof (float _Complex));
+  memset (r->iad, 0, iad_n * sizeof (float _Complex));
+  memset (r->tfd, 0, tfd_alloc * sizeof (float _Complex));
 }
 
 /* ================================================================== */
@@ -430,8 +425,8 @@ dp_resamp_dpmfs_poly_order (const dp_resamp_dpmfs_t *r)
 /* ================================================================== */
 
 static size_t
-interp_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
-                dp_cf32_t *out, size_t max_out)
+interp_execute (dp_resamp_dpmfs_t *r, const float _Complex *in, size_t num_in,
+                float _Complex *out, size_t max_out)
 {
   size_t xi = 0;
   size_t oi = 0;
@@ -456,8 +451,7 @@ interp_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
 
       float oi_val, oq_val;
       dot_cf32_f32 (dl_ptr (r), h_eff, N, &oi_val, &oq_val);
-      out[oi].i = oi_val;
-      out[oi].q = oq_val;
+      out[oi] = CMPLXF(oi_val, oq_val);
       oi++;
 
       ph = new_ph;
@@ -478,16 +472,16 @@ interp_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
 /* ================================================================== */
 
 static size_t
-decim_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
-               dp_cf32_t *out, size_t max_out)
+decim_execute (dp_resamp_dpmfs_t *r, const float _Complex *in, size_t num_in,
+               float _Complex *out, size_t max_out)
 {
   size_t oi = 0;
   size_t N = r->N;
   size_t M = r->M;
   uint32_t ph = r->phase;
   uint32_t inc = r->phase_inc;
-  dp_cf32_t *iad = r->iad;
-  dp_cf32_t *tfd = r->tfd;
+  float _Complex *iad = r->iad;
+  float _Complex *tfd = r->tfd;
 
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
     {
@@ -502,15 +496,15 @@ decim_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
        * Coefficients already reversed+scaled at create time. */
       float h_eff[DP_DPMFS_MAX_N];
       compute_h_eff (r->c[j], M, N, mu_J, h_eff);
-      iad_madd (iad, h_eff, N, in[xi].i, in[xi].q);
+      iad_madd (iad, h_eff, N, crealf(in[xi]), cimagf(in[xi]));
 
       ph = new_ph;
 
       if (ovf)
         {
           /* Transposed delay line: shift and add */
-          float yout_i = iad[0].i + tfd[0].i;
-          float yout_q = iad[0].q + tfd[0].q;
+          float yout_i = crealf(iad[0]) + crealf(tfd[0]);
+          float yout_q = cimagf(iad[0]) + cimagf(tfd[0]);
 
 #ifdef __AVX512F__
           size_t k = 0;
@@ -521,25 +515,17 @@ decim_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
               _mm512_storeu_ps ((float *)&tfd[k], _mm512_add_ps (a, b));
             }
           for (; k + 2 < N; k++)
-            {
-              tfd[k].i = iad[k + 1].i + tfd[k + 1].i;
-              tfd[k].q = iad[k + 1].q + tfd[k + 1].q;
-            }
+            tfd[k] = iad[k + 1] + tfd[k + 1];
 #else
           for (size_t k = 0; k + 2 < N; k++)
-            {
-              tfd[k].i = iad[k + 1].i + tfd[k + 1].i;
-              tfd[k].q = iad[k + 1].q + tfd[k + 1].q;
-            }
+            tfd[k] = iad[k + 1] + tfd[k + 1];
 #endif
-          tfd[N - 2].i = iad[N - 1].i;
-          tfd[N - 2].q = iad[N - 1].q;
+          tfd[N - 2] = iad[N - 1];
 
-          out[oi].i = yout_i;
-          out[oi].q = yout_q;
+          out[oi] = CMPLXF(yout_i, yout_q);
           oi++;
 
-          memset (iad, 0, N * sizeof (dp_cf32_t));
+          memset (iad, 0, N * sizeof (float _Complex));
         }
     }
 
@@ -552,8 +538,8 @@ decim_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in, size_t num_in,
 /* ================================================================== */
 
 size_t
-dp_resamp_dpmfs_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in,
-                         size_t num_in, dp_cf32_t *out, size_t max_out)
+dp_resamp_dpmfs_execute (dp_resamp_dpmfs_t *r, const float _Complex *in,
+                         size_t num_in, float _Complex *out, size_t max_out)
 {
   if (r->upsample)
     return interp_execute (r, in, num_in, out, max_out);

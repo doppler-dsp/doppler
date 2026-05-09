@@ -39,7 +39,7 @@
  * // c0, c1: (M+1)*N float arrays from doppler.polyphase.fit_dpmfs
  * dp_resamp_dpmfs_t *r = dp_resamp_dpmfs_create(3, 19, c0, c1, 2.0);
  *
- * dp_cf32_t out[2 * IN_LEN + 4];
+ * float _Complex out[2 * IN_LEN + 4];
  * size_t n = dp_resamp_dpmfs_execute(r, in, IN_LEN, out,
  *                                    sizeof(out)/sizeof(out[0]));
  * dp_resamp_dpmfs_destroy(r);
@@ -128,8 +128,8 @@ extern "C"
    * @param max_out  Capacity of @p out in samples.
    * @return         Number of output samples written.
    */
-  size_t dp_resamp_dpmfs_execute (dp_resamp_dpmfs_t *r, const dp_cf32_t *in,
-                                  size_t num_in, dp_cf32_t *out,
+  size_t dp_resamp_dpmfs_execute (dp_resamp_dpmfs_t *r, const float _Complex *in,
+                                  size_t num_in, float _Complex *out,
                                   size_t max_out);
 
 #ifdef __cplusplus

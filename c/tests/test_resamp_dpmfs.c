@@ -181,7 +181,7 @@ fft_inplace (double *re, double *im, size_t n)
 }
 
 static double
-peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
+peak_near (const float _Complex *sig, size_t n, double target_freq, double tol)
 {
   size_t nfft = 4 * n;
   size_t nfft2 = 1;
@@ -200,8 +200,8 @@ peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
       double w
           = a[0] - a[1] * cos (k) + a[2] * cos (2 * k) - a[3] * cos (3 * k);
       cg += w;
-      re[i] = (double)sig[i].i * w;
-      im[i] = (double)sig[i].q * w;
+      re[i] = (double)crealf(sig[i]) * w;
+      im[i] = (double)cimagf(sig[i]) * w;
     }
   cg /= (double)n;
 
@@ -227,7 +227,7 @@ peak_near (const dp_cf32_t *sig, size_t n, double target_freq, double tol)
 }
 
 static double
-artifact_dbc (const dp_cf32_t *sig, size_t n, const double *sig_freqs,
+artifact_dbc (const float _Complex *sig, size_t n, const double *sig_freqs,
               size_t nfreqs, double tol)
 {
   size_t nfft = 4 * n;
@@ -247,8 +247,8 @@ artifact_dbc (const dp_cf32_t *sig, size_t n, const double *sig_freqs,
       double w
           = a[0] - a[1] * cos (k) + a[2] * cos (2 * k) - a[3] * cos (3 * k);
       cg += w;
-      re[i] = (double)sig[i].i * w;
-      im[i] = (double)sig[i].q * w;
+      re[i] = (double)crealf(sig[i]) * w;
+      im[i] = (double)cimagf(sig[i]) * w;
     }
   cg /= (double)n;
 
@@ -362,17 +362,16 @@ test_interp_spectral (void)
   dp_resamp_dpmfs_t *r
       = dp_resamp_dpmfs_create (DPMFS_M, DPMFS_N, c0, c1, r_val);
 
-  dp_cf32_t *x = malloc (N_IN * sizeof (dp_cf32_t));
+  float _Complex *x = malloc (N_IN * sizeof (float _Complex));
   for (size_t i = 0; i < N_IN; i++)
     {
       double t0 = 2.0 * M_PI * freqs[0] * (double)i;
       double t1 = 2.0 * M_PI * freqs[1] * (double)i;
-      x[i].i = (float)(cos (t0) + cos (t1));
-      x[i].q = (float)(sin (t0) + sin (t1));
+      x[i] = CMPLXF((float)(cos (t0) + cos (t1)), (float)(sin (t0) + sin (t1)));
     }
 
   size_t max_out = (size_t)(N_IN * r_val) + 4;
-  dp_cf32_t *y = calloc (max_out, sizeof (dp_cf32_t));
+  float _Complex *y = calloc (max_out, sizeof (float _Complex));
   size_t n_out = dp_resamp_dpmfs_execute (r, x, N_IN, y, max_out);
 
   CHECK (n_out > 0, "interp: produced output");
@@ -419,17 +418,16 @@ test_decim_spectral (void)
   dp_resamp_dpmfs_t *r
       = dp_resamp_dpmfs_create (DPMFS_M, DPMFS_N, c0, c1, r_val);
 
-  dp_cf32_t *x = malloc (N_IN * sizeof (dp_cf32_t));
+  float _Complex *x = malloc (N_IN * sizeof (float _Complex));
   for (size_t i = 0; i < N_IN; i++)
     {
       double t0 = 2.0 * M_PI * f_in[0] * (double)i;
       double t1 = 2.0 * M_PI * f_in[1] * (double)i;
-      x[i].i = (float)(cos (t0) + cos (t1));
-      x[i].q = (float)(sin (t0) + sin (t1));
+      x[i] = CMPLXF((float)(cos (t0) + cos (t1)), (float)(sin (t0) + sin (t1)));
     }
 
   size_t max_out = (size_t)(N_IN * r_val) + 4;
-  dp_cf32_t *y = calloc (max_out, sizeof (dp_cf32_t));
+  float _Complex *y = calloc (max_out, sizeof (float _Complex));
   size_t n_out = dp_resamp_dpmfs_execute (r, x, N_IN, y, max_out);
 
   CHECK (n_out > 0, "decim: produced output");
@@ -476,27 +474,26 @@ test_reset (void)
   dp_resamp_dpmfs_t *r
       = dp_resamp_dpmfs_create (DPMFS_M, DPMFS_N, c0, c1, 2.0);
 
-  dp_cf32_t x[64];
+  float _Complex x[64];
   for (int i = 0; i < 64; i++)
     {
-      x[i].i = (float)cos (2.0 * M_PI * 0.1 * i);
-      x[i].q = (float)sin (2.0 * M_PI * 0.1 * i);
+      x[i] = CMPLXF((float)cos (2.0 * M_PI * 0.1 * i), (float)sin (2.0 * M_PI * 0.1 * i));
     }
-  dp_cf32_t y[200];
+  float _Complex y[200];
   dp_resamp_dpmfs_execute (r, x, 64, y, 200);
 
   dp_resamp_dpmfs_reset (r);
-  dp_cf32_t y2[200];
+  float _Complex y2[200];
   size_t n1 = dp_resamp_dpmfs_execute (r, x, 64, y2, 200);
 
   dp_resamp_dpmfs_reset (r);
-  dp_cf32_t y3[200];
+  float _Complex y3[200];
   size_t n2 = dp_resamp_dpmfs_execute (r, x, 64, y3, 200);
 
   CHECK (n1 == n2, "reset: same output count");
   int match = 1;
   for (size_t i = 0; i < n1 && i < n2; i++)
-    if (y2[i].i != y3[i].i || y2[i].q != y3[i].q)
+    if (crealf(y2[i]) != crealf(y3[i]) || cimagf(y2[i]) != cimagf(y3[i]))
       match = 0;
   CHECK (match, "reset: identical output after reset");
 

@@ -357,16 +357,16 @@ main (int argc, char *argv[])
 
       if (sample_type == DP_CF64)
         {
-          const dp_cf64_t *src = (const dp_cf64_t *)raw_samples;
+          const double _Complex *src = (const double _Complex *)raw_samples;
           for (size_t i = 0; i < N; i++)
-            win_buf[i] = src[i].i + I * src[i].q;
+            win_buf[i] = src[i];
         }
       else if (sample_type == DP_CI32)
         {
-          const dp_ci32_t *src = (const dp_ci32_t *)raw_samples;
+          const int32_t *src = (const int32_t *)raw_samples;
           const double scale = 1.0 / 2147483647.0;
           for (size_t i = 0; i < N; i++)
-            win_buf[i] = (src[i].i * scale) + I * (src[i].q * scale);
+            win_buf[i] = (src[2 * i] * scale) + I * (src[2 * i + 1] * scale);
         }
       else
         {

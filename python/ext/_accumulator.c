@@ -16,7 +16,7 @@
 #include <numpy/arrayobject.h>
 
 #include <dp/accumulator.h>
-#include <dp/stream.h> /* dp_cf64_t */
+#include <dp/stream.h>
 
 /* ======================================================== */
 /* AccF32Object — wraps dp_acc_f32_t *
@@ -297,8 +297,8 @@ AccCf64_get (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_cf64_t v = dp_acc_cf64_get (self->handle);
-  return PyComplex_FromDoubles (v.i, v.q);
+  double _Complex v = dp_acc_cf64_get (self->handle);
+  return PyComplex_FromDoubles (creal (v), cimag (v));
 }
 
 static PyObject *
@@ -309,8 +309,8 @@ AccCf64_dump (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  dp_cf64_t v = dp_acc_cf64_dump (self->handle);
-  return PyComplex_FromDoubles (v.i, v.q);
+  double _Complex v = dp_acc_cf64_dump (self->handle);
+  return PyComplex_FromDoubles (creal (v), cimag (v));
 }
 
 /* ── push ──────────────────────────────────────────────── */
@@ -326,7 +326,7 @@ AccCf64_push (AccCf64Object *self, PyObject *args)
   Py_complex z;
   if (!PyArg_ParseTuple (args, "D", &z))
     return NULL;
-  dp_cf64_t x = { z.real, z.imag };
+  double _Complex x = CMPLX (z.real, z.imag);
   dp_acc_cf64_push (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -349,7 +349,7 @@ AccCf64_add (AccCf64Object *self, PyObject *args)
   if (!xa)
     return NULL;
 
-  dp_acc_cf64_add (self->handle, (const dp_cf64_t *)PyArray_DATA (xa),
+  dp_acc_cf64_add (self->handle, (const double _Complex *)PyArray_DATA (xa),
                    (size_t)PyArray_SIZE (xa));
   Py_DECREF (xa);
   Py_RETURN_NONE;
@@ -385,7 +385,7 @@ AccCf64_madd (AccCf64Object *self, PyObject *args)
   if (PyArray_SIZE (ha) < n)
     n = PyArray_SIZE (ha);
 
-  dp_acc_cf64_madd (self->handle, (const dp_cf64_t *)PyArray_DATA (xa),
+  dp_acc_cf64_madd (self->handle, (const double _Complex *)PyArray_DATA (xa),
                     (const float *)PyArray_DATA (ha), (size_t)n);
   Py_DECREF (xa);
   Py_DECREF (ha);

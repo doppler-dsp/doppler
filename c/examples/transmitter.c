@@ -5,6 +5,7 @@
  */
 
 #include <doppler.h>
+#include <complex.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
@@ -49,20 +50,19 @@ format_timestamp (uint64_t timestamp_ns, char *buf, size_t buf_size)
 }
 
 void
-generate_tone_cf64 (dp_cf64_t *samples, size_t num_samples, double freq,
+generate_tone_cf64 (double _Complex *samples, size_t num_samples, double freq,
                     double sample_rate, double phase)
 {
   for (size_t i = 0; i < num_samples; i++)
     {
       double t = (double)i / sample_rate;
       double angle = 2.0 * M_PI * freq * t + phase;
-      samples[i].i = cos (angle);
-      samples[i].q = sin (angle);
+      samples[i] = CMPLX (cos (angle), sin (angle));
     }
 }
 
 void
-generate_tone_ci32 (dp_ci32_t *samples, size_t num_samples, double freq,
+generate_tone_ci32 (int32_t *samples, size_t num_samples, double freq,
                     double sample_rate, double phase)
 {
   const int32_t max_val = 2147483647;
@@ -70,8 +70,8 @@ generate_tone_ci32 (dp_ci32_t *samples, size_t num_samples, double freq,
     {
       double t = (double)i / sample_rate;
       double angle = 2.0 * M_PI * freq * t + phase;
-      samples[i].i = (int32_t)(cos (angle) * max_val * 0.9);
-      samples[i].q = (int32_t)(sin (angle) * max_val * 0.9);
+      samples[2 * i] = (int32_t)(cos (angle) * max_val * 0.9);
+      samples[2 * i + 1] = (int32_t)(sin (angle) * max_val * 0.9);
     }
 }
 
@@ -162,15 +162,15 @@ main (int argc, char *argv[])
   void *samples = NULL;
   if (sample_type == DP_CI32)
     {
-      samples = malloc (BUFFER_SIZE * sizeof (dp_ci32_t));
+      samples = malloc (BUFFER_SIZE * 2 * sizeof (int32_t));
     }
   else if (sample_type == DP_CF64)
     {
-      samples = malloc (BUFFER_SIZE * sizeof (dp_cf64_t));
+      samples = malloc (BUFFER_SIZE * sizeof (double _Complex));
     }
   else if (sample_type == DP_CF128)
     {
-      samples = malloc (BUFFER_SIZE * sizeof (dp_cf128_t));
+      samples = malloc (BUFFER_SIZE * sizeof (long double _Complex));
     }
 
   if (!samples)
@@ -189,13 +189,13 @@ main (int argc, char *argv[])
       /* Generate samples */
       if (sample_type == DP_CI32)
         {
-          generate_tone_ci32 ((dp_ci32_t *)samples, BUFFER_SIZE, SIGNAL_FREQ,
+          generate_tone_ci32 ((int32_t *)samples, BUFFER_SIZE, SIGNAL_FREQ,
                               SAMPLE_RATE, phase);
         }
       else if (sample_type == DP_CF64)
         {
-          generate_tone_cf64 ((dp_cf64_t *)samples, BUFFER_SIZE, SIGNAL_FREQ,
-                              SAMPLE_RATE, phase);
+          generate_tone_cf64 ((double _Complex *)samples, BUFFER_SIZE,
+                              SIGNAL_FREQ, SAMPLE_RATE, phase);
         }
 
       phase
@@ -205,12 +205,12 @@ main (int argc, char *argv[])
       int rc;
       if (sample_type == DP_CI32)
         {
-          rc = dp_pub_send_ci32 (ctx, (dp_ci32_t *)samples, BUFFER_SIZE,
+          rc = dp_pub_send_ci32 (ctx, (int32_t *)samples, BUFFER_SIZE,
                                  SAMPLE_RATE, CENTER_FREQ);
         }
       else if (sample_type == DP_CF64)
         {
-          rc = dp_pub_send_cf64 (ctx, (dp_cf64_t *)samples, BUFFER_SIZE,
+          rc = dp_pub_send_cf64 (ctx, (double _Complex *)samples, BUFFER_SIZE,
                                  SAMPLE_RATE, CENTER_FREQ);
         }
       else

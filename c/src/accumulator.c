@@ -27,8 +27,7 @@ struct dp_acc_f32
 
 struct dp_acc_cf64
 {
-  double i;
-  double q;
+  double _Complex val;
 };
 
 /* =========================================================================
@@ -72,8 +71,7 @@ dp_acc_f32_reset (dp_acc_f32_t *acc)
 void
 dp_acc_cf64_reset (dp_acc_cf64_t *acc)
 {
-  acc->i = 0.0;
-  acc->q = 0.0;
+  acc->val = 0.0;
 }
 
 float
@@ -84,12 +82,11 @@ dp_acc_f32_dump (dp_acc_f32_t *acc)
   return v;
 }
 
-dp_cf64_t
+double _Complex
 dp_acc_cf64_dump (dp_acc_cf64_t *acc)
 {
-  dp_cf64_t v = { acc->i, acc->q };
-  acc->i = 0.0;
-  acc->q = 0.0;
+  double _Complex v = acc->val;
+  acc->val = 0.0;
   return v;
 }
 
@@ -103,11 +100,10 @@ dp_acc_f32_get (const dp_acc_f32_t *acc)
   return acc->val;
 }
 
-dp_cf64_t
+double _Complex
 dp_acc_cf64_get (const dp_acc_cf64_t *acc)
 {
-  dp_cf64_t v = { acc->i, acc->q };
-  return v;
+  return acc->val;
 }
 
 /* =========================================================================
@@ -121,10 +117,9 @@ dp_acc_f32_push (dp_acc_f32_t *acc, float x)
 }
 
 void
-dp_acc_cf64_push (dp_acc_cf64_t *acc, dp_cf64_t x)
+dp_acc_cf64_push (dp_acc_cf64_t *acc, double _Complex x)
 {
-  acc->i += x.i;
-  acc->q += x.q;
+  acc->val += x;
 }
 
 /* =========================================================================
@@ -141,16 +136,12 @@ dp_acc_f32_add (dp_acc_f32_t *acc, const float *x, size_t n)
 }
 
 void
-dp_acc_cf64_add (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t n)
+dp_acc_cf64_add (dp_acc_cf64_t *acc, const double _Complex *x, size_t n)
 {
-  double si = 0.0, sq = 0.0;
+  double _Complex sum = 0.0;
   for (size_t k = 0; k < n; k++)
-    {
-      si += x[k].i;
-      sq += x[k].q;
-    }
-  acc->i += si;
-  acc->q += sq;
+    sum += x[k];
+  acc->val += sum;
 }
 
 void
@@ -164,18 +155,13 @@ dp_acc_f32_madd (dp_acc_f32_t *acc, const float *restrict x,
 }
 
 void
-dp_acc_cf64_madd (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+dp_acc_cf64_madd (dp_acc_cf64_t *acc, const double _Complex *restrict x,
                   const float *restrict h, size_t n)
 {
-  double si = 0.0, sq = 0.0;
+  double _Complex sum = 0.0;
   for (size_t k = 0; k < n; k++)
-    {
-      double hk = (double)h[k];
-      si += x[k].i * hk;
-      sq += x[k].q * hk;
-    }
-  acc->i += si;
-  acc->q += sq;
+    sum += x[k] * (double)h[k];
+  acc->val += sum;
 }
 
 /* =========================================================================
@@ -189,7 +175,7 @@ dp_acc_f32_add2d (dp_acc_f32_t *acc, const float *x, size_t rows, size_t cols)
 }
 
 void
-dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t rows,
+dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const double _Complex *x, size_t rows,
                    size_t cols)
 {
   dp_acc_cf64_add (acc, x, rows * cols);
@@ -203,7 +189,7 @@ dp_acc_f32_madd2d (dp_acc_f32_t *acc, const float *restrict x,
 }
 
 void
-dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const double _Complex *restrict x,
                     const float *restrict h, size_t rows, size_t cols)
 {
   dp_acc_cf64_madd (acc, x, h, rows * cols);

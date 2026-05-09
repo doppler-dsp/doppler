@@ -83,17 +83,17 @@ dp_sample_size (dp_sample_type_t type)
   switch (type)
     {
     case DP_CI8:
-      return sizeof (dp_ci8_t);
+      return 2 * sizeof (int8_t);
     case DP_CI16:
-      return sizeof (dp_ci16_t);
+      return 2 * sizeof (int16_t);
     case DP_CI32:
-      return sizeof (dp_ci32_t);
+      return 2 * sizeof (int32_t);
     case DP_CF32:
-      return sizeof (dp_cf32_t);
+      return sizeof (float _Complex);
     case DP_CF64:
-      return sizeof (dp_cf64_t);
+      return sizeof (double _Complex);
     case DP_CF128:
-      return sizeof (dp_cf128_t);
+      return sizeof (long double _Complex);
     default:
       return 0;
     }
@@ -362,7 +362,7 @@ dp_pub_create (const char *endpoint, dp_sample_type_t sample_type)
 }
 
 int
-dp_pub_send_ci32 (dp_pub *ctx, const dp_ci32_t *samples, size_t num_samples,
+dp_pub_send_ci32 (dp_pub *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -370,7 +370,7 @@ dp_pub_send_ci32 (dp_pub *ctx, const dp_ci32_t *samples, size_t num_samples,
 }
 
 int
-dp_pub_send_cf64 (dp_pub *ctx, const dp_cf64_t *samples, size_t num_samples,
+dp_pub_send_cf64 (dp_pub *ctx, const double _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -378,7 +378,7 @@ dp_pub_send_cf64 (dp_pub *ctx, const dp_cf64_t *samples, size_t num_samples,
 }
 
 int
-dp_pub_send_cf128 (dp_pub *ctx, const dp_cf128_t *samples, size_t num_samples,
+dp_pub_send_cf128 (dp_pub *ctx, const long double _Complex *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -386,7 +386,7 @@ dp_pub_send_cf128 (dp_pub *ctx, const dp_cf128_t *samples, size_t num_samples,
 }
 
 int
-dp_pub_send_ci8 (dp_pub *ctx, const dp_ci8_t *samples, size_t num_samples,
+dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -394,7 +394,7 @@ dp_pub_send_ci8 (dp_pub *ctx, const dp_ci8_t *samples, size_t num_samples,
 }
 
 int
-dp_pub_send_ci16 (dp_pub *ctx, const dp_ci16_t *samples, size_t num_samples,
+dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -402,7 +402,7 @@ dp_pub_send_ci16 (dp_pub *ctx, const dp_ci16_t *samples, size_t num_samples,
 }
 
 int
-dp_pub_send_cf32 (dp_pub *ctx, const dp_cf32_t *samples, size_t num_samples,
+dp_pub_send_cf32 (dp_pub *ctx, const float _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -450,7 +450,7 @@ dp_push_create (const char *endpoint, dp_sample_type_t sample_type)
 }
 
 int
-dp_push_send_ci32 (dp_push *ctx, const dp_ci32_t *samples, size_t num_samples,
+dp_push_send_ci32 (dp_push *ctx, const int32_t *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -458,7 +458,7 @@ dp_push_send_ci32 (dp_push *ctx, const dp_ci32_t *samples, size_t num_samples,
 }
 
 int
-dp_push_send_cf64 (dp_push *ctx, const dp_cf64_t *samples, size_t num_samples,
+dp_push_send_cf64 (dp_push *ctx, const double _Complex *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -466,7 +466,7 @@ dp_push_send_cf64 (dp_push *ctx, const dp_cf64_t *samples, size_t num_samples,
 }
 
 int
-dp_push_send_cf128 (dp_push *ctx, const dp_cf128_t *samples,
+dp_push_send_cf128 (dp_push *ctx, const long double _Complex *samples,
                     size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -474,7 +474,7 @@ dp_push_send_cf128 (dp_push *ctx, const dp_cf128_t *samples,
 }
 
 int
-dp_push_send_ci8 (dp_push *ctx, const dp_ci8_t *samples, size_t num_samples,
+dp_push_send_ci8 (dp_push *ctx, const int8_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -482,7 +482,7 @@ dp_push_send_ci8 (dp_push *ctx, const dp_ci8_t *samples, size_t num_samples,
 }
 
 int
-dp_push_send_ci16 (dp_push *ctx, const dp_ci16_t *samples, size_t num_samples,
+dp_push_send_ci16 (dp_push *ctx, const int16_t *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -490,7 +490,7 @@ dp_push_send_ci16 (dp_push *ctx, const dp_ci16_t *samples, size_t num_samples,
 }
 
 int
-dp_push_send_cf32 (dp_push *ctx, const dp_cf32_t *samples, size_t num_samples,
+dp_push_send_cf32 (dp_push *ctx, const float _Complex *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -578,7 +578,7 @@ dp_rep_recv (dp_rep *ctx, dp_msg_t **msg, size_t *size)
 /* -- Signal-frame send/recv --------------------------------------------- */
 
 int
-dp_req_send_ci32 (dp_req *ctx, const dp_ci32_t *samples, size_t num_samples,
+dp_req_send_ci32 (dp_req *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -586,7 +586,7 @@ dp_req_send_ci32 (dp_req *ctx, const dp_ci32_t *samples, size_t num_samples,
 }
 
 int
-dp_req_send_cf64 (dp_req *ctx, const dp_cf64_t *samples, size_t num_samples,
+dp_req_send_cf64 (dp_req *ctx, const double _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -594,7 +594,7 @@ dp_req_send_cf64 (dp_req *ctx, const dp_cf64_t *samples, size_t num_samples,
 }
 
 int
-dp_req_send_cf128 (dp_req *ctx, const dp_cf128_t *samples, size_t num_samples,
+dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -602,7 +602,7 @@ dp_req_send_cf128 (dp_req *ctx, const dp_cf128_t *samples, size_t num_samples,
 }
 
 int
-dp_req_send_ci8 (dp_req *ctx, const dp_ci8_t *samples, size_t num_samples,
+dp_req_send_ci8 (dp_req *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -610,7 +610,7 @@ dp_req_send_ci8 (dp_req *ctx, const dp_ci8_t *samples, size_t num_samples,
 }
 
 int
-dp_req_send_ci16 (dp_req *ctx, const dp_ci16_t *samples, size_t num_samples,
+dp_req_send_ci16 (dp_req *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -618,7 +618,7 @@ dp_req_send_ci16 (dp_req *ctx, const dp_ci16_t *samples, size_t num_samples,
 }
 
 int
-dp_req_send_cf32 (dp_req *ctx, const dp_cf32_t *samples, size_t num_samples,
+dp_req_send_cf32 (dp_req *ctx, const float _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -626,7 +626,7 @@ dp_req_send_cf32 (dp_req *ctx, const dp_cf32_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_ci32 (dp_rep *ctx, const dp_ci32_t *samples, size_t num_samples,
+dp_rep_send_ci32 (dp_rep *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -634,7 +634,7 @@ dp_rep_send_ci32 (dp_rep *ctx, const dp_ci32_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_cf64 (dp_rep *ctx, const dp_cf64_t *samples, size_t num_samples,
+dp_rep_send_cf64 (dp_rep *ctx, const double _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -642,7 +642,7 @@ dp_rep_send_cf64 (dp_rep *ctx, const dp_cf64_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_cf128 (dp_rep *ctx, const dp_cf128_t *samples, size_t num_samples,
+dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -650,7 +650,7 @@ dp_rep_send_cf128 (dp_rep *ctx, const dp_cf128_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_ci8 (dp_rep *ctx, const dp_ci8_t *samples, size_t num_samples,
+dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -658,7 +658,7 @@ dp_rep_send_ci8 (dp_rep *ctx, const dp_ci8_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_ci16 (dp_rep *ctx, const dp_ci16_t *samples, size_t num_samples,
+dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
@@ -666,7 +666,7 @@ dp_rep_send_ci16 (dp_rep *ctx, const dp_ci16_t *samples, size_t num_samples,
 }
 
 int
-dp_rep_send_cf32 (dp_rep *ctx, const dp_cf32_t *samples, size_t num_samples,
+dp_rep_send_cf32 (dp_rep *ctx, const float _Complex *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,

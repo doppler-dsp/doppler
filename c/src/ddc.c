@@ -14,6 +14,7 @@
 #include "dp/ddc.h"
 #include "dp/hbdecim.h"
 
+#include <complex.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -109,7 +110,7 @@ struct dp_ddc
 {
   dp_nco_t *nco;
   dp_resamp_dpmfs_t *resampler; /* NULL → bypass                  */
-  dp_cf32_t *mix_buf;           /* pre-allocated; size == num_in  */
+  float _Complex *mix_buf;      /* pre-allocated; size == num_in  */
   size_t num_in;                /* fixed input block size          */
   size_t max_out;               /* upper bound on output per call  */
   size_t nout;                  /* actual output count (last exec) */
@@ -239,8 +240,8 @@ dp_ddc_reset (dp_ddc_t *ddc)
  * ------------------------------------------------------------------ */
 
 size_t
-dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
-                dp_cf32_t *out, size_t max_out)
+dp_ddc_execute (dp_ddc_t *ddc, const float _Complex *in, size_t num_in,
+                float _Complex *out, size_t max_out)
 {
   if (num_in == 0)
     return 0;
@@ -258,12 +259,11 @@ dp_ddc_execute (dp_ddc_t *ddc, const dp_cf32_t *in, size_t num_in,
    */
   for (size_t i = 0; i < num_in; i++)
     {
-      float xi = in[i].i;
-      float xq = in[i].q;
-      float ni = ddc->mix_buf[i].i;
-      float nq = ddc->mix_buf[i].q;
-      ddc->mix_buf[i].i = xi * ni - xq * nq;
-      ddc->mix_buf[i].q = xi * nq + xq * ni;
+      float xi = crealf(in[i]);
+      float xq = cimagf(in[i]);
+      float ni = crealf(ddc->mix_buf[i]);
+      float nq = cimagf(ddc->mix_buf[i]);
+      ddc->mix_buf[i] = CMPLXF(xi * ni - xq * nq, xi * nq + xq * ni);
     }
 
   /* Step 3: resample or pass through */
@@ -320,7 +320,7 @@ struct dp_ddc_real
 {
   dp_hbdecim_r2cf32_t *hb; /* real→CF32 modified halfband     */
   dp_ddc_t *fine;          /* CF32 fine NCO + DPMFS           */
-  dp_cf32_t *hb_buf;       /* intermediate buffer             */
+  float _Complex *hb_buf;  /* intermediate buffer             */
   size_t hb_buf_cap;       /* capacity of hb_buf in samples   */
   float norm_freq;         /* saved for get_freq / set_freq   */
 };
@@ -409,7 +409,7 @@ dp_ddc_real_reset (dp_ddc_real_t *d)
 
 size_t
 dp_ddc_real_execute (dp_ddc_real_t *d, const float *in, size_t num_in,
-                     dp_cf32_t *out, size_t max_out)
+                     float _Complex *out, size_t max_out)
 {
   if (!num_in)
     return 0;

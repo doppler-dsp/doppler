@@ -15,7 +15,7 @@
 #include <string.h>
 
 #include <dp/delay.h>
-#include <dp/stream.h> /* dp_cf64_t */
+#include <dp/stream.h>
 
 /* ======================================================== */
 /* DelayCf64Object — wraps dp_delay_cf64_t *
@@ -115,7 +115,7 @@ DelayCf64_cf64_push (DelayCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &z))
     return NULL;
 
-  dp_cf64_t x = { z.real, z.imag };
+  double _Complex x = CMPLX (z.real, z.imag);
   dp_delay_cf64_push (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -131,14 +131,14 @@ DelayCf64_cf64_ptr (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
       return NULL;
     }
   size_t n = dp_delay_cf64_num_taps (self->handle);
-  const dp_cf64_t *p = dp_delay_cf64_ptr (self->handle);
+  const double _Complex *p = dp_delay_cf64_ptr (self->handle);
 
   npy_intp dims[1] = { (npy_intp)n };
   PyObject *arr = PyArray_SimpleNew (1, dims, NPY_COMPLEX128);
   if (!arr)
     return NULL;
 
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (dp_cf64_t));
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (double _Complex));
   return arr;
 }
 
@@ -156,16 +156,16 @@ DelayCf64_cf64_push_ptr (DelayCf64Object *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "D", &z))
     return NULL;
 
-  dp_cf64_t x = { z.real, z.imag };
+  double _Complex x = CMPLX (z.real, z.imag);
   size_t n = dp_delay_cf64_num_taps (self->handle);
-  const dp_cf64_t *p = dp_delay_cf64_push_ptr (self->handle, x);
+  const double _Complex *p = dp_delay_cf64_push_ptr (self->handle, x);
 
   npy_intp dims[1] = { (npy_intp)n };
   PyObject *arr = PyArray_SimpleNew (1, dims, NPY_COMPLEX128);
   if (!arr)
     return NULL;
 
-  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (dp_cf64_t));
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), p, n * sizeof (double _Complex));
   return arr;
 }
 
@@ -194,7 +194,7 @@ DelayCf64_cf64_write (DelayCf64Object *self, PyObject *args)
     }
 
   size_t n = (size_t)PyArray_SIZE (arr);
-  dp_delay_cf64_write (self->handle, (const dp_cf64_t *)PyArray_DATA (arr), n);
+  dp_delay_cf64_write (self->handle, (const double _Complex *)PyArray_DATA (arr), n);
   Py_RETURN_NONE;
 }
 

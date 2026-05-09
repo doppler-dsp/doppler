@@ -126,7 +126,7 @@ extern "C"
    * @param acc  Must be non-NULL.
    * @return     Accumulated value before the reset.
    */
-  dp_cf64_t dp_acc_cf64_dump (dp_acc_cf64_t *acc);
+  double _Complex dp_acc_cf64_dump (dp_acc_cf64_t *acc);
 
   /* ------------------------------------------------------------------
    * Read
@@ -142,7 +142,7 @@ extern "C"
    * @brief Return the current cf64 accumulated value (non-destructive).
    * @param acc  Must be non-NULL.
    */
-  dp_cf64_t dp_acc_cf64_get (const dp_acc_cf64_t *acc);
+  double _Complex dp_acc_cf64_get (const dp_acc_cf64_t *acc);
 
   /* ------------------------------------------------------------------
    * Scalar push
@@ -160,7 +160,7 @@ extern "C"
    * @param acc  Must be non-NULL.
    * @param x    Complex value to add.
    */
-  void dp_acc_cf64_push (dp_acc_cf64_t *acc, dp_cf64_t x);
+  void dp_acc_cf64_push (dp_acc_cf64_t *acc, double _Complex x);
 
   /* ------------------------------------------------------------------
    * 1-D array operations
@@ -181,10 +181,10 @@ extern "C"
    * @brief Accumulate a 1-D cf64 array: acc += Σ x[k], k=0..n-1.
    *
    * @param acc  Must be non-NULL.
-   * @param x    Input array of @p n dp_cf64_t samples.
+   * @param x    Input array of @p n double _Complex samples.
    * @param n    Number of complex samples.
    */
-  void dp_acc_cf64_add (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t n);
+  void dp_acc_cf64_add (dp_acc_cf64_t *acc, const double _Complex *x, size_t n);
 
   /**
    * @brief 1-D multiply-accumulate (MAC) for f32:
@@ -206,11 +206,11 @@ extern "C"
    * typical polyphase FIR structure where taps are real-valued.
    *
    * @param acc  Must be non-NULL.
-   * @param x    Complex signal array  (@p n dp_cf64_t samples).
+   * @param x    Complex signal array  (@p n double _Complex samples).
    * @param h    Real coefficient array (@p n floats).
    * @param n    Number of samples / taps.
    */
-  void dp_acc_cf64_madd (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+  void dp_acc_cf64_madd (dp_acc_cf64_t *acc, const double _Complex *restrict x,
                          const float *restrict h, size_t n);
 
   /* ------------------------------------------------------------------
@@ -237,11 +237,11 @@ extern "C"
    *        acc += Σᵢ Σⱼ x[i][j].
    *
    * @param acc   Must be non-NULL.
-   * @param x     Row-major array of @p rows × @p cols dp_cf64_t samples.
+   * @param x     Row-major array of @p rows × @p cols double _Complex samples.
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const dp_cf64_t *x, size_t rows,
+  void dp_acc_cf64_add2d (dp_acc_cf64_t *acc, const double _Complex *x, size_t rows,
                           size_t cols);
 
   /**
@@ -264,12 +264,12 @@ extern "C"
    *        acc += Σᵢ Σⱼ x[i][j]·h[i][j].
    *
    * @param acc   Must be non-NULL.
-   * @param x     Complex signal matrix  (@p rows × @p cols dp_cf64_t).
+   * @param x     Complex signal matrix  (@p rows × @p cols double _Complex).
    * @param h     Real coefficient matrix (@p rows × @p cols floats).
    * @param rows  Number of rows.
    * @param cols  Number of columns.
    */
-  void dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const dp_cf64_t *restrict x,
+  void dp_acc_cf64_madd2d (dp_acc_cf64_t *acc, const double _Complex *restrict x,
                            const float *restrict h, size_t rows, size_t cols);
 
 #ifdef __cplusplus

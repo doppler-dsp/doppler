@@ -119,10 +119,10 @@ test_initial_window_is_zero (void)
   size_t num_taps = 7;
   dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
   int ok = 1;
   for (size_t k = 0; k < num_taps; k++)
-    if (absd (w[k].i) > 0.0 || absd (w[k].q) > 0.0)
+    if (absd (creal(w[k])) > 0.0 || absd (cimag(w[k])) > 0.0)
       {
         ok = 0;
         break;
@@ -139,13 +139,13 @@ test_push_single (void)
   printf ("push one sample — ptr[0] == that sample\n");
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
-  dp_cf64_t x = { 1.0, 2.0 };
+  double _Complex x = CMPLX(1.0, 2.0);
   dp_delay_cf64_push (dl, x);
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  CHECK (absd (w[0].i - 1.0) < 1e-15 && absd (w[0].q - 2.0) < 1e-15,
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
+  CHECK (absd (creal(w[0]) - 1.0) < 1e-15 && absd (cimag(w[0]) - 2.0) < 1e-15,
          "ptr[0] == pushed sample");
-  CHECK (absd (w[1].i) < 1e-15 && absd (w[1].q) < 1e-15,
+  CHECK (absd (creal(w[1])) < 1e-15 && absd (cimag(w[1])) < 1e-15,
          "ptr[1] == zero (not yet pushed)");
   dp_delay_cf64_destroy (dl);
 }
@@ -160,18 +160,18 @@ test_push_ordering (void)
   /* Push samples 1..5 */
   for (int n = 1; n <= (int)num_taps; n++)
     {
-      dp_cf64_t s = { (double)n, (double)-n };
+      double _Complex s = CMPLX((double)n, (double)-n);
       dp_delay_cf64_push (dl, s);
     }
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
 
   /* After pushing 1,2,3,4,5 the window should read 5,4,3,2,1 */
   int ok = 1;
   for (size_t k = 0; k < num_taps; k++)
     {
       double expected = (double)(num_taps - k);
-      if (absd (w[k].i - expected) > 1e-15 || absd (w[k].q + expected) > 1e-15)
+      if (absd (creal(w[k]) - expected) > 1e-15 || absd (cimag(w[k]) + expected) > 1e-15)
         {
           ok = 0;
           break;
@@ -192,15 +192,15 @@ test_push_more_than_capacity (void)
 
   for (int n = 1; n <= 9; n++)
     {
-      dp_cf64_t s = { (double)n, 0.0 };
+      double _Complex s = CMPLX((double)n, 0.0);
       dp_delay_cf64_push (dl, s);
     }
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
   /* Most recent 3 pushes: 9, 8, 7 */
-  CHECK (absd (w[0].i - 9.0) < 1e-15, "ptr[0]==9 after 9 pushes");
-  CHECK (absd (w[1].i - 8.0) < 1e-15, "ptr[1]==8 after 9 pushes");
-  CHECK (absd (w[2].i - 7.0) < 1e-15, "ptr[2]==7 after 9 pushes");
+  CHECK (absd (creal(w[0]) - 9.0) < 1e-15, "ptr[0]==9 after 9 pushes");
+  CHECK (absd (creal(w[1]) - 8.0) < 1e-15, "ptr[1]==8 after 9 pushes");
+  CHECK (absd (creal(w[2]) - 7.0) < 1e-15, "ptr[2]==7 after 9 pushes");
   dp_delay_cf64_destroy (dl);
 }
 
@@ -217,11 +217,11 @@ test_window_contiguous (void)
   int ok = 1;
   for (int n = 0; n < 40; n++)
     {
-      dp_cf64_t s = { (double)n, 0.0 };
+      double _Complex s = CMPLX((double)n, 0.0);
       dp_delay_cf64_push (dl, s);
-      const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+      const double _Complex *w = dp_delay_cf64_ptr (dl);
       /* Verify that consecutive pointer values differ by exactly one
-       * dp_cf64_t — i.e. the array is contiguous in memory.        */
+       * double _Complex — i.e. the array is contiguous in memory.        */
       for (size_t k = 1; k < num_taps; k++)
         if (w + k != w + k) /* always true — check pointer arithmetic */
           {
@@ -229,7 +229,7 @@ test_window_contiguous (void)
             break;
           }
       /* Verify newest sample is at ptr[0] */
-      if (absd (w[0].i - (double)n) > 1e-15)
+      if (absd (creal(w[0]) - (double)n) > 1e-15)
         {
           ok = 0;
           break;
@@ -247,12 +247,12 @@ test_push_ptr (void)
   printf ("push_ptr returns same pointer as ptr after push\n");
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
-  dp_cf64_t x = { 3.14, 2.71 };
-  const dp_cf64_t *wp = dp_delay_cf64_push_ptr (dl, x);
-  const dp_cf64_t *p = dp_delay_cf64_ptr (dl);
+  double _Complex x = CMPLX(3.14, 2.71);
+  const double _Complex *wp = dp_delay_cf64_push_ptr (dl, x);
+  const double _Complex *p = dp_delay_cf64_ptr (dl);
 
   CHECK (wp == p, "push_ptr == ptr");
-  CHECK (absd (wp[0].i - 3.14) < 1e-15 && absd (wp[0].q - 2.71) < 1e-15,
+  CHECK (absd (creal(wp[0]) - 3.14) < 1e-15 && absd (cimag(wp[0]) - 2.71) < 1e-15,
          "push_ptr[0] == pushed sample");
   dp_delay_cf64_destroy (dl);
 }
@@ -268,16 +268,16 @@ test_reset (void)
 
   for (int n = 0; n < 10; n++)
     {
-      dp_cf64_t s = { (double)n, (double)n };
+      double _Complex s = CMPLX((double)n, (double)n);
       dp_delay_cf64_push (dl, s);
     }
 
   dp_delay_cf64_reset (dl);
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
   int ok = 1;
   for (size_t k = 0; k < num_taps; k++)
-    if (absd (w[k].i) > 0.0 || absd (w[k].q) > 0.0)
+    if (absd (creal(w[k])) > 0.0 || absd (cimag(w[k])) > 0.0)
       {
         ok = 0;
         break;
@@ -300,26 +300,26 @@ test_mac_inner_product (void)
   dp_delay_cf64_t *dl = dp_delay_cf64_create (num_taps);
 
   /* Impulse at t=0 */
-  dp_cf64_t imp = { 7.0, -3.0 };
+  double _Complex imp = CMPLX(7.0, -3.0);
   dp_delay_cf64_push (dl, imp);
 
   /* Zeros at t=1,2,3 */
-  dp_cf64_t zero = { 0.0, 0.0 };
+  double _Complex zero = CMPLX(0.0, 0.0);
   for (size_t k = 1; k < num_taps; k++)
     dp_delay_cf64_push (dl, zero);
 
   /* At this point ptr[num_taps-1] == impulse, ptr[0..n-2] == zero */
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  CHECK (absd (w[num_taps - 1].i - 7.0) < 1e-15, "oldest sample == impulse.i");
-  CHECK (absd (w[num_taps - 1].q + 3.0) < 1e-15, "oldest sample == impulse.q");
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
+  CHECK (absd (creal(w[num_taps - 1]) - 7.0) < 1e-15, "oldest sample == creal(impulse)");
+  CHECK (absd (cimag(w[num_taps - 1]) + 3.0) < 1e-15, "oldest sample == cimag(impulse)");
 
   /* h = [0, 0, 0, 1] — select oldest tap only */
   float h[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
   double si = 0.0, sq = 0.0;
   for (size_t k = 0; k < num_taps; k++)
     {
-      si += w[k].i * (double)h[k];
-      sq += w[k].q * (double)h[k];
+      si += creal(w[k]) * (double)h[k];
+      sq += cimag(w[k]) * (double)h[k];
     }
   CHECK (absd (si - 7.0) < 1e-14, "inner product .i == 7.0");
   CHECK (absd (sq + 3.0) < 1e-14, "inner product .q == -3.0");
@@ -334,15 +334,15 @@ test_write_batch (void)
 
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
-  dp_cf64_t in[4] = { { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 } };
+  double _Complex in[4] = { CMPLX(1.0, 0.0), CMPLX(2.0, 0.0), CMPLX(3.0, 0.0), CMPLX(4.0, 0.0) };
   dp_delay_cf64_write (dl, in, 4);
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
   /* in[3] = most recent → ptr[0] */
-  CHECK (absd (w[0].i - 4.0) < 1e-15, "write: ptr[0] == in[3]");
-  CHECK (absd (w[1].i - 3.0) < 1e-15, "write: ptr[1] == in[2]");
-  CHECK (absd (w[2].i - 2.0) < 1e-15, "write: ptr[2] == in[1]");
-  CHECK (absd (w[3].i - 1.0) < 1e-15, "write: ptr[3] == in[0]");
+  CHECK (absd (creal(w[0]) - 4.0) < 1e-15, "write: ptr[0] == in[3]");
+  CHECK (absd (creal(w[1]) - 3.0) < 1e-15, "write: ptr[1] == in[2]");
+  CHECK (absd (creal(w[2]) - 2.0) < 1e-15, "write: ptr[2] == in[1]");
+  CHECK (absd (creal(w[3]) - 1.0) < 1e-15, "write: ptr[3] == in[0]");
 
   dp_delay_cf64_destroy (dl);
 }
@@ -355,19 +355,19 @@ test_write_partial (void)
   dp_delay_cf64_t *dl = dp_delay_cf64_create (4);
 
   /* Load 4 samples first */
-  dp_cf64_t first[4]
-      = { { 1.0, 0.0 }, { 2.0, 0.0 }, { 3.0, 0.0 }, { 4.0, 0.0 } };
+  double _Complex first[4]
+      = { CMPLX(1.0, 0.0), CMPLX(2.0, 0.0), CMPLX(3.0, 0.0), CMPLX(4.0, 0.0) };
   dp_delay_cf64_write (dl, first, 4);
 
   /* Push 2 more via write */
-  dp_cf64_t next[2] = { { 5.0, 0.0 }, { 6.0, 0.0 } };
+  double _Complex next[2] = { CMPLX(5.0, 0.0), CMPLX(6.0, 0.0) };
   dp_delay_cf64_write (dl, next, 2);
 
-  const dp_cf64_t *w = dp_delay_cf64_ptr (dl);
-  CHECK (absd (w[0].i - 6.0) < 1e-15, "partial write: ptr[0] == 6");
-  CHECK (absd (w[1].i - 5.0) < 1e-15, "partial write: ptr[1] == 5");
-  CHECK (absd (w[2].i - 4.0) < 1e-15, "partial write: ptr[2] == 4");
-  CHECK (absd (w[3].i - 3.0) < 1e-15, "partial write: ptr[3] == 3");
+  const double _Complex *w = dp_delay_cf64_ptr (dl);
+  CHECK (absd (creal(w[0]) - 6.0) < 1e-15, "partial write: ptr[0] == 6");
+  CHECK (absd (creal(w[1]) - 5.0) < 1e-15, "partial write: ptr[1] == 5");
+  CHECK (absd (creal(w[2]) - 4.0) < 1e-15, "partial write: ptr[2] == 4");
+  CHECK (absd (creal(w[3]) - 3.0) < 1e-15, "partial write: ptr[3] == 3");
 
   dp_delay_cf64_destroy (dl);
 }

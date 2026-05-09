@@ -15,6 +15,24 @@ and this project adheres to
 
 ---
 
+## [0.2.9] — 2026-05-09
+
+### Fixed
+
+- **CMake version**: `project(VERSION …)` now always receives a
+  numeric `X.Y.Z` string; `bump-version` strips Python pre-release
+  suffixes (e.g. `a0`) before writing to `CMakeLists.txt`
+- **Cargo version**: same suffix-stripping applied to `Cargo.toml`;
+  Cargo requires SemVer and rejected `0.2.9a0`
+- **`just-build` target**: corrected env-var names from
+  `JUST_BUILD_OUTPUT_DIR/PYTHON` to `JUST_BUILDIT_OUTPUT_DIR/PYTHON`;
+  empty `mkdir -p` had been failing the Release workflow
+- **Specan staleness CI check**: narrowed watched path from
+  `python/specan/` to `python/specan/doppler_specan/` so version-bump
+  commits no longer falsely trigger the guard
+
+---
+
 ## [0.2.8] — 2026-05-09
 
 ### Added
@@ -356,7 +374,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/doppler-dsp/doppler/compare/v0.2.5...v0.2.6

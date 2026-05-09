@@ -13,6 +13,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+---
+
+## [0.2.8] — 2026-05-09
+
 ### Added
 
 - **CF32 FFT** (`dp_fft1d_execute_cf32`, `dp_fft1d_execute_inplace_cf32`,
@@ -27,6 +31,12 @@ and this project adheres to
 
 - **CMake**: `libfftw3f` and `libfftw3f_threads` added as FFTW-backend
   dependencies
+
+### Fixed
+
+- **Rust FFI (Windows)**: `build.rs` now links `fftw3f` and
+  `fftw3f_threads` on Windows; static `libdoppler.a` requires all
+  `fftwf_*` symbol providers to be listed explicitly
 
 ---
 
@@ -346,7 +356,9 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
+[0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/doppler-dsp/doppler/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3

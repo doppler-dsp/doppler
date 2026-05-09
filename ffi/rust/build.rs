@@ -30,11 +30,13 @@ fn main() {
         // Static link on Windows: avoids pseudo-relocation failures and
         // the DLL runtime dependency. LTO is disabled on MinGW in CMake
         // so the static archive contains plain object files.
-        // fftw3 must come AFTER doppler so MinGW ld can satisfy the
-        // back-references from libdoppler.a into libfftw3.
+        // fftw3/fftw3f must come AFTER doppler so MinGW ld can satisfy
+        // the back-references from libdoppler.a into those libraries.
         println!("cargo:rustc-link-lib=static=doppler");
         println!("cargo:rustc-link-lib=dylib=fftw3");
         println!("cargo:rustc-link-lib=dylib=fftw3_threads");
+        println!("cargo:rustc-link-lib=dylib=fftw3f");
+        println!("cargo:rustc-link-lib=dylib=fftw3f_threads");
         println!("cargo:rustc-link-lib=dylib=stdc++");
     } else {
         println!("cargo:rustc-link-lib=dylib=fftw3");

@@ -221,7 +221,7 @@ endif
 	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' python/specan/pyproject.toml
 	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' python/cli/pyproject.toml
 	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' $(RUST_DIR)/Cargo.toml
-	sed -i 's/^project(doppler VERSION [0-9.]*/project(doppler VERSION $(VERSION)/' CMakeLists.txt
+	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
 	@echo "Bumped to $(VERSION) in pyproject.toml, specan, cli, Cargo.toml, CMakeLists.txt"
 	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
 

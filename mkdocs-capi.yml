@@ -1,0 +1,13 @@
+site_name: doppler C API (pre-gen only)
+docs_dir: docs
+site_dir: /tmp/doppler-capi-site
+
+plugins:
+  - mkdoxy:
+      save-api: ".mkdoxy"
+      projects:
+        doppler:
+          src-dirs: "native/inc"
+          doxy-cfg-file: Doxyfile
+          api-path: "c-api"
+          full-doc: true

@@ -1,0 +1,311 @@
+/*
+ * delay_ext.c — Python extension module delay
+ *
+ * Objects: DelayCf64
+ */
+
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <complex.h>
+#include <numpy/arrayobject.h>
+
+/* ======================================================== */
+/* DelayCf64Object — wraps delay_state_t *       */
+/* ======================================================== */
+
+#include "delay/delay_core.h"
+
+typedef struct
+{
+  PyObject_HEAD delay_state_t *handle;
+  double complex *_ptr_buf;      /* pre-allocated output for ptr */
+  double complex *_push_ptr_buf; /* pre-allocated output for push_ptr */
+} DelayCf64Object;
+
+static void
+DelayCf64_dealloc (DelayCf64Object *self)
+{
+  if (self->handle)
+    delay_destroy (self->handle);
+  free (self->_ptr_buf);
+  free (self->_push_ptr_buf);
+  Py_TYPE (self)->tp_free ((PyObject *)self);
+}
+
+static PyObject *
+DelayCf64_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  DelayCf64Object *self = (DelayCf64Object *)type->tp_alloc (type, 0);
+  if (self)
+    self->handle = NULL;
+  return (PyObject *)self;
+}
+
+static int
+DelayCf64_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[] = { "num_taps", NULL };
+  unsigned long long num_taps_raw = 0ULL;
+
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|K", kwlist, &num_taps_raw))
+    return -1;
+  size_t num_taps = (size_t)num_taps_raw;
+  self->handle = delay_create (num_taps);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_MemoryError, "delay_create returned NULL");
+      return -1;
+    }
+  self->_ptr_buf
+      = malloc (delay_ptr_max_out (self->handle) * sizeof (double complex));
+  if (!self->_ptr_buf)
+    {
+      PyErr_NoMemory ();
+      return -1;
+    }
+  self->_push_ptr_buf = malloc (delay_push_ptr_max_out (self->handle)
+                                * sizeof (double complex));
+  if (!self->_push_ptr_buf)
+    {
+      PyErr_NoMemory ();
+      return -1;
+    }
+  return 0;
+}
+
+static PyObject *
+DelayCf64_reset (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  delay_reset (self->handle);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DelayCf64_push (DelayCf64Object *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_complex x_raw = { 0.0, 0.0 };
+  if (!PyArg_ParseTuple (args, "D", &x_raw))
+    return NULL;
+  double complex x = x_raw.real + x_raw.imag * I;
+  delay_push (self->handle, x);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DelayCf64_ptr (DelayCf64Object *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyArg_ParseTuple (args, ""))
+    return NULL;
+  size_t n_out = delay_ptr (self->handle, delay_ptr_max_out (self->handle),
+                            self->_ptr_buf);
+  npy_intp dim = (npy_intp)n_out;
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128, self->_ptr_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  return arr;
+}
+
+static PyObject *
+DelayCf64_push_ptr (DelayCf64Object *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_complex x_raw = { 0.0, 0.0 };
+  if (!PyArg_ParseTuple (args, "D", &x_raw))
+    return NULL;
+  double complex x = x_raw.real + x_raw.imag * I;
+  size_t n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf);
+  npy_intp dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128,
+                                             self->_push_ptr_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  return arr;
+}
+
+static PyObject *
+DelayCf64_write (DelayCf64Object *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_complex x_raw = { 0.0, 0.0 };
+  if (!PyArg_ParseTuple (args, "D", &x_raw))
+    return NULL;
+  double complex x = x_raw.real + x_raw.imag * I;
+  delay_write (self->handle, x);
+  Py_RETURN_NONE;
+}
+static PyObject *
+DelayCf64_getprop_num_taps (DelayCf64Object *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->num_taps);
+}
+static PyObject *
+DelayCf64_getprop_capacity (DelayCf64Object *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->capacity);
+}
+
+static PyGetSetDef DelayCf64_getset[]
+    = { { "num_taps", (getter)DelayCf64_getprop_num_taps, NULL, NULL, NULL },
+        { "capacity", (getter)DelayCf64_getprop_capacity, NULL, NULL, NULL },
+        { NULL } };
+
+static PyObject *
+DelayCf64_destroy (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      delay_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DelayCf64_enter (DelayCf64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+DelayCf64_exit (DelayCf64Object *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      delay_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyMethodDef DelayCf64_methods[]
+    = { { "reset", (PyCFunction)DelayCf64_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
+
+        { "push", (PyCFunction)DelayCf64_push, METH_VARARGS,
+          "push(x) -> None\n"
+          "\n"
+          "push.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import DelayCf64\n"
+          "    >>> obj = DelayCf64(1)\n"
+          "    >>> obj.push(0j)\n" },
+        { "ptr", (PyCFunction)DelayCf64_ptr, METH_VARARGS,
+          "ptr(n=1) -> ndarray\n"
+          "\n"
+          "Zero-copy view into pre-allocated output buffer.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import DelayCf64\n"
+          "    >>> obj = DelayCf64(1)\n"
+          "    >>> y = obj.ptr(4)\n"
+          "    >>> y.dtype\n"
+          "    dtype('complex128')\n" },
+        { "push_ptr", (PyCFunction)DelayCf64_push_ptr, METH_VARARGS,
+          "push_ptr(n=1) -> ndarray\n"
+          "\n"
+          "Zero-copy view into pre-allocated output buffer.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import DelayCf64\n"
+          "    >>> obj = DelayCf64(1)\n"
+          "    >>> y = obj.push_ptr(np.zeros(4))\n"
+          "    >>> y.dtype\n"
+          "    dtype('complex128')\n" },
+        { "write", (PyCFunction)DelayCf64_write, METH_VARARGS,
+          "write(x) -> None\n"
+          "\n"
+          "write.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import DelayCf64\n"
+          "    >>> obj = DelayCf64(1)\n"
+          "    >>> obj.write(1.0 + 0.0j)\n" },
+        { "destroy", (PyCFunction)DelayCf64_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)DelayCf64_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)DelayCf64_exit, METH_VARARGS, NULL },
+        { NULL } };
+
+static PyTypeObject DelayCf64Type = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "delay.DelayCf64",
+  .tp_basicsize = sizeof (DelayCf64Object),
+  .tp_dealloc = (destructor)DelayCf64_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "DelayCf64 type.",
+  .tp_methods = DelayCf64_methods,
+  .tp_getset = DelayCf64_getset,
+  .tp_new = DelayCf64_new,
+  .tp_init = (initproc)DelayCf64_init,
+};
+
+/* ======================================================== */
+/* Module                                                    */
+/* ======================================================== */
+
+static PyModuleDef delay_moduledef = {
+  PyModuleDef_HEAD_INIT, .m_name = "delay", .m_doc = "Delay module.",
+  .m_size = -1,          .m_methods = NULL,
+};
+
+PyMODINIT_FUNC
+PyInit_delay (void)
+{
+  import_array ();
+  if (PyType_Ready (&DelayCf64Type) < 0)
+    return NULL;
+  PyObject *m = PyModule_Create (&delay_moduledef);
+  if (!m)
+    return NULL;
+  Py_INCREF (&DelayCf64Type);
+  if (PyModule_AddObject (m, "DelayCf64", (PyObject *)&DelayCf64Type) < 0)
+    {
+      Py_DECREF (&DelayCf64Type);
+      Py_DECREF (m);
+      return NULL;
+    }
+  return m;
+}

@@ -1,0 +1,31 @@
+# doppler — Zensical documentation configuration
+# Build docs:  make docs
+# Serve live:  zensical serve
+
+[project]
+site_name        = "doppler"
+site_description = "Multi-module DSP library built with just-makeit."
+docs_dir         = "docs"
+site_dir         = "site"
+
+nav = [
+  { "Home" = "index.md" },
+  { "API"  = "api.md"   },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.code.annotate",
+  "content.code.copy",
+  "navigation.instant",
+  "navigation.top",
+  "search.highlight",
+]
+
+[project.plugins.mkdocstrings]
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+show_source = true

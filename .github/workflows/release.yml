@@ -1,0 +1,247 @@
+name: Release
+
+# Triggered by pushing a version tag: git tag v0.2.0 && git push --tags
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Sanity check: tag version matches pyproject.toml
+  # ------------------------------------------------------------------
+  verify-version:
+    name: Verify version consistency
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract tag version
+        id: get
+        run: |
+          TAG="${GITHUB_REF_NAME}"          # e.g. v0.2.1
+          VERSION="${TAG#v}"                # e.g.   0.2.1
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check pyproject.toml matches tag
+        run: |
+          PY=$(grep '^version' pyproject.toml | head -1 | \
+               sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$PY" != "$TAG" ]; then
+            echo "ERROR: pyproject.toml version ($PY) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check Cargo.toml matches tag
+        run: |
+          CARGO=$(grep '^version' ffi/rust/Cargo.toml | head -1 | \
+                  sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CARGO" != "$TAG" ]; then
+            echo "ERROR: Cargo.toml version ($CARGO) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check CMakeLists.txt matches tag
+        run: |
+          CMAKE=$(grep '^project' CMakeLists.txt | \
+                  sed 's/.*VERSION \([0-9.]*\).*/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$CMAKE" != "$TAG" ]; then
+            echo "ERROR: CMakeLists.txt version ($CMAKE) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check src/specan/pyproject.toml matches tag
+        run: |
+          PY=$(grep '^version' src/specan/pyproject.toml | head -1 | \
+               sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$PY" != "$TAG" ]; then
+            echo "ERROR: src/specan/pyproject.toml version ($PY) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+      - name: Check src/cli/pyproject.toml matches tag
+        run: |
+          PY=$(grep '^version' src/cli/pyproject.toml | head -1 | \
+               sed 's/version = "\(.*\)"/\1/')
+          TAG="${{ steps.get.outputs.version }}"
+          if [ "$PY" != "$TAG" ]; then
+            echo "ERROR: src/cli/pyproject.toml version ($PY) != tag ($TAG)"
+            echo "Run: make bump-version VERSION=$TAG"
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------
+  # Build Python wheels
+  #
+  # just-buildit is a minimal PEP 517 backend
+  # that calls `make just-build` (cmake + pyext), assembles the wheel
+  # from output_dir, detects the platform tag from the .so suffix, and
+  # runs `uvx auditwheel repair` to produce a manylinux wheel.
+  #
+  # Each Python version gets its own docker run so the .so suffix
+  # (cpXYZ) matches the interpreter that will load it.
+  #
+  # Pure-Python workspace packages (specan, cli) and the sdist are
+  # built once on the host runner at the end.
+  # ------------------------------------------------------------------
+  build-python:
+    name: Build wheels (manylinux_2_28 x86_64)
+    needs: verify-version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [cp312, cp313]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheel (${{ matrix.python }}) in manylinux container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/project" \
+            -w /project \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -euxc "
+              dnf install -y cmake zeromq-devel fftw-devel pkg-config
+              PYTHON=/opt/python/${{ matrix.python }}-${{ matrix.python }}/bin/python
+              export PATH=\"\$(dirname \$PYTHON):\$PATH\"
+              \$PYTHON -m pip install --quiet numpy uv build just-buildit
+              mkdir -p dist
+              \$PYTHON -m build --no-isolation --wheel --outdir dist/
+            "
+
+      - name: Upload wheel (${{ matrix.python }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-${{ matrix.python }}
+          path: dist/*.whl
+
+  # ------------------------------------------------------------------
+  # Build Python wheels (macOS arm64)
+  #
+  # Uses the same just-buildit backend; delocate-wheel (run via uvx)
+  # bundles dylib deps and stamps the macosx platform tag.
+  # ------------------------------------------------------------------
+  build-macos:
+    name: Build wheels (macOS arm64)
+    needs: verify-version
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install system dependencies
+        run: brew install cmake zeromq fftw pkg-config
+
+      - name: Build wheel (Python ${{ matrix.python }})
+        run: |
+          uv python install ${{ matrix.python }}
+          uv venv .venv --python ${{ matrix.python }}
+          uv pip install --python .venv/bin/python numpy build just-buildit
+          mkdir -p dist
+          .venv/bin/python -m build --no-isolation --wheel --outdir dist/
+
+      - name: Upload wheel (Python ${{ matrix.python }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-macos-${{ matrix.python }}
+          path: dist/*.whl
+
+  # ------------------------------------------------------------------
+  # Build pure-Python workspace packages + sdist on the host runner
+  # ------------------------------------------------------------------
+  build-pure:
+    name: Build pure-Python packages and sdist
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Build specan + cli wheels
+        run: |
+          uv build --package doppler-specan --out-dir dist/
+          uv build --package doppler-cli --out-dir dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-pure
+          path: dist/
+
+  # ------------------------------------------------------------------
+  # Publish to PyPI (uses trusted publishing — configure in PyPI)
+  # ------------------------------------------------------------------
+  publish-python:
+    name: Publish to PyPI
+    needs: [verify-version, build-python, build-macos, build-pure]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC trusted publishing
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ------------------------------------------------------------------
+  # GitHub Release with auto-generated notes
+  # ------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    needs: [verify-version, build-python, build-macos, build-pure, publish-python]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: python-dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
+          body: |
+            ## Install
+
+            ```sh
+            pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
+            pip install doppler-specan==${{ needs.verify-version.outputs.version }}
+            pip install doppler-cli==${{ needs.verify-version.outputs.version }}
+            ```
+
+            See [CHANGELOG.md](CHANGELOG.md) for details.

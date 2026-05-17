@@ -1,0 +1,233 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Native C build + CTest on Ubuntu and macOS
+  # ------------------------------------------------------------------
+  build-and-test:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libzmq3-dev \
+          libfftw3-dev \
+          libfftw3-bin \
+          cmake \
+          pkg-config
+
+    - name: Install dependencies (macOS)
+      if: startsWith(matrix.os, 'macos')
+      run: |
+        brew install zeromq fftw cmake
+
+    - name: Install dependencies (Windows / MSYS2)
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >
+          mingw-w64-ucrt-x86_64-uv
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-zeromq
+          mingw-w64-ucrt-x86_64-fftw
+          mingw-w64-ucrt-x86_64-rust
+          make
+
+    - name: Build
+      if: matrix.os != 'windows-latest'
+      run: make build
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: |
+        make build
+
+    - name: Test
+      if: matrix.os != 'windows-latest'
+      run: make test
+
+    - name: Test (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: make test
+
+    - name: Rust FFI tests
+      if: matrix.os != 'windows-latest'
+      run: make rust-test
+
+    - name: Rust FFI tests (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: make rust-test
+
+  # ------------------------------------------------------------------
+  # Python package build + pytest
+  # ------------------------------------------------------------------
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          libzmq3-dev \
+          libfftw3-dev \
+          cmake \
+          pkg-config \
+          python3-dev
+
+    - name: Install uv + Python + package deps
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python dev deps
+      run: uv sync --group dev
+
+    - name: Build C library
+      run: make build
+
+    - name: Build Python C extensions
+      run: make pyext
+
+    - name: Test with coverage
+      run: |
+        uv run pytest src/ -v \
+          --cov \
+          --cov-report=term-missing \
+          --cov-report=xml:coverage.xml
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: matrix.python-version == '3.12'
+      with:
+        name: coverage-report
+        path: coverage.xml
+
+  # ------------------------------------------------------------------
+  # Doxygen C API docs — zero warnings required
+  # ------------------------------------------------------------------
+  doxygen:
+    name: Doxygen
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install doxygen + LaTeX
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          doxygen \
+          graphviz \
+          texlive-base \
+          texlive-latex-extra \
+          dvipng
+
+    - name: Run doxygen (zero warnings)
+      run: |
+        doxygen Doxyfile 2>&1 | tee doxygen.log
+        if grep -q 'warning:' doxygen.log; then
+          echo "Doxygen produced warnings — failing."
+          exit 1
+        fi
+
+  # ------------------------------------------------------------------
+  # Specan demo frames staleness check
+  # ------------------------------------------------------------------
+  specan-demo:
+    name: Specan demo frames
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check frames kept in sync with specan source
+      run: |
+        BASE=${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        SPECAN=$(git diff --name-only "$BASE"...HEAD -- src/specan/doppler_specan/ | wc -l)
+        FRAMES=$(git diff --name-only "$BASE"...HEAD -- docs/specan/frames.json | wc -l)
+        if [ "$SPECAN" -gt 0 ] && [ "$FRAMES" -eq 0 ]; then
+          echo "src/specan/doppler_specan/ changed but docs/specan/frames.json was not updated."
+          echo "Run 'make record-demo' and commit the result."
+          exit 1
+        fi
+        echo "OK (specan_changes=$SPECAN frames_changes=$FRAMES)"
+
+  # ------------------------------------------------------------------
+  # Zensical documentation build
+  # ------------------------------------------------------------------
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dev deps
+      run: uv sync --group dev
+
+    - name: Build docs
+      run: uv run zensical build --clean
+
+  # ------------------------------------------------------------------
+  # Docker image build + container tests
+  # ------------------------------------------------------------------
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build image
+      run: docker build -t doppler:test .
+
+    - name: Run C unit tests
+      run: |
+        docker run --rm doppler:test sh -c '
+          rc=0
+          for t in /app/test_*; do
+            echo "--- $t ---"
+            "$t" || rc=$?
+          done
+          exit $rc'

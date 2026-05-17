@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>doppler specan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --border:   #30363d;
+    --accent:   #22d3ee;
+    --accent2:  #a855f7;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --grid:     rgba(48,54,61,0.6);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "JetBrains Mono", "Fira Mono", monospace;
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;       /* fallback */
+    height: 100dvh;      /* dynamic viewport — excludes browser chrome on mobile */
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    white-space: nowrap;
+  }
+  header::-webkit-scrollbar { display: none; }
+  header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+  .pill {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    transition: background 0.3s;
+  }
+  .dot.live { background: #22c55e; }
+
+  /* ── Controls bar ── */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 6px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;         /* Firefox */
+    -ms-overflow-style: none;      /* IE / Edge */
+  }
+  .controls::-webkit-scrollbar { display: none; }
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  label { color: var(--muted); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: clamp(80px, 12vw, 160px);
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .val-label {
+    min-width: 72px;
+    color: var(--accent);
+  }
+
+  .btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--text); }
+  .btn.active { border-color: var(--accent2); color: var(--accent2); }
+
+  /* ── Canvas area ── */
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    min-height: 0;                 /* allow flex shrink below intrinsic size */
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+  }
+
+  #spectrum   { flex: 3; min-height: 0; }
+  #waterfall  { flex: 2; min-height: 0; }
+
+  .canvas-wrap { min-height: 0; }
+
+  /* ── Footer ── */
+  footer {
+    padding: 4px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    display: flex;
+    gap: 24px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>doppler specan</h1>
+  <span class="pill" id="sr-pill">Fs = 2.048 MHz</span>
+  <span class="pill" id="fc-pill">Fc = 0.000 MHz</span>
+  <span class="pill" id="fft-pill">FFT = 2048</span>
+  <div class="status">
+    <div class="dot" id="dot"></div>
+    <span id="fps-label">-- fps</span>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <label>Tone freq</label>
+    <input type="range" id="tone-freq-slider"
+           min="-0.49" max="0.49" step="0.001" value="0.049">
+    <span class="val-label" id="tone-freq-val">100 kHz</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Tone power</label>
+    <input type="range" id="tone-amp-slider"
+           min="-80" max="0" step="1" value="-20">
+    <span class="val-label" id="tone-amp-val">-20 dBm</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Noise floor</label>
+    <input type="range" id="noise-slider"
+           min="-120" max="-40" step="1" value="-90">
+    <span class="val-label" id="noise-val">-90 dBm</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Ref level</label>
+    <input type="range" id="ref-slider" min="-80" max="20" step="1" value="10">
+    <span class="val-label" id="ref-val">+10 dBm</span>
+  </div>
+  <div class="ctrl-group">
+    <label>Range</label>
+    <input type="range" id="range-slider" min="20" max="160" step="10" value="160">
+    <span class="val-label" id="range-val">160 dB</span>
+  </div>
+  <div class="ctrl-group" style="gap:6px">
+    <button class="btn" id="chirp-btn">Chirp</button>
+    <button class="btn" id="maxhold-btn">Max hold</button>
+    <button class="btn" id="reset-btn">Reset</button>
+  </div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="spectrum"></canvas>
+  <canvas id="waterfall"></canvas>
+</div>
+
+<footer>
+  <span>doppler — dead-simple, ultra-fast DSP</span>
+  <span>NCO + AVX-512 → FFT → canvas</span>
+  <span id="latency-label"></span>
+</footer>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const WS_URL  = `ws://${location.host}/ws`;
+const TUNE_URL = `/tune`;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let refLevel  = 10;      // dBm (matches default +10 dBm ref)
+let dbRange   = 160;     // dB shown
+let currentFs = 2.048e6; // updated from each frame
+let fpsAcc    = 0;
+let fpsCnt    = 0;
+let fpsTs     = performance.now();
+let lastFrame = null;    // most recent db[] array
+
+// Max-hold state
+let maxHoldEnabled = false;
+let maxHold        = null;  // Float32Array, same length as db[]
+
+// Chirp state (UI toggle only — actual sweep runs server-side)
+let chirpEnabled = false;
+
+// Waterfall image buffer
+let wfImageData = null;
+
+// ── Canvas setup ──────────────────────────────────────────────────────────
+const specCanvas = document.getElementById("spectrum");
+const wfCanvas   = document.getElementById("waterfall");
+const specCtx    = specCanvas.getContext("2d");
+const wfCtx      = wfCanvas.getContext("2d");
+
+function resize() {
+  // Use display size for drawing resolution (devicePixelRatio for sharpness)
+  const dpr = window.devicePixelRatio || 1;
+  for (const c of [specCanvas, wfCanvas]) {
+    const rect = c.getBoundingClientRect();
+    c.width  = Math.round(rect.width  * dpr);
+    c.height = Math.round(rect.height * dpr);
+  }
+  // Invalidate waterfall buffer on resize
+  wfImageData = null;
+}
+
+const ro = new ResizeObserver(resize);
+ro.observe(specCanvas);
+ro.observe(wfCanvas);
+resize();
+
+// ── Color mapping for waterfall ───────────────────────────────────────────
+// Hot colormap: dark blue → cyan → yellow → white
+function dbToColor(dbVal) {
+  // Normalise [refLevel - dbRange, refLevel] to [0, 1]
+  const t = Math.max(0, Math.min(1,
+    (dbVal - (refLevel - dbRange)) / dbRange));
+
+  let r, g, b;
+  if (t < 0.25) {
+    // black → blue
+    const s = t / 0.25;
+    r = 0; g = 0; b = Math.round(s * 200);
+  } else if (t < 0.5) {
+    // blue → cyan
+    const s = (t - 0.25) / 0.25;
+    r = 0; g = Math.round(s * 220); b = Math.round(200 + s * 55);
+  } else if (t < 0.75) {
+    // cyan → yellow
+    const s = (t - 0.5) / 0.25;
+    r = Math.round(s * 255); g = 220; b = Math.round(255 * (1 - s));
+  } else {
+    // yellow → white
+    const s = (t - 0.75) / 0.25;
+    r = 255; g = 220; b = Math.round(s * 255);
+  }
+  return [r, g, b];
+}
+
+// ── Spectrum draw ─────────────────────────────────────────────────────────
+const GRID_COLOR  = "rgba(48,54,61,0.8)";
+const TRACE_COLOR = "#22d3ee";
+const FILL_TOP    = "rgba(34,211,238,0.25)";
+const FILL_BOT    = "rgba(34,211,238,0.00)";
+const PEAK_COLOR  = "#f59e0b";
+
+function fmtFreqShort(hz) {
+  const abs = Math.abs(hz);
+  if (abs >= 1e9) return `${(hz / 1e9).toPrecision(4)} GHz`;
+  if (abs >= 1e6) return `${(hz / 1e6).toPrecision(4)} MHz`;
+  if (abs >= 1e3) return `${(hz / 1e3).toPrecision(4)} kHz`;
+  return `${hz.toPrecision(4)} Hz`;
+}
+
+function drawSpectrum(db, sampleRate, centerFreq, peaks) {
+  const W = specCanvas.width;
+  const H = specCanvas.height;
+  const N = db.length;
+  const dpr = window.devicePixelRatio || 1;
+  const PAD = { l: 52 * dpr, r: 8 * dpr, t: 8 * dpr, b: 24 * dpr };
+  const pw = W - PAD.l - PAD.r;
+  const ph = H - PAD.t - PAD.b;
+
+  specCtx.clearRect(0, 0, W, H);
+
+  // ── Grid ──
+  specCtx.strokeStyle = GRID_COLOR;
+  specCtx.lineWidth   = 1;
+  specCtx.font        = `${10 * dpr}px "JetBrains Mono", monospace`;
+  specCtx.fillStyle   = "#8b949e";
+  specCtx.textBaseline = "middle";
+
+  const dbSteps = 10;
+  const nLines  = dbRange / dbSteps;
+  for (let i = 0; i <= nLines; i++) {
+    const dbVal = refLevel - i * dbSteps;
+    const y = PAD.t + (i / nLines) * ph;
+    specCtx.beginPath();
+    specCtx.moveTo(PAD.l, y);
+    specCtx.lineTo(W - PAD.r, y);
+    specCtx.stroke();
+    specCtx.textAlign = "right";
+    const label = dbVal >= 0 ? `+${dbVal}` : `${dbVal}`;
+    specCtx.fillText(label, PAD.l - 4 * dpr, y);
+  }
+
+  // Freq axis labels (5 ticks)
+  specCtx.textBaseline = "top";
+  specCtx.textAlign    = "center";
+  const bw = sampleRate;
+  for (let i = 0; i <= 4; i++) {
+    const frac = i / 4;
+    const x    = PAD.l + frac * pw;
+    const freq = centerFreq + (frac - 0.5) * bw;
+    const label = (Math.abs(freq) >= 1e6)
+      ? `${(freq / 1e6).toFixed(2)}M`
+      : (Math.abs(freq) >= 1e3)
+      ? `${(freq / 1e3).toFixed(1)}k`
+      : `${freq.toFixed(0)}`;
+    specCtx.fillStyle = "#8b949e";
+    specCtx.fillText(label, x, H - PAD.b + 4 * dpr);
+    specCtx.strokeStyle = GRID_COLOR;
+    specCtx.beginPath();
+    specCtx.moveTo(x, PAD.t);
+    specCtx.lineTo(x, H - PAD.b);
+    specCtx.stroke();
+  }
+
+  // ── Trace ──
+  const toX = i => PAD.l + (i / (N - 1)) * pw;
+  const toY = v => PAD.t + ((refLevel - v) / dbRange) * ph;
+
+  // Max-hold trace (drawn first, behind live trace)
+  if (maxHold && maxHold.length === N) {
+    specCtx.strokeStyle = "#a855f7";
+    specCtx.lineWidth   = 1 * dpr;
+    specCtx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const y = Math.max(PAD.t, Math.min(PAD.t + ph, toY(maxHold[i])));
+      if (i === 0) specCtx.moveTo(toX(i), y);
+      else         specCtx.lineTo(toX(i), y);
+    }
+    specCtx.stroke();
+  }
+
+  // Filled gradient
+  const grad = specCtx.createLinearGradient(0, PAD.t, 0, PAD.t + ph);
+  grad.addColorStop(0, FILL_TOP);
+  grad.addColorStop(1, FILL_BOT);
+  specCtx.fillStyle = grad;
+  specCtx.beginPath();
+  specCtx.moveTo(toX(0), H - PAD.b);
+  for (let i = 0; i < N; i++) {
+    specCtx.lineTo(toX(i), Math.max(PAD.t, Math.min(PAD.t + ph, toY(db[i]))));
+  }
+  specCtx.lineTo(toX(N - 1), H - PAD.b);
+  specCtx.closePath();
+  specCtx.fill();
+
+  // Line
+  specCtx.strokeStyle = TRACE_COLOR;
+  specCtx.lineWidth   = 1.5 * dpr;
+  specCtx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const y = Math.max(PAD.t, Math.min(PAD.t + ph, toY(db[i])));
+    if (i === 0) specCtx.moveTo(toX(i), y);
+    else         specCtx.lineTo(toX(i), y);
+  }
+  specCtx.stroke();
+
+  // ── Peak annotations ──
+  if (peaks && peaks.length > 0) {
+    const span = sampleRate;  // msg.fs_out == display span
+    specCtx.font      = `${12 * dpr}px "JetBrains Mono", monospace`;
+    specCtx.fillStyle = PEAK_COLOR;
+    specCtx.strokeStyle = PEAK_COLOR;
+    specCtx.lineWidth   = 1 * dpr;
+
+    for (const p of peaks) {
+      // Map absolute frequency to canvas X within the plot area.
+      // The display spans [centerFreq - span/2, centerFreq + span/2].
+      const frac = (p.freq_hz - centerFreq) / span + 0.5;
+      if (frac < 0 || frac > 1) continue;
+      const px = PAD.l + frac * pw;
+      const py = Math.max(PAD.t, Math.min(PAD.t + ph, toY(p.db)));
+
+      // Small diamond at the peak
+      const ds = 4 * dpr;
+      specCtx.beginPath();
+      specCtx.moveTo(px,      py - ds);
+      specCtx.lineTo(px + ds, py);
+      specCtx.lineTo(px,      py + ds);
+      specCtx.lineTo(px - ds, py);
+      specCtx.closePath();
+      specCtx.fill();
+
+      // Label: frequency + amplitude, nudged above the diamond
+      const freqStr = fmtFreqShort(p.freq_hz);
+      const dbStr   = p.db >= 0 ? `+${p.db.toFixed(1)}` : p.db.toFixed(1);
+      const label   = `${freqStr}\n${dbStr} dBm`;
+      const lines   = label.split("\n");
+      const lineH   = 14 * dpr;
+      const labelY  = py - ds - lineH * lines.length - 2 * dpr;
+
+      // Clamp horizontally so label stays inside plot area
+      specCtx.textAlign    = "center";
+      specCtx.textBaseline = "top";
+      for (let li = 0; li < lines.length; li++) {
+        specCtx.fillText(lines[li], px, Math.max(PAD.t + 1, labelY + li * lineH));
+      }
+    }
+  }
+}
+
+// ── Waterfall draw ────────────────────────────────────────────────────────
+function drawWaterfall(db) {
+  const W = wfCanvas.width;
+  const H = wfCanvas.height;
+  const N = db.length;
+  const dpr = window.devicePixelRatio || 1;
+  // Same PAD as drawSpectrum — pixel-exact alignment guaranteed.
+  const PAD = { l: 52 * dpr, r: 8 * dpr };
+  const pw  = Math.round(W - PAD.l - PAD.r);
+
+  // Allocate or reallocate ImageData sized to the PLOT AREA only.
+  // putImageData(data, PAD.l, 0) places it at the right offset;
+  // the left/right margin columns are never written and show the
+  // canvas CSS background — no per-pixel margin logic needed.
+  if (!wfImageData || wfImageData.width !== pw || wfImageData.height !== H) {
+    wfImageData = wfCtx.createImageData(pw, H);
+    wfCtx.clearRect(0, 0, W, H);
+  }
+
+  // Scroll existing content down by one row
+  const rowBytes = pw * 4;
+  wfImageData.data.copyWithin(rowBytes, 0, (H - 1) * rowBytes);
+
+  // Write new top row: map each plot pixel to a bin
+  for (let x = 0; x < pw; x++) {
+    const idx = Math.round((x / (pw - 1)) * (N - 1));
+    const [r, g, b] = dbToColor(db[idx]);
+    const px = x * 4;
+    wfImageData.data[px]     = r;
+    wfImageData.data[px + 1] = g;
+    wfImageData.data[px + 2] = b;
+    wfImageData.data[px + 3] = 255;
+  }
+
+  wfCtx.putImageData(wfImageData, Math.round(PAD.l), 0);
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────
+let ws = null;
+
+// Fetch state once on load to show/hide demo-only controls
+fetch("/state").then(r => r.json()).then(state => {
+  if (state.source !== "demo") {
+    document.getElementById("chirp-btn").style.display = "none";
+    document.getElementById("tone-freq-slider").closest(".ctrl-group").style.display = "none";
+    document.getElementById("tone-amp-slider").closest(".ctrl-group").style.display = "none";
+    document.getElementById("noise-slider").closest(".ctrl-group").style.display = "none";
+  }
+}).catch(() => {});
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    document.getElementById("dot").classList.add("live");
+  };
+  ws.onclose = () => {
+    document.getElementById("dot").classList.remove("live");
+    setTimeout(connect, 1000);
+  };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    lastFrame = msg;
+
+    const t = performance.now();
+    fpsCnt++;
+    const dt = t - fpsTs;
+    if (dt >= 500) {
+      const fps = (fpsCnt / dt * 1000).toFixed(1);
+      document.getElementById("fps-label").textContent = `${fps} fps`;
+      document.getElementById("latency-label").textContent =
+        `${fps} frames/s`;
+      fpsCnt = 0;
+      fpsTs = t;
+    }
+
+    // Track current sample rate for tone freq display
+    currentFs = msg.fs_out || currentFs;
+
+    // Update pills
+    document.getElementById("sr-pill").textContent =
+      `Fs = ${(msg.fs_out / 1e6).toFixed(3)} MHz`;
+    document.getElementById("fc-pill").textContent =
+      `Fc = ${(msg.center_freq / 1e6).toFixed(3)} MHz`;
+    document.getElementById("fft-pill").textContent =
+      `FFT = ${msg.fft_size}`;
+
+    // Accumulate max-hold
+    if (maxHoldEnabled) {
+      if (!maxHold || maxHold.length !== msg.db.length) {
+        maxHold = new Float32Array(msg.db);
+      } else {
+        for (let i = 0; i < msg.db.length; i++) {
+          if (msg.db[i] > maxHold[i]) maxHold[i] = msg.db[i];
+        }
+      }
+    }
+
+    drawSpectrum(msg.db, msg.span, msg.center_freq, msg.peaks || []);
+    drawWaterfall(msg.db);
+  };
+}
+
+connect();
+
+// ── Controls ──────────────────────────────────────────────────────────────
+const toneFreqSlider = document.getElementById("tone-freq-slider");
+const toneFreqVal    = document.getElementById("tone-freq-val");
+const toneAmpSlider  = document.getElementById("tone-amp-slider");
+const toneAmpVal     = document.getElementById("tone-amp-val");
+const noiseSlider    = document.getElementById("noise-slider");
+const noiseVal       = document.getElementById("noise-val");
+const refSlider      = document.getElementById("ref-slider");
+const refVal         = document.getElementById("ref-val");
+const rangeSlider    = document.getElementById("range-slider");
+const rangeVal       = document.getElementById("range-val");
+
+function fmtHz(hz) {
+  const abs = Math.abs(hz);
+  if (abs >= 1e6) return `${(hz / 1e6).toFixed(3)} MHz`;
+  if (abs >= 1e3) return `${(hz / 1e3).toFixed(1)} kHz`;
+  return `${Math.round(hz)} Hz`;
+}
+
+function fmtDbm(v) {
+  return v >= 0 ? `+${v} dBm` : `${v} dBm`;
+}
+
+function send(cmd) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(cmd));
+}
+
+toneFreqSlider.addEventListener("input", () => {
+  const f = parseFloat(toneFreqSlider.value);
+  toneFreqVal.textContent = fmtHz(f * currentFs);
+  send({ tone_freq: f });
+});
+
+toneAmpSlider.addEventListener("input", () => {
+  const v = parseInt(toneAmpSlider.value);
+  toneAmpVal.textContent = fmtDbm(v);
+  send({ tone_power: v });
+});
+
+noiseSlider.addEventListener("input", () => {
+  const v = parseInt(noiseSlider.value);
+  noiseVal.textContent = fmtDbm(v);
+  send({ noise_floor: v });
+});
+
+refSlider.addEventListener("input", () => {
+  refLevel = parseInt(refSlider.value);
+  refVal.textContent = fmtDbm(refLevel);
+});
+
+rangeSlider.addEventListener("input", () => {
+  dbRange = parseInt(rangeSlider.value);
+  rangeVal.textContent = `${dbRange} dB`;
+});
+
+// ── Chirp / Max-hold buttons ──────────────────────────────────────
+const chirpBtn   = document.getElementById("chirp-btn");
+const maxholdBtn = document.getElementById("maxhold-btn");
+const resetBtn   = document.getElementById("reset-btn");
+
+chirpBtn.addEventListener("click", () => {
+  chirpEnabled = !chirpEnabled;
+  chirpBtn.classList.toggle("active", chirpEnabled);
+  send({ chirp: chirpEnabled });
+});
+
+maxholdBtn.addEventListener("click", () => {
+  maxHoldEnabled = !maxHoldEnabled;
+  maxholdBtn.classList.toggle("active", maxHoldEnabled);
+  if (!maxHoldEnabled) maxHold = null;
+});
+
+resetBtn.addEventListener("click", () => {
+  maxHold = null;
+});
+</script>
+</body>
+</html>

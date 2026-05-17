@@ -1,0 +1,94 @@
+name: Benchmark
+
+# Runs on every push to main and on release tags.
+# Results are committed back to benchmarks/history/ so regressions are
+# visible in git history.  Always runs on the same platform and Python
+# version so snapshots are directly comparable.
+#
+# Also triggerable manually via the GitHub Actions UI (workflow_dispatch).
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Label for the snapshot (default: commit SHA)'
+        required: false
+
+permissions:
+  contents: write   # needed to push the result commit
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-24.04   # pinned OS for comparable results
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        # Full history so the commit push works cleanly
+        fetch-depth: 0
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          libzmq3-dev \
+          libfftw3-dev \
+          cmake \
+          pkg-config \
+          python3-dev
+
+    - name: Install uv + Python 3.12
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.12'   # pinned Python for comparable results
+
+    - name: Install Python dev deps
+      run: uv sync --group dev
+
+    - name: Build C library
+      run: make build
+
+    - name: Build Python C extensions
+      run: make pyext
+
+    - name: Determine snapshot tag
+      id: tag
+      run: |
+        if [ -n "${{ github.event.inputs.tag }}" ]; then
+          echo "bench_tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+        elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "bench_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "bench_tag=$(date +%Y-%m-%d)-${{ github.sha }}" \
+            >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Run benchmarks
+      run: make benchmark BENCH_TAG=${{ steps.tag.outputs.bench_tag }}
+
+    - name: Commit benchmark snapshot
+      run: |
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        # Push snapshots to the unprotected `benchmarks` branch so branch
+        # protection rules on `main` don't block the commit.
+        SNAP="${{ steps.tag.outputs.bench_tag }}"
+        SRC="$GITHUB_WORKSPACE/benchmarks/history/${SNAP}.json"
+        git fetch origin benchmarks 2>/dev/null || true
+        if git ls-remote --exit-code origin benchmarks > /dev/null 2>&1; then
+          git worktree add /tmp/bench-branch origin/benchmarks
+        else
+          git worktree add --orphan -b benchmarks /tmp/bench-branch
+        fi
+        mkdir -p /tmp/bench-branch/history
+        cp "$SRC" /tmp/bench-branch/history/
+        cd /tmp/bench-branch
+        git add history/
+        git diff --cached --quiet || \
+          git commit -m "bench: ${SNAP}"
+        git push origin HEAD:benchmarks

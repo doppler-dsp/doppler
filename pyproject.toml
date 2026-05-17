@@ -14,6 +14,7 @@ dependencies = [
 
 [tool.just-buildit]
 command = "make just-build"
+editable_path = "src"
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "bench_*.py"]

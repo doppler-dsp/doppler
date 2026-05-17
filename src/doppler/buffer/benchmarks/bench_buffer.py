@@ -35,6 +35,8 @@ def test_bench_f32_write(benchmark, f32buf):
         return view
 
     benchmark(run)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = N / benchmark.stats["mean"] / 1e6
 
 
 def test_bench_f64_write(benchmark, f64buf):
@@ -47,3 +49,5 @@ def test_bench_f64_write(benchmark, f64buf):
         return view
 
     benchmark(run)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = N / benchmark.stats["mean"] / 1e6

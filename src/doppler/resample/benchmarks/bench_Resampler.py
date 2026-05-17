@@ -25,13 +25,19 @@ def interp():
 def test_bench_execute_decim_1k(benchmark, decim):
     x = np.ones(BLOCK_1K, dtype=np.complex64)
     benchmark(decim.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK_1K / benchmark.stats["mean"] / 1e6
 
 
 def test_bench_execute_decim_64k(benchmark, decim):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(decim.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK_64K / benchmark.stats["mean"] / 1e6
 
 
 def test_bench_execute_interp_1k(benchmark, interp):
     x = np.ones(BLOCK_1K, dtype=np.complex64)
     benchmark(interp.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK_1K / benchmark.stats["mean"] / 1e6

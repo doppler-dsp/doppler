@@ -26,3 +26,5 @@ def fir():
 def test_bench_execute(benchmark, fir, n):
     x = np.ones(n, dtype=np.complex64)
     benchmark(fir.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = n / benchmark.stats["mean"] / 1e6

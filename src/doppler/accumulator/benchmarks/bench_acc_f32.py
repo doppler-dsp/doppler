@@ -19,4 +19,4 @@ def test_bench_steps(benchmark, obj, n):
     x = np.ones(n, dtype=np.float32)
     benchmark(obj.steps, x)
     if benchmark.stats:
-        benchmark.extra_info["GSa_s"] = n / benchmark.stats["mean"] / 1e9
+        benchmark.extra_info["MSa_s"] = n / benchmark.stats["mean"] / 1e6

@@ -128,14 +128,15 @@ python-test:
 #   make benchmark BENCH_TAG=v1.2.3 # save benchmarks/history/v1.2.3.json
 BENCH_TAG  ?= $(shell date +%Y-%m-%d)
 BENCH_JSON  = benchmarks/history/$(BENCH_TAG).json
+BENCH_DIRS := $(shell find src/doppler -type d -name benchmarks | sort | tr '\n' ' ')
+
 benchmark:
 	@mkdir -p benchmarks/history
-	uv run pytest src/doppler \
-		-o "addopts=--tb=short --doctest-modules" \
+	uv run pytest $(BENCH_DIRS) \
 		--benchmark-only \
 		--benchmark-json=$(BENCH_JSON) \
-		--benchmark-columns=min,max,mean,stddev,median,rounds \
-		--benchmark-verbose
+		--benchmark-columns=min,mean,stddev,ops,rounds \
+		--benchmark-sort=mean
 	@echo "Saved: $(BENCH_JSON)"
 
 # ── rust-test ─────────────────────────────────────────────────────────────────

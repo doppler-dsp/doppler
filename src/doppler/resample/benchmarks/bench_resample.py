@@ -37,13 +37,19 @@ def hbdecim(hb_fir):
 def test_bench_resample_down(benchmark, resamp_down):
     x = np.ones(N, dtype=np.complex64)
     benchmark(resamp_down.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = N / benchmark.stats["mean"] / 1e6
 
 
 def test_bench_resample_up(benchmark, resamp_up):
     x = np.ones(N, dtype=np.complex64)
     benchmark(resamp_up.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = N / benchmark.stats["mean"] / 1e6
 
 
 def test_bench_hbdecim(benchmark, hbdecim):
     x = np.ones(N, dtype=np.complex64)
     benchmark(hbdecim.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = N / benchmark.stats["mean"] / 1e6

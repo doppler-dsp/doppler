@@ -1,0 +1,497 @@
+[project]
+name = "doppler"
+version = "0.1.0"
+build = "cmake"
+perf = "true"
+pytest = "true"
+pytest_benchmark = "true"
+schema = "2"
+
+[module.accumulator]
+objects = ["acc_f32", "acc_cf64"]
+
+[module.filter]
+objects = ["fir"]
+
+[module.source]
+objects = ["nco", "lo"]
+
+[module.delay]
+objects = ["delay"]
+
+[module.spectral]
+objects = ["fft", "fft2d"]
+
+[[module.spectral.functions]]
+name = "kaiser_enbw"
+return_type = "float"
+params = [{name = "w", type = "float[]"}]
+
+[[module.spectral.functions]]
+name = "kaiser_window"
+params = [{name = "w", type = "float[]"}, {name = "beta", type = "float"}]
+
+[[module.spectral.functions]]
+name = "hann_window"
+params = [{name = "w", type = "float[]"}]
+
+[[module.spectral.functions]]
+name = "magnitude_db_cf32"
+params = [{name = "in", type = "float _Complex[]"}, {name = "lin_floor", type = "float"}, {name = "offset_db", type = "float"}]
+
+[[module.spectral.functions]]
+name = "magnitude_db_cf64"
+params = [{name = "in", type = "double _Complex[]"}, {name = "lin_floor", type = "double"}, {name = "offset_db", type = "float"}]
+
+[[module.spectral.functions]]
+name = "find_peaks_f32"
+params = [{name = "db", type = "float[]"}, {name = "n_peaks", type = "size_t"}, {name = "min_db", type = "float"}]
+
+[module.resample]
+objects = ["Resampler", "HalfbandDecimator"]
+
+[[module.resample.functions]]
+name = "kaiser_beta"
+return_type = "double"
+params = [{name = "atten", type = "double"}]
+
+[[module.resample.functions]]
+name = "kaiser_num_taps"
+return_type = "int"
+params = [{name = "num_phases", type = "int"}, {name = "atten", type = "double"}, {name = "pb", type = "double"}, {name = "sb", type = "double"}]
+
+[acc_f32]
+arg_type = "float"
+return_type = "void"
+mutable = "true"
+no_state = "false"
+no_step = "false"
+
+[[acc_f32.state]]
+name = "acc"
+type = "float"
+default = "0.0f"
+
+[[acc_f32.methods]]
+name = "get"
+arg_type = "void"
+return_type = "float"
+
+[[acc_f32.methods]]
+name = "dump"
+arg_type = "void"
+return_type = "float"
+
+[[acc_f32.methods]]
+name = "madd"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}, {name = "h", type = "float[]"}]
+
+[[acc_f32.methods]]
+name = "add2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}]
+
+[[acc_f32.methods]]
+name = "madd2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}, {name = "h", type = "float[]"}]
+
+[acc_cf64]
+arg_type = "double _Complex"
+return_type = "void"
+mutable = "true"
+no_state = "false"
+no_step = "false"
+
+[[acc_cf64.state]]
+name = "acc"
+type = "double _Complex"
+default = "0.0 + 0.0 * I"
+
+[[acc_cf64.methods]]
+name = "get"
+arg_type = "void"
+return_type = "double _Complex"
+
+[[acc_cf64.methods]]
+name = "dump"
+arg_type = "void"
+return_type = "double _Complex"
+
+[[acc_cf64.methods]]
+name = "madd"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}, {name = "h", type = "float[]"}]
+
+[[acc_cf64.methods]]
+name = "add2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}]
+
+[[acc_cf64.methods]]
+name = "madd2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}, {name = "h", type = "float[]"}]
+
+[fir]
+class_name = "FIR"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+
+[[fir.methods]]
+name = "execute"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fir.properties]]
+name = "num_taps"
+type = "size_t"
+field = true
+
+[[fir.properties]]
+name = "is_real"
+type = "bool"
+
+[nco]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "NCO"
+
+[[nco.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[nco.init_params]]
+name = "nmax"
+type = "uint32_t"
+default = "0"
+
+[[nco.methods]]
+name = "steps_u32"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+
+[[nco.methods]]
+name = "steps_u32_scaled"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+
+[[nco.methods]]
+name = "steps_u32_ovf"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+multi_output = ["uint8_t"]
+
+[[nco.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[nco.properties]]
+name = "phase"
+type = "uint32_t"
+writable = true
+
+[[nco.properties]]
+name = "phase_inc"
+type = "uint32_t"
+
+[lo]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "LO"
+
+[[lo.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[lo.methods]]
+name = "steps"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+
+[[lo.methods]]
+name = "steps_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "ctrl", type = "float[]"}]
+
+[[lo.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[lo.properties]]
+name = "phase"
+type = "uint32_t"
+writable = true
+
+[[lo.properties]]
+name = "phase_inc"
+type = "uint32_t"
+
+[delay]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DelayCf64"
+
+[[delay.init_params]]
+name = "num_taps"
+type = "size_t"
+default = "1"
+
+[[delay.methods]]
+name = "push"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex"}]
+
+[[delay.methods]]
+name = "ptr"
+arg_type = "void"
+return_type = "double _Complex"
+variable_output = true
+
+[[delay.methods]]
+name = "push_ptr"
+arg_type = "void"
+return_type = "double _Complex"
+variable_output = true
+params = [{name = "x", type = "double _Complex"}]
+
+[[delay.methods]]
+name = "write"
+arg_type = "double _Complex"
+return_type = "void"
+
+[[delay.properties]]
+name = "num_taps"
+type = "size_t"
+field = true
+
+[[delay.properties]]
+name = "capacity"
+type = "size_t"
+field = true
+
+[fft]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "FFT"
+
+[[fft.init_params]]
+name = "n"
+type = "size_t"
+default = "1024"
+
+[[fft.init_params]]
+name = "sign"
+type = "int"
+default = "-1"
+
+[[fft.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[fft.methods]]
+name = "execute_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_inplace_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_inplace_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[fft.properties]]
+name = "sign"
+type = "int"
+field = true
+
+[fft2d]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "FFT2D"
+
+[[fft2d.init_params]]
+name = "ny"
+type = "size_t"
+default = "64"
+
+[[fft2d.init_params]]
+name = "nx"
+type = "size_t"
+default = "64"
+
+[[fft2d.init_params]]
+name = "sign"
+type = "int"
+default = "-1"
+
+[[fft2d.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[fft2d.methods]]
+name = "execute_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_inplace_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_inplace_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft2d.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[fft2d.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[fft2d.properties]]
+name = "sign"
+type = "int"
+field = true
+
+[Resampler]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+
+[[Resampler.init_params]]
+name = "rate"
+type = "double"
+default = "0.0"
+
+[[Resampler.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[Resampler.methods]]
+name = "execute_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}, {name = "ctrl", type = "float _Complex[]"}]
+
+[[Resampler.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "float _Complex"
+
+[[Resampler.properties]]
+name = "rate"
+type = "double"
+writable = true
+
+[[Resampler.properties]]
+name = "num_phases"
+type = "size_t"
+
+[[Resampler.properties]]
+name = "num_taps"
+type = "size_t"
+
+[HalfbandDecimator]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+
+[[HalfbandDecimator.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[HalfbandDecimator.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "float _Complex"
+
+[[HalfbandDecimator.properties]]
+name = "rate"
+type = "double"
+
+[[HalfbandDecimator.properties]]
+name = "num_taps"
+type = "size_t"

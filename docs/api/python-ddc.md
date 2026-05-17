@@ -95,7 +95,7 @@ assert len(y) == ddc.nout
 
 ---
 
-::: doppler.ddc.Ddc
+::: doppler.ddc.DDC
 
 ---
 

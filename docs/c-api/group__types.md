@@ -103,27 +103,27 @@
 
 
 
-### typedef dp\_msg\_t
+### typedef dp\_msg\_t 
 
-_Opaque zero-copy message handle returned by recv functions._
+_Opaque zero-copy message handle returned by recv functions._ 
 ```
 typedef struct dp_msg dp_msg_t;
 ```
 
 
 
-The data buffer is valid until [**dp\_msg\_free()**](group__msg.md#function-dp_msg_free) is called. Use the accessor functions to retrieve a pointer to the sample data, size, etc.
+The data buffer is valid until [**dp\_msg\_free()**](group__msg.md#function-dp_msg_free) is called. Use the accessor functions to retrieve a pointer to the sample data, size, etc. 
 
 
-
+        
 
 <hr>
 
 
 
-### enum dp\_protocol\_t
+### enum dp\_protocol\_t 
 
-_Protocol identifier for the wire header._
+_Protocol identifier for the wire header._ 
 ```
 enum dp_protocol_t {
     DP_PROTO_SIGS = 0,
@@ -138,9 +138,9 @@ enum dp_protocol_t {
 
 
 
-### typedef dp\_pub
+### typedef dp\_pub 
 
-_Opaque streaming socket handle returned by all create functions._
+_Opaque streaming socket handle returned by all create functions._ 
 ```
 typedef struct dp_ctx dp_pub;
 ```
@@ -152,7 +152,7 @@ typedef struct dp_ctx dp_pub;
 
 
 
-### typedef dp\_pull
+### typedef dp\_pull 
 
 ```
 typedef struct dp_ctx dp_pull;
@@ -165,7 +165,7 @@ typedef struct dp_ctx dp_pull;
 
 
 
-### typedef dp\_push
+### typedef dp\_push 
 
 ```
 typedef struct dp_ctx dp_push;
@@ -178,7 +178,7 @@ typedef struct dp_ctx dp_push;
 
 
 
-### typedef dp\_rep
+### typedef dp\_rep 
 
 ```
 typedef struct dp_ctx dp_rep;
@@ -191,7 +191,7 @@ typedef struct dp_ctx dp_rep;
 
 
 
-### typedef dp\_req
+### typedef dp\_req 
 
 ```
 typedef struct dp_ctx dp_req;
@@ -204,9 +204,9 @@ typedef struct dp_ctx dp_req;
 
 
 
-### enum dp\_sample\_type\_t
+### enum dp\_sample\_type\_t 
 
-_Selects the wire format of complex samples._
+_Selects the wire format of complex samples._ 
 ```
 enum dp_sample_type_t {
     DP_CI32 = 0,
@@ -223,16 +223,16 @@ enum dp_sample_type_t {
 All sample arrays are packed as interleaved I/Q pairs.
 
 
-Values are fixed — new types are appended to preserve wire compatibility with older receivers.
+Values are fixed — new types are appended to preserve wire compatibility with older receivers. 
 
 
-
+        
 
 <hr>
 
 
 
-### typedef dp\_sub
+### typedef dp\_sub 
 
 ```
 typedef struct dp_ctx dp_sub;
@@ -244,3 +244,5 @@ typedef struct dp_ctx dp_sub;
 <hr>
 
 ------------------------------
+
+

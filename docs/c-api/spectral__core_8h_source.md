@@ -15,19 +15,30 @@
 #include "clib_common.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-float kaiser_enbw(const float *w, size_t w_len);
-void  kaiser_window(float *w, size_t w_len, float beta);
+  typedef struct
+  {
+    float freq_norm;    
+    float amplitude_db; 
+  } dp_peak_t;
 
-void hann_window(float *w, size_t w_len);
+  float kaiser_enbw (const float *w, size_t w_len);
 
-void magnitude_db_cf32(const float _Complex *in, size_t n,
-                       float *out, float lin_floor, float offset_db);
+  void kaiser_window (float *w, size_t w_len, float beta);
 
-void magnitude_db_cf64(const double _Complex *in, size_t n,
-                       float *out, double lin_floor, float offset_db);
+  void hann_window (float *w, size_t w_len);
+
+  void magnitude_db_cf32 (const float complex *in, size_t n, float *out,
+                          float lin_floor, float offset_db);
+
+  void magnitude_db_cf64 (const double complex *in, size_t n, float *out,
+                          double lin_floor, float offset_db);
+
+  size_t find_peaks_f32 (const float *db, size_t n, size_t n_peaks,
+                         float min_db, dp_peak_t *out);
 
 #ifdef __cplusplus
 }
@@ -35,3 +46,5 @@ void magnitude_db_cf64(const double _Complex *in, size_t n,
 
 #endif /* SPECTRAL_CORE_H */
 ```
+
+

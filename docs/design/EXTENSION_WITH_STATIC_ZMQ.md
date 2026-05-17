@@ -1,6 +1,6 @@
 > **Historical document** — This records the design process that led to the
-> current static-libzmq approach. The implementation is done; refer to
-> [VENDORED.md](../../VENDORED.md) for current policy and paths.
+> current static-libzmq approach. The implementation is done; see `vendor/`
+> in the repository root for current policy and paths.
 
 # Python C Extension with Static libzmq: Complete Guide
 

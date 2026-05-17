@@ -8,7 +8,7 @@
 
 
 
-
+_LO state._ [More...](#detailed-description)
 
 * `#include <lo_core.h>`
 
@@ -36,7 +36,7 @@
 
 | Type | Name |
 | ---: | :--- |
-|  float | [**norm\_freq**](#variable-norm_freq)  <br> |
+|  double | [**norm\_freq**](#variable-norm_freq)  <br> |
 |  uint32\_t | [**phase**](#variable-phase)  <br> |
 |  uint32\_t | [**phase\_inc**](#variable-phase_inc)  <br> |
 
@@ -83,15 +83,22 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**lo\_create()**](lo__core_8h.md#function-lo_create). The shared 65536-entry LUT is initialised lazily on the first [**lo\_create()**](lo__core_8h.md#function-lo_create) call and never freed. 
+
+
+    
 ## Public Attributes Documentation
 
 
 
 
-### variable norm\_freq
+### variable norm\_freq 
 
 ```C++
-float lo_state_t::norm_freq;
+double lo_state_t::norm_freq;
 ```
 
 
@@ -101,7 +108,7 @@ float lo_state_t::norm_freq;
 
 
 
-### variable phase
+### variable phase 
 
 ```C++
 uint32_t lo_state_t::phase;
@@ -114,7 +121,7 @@ uint32_t lo_state_t::phase;
 
 
 
-### variable phase\_inc
+### variable phase\_inc 
 
 ```C++
 uint32_t lo_state_t::phase_inc;
@@ -127,3 +134,4 @@ uint32_t lo_state_t::phase_inc;
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/lo/lo_core.h`
+

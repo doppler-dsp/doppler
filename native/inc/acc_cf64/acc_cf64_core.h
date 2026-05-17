@@ -2,7 +2,7 @@
  * @file acc_cf64_core.h
  * @brief AccCf64 component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

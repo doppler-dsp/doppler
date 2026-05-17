@@ -3,13 +3,6 @@
 
 
 
-## c
-
-* **CMPLX** ([**stream.h**](stream_8h.md))
-* **CMPLXF** ([**stream.h**](stream_8h.md))
-* **CMPLXL** ([**stream.h**](stream_8h.md))
-
-
 ## d
 
 * **DECLARE\_DP\_BUFFER** ([**buffer.h**](buffer_8h.md))
@@ -17,6 +10,11 @@
 * **DP\_ASSERT\_PWR2** ([**buffer.h**](buffer_8h.md))
 * **DP\_CACHELINE** ([**buffer.h**](buffer_8h.md))
 * **DP\_SPIN\_HINT** ([**buffer.h**](buffer_8h.md))
+
+
+## h
+
+* **HBDECIM\_MAX\_OUT** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 
 
 ## j
@@ -53,9 +51,14 @@
 * **JM\_ZERO\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
 
 
+## n
+
+* **NCO\_ADD\_OVF** ([**nco\_core.h**](nco__core_8h.md))
+
+
 ## r
 
-* **RESAMP\_DPMFS\_DEFAULT\_BLOCK** ([**resamp\_dpmfs\_core.h**](resamp__dpmfs__core_8h.md))
+* **RESAMPLER\_MAX\_OUT** ([**Resampler\_core.h**](Resampler__core_8h.md))
 
 
 ## _
@@ -69,3 +72,7 @@
 * **\_JM\_RESTRICT\_** ([**jm\_perf.h**](jm__perf_8h.md))
 * **\_JM\_UNLIKELY\_** ([**jm\_perf.h**](jm__perf_8h.md))
 * **\_JM\_UNROLL\_** ([**jm\_perf.h**](jm__perf_8h.md))
+
+
+
+

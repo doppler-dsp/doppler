@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**c**](dir_1784a01aa976a8c78ef5dfc3737bcac8.md) **>** [**include**](dir_2d10db7395ecfee73f7722e70cabff64.md) **>** [**jm\_simd.h**](jm__simd_8h.md)
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**jm\_simd.h**](jm__simd_8h.md)
 
 [Go to the source code of this file](jm__simd_8h_source.md)
 
@@ -113,7 +113,7 @@ _Width-portable SIMD operation macros._ [More...](#detailed-description)
 Selects the widest available instruction set at compile time: AVX-512F -&gt; 16 float / 8 double lanes (JM\_SIMD\_WIDTH\_F32 = 16) AVX2+FMA -&gt; 8 float / 4 double lanes (JM\_SIMD\_WIDTH\_F32 = 8) Scalar -&gt; 1 lane (auto-vectorisation still applies)
 
 
-Typical usage (FIR inner loop, processes JM\_SIMD\_WIDTH\_F32 taps):
+Typical usage (FIR inner loop, processes JM\_SIMD\_WIDTH\_F32 taps): 
 ```C++
 JM_VEC_F32 acc = JM_ZERO_F32();
 for (int k = 0; k < N_TAPS; k++)
@@ -126,16 +126,16 @@ for (int k = 0; k < N_TAPS; k++)
 For algorithms that require ISA-specific operations not covered here (gather loads, prefix scans, permutes) use #ifdef **AVX512F** guards around the raw intrinsics. JM\_SIMD\_WIDTH\_F32 is still useful in that context as the canonical loop-stride constant.
 
 
-Can be included standalone; if JM\_RESTRICT is not already defined (from [**jm\_perf.h**](jm__perf_8h.md)) a local fallback is provided.
+Can be included standalone; if JM\_RESTRICT is not already defined (from [**jm\_perf.h**](jm__perf_8h.md)) a local fallback is provided. 
 
 
-
+    
 ## Public Types Documentation
 
 
 
 
-### typedef JM\_VEC\_F32
+### typedef JM\_VEC\_F32 
 
 ```C++
 typedef float JM_VEC_F32;
@@ -148,7 +148,7 @@ typedef float JM_VEC_F32;
 
 
 
-### typedef JM\_VEC\_F64
+### typedef JM\_VEC\_F64 
 
 ```C++
 typedef double JM_VEC_F64;
@@ -164,7 +164,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_ADD\_F32
+### define JM\_ADD\_F32 
 
 ```C++
 #define JM_ADD_F32 (
@@ -180,7 +180,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_ADD\_F64
+### define JM\_ADD\_F64 
 
 ```C++
 #define JM_ADD_F64 (
@@ -196,7 +196,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_FMA\_F32
+### define JM\_FMA\_F32 
 
 ```C++
 #define JM_FMA_F32 (
@@ -213,7 +213,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_FMA\_F64
+### define JM\_FMA\_F64 
 
 ```C++
 #define JM_FMA_F64 (
@@ -230,7 +230,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_HSUM\_F32
+### define JM\_HSUM\_F32 
 
 ```C++
 #define JM_HSUM_F32 (
@@ -245,7 +245,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_HSUM\_F64
+### define JM\_HSUM\_F64 
 
 ```C++
 #define JM_HSUM_F64 (
@@ -260,7 +260,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_LOAD\_F32
+### define JM\_LOAD\_F32 
 
 ```C++
 #define JM_LOAD_F32 (
@@ -275,7 +275,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_LOAD\_F64
+### define JM\_LOAD\_F64 
 
 ```C++
 #define JM_LOAD_F64 (
@@ -290,7 +290,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_MAC\_F32
+### define JM\_MAC\_F32 
 
 ```C++
 #define JM_MAC_F32 (
@@ -307,7 +307,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_MAC\_F64
+### define JM\_MAC\_F64 
 
 ```C++
 #define JM_MAC_F64 (
@@ -324,7 +324,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_MUL\_F32
+### define JM\_MUL\_F32 
 
 ```C++
 #define JM_MUL_F32 (
@@ -340,7 +340,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_MUL\_F64
+### define JM\_MUL\_F64 
 
 ```C++
 #define JM_MUL_F64 (
@@ -356,7 +356,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_RESTRICT
+### define JM\_RESTRICT 
 
 ```C++
 #define JM_RESTRICT `restrict`
@@ -369,7 +369,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_SIMD\_WIDTH
+### define JM\_SIMD\_WIDTH 
 
 ```C++
 #define JM_SIMD_WIDTH `1`
@@ -382,7 +382,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_SIMD\_WIDTH\_F32
+### define JM\_SIMD\_WIDTH\_F32 
 
 ```C++
 #define JM_SIMD_WIDTH_F32 `1`
@@ -395,7 +395,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_SIMD\_WIDTH\_F64
+### define JM\_SIMD\_WIDTH\_F64 
 
 ```C++
 #define JM_SIMD_WIDTH_F64 `1`
@@ -408,7 +408,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_SPLAT\_F32
+### define JM\_SPLAT\_F32 
 
 ```C++
 #define JM_SPLAT_F32 (
@@ -423,7 +423,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_SPLAT\_F64
+### define JM\_SPLAT\_F64 
 
 ```C++
 #define JM_SPLAT_F64 (
@@ -438,7 +438,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_STORE\_F32
+### define JM\_STORE\_F32 
 
 ```C++
 #define JM_STORE_F32 (
@@ -454,7 +454,7 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_STORE\_F64
+### define JM\_STORE\_F64 
 
 ```C++
 #define JM_STORE_F64 (
@@ -470,11 +470,11 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_ZERO\_F32
+### define JM\_ZERO\_F32 
 
 ```C++
 #define JM_ZERO_F32 (
-
+    
 ) `(0.0f)`
 ```
 
@@ -485,11 +485,11 @@ typedef double JM_VEC_F64;
 
 
 
-### define JM\_ZERO\_F64
+### define JM\_ZERO\_F64 
 
 ```C++
 #define JM_ZERO_F64 (
-
+    
 ) `(0.0)`
 ```
 
@@ -499,4 +499,5 @@ typedef double JM_VEC_F64;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `c/include/jm_simd.h`
+The documentation for this class was generated from the following file `native/inc/jm_simd.h`
+

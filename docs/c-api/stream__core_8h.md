@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](stream__core_8h_source.md)
 
-_Stream module — public C API._
+_Stream module — public C API._ 
 
 * `#include "clib_common.h"`
 
@@ -79,3 +79,4 @@ _Stream module — public C API._
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/stream/stream_core.h`
+

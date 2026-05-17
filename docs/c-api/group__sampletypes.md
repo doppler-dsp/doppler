@@ -108,9 +108,11 @@ Integer complex types have no C99 equivalent. They are represented as interleave
 
 
 
-For `n` complex samples the send functions accept a pointer to `2*n` elements of the integer type (element 2k = I, 2k+1 = Q).
+For `n` complex samples the send functions accept a pointer to `2*n` elements of the integer type (element 2k = I, 2k+1 = Q). 
 
 
-
+    
 
 ------------------------------
+
+

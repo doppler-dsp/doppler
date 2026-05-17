@@ -108,7 +108,7 @@ resamp\_execute — dual-mode:
 
 
 
-resamp\_execute\_ctrl — unified input-driven with a double-precision accumulator that handles all rates and per-sample deviations. Each input advances the accumulator by (rate + ctrl[i]); every time the accumulator crosses 1.0 an output is emitted.
+resamp\_execute\_ctrl — unified input-driven with a double-precision accumulator that handles all rates and per-sample deviations. Each input advances the accumulator by (rate + ctrl(i)); every time the accumulator crosses 1.0 an output is emitted.
 
 
 Phase accumulator (execute): upper log2(num\_phases) bits of the 32-bit NCO word index the polyphase bank — nearest-neighbor, no interpolation between branches.
@@ -117,42 +117,42 @@ Phase accumulator (execute): upper log2(num\_phases) bits of the 32-bit NCO word
 Default constructor builds a 4096-phase × 19-tap Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop) at first call. Use [**resamp\_create\_custom()**](resamp__core_8h.md#function-resamp_create_custom) to supply your own bank.
 
 
-Lifecycle:
+Lifecycle: 
 ```C++
 resamp_state_t *r = resamp_create(0.5);
 float _Complex out[64];
 size_t n = resamp_execute(r, in, 128, out, 64);
 resamp_destroy(r);
 ```
+ 
 
 
-
-
+    
 ## Public Functions Documentation
 
 
 
 
-### function resamp\_create
+### function resamp\_create 
 
 ```C++
 resamp_state_t * resamp_create (
     double rate
-)
+) 
 ```
 
 
 
-Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop).
+Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop). 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_create\_custom
+### function resamp\_create\_custom 
 
 ```C++
 resamp_state_t * resamp_create_custom (
@@ -160,42 +160,42 @@ resamp_state_t * resamp_create_custom (
     size_t num_taps,
     const float * bank,
     double rate
-)
+) 
 ```
 
 
 
-User-supplied bank, shape [num\_phases][num\_taps], row-major. num\_phases must be a power of two.
+User-supplied bank, shape num\_phases × num\_taps, row-major. num\_phases must be a power of two. 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_destroy
+### function resamp\_destroy 
 
 ```C++
 void resamp_destroy (
     resamp_state_t * state
-)
+) 
 ```
 
 
 
-Free all resources. NULL is a no-op.
+Free all resources. NULL is a no-op. 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_execute
+### function resamp\_execute 
 
-_Resample a block of CF32 samples (fixed rate)._
+_Resample a block of CF32 samples (fixed rate)._ 
 ```C++
 size_t resamp_execute (
     resamp_state_t * state,
@@ -203,7 +203,7 @@ size_t resamp_execute (
     size_t num_in,
     float _Complex * out,
     size_t max_out
-)
+) 
 ```
 
 
@@ -213,31 +213,31 @@ size_t resamp_execute (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Input samples.
-* `num_in` Number of input samples.
-* `out` Output buffer.
-* `max_out` Capacity of out in samples.
+* `state` Must be non-NULL. 
+* `in` Input samples. 
+* `num_in` Number of input samples. 
+* `out` Output buffer. 
+* `max_out` Capacity of out in samples. 
 
 
 
 **Returns:**
 
-Number of output samples written.
+Number of output samples written. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_execute\_ctrl
+### function resamp\_execute\_ctrl 
 
-_Resample with per-sample additive rate deviation._
+_Resample with per-sample additive rate deviation._ 
 ```C++
 size_t resamp_execute_ctrl (
     resamp_state_t * state,
@@ -246,12 +246,12 @@ size_t resamp_execute_ctrl (
     size_t num_in,
     float _Complex * out,
     size_t max_out
-)
+) 
 ```
 
 
 
-rate\_i = base\_rate + crealf(ctrl[i]). ctrl is treated as real-valued; only the real part of each element is used.
+rate\_i = base\_rate + crealf(ctrl(i)). ctrl is treated as real-valued; only the real part of each element is used.
 
 
 Output buffer: allocate ceil(num\_in × (rate + max\_ctrl)) samples.
@@ -262,35 +262,35 @@ Output buffer: allocate ceil(num\_in × (rate + max\_ctrl)) samples.
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Input CF32 samples (length num\_in).
-* `ctrl` Rate deviations, parallel to in (float \_Complex, real part only, length num\_in).
-* `num_in` Number of input samples (= length of ctrl).
-* `out` Output buffer.
-* `max_out` Capacity of out in samples.
+* `state` Must be non-NULL. 
+* `in` Input CF32 samples (length num\_in). 
+* `ctrl` Rate deviations, parallel to in (float \_Complex, real part only, length num\_in). 
+* `num_in` Number of input samples (= length of ctrl). 
+* `out` Output buffer. 
+* `max_out` Capacity of out in samples. 
 
 
 
 **Returns:**
 
-Number of output samples written.
+Number of output samples written. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_get\_num\_phases
+### function resamp\_get\_num\_phases 
 
 ```C++
 size_t resamp_get_num_phases (
     const resamp_state_t * state
-)
+) 
 ```
 
 
@@ -300,12 +300,12 @@ size_t resamp_get_num_phases (
 
 
 
-### function resamp\_get\_num\_taps
+### function resamp\_get\_num\_taps 
 
 ```C++
 size_t resamp_get_num_taps (
     const resamp_state_t * state
-)
+) 
 ```
 
 
@@ -315,12 +315,12 @@ size_t resamp_get_num_taps (
 
 
 
-### function resamp\_get\_rate
+### function resamp\_get\_rate 
 
 ```C++
 double resamp_get_rate (
     const resamp_state_t * state
-)
+) 
 ```
 
 
@@ -330,42 +330,43 @@ double resamp_get_rate (
 
 
 
-### function resamp\_reset
+### function resamp\_reset 
 
 ```C++
 void resamp_reset (
     resamp_state_t * state
-)
+) 
 ```
 
 
 
-Zero phase accumulator, ctrl accumulator, and delay line. Rate and bank are preserved.
+Zero phase accumulator, ctrl accumulator, and delay line. Rate and bank are preserved. 
 
 
-
+        
 
 <hr>
 
 
 
-### function resamp\_set\_rate
+### function resamp\_set\_rate 
 
 ```C++
 void resamp_set_rate (
     resamp_state_t * state,
     double rate
-)
+) 
 ```
 
 
 
-Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair.
+Update rate and recompute phase\_inc. Accumulator phase and delay line are preserved. Switching between interp and decim modes requires a new create() + destroy() pair. 
 
 
-
+        
 
 <hr>
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/resamp/resamp_core.h`
+

@@ -100,7 +100,7 @@
 
 
 
-### variable bank
+### variable bank 
 
 ```C++
 float* resamp_state_t::bank;
@@ -113,7 +113,7 @@ float* resamp_state_t::bank;
 
 
 
-### variable ctrl\_acc
+### variable ctrl\_acc 
 
 ```C++
 double resamp_state_t::ctrl_acc;
@@ -126,7 +126,7 @@ double resamp_state_t::ctrl_acc;
 
 
 
-### variable decim\_iad
+### variable decim\_iad 
 
 ```C++
 float _Complex* resamp_state_t::decim_iad;
@@ -139,7 +139,7 @@ float _Complex* resamp_state_t::decim_iad;
 
 
 
-### variable decim\_tfd
+### variable decim\_tfd 
 
 ```C++
 float _Complex* resamp_state_t::decim_tfd;
@@ -152,7 +152,7 @@ float _Complex* resamp_state_t::decim_tfd;
 
 
 
-### variable delay\_buf
+### variable delay\_buf 
 
 ```C++
 float _Complex* resamp_state_t::delay_buf;
@@ -165,7 +165,7 @@ float _Complex* resamp_state_t::delay_buf;
 
 
 
-### variable delay\_cap
+### variable delay\_cap 
 
 ```C++
 size_t resamp_state_t::delay_cap;
@@ -178,7 +178,7 @@ size_t resamp_state_t::delay_cap;
 
 
 
-### variable delay\_head
+### variable delay\_head 
 
 ```C++
 size_t resamp_state_t::delay_head;
@@ -191,7 +191,7 @@ size_t resamp_state_t::delay_head;
 
 
 
-### variable delay\_mask
+### variable delay\_mask 
 
 ```C++
 size_t resamp_state_t::delay_mask;
@@ -204,7 +204,7 @@ size_t resamp_state_t::delay_mask;
 
 
 
-### variable log2\_phases
+### variable log2\_phases 
 
 ```C++
 unsigned resamp_state_t::log2_phases;
@@ -217,7 +217,7 @@ unsigned resamp_state_t::log2_phases;
 
 
 
-### variable num\_phases
+### variable num\_phases 
 
 ```C++
 size_t resamp_state_t::num_phases;
@@ -230,7 +230,7 @@ size_t resamp_state_t::num_phases;
 
 
 
-### variable num\_taps
+### variable num\_taps 
 
 ```C++
 size_t resamp_state_t::num_taps;
@@ -243,7 +243,7 @@ size_t resamp_state_t::num_taps;
 
 
 
-### variable phase
+### variable phase 
 
 ```C++
 uint32_t resamp_state_t::phase;
@@ -256,7 +256,7 @@ uint32_t resamp_state_t::phase;
 
 
 
-### variable phase\_inc
+### variable phase\_inc 
 
 ```C++
 uint32_t resamp_state_t::phase_inc;
@@ -269,7 +269,7 @@ uint32_t resamp_state_t::phase_inc;
 
 
 
-### variable rate
+### variable rate 
 
 ```C++
 double resamp_state_t::rate;
@@ -282,7 +282,7 @@ double resamp_state_t::rate;
 
 
 
-### variable upsample
+### variable upsample 
 
 ```C++
 int resamp_state_t::upsample;
@@ -295,3 +295,4 @@ int resamp_state_t::upsample;
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/resamp/resamp_core.h`
+

@@ -88,7 +88,7 @@
 
 
 
-### define DP\_VERSION\_MAJOR
+### define DP\_VERSION\_MAJOR 
 
 ```
 #define DP_VERSION_MAJOR `2`
@@ -96,16 +96,16 @@
 
 
 
-Major version number.
+Major version number. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_VERSION\_MINOR
+### define DP\_VERSION\_MINOR 
 
 ```
 #define DP_VERSION_MINOR `0`
@@ -113,16 +113,16 @@ Major version number.
 
 
 
-Minor version number.
+Minor version number. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_VERSION\_PATCH
+### define DP\_VERSION\_PATCH 
 
 ```
 #define DP_VERSION_PATCH `0`
@@ -130,11 +130,13 @@ Minor version number.
 
 
 
-Patch version number.
+Patch version number. 
 
 
-
+        
 
 <hr>
 
 ------------------------------
+
+

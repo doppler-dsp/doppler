@@ -11,7 +11,7 @@
 _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
-* `#include "dp/pocketfft.h"`
+* `#include "pocketfft/pocketfft.h"`
 
 
 
@@ -103,31 +103,31 @@ _Per-instance 1-D FFT using pocketfft directly._ [More...](#detailed-description
 Holds two pocketfft plans — one for CF64, one for CF32 — allocated at create time for the requested transform length and sign. nthreads is accepted for API compatibility but ignored; pocketfft is single-threaded.
 
 
-Lifecycle:
+Lifecycle: 
 ```C++
 fft_state_t *fft = fft_create(1024, -1, 1);
 double complex out[1024];
 fft_execute_cf64(fft, in, 1024, out);
 fft_destroy(fft);
 ```
+ 
 
 
-
-
+    
 ## Public Functions Documentation
 
 
 
 
-### function fft\_create
+### function fft\_create 
 
-_Create a 1-D FFT instance._
+_Create a 1-D FFT instance._ 
 ```C++
 fft_state_t * fft_create (
     size_t n,
     int sign,
     int nthreads
-)
+) 
 ```
 
 
@@ -140,33 +140,33 @@ Allocates one CF64 and one CF32 pocketfft plan for length `n`. nthreads is accep
 **Parameters:**
 
 
-* `n` Transform length in samples.
-* `sign` -1 for forward DFT, +1 for inverse.
-* `nthreads` Ignored (pocketfft is single-threaded).
+* `n` Transform length in samples. 
+* `sign` -1 for forward DFT, +1 for inverse. 
+* `nthreads` Ignored (pocketfft is single-threaded). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure.
+Heap-allocated state, or NULL on allocation failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_destroy
+### function fft\_destroy 
 
-_Destroy and free an fft instance._
+_Destroy and free an fft instance._ 
 ```C++
 void fft_destroy (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -176,27 +176,27 @@ void fft_destroy (
 **Parameters:**
 
 
-* `state` May be NULL.
+* `state` May be NULL. 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_execute\_cf32
+### function fft\_execute\_cf32 
 
-_Out-of-place 1-D CF32 FFT._
+_Out-of-place 1-D CF32 FFT._ 
 ```C++
 size_t fft_execute_cf32 (
     fft_state_t * state,
     const float complex * in,
     size_t n_in,
     float complex * out
-)
+) 
 ```
 
 
@@ -206,34 +206,34 @@ size_t fft_execute_cf32 (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Input buffer of length n\_in.
-* `n_in` Number of input samples.
-* `out` Output buffer of length &gt;= n.
+* `state` Must be non-NULL. 
+* `in` Input buffer of length n\_in. 
+* `n_in` Number of input samples. 
+* `out` Output buffer of length &gt;= n. 
 
 
 
 **Returns:**
 
-n (samples written).
+n (samples written). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_execute\_cf32\_max\_out
+### function fft\_execute\_cf32\_max\_out 
 
-_Maximum output samples for CF32 execute (always == n)._
+_Maximum output samples for CF32 execute (always == n)._ 
 ```C++
 size_t fft_execute_cf32_max_out (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -243,16 +243,16 @@ size_t fft_execute_cf32_max_out (
 
 
 
-### function fft\_execute\_cf64
+### function fft\_execute\_cf64 
 
-_Out-of-place 1-D CF64 FFT._
+_Out-of-place 1-D CF64 FFT._ 
 ```C++
 size_t fft_execute_cf64 (
     fft_state_t * state,
     const double complex * in,
     size_t n_in,
     double complex * out
-)
+) 
 ```
 
 
@@ -262,34 +262,34 @@ size_t fft_execute_cf64 (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Input buffer of length n\_in (must equal state-&gt;n).
-* `n_in` Number of input samples.
-* `out` Output buffer of length &gt;= n.
+* `state` Must be non-NULL. 
+* `in` Input buffer of length n\_in (must equal state-&gt;n). 
+* `n_in` Number of input samples. 
+* `out` Output buffer of length &gt;= n. 
 
 
 
 **Returns:**
 
-n (samples written).
+n (samples written). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_execute\_cf64\_max\_out
+### function fft\_execute\_cf64\_max\_out 
 
-_Maximum output samples per execute call (always == n)._
+_Maximum output samples per execute call (always == n)._ 
 ```C++
 size_t fft_execute_cf64_max_out (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -299,16 +299,16 @@ size_t fft_execute_cf64_max_out (
 
 
 
-### function fft\_execute\_inplace\_cf32
+### function fft\_execute\_inplace\_cf32 
 
-_In-place 1-D CF32 FFT (copies in→out, then transforms in out)._
+_In-place 1-D CF32 FFT (copies in→out, then transforms in out)._ 
 ```C++
 size_t fft_execute_inplace_cf32 (
     fft_state_t * state,
     const float complex * in,
     size_t n_in,
     float complex * out
-)
+) 
 ```
 
 
@@ -318,34 +318,34 @@ size_t fft_execute_inplace_cf32 (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Source; copied into out before the transform.
-* `n_in` Number of input samples.
-* `out` Buffer of length &gt;= n; must not alias in.
+* `state` Must be non-NULL. 
+* `in` Source; copied into out before the transform. 
+* `n_in` Number of input samples. 
+* `out` Buffer of length &gt;= n; must not alias in. 
 
 
 
 **Returns:**
 
-n (samples written).
+n (samples written). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_execute\_inplace\_cf32\_max\_out
+### function fft\_execute\_inplace\_cf32\_max\_out 
 
-_Maximum output samples for inplace CF32 (always == n)._
+_Maximum output samples for inplace CF32 (always == n)._ 
 ```C++
 size_t fft_execute_inplace_cf32_max_out (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -355,16 +355,16 @@ size_t fft_execute_inplace_cf32_max_out (
 
 
 
-### function fft\_execute\_inplace\_cf64
+### function fft\_execute\_inplace\_cf64 
 
-_In-place 1-D CF64 FFT (copies in→out, then transforms in out)._
+_In-place 1-D CF64 FFT (copies in→out, then transforms in out)._ 
 ```C++
 size_t fft_execute_inplace_cf64 (
     fft_state_t * state,
     const double complex * in,
     size_t n_in,
     double complex * out
-)
+) 
 ```
 
 
@@ -374,34 +374,34 @@ size_t fft_execute_inplace_cf64 (
 **Parameters:**
 
 
-* `state` Must be non-NULL.
-* `in` Source; copied into out before the transform.
-* `n_in` Number of input samples.
-* `out` Buffer of length &gt;= n; must not alias in.
+* `state` Must be non-NULL. 
+* `in` Source; copied into out before the transform. 
+* `n_in` Number of input samples. 
+* `out` Buffer of length &gt;= n; must not alias in. 
 
 
 
 **Returns:**
 
-n (samples written).
+n (samples written). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft\_execute\_inplace\_cf64\_max\_out
+### function fft\_execute\_inplace\_cf64\_max\_out 
 
-_Maximum output samples for inplace CF64 (always == n)._
+_Maximum output samples for inplace CF64 (always == n)._ 
 ```C++
 size_t fft_execute_inplace_cf64_max_out (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -411,13 +411,13 @@ size_t fft_execute_inplace_cf64_max_out (
 
 
 
-### function fft\_reset
+### function fft\_reset 
 
-_No-op reset (plans are immutable after creation)._
+_No-op reset (plans are immutable after creation)._ 
 ```C++
 void fft_reset (
     fft_state_t * state
-)
+) 
 ```
 
 
@@ -427,3 +427,4 @@ void fft_reset (
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/fft/fft_core.h`
+

@@ -54,7 +54,7 @@ extern "C"
   /**
    * @brief Fill @p w with a Hann window.
    *
-   * w[k] = 0.5 * (1 - cos(2π k / (N-1))), k = 0..N-1.
+   * w(k) = 0.5 * (1 - cos(2π k / (N-1))), k = 0..N-1.
    *
    * @param w      Output buffer, length @p w_len (modified in-place).
    * @param w_len  Window length >= 1.
@@ -64,7 +64,7 @@ extern "C"
   /**
    * @brief Convert CF32 spectrum to F32 dB.
    *
-   * out[k] = 20*log10(max(|in[k]|, lin_floor)) + offset_db
+   * out(k) = 20*log10(max(|in(k)|, lin_floor)) + offset_db
    *
    * @param in         CF32 spectrum, length @p n.
    * @param n          Number of bins.
@@ -93,7 +93,7 @@ extern "C"
    * @brief Find up to @p n_peaks local maxima in a DC-centred F32 dB spectrum.
    *
    * Algorithm:
-   *   1. Local-max scan: db[k] > db[k-1] && db[k] >= db[k+1], above min_db.
+   *   1. Local-max scan: db(k) > db(k-1) && db(k) >= db(k+1), above min_db.
    *   2. Parabolic interpolation for sub-bin frequency accuracy.
    *   3. Sort descending by amplitude; return top n_peaks.
    *

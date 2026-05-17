@@ -2,7 +2,7 @@
  * @file acc_f32_core.h
  * @brief AccF32 component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

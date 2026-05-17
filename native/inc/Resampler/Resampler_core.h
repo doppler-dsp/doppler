@@ -59,7 +59,7 @@ extern "C"
   size_t Resampler_execute_max_out (Resampler_state_t *state);
 
   /**
-   * @brief Resample x[0..x_len-1] into out[0..n_out-1].
+   * @brief Resample x(0..x_len-1) into out(0..n_out-1).
    *
    * out must be at least Resampler_execute_max_out() samples wide.
    * Returns the number of output samples written.
@@ -73,7 +73,7 @@ extern "C"
   /**
    * @brief Resample with per-sample rate deviations.
    *
-   * rate_i = base_rate + crealf(ctrl[i]).  ctrl and x must be the
+   * rate_i = base_rate + crealf(ctrl(i)).  ctrl and x must be the
    * same length.  Returns number of output samples written.
    */
   size_t Resampler_execute_ctrl (Resampler_state_t *state,

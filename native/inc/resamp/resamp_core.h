@@ -17,7 +17,7 @@
  *
  *   resamp_execute_ctrl — unified input-driven with a double-precision
  *     accumulator that handles all rates and per-sample deviations.
- *     Each input advances the accumulator by (rate + ctrl[i]); every
+ *     Each input advances the accumulator by (rate + ctrl(i)); every
  *     time the accumulator crosses 1.0 an output is emitted.
  *
  * Phase accumulator (execute): upper log2(num_phases) bits of the
@@ -54,7 +54,7 @@ extern "C"
     unsigned log2_phases;
     int upsample; /* 1 = rate >= 1.0, 0 = rate < 1.0 */
 
-    float *bank; /* [num_phases][num_taps], row-major  */
+    float *bank; /* num_phases × num_taps, row-major  */
 
     /* execute state */
     uint32_t phase;
@@ -81,7 +81,7 @@ extern "C"
   /** Built-in 4096×19 Kaiser bank (60 dB, 0.4/0.6 pass/stop). */
   resamp_state_t *resamp_create (double rate);
 
-  /** User-supplied bank, shape [num_phases][num_taps], row-major.
+  /** User-supplied bank, shape num_phases × num_taps, row-major.
    *  num_phases must be a power of two. */
   resamp_state_t *resamp_create_custom (size_t num_phases, size_t num_taps,
                                         const float *bank, double rate);
@@ -113,7 +113,7 @@ extern "C"
   /**
    * @brief Resample with per-sample additive rate deviation.
    *
-   * rate_i = base_rate + crealf(ctrl[i]).  ctrl is treated as
+   * rate_i = base_rate + crealf(ctrl(i)).  ctrl is treated as
    * real-valued; only the real part of each element is used.
    *
    * Output buffer: allocate ceil(num_in × (rate + max_ctrl)) samples.

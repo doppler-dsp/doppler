@@ -59,7 +59,7 @@ extern "C"
   size_t HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state);
 
   /**
-   * @brief Decimate x[0..x_len-1] by 2 into out[0..n_out-1].
+   * @brief Decimate x(0..x_len-1) by 2 into out(0..n_out-1).
    *
    * out must be at least HalfbandDecimator_execute_max_out() samples.
    * Returns actual output count (roughly x_len / 2).

@@ -15,6 +15,7 @@
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
+* `#include "jm_perf.h"`
 
 
 
@@ -83,3 +84,4 @@
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/clib_common.h`
+

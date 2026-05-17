@@ -13,37 +13,43 @@
 #define LO_CORE_H
 
 #include "clib_common.h"
-
+#include "jm_perf.h"
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef struct {
-    uint32_t phase;
-    uint32_t phase_inc;
-    float    norm_freq;
-} lo_state_t;
+  typedef struct
+  {
+    uint32_t phase;     /* current accumulator value [0, 2^32)          */
+    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
+    double norm_freq;   /* normalised frequency (cycles/sample)           */
+  } lo_state_t;
 
-lo_state_t *lo_create(float norm_freq);
+  lo_state_t *lo_create (double norm_freq);
 
-void lo_destroy(lo_state_t *lo);
+  void lo_destroy (lo_state_t *state);
 
-void lo_reset(lo_state_t *lo);
+  void lo_reset (lo_state_t *state);
 
-void lo_set_freq(lo_state_t *lo, float norm_freq);
+  /* ---- Properties ---- */
 
-float    lo_get_freq     (const lo_state_t *lo);
-uint32_t lo_get_phase    (const lo_state_t *lo);
-uint32_t lo_get_phase_inc(const lo_state_t *lo);
+  double lo_get_norm_freq (const lo_state_t *state);
+  void lo_set_norm_freq (lo_state_t *state, double norm_freq);
+  uint32_t lo_get_phase (const lo_state_t *state);
+  void lo_set_phase (lo_state_t *state, uint32_t phase);
+  uint32_t lo_get_phase_inc (const lo_state_t *state);
 
-void lo_set_phase(lo_state_t *lo, uint32_t phase);
+  /* ---- Block generators ---- */
 
-void lo_execute_cf32(lo_state_t *lo, float _Complex *out, size_t n);
+  size_t lo_steps_max_out (lo_state_t *state);
 
-void lo_execute_cf32_ctrl(lo_state_t    *lo,
-                          const float   *ctrl,
-                          float _Complex *out,
-                          size_t          n);
+  size_t lo_steps (lo_state_t *state, size_t n, float complex *out);
+
+  size_t lo_steps_ctrl_max_out (lo_state_t *state);
+
+  size_t lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
+                        float complex *out);
 
 #ifdef __cplusplus
 }
@@ -51,3 +57,5 @@ void lo_execute_cf32_ctrl(lo_state_t    *lo,
 
 #endif /* LO_CORE_H */
 ```
+
+

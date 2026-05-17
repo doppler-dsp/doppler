@@ -5,7 +5,8 @@
 Here is a list of all modules:
 
 
-* [**Error codes**](group__errors.md)
+* [**Error codes**](group__errors.md) 
+    
 
 
 
@@ -16,8 +17,11 @@ Here is a list of all modules:
 
 
 
+* [**Streaming**](group__streaming.md) _ZMQ-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP._ 
+    
 
-* [**Message handle**](group__msg.md)
+    * [**Message handle**](group__msg.md) 
+        
 
 
 
@@ -26,8 +30,9 @@ Here is a list of all modules:
 
 
 
+    * [**PUSH/PULL — pipeline**](group__pipeline.md) 
+        
 
-* [**PUB/SUB — fan-out broadcast**](group__pubsub.md)
 
 
 
@@ -42,9 +47,10 @@ Here is a list of all modules:
 
 
 
+    * [**PUB/SUB — fan-out broadcast**](group__pubsub.md) 
+        
 
 
-* [**PUSH/PULL — pipeline**](group__pipeline.md)
 
 
 
@@ -58,10 +64,11 @@ Here is a list of all modules:
 
 
 
+    * [**REQ/REP — request/reply**](group__reqrep.md) 
+        
 
 
 
-* [**REQ/REP — request/reply**](group__reqrep.md)
 
 
 
@@ -86,11 +93,12 @@ Here is a list of all modules:
 
 
 
+    * [**Types**](group__types.md) 
+        
 
 
 
 
-* [**Types**](group__types.md)
 
 
 
@@ -98,24 +106,29 @@ Here is a list of all modules:
 
 
 
+        * [**Sample C types**](group__sampletypes.md) 
 
 
 
 
 
-    * [**Sample C types**](group__sampletypes.md)
+    * [**Utilities**](group__utils.md) 
+        
 
 
 
 
 
-* [**Utilities**](group__utils.md)
 
 
+    * [**Version**](group__version.md) 
+        
 
 
 
 
 
 
-* [**Version**](group__version.md)
+
+
+

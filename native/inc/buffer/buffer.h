@@ -152,8 +152,8 @@ dp__page_size (void)
  * @brief Allocates a double-mapped ring-buffer region of @p bytes.
  *
  * The returned address @c addr satisfies:
- *   - addr[0 .. bytes-1]        ← first  view (writable)
- *   - addr[bytes .. 2*bytes-1]  ← second view (same physical pages)
+ *   - addr(0..bytes-1)           ← first  view (writable)
+ *   - addr(bytes..2*bytes-1)    ← second view (same physical pages)
  *
  * On Windows, a HANDLE to the file-mapping object is written to
  * @p handle_out and must be passed to dp__buf_free().

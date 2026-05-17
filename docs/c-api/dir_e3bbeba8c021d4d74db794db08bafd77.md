@@ -21,7 +21,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| file | [**lo\_core.h**](lo__core_8h.md) <br>_Local oscillator: NCO phase accumulator + 2^16 sin/cos LUT._  |
+| file | [**lo\_core.h**](lo__core_8h.md) <br>_Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._  |
 
 
 
@@ -83,3 +83,4 @@
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/lo/`
+

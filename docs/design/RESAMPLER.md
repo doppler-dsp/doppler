@@ -41,7 +41,7 @@ x[n] ──► push ──► [ delay line, N taps ] ──dot(ptr, h)──► 
 ## Decimator  (r = Fout/Fin < 1, input-driven, transposed form)
 
 - NCO frequency = r (overflows once per output sample emitted)
-- Every input tick: scalar x[n] × all N branch coefficients,
+- Every input tick: scalar `x[n]` × all N branch coefficients,
   products accumulate in N integrate-and-dump (I&D) registers
 - On NCO overflow: dump all N I&D values into a transposed tapped
   delay line, shift the line, emit one output sample, reset I&D

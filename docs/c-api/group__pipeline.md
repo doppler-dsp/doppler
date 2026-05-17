@@ -94,22 +94,22 @@
 ## Detailed Description
 
 
-Push sockets distribute work across all connected Pull workers in a round-robin fashion. Unlike PUB/SUB, each frame is delivered to exactly one Pull consumer.
+Push sockets distribute work across all connected Pull workers in a round-robin fashion. Unlike PUB/SUB, each frame is delivered to exactly one Pull consumer. 
 
 
-
+    
 ## Public Functions Documentation
 
 
 
 
-### function dp\_pull\_create
+### function dp\_pull\_create 
 
 _Create a Pull socket and connect to_ `endpoint` _._
 ```
 dp_pull * dp_pull_create (
     const char * endpoint
-)
+) 
 ```
 
 
@@ -119,31 +119,31 @@ dp_pull * dp_pull_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5556"`.
+* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5556"`. 
 
 
 
 **Returns:**
 
-Non-NULL context on success, NULL on failure.
+Non-NULL context on success, NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pull\_destroy
+### function dp\_pull\_destroy 
 
-_Destroy a Pull context and release all resources._
+_Destroy a Pull context and release all resources._ 
 ```
 void dp_pull_destroy (
     dp_pull * ctx
-)
+) 
 ```
 
 
@@ -153,26 +153,26 @@ void dp_pull_destroy (
 **Parameters:**
 
 
-* `ctx` Pull context (may be NULL).
+* `ctx` Pull context (may be NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pull\_recv
+### function dp\_pull\_recv 
 
-_Receive one frame from a Pull socket (zero-copy)._
+_Receive one frame from a Pull socket (zero-copy)._ 
 ```
 int dp_pull_recv (
     dp_pull * ctx,
     dp_msg_t ** msg,
     dp_header_t * header
-)
+) 
 ```
 
 
@@ -185,34 +185,34 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 **Parameters:**
 
 
-* `ctx` Subscriber context.
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle.
-* `header` Set to the frame metadata.
+* `ctx` Subscriber context. 
+* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `header` Set to the frame metadata. 
 
 
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.
+DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pull\_set\_timeout
+### function dp\_pull\_set\_timeout 
 
-_Set receive timeout for a Pull socket._
+_Set receive timeout for a Pull socket._ 
 ```
 void dp_pull_set_timeout (
     dp_pull * ctx,
     int timeout_ms
-)
+) 
 ```
 
 
@@ -222,26 +222,26 @@ void dp_pull_set_timeout (
 **Parameters:**
 
 
-* `ctx` Pull context.
-* `timeout_ms` Timeout in milliseconds (-1 = infinite, 0 = non-blocking).
+* `ctx` Pull context. 
+* `timeout_ms` Timeout in milliseconds (-1 = infinite, 0 = non-blocking). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_create
+### function dp\_push\_create 
 
 _Create a Push socket and bind to_ `endpoint` _._
 ```
 dp_push * dp_push_create (
     const char * endpoint,
     dp_sample_type_t sample_type
-)
+) 
 ```
 
 
@@ -251,32 +251,32 @@ dp_push * dp_push_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to bind, e.g. `"tcp://\*:5556"`.
-* `sample_type` Sample format that will be sent.
+* `endpoint` ZMQ endpoint to bind, e.g. `"tcp://\*:5556"`. 
+* `sample_type` Sample format that will be sent. 
 
 
 
 **Returns:**
 
-Non-NULL context on success, NULL on failure.
+Non-NULL context on success, NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_destroy
+### function dp\_push\_destroy 
 
-_Destroy a Push context and release all resources._
+_Destroy a Push context and release all resources._ 
 ```
 void dp_push_destroy (
     dp_push * ctx
-)
+) 
 ```
 
 
@@ -286,20 +286,20 @@ void dp_push_destroy (
 **Parameters:**
 
 
-* `ctx` Push context (may be NULL).
+* `ctx` Push context (may be NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_cf128
+### function dp\_push\_send\_cf128 
 
-_Send CF128 samples via a Push socket._
+_Send CF128 samples via a Push socket._ 
 ```
 int dp_push_send_cf128 (
     dp_push * ctx,
@@ -307,7 +307,7 @@ int dp_push_send_cf128 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -317,31 +317,31 @@ int dp_push_send_cf128 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_cf32
+### function dp\_push\_send\_cf32 
 
-_Send CF32 samples via a Push socket._
+_Send CF32 samples via a Push socket._ 
 ```
 int dp_push_send_cf32 (
     dp_push * ctx,
@@ -349,7 +349,7 @@ int dp_push_send_cf32 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -359,31 +359,31 @@ int dp_push_send_cf32 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_cf64
+### function dp\_push\_send\_cf64 
 
-_Send CF64 samples via a Push socket._
+_Send CF64 samples via a Push socket._ 
 ```
 int dp_push_send_cf64 (
     dp_push * ctx,
@@ -391,7 +391,7 @@ int dp_push_send_cf64 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -401,31 +401,31 @@ int dp_push_send_cf64 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_ci16
+### function dp\_push\_send\_ci16 
 
-_Send CI16 samples via a Push socket._
+_Send CI16 samples via a Push socket._ 
 ```
 int dp_push_send_ci16 (
     dp_push * ctx,
@@ -433,7 +433,7 @@ int dp_push_send_ci16 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -443,31 +443,31 @@ int dp_push_send_ci16 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_ci32
+### function dp\_push\_send\_ci32 
 
-_Send CI32 samples via a Push socket._
+_Send CI32 samples via a Push socket._ 
 ```
 int dp_push_send_ci32 (
     dp_push * ctx,
@@ -475,7 +475,7 @@ int dp_push_send_ci32 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -485,31 +485,31 @@ int dp_push_send_ci32 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_push\_send\_ci8
+### function dp\_push\_send\_ci8 
 
-_Send CI8 samples via a Push socket._
+_Send CI8 samples via a Push socket._ 
 ```
 int dp_push_send_ci8 (
     dp_push * ctx,
@@ -517,7 +517,7 @@ int dp_push_send_ci8 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -527,24 +527,26 @@ int dp_push_send_ci8 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 ------------------------------
+
+

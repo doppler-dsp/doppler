@@ -9,7 +9,7 @@
  * designs)
  *
  * All execute functions accept CF32 input and write CF32 output.
- * The internal scratch buffer [delay | input] is allocated lazily on the
+ * The internal scratch buffer (delay + input) is allocated lazily on the
  * first execute call and grown as needed.
  *
  * @code

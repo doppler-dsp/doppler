@@ -30,6 +30,34 @@
  *             To tune a real tone at f_carrier (input normalised) to DC:
  *             set norm_freq = -(2*f_carrier + 0.5).
  *             Total output rate: fs_out = rate * fs_in  (rate < 0.5).
+ *
+ * DdcR is approximately 2x cheaper than Ddc at equivalent total decimation
+ * because the halfband R2C step has an fs/4 frequency shift baked in at
+ * zero extra multiplications — the +/-1/0 coefficients multiply for free.
+ *
+ * ### Retuning vs. rebuilding
+ *
+ * - **Retune** (centre-frequency change): call ddc_set_norm_freq /
+ *   ddcr_set_norm_freq.  Cheap — updates the LO phase increment without
+ *   disturbing the resampler history.  Seamless across block boundaries.
+ * - **Rate change** (span / decimation change): destroy and recreate the
+ *   DDC for the new rate.
+ *
+ * ### Usage
+ *
+ * @code
+ * // Complex DDC: shift a carrier at +0.1·fs to DC, decimate by 4
+ * ddc_state_t *ddc = ddc_create(-0.1, 0.25);
+ * float _Complex out[4096];
+ * size_t n = ddc_execute(ddc, in, 1024, out, 4096);
+ * ddc_destroy(ddc);
+ *
+ * // Real DDC: same carrier and decimation from a real ADC stream
+ * // norm_freq at intermediate rate: -(2 * 0.1 + 0.5) = -0.7
+ * ddcr_state_t *ddcr = ddcr_create(-0.7, 0.25);
+ * size_t m = ddcr_execute(ddcr, real_in, 1024, out, 4096);
+ * ddcr_destroy(ddcr);
+ * @endcode
  */
 #ifndef DDC_CORE_H
 #define DDC_CORE_H

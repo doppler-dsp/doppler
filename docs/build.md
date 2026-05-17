@@ -1,6 +1,6 @@
 # Build and Installation Guide
 
-See [README](../README.md) for an overview and quick examples.
+See the [Quick Start](quickstart.md) for an overview and quick examples.
 
 ## Quick build
 
@@ -99,18 +99,15 @@ cmake --build build
 ```
 
 FFTW3 requires the system libraries (`libfftw3-dev` / `fftw`) and distributing
-a binary built with it is subject to the LGPL. See
-[README — Licensing](../README.md#licensing) for details.
-License texts: [FFTW_LICENSE](../c/cmake/licenses/FFTW_LICENSE) · [POCKETFFT_LICENSE](../c/cmake/licenses/POCKETFFT_LICENSE).
+a binary built with it is subject to the LGPL.
 
 ## Dependencies
 
 ### C Library Dependencies
 
 All dependencies are available via the standard package manager on each
-platform. Minimum versions are declared in
-[`c/CMakeLists.txt`](../c/CMakeLists.txt) (C library) and
-[`pyproject.toml`](../pyproject.toml) (Python bindings).
+platform. Minimum versions are declared in `CMakeLists.txt` (C library) and
+`pyproject.toml` (Python bindings).
 
 | Dependency | Ubuntu/Debian | macOS (Homebrew) | Windows (MSYS2) |
 | ---------- | ------------- | ---------------- | --------------- |
@@ -169,7 +166,7 @@ The Python `dp_stream` extension statically links a **vendored copy of libzmq** 
 
 **For users:** `pip install doppler-dsp` includes the vendored libzmq (statically linked). You don't need to install `libzmq-dev` or any other system packages.
 
-**See:** [VENDORED.md](../VENDORED.md) for vendoring policy, update procedures, and licensing details.
+See `vendor/` in the repository root for vendored source and licensing details.
 
 ## Using in your project
 

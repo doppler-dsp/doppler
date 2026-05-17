@@ -19,7 +19,7 @@
  *
  * reset() zeroes phase only; norm_freq and nmax are unchanged.
  *
- * Lifecycle: nco_create → [steps / reset]* → nco_destroy
+ * Lifecycle: nco_create → (steps / reset)* → nco_destroy
  *
  * @code
  * nco_state_t *nco = nco_create(0.25, 0);
@@ -112,8 +112,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief Advance n samples; write raw uint32 accumulator values.
    *
-   * Output is emitted before increment: out[0] = current phase,
-   * out[1] = phase + phase_inc, etc.  Returns n.
+   * Output is emitted before increment: out(0) = current phase,
+   * out(1) = phase + phase_inc, etc.  Returns n.
    */
   size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out);
 
@@ -123,7 +123,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @brief Advance n samples; values scaled to [0, nmax).
    *
    * Uses the branchless fixed-point identity:
-   *   out[i] = (uint64_t)phase * nmax >> 32
+   *   out(i) = (uint64_t)phase * nmax >> 32
    * When nmax == 0 falls back to the raw accumulator.
    */
   size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out);
@@ -133,8 +133,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief Advance n samples; write raw phase values and per-sample carry.
    *
-   * out[i]  — raw 32-bit phase value (same as nco_steps_u32).
-   * out1[i] — 1 when the accumulator wrapped on sample i, 0 otherwise.
+   * out(i)  — raw 32-bit phase value (same as nco_steps_u32).
+   * out1(i) — 1 when the accumulator wrapped on sample i, 0 otherwise.
    * The carry marks the boundary of one input period; useful for
    * polyphase sample-clock generation.
    */

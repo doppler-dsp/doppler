@@ -89,13 +89,13 @@
 
 
 
-### function dp\_msg\_data
+### function dp\_msg\_data 
 
-_Return a pointer to the raw sample data inside the message._
+_Return a pointer to the raw sample data inside the message._ 
 ```
 void * dp_msg_data (
     dp_msg_t * msg
-)
+) 
 ```
 
 
@@ -105,31 +105,31 @@ void * dp_msg_data (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle returned by a recv function.
+* [**Message handle**](group__msg.md) Message handle returned by a recv function. 
 
 
 
 **Returns:**
 
-Pointer to contiguous sample data (valid until dp\_msg\_free).
+Pointer to contiguous sample data (valid until dp\_msg\_free). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_msg\_free
+### function dp\_msg\_free 
 
-_Free a message handle and release the underlying ZMQ buffer._
+_Free a message handle and release the underlying ZMQ buffer._ 
 ```
 void dp_msg_free (
     dp_msg_t * msg
-)
+) 
 ```
 
 
@@ -139,24 +139,24 @@ void dp_msg_free (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle (may be NULL).
+* [**Message handle**](group__msg.md) Message handle (may be NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_msg\_num\_samples
+### function dp\_msg\_num\_samples 
 
-_Return the number of complex samples in the message._
+_Return the number of complex samples in the message._ 
 ```
 size_t dp_msg_num_samples (
     dp_msg_t * msg
-)
+) 
 ```
 
 
@@ -166,31 +166,31 @@ size_t dp_msg_num_samples (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle.
+* [**Message handle**](group__msg.md) Message handle. 
 
 
 
 **Returns:**
 
-Number of samples (header num\_samples).
+Number of samples (header num\_samples). 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_msg\_sample\_type
+### function dp\_msg\_sample\_type 
 
-_Return the sample type of the message._
+_Return the sample type of the message._ 
 ```
 dp_sample_type_t dp_msg_sample_type (
     dp_msg_t * msg
-)
+) 
 ```
 
 
@@ -200,31 +200,31 @@ dp_sample_type_t dp_msg_sample_type (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle.
+* [**Message handle**](group__msg.md) Message handle. 
 
 
 
 **Returns:**
 
-Sample type enum value.
+Sample type enum value. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_msg\_size
+### function dp\_msg\_size 
 
-_Return the byte size of the sample data._
+_Return the byte size of the sample data._ 
 ```
 size_t dp_msg_size (
     dp_msg_t * msg
-)
+) 
 ```
 
 
@@ -234,20 +234,22 @@ size_t dp_msg_size (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle.
+* [**Message handle**](group__msg.md) Message handle. 
 
 
 
 **Returns:**
 
-Total data bytes.
+Total data bytes. 
 
 
 
 
 
-
+        
 
 <hr>
 
 ------------------------------
+
+

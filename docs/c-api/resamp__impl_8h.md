@@ -79,10 +79,11 @@ _Resamp implementation header._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Include from implementation files (resamp\_core.c, extension code, and any extra .c files added via 'just-makeit source'). External consumers may include [**resamp\_core.h**](resamp__core_8h.md) directly instead.
+Include from implementation files (resamp\_core.c, extension code, and any extra .c files added via 'just-makeit source'). External consumers may include [**resamp\_core.h**](resamp__core_8h.md) directly instead. 
 
 
-
+    
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/resamp/resamp_impl.h`
+

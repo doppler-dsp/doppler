@@ -8,14 +8,14 @@
  *
  * Algorithm: two dual-write circular delay lines hold even-indexed and
  * odd-indexed input samples separately.  Per output sample:
- *   1. Push x[2m]   → even delay line.
- *   2. Push x[2m+1] → odd delay line.
+ *   1. Push x(2m)   → even delay line.
+ *   2. Push x(2m+1) → odd delay line.
  *   3. Compute symmetric FIR (N/2 paired multiplies) + scaled delay tap.
  *
  * Which delay line carries the FIR is determined by N:
- *   N even (fir_on_even=1): FIR on even_dl;  delay from odd_dl[centre].
+ *   N even (fir_on_even=1): FIR on even_dl;  delay from odd_dl(centre).
  *   N odd  (fir_on_even=0): FIR on odd_dl at offset +1; delay from
- *                           even_dl[centre].
+ *                           even_dl(centre).
  *
  * Coefficients are scaled by 0.5 inside hbdecim_create — this is the
  * polyphase identity normalisation; do not remove it.

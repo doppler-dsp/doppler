@@ -7,14 +7,14 @@
  * (LUT_QTR = 16384) converts sin to cos without extra storage:
  *
  *   idx      = phase >> 16
- *   out[i]   = cos(θ) + j·sin(θ)
- *            = lut[(idx + LUT_QTR) & 0xFFFF] + j·lut[idx]
+ *   out(i)   = cos(θ) + j·sin(θ)
+ *            = lut((idx + LUT_QTR) & 0xFFFF) + j·lut(idx)
  *
  * Output is emitted BEFORE the phase is incremented (same convention as NCO).
  *
  * The 16-bit phase truncation gives ~96 dBc SFDR.
  *
- * Lifecycle: lo_create → [steps / reset]* → lo_destroy
+ * Lifecycle: lo_create → (steps / reset)* → lo_destroy
  *
  * @code
  * lo_state_t *lo = lo_create(0.25);
@@ -83,8 +83,8 @@ extern "C"
   /**
    * @brief Generate n CF32 phasors at the current norm_freq.
    *
-   * Output is emitted before increment: out[0] corresponds to the phase
-   * at entry, out[1] to phase + phase_inc, etc.  Returns n.
+   * Output is emitted before increment: out(0) corresponds to the phase
+   * at entry, out(1) to phase + phase_inc, etc.  Returns n.
    */
   size_t lo_steps (lo_state_t *state, size_t n, float complex *out);
 
@@ -93,7 +93,7 @@ extern "C"
   /**
    * @brief Generate CF32 phasors with per-sample FM deviation.
    *
-   * ctrl[i] (real float, fractional part used) is converted to a per-sample
+   * ctrl(i) (real float, fractional part used) is converted to a per-sample
    * phase-increment delta added on top of the base phase_inc.  The base
    * norm_freq is not modified.
    *

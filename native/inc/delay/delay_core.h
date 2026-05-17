@@ -2,7 +2,7 @@
  * @file delay_core.h
  * @brief Delay component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

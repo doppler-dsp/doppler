@@ -15,10 +15,11 @@
 #include "clib_common.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/* Declare module-level functions here. */
+  /* Declare module-level functions here. */
 
 #ifdef __cplusplus
 }
@@ -26,3 +27,5 @@ extern "C" {
 
 #endif /* STREAM_CORE_H */
 ```
+
+

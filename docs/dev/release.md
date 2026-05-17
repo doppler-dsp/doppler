@@ -167,4 +167,4 @@ Doppler uses [Semantic Versioning](https://semver.org) with stable
 
 !!! note "Pre-1.0"
     Minor releases **may** contain breaking changes before `1.0.0`.
-    The [CHANGELOG](../../CHANGELOG.md) is the authoritative record.
+    `CHANGELOG.md` in the repository root is the authoritative record.

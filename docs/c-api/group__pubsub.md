@@ -94,23 +94,23 @@
 ## Detailed Description
 
 
-The Publisher binds to an endpoint and fans out every message to all connected Subscribers. Subscribers connect and receive every frame. Slow subscribers will drop frames (ZMQ\_HWM behaviour).
+The Publisher binds to an endpoint and fans out every message to all connected Subscribers. Subscribers connect and receive every frame. Slow subscribers will drop frames (ZMQ\_HWM behaviour). 
 
 
-
+    
 ## Public Functions Documentation
 
 
 
 
-### function dp\_pub\_create
+### function dp\_pub\_create 
 
 _Create a Publisher socket and bind to_ `endpoint` _._
 ```
 dp_pub * dp_pub_create (
     const char * endpoint,
     dp_sample_type_t sample_type
-)
+) 
 ```
 
 
@@ -120,32 +120,32 @@ dp_pub * dp_pub_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint string, e.g. `"tcp://\*:5555"` or `"ipc:///tmp/feed"`.
-* `sample_type` Sample format that will be sent.
+* `endpoint` ZMQ endpoint string, e.g. `"tcp://\*:5555"` or `"ipc:///tmp/feed"`. 
+* `sample_type` Sample format that will be sent. 
 
 
 
 **Returns:**
 
-Non-NULL context on success, NULL on failure.
+Non-NULL context on success, NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_destroy
+### function dp\_pub\_destroy 
 
-_Destroy a Publisher context and release all resources._
+_Destroy a Publisher context and release all resources._ 
 ```
 void dp_pub_destroy (
     dp_pub * ctx
-)
+) 
 ```
 
 
@@ -155,20 +155,20 @@ void dp_pub_destroy (
 **Parameters:**
 
 
-* `ctx` Publisher context (may be NULL).
+* `ctx` Publisher context (may be NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_cf128
+### function dp\_pub\_send\_cf128 
 
-_Send an array of CF128 samples via a Publisher._
+_Send an array of CF128 samples via a Publisher._ 
 ```
 int dp_pub_send_cf128 (
     dp_pub * ctx,
@@ -176,7 +176,7 @@ int dp_pub_send_cf128 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -186,31 +186,31 @@ int dp_pub_send_cf128 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_cf32
+### function dp\_pub\_send\_cf32 
 
-_Send an array of CF32 samples via a Publisher._
+_Send an array of CF32 samples via a Publisher._ 
 ```
 int dp_pub_send_cf32 (
     dp_pub * ctx,
@@ -218,7 +218,7 @@ int dp_pub_send_cf32 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -228,31 +228,31 @@ int dp_pub_send_cf32 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_cf64
+### function dp\_pub\_send\_cf64 
 
-_Send an array of CF64 samples via a Publisher._
+_Send an array of CF64 samples via a Publisher._ 
 ```
 int dp_pub_send_cf64 (
     dp_pub * ctx,
@@ -260,7 +260,7 @@ int dp_pub_send_cf64 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -270,31 +270,31 @@ int dp_pub_send_cf64 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_ci16
+### function dp\_pub\_send\_ci16 
 
-_Send an array of CI16 samples via a Publisher._
+_Send an array of CI16 samples via a Publisher._ 
 ```
 int dp_pub_send_ci16 (
     dp_pub * ctx,
@@ -302,7 +302,7 @@ int dp_pub_send_ci16 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -312,31 +312,31 @@ int dp_pub_send_ci16 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_ci32
+### function dp\_pub\_send\_ci32 
 
-_Send an array of CI32 samples via a Publisher._
+_Send an array of CI32 samples via a Publisher._ 
 ```
 int dp_pub_send_ci32 (
     dp_pub * ctx,
@@ -344,7 +344,7 @@ int dp_pub_send_ci32 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -354,31 +354,31 @@ int dp_pub_send_ci32 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_pub\_send\_ci8
+### function dp\_pub\_send\_ci8 
 
-_Send an array of CI8 samples via a Publisher._
+_Send an array of CI8 samples via a Publisher._ 
 ```
 int dp_pub_send_ci8 (
     dp_pub * ctx,
@@ -386,7 +386,7 @@ int dp_pub_send_ci8 (
     size_t num_samples,
     double sample_rate,
     double center_freq
-)
+) 
 ```
 
 
@@ -396,35 +396,35 @@ int dp_pub_send_ci8 (
 **Parameters:**
 
 
-* `ctx` Publisher context.
-* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples.
-* `num_samples` Number of complex samples.
-* `sample_rate` Sample rate in Hz.
-* `center_freq` Centre frequency in Hz.
+* `ctx` Publisher context. 
+* `samples` Interleaved int32\_t I/Q pairs; length 2×num\_samples. 
+* `num_samples` Number of complex samples. 
+* `sample_rate` Sample rate in Hz. 
+* `center_freq` Centre frequency in Hz. 
 
 
 
 **Returns:**
 
-DP\_OK (0) on success, negative error code on failure.
+DP\_OK (0) on success, negative error code on failure.    
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_sub\_create
+### function dp\_sub\_create 
 
 _Create a Subscriber socket and connect to_ `endpoint` _._
 ```
 dp_sub * dp_sub_create (
     const char * endpoint
-)
+) 
 ```
 
 
@@ -437,31 +437,31 @@ Subscribes to all topics (empty topic filter).
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5555"`.
+* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5555"`. 
 
 
 
 **Returns:**
 
-Non-NULL context on success, NULL on failure.
+Non-NULL context on success, NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_sub\_destroy
+### function dp\_sub\_destroy 
 
-_Destroy a Subscriber context and release all resources._
+_Destroy a Subscriber context and release all resources._ 
 ```
 void dp_sub_destroy (
     dp_sub * ctx
-)
+) 
 ```
 
 
@@ -471,26 +471,26 @@ void dp_sub_destroy (
 **Parameters:**
 
 
-* `ctx` Subscriber context (may be NULL).
+* `ctx` Subscriber context (may be NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_sub\_recv
+### function dp\_sub\_recv 
 
-_Receive one frame from a Subscriber socket (zero-copy)._
+_Receive one frame from a Subscriber socket (zero-copy)._ 
 ```
 int dp_sub_recv (
     dp_sub * ctx,
     dp_msg_t ** msg,
     dp_header_t * header
-)
+) 
 ```
 
 
@@ -503,34 +503,34 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 **Parameters:**
 
 
-* `ctx` Subscriber context.
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle.
-* `header` Set to the frame metadata.
+* `ctx` Subscriber context. 
+* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `header` Set to the frame metadata. 
 
 
 
 **Returns:**
 
-DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.
+DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_sub\_set\_timeout
+### function dp\_sub\_set\_timeout 
 
-_Set receive timeout for a Subscriber socket._
+_Set receive timeout for a Subscriber socket._ 
 ```
 void dp_sub_set_timeout (
     dp_sub * ctx,
     int timeout_ms
-)
+) 
 ```
 
 
@@ -540,14 +540,16 @@ void dp_sub_set_timeout (
 **Parameters:**
 
 
-* `ctx` Subscriber context.
-* `timeout_ms` Timeout in milliseconds (-1 = infinite, 0 = non-blocking).
+* `ctx` Subscriber context. 
+* `timeout_ms` Timeout in milliseconds (-1 = infinite, 0 = non-blocking). 
 
 
 
 
-
+        
 
 <hr>
 
 ------------------------------
+
+

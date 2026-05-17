@@ -8,9 +8,10 @@
 
 [Go to the source code of this file](nco__core_8h_source.md)
 
-_Pure phase-accumulator NCO._ [More...](#detailed-description)
+_Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "jm_perf.h"`
 
 
 
@@ -30,7 +31,7 @@ _Pure phase-accumulator NCO._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**nco\_state\_t**](structnco__state__t.md) <br> |
+| struct | [**nco\_state\_t**](structnco__state__t.md) <br>_NCO state._  |
 
 
 
@@ -57,17 +58,27 @@ _Pure phase-accumulator NCO._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**nco\_state\_t**](structnco__state__t.md) \* | [**nco\_create**](#function-nco_create) (float norm\_freq, uint32\_t nmax) <br>_Create an NCO._  |
-|  void | [**nco\_destroy**](#function-nco_destroy) ([**nco\_state\_t**](structnco__state__t.md) \* nco) <br> |
-|  void | [**nco\_execute\_u32**](#function-nco_execute_u32) ([**nco\_state\_t**](structnco__state__t.md) \* nco, uint32\_t \* out, size\_t n) <br>_Output n raw 32-bit accumulator values._  |
-|  void | [**nco\_execute\_u32\_ovf**](#function-nco_execute_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* nco, uint32\_t \* out, uint8\_t \* carry, size\_t n) <br>_Output n raw accumulator values and per-sample overflow flags._  |
-|  void | [**nco\_execute\_u32\_scaled**](#function-nco_execute_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* nco, uint32\_t \* out, size\_t n) <br>_Output n accumulator values scaled to [0, nmax)._  |
-|  float | [**nco\_get\_freq**](#function-nco_get_freq) (const [**nco\_state\_t**](structnco__state__t.md) \* nco) <br> |
-|  uint32\_t | [**nco\_get\_phase**](#function-nco_get_phase) (const [**nco\_state\_t**](structnco__state__t.md) \* nco) <br> |
-|  uint32\_t | [**nco\_get\_phase\_inc**](#function-nco_get_phase_inc) (const [**nco\_state\_t**](structnco__state__t.md) \* nco) <br> |
-|  void | [**nco\_reset**](#function-nco_reset) ([**nco\_state\_t**](structnco__state__t.md) \* nco) <br> |
-|  void | [**nco\_set\_freq**](#function-nco_set_freq) ([**nco\_state\_t**](structnco__state__t.md) \* nco, float norm\_freq) <br> |
-|  void | [**nco\_set\_phase**](#function-nco_set_phase) ([**nco\_state\_t**](structnco__state__t.md) \* nco, uint32\_t phase) <br> |
+|  [**nco\_state\_t**](structnco__state__t.md) \* | [**nco\_create**](#function-nco_create) (double norm\_freq, uint32\_t nmax) <br>_Create an NCO instance._  |
+|  void | [**nco\_destroy**](#function-nco_destroy) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  double | [**nco\_get\_norm\_freq**](#function-nco_get_norm_freq) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  uint32\_t | [**nco\_get\_phase**](#function-nco_get_phase) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  uint32\_t | [**nco\_get\_phase\_inc**](#function-nco_get_phase_inc) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  void | [**nco\_reset**](#function-nco_reset) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  void | [**nco\_set\_norm\_freq**](#function-nco_set_norm_freq) ([**nco\_state\_t**](structnco__state__t.md) \* state, double norm\_freq) <br> |
+|  void | [**nco\_set\_phase**](#function-nco_set_phase) ([**nco\_state\_t**](structnco__state__t.md) \* state, uint32\_t phase) <br> |
+|  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; write raw uint32 accumulator values._  |
+|  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
+|  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1) <br>_Advance n samples; write raw phase values and per-sample carry._  |
+|  size\_t | [**nco\_steps\_u32\_ovf\_max\_out**](#function-nco_steps_u32_ovf_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+|  size\_t | [**nco\_steps\_u32\_scaled**](#function-nco_steps_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; values scaled to [0, nmax)._  |
+|  size\_t | [**nco\_steps\_u32\_scaled\_max\_out**](#function-nco_steps_u32_scaled_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
+
+
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  uint8\_t | [**nco\_add\_ovf\_**](#function-nco_add_ovf_) (uint32\_t a, uint32\_t b, uint32\_t \* res) <br>_Wrapping add with carry detection._  |
 
 
 
@@ -93,60 +104,62 @@ _Pure phase-accumulator NCO._ [More...](#detailed-description)
 
 
 
+## Macros
 
-
+| Type | Name |
+| ---: | :--- |
+| define  | [**NCO\_ADD\_OVF**](nco__core_8h.md#define-nco_add_ovf) (a, b, res) `nco\_add\_ovf\_ ((a), (b), (res))`<br> |
 
 ## Detailed Description
 
 
-Lifted from [**dp\_nco\_t**](nco_8h.md#typedef-dp_nco_t) (c/src/nco.c) — phase-accumulator half only. The sine-LUT / complex-phasor output lives in lo\_core (LO object).
+Phase increments by phase\_inc each sample and wraps naturally at 2^32. Three output mappings:
 
 
-The 32-bit unsigned accumulator advances by phase\_inc each sample and wraps naturally at 2^32. Three output mappings are provided:
+nco\_steps\_u32 raw accumulator value [0, 2^32) nco\_steps\_u32\_scaled (uint64)phase \* nmax &gt;&gt; 32 → [0, nmax) nco\_steps\_u32\_ovf raw phase + per-sample carry flag
 
 
-nco\_execute\_u32 raw accumulator value [0, 2^32) nco\_execute\_u32\_scaled (uint64)phase \* nmax &gt;&gt; 32 → [0, nmax) nco\_execute\_u32\_ovf raw + per-sample carry/overflow flag
+nmax=0 in nco\_steps\_u32\_scaled is treated identically to nco\_steps\_u32 (returns raw accumulator unchanged).
 
 
-nmax=0 in nco\_execute\_u32\_scaled is treated identically to nco\_execute\_u32 (returns raw accumulator unchanged).
-
-
-Normalised-frequency → phase\_inc conversion:
-
-
-phase\_inc = floor((norm\_freq mod 1.0) × 2^32)
+Normalised-frequency → phase\_inc conversion: phase\_inc = floor((norm\_freq mod 1.0) × 2^32)
 
 
 Negative frequencies fold correctly: −0.25 → phase\_inc = 3×2^30.
 
 
-
-```C++
-nco_state_t *nco = nco_create(0.25f, 0);
-uint32_t out[256];
-nco_execute_u32(nco, out, 256);
-nco_destroy(nco);
-```
-
-
-
 reset() zeroes phase only; norm\_freq and nmax are unchanged.
 
 
+Lifecycle: nco\_create → (steps / reset)\* → nco\_destroy
 
+
+
+```C++
+nco_state_t *nco = nco_create(0.25, 0);
+uint32_t out[4];
+nco_steps_u32(nco, 4, out);
+// out[0]=0x00000000, out[1]=0x40000000,
+// out[2]=0x80000000, out[3]=0xC0000000
+nco_destroy(nco);
+```
+ 
+
+
+    
 ## Public Functions Documentation
 
 
 
 
-### function nco\_create
+### function nco\_create 
 
-_Create an NCO._
+_Create an NCO instance._ 
 ```C++
 nco_state_t * nco_create (
-    float norm_freq,
+    double norm_freq,
     uint32_t nmax
-)
+) 
 ```
 
 
@@ -156,154 +169,50 @@ nco_state_t * nco_create (
 **Parameters:**
 
 
-* `norm_freq` Normalised frequency (cycles per sample). Any float; folded into [0, 1) internally.
-* `nmax` Wrap target for nco\_execute\_u32\_scaled. Pass 0 to always return the raw accumulator.
+* `norm_freq` Normalised frequency (cycles per sample). Any value; fractional part used internally. 
+* `nmax` Wrap target for nco\_steps\_u32\_scaled. Pass 0 to return the raw 32-bit accumulator. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on OOM.
+Heap-allocated state, or NULL on allocation failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function nco\_destroy
+### function nco\_destroy 
 
 ```C++
 void nco_destroy (
-    nco_state_t * nco
-)
+    nco_state_t * state
+) 
 ```
 
 
 
-Free all resources. NULL is a no-op.
+Free all resources. May be NULL (no-op). 
 
 
-
+        
 
 <hr>
 
 
 
-### function nco\_execute\_u32
-
-_Output n raw 32-bit accumulator values._
-```C++
-void nco_execute_u32 (
-    nco_state_t * nco,
-    uint32_t * out,
-    size_t n
-)
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `nco` Must be non-NULL.
-* `out` Output buffer, length &gt;= n (uint32\_t).
-* `n` Number of samples.
-
-
-
-
-
-
-<hr>
-
-
-
-### function nco\_execute\_u32\_ovf
-
-_Output n raw accumulator values and per-sample overflow flags._
-```C++
-void nco_execute_u32_ovf (
-    nco_state_t * nco,
-    uint32_t * out,
-    uint8_t * carry,
-    size_t n
-)
-```
-
-
-
-carry[i] == 1 when the accumulator wrapped on sample i (one input period elapsed), 0 otherwise. Useful for polyphase sample-clock generation — the carry marks when to consume the next input sample.
-
-
-
-
-**Parameters:**
-
-
-* `nco` Must be non-NULL.
-* `out` Raw phase values, length &gt;= n (uint32\_t).
-* `carry` Overflow flags, length &gt;= n (uint8\_t).
-* `n` Number of samples.
-
-
-
-
-
-
-<hr>
-
-
-
-### function nco\_execute\_u32\_scaled
-
-_Output n accumulator values scaled to [0, nmax)._
-```C++
-void nco_execute_u32_scaled (
-    nco_state_t * nco,
-    uint32_t * out,
-    size_t n
-)
-```
-
-
-
-Uses the branchless fixed-point identity: out[i] = (uint64\_t)phase \* nmax &gt;&gt; 32
-
-
-Works for any nmax without division. When nco-&gt;nmax == 0, falls back to the raw accumulator (same as nco\_execute\_u32).
-
-
-
-
-**Parameters:**
-
-
-* `nco` Must be non-NULL.
-* `out` Output buffer, length &gt;= n (uint32\_t).
-* `n` Number of samples.
-
-
-
-
-
-
-<hr>
-
-
-
-### function nco\_get\_freq
+### function nco\_get\_norm\_freq 
 
 ```C++
-float nco_get_freq (
-    const nco_state_t * nco
-)
+double nco_get_norm_freq (
+    const nco_state_t * state
+) 
 ```
 
 
@@ -313,12 +222,12 @@ float nco_get_freq (
 
 
 
-### function nco\_get\_phase
+### function nco\_get\_phase 
 
 ```C++
 uint32_t nco_get_phase (
-    const nco_state_t * nco
-)
+    const nco_state_t * state
+) 
 ```
 
 
@@ -328,12 +237,12 @@ uint32_t nco_get_phase (
 
 
 
-### function nco\_get\_phase\_inc
+### function nco\_get\_phase\_inc 
 
 ```C++
 uint32_t nco_get_phase_inc (
-    const nco_state_t * nco
-)
+    const nco_state_t * state
+) 
 ```
 
 
@@ -343,37 +252,33 @@ uint32_t nco_get_phase_inc (
 
 
 
-### function nco\_reset
+### function nco\_reset 
 
 ```C++
 void nco_reset (
-    nco_state_t * nco
-)
+    nco_state_t * state
+) 
 ```
 
 
 
-Zero phase accumulator. norm\_freq and nmax are unchanged.
+Zero the phase accumulator. norm\_freq and nmax are unchanged. 
 
 
-
+        
 
 <hr>
 
 
 
-### function nco\_set\_freq
+### function nco\_set\_norm\_freq 
 
 ```C++
-void nco_set_freq (
-    nco_state_t * nco,
-    float norm_freq
-)
+void nco_set_norm_freq (
+    nco_state_t * state,
+    double norm_freq
+) 
 ```
-
-
-
-Update normalised frequency without disturbing the phase.
 
 
 
@@ -382,18 +287,175 @@ Update normalised frequency without disturbing the phase.
 
 
 
-### function nco\_set\_phase
+### function nco\_set\_phase 
 
 ```C++
 void nco_set_phase (
-    nco_state_t * nco,
+    nco_state_t * state,
     uint32_t phase
-)
+) 
 ```
 
 
 
-Write phase accumulator (phase seek / sync).
+
+<hr>
+
+
+
+### function nco\_steps\_u32 
+
+_Advance n samples; write raw uint32 accumulator values._ 
+```C++
+size_t nco_steps_u32 (
+    nco_state_t * state,
+    size_t n,
+    uint32_t * out
+) 
+```
+
+
+
+Output is emitted before increment: out(0) = current phase, out(1) = phase + phase\_inc, etc. Returns n. 
+
+
+        
+
+<hr>
+
+
+
+### function nco\_steps\_u32\_max\_out 
+
+_Maximum samples per call (determines pre-allocated buffer size)._ 
+```C++
+size_t nco_steps_u32_max_out (
+    nco_state_t * state
+) 
+```
+
+
+
+The Python extension pre-allocates output buffers of this size at create time. Requesting more samples per call is undefined behaviour. 
+
+
+        
+
+<hr>
+
+
+
+### function nco\_steps\_u32\_ovf 
+
+_Advance n samples; write raw phase values and per-sample carry._ 
+```C++
+size_t nco_steps_u32_ovf (
+    nco_state_t * state,
+    size_t n,
+    uint32_t * out,
+    uint8_t * out1
+) 
+```
+
+
+
+out(i) — raw 32-bit phase value (same as nco\_steps\_u32). out1(i) — 1 when the accumulator wrapped on sample i, 0 otherwise. The carry marks the boundary of one input period; useful for polyphase sample-clock generation. 
+
+
+        
+
+<hr>
+
+
+
+### function nco\_steps\_u32\_ovf\_max\_out 
+
+```C++
+size_t nco_steps_u32_ovf_max_out (
+    nco_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function nco\_steps\_u32\_scaled 
+
+_Advance n samples; values scaled to [0, nmax)._ 
+```C++
+size_t nco_steps_u32_scaled (
+    nco_state_t * state,
+    size_t n,
+    uint32_t * out
+) 
+```
+
+
+
+Uses the branchless fixed-point identity: out(i) = (uint64\_t)phase \* nmax &gt;&gt; 32 When nmax == 0 falls back to the raw accumulator. 
+
+
+        
+
+<hr>
+
+
+
+### function nco\_steps\_u32\_scaled\_max\_out 
+
+```C++
+size_t nco_steps_u32_scaled_max_out (
+    nco_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function nco\_add\_ovf\_ 
+
+_Wrapping add with carry detection._ 
+```C++
+static inline uint8_t nco_add_ovf_ (
+    uint32_t a,
+    uint32_t b,
+    uint32_t * res
+) 
+```
+
+
+
+[**NCO\_ADD\_OVF(a, b, res)**](nco__core_8h.md#define-nco_add_ovf) computes \*res = a + b and returns 1 if the addition wrapped (carry out), 0 otherwise. Branchless on x86/AArch64. 
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define NCO\_ADD\_OVF 
+
+```C++
+#define NCO_ADD_OVF (
+    a,
+    b,
+    res
+) `nco_add_ovf_ ((a), (b), (res))`
+```
 
 
 
@@ -402,3 +464,4 @@ Write phase accumulator (phase seek / sync).
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/nco/nco_core.h`
+

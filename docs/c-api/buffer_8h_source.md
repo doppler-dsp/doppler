@@ -2,7 +2,7 @@
 
 # File buffer.h
 
-[**File List**](files.md) **>** [**c**](dir_1784a01aa976a8c78ef5dfc3737bcac8.md) **>** [**include**](dir_2d10db7395ecfee73f7722e70cabff64.md) **>** [**dp**](dir_11a94baa66ce4f1e4099aa44a4fd2c26.md) **>** [**buffer.h**](buffer_8h.md)
+[**File List**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer.h**](buffer_8h.md)
 
 [Go to the documentation of this file](buffer_8h.md)
 
@@ -360,9 +360,11 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 
 /* --- Type instantiations --- */
 
-DECLARE_DP_BUFFER (f32, float)
-DECLARE_DP_BUFFER (f64, double)
-DECLARE_DP_BUFFER (i16, int16_t)
+DECLARE_DP_BUFFER (f32, float)  
+DECLARE_DP_BUFFER (f64, double) 
+DECLARE_DP_BUFFER (i16, int16_t) 
 
 #endif /* DP_BUFFER_H */
 ```
+
+

@@ -11,7 +11,9 @@
 _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
-* `#include <stdint.h>`
+* `#include "jm_perf.h"`
+* `#include <complex.h>`
+* `#include <stddef.h>`
 
 
 
@@ -27,13 +29,13 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 
 
-
-
-## Public Types
+## Classes
 
 | Type | Name |
 | ---: | :--- |
-| typedef struct fir\_state | [**fir\_state\_t**](#typedef-fir_state_t)  <br>_Opaque FIR filter state._  |
+| struct | [**fir\_state\_t**](structfir__state__t.md) <br> |
+
+
 
 
 
@@ -58,20 +60,14 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  [**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* | [**fir\_create**](#function-fir_create) (const float \_Complex \* taps, size\_t num\_taps) <br>_Create a FIR filter from complex CF32 tap coefficients._  |
-|  [**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
-|  void | [**fir\_destroy**](#function-fir_destroy) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f) <br>_Destroy the filter and release all associated memory._  |
-|  int | [**fir\_execute\_cf32**](#function-fir_execute_cf32) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const float \_Complex \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CF32 samples through a complex-tap filter._  |
-|  int | [**fir\_execute\_ci16**](#function-fir_execute_ci16) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int16\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI16 (interleaved int16\_t I/Q, len=2×n) → CF32._  |
-|  int | [**fir\_execute\_ci32**](#function-fir_execute_ci32) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int32\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI32 (interleaved int32\_t I/Q, len=2×n) → CF32._  |
-|  int | [**fir\_execute\_ci8**](#function-fir_execute_ci8) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int8\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI8 (interleaved int8\_t I/Q, len=2×n) → CF32._  |
-|  int | [**fir\_execute\_real\_cf32**](#function-fir_execute_real_cf32) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const float \_Complex \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CF32 → CF32 through a real-tap filter. In-place safe._  |
-|  int | [**fir\_execute\_real\_ci16**](#function-fir_execute_real_ci16) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int16\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI16 → CF32 through a real-tap filter._  |
-|  int | [**fir\_execute\_real\_ci32**](#function-fir_execute_real_ci32) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int32\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI32 → CF32 through a real-tap filter._  |
-|  int | [**fir\_execute\_real\_ci8**](#function-fir_execute_real_ci8) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f, const int8\_t \* in, float \_Complex \* out, size\_t num\_samples) <br>_Filter CI8 → CF32 through a real-tap filter._  |
-|  int | [**fir\_is\_real**](#function-fir_is_real) (const [**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f) <br>_1 if filter was created with real taps, 0 if complex._  |
-|  size\_t | [**fir\_num\_taps**](#function-fir_num_taps) (const [**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f) <br>_Number of tap coefficients._  |
-|  void | [**fir\_reset**](#function-fir_reset) ([**fir\_state\_t**](fir__core_8h.md#typedef-fir_state_t) \* f) <br>_Zero the delay line without freeing the filter._  |
+|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float complex \* taps, size\_t num\_taps) <br>_Create a FIR filter from complex CF32 tap coefficients._  |
+|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
+|  void | [**fir\_destroy**](#function-fir_destroy) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Destroy the filter; safe to pass NULL._  |
+|  size\_t | [**fir\_execute**](#function-fir_execute) ([**fir\_state\_t**](structfir__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Filter n\_in CF32 samples; write results to out._  |
+|  size\_t | [**fir\_execute\_max\_out**](#function-fir_execute_max_out) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Upper bound on execute output samples (always == n\_in for FIR)._  |
+|  int | [**fir\_get\_is\_real**](#function-fir_get_is_real) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_1 if filter was created with real taps, 0 if complex._  |
+|  size\_t | [**fir\_get\_num\_taps**](#function-fir_get_num_taps) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Number of tap coefficients._  |
+|  void | [**fir\_reset**](#function-fir_reset) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Zero the delay line; preserve taps and scratch capacity._  |
 
 
 
@@ -103,74 +99,42 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 ## Detailed Description
 
 
-Two constructors select the C backend at creation time:
+Two constructors select the tap type at creation time:
 
 
-[**fir\_create()**](fir__core_8h.md#function-fir_create) — complex CF32 taps (general case) [**fir\_create\_real()**](fir__core_8h.md#function-fir_create_real) — real float taps (DDC/DUC common case; 1 FMA/tap)
+[**fir\_create()**](fir__core_8h.md#function-fir_create) — complex CF32 taps (general case) [**fir\_create\_real()**](fir__core_8h.md#function-fir_create_real) — real float taps (1 FMA/tap; use for real-valued designs)
 
 
-All execute functions accept CF32, CI8, CI16, or CI32 input and write CF32 output. Integer inputs are upcasted to CF32 inside the hot loop. The internal scratch buffer [delay \| input] is allocated lazily on the first execute call and reused on all subsequent calls.
-
-
-Return value convention: 0 = success, -1 = allocation failure.
+All execute functions accept CF32 input and write CF32 output. The internal scratch buffer (delay + input) is allocated lazily on the first execute call and grown as needed.
 
 
 
 ```C++
-// DDC low-pass — real taps, CI16 input (LimeSDR / USRP)
-float taps[63] = { ... };        // designed with scipy.signal.firwin
+float taps[63] = { ... };
 fir_state_t *fir = fir_create_real(taps, 63);
-
-int16_t raw[2 * 4096];           // 2 int16_t per complex sample
-float _Complex out[4096];
-fir_execute_real_ci16(fir, raw, out, 4096);
-
-// Complex taps (Hilbert transformer, frequency-shifted filter)
-float _Complex ctaps[63] = { ... };
-fir_state_t *cfir = fir_create(ctaps, 63);
-fir_execute_cf32(cfir, out, out, 4096);  // in-place OK
-
+float complex out[4096];
+fir_execute(fir, signal, 4096, out);
 fir_destroy(fir);
-fir_destroy(cfir);
 ```
+ 
 
 
-
-
-## Public Types Documentation
-
-
-
-
-### typedef fir\_state\_t
-
-_Opaque FIR filter state._
-```C++
-typedef struct fir_state fir_state_t;
-```
-
-
-
-
-<hr>
+    
 ## Public Functions Documentation
 
 
 
 
-### function fir\_create
+### function fir\_create 
 
-_Create a FIR filter from complex CF32 tap coefficients._
+_Create a FIR filter from complex CF32 tap coefficients._ 
 ```C++
 fir_state_t * fir_create (
-    const float _Complex * taps,
+    const float complex * taps,
     size_t num_taps
-)
+) 
 ```
 
-
-
-Allocates an internal delay line of `num_taps` − 1 complex samples, initialised to zero. The scratch buffer is allocated lazily on the first execute call.
 
 
 
@@ -178,38 +142,38 @@ Allocates an internal delay line of `num_taps` − 1 complex samples, initialise
 **Parameters:**
 
 
-* `taps` Pointer to `num_taps` complex tap coefficients.
-* `num_taps` Filter length (≥ 1).
+* `taps` Pointer to num\_taps complex tap coefficients (copied). 
+* `num_taps` Filter length (&gt;= 1). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on failure.
+Heap-allocated state, or NULL on allocation failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fir\_create\_real
+### function fir\_create\_real 
 
-_Create a FIR filter from real float tap coefficients._
+_Create a FIR filter from real float tap coefficients._ 
 ```C++
 fir_state_t * fir_create_real (
     const float * taps,
     size_t num_taps
-)
+) 
 ```
 
 
 
-Real taps cost 1 FMA per tap instead of 2 FMA + permute + mul, halving the multiply count for filters designed in the real domain (e.g. scipy.signal.firwin). Use fir\_execute\_real\_\*() to run the filter; [**fir\_reset()**](fir__core_8h.md#function-fir_reset) and [**fir\_destroy()**](fir__core_8h.md#function-fir_destroy) work identically for both real-tap and complex-tap filters.
+Real taps cost 1 FMA/tap instead of 2 FMA + permute + mul. Use for filters designed with e.g. scipy.signal.firwin.
 
 
 
@@ -217,44 +181,33 @@ Real taps cost 1 FMA per tap instead of 2 FMA + permute + mul, halving the multi
 **Parameters:**
 
 
-* `taps` Pointer to `num_taps` real-valued tap coefficients.
-* `num_taps` Filter length (≥ 1).
+* `taps` Pointer to num\_taps real tap coefficients (copied). 
+* `num_taps` Filter length (&gt;= 1). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on failure.
+Heap-allocated state, or NULL on allocation failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fir\_destroy
+### function fir\_destroy 
 
-_Destroy the filter and release all associated memory._
+_Destroy the filter; safe to pass NULL._ 
 ```C++
 void fir_destroy (
-    fir_state_t * f
-)
+    fir_state_t * state
+) 
 ```
-
-
-
-
-
-**Parameters:**
-
-
-* `f` Filter state (may be NULL — safe no-op).
-
-
 
 
 
@@ -263,21 +216,18 @@ void fir_destroy (
 
 
 
-### function fir\_execute\_cf32
+### function fir\_execute 
 
-_Filter CF32 samples through a complex-tap filter._
+_Filter n\_in CF32 samples; write results to out._ 
 ```C++
-int fir_execute_cf32 (
-    fir_state_t * f,
-    const float _Complex * in,
-    float _Complex * out,
-    size_t num_samples
-)
+size_t fir_execute (
+    fir_state_t * state,
+    const float complex * in,
+    size_t n_in,
+    float complex * out
+) 
 ```
 
-
-
-Dispatches to AVX-512F+DQ (8 outputs/iter, 2 FMA + permute + mul per tap) or scalar fallback at compile time. In-place (out == in) is safe.
 
 
 
@@ -285,37 +235,54 @@ Dispatches to AVX-512F+DQ (8 outputs/iter, 2 FMA + permute + mul per tap) or sca
 **Parameters:**
 
 
-* `f` Complex-tap filter (from fir\_create).
-* `in` Input array of `num_samples` float \_Complex.
-* `out` Output array (may alias in).
-* `num_samples` Number of complex samples to filter.
+* `state` Must be non-NULL. 
+* `in` Input array of n\_in float complex samples. 
+* `n_in` Number of input samples. 
+* `out` Output array (may alias in for in-place). 
 
 
 
 **Returns:**
 
-0 on success, -1 on allocation failure.
+n\_in on success, 0 on allocation failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fir\_execute\_ci16
+### function fir\_execute\_max\_out 
 
-_Filter CI16 (interleaved int16\_t I/Q, len=2×n) → CF32._
+_Upper bound on execute output samples (always == n\_in for FIR)._ 
 ```C++
-int fir_execute_ci16 (
-    fir_state_t * f,
-    const int16_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
+size_t fir_execute_max_out (
+    fir_state_t * state
+) 
+```
+
+
+
+Used by the generated ext.c to size the output buffer. Returns 0 at creation time (n\_in unknown); buffer grows on first call. 
+
+
+        
+
+<hr>
+
+
+
+### function fir\_get\_is\_real 
+
+_1 if filter was created with real taps, 0 if complex._ 
+```C++
+int fir_get_is_real (
+    const fir_state_t * state
+) 
 ```
 
 
@@ -325,16 +292,13 @@ int fir_execute_ci16 (
 
 
 
-### function fir\_execute\_ci32
+### function fir\_get\_num\_taps 
 
-_Filter CI32 (interleaved int32\_t I/Q, len=2×n) → CF32._
+_Number of tap coefficients._ 
 ```C++
-int fir_execute_ci32 (
-    fir_state_t * f,
-    const int32_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
+size_t fir_get_num_taps (
+    const fir_state_t * state
+) 
 ```
 
 
@@ -344,155 +308,14 @@ int fir_execute_ci32 (
 
 
 
-### function fir\_execute\_ci8
+### function fir\_reset 
 
-_Filter CI8 (interleaved int8\_t I/Q, len=2×n) → CF32._
-```C++
-int fir_execute_ci8 (
-    fir_state_t * f,
-    const int8_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_execute\_real\_cf32
-
-_Filter CF32 → CF32 through a real-tap filter. In-place safe._
-```C++
-int fir_execute_real_cf32 (
-    fir_state_t * f,
-    const float _Complex * in,
-    float _Complex * out,
-    size_t num_samples
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_execute\_real\_ci16
-
-_Filter CI16 → CF32 through a real-tap filter._
-```C++
-int fir_execute_real_ci16 (
-    fir_state_t * f,
-    const int16_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_execute\_real\_ci32
-
-_Filter CI32 → CF32 through a real-tap filter._
-```C++
-int fir_execute_real_ci32 (
-    fir_state_t * f,
-    const int32_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_execute\_real\_ci8
-
-_Filter CI8 → CF32 through a real-tap filter._
-```C++
-int fir_execute_real_ci8 (
-    fir_state_t * f,
-    const int8_t * in,
-    float _Complex * out,
-    size_t num_samples
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_is\_real
-
-_1 if filter was created with real taps, 0 if complex._
-```C++
-int fir_is_real (
-    const fir_state_t * f
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_num\_taps
-
-_Number of tap coefficients._
-```C++
-size_t fir_num_taps (
-    const fir_state_t * f
-)
-```
-
-
-
-
-<hr>
-
-
-
-### function fir\_reset
-
-_Zero the delay line without freeing the filter._
+_Zero the delay line; preserve taps and scratch capacity._ 
 ```C++
 void fir_reset (
-    fir_state_t * f
-)
+    fir_state_t * state
+) 
 ```
-
-
-
-Use after a stream discontinuity to prevent history contamination. Tap coefficients and scratch capacity are preserved.
-
-
-
-
-**Parameters:**
-
-
-* `f` Filter state (must be non-NULL).
-
-
 
 
 
@@ -501,3 +324,4 @@ Use after a stream discontinuity to prevent history contamination. Tap coefficie
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/fir/fir_core.h`
+

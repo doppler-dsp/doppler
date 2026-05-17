@@ -8,7 +8,7 @@
 
 
 
-
+_NCO state._ [More...](#detailed-description)
 
 * `#include <nco_core.h>`
 
@@ -37,7 +37,7 @@
 | Type | Name |
 | ---: | :--- |
 |  uint32\_t | [**nmax**](#variable-nmax)  <br> |
-|  float | [**norm\_freq**](#variable-norm_freq)  <br> |
+|  double | [**norm\_freq**](#variable-norm_freq)  <br> |
 |  uint32\_t | [**phase**](#variable-phase)  <br> |
 |  uint32\_t | [**phase\_inc**](#variable-phase_inc)  <br> |
 
@@ -84,12 +84,19 @@
 
 
 
+## Detailed Description
+
+
+Allocate with [**nco\_create()**](nco__core_8h.md#function-nco_create). All fields are managed by the library; read phase and phase\_inc via the property accessors. 
+
+
+    
 ## Public Attributes Documentation
 
 
 
 
-### variable nmax
+### variable nmax 
 
 ```C++
 uint32_t nco_state_t::nmax;
@@ -102,10 +109,10 @@ uint32_t nco_state_t::nmax;
 
 
 
-### variable norm\_freq
+### variable norm\_freq 
 
 ```C++
-float nco_state_t::norm_freq;
+double nco_state_t::norm_freq;
 ```
 
 
@@ -115,7 +122,7 @@ float nco_state_t::norm_freq;
 
 
 
-### variable phase
+### variable phase 
 
 ```C++
 uint32_t nco_state_t::phase;
@@ -128,7 +135,7 @@ uint32_t nco_state_t::phase;
 
 
 
-### variable phase\_inc
+### variable phase\_inc 
 
 ```C++
 uint32_t nco_state_t::phase_inc;
@@ -141,3 +148,4 @@ uint32_t nco_state_t::phase_inc;
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/nco/nco_core.h`
+

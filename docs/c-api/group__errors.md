@@ -89,17 +89,17 @@
 ## Detailed Description
 
 
-Every send/recv function returns one of these values. Use [**dp\_strerror()**](group__utils.md#function-dp_strerror) to obtain a human-readable description.
+Every send/recv function returns one of these values. Use [**dp\_strerror()**](group__utils.md#function-dp_strerror) to obtain a human-readable description. 
 
 
-
+    
 ## Macro Definition Documentation
 
 
 
 
 
-### define DP\_ERR\_INIT
+### define DP\_ERR\_INIT 
 
 ```
 #define DP_ERR_INIT `-1`
@@ -107,16 +107,16 @@ Every send/recv function returns one of these values. Use [**dp\_strerror()**](g
 
 
 
-Initialisation failed (ZMQ context/socket).
+Initialisation failed (ZMQ context/socket). 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ERR\_INVALID
+### define DP\_ERR\_INVALID 
 
 ```
 #define DP_ERR_INVALID `-4`
@@ -124,16 +124,16 @@ Initialisation failed (ZMQ context/socket).
 
 
 
-Invalid argument.
+Invalid argument. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ERR\_MEMORY
+### define DP\_ERR\_MEMORY 
 
 ```
 #define DP_ERR_MEMORY `-6`
@@ -141,16 +141,16 @@ Invalid argument.
 
 
 
-Memory allocation failure.
+Memory allocation failure. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ERR\_RECV
+### define DP\_ERR\_RECV 
 
 ```
 #define DP_ERR_RECV `-3`
@@ -158,16 +158,16 @@ Memory allocation failure.
 
 
 
-Receive failed or timed out (EAGAIN).
+Receive failed or timed out (EAGAIN). 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ERR\_SEND
+### define DP\_ERR\_SEND 
 
 ```
 #define DP_ERR_SEND `-2`
@@ -175,16 +175,16 @@ Receive failed or timed out (EAGAIN).
 
 
 
-Send failed.
+Send failed. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ERR\_TIMEOUT
+### define DP\_ERR\_TIMEOUT 
 
 ```
 #define DP_ERR_TIMEOUT `-5`
@@ -192,16 +192,16 @@ Send failed.
 
 
 
-Operation timed out.
+Operation timed out. 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_OK
+### define DP\_OK 
 
 ```
 #define DP_OK `0`
@@ -209,11 +209,13 @@ Operation timed out.
 
 
 
-Success.
+Success. 
 
 
-
+        
 
 <hr>
 
 ------------------------------
+
+

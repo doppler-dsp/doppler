@@ -18,5 +18,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "jm_perf.h"
+
 #endif /* CLIB_COMMON_H */
 ```
+
+

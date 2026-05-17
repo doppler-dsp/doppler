@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**c**](dir_1784a01aa976a8c78ef5dfc3737bcac8.md) **>** [**include**](dir_2d10db7395ecfee73f7722e70cabff64.md) **>** [**dp**](dir_11a94baa66ce4f1e4099aa44a4fd2c26.md) **>** [**buffer.h**](buffer_8h.md)
+[**FileList**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer.h**](buffer_8h.md)
 
 [Go to the source code of this file](buffer_8h_source.md)
 
@@ -134,31 +134,31 @@ The head and tail pointers are separated by 64 bytes to prevent the "Ping-Pong" 
 ## Optimization
 
 
-[**DP\_SPIN\_HINT()**](buffer_8h.md#define-dp_spin_hint) is used in the consumer loop to reduce power consumption and prevent the CPU from mispredicting the "loop end" during high-frequency polling.
+[**DP\_SPIN\_HINT()**](buffer_8h.md#define-dp_spin_hint) is used in the consumer loop to reduce power consumption and prevent the CPU from mispredicting the "loop end" during high-frequency polling. 
 
 
 
-
+    
 ## Public Static Functions Documentation
 
 
 
 
-### function dp\_\_buf\_alloc
+### function dp\_\_buf\_alloc 
 
 _Allocates a double-mapped ring-buffer region of_ `bytes` _._
 ```C++
 static inline void * dp__buf_alloc (
     size_t bytes,
     void ** handle_out
-)
+) 
 ```
 
 
 
 The returned address `addr` satisfies:
-* addr[0 .. bytes-1] ← first view (writable)
-* addr[bytes .. 2\*bytes-1] ← second view (same physical pages)
+* addr(0..bytes-1) ← first view (writable)
+* addr(bytes..2\*bytes-1) ← second view (same physical pages)
 
 
 
@@ -170,27 +170,27 @@ On Windows, a HANDLE to the file-mapping object is written to `handle_out` and m
 
 **Returns:**
 
-Base address of the double-mapped region, or NULL on failure.
+Base address of the double-mapped region, or NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_\_buf\_free
+### function dp\_\_buf\_free 
 
-_Releases a double-mapped region created by dp\_\_buf\_alloc()._
+_Releases a double-mapped region created by dp\_\_buf\_alloc()._ 
 ```C++
 static inline void dp__buf_free (
     void * addr,
     size_t bytes,
     void * handle
-)
+) 
 ```
 
 
@@ -200,26 +200,26 @@ static inline void dp__buf_free (
 **Parameters:**
 
 
-* `addr` Base address returned by dp\_\_buf\_alloc().
-* `bytes` Size of ONE mapping (same value passed to dp\_\_buf\_alloc).
-* `handle` Platform handle returned via handle\_out (Win32: HANDLE, else NULL).
+* `addr` Base address returned by dp\_\_buf\_alloc(). 
+* `bytes` Size of ONE mapping (same value passed to dp\_\_buf\_alloc). 
+* `handle` Platform handle returned via handle\_out (Win32: HANDLE, else NULL). 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function dp\_\_page\_size
+### function dp\_\_page\_size 
 
-_Returns the system page size._
+_Returns the system page size._ 
 ```C++
 static inline size_t dp__page_size (
     void
-)
+) 
 ```
 
 
@@ -232,14 +232,14 @@ static inline size_t dp__page_size (
 
 
 
-### define DECLARE\_DP\_BUFFER
+### define DECLARE\_DP\_BUFFER 
 
-_Generates a type-specific circular buffer implementation._
+_Generates a type-specific circular buffer implementation._ 
 ```C++
 #define DECLARE_DP_BUFFER (
     name,
     type
-)
+) 
 ```
 
 
@@ -249,19 +249,19 @@ _Generates a type-specific circular buffer implementation._
 **Parameters:**
 
 
-* `name` Suffix for generated names (e.g., f32, i16).
-* `type` Underlying primitive type for complex I/Q samples.
+* `name` Suffix for generated names (e.g., f32, i16). 
+* `type` Underlying primitive type for complex I/Q samples. 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### define DP\_ALIGN
+### define DP\_ALIGN 
 
 ```C++
 #define DP_ALIGN (
@@ -276,7 +276,7 @@ _Generates a type-specific circular buffer implementation._
 
 
 
-### define DP\_ASSERT\_PWR2
+### define DP\_ASSERT\_PWR2 
 
 ```C++
 #define DP_ASSERT_PWR2 (
@@ -291,9 +291,9 @@ _Generates a type-specific circular buffer implementation._
 
 
 
-### define DP\_CACHELINE
+### define DP\_CACHELINE 
 
-_Standard x86-64 cache-line size (64 bytes)._
+_Standard x86-64 cache-line size (64 bytes)._ 
 ```C++
 #define DP_CACHELINE `64`
 ```
@@ -305,11 +305,11 @@ _Standard x86-64 cache-line size (64 bytes)._
 
 
 
-### define DP\_SPIN\_HINT
+### define DP\_SPIN\_HINT 
 
 ```C++
 #define DP_SPIN_HINT (
-
+    
 ) `((void)0)`
 ```
 
@@ -319,4 +319,5 @@ _Standard x86-64 cache-line size (64 bytes)._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `c/include/dp/buffer.h`
+The documentation for this class was generated from the following file `native/inc/buffer/buffer.h`
+

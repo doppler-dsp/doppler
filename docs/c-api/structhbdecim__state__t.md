@@ -97,7 +97,7 @@
 
 
 
-### variable centre
+### variable centre 
 
 ```C++
 size_t hbdecim_state_t::centre;
@@ -110,7 +110,7 @@ size_t hbdecim_state_t::centre;
 
 
 
-### variable even\_buf
+### variable even\_buf 
 
 ```C++
 float _Complex* hbdecim_state_t::even_buf;
@@ -123,7 +123,7 @@ float _Complex* hbdecim_state_t::even_buf;
 
 
 
-### variable even\_cap
+### variable even\_cap 
 
 ```C++
 size_t hbdecim_state_t::even_cap;
@@ -136,7 +136,7 @@ size_t hbdecim_state_t::even_cap;
 
 
 
-### variable even\_head
+### variable even\_head 
 
 ```C++
 size_t hbdecim_state_t::even_head;
@@ -149,7 +149,7 @@ size_t hbdecim_state_t::even_head;
 
 
 
-### variable even\_mask
+### variable even\_mask 
 
 ```C++
 size_t hbdecim_state_t::even_mask;
@@ -162,7 +162,7 @@ size_t hbdecim_state_t::even_mask;
 
 
 
-### variable fir\_on\_even
+### variable fir\_on\_even 
 
 ```C++
 int hbdecim_state_t::fir_on_even;
@@ -175,7 +175,7 @@ int hbdecim_state_t::fir_on_even;
 
 
 
-### variable h
+### variable h 
 
 ```C++
 float* hbdecim_state_t::h;
@@ -188,7 +188,7 @@ float* hbdecim_state_t::h;
 
 
 
-### variable has\_pending
+### variable has\_pending 
 
 ```C++
 int hbdecim_state_t::has_pending;
@@ -201,7 +201,7 @@ int hbdecim_state_t::has_pending;
 
 
 
-### variable num\_taps
+### variable num\_taps 
 
 ```C++
 size_t hbdecim_state_t::num_taps;
@@ -214,7 +214,7 @@ size_t hbdecim_state_t::num_taps;
 
 
 
-### variable odd\_buf
+### variable odd\_buf 
 
 ```C++
 float _Complex* hbdecim_state_t::odd_buf;
@@ -227,7 +227,7 @@ float _Complex* hbdecim_state_t::odd_buf;
 
 
 
-### variable odd\_head
+### variable odd\_head 
 
 ```C++
 size_t hbdecim_state_t::odd_head;
@@ -240,7 +240,7 @@ size_t hbdecim_state_t::odd_head;
 
 
 
-### variable pending
+### variable pending 
 
 ```C++
 float _Complex hbdecim_state_t::pending;
@@ -253,3 +253,4 @@ float _Complex hbdecim_state_t::pending;
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/hbdecim/hbdecim_core.h`
+

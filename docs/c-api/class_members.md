@@ -3,28 +3,35 @@
 
 
 
+## a
+
+* **acc** ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md), [**acc\_f32\_state\_t**](structacc__f32__state__t.md))
+* **amplitude\_db** ([**dp\_peak\_t**](structdp__peak__t.md))
+
+
 ## b
 
-* **buf\_cap** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
+* **buf** ([**delay\_state\_t**](structdelay__state__t.md))
 * **bank** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## c
 
+* **capacity** ([**delay\_state\_t**](structdelay__state__t.md))
 * **center\_freq** ([**dp\_header\_t**](structdp__header__t.md))
 * **centre** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
-* **c** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
 * **ctrl\_acc** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## d
 
-* **delay\_buf** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
-* **delay\_cap** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
-* **delay\_head** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
-* **delay\_mask** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **delay** ([**fir\_state\_t**](structfir__state__t.md))
 * **decim\_iad** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **decim\_tfd** ([**resamp\_state\_t**](structresamp__state__t.md))
+* **delay\_buf** ([**resamp\_state\_t**](structresamp__state__t.md))
+* **delay\_cap** ([**resamp\_state\_t**](structresamp__state__t.md))
+* **delay\_head** ([**resamp\_state\_t**](structresamp__state__t.md))
+* **delay\_mask** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## e
@@ -38,18 +45,15 @@
 ## f
 
 * **flags** ([**dp\_header\_t**](structdp__header__t.md))
+* **freq\_norm** ([**dp\_peak\_t**](structdp__peak__t.md))
 * **fir\_on\_even** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 
 
 ## h
 
+* **head** ([**delay\_state\_t**](structdelay__state__t.md))
 * **h** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **has\_pending** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
-
-
-## i
-
-* **iad** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
 
 
 ## l
@@ -59,20 +63,19 @@
 
 ## m
 
+* **mask** ([**delay\_state\_t**](structdelay__state__t.md))
 * **magic** ([**dp\_header\_t**](structdp__header__t.md))
-* **M** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
 
 
 ## n
 
+* **num\_taps** ([**delay\_state\_t**](structdelay__state__t.md), [**fir\_state\_t**](structfir__state__t.md), [**hbdecim\_state\_t**](structhbdecim__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 * **num\_samples** ([**dp\_header\_t**](structdp__header__t.md))
 * **nx** ([**fft2d\_state\_t**](structfft2d__state__t.md))
 * **ny** ([**fft2d\_state\_t**](structfft2d__state__t.md))
 * **n** ([**fft\_state\_t**](structfft__state__t.md))
-* **num\_taps** ([**hbdecim\_state\_t**](structhbdecim__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 * **norm\_freq** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md))
 * **nmax** ([**nco\_state\_t**](structnco__state__t.md))
-* **N** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
 * **num\_phases** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
@@ -88,14 +91,15 @@
 * **plan\_f32** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **plan\_f64** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **pending** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
-* **phase** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
-* **phase\_inc** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **phase** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **phase\_inc** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## r
 
 * **reserved** ([**dp\_header\_t**](structdp__header__t.md))
-* **rate** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **rtaps** ([**fir\_state\_t**](structfir__state__t.md))
+* **rate** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## s
@@ -105,19 +109,25 @@
 * **sequence** ([**dp\_header\_t**](structdp__header__t.md))
 * **stream\_id** ([**dp\_header\_t**](structdp__header__t.md))
 * **sign** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
+* **scratch** ([**fir\_state\_t**](structfir__state__t.md))
+* **scratch\_cap** ([**fir\_state\_t**](structfir__state__t.md))
 
 
 ## t
 
 * **timestamp\_ns** ([**dp\_header\_t**](structdp__header__t.md))
-* **tfd** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md))
+* **taps** ([**fir\_state\_t**](structfir__state__t.md))
 
 
 ## u
 
-* **upsample** ([**resamp\_dpmfs\_state\_t**](structresamp__dpmfs__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
+* **upsample** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## v
 
 * **version** ([**dp\_header\_t**](structdp__header__t.md))
+
+
+
+

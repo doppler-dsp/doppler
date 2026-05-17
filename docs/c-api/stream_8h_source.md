@@ -2,7 +2,7 @@
 
 # File stream.h
 
-[**File List**](files.md) **>** [**c**](dir_1784a01aa976a8c78ef5dfc3737bcac8.md) **>** [**include**](dir_2d10db7395ecfee73f7722e70cabff64.md) **>** [**dp**](dir_11a94baa66ce4f1e4099aa44a4fd2c26.md) **>** [**stream.h**](stream_8h.md)
+[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**stream.h**](stream_8h.md)
 
 [Go to the documentation of this file](stream_8h.md)
 
@@ -17,17 +17,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* CMPLXF/CMPLX/CMPLXL are C11.  Provide them for C99 builds via the
- * GCC/Clang __builtin_complex extension (available since GCC 4.7). */
-#ifndef CMPLXF
-#  define CMPLXF(x, y) __builtin_complex((float)(x), (float)(y))
-#endif
-#ifndef CMPLX
-#  define CMPLX(x, y)  __builtin_complex((double)(x), (double)(y))
-#endif
-#ifndef CMPLXL
-#  define CMPLXL(x, y) __builtin_complex((long double)(x), (long double)(y))
-#endif
+/* CMPLXF/CMPLX/CMPLXL fallbacks now live in clib_common.h. */
+
 
 #ifdef __cplusplus
 extern "C"
@@ -35,9 +26,9 @@ extern "C"
 #endif
 
 
-#define DP_VERSION_MAJOR 2
-#define DP_VERSION_MINOR 0
-#define DP_VERSION_PATCH 0
+#define DP_VERSION_MAJOR 2 
+#define DP_VERSION_MINOR 0 
+#define DP_VERSION_PATCH 0 
 
 
   /* -------------------------------------------------------------------------
@@ -47,36 +38,36 @@ extern "C"
 
   typedef enum
   {
-    DP_CI32 = 0,
-    DP_CF64 = 1,
-    DP_CF128 = 2,
-    DP_CI8 = 3,
-    DP_CI16 = 4,
-    DP_CF32 = 5,
+    DP_CI32 = 0,  
+    DP_CF64 = 1,  
+    DP_CF128 = 2, 
+    DP_CI8 = 3,   
+    DP_CI16 = 4,  
+    DP_CF32 = 5,  
   } dp_sample_type_t;
 
   typedef enum
   {
-    DP_PROTO_SIGS = 0,
-    DP_PROTO_DIFI = 1,
+    DP_PROTO_SIGS = 0, 
+    DP_PROTO_DIFI = 1, 
   } dp_protocol_t;
  /* end group sampletypes */
 
   typedef struct
   {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t protocol;
-    uint32_t stream_id;
-    uint32_t sample_type;
-    uint32_t flags;
-    uint64_t sequence;
+    uint32_t magic;       
+    uint32_t version;     
+    uint32_t protocol;    
+    uint32_t stream_id;   
+    uint32_t sample_type; 
+    uint32_t flags;       
+    uint64_t sequence;    
     uint64_t
-        timestamp_ns;
-    double sample_rate;
-    double center_freq;
-    uint64_t num_samples;
-    uint64_t reserved[4];
+        timestamp_ns;   
+    double sample_rate; 
+    double center_freq; 
+    uint64_t num_samples; 
+    uint64_t reserved[4]; 
   } dp_header_t;
 
   typedef struct dp_msg dp_msg_t;
@@ -93,13 +84,13 @@ extern "C"
    * Error codes
    * ---------------------------------------------------------------------- */
 
-#define DP_OK 0
-#define DP_ERR_INIT -1
-#define DP_ERR_SEND -2
-#define DP_ERR_RECV -3
-#define DP_ERR_INVALID -4
-#define DP_ERR_TIMEOUT -5
-#define DP_ERR_MEMORY -6
+#define DP_OK 0           
+#define DP_ERR_INIT -1    
+#define DP_ERR_SEND -2    
+#define DP_ERR_RECV -3    
+#define DP_ERR_INVALID -4 
+#define DP_ERR_TIMEOUT -5 
+#define DP_ERR_MEMORY -6  
 
   /* -------------------------------------------------------------------------
    * dp_msg_t — zero-copy message accessors
@@ -136,9 +127,8 @@ extern "C"
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples,
-                       size_t num_samples, double sample_rate,
-                       double center_freq);
+  int dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples, size_t num_samples,
+                       double sample_rate, double center_freq);
 
   int dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
@@ -231,9 +221,8 @@ extern "C"
   int dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_req_send_ci8 (dp_req *ctx, const int8_t *samples,
-                       size_t num_samples, double sample_rate,
-                       double center_freq);
+  int dp_req_send_ci8 (dp_req *ctx, const int8_t *samples, size_t num_samples,
+                       double sample_rate, double center_freq);
   int dp_req_send_ci16 (dp_req *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -250,9 +239,8 @@ extern "C"
   int dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples,
-                       size_t num_samples, double sample_rate,
-                       double center_freq);
+  int dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples, size_t num_samples,
+                       double sample_rate, double center_freq);
   int dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
@@ -293,3 +281,5 @@ extern "C"
 
 #endif /* DP_STREAM_H */
 ```
+
+

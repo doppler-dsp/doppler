@@ -11,7 +11,7 @@
 _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
-* `#include "dp/pocketfft.h"`
+* `#include "pocketfft/pocketfft.h"`
 
 
 
@@ -103,32 +103,32 @@ _Per-instance 2-D FFT using pocketfft directly._ [More...](#detailed-description
 Holds two pocketfft plans — one CF64, one CF32 — for an ny × nx row-major transform. Input and output arrays are flat buffers of length ny\*nx; the Python wrapper class reshapes them. nthreads is accepted for API compatibility but ignored.
 
 
-Lifecycle:
+Lifecycle: 
 ```C++
 fft2d_state_t *fft = fft2d_create(64, 64, -1, 1);
 double complex out[64 * 64];
 fft2d_execute_cf64(fft, in, 64 * 64, out);
 fft2d_destroy(fft);
 ```
+ 
 
 
-
-
+    
 ## Public Functions Documentation
 
 
 
 
-### function fft2d\_create
+### function fft2d\_create 
 
-_Create a 2-D FFT instance._
+_Create a 2-D FFT instance._ 
 ```C++
 fft2d_state_t * fft2d_create (
     size_t ny,
     size_t nx,
     int sign,
     int nthreads
-)
+) 
 ```
 
 
@@ -138,34 +138,34 @@ fft2d_state_t * fft2d_create (
 **Parameters:**
 
 
-* `ny` Number of rows.
-* `nx` Number of columns.
-* `sign` -1 for forward DFT, +1 for inverse.
-* `nthreads` Ignored (pocketfft is single-threaded).
+* `ny` Number of rows. 
+* `nx` Number of columns. 
+* `sign` -1 for forward DFT, +1 for inverse. 
+* `nthreads` Ignored (pocketfft is single-threaded). 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on failure.
+Heap-allocated state, or NULL on failure. 
 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft2d\_destroy
+### function fft2d\_destroy 
 
-_Destroy and free an fft2d instance._
+_Destroy and free an fft2d instance._ 
 ```C++
 void fft2d_destroy (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -175,27 +175,27 @@ void fft2d_destroy (
 **Parameters:**
 
 
-* `state` May be NULL.
+* `state` May be NULL. 
 
 
 
 
-
+        
 
 <hr>
 
 
 
-### function fft2d\_execute\_cf32
+### function fft2d\_execute\_cf32 
 
-_Out-of-place 2-D CF32 FFT. Returns ny\*nx._
+_Out-of-place 2-D CF32 FFT. Returns ny\*nx._ 
 ```C++
 size_t fft2d_execute_cf32 (
     fft2d_state_t * state,
     const float complex * in,
     size_t n_in,
     float complex * out
-)
+) 
 ```
 
 
@@ -205,13 +205,13 @@ size_t fft2d_execute_cf32 (
 
 
 
-### function fft2d\_execute\_cf32\_max\_out
+### function fft2d\_execute\_cf32\_max\_out 
 
-_Maximum output samples for CF32 execute (ny \* nx)._
+_Maximum output samples for CF32 execute (ny \* nx)._ 
 ```C++
 size_t fft2d_execute_cf32_max_out (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -221,16 +221,16 @@ size_t fft2d_execute_cf32_max_out (
 
 
 
-### function fft2d\_execute\_cf64
+### function fft2d\_execute\_cf64 
 
-_Out-of-place 2-D CF64 FFT. Returns ny\*nx._
+_Out-of-place 2-D CF64 FFT. Returns ny\*nx._ 
 ```C++
 size_t fft2d_execute_cf64 (
     fft2d_state_t * state,
     const double complex * in,
     size_t n_in,
     double complex * out
-)
+) 
 ```
 
 
@@ -240,13 +240,13 @@ size_t fft2d_execute_cf64 (
 
 
 
-### function fft2d\_execute\_cf64\_max\_out
+### function fft2d\_execute\_cf64\_max\_out 
 
-_Maximum output samples per execute call (ny \* nx)._
+_Maximum output samples per execute call (ny \* nx)._ 
 ```C++
 size_t fft2d_execute_cf64_max_out (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -256,16 +256,16 @@ size_t fft2d_execute_cf64_max_out (
 
 
 
-### function fft2d\_execute\_inplace\_cf32
+### function fft2d\_execute\_inplace\_cf32 
 
-_In-place 2-D CF32 FFT (copies in→out, then transforms)._
+_In-place 2-D CF32 FFT (copies in→out, then transforms)._ 
 ```C++
 size_t fft2d_execute_inplace_cf32 (
     fft2d_state_t * state,
     const float complex * in,
     size_t n_in,
     float complex * out
-)
+) 
 ```
 
 
@@ -275,13 +275,13 @@ size_t fft2d_execute_inplace_cf32 (
 
 
 
-### function fft2d\_execute\_inplace\_cf32\_max\_out
+### function fft2d\_execute\_inplace\_cf32\_max\_out 
 
-_Maximum output samples for inplace CF32 execute (ny \* nx)._
+_Maximum output samples for inplace CF32 execute (ny \* nx)._ 
 ```C++
 size_t fft2d_execute_inplace_cf32_max_out (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -291,16 +291,16 @@ size_t fft2d_execute_inplace_cf32_max_out (
 
 
 
-### function fft2d\_execute\_inplace\_cf64
+### function fft2d\_execute\_inplace\_cf64 
 
-_In-place 2-D CF64 FFT (copies in→out, then transforms)._
+_In-place 2-D CF64 FFT (copies in→out, then transforms)._ 
 ```C++
 size_t fft2d_execute_inplace_cf64 (
     fft2d_state_t * state,
     const double complex * in,
     size_t n_in,
     double complex * out
-)
+) 
 ```
 
 
@@ -310,13 +310,13 @@ size_t fft2d_execute_inplace_cf64 (
 
 
 
-### function fft2d\_execute\_inplace\_cf64\_max\_out
+### function fft2d\_execute\_inplace\_cf64\_max\_out 
 
-_Maximum output samples for inplace CF64 execute (ny \* nx)._
+_Maximum output samples for inplace CF64 execute (ny \* nx)._ 
 ```C++
 size_t fft2d_execute_inplace_cf64_max_out (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -326,13 +326,13 @@ size_t fft2d_execute_inplace_cf64_max_out (
 
 
 
-### function fft2d\_reset
+### function fft2d\_reset 
 
-_No-op reset (plans are immutable after creation)._
+_No-op reset (plans are immutable after creation)._ 
 ```C++
 void fft2d_reset (
     fft2d_state_t * state
-)
+) 
 ```
 
 
@@ -342,3 +342,4 @@ void fft2d_reset (
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/fft2d/fft2d_core.h`
+

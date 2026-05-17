@@ -13,40 +13,62 @@
 #define NCO_CORE_H
 
 #include "clib_common.h"
-
+#include "jm_perf.h"
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-typedef struct {
-    uint32_t phase;
-    uint32_t phase_inc;
-    float    norm_freq;
-    uint32_t nmax;      /* wrap target; 0 means return raw uint32 */
-} nco_state_t;
+#if defined(__GNUC__) || defined(__clang__)
+#define NCO_ADD_OVF(a, b, res)                                                \
+  ((uint8_t)__builtin_add_overflow ((uint32_t)(a), (uint32_t)(b),             \
+                                    (uint32_t *)(res)))
+#else
+static inline uint8_t
+nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
+{
+  *res = a + b;
+  return (uint8_t)(*res < a);
+}
+#define NCO_ADD_OVF(a, b, res) nco_add_ovf_ ((a), (b), (res))
+#endif
 
-nco_state_t *nco_create(float norm_freq, uint32_t nmax);
+  typedef struct
+  {
+    uint32_t phase;     /* current accumulator value [0, 2^32)         */
+    uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
+    double norm_freq;   /* normalised frequency (cycles/sample)          */
+    uint32_t nmax;      /* wrap target for steps_u32_scaled; 0 = raw   */
+  } nco_state_t;
 
-void nco_destroy(nco_state_t *nco);
+  nco_state_t *nco_create (double norm_freq, uint32_t nmax);
 
-void nco_reset(nco_state_t *nco);
+  void nco_destroy (nco_state_t *state);
 
-void nco_set_freq(nco_state_t *nco, float norm_freq);
+  void nco_reset (nco_state_t *state);
 
-float    nco_get_freq     (const nco_state_t *nco);
-uint32_t nco_get_phase    (const nco_state_t *nco);
-uint32_t nco_get_phase_inc(const nco_state_t *nco);
+  /* ---- Properties ---- */
 
-void nco_set_phase(nco_state_t *nco, uint32_t phase);
+  double nco_get_norm_freq (const nco_state_t *state);
+  void nco_set_norm_freq (nco_state_t *state, double norm_freq);
+  uint32_t nco_get_phase (const nco_state_t *state);
+  void nco_set_phase (nco_state_t *state, uint32_t phase);
+  uint32_t nco_get_phase_inc (const nco_state_t *state);
 
-void nco_execute_u32(nco_state_t *nco, uint32_t *out, size_t n);
+  /* ---- Block generators ---- */
 
-void nco_execute_u32_scaled(nco_state_t *nco, uint32_t *out, size_t n);
+  size_t nco_steps_u32_max_out (nco_state_t *state);
 
-void nco_execute_u32_ovf(nco_state_t *nco,
-                         uint32_t    *out,
-                         uint8_t     *carry,
-                         size_t       n);
+  size_t nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out);
+
+  size_t nco_steps_u32_scaled_max_out (nco_state_t *state);
+
+  size_t nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out);
+
+  size_t nco_steps_u32_ovf_max_out (nco_state_t *state);
+
+  size_t nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out,
+                            uint8_t *out1);
 
 #ifdef __cplusplus
 }
@@ -54,3 +76,5 @@ void nco_execute_u32_ovf(nco_state_t *nco,
 
 #endif /* NCO_CORE_H */
 ```
+
+

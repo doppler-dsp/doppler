@@ -8,7 +8,7 @@
  * before decimating, at zero extra multiplications).
  *
  * The output at sample m is:
- *   y[m] = (FIR(even) + j·delay(odd)) · (-1)^m
+ *   y(m) = (FIR(even) + j·delay(odd)) · (-1)^m
  *
  * where the sign pattern (-1)^m provides the fs/4 shift correction.
  *

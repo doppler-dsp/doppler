@@ -1,6 +1,7 @@
 add_library(source_core OBJECT source_core.c)
 target_include_directories(source_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+if(BUILD_PYTHON)
 # source Python module — aggregates: NCO, LO
 Python3_add_library(source MODULE WITH_SOABI source_ext.c)
 target_link_libraries(source PRIVATE
@@ -31,3 +32,4 @@ add_custom_command(TARGET source POST_BUILD
         "$<TARGET_FILE:source>"
         "${PYTHON_PACKAGE_DIR}/source/$<TARGET_FILE_NAME:source>"
     VERBATIM)
+endif()

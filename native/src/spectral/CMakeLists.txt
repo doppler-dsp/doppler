@@ -2,6 +2,7 @@ add_library(spectral_core OBJECT spectral_core.c)
 target_include_directories(spectral_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(spectral_core PUBLIC m)
 
+if(BUILD_PYTHON)
 # spectral Python module — aggregates: FFT, FFT2D
 Python3_add_library(spectral MODULE WITH_SOABI spectral_ext.c)
 target_link_libraries(spectral PRIVATE
@@ -33,3 +34,4 @@ add_custom_command(TARGET spectral POST_BUILD
         "$<TARGET_FILE:spectral>"
         "${PYTHON_PACKAGE_DIR}/spectral/$<TARGET_FILE_NAME:spectral>"
     VERBATIM)
+endif()

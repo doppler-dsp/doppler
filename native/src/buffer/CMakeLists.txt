@@ -1,3 +1,4 @@
+if(BUILD_PYTHON)
 # buffer Python module — wraps buffer/buffer.h (header-only, no C source link)
 Python3_add_library(buffer MODULE WITH_SOABI buffer_ext.c)
 target_link_libraries(buffer PRIVATE Python3::NumPy)
@@ -24,3 +25,4 @@ add_custom_command(TARGET buffer POST_BUILD
         "$<TARGET_FILE:buffer>"
         "${PYTHON_PACKAGE_DIR}/buffer/$<TARGET_FILE_NAME:buffer>"
     VERBATIM)
+endif()

@@ -44,6 +44,10 @@ endforeach()
 find_package(Threads REQUIRED)
 target_link_libraries(doppler_lib PRIVATE
     "$<TARGET_FILE:pocketfft_cxx>" m stdc++ Threads::Threads)
+# Static lib: use the CMake target name so the dependency is recorded and
+# propagates to any consumer (e.g. example executables) that links the archive.
+target_link_libraries(doppler_lib_static PRIVATE
+    pocketfft_cxx m stdc++ Threads::Threads)
 
 enable_testing()
 

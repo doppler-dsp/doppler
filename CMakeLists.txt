@@ -38,16 +38,14 @@ foreach(_t doppler_lib doppler_lib_static)
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
-# Inline pocketfft objects into the shared lib so it is self-contained.
-# Use TARGET_FILE (raw path) to avoid adding pocketfft_cxx to the export set.
-# pocketfft uses std::thread; glibc < 2.34 requires explicit -lpthread.
+# pocketfft_cxx is an OBJECT library — link it directly so its compiled units
+# are embedded in the shared lib without appearing in the install export set.
+# The static lib gets the same objects via target_sources so libdoppler.a is
+# also self-contained; stdc++ and Threads propagate to consumers via PUBLIC.
 find_package(Threads REQUIRED)
-target_link_libraries(doppler_lib PRIVATE
-    "$<TARGET_FILE:pocketfft_cxx>" m stdc++ Threads::Threads)
-# Static lib: use the CMake target name so the dependency is recorded and
-# propagates to any consumer (e.g. example executables) that links the archive.
-target_link_libraries(doppler_lib_static PRIVATE
-    pocketfft_cxx m stdc++ Threads::Threads)
+target_link_libraries(doppler_lib PRIVATE pocketfft_cxx m)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:pocketfft_cxx>)
+target_link_libraries(doppler_lib_static PUBLIC stdc++ Threads::Threads m)
 
 enable_testing()
 
@@ -136,9 +134,14 @@ add_subdirectory(examples/c)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS doppler_lib doppler_lib_static
+install(TARGETS doppler_lib
     EXPORT doppler-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+# Static lib installed without CMake package integration — no pocketfft_cxx
+# in the export set.  Consumers wanting static linking find libdoppler.a
+# via find_library() and link -lstdc++ -lpthread -lm alongside it.
+install(TARGETS doppler_lib_static
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/

@@ -162,7 +162,10 @@ jobs:
 
     - name: Install build deps + cmake ≥ 3.16 from Kitware
       run: |
-        apt-get update
+        # Debian Buster reached EOL; packages are on the archive mirror.
+        printf 'deb http://archive.debian.org/debian buster main\ndeb http://archive.debian.org/debian-security buster/updates main\n' \
+          > /etc/apt/sources.list
+        apt-get -o Acquire::Check-Valid-Until=false update
         apt-get install -y --no-install-recommends \
           build-essential \
           pkg-config \
@@ -176,7 +179,7 @@ jobs:
           | tee /usr/share/keyrings/kitware-archive-keyring.gpg > /dev/null
         echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/debian/ buster main' \
           > /etc/apt/sources.list.d/kitware.list
-        apt-get update
+        apt-get -o Acquire::Check-Valid-Until=false update
         apt-get install -y --no-install-recommends cmake
 
     - name: Build

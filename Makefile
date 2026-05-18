@@ -131,6 +131,15 @@ test-examples: build
 	        echo "FAIL"; exit 1; \
 	    fi; \
 	done
+	@echo "Running Python example smoke tests..."
+	@for ex in examples/python/fir_demo.py; do \
+	    printf "  %-20s" "$$ex"; \
+	    if uv run python $$ex > /dev/null 2>&1; then \
+	        echo "PASS"; \
+	    else \
+	        echo "FAIL"; exit 1; \
+	    fi; \
+	done
 	@echo "All example smoke tests passed."
 
 # ── test-all ──────────────────────────────────────────────────────────────────

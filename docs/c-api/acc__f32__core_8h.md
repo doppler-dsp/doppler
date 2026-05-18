@@ -58,14 +58,14 @@ _AccF32 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acc\_f32\_add2d**](#function-acc_f32_add2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_add2d._  |
+|  void | [**acc\_f32\_add2d**](#function-acc_f32_add2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Accumulate a 2-D array: acc += sum of all elements in x._  |
 |  [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* | [**acc\_f32\_create**](#function-acc_f32_create) (float acc) <br>_Create a acc\_f32 instance._  |
 |  void | [**acc\_f32\_destroy**](#function-acc_f32_destroy) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Destroy a acc\_f32 instance and release all memory._  |
 |  float | [**acc\_f32\_dump**](#function-acc_f32_dump) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_dump._  |
 |  float | [**acc\_f32\_get**](#function-acc_f32_get) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_get._  |
 |  float | [**acc\_f32\_get\_acc**](#function-acc_f32_get_acc) (const [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Get current acc._  |
-|  void | [**acc\_f32\_madd**](#function-acc_f32_madd) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_madd._  |
-|  void | [**acc\_f32\_madd2d**](#function-acc_f32_madd2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_madd2d._  |
+|  void | [**acc\_f32\_madd**](#function-acc_f32_madd) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Multiply-accumulate: acc += sum(x \* h) over x\_len samples._  |
+|  void | [**acc\_f32\_madd2d**](#function-acc_f32_madd2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_2-D multiply-accumulate: acc += sum(x \* h) over x\_len elements._  |
 |  void | [**acc\_f32\_reset**](#function-acc_f32_reset) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Reset acc\_f32 to its post-create state._  |
 |  void | [**acc\_f32\_set\_acc**](#function-acc_f32_set_acc) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float acc) <br>_Set acc._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_f32\_step**](#function-acc_f32_step) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float x) <br>_Consume one input sample (sink; no output)._  |
@@ -121,7 +121,7 @@ acc_f32_destroy(obj);
 
 ### function acc\_f32\_add2d 
 
-_add2d._ 
+_Accumulate a 2-D array: acc += sum of all elements in x._ 
 ```C++
 void acc_f32_add2d (
     acc_f32_state_t * state,
@@ -138,7 +138,8 @@ void acc_f32_add2d (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (float[]). 
+* `x` Input array (float), x\_len elements total. 
+* `x_len` Total number of elements. 
 
 
 
@@ -314,7 +315,7 @@ float acc_f32_get_acc (
 
 ### function acc\_f32\_madd 
 
-_madd._ 
+_Multiply-accumulate: acc += sum(x \* h) over x\_len samples._ 
 ```C++
 void acc_f32_madd (
     acc_f32_state_t * state,
@@ -333,8 +334,10 @@ void acc_f32_madd (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (float[]). 
-* `h` float[] parameter. 
+* `x` Input array (float), length x\_len. 
+* `x_len` Number of input samples. 
+* `h` Coefficient array (float), length h\_len. 
+* `h_len` Number of coefficients. 
 
 
 
@@ -347,7 +350,7 @@ void acc_f32_madd (
 
 ### function acc\_f32\_madd2d 
 
-_madd2d._ 
+_2-D multiply-accumulate: acc += sum(x \* h) over x\_len elements._ 
 ```C++
 void acc_f32_madd2d (
     acc_f32_state_t * state,
@@ -366,8 +369,10 @@ void acc_f32_madd2d (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (float[]). 
-* `h` float[] parameter. 
+* `x` Input array (float), length x\_len. 
+* `x_len` Total number of elements. 
+* `h` Coefficient array (float), length h\_len. 
+* `h_len` Number of coefficients. 
 
 
 

@@ -10,7 +10,7 @@ no divergence between languages, C throughput from Python.
 ## What's inside
 
 - **NCO** — 32-bit phase accumulator, 2¹⁶-entry LUT, AVX-512 batch generation, FM ctrl port
-- **FIR filter** — AVX-512 complex taps, CI8/CI16/CI32/CF32 input types
+- **FIR filter** — real or complex CF32 taps; CF32 input/output
 - **FFT** — 1D and 2D, selectable backend (pocketfft default, FFTW opt-in)
 - **Resampler** — polyphase (4096-phase × 19-tap Kaiser bank, 60 dB); halfband 2:1 decimator
 - **DDC** — `Ddc` (complex IQ) and `DDCR` (real ADC, Architecture D2, ~2× cheaper)
@@ -55,12 +55,12 @@ no divergence between languages, C throughput from Python.
 
     ```c
     #include <doppler.h>
-    #include <dp/nco.h>
+    #include <complex.h>
 
-    dp_nco_t *nco = dp_nco_create(0.25f);
-    dp_cf32_t out[1024];
-    dp_nco_execute_cf32(nco, out, 1024);
-    dp_nco_destroy(nco);
+    lo_state_t *lo = lo_create(0.25);
+    float complex out[1024];
+    lo_steps(lo, 1024, out);
+    lo_destroy(lo);
     ```
 
     ```c
@@ -69,7 +69,7 @@ no divergence between languages, C throughput from Python.
 
     fft_state_t *fft = fft_create(1024, -1, 1);
     double complex in[1024], out[1024];
-    fft_execute_cf64(fft, in, 1024, out);
+    fft_execute_cf64(fft, in, N, out);
     fft_destroy(fft);
     ```
 
@@ -95,8 +95,6 @@ Release build (`-O2`). Re-run with `make build` then the binary listed.
 
 | Input / taps | MSa/s |
 |-------------|------:|
-| CI8 / real | 982 |
-| CI16 / real | 967 |
 | CF32 / real | 901 |
 | CF32 / complex | 519 |
 

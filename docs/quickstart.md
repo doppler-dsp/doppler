@@ -206,6 +206,6 @@ platform-specific notes.
 
 - [Architecture](architecture.md) — design overview and layer diagram
 - [Examples: C](examples/c.md) · [Python](examples/python.md) · [Streaming](examples/streaming.md)
-- [API reference](api/python-fft.md) — full Python API docs
+- [API reference](c-api/index.md) — full C and Python API docs
 - [Spectrum Analyzer](specan/index.md) — specan configuration
 - [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

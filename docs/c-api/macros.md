@@ -3,6 +3,11 @@
 
 
 
+## c
+
+* **CMPLXF** ([**clib\_common.h**](clib__common_8h.md))
+
+
 ## d
 
 * **DECLARE\_DP\_BUFFER** ([**buffer.h**](buffer_8h.md))

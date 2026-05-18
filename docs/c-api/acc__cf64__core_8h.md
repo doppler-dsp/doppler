@@ -58,14 +58,14 @@ _AccCf64 component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acc\_cf64\_add2d**](#function-acc_cf64_add2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len) <br>_add2d._  |
+|  void | [**acc\_cf64\_add2d**](#function-acc_cf64_add2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len) <br>_Accumulate a 2-D array: acc += sum of all elements in x._  |
 |  [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* | [**acc\_cf64\_create**](#function-acc_cf64_create) (double \_Complex acc) <br>_Create a acc\_cf64 instance._  |
 |  void | [**acc\_cf64\_destroy**](#function-acc_cf64_destroy) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Destroy a acc\_cf64 instance and release all memory._  |
 |  double complex | [**acc\_cf64\_dump**](#function-acc_cf64_dump) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_dump._  |
 |  double complex | [**acc\_cf64\_get**](#function-acc_cf64_get) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_get._  |
 |  double \_Complex | [**acc\_cf64\_get\_acc**](#function-acc_cf64_get_acc) (const [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Get current acc._  |
-|  void | [**acc\_cf64\_madd**](#function-acc_cf64_madd) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_madd._  |
-|  void | [**acc\_cf64\_madd2d**](#function-acc_cf64_madd2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_madd2d._  |
+|  void | [**acc\_cf64\_madd**](#function-acc_cf64_madd) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Multiply-accumulate: acc += sum(x \* h) over x\_len samples._  |
+|  void | [**acc\_cf64\_madd2d**](#function-acc_cf64_madd2d) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, const double complex \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_2-D multiply-accumulate: acc += sum(x \* h) over x\_len elements._  |
 |  void | [**acc\_cf64\_reset**](#function-acc_cf64_reset) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state) <br>_Reset acc\_cf64 to its post-create state._  |
 |  void | [**acc\_cf64\_set\_acc**](#function-acc_cf64_set_acc) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double \_Complex acc) <br>_Set acc._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_cf64\_step**](#function-acc_cf64_step) ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) \* state, double complex x) <br>_Consume one input sample (sink; no output)._  |
@@ -121,7 +121,7 @@ acc_cf64_destroy(obj);
 
 ### function acc\_cf64\_add2d 
 
-_add2d._ 
+_Accumulate a 2-D array: acc += sum of all elements in x._ 
 ```C++
 void acc_cf64_add2d (
     acc_cf64_state_t * state,
@@ -138,7 +138,8 @@ void acc_cf64_add2d (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (double complex[]). 
+* `x` Input array (double complex), x\_len elements total. 
+* `x_len` Total number of elements. 
 
 
 
@@ -314,7 +315,7 @@ double _Complex acc_cf64_get_acc (
 
 ### function acc\_cf64\_madd 
 
-_madd._ 
+_Multiply-accumulate: acc += sum(x \* h) over x\_len samples._ 
 ```C++
 void acc_cf64_madd (
     acc_cf64_state_t * state,
@@ -333,8 +334,10 @@ void acc_cf64_madd (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (double complex[]). 
-* `h` float[] parameter. 
+* `x` Input array (double complex), length x\_len. 
+* `x_len` Number of input samples. 
+* `h` Coefficient array (float), length h\_len. 
+* `h_len` Number of coefficients. 
 
 
 
@@ -347,7 +350,7 @@ void acc_cf64_madd (
 
 ### function acc\_cf64\_madd2d 
 
-_madd2d._ 
+_2-D multiply-accumulate: acc += sum(x \* h) over x\_len elements._ 
 ```C++
 void acc_cf64_madd2d (
     acc_cf64_state_t * state,
@@ -366,8 +369,10 @@ void acc_cf64_madd2d (
 
 
 * `state` Must be non-NULL. 
-* `x` Input (double complex[]). 
-* `h` float[] parameter. 
+* `x` Input array (double complex), length x\_len. 
+* `x_len` Total number of elements. 
+* `h` Coefficient array (float), length h\_len. 
+* `h_len` Number of coefficients. 
 
 
 

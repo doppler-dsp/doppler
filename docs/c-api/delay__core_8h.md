@@ -64,7 +64,7 @@ _Delay component API._ [More...](#detailed-description)
 |  size\_t | [**delay\_ptr\_max\_out**](#function-delay_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_ptr._  |
 |  void | [**delay\_push**](#function-delay_push) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x) <br>_push._  |
 |  size\_t | [**delay\_push\_ptr**](#function-delay_push_ptr) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x, double complex \* out) <br> |
-|  size\_t | [**delay\_push\_ptr\_max\_out**](#function-delay_push_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_push\_ptr._  |
+|  size\_t | [**delay\_push\_ptr\_max\_out**](#function-delay_push_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br> |
 |  void | [**delay\_reset**](#function-delay_reset) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Reset delay to its post-create state._  |
 |  void | [**delay\_write**](#function-delay_write) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x) <br>_write._  |
 
@@ -286,7 +286,6 @@ size_t delay_push_ptr (
 
 ### function delay\_push\_ptr\_max\_out 
 
-_push\_ptr._ 
 ```C++
 size_t delay_push_ptr_max_out (
     delay_state_t * state
@@ -295,22 +294,7 @@ size_t delay_push_ptr_max_out (
 
 
 
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `x` double complex parameter. 
-
-
-
-**Returns:**
-
-Result (double complex). 
-
-
-
+Maximum output samples per delay\_push\_ptr call. 
 
 
         

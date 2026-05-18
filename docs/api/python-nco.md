@@ -1,6 +1,6 @@
 # Python NCO / LO API
 
-Two signal-source classes backed by `dp_nco_t`:
+Two signal-source classes backed by `nco_state_t` and `lo_state_t`:
 
 | Class | Output | Use when |
 |-------|--------|----------|

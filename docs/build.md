@@ -274,22 +274,21 @@ running `cargo build` with `PKG_CONFIG_PATH` set to the install prefix.
 
 | Module | Wraps | Description |
 | ------ | ----- | ----------- |
-| `acc` | `dp_acc_f32_*`, `dp_acc_cf64_*` | f32 and cf64 accumulators |
+| `acc` | `acc_f32_*`, `acc_cf64_*` | f32 and cf64 accumulators |
 | `fft` | `fft_create`, `fft_execute_cf64/cf32` | 1-D and 2-D FFT |
-| `fir` | `dp_fir_*` | FIR filter (complex and real taps) |
-| `nco` | `dp_nco_*` | Numerically-controlled oscillator |
-| `util::c16_mul` | `dp_c16_mul` | SIMD complex multiplication |
+| `fir` | `fir_create`, `fir_execute` | FIR filter (real and complex taps) |
+| `nco` | `nco_create`, `nco_steps_*` | Numerically-controlled oscillator |
 
 ### Sample types
 
 The crate exposes `#[repr(C)]` structs that match the C ABI exactly:
 
-| Rust type | C type | Description |
-| --------- | ------ | ----------- |
-| `DpCf32` | `dp_cf32_t` | Complex f32 (I+Q) — converts to/from `Complex<f32>` |
-| `DpCi8` | `dp_ci8_t` | Complex i8 |
-| `DpCi16` | `dp_ci16_t` | Complex i16 |
-| `DpCi32` | `dp_ci32_t` | Complex i32 |
+| Rust type | C layout | Description |
+| --------- | -------- | ----------- |
+| `DpCf32` | `float complex` | `{i: f32, q: f32}` — `From<Complex<f32>>` |
+| `DpCi8` | `{int8_t i, q}` | Complex i8 IQ pair |
+| `DpCi16` | `{int16_t i, q}` | Complex i16 IQ pair |
+| `DpCi32` | `{int32_t i, q}` | Complex i32 IQ pair |
 
 ### Using from another crate
 

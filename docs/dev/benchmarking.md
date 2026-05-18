@@ -10,15 +10,17 @@ control.
 ## Quick start
 
 ```sh
-make benchmark     # Python: benchmarks/history/<tag>.json
-make benchmark-c   # C:      benchmarks/history/<tag>-c.json
+make bench          # C + Python: both snapshots
+make bench-python   # Python only: benchmarks/history/<tag>.json
+make bench-c        # C only:     benchmarks/history/<tag>-c.json
 ```
 
-Both targets accept a `BENCH_TAG` override for version-tagged snapshots:
+All targets accept a `BENCH_TAG` override for version-tagged snapshots:
 
 ```sh
-make benchmark     BENCH_TAG=v1.2.3
-make benchmark-c   BENCH_TAG=v1.2.3
+make bench         BENCH_TAG=v1.2.3
+make bench-python  BENCH_TAG=v1.2.3
+make bench-c       BENCH_TAG=v1.2.3
 ```
 
 ---
@@ -34,11 +36,11 @@ src/doppler/filter/benchmarks/bench_fir.py
 ...
 ```
 
-`make benchmark` discovers all bench files under `src/doppler/`, runs them
+`make bench-python` discovers all bench files under `src/doppler/`, runs them
 via `pytest --benchmark-only`, and saves a dated JSON snapshot:
 
 ```sh
-make benchmark    # → benchmarks/history/20260518T071221Z.json
+make bench-python   # → benchmarks/history/20260518T071221Z.json
 ```
 
 Each `test_*` function is one entry in the JSON with full stats (min, max,
@@ -77,7 +79,7 @@ runs.
 ## C benchmarks
 
 C benchmarks are standalone executables that write JSON directly to disk.
-The `make benchmark-c` target runs all bench executables, collects the JSON
+The `make bench-c` target runs all bench executables, collects the JSON
 each one writes, and merges them into a combined history file.
 
 ### How they work

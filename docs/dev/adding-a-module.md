@@ -372,8 +372,8 @@ release tag — no manual step required.  Run locally when you want an
 immediate result during development:
 
 ```sh
-make benchmark                   # saves benchmarks/history/YYYY-MM-DD-<sha>.json
-make benchmark BENCH_TAG=v1.2.3  # version-tagged snapshot (matches CI on tag push)
+make bench-python                   # saves benchmarks/history/<tag>.json
+make bench-python BENCH_TAG=v1.2.3  # version-tagged snapshot (matches CI on tag push)
 ```
 
 Compare two snapshots:
@@ -405,8 +405,8 @@ Before opening a PR:
 - [ ] `make test` — all C tests pass
 - [ ] `python -m doctest -v src/doppler/<name>/<name>.pyi` — all examples pass
 - [ ] `make python-test` — all Python tests pass
-- [ ] `make benchmark` — Python benchmarks run and a JSON snapshot is saved
-- [ ] `make benchmark-c` — C benchmarks run and a `-c.json` snapshot is saved
+- [ ] `make bench-python` — Python benchmarks run and a JSON snapshot is saved
+- [ ] `make bench-c` — C benchmarks run and a `-c.json` snapshot is saved
 - [ ] `__init__.py` contains only re-exports and `__all__`
 - [ ] No Python wrapper classes — C extension types are the public API
 - [ ] `<name>.pyi` has stubs for every exported symbol

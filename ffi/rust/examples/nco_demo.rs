@@ -13,15 +13,14 @@ use std::f32::consts::PI;
 fn main() {
     println!("doppler NCO/LO demo");
     println!("===================");
-    println!("version: {}", doppler::version());
     println!();
 
     // ── Complex phasors via Lo ─────────────────────────────────────────────
-    let freq = 0.1_f32;
+    let freq = 0.1_f64;
     let n = 20_usize;
     let mut lo = Lo::new(freq);
     let mut samples = vec![num_complex::Complex::<f32>::default(); n];
-    lo.execute_cf32(&mut samples);
+    lo.steps(&mut samples);
 
     println!("Tone at f = {freq} cycles/sample  ({n} samples)\n");
     println!("  k   re        im        |z|       angle/π");
@@ -46,7 +45,7 @@ fn main() {
         .collect();
     lo.reset();
     let mut fm_samples = vec![num_complex::Complex::<f32>::default(); n];
-    lo.execute_cf32_ctrl(&ctrl, &mut fm_samples);
+    lo.steps_ctrl(&ctrl, &mut fm_samples);
 
     for (k, s) in fm_samples.iter().enumerate() {
         println!("  {k:3}  {:+.5}  {:+.5}", s.re, s.im);
@@ -57,7 +56,7 @@ fn main() {
     println!("Raw u32 phase accumulator (first 10 values)");
     let mut nco = Nco::new(freq);
     let mut phases = vec![0u32; 10];
-    nco.execute_u32(&mut phases);
+    nco.steps_u32(&mut phases);
     for (k, &p) in phases.iter().enumerate() {
         let norm = p as f64 / u32::MAX as f64;
         println!("  phase[{k}] = {p:#010x}  ({norm:.5} cycles)");
@@ -69,7 +68,7 @@ fn main() {
     let mut nco2 = Nco::new(0.5);
     let mut phase_buf = vec![0u32; 10];
     let mut carry_buf = vec![0u8; 10];
-    nco2.execute_u32_ovf(&mut phase_buf, &mut carry_buf);
+    nco2.steps_u32_ovf(&mut phase_buf, &mut carry_buf);
     println!("  ovf = {:?}", &carry_buf[..]);
     println!();
 

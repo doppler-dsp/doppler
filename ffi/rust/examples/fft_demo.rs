@@ -10,8 +10,6 @@ use std::f64::consts::PI;
 fn main() {
     println!("=== doppler FFT Demo (Rust FFI) ===");
     println!();
-    println!("Library version: {}", doppler::version());
-
     // ── 1-D out-of-place FFT: cosine input ───────────────────────────────
     {
         let n = 16_usize;

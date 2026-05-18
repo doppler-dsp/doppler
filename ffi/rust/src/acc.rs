@@ -1,85 +1,83 @@
-/// Scalar and complex accumulators (`dp/accumulator.h`).
+/// Scalar and complex accumulators (`acc_f32_core.h`, `acc_cf64_core.h`).
 use num_complex::Complex64;
 
 /// Opaque C f32 accumulator handle.  Never construct directly — use
 /// [`AccF32`].
 #[repr(C)]
-pub struct DpAccF32Raw {
+pub struct AccF32StateRaw {
     _priv: [u8; 0],
 }
 
 /// Opaque C cf64 accumulator handle.  Never construct directly — use
 /// [`AccCf64`].
 #[repr(C)]
-pub struct DpAccCf64Raw {
+pub struct AccCf64StateRaw {
     _priv: [u8; 0],
 }
 
 extern "C" {
-    pub fn dp_acc_f32_create() -> *mut DpAccF32Raw;
-    pub fn dp_acc_f32_destroy(acc: *mut DpAccF32Raw);
-    pub fn dp_acc_f32_reset(acc: *mut DpAccF32Raw);
-    pub fn dp_acc_f32_get(acc: *const DpAccF32Raw) -> f32;
-    pub fn dp_acc_f32_dump(acc: *mut DpAccF32Raw) -> f32;
-    pub fn dp_acc_f32_push(acc: *mut DpAccF32Raw, x: f32);
-    pub fn dp_acc_f32_add(
-        acc: *mut DpAccF32Raw,
-        x: *const f32,
+    pub fn acc_f32_create(acc: f32) -> *mut AccF32StateRaw;
+    pub fn acc_f32_destroy(acc: *mut AccF32StateRaw);
+    pub fn acc_f32_reset(acc: *mut AccF32StateRaw);
+    pub fn acc_f32_get_acc(acc: *const AccF32StateRaw) -> f32;
+    pub fn acc_f32_dump(acc: *mut AccF32StateRaw) -> f32;
+    pub fn acc_f32_steps(
+        acc: *mut AccF32StateRaw,
+        input: *const f32,
         n: usize,
     );
-    pub fn dp_acc_f32_madd(
-        acc: *mut DpAccF32Raw,
+    pub fn acc_f32_madd(
+        acc: *mut AccF32StateRaw,
         x: *const f32,
+        x_len: usize,
         h: *const f32,
-        n: usize,
+        h_len: usize,
     );
-    pub fn dp_acc_f32_add2d(
-        acc: *mut DpAccF32Raw,
+    pub fn acc_f32_add2d(
+        acc: *mut AccF32StateRaw,
         x: *const f32,
-        rows: usize,
-        cols: usize,
+        x_len: usize,
     );
-    pub fn dp_acc_f32_madd2d(
-        acc: *mut DpAccF32Raw,
+    pub fn acc_f32_madd2d(
+        acc: *mut AccF32StateRaw,
         x: *const f32,
+        x_len: usize,
         h: *const f32,
-        rows: usize,
-        cols: usize,
+        h_len: usize,
     );
 
-    pub fn dp_acc_cf64_create() -> *mut DpAccCf64Raw;
-    pub fn dp_acc_cf64_destroy(acc: *mut DpAccCf64Raw);
-    pub fn dp_acc_cf64_reset(acc: *mut DpAccCf64Raw);
-    pub fn dp_acc_cf64_get(acc: *const DpAccCf64Raw) -> Complex64;
-    pub fn dp_acc_cf64_dump(acc: *mut DpAccCf64Raw) -> Complex64;
-    pub fn dp_acc_cf64_push(acc: *mut DpAccCf64Raw, x: Complex64);
-    pub fn dp_acc_cf64_add(
-        acc: *mut DpAccCf64Raw,
-        x: *const Complex64,
+    pub fn acc_cf64_create(acc: Complex64) -> *mut AccCf64StateRaw;
+    pub fn acc_cf64_destroy(acc: *mut AccCf64StateRaw);
+    pub fn acc_cf64_reset(acc: *mut AccCf64StateRaw);
+    pub fn acc_cf64_get_acc(acc: *const AccCf64StateRaw) -> Complex64;
+    pub fn acc_cf64_dump(acc: *mut AccCf64StateRaw) -> Complex64;
+    pub fn acc_cf64_steps(
+        acc: *mut AccCf64StateRaw,
+        input: *const Complex64,
         n: usize,
     );
-    pub fn dp_acc_cf64_madd(
-        acc: *mut DpAccCf64Raw,
+    pub fn acc_cf64_madd(
+        acc: *mut AccCf64StateRaw,
         x: *const Complex64,
+        x_len: usize,
         h: *const f32,
-        n: usize,
+        h_len: usize,
     );
-    pub fn dp_acc_cf64_add2d(
-        acc: *mut DpAccCf64Raw,
+    pub fn acc_cf64_add2d(
+        acc: *mut AccCf64StateRaw,
         x: *const Complex64,
-        rows: usize,
-        cols: usize,
+        x_len: usize,
     );
-    pub fn dp_acc_cf64_madd2d(
-        acc: *mut DpAccCf64Raw,
+    pub fn acc_cf64_madd2d(
+        acc: *mut AccCf64StateRaw,
         x: *const Complex64,
+        x_len: usize,
         h: *const f32,
-        rows: usize,
-        cols: usize,
+        h_len: usize,
     );
 }
 
-/// RAII wrapper around `dp_acc_f32_t`.
+/// RAII wrapper around `acc_f32_state_t`.
 ///
 /// Maintains a running `f32` sum.  All mutations require `&mut self`
 /// so aliasing is impossible.
@@ -97,7 +95,7 @@ extern "C" {
 /// assert!(acc.dump() == 0.0); // dump zeroed the accumulator
 /// ```
 pub struct AccF32 {
-    ptr: *mut DpAccF32Raw,
+    ptr: *mut AccF32StateRaw,
 }
 
 unsafe impl Send for AccF32 {}
@@ -106,21 +104,21 @@ impl AccF32 {
     /// Allocate and zero a new f32 accumulator.
     ///
     /// # Panics
-    /// Panics if `dp_acc_f32_create` returns null (out-of-memory).
+    /// Panics if `acc_f32_create` returns null (out-of-memory).
     pub fn new() -> Self {
-        let ptr = unsafe { dp_acc_f32_create() };
-        assert!(!ptr.is_null(), "dp_acc_f32_create returned null");
+        let ptr = unsafe { acc_f32_create(0.0) };
+        assert!(!ptr.is_null(), "acc_f32_create returned null");
         AccF32 { ptr }
     }
 
     /// Add one sample: `acc += x`.
     pub fn push(&mut self, x: f32) {
-        unsafe { dp_acc_f32_push(self.ptr, x) }
+        unsafe { acc_f32_steps(self.ptr, &x as *const f32, 1) }
     }
 
     /// Add a slice of samples: `acc += Σ x[k]`.
     pub fn add(&mut self, x: &[f32]) {
-        unsafe { dp_acc_f32_add(self.ptr, x.as_ptr(), x.len()) }
+        unsafe { acc_f32_steps(self.ptr, x.as_ptr(), x.len()) }
     }
 
     /// Multiply-accumulate: `acc += Σ x[k]·h[k]`.
@@ -130,7 +128,13 @@ impl AccF32 {
     pub fn madd(&mut self, x: &[f32], h: &[f32]) {
         assert_eq!(x.len(), h.len(), "x and h must be the same length");
         unsafe {
-            dp_acc_f32_madd(self.ptr, x.as_ptr(), h.as_ptr(), x.len())
+            acc_f32_madd(
+                self.ptr,
+                x.as_ptr(),
+                x.len(),
+                h.as_ptr(),
+                h.len(),
+            )
         }
     }
 
@@ -140,7 +144,7 @@ impl AccF32 {
     /// Panics if `x.len() != rows * cols`.
     pub fn add2d(&mut self, x: &[f32], rows: usize, cols: usize) {
         assert_eq!(x.len(), rows * cols, "x.len() must equal rows*cols");
-        unsafe { dp_acc_f32_add2d(self.ptr, x.as_ptr(), rows, cols) }
+        unsafe { acc_f32_add2d(self.ptr, x.as_ptr(), x.len()) }
     }
 
     /// 2-D MAC: `acc += Σᵢⱼ x[i][j]·h[i][j]` (row-major).
@@ -157,15 +161,19 @@ impl AccF32 {
         assert_eq!(x.len(), rows * cols);
         assert_eq!(h.len(), rows * cols);
         unsafe {
-            dp_acc_f32_madd2d(
-                self.ptr, x.as_ptr(), h.as_ptr(), rows, cols,
+            acc_f32_madd2d(
+                self.ptr,
+                x.as_ptr(),
+                x.len(),
+                h.as_ptr(),
+                h.len(),
             )
         }
     }
 
     /// Read the current accumulated value without clearing it.
     pub fn get(&self) -> f32 {
-        unsafe { dp_acc_f32_get(self.ptr) }
+        unsafe { acc_f32_get_acc(self.ptr) }
     }
 
     /// Read the current value *and* zero the accumulator.
@@ -173,12 +181,12 @@ impl AccF32 {
     /// This is the canonical operation for polyphase decimators: read
     /// the branch output and immediately prepare for the next window.
     pub fn dump(&mut self) -> f32 {
-        unsafe { dp_acc_f32_dump(self.ptr) }
+        unsafe { acc_f32_dump(self.ptr) }
     }
 
     /// Zero the accumulator without reading it.
     pub fn reset(&mut self) {
-        unsafe { dp_acc_f32_reset(self.ptr) }
+        unsafe { acc_f32_reset(self.ptr) }
     }
 }
 
@@ -190,11 +198,11 @@ impl Default for AccF32 {
 
 impl Drop for AccF32 {
     fn drop(&mut self) {
-        unsafe { dp_acc_f32_destroy(self.ptr) }
+        unsafe { acc_f32_destroy(self.ptr) }
     }
 }
 
-/// RAII wrapper around `dp_acc_cf64_t`.
+/// RAII wrapper around `acc_cf64_state_t`.
 ///
 /// Maintains a running `Complex64` sum.  Coefficients for `madd` are
 /// always real (`f32`), matching the polyphase FIR structure where
@@ -213,7 +221,7 @@ impl Drop for AccF32 {
 /// assert!((v.im - 1.0).abs() < 1e-12);
 /// ```
 pub struct AccCf64 {
-    ptr: *mut DpAccCf64Raw,
+    ptr: *mut AccCf64StateRaw,
 }
 
 unsafe impl Send for AccCf64 {}
@@ -222,21 +230,22 @@ impl AccCf64 {
     /// Allocate and zero a new cf64 accumulator.
     ///
     /// # Panics
-    /// Panics if `dp_acc_cf64_create` returns null.
+    /// Panics if `acc_cf64_create` returns null.
     pub fn new() -> Self {
-        let ptr = unsafe { dp_acc_cf64_create() };
-        assert!(!ptr.is_null(), "dp_acc_cf64_create returned null");
+        let ptr =
+            unsafe { acc_cf64_create(Complex64::new(0.0, 0.0)) };
+        assert!(!ptr.is_null(), "acc_cf64_create returned null");
         AccCf64 { ptr }
     }
 
     /// Add one complex sample: `acc += x`.
     pub fn push(&mut self, x: Complex64) {
-        unsafe { dp_acc_cf64_push(self.ptr, x) }
+        unsafe { acc_cf64_steps(self.ptr, &x as *const Complex64, 1) }
     }
 
     /// Add a slice of complex samples: `acc += Σ x[k]`.
     pub fn add(&mut self, x: &[Complex64]) {
-        unsafe { dp_acc_cf64_add(self.ptr, x.as_ptr(), x.len()) }
+        unsafe { acc_cf64_steps(self.ptr, x.as_ptr(), x.len()) }
     }
 
     /// Multiply-accumulate: `acc += Σ x[k]·h[k]` (real taps).
@@ -248,7 +257,13 @@ impl AccCf64 {
     pub fn madd(&mut self, x: &[Complex64], h: &[f32]) {
         assert_eq!(x.len(), h.len(), "x and h must be the same length");
         unsafe {
-            dp_acc_cf64_madd(self.ptr, x.as_ptr(), h.as_ptr(), x.len())
+            acc_cf64_madd(
+                self.ptr,
+                x.as_ptr(),
+                x.len(),
+                h.as_ptr(),
+                h.len(),
+            )
         }
     }
 
@@ -263,7 +278,7 @@ impl AccCf64 {
         cols: usize,
     ) {
         assert_eq!(x.len(), rows * cols);
-        unsafe { dp_acc_cf64_add2d(self.ptr, x.as_ptr(), rows, cols) }
+        unsafe { acc_cf64_add2d(self.ptr, x.as_ptr(), x.len()) }
     }
 
     /// 2-D MAC with real taps (row-major).
@@ -280,25 +295,29 @@ impl AccCf64 {
         assert_eq!(x.len(), rows * cols);
         assert_eq!(h.len(), rows * cols);
         unsafe {
-            dp_acc_cf64_madd2d(
-                self.ptr, x.as_ptr(), h.as_ptr(), rows, cols,
+            acc_cf64_madd2d(
+                self.ptr,
+                x.as_ptr(),
+                x.len(),
+                h.as_ptr(),
+                h.len(),
             )
         }
     }
 
     /// Read the current accumulated value without clearing it.
     pub fn get(&self) -> Complex64 {
-        unsafe { dp_acc_cf64_get(self.ptr) }
+        unsafe { acc_cf64_get_acc(self.ptr) }
     }
 
     /// Read the current value *and* zero the accumulator.
     pub fn dump(&mut self) -> Complex64 {
-        unsafe { dp_acc_cf64_dump(self.ptr) }
+        unsafe { acc_cf64_dump(self.ptr) }
     }
 
     /// Zero the accumulator without reading it.
     pub fn reset(&mut self) {
-        unsafe { dp_acc_cf64_reset(self.ptr) }
+        unsafe { acc_cf64_reset(self.ptr) }
     }
 }
 
@@ -310,7 +329,7 @@ impl Default for AccCf64 {
 
 impl Drop for AccCf64 {
     fn drop(&mut self) {
-        unsafe { dp_acc_cf64_destroy(self.ptr) }
+        unsafe { acc_cf64_destroy(self.ptr) }
     }
 }
 

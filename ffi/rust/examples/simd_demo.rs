@@ -1,8 +1,7 @@
-//! simd_demo — Rust FFI example: SIMD complex multiplication via doppler.
+//! simd_demo — Rust FFI example: complex multiplication via doppler.
 //!
-//! Calls dp_c16_mul (SSE2 on x86-64, scalar fallback elsewhere) through
-//! the safe `doppler::c16_mul` wrapper and verifies results against
-//! Rust's own Complex64 arithmetic.
+//! Calls `doppler::c16_mul` and verifies results against Rust's own
+//! Complex64 arithmetic.
 //!
 //! Run with:
 //!   cargo run --example simd_demo
@@ -22,9 +21,7 @@ fn run_case(label: &str, a: Complex64, b: Complex64) {
 }
 
 fn main() {
-    println!("=== doppler SIMD Demo: c16_mul (Rust FFI) ===");
-    println!();
-    println!("Library version: {}", doppler::version());
+    println!("=== doppler c16_mul Demo (Rust FFI) ===");
     println!();
     println!("Each row: doppler::c16_mul(a, b) vs. Rust Complex64 a * b.");
     println!();

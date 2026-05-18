@@ -29,9 +29,6 @@
 //! // output[1] and output[N-1] contain the cosine energy (~N/2 each)
 //! ```
 
-use std::ffi::CStr;
-use std::os::raw::c_char;
-
 pub mod acc;
 pub mod fft;
 pub mod fir;
@@ -44,28 +41,3 @@ pub use types::{DpCf32, DpCi16, DpCi32, DpCi8};
 
 /// Complex multiplication — re-exported from [`util`].
 pub use util::c16_mul;
-
-extern "C" {
-    fn dp_version() -> *const c_char;
-}
-
-/// Return the doppler C library version string.
-pub fn version() -> &'static str {
-    unsafe {
-        CStr::from_ptr(dp_version())
-            .to_str()
-            .unwrap_or("<invalid utf8>")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn version_string_valid() {
-        let v = version();
-        assert!(!v.is_empty(), "version string should not be empty");
-        assert!(v.contains('.'), "version should be major.minor.patch: {v}");
-    }
-}

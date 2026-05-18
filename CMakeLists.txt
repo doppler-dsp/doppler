@@ -31,6 +31,10 @@ foreach(_t doppler_lib doppler_lib_static)
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
+# Inline pocketfft objects into the shared lib so it is self-contained.
+# Use TARGET_FILE (raw path) to avoid adding pocketfft_cxx to the export set.
+target_link_libraries(doppler_lib PRIVATE
+    "$<TARGET_FILE:pocketfft_cxx>" m stdc++)
 
 enable_testing()
 
@@ -70,9 +74,19 @@ add_subdirectory(native/src/filter)
 add_subdirectory(native/src/accumulator)
 add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/resamp)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:resamp_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:resamp_core>)
 add_subdirectory(native/src/hbdecim)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:hbdecim_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:hbdecim_core>)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:hbdecim_r2c_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:hbdecim_r2c_core>)
 add_subdirectory(native/src/resample)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:resample_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:resample_core>)
 add_subdirectory(native/src/ddc)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:ddc_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:ddc_core>)
 
 # ── Vendored libzmq (static, PIC) ────────────────────────────────────────────
 # stream.so statically links libzmq so it has no runtime dep on libzmq.so.5.

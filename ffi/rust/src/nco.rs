@@ -9,7 +9,7 @@
 ///
 /// let mut nco = Nco::new(0.25); // quarter-rate: wraps every 4 samples
 /// let mut out = vec![0u32; 8];
-/// nco.execute_u32(&mut out);
+/// nco.steps_u32(&mut out);
 /// // out[3] wraps back (≈ 0xC000_0000 → overflow every 4th sample)
 /// ```
 use std::os::raw::c_uint;
@@ -21,27 +21,27 @@ pub struct NcoStateRaw {
 }
 
 extern "C" {
-    pub fn nco_create(norm_freq: f32, nmax: c_uint) -> *mut NcoStateRaw;
+    pub fn nco_create(norm_freq: f64, nmax: c_uint) -> *mut NcoStateRaw;
     pub fn nco_destroy(nco: *mut NcoStateRaw);
     pub fn nco_reset(nco: *mut NcoStateRaw);
-    pub fn nco_set_freq(nco: *mut NcoStateRaw, norm_freq: f32);
-    pub fn nco_get_freq(nco: *const NcoStateRaw) -> f32;
-    pub fn nco_execute_u32(
+    pub fn nco_set_norm_freq(nco: *mut NcoStateRaw, norm_freq: f64);
+    pub fn nco_get_norm_freq(nco: *const NcoStateRaw) -> f64;
+    pub fn nco_steps_u32(
         nco: *mut NcoStateRaw,
-        out: *mut u32,
         n: usize,
-    );
-    pub fn nco_execute_u32_scaled(
+        out: *mut u32,
+    ) -> usize;
+    pub fn nco_steps_u32_scaled(
         nco: *mut NcoStateRaw,
-        out: *mut u32,
         n: usize,
-    );
-    pub fn nco_execute_u32_ovf(
+        out: *mut u32,
+    ) -> usize;
+    pub fn nco_steps_u32_ovf(
         nco: *mut NcoStateRaw,
-        out: *mut u32,
-        carry: *mut u8,
         n: usize,
-    );
+        out: *mut u32,
+        out1: *mut u8,
+    ) -> usize;
 }
 
 /// RAII wrapper around `nco_state_t`.
@@ -57,12 +57,12 @@ unsafe impl Send for Nco {}
 impl Nco {
     /// Create an NCO at the given normalised frequency.
     ///
-    /// `nmax` sets the wrap target for [`execute_u32_scaled`](Nco::execute_u32_scaled).
+    /// `nmax` sets the wrap target for [`steps_u32_scaled`](Nco::steps_u32_scaled).
     /// Pass `0` to always return the raw accumulator.
     ///
     /// # Panics
     /// Panics if `nco_create` returns null.
-    pub fn new(norm_freq: f32) -> Self {
+    pub fn new(norm_freq: f64) -> Self {
         let ptr = unsafe { nco_create(norm_freq, 0) };
         assert!(!ptr.is_null(), "nco_create returned null");
         Nco { ptr }
@@ -72,7 +72,7 @@ impl Nco {
     ///
     /// # Panics
     /// Panics if `nco_create` returns null.
-    pub fn new_scaled(norm_freq: f32, nmax: u32) -> Self {
+    pub fn new_scaled(norm_freq: f64, nmax: u32) -> Self {
         let ptr = unsafe { nco_create(norm_freq, nmax) };
         assert!(!ptr.is_null(), "nco_create returned null");
         Nco { ptr }
@@ -84,25 +84,25 @@ impl Nco {
     }
 
     /// Update the normalised frequency without disturbing the phase.
-    pub fn set_freq(&mut self, norm_freq: f32) {
-        unsafe { nco_set_freq(self.ptr, norm_freq) }
+    pub fn set_norm_freq(&mut self, norm_freq: f64) {
+        unsafe { nco_set_norm_freq(self.ptr, norm_freq) }
     }
 
     /// Return the current normalised frequency.
-    pub fn get_freq(&self) -> f32 {
-        unsafe { nco_get_freq(self.ptr) }
+    pub fn get_norm_freq(&self) -> f64 {
+        unsafe { nco_get_norm_freq(self.ptr) }
     }
 
     /// Write `n` raw 32-bit accumulator values into `out`.
-    pub fn execute_u32(&mut self, out: &mut [u32]) {
-        unsafe { nco_execute_u32(self.ptr, out.as_mut_ptr(), out.len()) }
+    pub fn steps_u32(&mut self, out: &mut [u32]) {
+        unsafe { nco_steps_u32(self.ptr, out.len(), out.as_mut_ptr()) };
     }
 
     /// Write `n` accumulator values scaled to `[0, nmax)` into `out`.
-    pub fn execute_u32_scaled(&mut self, out: &mut [u32]) {
+    pub fn steps_u32_scaled(&mut self, out: &mut [u32]) {
         unsafe {
-            nco_execute_u32_scaled(self.ptr, out.as_mut_ptr(), out.len())
-        }
+            nco_steps_u32_scaled(self.ptr, out.len(), out.as_mut_ptr())
+        };
     }
 
     /// Write raw accumulator values and per-sample carry flags.
@@ -112,20 +112,20 @@ impl Nco {
     ///
     /// # Panics
     /// Panics if `out` and `carry` have different lengths.
-    pub fn execute_u32_ovf(&mut self, out: &mut [u32], carry: &mut [u8]) {
+    pub fn steps_u32_ovf(&mut self, out: &mut [u32], carry: &mut [u8]) {
         assert_eq!(
             out.len(),
             carry.len(),
             "out and carry must have the same length"
         );
         unsafe {
-            nco_execute_u32_ovf(
+            nco_steps_u32_ovf(
                 self.ptr,
+                out.len(),
                 out.as_mut_ptr(),
                 carry.as_mut_ptr(),
-                out.len(),
             )
-        }
+        };
     }
 }
 
@@ -144,8 +144,7 @@ mod tests {
         let mut nco = Nco::new(0.25);
         let n = 16;
         let mut phase = vec![0u32; n];
-        nco.execute_u32(&mut phase);
-        // phase increments by ~2^30 each sample; after 4 samples it wraps
+        nco.steps_u32(&mut phase);
         let inc = phase[1].wrapping_sub(phase[0]);
         assert_eq!(inc, phase[2].wrapping_sub(phase[1]));
         let expected_inc = (0.25_f64 * (1u64 << 32) as f64) as u32;
@@ -161,8 +160,7 @@ mod tests {
         let n = 12;
         let mut phase = vec![0u32; n];
         let mut carry = vec![0u8; n];
-        nco.execute_u32_ovf(&mut phase, &mut carry);
-        // carry should fire at samples 3, 7, 11 (0-based)
+        nco.steps_u32_ovf(&mut phase, &mut carry);
         for (i, &c) in carry.iter().enumerate() {
             let expected = if (i + 1) % 4 == 0 { 1 } else { 0 };
             assert_eq!(c, expected, "carry[{i}] = {c}, expected {expected}");
@@ -170,36 +168,33 @@ mod tests {
     }
 
     #[test]
-    fn set_freq_takes_effect() {
+    fn set_norm_freq_takes_effect() {
         let mut nco = Nco::new(0.1);
-        assert!((nco.get_freq() - 0.1).abs() < 1e-6);
-        nco.set_freq(0.25);
-        assert!((nco.get_freq() - 0.25).abs() < 1e-6);
+        assert!((nco.get_norm_freq() - 0.1).abs() < 1e-9);
+        nco.set_norm_freq(0.25);
+        assert!((nco.get_norm_freq() - 0.25).abs() < 1e-9);
     }
 
     #[test]
     fn reset_is_deterministic() {
-        // Two fresh NCOs at the same frequency must produce identical
-        // output — which proves reset() fully restores initial state.
         let mut nco1 = Nco::new(0.25);
         let mut nco2 = Nco::new(0.25);
 
         let mut out1 = vec![0u32; 8];
         let mut out2 = vec![0u32; 8];
-        nco1.execute_u32(&mut out1);
-        nco2.execute_u32(&mut out2);
+        nco1.steps_u32(&mut out1);
+        nco2.steps_u32(&mut out2);
         assert_eq!(out1, out2, "fresh NCOs must agree");
 
-        // Advance nco1 further, then reset it back.
         let mut extra = vec![0u32; 4];
-        nco1.execute_u32(&mut extra);
+        nco1.steps_u32(&mut extra);
         nco1.reset();
 
         let mut out1r = vec![0u32; 8];
         let mut out2r = vec![0u32; 8];
-        nco1.execute_u32(&mut out1r);
+        nco1.steps_u32(&mut out1r);
         nco2.reset();
-        nco2.execute_u32(&mut out2r);
+        nco2.steps_u32(&mut out2r);
         assert_eq!(out1r, out2r, "reset NCOs must agree");
     }
 }

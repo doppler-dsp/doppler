@@ -36,21 +36,16 @@ fn main() {
         // Static link on Windows: avoids pseudo-relocation failures and
         // the DLL runtime dependency. LTO is disabled on MinGW in CMake
         // so the static archive contains plain object files.
-        // pocketfft_cxx stays a separate STATIC archive (bundling it into
-        // libdoppler.a requires OBJECT lib conversion that breaks fft2d).
-        // fftw3/fftw3f must come AFTER doppler so MinGW ld can satisfy
-        // the back-references from libdoppler.a into those libraries.
+        // pocketfft_cxx stays a separate STATIC archive on Windows because
+        // doppler_lib_static is linked with OBJECT libs, not the static
+        // pocketfft archive, so it needs to come in separately.
         println!("cargo:rustc-link-lib=static=doppler");
         println!("cargo:rustc-link-lib=static=pocketfft_cxx");
-        println!("cargo:rustc-link-lib=dylib=fftw3");
-        println!("cargo:rustc-link-lib=dylib=fftw3_threads");
-        println!("cargo:rustc-link-lib=dylib=fftw3f");
-        println!("cargo:rustc-link-lib=dylib=fftw3f_threads");
         println!("cargo:rustc-link-lib=dylib=stdc++");
     } else {
-        println!("cargo:rustc-link-lib=dylib=fftw3");
-        // Dynamic link on Linux/macOS: avoids lld single-pass ordering
-        // issues with static archives. rpath points at the build tree.
+        // Dynamic link on Linux/macOS: pocketfft symbols are compiled into
+        // libdoppler.so via target_link_libraries in CMakeLists.txt.
+        // rpath points at the build tree so the test binary finds the .so.
         println!("cargo:rustc-link-lib=dylib=doppler");
         println!("cargo:rustc-link-lib=dylib=m");
         if use_rpath {

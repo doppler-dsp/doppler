@@ -1,15 +1,7 @@
-/// SIMD-accelerated complex arithmetic (`dp/util.h`).
+/// Complex arithmetic utilities.
 use num_complex::Complex64;
 
-extern "C" {
-    pub fn dp_c16_mul(a: Complex64, b: Complex64) -> Complex64;
-}
-
-/// SIMD-accelerated complex multiplication (`a * b`).
-///
-/// Uses SSE2 on x86-64 and a scalar C99 fallback on other architectures.
-/// Equivalent to `a * b` for [`Complex64`] but guaranteed to use the
-/// hardware-accelerated path when available.
+/// Complex multiplication (`a * b`).
 ///
 /// # Example
 /// ```
@@ -23,7 +15,7 @@ extern "C" {
 /// assert!((c.im - 10.0).abs() < 1e-12);
 /// ```
 pub fn c16_mul(a: Complex64, b: Complex64) -> Complex64 {
-    unsafe { dp_c16_mul(a, b) }
+    a * b
 }
 
 #[cfg(test)]

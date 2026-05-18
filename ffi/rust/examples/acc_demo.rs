@@ -19,7 +19,6 @@ use std::f64::consts::PI as PI64;
 fn main() {
     println!("doppler accumulator demo");
     println!("========================");
-    println!("version: {}", doppler::version());
     println!();
 
     part1_rms_energy();
@@ -85,20 +84,20 @@ fn part2_polyphase_branch() {
     let h: Vec<f32> = vec![1.0 / DEC as f32; DEC];
 
     // Complex signal from Lo at f=0.05.
-    let mut sig_lo = Lo::new(0.05_f32);
+    let mut sig_lo = Lo::new(0.05_f64);
     let mut sig_cf32 =
         vec![num_complex::Complex::<f32>::default(); N_IN];
-    sig_lo.execute_cf32(&mut sig_cf32);
+    sig_lo.steps(&mut sig_cf32);
     let signal: Vec<Complex64> = sig_cf32
         .iter()
         .map(|s| Complex64::new(s.re as f64, s.im as f64))
         .collect();
 
     // Clock NCO: overflow marks end of each decimation window.
-    let mut clk_nco = Nco::new(1.0 / DEC as f32);
+    let mut clk_nco = Nco::new(1.0 / DEC as f64);
     let mut phase_buf = vec![0u32; N_IN];
     let mut ovf = vec![0u8; N_IN];
-    clk_nco.execute_u32_ovf(&mut phase_buf, &mut ovf);
+    clk_nco.steps_u32_ovf(&mut phase_buf, &mut ovf);
 
     let mut acc = AccCf64::new();
     let mut outputs: Vec<Complex64> = Vec::with_capacity(N_OUT);

@@ -193,9 +193,9 @@ jobs:
             ## Install
 
             ```sh
-            pip install doppler==${{ needs.verify-version.outputs.version }}
-            pip install "doppler[cli]==${{ needs.verify-version.outputs.version }}"
-            pip install "doppler[specan]==${{ needs.verify-version.outputs.version }}"
+            pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
+            pip install "doppler-dsp[cli]==${{ needs.verify-version.outputs.version }}"
+            pip install "doppler-dsp[specan]==${{ needs.verify-version.outputs.version }}"
             ```
 
             See [CHANGELOG.md](CHANGELOG.md) for details.

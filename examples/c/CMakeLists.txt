@@ -9,7 +9,7 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo)
         ${CMAKE_BINARY_DIR}/native/inc)
     target_link_libraries(${_ex} PRIVATE doppler_lib m)
     set_target_properties(${_ex} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/native/examples)
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples/c)
 endforeach()
 
 # ── Streaming examples (link against stream + doppler_lib) ────────────────────
@@ -28,7 +28,7 @@ foreach(_ex transmitter receiver pipeline_demo spectrum_analyzer)
         zmq_vendor_static
         stdc++ m)
     set_target_properties(${_ex} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/native/examples)
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples/c)
 endforeach()
 
 # pipeline_demo uses pthreads

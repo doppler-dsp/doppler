@@ -120,7 +120,7 @@ just-build: pyext
 # ── test-examples ─────────────────────────────────────────────────────────────
 # Smoke-test the standalone C examples (DSP only — streaming examples require
 # a live transmitter and are excluded from automated runs).
-EXAMPLE_BIN_DIR := $(BUILD_DIR)/native/examples
+EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
 test-examples: build
 	@echo "Running C example smoke tests..."
 	@for ex in nco_demo fir_demo hbdecim_demo fft_demo; do \

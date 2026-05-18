@@ -123,7 +123,7 @@ set_target_properties(zmq_vendor_static PROPERTIES
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
 add_subdirectory(native/src/stream)
-add_subdirectory(native/examples)
+add_subdirectory(examples/c)
 
 # ── Install ──────────────────────────────────────────────────────────────────
 

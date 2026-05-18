@@ -1,73 +1,175 @@
-/**
- * @file bench_acc_cf64_core.c
- * @brief Throughput benchmark for AccCf64.
- *
- * Sweeps four block sizes; iters = TOTAL / block so total input samples
- * is constant across rows.
- *
- * Build and run:
- *   cmake -B build -S . && cmake --build build --target bench_acc_cf64_core
- *   ./build/native/src/acc_cf64/bench_acc_cf64_core
- */
-
 #include "acc_cf64/acc_cf64_core.h"
-
+#include "jm_bench.h"
 #include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define TOTAL 40960000
-
-static const size_t BLOCKS[] = { 1024, 20480, 409600, 819200 };
-static const size_t N_BLOCKS = sizeof BLOCKS / sizeof BLOCKS[0];
+#define BENCH_N    65536
+#define ITERATIONS 200
 
 static double
-elapsed_sec (struct timespec a, struct timespec b)
+elapsed_sec(struct timespec *t0, struct timespec *t1)
 {
-  return (double)(b.tv_sec - a.tv_sec)
-         + (double)(b.tv_nsec - a.tv_nsec) * 1e-9;
+    return (double)(t1->tv_sec - t0->tv_sec)
+           + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
 }
 
 int
-main (void)
+main(void)
 {
-  size_t maxblock = BLOCKS[N_BLOCKS - 1];
-  double complex *in = malloc (maxblock * sizeof (double complex));
-  if (!in)
-    {
-      fprintf (stderr, "OOM\n");
-      return 1;
+    double complex *in  = malloc(BENCH_N * sizeof(double complex));
+    if (!in) { fprintf(stderr, "OOM\n"); return 1; }
+
+    for (int i = 0; i < BENCH_N; i++) in[i] = (double)(i)+ 0.0 * I;
+
+    acc_cf64_state_t *obj = acc_cf64_create(0.0 + 0.0 * I);
+
+
+
+    /* warmup */
+    for (int i = 0; i < 16; i++) acc_cf64_step(obj, in[i]);
+
+    struct timespec t0, t1;
+    jm_bench_t _bench = {0};
+
+    printf("=== acc_cf64 benchmark ===\n");
+    printf("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
+
+    double _times_step[ITERATIONS];
+    for (int r = 0; r < ITERATIONS; r++) {
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        for (int i = 0; i < BENCH_N; i++)
+            acc_cf64_step(obj, in[i]);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        _times_step[r] = elapsed_sec(&t0, &t1);
     }
-  for (size_t i = 0; i < maxblock; i++)
-    in[i] = (double)i + 0.0 * I;
-
-  printf ("=== bench_acc_cf64_core ===\n");
-  printf ("total = %d samples/row\n\n", TOTAL);
-  printf ("  %-10s  %-6s  %14s\n", "block", "iters", "steps()");
-  printf ("  %-10s  %-6s  %14s\n", "----------", "------", "--------------");
-
-  for (size_t bi = 0; bi < N_BLOCKS; bi++)
+    jm_bench_add(&_bench, "step", _times_step, ITERATIONS, BENCH_N);
     {
-      size_t block = BLOCKS[bi];
-      int iters = TOTAL / (int)block;
-
-      acc_cf64_state_t *obj = acc_cf64_create (0.0 + 0.0 * I);
-      /* warmup */
-      for (int w = 0; w < 4; w++)
-        acc_cf64_steps (obj, in, block);
-
-      struct timespec t0, t1;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
-      for (int r = 0; r < iters; r++)
-        acc_cf64_steps (obj, in, block);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-
-      double msa = (double)iters * (double)block / elapsed_sec (t0, t1) / 1e6;
-      printf ("  %-10zu  %-6d  %11.1f MSa\n", block, iters, msa);
-      acc_cf64_destroy (obj);
+        double _s = 0.0;
+        for (int r = 0; r < ITERATIONS; r++) _s += _times_step[r];
+        printf("  step()   %8.1f MSa/s\n",
+               (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+    }
+    double _times_steps[ITERATIONS];
+    for (int r = 0; r < ITERATIONS; r++) {
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+        acc_cf64_steps(obj, in, BENCH_N);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        _times_steps[r] = elapsed_sec(&t0, &t1);
+    }
+    jm_bench_add(&_bench, "steps", _times_steps, ITERATIONS, BENCH_N);
+    {
+        double _s = 0.0;
+        for (int r = 0; r < ITERATIONS; r++) _s += _times_steps[r];
+        printf("  steps()  %8.1f MSa/s\n",
+               (double)BENCH_N / (_s / ITERATIONS) / 1e6);
     }
 
-  free (in);
-  return 0;
+    /* bench: get() */
+    {
+        double _times_get[ITERATIONS];
+        volatile double complex get_sink;
+        for (int i = 0; i < 16; i++) get_sink = acc_cf64_get(obj);
+        for (int r = 0; r < ITERATIONS; r++) {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (int i = 0; i < BENCH_N; i++)
+                get_sink = acc_cf64_get(obj);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            _times_get[r] = elapsed_sec(&t0, &t1);
+        }
+        jm_bench_add(&_bench, "get", _times_get, ITERATIONS, BENCH_N);
+        {
+            double _s = 0.0;
+            for (int r = 0; r < ITERATIONS; r++) _s += _times_get[r];
+            printf("  get()  %8.1f MSa/s\n",
+                   (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+        }
+    }
+
+    /* bench: dump() */
+    {
+        double _times_dump[ITERATIONS];
+        volatile double complex dump_sink;
+        for (int i = 0; i < 16; i++) dump_sink = acc_cf64_dump(obj);
+        for (int r = 0; r < ITERATIONS; r++) {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (int i = 0; i < BENCH_N; i++)
+                dump_sink = acc_cf64_dump(obj);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            _times_dump[r] = elapsed_sec(&t0, &t1);
+        }
+        jm_bench_add(&_bench, "dump", _times_dump, ITERATIONS, BENCH_N);
+        {
+            double _s = 0.0;
+            for (int r = 0; r < ITERATIONS; r++) _s += _times_dump[r];
+            printf("  dump()  %8.1f MSa/s\n",
+                   (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+        }
+    }
+
+    /* bench: madd() */
+    {
+        double _times_madd[ITERATIONS];
+        for (int i = 0; i < 16; i++) acc_cf64_madd(obj, NULL, 0, NULL, 0);
+        for (int r = 0; r < ITERATIONS; r++) {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (int i = 0; i < BENCH_N; i++)
+                acc_cf64_madd(obj, NULL, 0, NULL, 0);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            _times_madd[r] = elapsed_sec(&t0, &t1);
+        }
+        jm_bench_add(&_bench, "madd", _times_madd, ITERATIONS, BENCH_N);
+        {
+            double _s = 0.0;
+            for (int r = 0; r < ITERATIONS; r++) _s += _times_madd[r];
+            printf("  madd()  %8.1f MSa/s\n",
+                   (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+        }
+    }
+
+    /* bench: add2d() */
+    {
+        double _times_add2d[ITERATIONS];
+        for (int i = 0; i < 16; i++) acc_cf64_add2d(obj, NULL, 0);
+        for (int r = 0; r < ITERATIONS; r++) {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (int i = 0; i < BENCH_N; i++)
+                acc_cf64_add2d(obj, NULL, 0);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            _times_add2d[r] = elapsed_sec(&t0, &t1);
+        }
+        jm_bench_add(&_bench, "add2d", _times_add2d, ITERATIONS, BENCH_N);
+        {
+            double _s = 0.0;
+            for (int r = 0; r < ITERATIONS; r++) _s += _times_add2d[r];
+            printf("  add2d()  %8.1f MSa/s\n",
+                   (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+        }
+    }
+
+    /* bench: madd2d() */
+    {
+        double _times_madd2d[ITERATIONS];
+        for (int i = 0; i < 16; i++) acc_cf64_madd2d(obj, NULL, 0, NULL, 0);
+        for (int r = 0; r < ITERATIONS; r++) {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            for (int i = 0; i < BENCH_N; i++)
+                acc_cf64_madd2d(obj, NULL, 0, NULL, 0);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            _times_madd2d[r] = elapsed_sec(&t0, &t1);
+        }
+        jm_bench_add(&_bench, "madd2d", _times_madd2d, ITERATIONS, BENCH_N);
+        {
+            double _s = 0.0;
+            for (int r = 0; r < ITERATIONS; r++) _s += _times_madd2d[r];
+            printf("  madd2d()  %8.1f MSa/s\n",
+                   (double)BENCH_N / (_s / ITERATIONS) / 1e6);
+        }
+    }
+    jm_bench_write_json(&_bench, "acc_cf64");
+    acc_cf64_destroy(obj);
+    free(in);
+
+    return 0;
 }

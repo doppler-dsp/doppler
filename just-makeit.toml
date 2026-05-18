@@ -5,7 +5,7 @@ build = "cmake"
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
-schema = "2"
+schema = "4"
 
 [module.accumulator]
 objects = ["acc_f32", "acc_cf64"]
@@ -141,12 +141,12 @@ return_type = "void"
 params = [{name = "x", type = "double _Complex[]"}, {name = "h", type = "float[]"}]
 
 [fir]
-class_name = "FIR"
 arg_type = "float _Complex"
 return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
+class_name = "FIR"
 
 [[fir.methods]]
 name = "execute"
@@ -454,7 +454,7 @@ params = [{name = "x", type = "float _Complex[]"}, {name = "ctrl", type = "float
 [[Resampler.methods]]
 name = "reset"
 arg_type = "void"
-return_type = "float _Complex"
+return_type = "void"
 
 [[Resampler.properties]]
 name = "rate"
@@ -486,7 +486,7 @@ params = [{name = "x", type = "float _Complex[]"}]
 [[HalfbandDecimator.methods]]
 name = "reset"
 arg_type = "void"
-return_type = "float _Complex"
+return_type = "void"
 
 [[HalfbandDecimator.properties]]
 name = "rate"

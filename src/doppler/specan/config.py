@@ -1,5 +1,5 @@
 """
-doppler_specan.config — configuration loading.
+doppler.specan.config — configuration loading.
 
 Priority (highest to lowest):
   1. CLI flags

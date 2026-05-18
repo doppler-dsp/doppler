@@ -48,7 +48,7 @@ from typing import Any, Type
 import yaml
 from pydantic import create_model
 
-from doppler_cli.blocks import Block, BlockConfig
+from doppler.cli.blocks import Block, BlockConfig
 
 _BLOCKS_DIR = Path.home() / ".doppler" / "blocks"
 

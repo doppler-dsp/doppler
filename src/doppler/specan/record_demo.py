@@ -1,5 +1,5 @@
 """
-doppler_specan.record_demo — generate a pre-recorded demo trace.
+doppler.specan.record_demo — generate a pre-recorded demo trace.
 
 Runs the real C DSP pipeline (DemoSource → SpecanEngine) for a fixed
 number of frames and writes the result as a JSON array to stdout or a
@@ -7,9 +7,9 @@ file.  The output is consumed by the static docs/specan demo player.
 
 Usage
 -----
-    python -m doppler_specan.record_demo                 # stdout
-    python -m doppler_specan.record_demo -o frames.json  # file
-    python -m doppler_specan.record_demo --frames 120 --fft-size 512
+    python -m doppler.specan.record_demo                 # stdout
+    python -m doppler.specan.record_demo -o frames.json  # file
+    python -m doppler.specan.record_demo --frames 120 --fft-size 512
 """
 
 from __future__ import annotations
@@ -63,9 +63,9 @@ def record(
     list of dict
         Each dict has keys: db, fft_size, fs_out, center_freq, span, rbw.
     """
-    from doppler_specan.config import SpecanConfig, DemoConfig
-    from doppler_specan.engine import SpecanEngine
-    from doppler_specan.source import DemoSource
+    from doppler.specan.config import SpecanConfig, DemoConfig
+    from doppler.specan.engine import SpecanEngine
+    from doppler.specan.source import DemoSource
 
     # Build config — force span so fft_size comes out exactly right.
     # With fs_out = span / 0.8 and fft_size = nextpow2(fs_out / rbw):

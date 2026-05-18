@@ -10,7 +10,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from doppler_cli.state import ChainState, list_chains, pid_alive, stop_chain
+from doppler.cli.state import ChainState, list_chains, pid_alive, stop_chain
 
 console = Console()
 

@@ -61,27 +61,6 @@ jobs:
             exit 1
           fi
 
-      - name: Check src/specan/pyproject.toml matches tag
-        run: |
-          PY=$(grep '^version' src/specan/pyproject.toml | head -1 | \
-               sed 's/version = "\(.*\)"/\1/')
-          TAG="${{ steps.get.outputs.version }}"
-          if [ "$PY" != "$TAG" ]; then
-            echo "ERROR: src/specan/pyproject.toml version ($PY) != tag ($TAG)"
-            echo "Run: make bump-version VERSION=$TAG"
-            exit 1
-          fi
-
-      - name: Check src/cli/pyproject.toml matches tag
-        run: |
-          PY=$(grep '^version' src/cli/pyproject.toml | head -1 | \
-               sed 's/version = "\(.*\)"/\1/')
-          TAG="${{ steps.get.outputs.version }}"
-          if [ "$PY" != "$TAG" ]; then
-            echo "ERROR: src/cli/pyproject.toml version ($PY) != tag ($TAG)"
-            echo "Run: make bump-version VERSION=$TAG"
-            exit 1
-          fi
 
   # ------------------------------------------------------------------
   # Build Python wheels
@@ -94,8 +73,7 @@ jobs:
   # Each Python version gets its own docker run so the .so suffix
   # (cpXYZ) matches the interpreter that will load it.
   #
-  # Pure-Python workspace packages (specan, cli) and the sdist are
-  # built once on the host runner at the end.
+  # The sdist is built once on the host runner.
   # ------------------------------------------------------------------
   build-python:
     name: Build wheels (manylinux_2_28 x86_64)
@@ -167,35 +145,11 @@ jobs:
           path: dist/*.whl
 
   # ------------------------------------------------------------------
-  # Build pure-Python workspace packages + sdist on the host runner
-  # ------------------------------------------------------------------
-  build-pure:
-    name: Build pure-Python packages and sdist
-    needs: verify-version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Build specan + cli wheels
-        run: |
-          uv build --package doppler-specan --out-dir dist/
-          uv build --package doppler-cli --out-dir dist/
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-dist-pure
-          path: dist/
-
-  # ------------------------------------------------------------------
   # Publish to PyPI (uses trusted publishing — configure in PyPI)
   # ------------------------------------------------------------------
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, build-python, build-macos, build-pure]
+    needs: [verify-version, build-python, build-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -216,7 +170,7 @@ jobs:
   # ------------------------------------------------------------------
   github-release:
     name: Create GitHub Release
-    needs: [verify-version, build-python, build-macos, build-pure, publish-python]
+    needs: [verify-version, build-python, build-macos, publish-python]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -239,9 +193,9 @@ jobs:
             ## Install
 
             ```sh
-            pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
-            pip install doppler-specan==${{ needs.verify-version.outputs.version }}
-            pip install doppler-cli==${{ needs.verify-version.outputs.version }}
+            pip install doppler==${{ needs.verify-version.outputs.version }}
+            pip install "doppler[cli]==${{ needs.verify-version.outputs.version }}"
+            pip install "doppler[specan]==${{ needs.verify-version.outputs.version }}"
             ```
 
             See [CHANGELOG.md](CHANGELOG.md) for details.

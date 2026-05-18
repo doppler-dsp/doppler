@@ -12,6 +12,26 @@ dependencies = [
     "numpy",
 ]
 
+[project.optional-dependencies]
+cli = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+specan = [
+    "rich>=13.0",
+]
+specan-web = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "websockets>=12.0",
+]
+
+[project.scripts]
+doppler        = "doppler.cli.__main__:main"
+doppler-source = "doppler.cli.source:main"
+doppler-specan = "doppler.specan.__main__:main"
+
 [tool.just-buildit]
 command = "make just-build"
 editable_path = "src"
@@ -19,13 +39,6 @@ editable_path = "src"
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]
-
-[tool.uv.workspace]
-members = ["src/specan", "src/cli"]
-
-[tool.uv.sources]
-doppler-specan = { workspace = true }
-doppler-cli    = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -37,4 +50,6 @@ dev = [
     "mkdocstrings[python]>=0.29",
     "mkdoxy>=1.2.8",
     "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
 ]

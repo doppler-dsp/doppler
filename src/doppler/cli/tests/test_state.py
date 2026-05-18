@@ -18,7 +18,7 @@ import signal
 
 import pytest
 
-from doppler_cli.state import (
+from doppler.cli.state import (
     BlockState,
     ChainState,
     list_chains,
@@ -46,7 +46,7 @@ def _make_chain(chain_id: str = "abc123") -> ChainState:
 
 class TestPersistence:
     def test_save_creates_file(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         chain = _make_chain()
@@ -54,7 +54,7 @@ class TestPersistence:
         assert (tmp_path / "abc123.json").exists()
 
     def test_save_valid_json(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         _make_chain().save()
@@ -63,7 +63,7 @@ class TestPersistence:
         assert len(data["blocks"]) == 2
 
     def test_load_round_trips(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         original = _make_chain()
@@ -76,14 +76,14 @@ class TestPersistence:
         assert loaded.blocks[1].connect_port == 5600
 
     def test_load_missing_raises(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         with pytest.raises(KeyError):
             ChainState.load("doesnotexist")
 
     def test_delete_removes_file(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         chain = _make_chain()
@@ -92,7 +92,7 @@ class TestPersistence:
         assert not (tmp_path / "abc123.json").exists()
 
     def test_delete_missing_is_silent(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         chain = _make_chain()
@@ -106,19 +106,19 @@ class TestPersistence:
 
 class TestListChains:
     def test_empty_dir(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         assert list_chains() == []
 
     def test_missing_dir(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path / "nonexistent")
         assert list_chains() == []
 
     def test_returns_all_chains(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         _make_chain("aaa111").save()
@@ -127,7 +127,7 @@ class TestListChains:
         assert ids == {"aaa111", "bbb222"}
 
     def test_skips_corrupt_files(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         _make_chain("good000").save()
@@ -160,7 +160,7 @@ class TestPidAlive:
 
 class TestStopChain:
     def test_sigterm_sent_and_state_deleted(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
 
@@ -181,7 +181,7 @@ class TestStopChain:
         assert not (tmp_path / "abc123.json").exists()
 
     def test_sigkill_when_kill_true(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
 
@@ -198,7 +198,7 @@ class TestStopChain:
         assert all(sig == signal.SIGKILL for _, sig in signals_sent)
 
     def test_dead_pids_skipped(self, tmp_path, monkeypatch):
-        from doppler_cli import state as state_mod
+        from doppler.cli import state as state_mod
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         monkeypatch.setattr(state_mod, "pid_alive", lambda pid: False)

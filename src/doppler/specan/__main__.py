@@ -150,7 +150,7 @@ def main() -> None:
     # ----------------------------------------------------------------
     from pathlib import Path  # noqa: PLC0415
 
-    from doppler_specan.config import load_config  # noqa: PLC0415
+    from doppler.specan.config import load_config  # noqa: PLC0415
 
     yml_path = Path(args.config) if args.config else None
 
@@ -207,9 +207,9 @@ def main() -> None:
 
 def _run_terminal(cfg) -> None:
     """Launch the terminal spectrum display."""
-    from doppler_specan.engine import SpecanEngine  # noqa: PLC0415
-    from doppler_specan.source import make_source  # noqa: PLC0415
-    from doppler_specan.terminal import TerminalDisplay  # noqa: PLC0415
+    from doppler.specan.engine import SpecanEngine  # noqa: PLC0415
+    from doppler.specan.source import make_source  # noqa: PLC0415
+    from doppler.specan.terminal import TerminalDisplay  # noqa: PLC0415
 
     source = make_source(cfg)
     engine = SpecanEngine(cfg)
@@ -234,7 +234,7 @@ def _run_web(cfg) -> None:
         )
         sys.exit(1)
 
-    from doppler_specan.server import main as serve  # noqa: PLC0415
+    from doppler.specan.server import main as serve  # noqa: PLC0415
 
     serve(
         host=cfg.host,

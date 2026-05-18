@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from doppler_cli.blocks import Block, BlockConfig, register
+from doppler.cli.blocks import Block, BlockConfig, register
 
 
 class SpecanConfig(BlockConfig):

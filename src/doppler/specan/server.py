@@ -51,7 +51,7 @@ async def index():
 async def get_state():
     if _cfg is None:
         return {}
-    from doppler_specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource  # noqa: PLC0415
 
     state: dict = {
         "source": _cfg.source,
@@ -71,7 +71,7 @@ async def get_state():
 
 async def _apply_cmd(cmd: dict) -> None:
     """Apply a control command (from HTTP POST or WebSocket)."""
-    from doppler_specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource  # noqa: PLC0415
 
     if _engine is None:
         return
@@ -212,8 +212,8 @@ def main(
 
     import uvicorn  # noqa: PLC0415
 
-    from doppler_specan.engine import SpecanEngine  # noqa: PLC0415
-    from doppler_specan.source import make_source  # noqa: PLC0415
+    from doppler.specan.engine import SpecanEngine  # noqa: PLC0415
+    from doppler.specan.source import make_source  # noqa: PLC0415
 
     _cfg = cfg
     _source = make_source(cfg)

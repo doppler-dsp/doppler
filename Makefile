@@ -216,7 +216,7 @@ specan:
 	uv run doppler-specan
 
 record-demo:
-	uv run python -m doppler_specan.record_demo \
+	uv run python -m doppler.specan.record_demo \
 	    --frames 120 --fft-size 512 \
 	    -o docs/specan/frames.json
 
@@ -244,11 +244,9 @@ ifndef VERSION
 	@exit 1
 endif
 	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
-	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' src/specan/pyproject.toml
-	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' src/cli/pyproject.toml
 	sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
 	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
-	@echo "Bumped to $(VERSION) in pyproject.toml, specan, cli, Cargo.toml, CMakeLists.txt"
+	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt"
 	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
 
 # ── check-version ─────────────────────────────────────────────────────────────
@@ -256,15 +254,11 @@ endif
 check-version:
 	@PY=$$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
 	 CM=$$(grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'); \
-	 SP=$$(grep '^version' src/specan/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
-	 CL=$$(grep '^version' src/cli/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
 	 RS=$$(grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
 	 echo "pyproject.toml : $$PY"; \
 	 echo "CMakeLists.txt : $$CM"; \
-	 echo "specan         : $$SP"; \
-	 echo "cli            : $$CL"; \
 	 echo "Cargo.toml     : $$RS"; \
-	 if [ "$$PY" = "$$CM" ] && [ "$$PY" = "$$SP" ] && [ "$$PY" = "$$CL" ] && [ "$$PY" = "$$RS" ]; then \
+	 if [ "$$PY" = "$$CM" ] && [ "$$PY" = "$$RS" ]; then \
 	     echo "OK — all versions match ($$PY)"; \
 	 else \
 	     echo "ERROR — version mismatch; run: make bump-version VERSION=<x.y.z>"; \
@@ -280,8 +274,7 @@ ifndef VERSION
 	@exit 1
 endif
 	$(MAKE) check-version VERSION=$(VERSION)
-	git add pyproject.toml src/specan/pyproject.toml src/cli/pyproject.toml \
-	        $(RUST_DIR)/Cargo.toml CMakeLists.txt
+	git add pyproject.toml $(RUST_DIR)/Cargo.toml CMakeLists.txt
 	git commit -m "chore: release v$(VERSION)"
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	git push origin main "v$(VERSION)"

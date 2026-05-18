@@ -21,9 +21,9 @@ import sys
 from pathlib import Path
 
 # Import blocks to populate the registry
-import doppler_cli.blocks.fir  # noqa: F401
-import doppler_cli.blocks.specan  # noqa: F401
-import doppler_cli.blocks.tone  # noqa: F401
+import doppler.cli.blocks.fir  # noqa: F401
+import doppler.cli.blocks.specan  # noqa: F401
+import doppler.cli.blocks.tone  # noqa: F401
 
 
 def main() -> None:
@@ -105,41 +105,41 @@ def main() -> None:
 
     # Dispatch
     if args.command == "ps":
-        from doppler_cli.ps import cmd_ps  # noqa: PLC0415
+        from doppler.cli.ps import cmd_ps  # noqa: PLC0415
 
         cmd_ps()
 
     elif args.command == "stop":
-        from doppler_cli.ps import cmd_stop  # noqa: PLC0415
+        from doppler.cli.ps import cmd_stop  # noqa: PLC0415
 
         cmd_stop(args.id)
 
     elif args.command == "kill":
-        from doppler_cli.ps import cmd_kill  # noqa: PLC0415
+        from doppler.cli.ps import cmd_kill  # noqa: PLC0415
 
         cmd_kill(args.id)
 
     elif args.command == "inspect":
-        from doppler_cli.ps import cmd_inspect  # noqa: PLC0415
+        from doppler.cli.ps import cmd_inspect  # noqa: PLC0415
 
         cmd_inspect(args.id)
 
     elif args.command == "logs":
-        from doppler_cli.ps import cmd_logs  # noqa: PLC0415
+        from doppler.cli.ps import cmd_logs  # noqa: PLC0415
 
         cmd_logs(args.id, args.block)
 
     elif args.command == "compose":
         if args.compose_cmd == "init":
-            from doppler_cli.compose import init  # noqa: PLC0415
+            from doppler.cli.compose import init  # noqa: PLC0415
 
             out = Path(args.out) if args.out else None
             path = init(args.blocks, out=out, name=args.name)
             print(f"wrote {path}")
 
         elif args.compose_cmd == "up":
-            from doppler_cli.compose import up  # noqa: PLC0415
-            from doppler_cli.state import _CHAINS_DIR  # noqa: PLC0415
+            from doppler.cli.compose import up  # noqa: PLC0415
+            from doppler.cli.state import _CHAINS_DIR  # noqa: PLC0415
 
             if args.file:
                 p = Path(args.file)
@@ -163,7 +163,7 @@ def main() -> None:
             # Print block status lines (e.g. specan web URL)
             import yaml  # noqa: PLC0415
 
-            import doppler_cli.blocks as _reg  # noqa: PLC0415
+            import doppler.cli.blocks as _reg  # noqa: PLC0415
 
             doc = yaml.safe_load(compose_file.read_text())
             for section in ("source", "sink"):
@@ -181,7 +181,7 @@ def main() -> None:
                     pass
 
         elif args.compose_cmd == "down":
-            from doppler_cli.compose import down  # noqa: PLC0415
+            from doppler.cli.compose import down  # noqa: PLC0415
 
             down(args.id)
             print(f"stopped chain {args.id}")

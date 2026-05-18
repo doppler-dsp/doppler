@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from doppler_cli.blocks import Block, BlockConfig, register
+from doppler.cli.blocks import Block, BlockConfig, register
 
 
 class ToneConfig(BlockConfig):

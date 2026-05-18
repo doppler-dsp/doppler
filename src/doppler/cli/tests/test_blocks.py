@@ -10,13 +10,13 @@ Covers:
 
 import pytest
 
-import doppler_cli.blocks.fir  # noqa: F401 — populate registry
-import doppler_cli.blocks.specan  # noqa: F401
-import doppler_cli.blocks.tone  # noqa: F401
-from doppler_cli.blocks import get, all_blocks
-from doppler_cli.blocks.tone import ToneBlock, ToneConfig
-from doppler_cli.blocks.fir import FirBlock, FirConfig
-from doppler_cli.blocks.specan import SpecanBlock, SpecanConfig
+import doppler.cli.blocks.fir  # noqa: F401 — populate registry
+import doppler.cli.blocks.specan  # noqa: F401
+import doppler.cli.blocks.tone  # noqa: F401
+from doppler.cli.blocks import get, all_blocks
+from doppler.cli.blocks.tone import ToneBlock, ToneConfig
+from doppler.cli.blocks.fir import FirBlock, FirConfig
+from doppler.cli.blocks.specan import SpecanBlock, SpecanConfig
 
 
 # ---------------------------------------------------------------------------

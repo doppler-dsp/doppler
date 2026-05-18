@@ -12,7 +12,7 @@ Covers:
 import json
 import pytest
 
-from doppler_cli import ports as ports_mod
+from doppler.cli import ports as ports_mod
 
 
 def _write_fake_state(chains_dir, chain_id: str, used_ports: list[int]):

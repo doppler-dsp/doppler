@@ -1,5 +1,5 @@
 """
-doppler_specan.engine — DDC processing engine.
+doppler.specan.engine — DDC processing engine.
 
 The engine owns the complete signal chain:
 

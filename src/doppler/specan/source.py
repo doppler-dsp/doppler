@@ -1,5 +1,5 @@
 """
-doppler_specan.source — IQ sample sources.
+doppler.specan.source — IQ sample sources.
 
 All sources produce blocks of complex64 (cf32) samples and report the
 current sample rate and center frequency.  The engine consumes these

@@ -80,7 +80,7 @@ def main() -> None:
     args = parser.parse_args()
 
     from doppler.stream import CF64, Push  # noqa: PLC0415
-    from doppler_specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource  # noqa: PLC0415
 
     _log(
         f"doppler-source started — type=tone bind={args.bind}"

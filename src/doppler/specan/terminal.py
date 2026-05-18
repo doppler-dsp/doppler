@@ -1,5 +1,5 @@
 """
-doppler_specan.terminal — real-time ASCII spectrum display.
+doppler.specan.terminal — real-time ASCII spectrum display.
 
 Renders a spectrum analyzer display in the terminal using ``rich``.
 Keyboard controls:

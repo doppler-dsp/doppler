@@ -21,11 +21,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-import doppler_cli.blocks.fir  # noqa: F401
-import doppler_cli.blocks.specan  # noqa: F401
-import doppler_cli.blocks.tone  # noqa: F401
-from doppler_cli import blocks as block_registry
-from doppler_cli import dopplerfile as df
+import doppler.cli.blocks.fir  # noqa: F401
+import doppler.cli.blocks.specan  # noqa: F401
+import doppler.cli.blocks.tone  # noqa: F401
+from doppler.cli import blocks as block_registry
+from doppler.cli import dopplerfile as df
 
 
 # ---------------------------------------------------------------------------

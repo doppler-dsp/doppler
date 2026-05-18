@@ -66,7 +66,7 @@ def get(name: str) -> Type[Block]:
     if name in _REGISTRY:
         return _REGISTRY[name]
     # Fall back to dopplerfile discovery
-    from doppler_cli import dopplerfile  # noqa: PLC0415
+    from doppler.cli import dopplerfile  # noqa: PLC0415
 
     cls = dopplerfile.discover(name)
     if cls is not None:

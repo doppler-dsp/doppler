@@ -9,9 +9,9 @@ from pathlib import Path
 
 import yaml
 
-from doppler_cli import blocks as block_registry
-from doppler_cli.ports import allocate
-from doppler_cli.state import BlockState, ChainState, stop_chain
+from doppler.cli import blocks as block_registry
+from doppler.cli.ports import allocate
+from doppler.cli.state import BlockState, ChainState, stop_chain
 
 _CHAINS_DIR = Path.home() / ".doppler" / "chains"
 
@@ -201,7 +201,7 @@ def up(compose_file: Path) -> ChainState:
 
 def down(chain_id: str, kill: bool = False) -> None:
     """Stop all blocks in the chain identified by *chain_id*."""
-    from doppler_cli.state import ChainState  # noqa: PLC0415
+    from doppler.cli.state import ChainState  # noqa: PLC0415
 
     chain = ChainState.load(chain_id)
     stop_chain(chain, kill=kill)

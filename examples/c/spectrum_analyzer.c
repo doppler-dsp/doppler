@@ -243,7 +243,7 @@ main (int argc, char *argv[])
           const int32_t *src = (const int32_t *)raw;
           const double   sc  = 1.0 / 2147483647.0;
           for (size_t i = 0; i < N; i++)
-            win_buf[i] = CMPLX (src[2*i] * sc, src[2*i+1] * sc);
+            win_buf[i] = (src[2*i] * sc) + (src[2*i+1] * sc) * _Complex_I;
         }
       else
         { dp_msg_free (msg); continue; }

@@ -338,6 +338,9 @@ Create `src/doppler/<name>/benchmarks/bench_<name>.py`.  Benchmarks use
 collected into versioned JSON snapshots in `benchmarks/history/` and tracked
 in git for regression detection.
 
+For a full description of both the Python and C benchmark pipelines, history
+file format, and how to compare snapshots, see [Benchmarking](benchmarking.md).
+
 ```python
 """bench_<name>.py — throughput benchmarks for doppler.<name>."""
 import numpy as np
@@ -402,7 +405,8 @@ Before opening a PR:
 - [ ] `make test` — all C tests pass
 - [ ] `python -m doctest -v src/doppler/<name>/<name>.pyi` — all examples pass
 - [ ] `make python-test` — all Python tests pass
-- [ ] `make benchmark` — benchmarks run and a JSON snapshot is saved
+- [ ] `make benchmark` — Python benchmarks run and a JSON snapshot is saved
+- [ ] `make benchmark-c` — C benchmarks run and a `-c.json` snapshot is saved
 - [ ] `__init__.py` contains only re-exports and `__all__`
 - [ ] No Python wrapper classes — C extension types are the public API
 - [ ] `<name>.pyi` has stubs for every exported symbol
@@ -413,6 +417,7 @@ Before opening a PR:
 ## See also
 
 - [Module Layout](module-layout.md) — file layout rules and rationale
+- [Benchmarking](benchmarking.md) — C and Python benchmark pipelines, history files, comparisons
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — full
   command reference
 - [Build & Install](../build.md) — cmake flags and targets

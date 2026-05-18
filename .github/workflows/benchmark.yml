@@ -91,4 +91,5 @@ jobs:
         git add history/
         git diff --cached --quiet || \
           git commit -m "bench: ${SNAP}"
+        git pull --rebase origin benchmarks 2>/dev/null || true
         git push origin HEAD:benchmarks

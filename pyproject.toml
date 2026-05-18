@@ -23,6 +23,10 @@ testpaths = ["src"]
 [tool.uv.workspace]
 members = ["src/specan", "src/cli"]
 
+[tool.uv.sources]
+doppler-specan = { workspace = true }
+doppler-cli    = { workspace = true }
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

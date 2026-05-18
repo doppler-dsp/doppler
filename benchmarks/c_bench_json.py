@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-"""
-Run C benchmark binaries and emit a JSON report.
+"""Run C benchmark binaries and emit a combined JSON report.
 
-Top-level keys match pytest-benchmark output (datetime, machine_info,
-commit_info, benchmarks).  Per-benchmark keys also match: name,
-extra_info, stats.  stats contains MSa_s instead of timing aggregates,
-but the key structure is otherwise identical.
+Each binary writes bench_<component>_core.json to its working directory
+via jm_bench_write_json().  This script collects those per-component
+files and merges them into a single top-level JSON whose schema matches
+pytest-benchmark output (same machine_info / commit_info / benchmarks
+keys) so C and Python results can be compared directly.
 
 Usage:
     python benchmarks/c_bench_json.py [--build-type Release] <binary> ...
+    make benchmark-c
 """
 
 import json
 import os
-import platform
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
-
 def _machine_info():
+    import platform
+
     info = {
         "node": platform.node(),
         "system": platform.system(),
@@ -55,7 +54,8 @@ def _commit_info():
         ).decode().strip()
         dirty = bool(
             subprocess.check_output(
-                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+                ["git", "status", "--porcelain"],
+                stderr=subprocess.DEVNULL,
             ).decode().strip()
         )
         return {"id": sha, "branch": branch, "dirty": dirty}
@@ -63,112 +63,39 @@ def _commit_info():
         return {}
 
 
-# ---------------------------------------------------------------------------
-# Parsing
-# ---------------------------------------------------------------------------
-
-def _bench_name(path):
-    """acc_cf64 from .../bench_acc_cf64_core."""
+def _component_from_binary(path):
+    """'acc_cf64' from '.../bench_acc_cf64_core'."""
     n = os.path.basename(path)
-    n = re.sub(r'^bench_', '', n)
-    n = re.sub(r'_core$', '', n)
+    n = re.sub(r"^bench_", "", n)
+    n = re.sub(r"_core$", "", n)
     return n
 
 
-def _parse_output(name, text):
-    """Return a list of benchmark entry dicts from one binary's stdout."""
-    if "(no step() generated" in text:
-        return []
+def _run_binary(binary, tmpdir):
+    """Run binary in tmpdir; return list of benchmark entry dicts."""
+    subprocess.run(
+        [os.path.abspath(binary)],
+        cwd=tmpdir,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
+    # Collect every bench_*_core.json the binary wrote.
     entries = []
-
-    # Collect any metadata from header lines (taps, filter description, etc.)
-    header_meta = {}
-    for line in text.splitlines():
-        m = re.match(r'taps\s*=\s*(\d+)', line)
-        if m:
-            header_meta["taps"] = int(m.group(1))
-
-    # Split into rate sub-sections if the binary uses "rate = X.XXXX" headings
-    rate_pattern = re.compile(r'^rate\s*=\s*(\S+)', re.MULTILINE)
-    rates = rate_pattern.findall(text)
-    if rates:
-        chunks = re.split(r'^rate\s*=\s*\S+\n', text, flags=re.MULTILINE)
-        sections = list(zip(rates, chunks[1:]))
-    else:
-        sections = [(None, text)]
-
-    for rate, section in sections:
-        # Find the column-header line (must contain "block" and "iters")
-        col_line = None
-        for line in section.splitlines():
-            if re.search(r'block\s+iters', line):
-                col_line = line
-                break
-        if col_line is None:
+    for fname in os.listdir(tmpdir):
+        if not (fname.startswith("bench_") and fname.endswith(".json")):
             continue
-
-        # Derive data-column names from the header (everything after iters)
-        raw_cols = re.split(r'\s{2,}', col_line.strip())
-        # raw_cols[0]='block', raw_cols[1]='iters', raw_cols[2:]= data cols
-        data_cols = raw_cols[2:]
-
-        # Find the separator line then collect data rows after it
-        lines = section.splitlines()
-        data_start = None
-        for i, line in enumerate(lines):
-            if re.match(r'\s*-+\s+-+', line):
-                data_start = i + 1
-                break
-        if data_start is None:
+        path = os.path.join(tmpdir, fname)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError):
             continue
-
-        for line in lines[data_start:]:
-            # Strip annotation comments like (sink=N)
-            line = re.sub(r'\(\w+=\d+\)', '', line).strip()
-            if not line:
-                continue
-
-            msa_vals = re.findall(r'(\d+(?:\.\d+)?)\s+MSa\b', line)
-            all_nums = re.findall(r'\d+(?:\.\d+)?', line)
-            if len(all_nums) < 2 or not msa_vals:
-                continue
-
-            try:
-                block = int(all_nums[0])
-                iters = int(all_nums[1])
-            except ValueError:
-                continue
-
-            extra = {**header_meta, "block": block, "iters": iters}
-            if rate is not None:
-                extra["rate"] = float(rate)
-
-            # One unnamed column → single entry; named columns → one entry each
-            if len(msa_vals) == 1:
-                param = f"block={block}"
-                if rate is not None:
-                    param = f"rate={rate},block={block}"
-                entries.append({
-                    "name": f"{name}[{param}]",
-                    "extra_info": extra,
-                    "stats": {"MSa_s": float(msa_vals[0])},
-                })
-            else:
-                for col, msa in zip(data_cols, msa_vals):
-                    col = col.strip()
-                    entries.append({
-                        "name": f"{name}[variant={col},block={block}]",
-                        "extra_info": extra,
-                        "stats": {"MSa_s": float(msa)},
-                    })
+        entries.extend(data.get("benchmarks", []))
 
     return entries
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main(argv=None):
     argv = argv or sys.argv[1:]
@@ -192,12 +119,14 @@ def main(argv=None):
         sys.exit(1)
 
     all_benchmarks = []
-    for binary in binaries:
-        result = subprocess.run(
-            [binary], capture_output=True, text=True, timeout=300
-        )
-        entries = _parse_output(_bench_name(binary), result.stdout)
-        all_benchmarks.extend(entries)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for binary in binaries:
+            entries = _run_binary(binary, tmpdir)
+            all_benchmarks.extend(entries)
+            # Clear JSON files between runs so they don't bleed across.
+            for fname in os.listdir(tmpdir):
+                if fname.endswith(".json"):
+                    os.unlink(os.path.join(tmpdir, fname))
 
     report = {
         "datetime": datetime.now(timezone.utc).isoformat(),

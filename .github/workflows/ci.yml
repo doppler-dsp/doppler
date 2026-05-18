@@ -149,6 +149,56 @@ jobs:
         path: coverage.xml
 
   # ------------------------------------------------------------------
+  # glibc 2.28 compatibility (Debian 10 / Buster)
+  # Catches any accidental use of glibc symbols > 2.28 at build time.
+  # ------------------------------------------------------------------
+  glibc-228:
+    name: glibc 2.28 (Debian 10)
+    runs-on: ubuntu-latest
+    container: debian:buster-slim
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install build deps + cmake ≥ 3.16 from Kitware
+      run: |
+        apt-get update
+        apt-get install -y --no-install-recommends \
+          build-essential \
+          pkg-config \
+          libzmq3-dev \
+          libfftw3-dev \
+          ca-certificates \
+          gpg \
+          wget
+        wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
+          | gpg --dearmor \
+          | tee /usr/share/keyrings/kitware-archive-keyring.gpg > /dev/null
+        echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/debian/ buster main' \
+          > /etc/apt/sources.list.d/kitware.list
+        apt-get update
+        apt-get install -y --no-install-recommends cmake
+
+    - name: Build
+      run: make build
+
+    - name: Test examples
+      run: make test-examples
+
+    - name: Verify no glibc symbols > 2.28
+      run: |
+        BAD=$(objdump -T build/libdoppler.so \
+              | grep -oP 'GLIBC_\K[0-9.]+' \
+              | sort -Vu \
+              | awk -F. '$1 > 2 || ($1 == 2 && $2 > 28)')
+        if [ -n "$BAD" ]; then
+          echo "ERROR: libdoppler.so references glibc > 2.28: $BAD"
+          objdump -T build/libdoppler.so | grep 'GLIBC_' | grep -v 'GLIBC_2\.[0-9]\b\|GLIBC_2\.1[0-9]\b\|GLIBC_2\.2[0-8]\b'
+          exit 1
+        fi
+        echo "OK — all glibc symbols ≤ 2.28"
+
+  # ------------------------------------------------------------------
   # Doxygen C API docs — zero warnings required
   # ------------------------------------------------------------------
   doxygen:

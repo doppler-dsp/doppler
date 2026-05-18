@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(doppler VERSION 0.1.0 LANGUAGES C CXX)
+project(doppler VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -21,6 +21,12 @@ endif()
 
 set(PYTHON_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/src/doppler")
 
+# Stamp PROJECT_VERSION into doppler/version.h at configure time.
+configure_file(
+    native/inc/doppler/version.h.in
+    ${CMAKE_BINARY_DIR}/native/inc/doppler/version.h
+    @ONLY)
+
 # Combined C library — shared + static, no Python dependency.
 # Component OBJECT libraries are wired in via target_sources below.
 add_library(doppler_lib SHARED native/src/doppler_lib.c)
@@ -28,13 +34,18 @@ add_library(doppler_lib_static STATIC native/src/doppler_lib.c)
 foreach(_t doppler_lib doppler_lib_static)
     target_include_directories(${_t} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
-# Inline pocketfft objects into the shared lib so it is self-contained.
-# Use TARGET_FILE (raw path) to avoid adding pocketfft_cxx to the export set.
-target_link_libraries(doppler_lib PRIVATE
-    "$<TARGET_FILE:pocketfft_cxx>" m stdc++)
+# pocketfft_cxx is an OBJECT library — link it directly so its compiled units
+# are embedded in the shared lib without appearing in the install export set.
+# The static lib gets the same objects via target_sources so libdoppler.a is
+# also self-contained; stdc++ and Threads propagate to consumers via PUBLIC.
+find_package(Threads REQUIRED)
+target_link_libraries(doppler_lib PRIVATE pocketfft_cxx m)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:pocketfft_cxx>)
+target_link_libraries(doppler_lib_static PUBLIC stdc++ Threads::Threads m)
 
 enable_testing()
 
@@ -116,15 +127,21 @@ set_target_properties(zmq_vendor_static PROPERTIES
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
 add_subdirectory(native/src/stream)
+add_subdirectory(examples/c)
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-install(TARGETS doppler_lib doppler_lib_static
+install(TARGETS doppler_lib
     EXPORT doppler-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+# Static lib installed without CMake package integration — no pocketfft_cxx
+# in the export set.  Consumers wanting static linking find libdoppler.a
+# via find_library() and link -lstdc++ -lpthread -lm alongside it.
+install(TARGETS doppler_lib_static
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/

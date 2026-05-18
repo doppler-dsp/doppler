@@ -37,6 +37,11 @@ extern "C"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
 
+  /* ── Version ──────────────────────────────────────────────────────────────
+   */
+
+#include "doppler/version.h"
+
 #ifdef __cplusplus
 }
 #endif

@@ -8,7 +8,9 @@ set_target_properties(pocketfft_cxx PROPERTIES
     CXX_EXTENSIONS OFF)
 target_include_directories(pocketfft_cxx PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(pocketfft_cxx PUBLIC stdc++)
+find_package(Threads REQUIRED)
+# pocketfft uses std::thread; glibc < 2.34 requires explicit -lpthread.
+target_link_libraries(pocketfft_cxx PUBLIC stdc++ Threads::Threads)
 
 # OBJECT library — pure C (C11); links the pocketfft_cxx static lib.
 add_library(fft_core OBJECT fft_core.c)

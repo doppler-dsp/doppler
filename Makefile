@@ -75,7 +75,7 @@ endif
         specan record-demo \
         bench bench-python bench-c \
         debug release blazing bump-version check-version tag-release \
-        test-examples clean help
+        test-examples test-examples-python clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -131,6 +131,9 @@ test-examples: build
 	        echo "FAIL"; exit 1; \
 	    fi; \
 	done
+	@echo "All C example smoke tests passed."
+
+test-examples-python:
 	@echo "Running Python example smoke tests..."
 	@for ex in examples/python/fir_demo.py; do \
 	    printf "  %-20s" "$$ex"; \
@@ -140,10 +143,10 @@ test-examples: build
 	        echo "FAIL"; exit 1; \
 	    fi; \
 	done
-	@echo "All example smoke tests passed."
+	@echo "All Python example smoke tests passed."
 
 # ── test-all ──────────────────────────────────────────────────────────────────
-test-all: test test-examples python-test
+test-all: test test-examples python-test test-examples-python
 
 # ── python-test ───────────────────────────────────────────────────────────────
 python-test:

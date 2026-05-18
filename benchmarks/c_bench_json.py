@@ -92,7 +92,15 @@ def _run_binary(binary, tmpdir):
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        entries.extend(data.get("benchmarks", []))
+        for entry in data.get("benchmarks", []):
+            # Prefix name with component so entries from different
+            # binaries are unambiguous in history comparisons.
+            # fullname = "bench_acc_f32_core::step" → "acc_f32::step"
+            fn = entry.get("fullname", "")
+            m = re.match(r"bench_(.+)_core::(.+)", fn)
+            if m:
+                entry["name"] = f"{m.group(1)}::{m.group(2)}"
+            entries.append(entry)
 
     return entries
 

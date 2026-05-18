@@ -40,8 +40,10 @@ foreach(_t doppler_lib doppler_lib_static)
 endforeach()
 # Inline pocketfft objects into the shared lib so it is self-contained.
 # Use TARGET_FILE (raw path) to avoid adding pocketfft_cxx to the export set.
+# pocketfft uses std::thread; glibc < 2.34 requires explicit -lpthread.
+find_package(Threads REQUIRED)
 target_link_libraries(doppler_lib PRIVATE
-    "$<TARGET_FILE:pocketfft_cxx>" m stdc++)
+    "$<TARGET_FILE:pocketfft_cxx>" m stdc++ Threads::Threads)
 
 enable_testing()
 

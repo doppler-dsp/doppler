@@ -160,7 +160,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install build deps + cmake ≥ 3.16 from Kitware
+    - name: Install build deps + cmake ≥ 3.16
       run: |
         # Debian Buster reached EOL; packages are on the archive mirror.
         printf 'deb http://archive.debian.org/debian buster main\ndeb http://archive.debian.org/debian-security buster/updates main\n' \
@@ -172,15 +172,14 @@ jobs:
           libzmq3-dev \
           libfftw3-dev \
           ca-certificates \
-          gpg \
           wget
-        wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc \
-          | gpg --dearmor \
-          | tee /usr/share/keyrings/kitware-archive-keyring.gpg > /dev/null
-        echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/debian/ buster main' \
-          > /etc/apt/sources.list.d/kitware.list
-        apt-get -o Acquire::Check-Valid-Until=false update
-        apt-get install -y --no-install-recommends cmake
+        # Kitware's Buster apt repo is also EOL; use the statically-linked
+        # cmake binary from the GitHub release instead.
+        CMAKE_VER=3.28.6
+        wget -q "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VER}/cmake-${CMAKE_VER}-linux-x86_64.sh" \
+          -O /tmp/cmake-install.sh
+        sh /tmp/cmake-install.sh --skip-license --prefix=/usr/local
+        rm /tmp/cmake-install.sh
 
     - name: Build
       run: make build

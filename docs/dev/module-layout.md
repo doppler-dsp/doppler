@@ -250,4 +250,4 @@ This is the same model NumPy uses: `numpy.ndarray` is a C type, stubbed in
   just-makeit to scaffold a new extension module
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — scaffold
   tool that generates compliant layouts automatically
-- [Build & Install](../build.md) — how to compile extensions
+- [Build & Install](../build/) — how to compile extensions

@@ -33,7 +33,7 @@ length is `2 × num_samples`).
 | C99 type | Alias | Bytes | Used for |
 | -------- | ----- | ----- | -------- |
 | `float _Complex` | CF32 | 8 | Signal path: NCO output, FIR, resamplers, DDC |
-| `double _Complex` | CF64 | 16 | FFT backend; `dp_c16_mul`; streaming |
+| `double _Complex` | CF64 | 16 | FFT backend; accumulators; streaming |
 | `long double _Complex` | CF128 | 32 | Streaming wire format only |
 
 These are the standard C99 complex types — not structs, not typedefs.
@@ -41,13 +41,14 @@ Call sites use the C99 spelling directly:
 
 ```c
 #include <complex.h>
-#include <dp/fir.h>
+#include <fir/fir_core.h>
 
-float _Complex in[1024];
-float _Complex out[1024];
+float taps[63] = { ... };
+fir_state_t *f = fir_create_real(taps, 63);
 
-dp_fir_t *f = dp_fir_create(taps, 63);
-dp_fir_execute_cf32(f, in, out, 1024);
+float _Complex in[1024], out[1024];
+fir_execute(f, in, 1024, out);
+fir_destroy(f);
 ```
 
 ### Creating complex constants: CMPLXF / CMPLX
@@ -59,27 +60,21 @@ double _Complex dc  = CMPLX(1.0, 0.0);
 
 ---
 
-## Named IQ types — `dp_*_t` (streaming & FFI)
+## Named IQ types — Rust FFI structs
 
-Defined in `dp/stream.h`, available via `doppler.h`.  All are
-`#[repr(C)]` interleaved structs with `i` (in-phase) and `q`
-(quadrature) fields matching the on-wire format and NumPy complex layout.
+The Rust FFI (`ffi/rust/src/types.rs`) defines `#[repr(C)]` interleaved
+structs for passing IQ samples across the C boundary:
 
-| C typedef | Fields | Bytes | NumPy dtype | Rust type |
-| --------- | ------ | ----- | ----------- | --------- |
-| `dp_ci8_t` | `int8_t i, q` | 2 | — | `DpCi8` |
-| `dp_ci16_t` | `int16_t i, q` | 4 | — | `DpCi16` |
-| `dp_ci32_t` | `int32_t i, q` | 8 | — | `DpCi32` |
-| `dp_cf32_t` | `float i, q` | 8 | `complex64` | `DpCf32` |
-| `dp_cf64_t` | `double i, q` | 16 | `complex128` | `Complex64`¹ |
-| `dp_cf128_t` | `long double i, q` | 32 | — | — |
+| Rust type | Fields | Bytes | NumPy equiv | Notes |
+| --------- | ------ | ----- | ----------- | ----- |
+| `DpCi8` | `i: i8, q: i8` | 2 | — | SDR raw int8 IQ |
+| `DpCi16` | `i: i16, q: i16` | 4 | — | SDR raw int16 IQ |
+| `DpCi32` | `i: i32, q: i32` | 8 | — | SDR raw int32 IQ |
+| `DpCf32` | `i: f32, q: f32` | 8 | `complex64` | Implements `From<Complex<f32>>` |
 
-¹ Rust FFI uses `num_complex::Complex64` directly for `dp_cf64_t`
-because it has the same `[f64; 2]` memory layout — no wrapper needed.
-
-The DSP path (NCO, FIR, resamplers, DDC) uses the C99 `float _Complex`
-/ `double _Complex` types, not `dp_cf32_t` / `dp_cf64_t`.  They are
-layout-compatible but distinct at the source level.
+The C DSP API uses `float complex` and `double complex` directly (C99
+types) rather than `i/q` structs. `DpCf32` is layout-compatible with
+`float complex` and `numpy.complex64`.
 
 ---
 
@@ -106,7 +101,7 @@ in every `dp_header_t` frame.  Python exposes these as `doppler.CI32`,
 
 ## Ring buffer element types
 
-The ring buffer API (`dp/buffer.h`) is element-typed, not sample-typed.
+The ring buffer API (`buffer/buffer.h`) is element-typed, not sample-typed.
 Each buffer holds a flat array of scalars; how they are interpreted as
 complex samples is the caller's responsibility.
 
@@ -137,19 +132,20 @@ buf.write(iq.view(np.float32))   # reinterpret as float32 pairs
 
 | Header | Input type(s) | Output / state type | Notes |
 | ------ | ------------- | ------------------- | ----- |
-| `dp/nco.h` | — | `float _Complex`, `uint32_t` | LUT → CF32; raw phase = u32 |
-| `dp/fir.h` | `dp_ci8_t`, `dp_ci16_t`, `dp_ci32_t`, `float _Complex` | `float _Complex` | Integer inputs up-cast via SIMD |
-| `dp/fft.h` | `double _Complex`, `float _Complex` | same | C99 complex types, not `dp_cf*_t` |
-| `dp/util.h` | `double _Complex` | `double _Complex` | `dp_c16_mul` SIMD multiply |
-| `dp/resamp.h` | `float _Complex` | `float _Complex` | Polyphase resampler |
-| `dp/resamp_dpmfs.h` | `float _Complex` | `float _Complex` | DPMFS resampler |
-| `dp/hbdecim.h` | `float _Complex` or `float` | `float _Complex` | CF32 or real→CF32 |
-| `dp/ddc.h` | `float _Complex` | `float _Complex` | Complex DDC (Arch A) |
-| `dp/ddc.h` | `float` | `float _Complex` | Real DDC (Arch D2) |
-| `dp/accumulator.h` | `float` or `double _Complex` | same | Separate f32 and cf64 accumulators |
-| `dp/delay.h` | `double _Complex` | `double _Complex` | Polyphase tap delay |
+| `lo/lo_core.h` | — | `float complex` | LO + 2¹⁶-entry LUT → CF32 phasors |
+| `nco/nco_core.h` | — | `uint32_t` | Raw phase accumulator |
+| `fir/fir_core.h` | `float complex` | `float complex` | Real or complex taps |
+| `fft/fft_core.h` | `double complex`, `float complex` | same | C99 complex types |
+| `fft2d/fft2d_core.h` | `double complex`, `float complex` | same | 2-D FFT |
+| `Resampler/Resampler_core.h` | `float complex` | `float complex` | Polyphase resampler |
+| `HalfbandDecimator/HalfbandDecimator_core.h` | `float complex` | `float complex` | Fixed 2:1 halfband |
+| `ddc/ddc_core.h` | `float complex` | `float complex` | Complex DDC (`DDC`) |
+| `ddc/ddc_core.h` | `float` | `float complex` | Real DDC (`DDCR`, Arch D2) |
+| `acc_f32/acc_f32_core.h` | `float` | `float` | Running sum / dot product |
+| `acc_cf64/acc_cf64_core.h` | `double complex` | `double complex` | Complex accumulator (I&D) |
+| `delay/delay_core.h` | `double complex` | `double complex` | Polyphase tap delay |
 | `dp/buffer.h` | `float`, `double`, `int16_t` | same | Scalar ring buffer elements |
-| `dp/stream.h` | all `dp_*_t` types | all types | Wire type set at socket creation |
+| `stream/stream.h` | all `dp_sample_type_t` wire types | all types | Wire type set at socket creation |
 
 ---
 
@@ -164,13 +160,14 @@ Used by NCO, FIR, polyphase resampler, halfband decimator, DDC.
 
 **`double _Complex` (CF64)** — spectral and accumulation paths.
 The FFT backend (FFTW or pocketfft) works in `double _Complex` throughout.
-`dp_c16_mul` (SIMD complex multiply) uses `double _Complex` to match.
+The accumulator types use `double _Complex` to match.
 Running sums over many taps accumulate in `double` to prevent rounding
 error before rounding back to `float`.
 
-**`int8_t` / `int16_t` / `int32_t`** — input-only integer formats.
-Real SDR hardware delivers quantized samples.  FIR filters accept integer
-inputs and up-cast to `float _Complex` via SIMD as part of execution.
+**`int8_t` / `int16_t` / `int32_t`** — streaming wire types.
+Real SDR hardware delivers quantized samples.  The streaming API carries
+these as `dp_sample_type_t` values (`DP_CI8`, `DP_CI16`, `DP_CI32`).
+Convert to `float complex` before processing with the DSP library.
 
 Rule: *compute in the cheapest type that keeps the math clean.*
 
@@ -180,15 +177,14 @@ Rule: *compute in the cheapest type that keeps the math clean.*
 
 | C type | NumPy dtype | Notes |
 | ------ | ----------- | ----- |
-| `dp_ci8_t` | — | streaming / manual only |
-| `dp_ci16_t` | `np.dtype([('i','i2'),('q','i2')])` | manual; streaming use only |
-| `dp_ci32_t` | streaming only (`CI32`) | `doppler.CI32` |
-| `dp_cf32_t` / `float _Complex` | `np.complex64` | memory layout identical |
-| `dp_cf64_t` / `double _Complex` | `np.complex128` | memory layout identical |
-| `dp_cf128_t` | streaming only (`CF128`) | `doppler.CF128` |
+| `float complex` | `np.complex64` | memory layout identical |
+| `double complex` | `np.complex128` | memory layout identical |
 | `uint32_t` | `np.uint32` | NCO phase |
 | `uint8_t` | `np.uint8` | NCO carry/overflow flag |
 | `float` | `np.float32` | f32 accumulator, tap coefficients |
+| `DP_CI8` wire type | — | streaming only; convert before DSP |
+| `DP_CI16` wire type | — | streaming only; convert before DSP |
+| `DP_CI32` wire type | — | streaming only; convert before DSP |
 
 ---
 
@@ -196,12 +192,9 @@ Rule: *compute in the cheapest type that keeps the math clean.*
 
 | C type | Rust type | Notes |
 | ------ | --------- | ----- |
-| `dp_ci8_t` | `types::DpCi8` | `#[repr(C)]` struct |
-| `dp_ci16_t` | `types::DpCi16` | `#[repr(C)]` struct |
-| `dp_ci32_t` | `types::DpCi32` | `#[repr(C)]` struct |
-| `dp_cf32_t` | `types::DpCf32` | `From<Complex<f32>>` impl |
-| `dp_cf64_t` | `num_complex::Complex64` | same layout, no wrapper needed |
-| `double _Complex` | `num_complex::Complex64` | FFT and util APIs |
+| `float complex` | `types::DpCf32` | `#[repr(C)]` `{i: f32, q: f32}`; `From<Complex<f32>>` |
+| `double complex` | `num_complex::Complex64` | same layout, no wrapper needed |
+| IQ wire types | `types::DpCi8`, `DpCi16`, `DpCi32` | `#[repr(C)]` structs for FFI boundary |
 | `uint32_t` | `u32` | NCO phase accumulator |
 
 ---

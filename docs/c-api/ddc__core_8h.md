@@ -308,6 +308,7 @@ void ddc_set_norm_freq (
 **Parameters:**
 
 
+* `s` Must be non-NULL. 
 * `norm_freq` New normalised frequency. 
 
 

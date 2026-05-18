@@ -6,7 +6,7 @@ Here is a list of all files with brief descriptions:
 
 * **dir** [**native**](dir_3dbb10954ed03e2c7eb007b10aa2d80b.md)     
     * **dir** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md)     
-        * **file** [**clib\_common.h**](clib__common_8h.md) 
+        * **file** [**clib\_common.h**](clib__common_8h.md)     
         * **file** [**doppler.h**](doppler_8h.md) 
         * **file** [**jm\_perf.h**](jm__perf_8h.md) _just-makeit performance annotation macros._     
         * **file** [**jm\_simd.h**](jm__simd_8h.md) _Width-portable SIMD operation macros._     

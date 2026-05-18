@@ -80,7 +80,35 @@
 
 
 
+## Macros
 
+| Type | Name |
+| ---: | :--- |
+| define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
+
+## Macro Definition Documentation
+
+
+
+
+
+### define CMPLXF 
+
+```C++
+#define CMPLXF (
+    r,
+    i
+) `__builtin_complex ((float)(r), (float)(i))`
+```
+
+
+
+[**clib\_common.h**](clib__common_8h.md) — common C99 types and performance macros for doppler. 
+
+
+        
+
+<hr>
 
 ------------------------------
 The documentation for this class was generated from the following file `native/inc/clib_common.h`

@@ -4,7 +4,7 @@ build-backend = "just_buildit"
 
 [project]
 name = "doppler"
-version = "0.1.0"
+version = "0.3.0"
 description = "TODO: describe your project."
 readme = "README.md"
 requires-python = ">=3.11"

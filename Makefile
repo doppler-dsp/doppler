@@ -74,7 +74,8 @@ endif
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo \
         bench bench-python bench-c \
-        debug release blazing bump-version tag-release clean help
+        debug release blazing bump-version check-version tag-release \
+        test-examples clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -116,8 +117,24 @@ just-build: pyext
 	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
 	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler
 
+# ── test-examples ─────────────────────────────────────────────────────────────
+# Smoke-test the standalone C examples (DSP only — streaming examples require
+# a live transmitter and are excluded from automated runs).
+EXAMPLE_BIN_DIR := $(BUILD_DIR)/native/examples
+test-examples: build
+	@echo "Running C example smoke tests..."
+	@for ex in nco_demo fir_demo hbdecim_demo fft_demo; do \
+	    printf "  %-20s" "$$ex"; \
+	    if $(EXAMPLE_BIN_DIR)/$$ex > /dev/null 2>&1; then \
+	        echo "PASS"; \
+	    else \
+	        echo "FAIL"; exit 1; \
+	    fi; \
+	done
+	@echo "All example smoke tests passed."
+
 # ── test-all ──────────────────────────────────────────────────────────────────
-test-all: test python-test
+test-all: test test-examples python-test
 
 # ── python-test ───────────────────────────────────────────────────────────────
 python-test:
@@ -214,13 +231,33 @@ ifndef VERSION
 	@echo "usage: make bump-version VERSION=<x.y.z>"
 	@exit 1
 endif
-	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' pyproject.toml
-	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' src/specan/pyproject.toml
-	sed -i 's/^version = "[0-9.]*"/version = "$(VERSION)"/' src/cli/pyproject.toml
+	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
+	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' src/specan/pyproject.toml
+	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' src/cli/pyproject.toml
 	sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
 	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
 	@echo "Bumped to $(VERSION) in pyproject.toml, specan, cli, Cargo.toml, CMakeLists.txt"
 	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
+
+# ── check-version ─────────────────────────────────────────────────────────────
+# Verify that all five version locations agree.  Run before tagging.
+check-version:
+	@PY=$$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	 CM=$$(grep '^project(doppler VERSION' CMakeLists.txt | sed 's/.*VERSION \([0-9.]*\).*/\1/'); \
+	 SP=$$(grep '^version' src/specan/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	 CL=$$(grep '^version' src/cli/pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	 RS=$$(grep '^version' $(RUST_DIR)/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'); \
+	 echo "pyproject.toml : $$PY"; \
+	 echo "CMakeLists.txt : $$CM"; \
+	 echo "specan         : $$SP"; \
+	 echo "cli            : $$CL"; \
+	 echo "Cargo.toml     : $$RS"; \
+	 if [ "$$PY" = "$$CM" ] && [ "$$PY" = "$$SP" ] && [ "$$PY" = "$$CL" ] && [ "$$PY" = "$$RS" ]; then \
+	     echo "OK — all versions match ($$PY)"; \
+	 else \
+	     echo "ERROR — version mismatch; run: make bump-version VERSION=<x.y.z>"; \
+	     exit 1; \
+	 fi
 
 # ── tag-release ───────────────────────────────────────────────────────────────
 # Commit the version bump and push the release tag.
@@ -230,7 +267,9 @@ ifndef VERSION
 	@echo "usage: make tag-release VERSION=<x.y.z>"
 	@exit 1
 endif
-	git add pyproject.toml $(RUST_DIR)/Cargo.toml CMakeLists.txt
+	$(MAKE) check-version VERSION=$(VERSION)
+	git add pyproject.toml src/specan/pyproject.toml src/cli/pyproject.toml \
+	        $(RUST_DIR)/Cargo.toml CMakeLists.txt
 	git commit -m "chore: release v$(VERSION)"
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	git push origin main "v$(VERSION)"

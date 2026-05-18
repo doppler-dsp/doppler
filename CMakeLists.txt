@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(doppler VERSION 0.1.0 LANGUAGES C CXX)
+project(doppler VERSION 0.3.0 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -21,6 +21,12 @@ endif()
 
 set(PYTHON_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/src/doppler")
 
+# Stamp PROJECT_VERSION into doppler/version.h at configure time.
+configure_file(
+    native/inc/doppler/version.h.in
+    ${CMAKE_BINARY_DIR}/native/inc/doppler/version.h
+    @ONLY)
+
 # Combined C library — shared + static, no Python dependency.
 # Component OBJECT libraries are wired in via target_sources below.
 add_library(doppler_lib SHARED native/src/doppler_lib.c)
@@ -28,6 +34,7 @@ add_library(doppler_lib_static STATIC native/src/doppler_lib.c)
 foreach(_t doppler_lib doppler_lib_static)
     target_include_directories(${_t} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
@@ -116,6 +123,7 @@ set_target_properties(zmq_vendor_static PROPERTIES
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
 add_subdirectory(native/src/stream)
+add_subdirectory(native/examples)
 
 # ── Install ──────────────────────────────────────────────────────────────────
 

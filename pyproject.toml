@@ -20,6 +20,9 @@ editable_path = "src"
 python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]
 
+[tool.uv.workspace]
+members = ["src/specan", "src/cli"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

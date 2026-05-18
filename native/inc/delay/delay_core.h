@@ -82,13 +82,7 @@ extern "C"
   size_t delay_ptr_max_out (delay_state_t *state);
   size_t delay_ptr (delay_state_t *state, size_t n, double complex *out);
 
-  /**
-   * @brief push_ptr.
-   *
-   * @param state  Must be non-NULL.
-   * @param x  double complex parameter.
-   * @return Result (double complex).
-   */
+  /** Maximum output samples per delay_push_ptr call. */
   size_t delay_push_ptr_max_out (delay_state_t *state);
   size_t delay_push_ptr (delay_state_t *state, double complex x,
                          double complex *out);

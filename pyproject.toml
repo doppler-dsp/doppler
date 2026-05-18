@@ -29,4 +29,5 @@ dev = [
     "zensical>=0.0.29",
     "mkdocstrings[python]>=0.29",
     "mkdoxy>=1.2.8",
+    "pydantic>=2.0",
 ]

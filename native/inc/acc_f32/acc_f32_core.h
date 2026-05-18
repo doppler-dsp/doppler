@@ -103,29 +103,34 @@ extern "C"
   float acc_f32_dump (acc_f32_state_t *state);
 
   /**
-   * @brief madd.
+   * @brief Multiply-accumulate: acc += sum(x * h) over x_len samples.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input (float[]).
-   * @param h  float[] parameter.
+   * @param x      Input array (float), length x_len.
+   * @param x_len  Number of input samples.
+   * @param h      Coefficient array (float), length h_len.
+   * @param h_len  Number of coefficients.
    */
   void acc_f32_madd (acc_f32_state_t *state, const float *x, size_t x_len,
                      const float *h, size_t h_len);
 
   /**
-   * @brief add2d.
+   * @brief Accumulate a 2-D array: acc += sum of all elements in x.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input (float[]).
+   * @param x      Input array (float), x_len elements total.
+   * @param x_len  Total number of elements.
    */
   void acc_f32_add2d (acc_f32_state_t *state, const float *x, size_t x_len);
 
   /**
-   * @brief madd2d.
+   * @brief 2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input (float[]).
-   * @param h  float[] parameter.
+   * @param x      Input array (float), length x_len.
+   * @param x_len  Total number of elements.
+   * @param h      Coefficient array (float), length h_len.
+   * @param h_len  Number of coefficients.
    */
   void acc_f32_madd2d (acc_f32_state_t *state, const float *x, size_t x_len,
                        const float *h, size_t h_len);

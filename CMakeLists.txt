@@ -13,7 +13,11 @@ if(ENABLE_SIMD)
     endif()
 endif()
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+option(BUILD_PYTHON "Build Python C extensions" OFF)
+
+if(BUILD_PYTHON)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
+endif()
 
 set(PYTHON_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/src/doppler")
 

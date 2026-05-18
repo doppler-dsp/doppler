@@ -96,6 +96,7 @@ extern "C"
 
   /**
    * @brief Retune the LO without resetting phase or resampler history.
+   * @param s          Must be non-NULL.
    * @param norm_freq  New normalised frequency.
    */
   void ddc_set_norm_freq (ddc_state_t *s, double norm_freq);

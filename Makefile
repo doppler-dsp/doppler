@@ -12,7 +12,9 @@
 #   make test                     # run CTest suite (native/ unit tests)
 #   make pyext                    # build Python C extensions
 #   make python-test              # pytest
-#   make benchmark                # run benchmarks, save JSON to benchmarks/history/
+#   make bench                    # run C + Python benchmarks, save JSON to benchmarks/history/
+#   make bench-python             # Python benchmarks only
+#   make bench-c                  # C benchmarks only
 #   make test-all                 # CTest + pytest
 #   make debug                    # clean + Debug build
 #   make release                  # clean + Release build
@@ -71,7 +73,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo \
-        benchmark benchmark-c \
+        bench bench-python bench-c benchmark benchmark-c \
         debug release blazing bump-version tag-release clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
@@ -121,17 +123,25 @@ test-all: test python-test
 python-test:
 	uv run pytest src/ -v
 
-# ── benchmark ─────────────────────────────────────────────────────────────────
-# Run Python benchmarks and save a dated JSON snapshot to benchmarks/history/.
-# Results are checked in so perf regressions are visible in git history.
+# ── bench ─────────────────────────────────────────────────────────────────────
+# Run benchmarks and save dated JSON snapshots to benchmarks/history/.
+# Results are committed so perf regressions are visible in git history.
+#
 # Usage:
-#   make benchmark                  # save benchmarks/history/20260517T143000Z.json
-#   make benchmark BENCH_TAG=v1.2.3 # save benchmarks/history/v1.2.3.json
-BENCH_TAG  ?= $(shell date -u +%Y%m%dT%H%M%SZ)
-BENCH_JSON  = benchmarks/history/$(BENCH_TAG).json
-BENCH_DIRS := $(shell find src/doppler -type d -name benchmarks | sort | tr '\n' ' ')
+#   make bench                    # C + Python (default)
+#   make bench-python             # Python only
+#   make bench-c                  # C only
+#   make bench BENCH_TAG=v1.2.3   # version-tagged snapshot
+BENCH_TAG    ?= $(shell date -u +%Y%m%dT%H%M%SZ)
+BENCH_JSON    = benchmarks/history/$(BENCH_TAG).json
+BENCH_C_JSON  = benchmarks/history/$(BENCH_TAG)-c.json
+BENCH_DIRS   := $(shell find src/doppler -type d -name benchmarks | sort | tr '\n' ' ')
+BENCH_C_BINS := $(shell find $(BUILD_DIR)/native/src -name 'bench_*' \
+                    -type f -not -name '*.o' -not -name '*.d' | sort)
 
-benchmark:
+bench: bench-python bench-c
+
+bench-python:
 	@mkdir -p benchmarks/history
 	uv run pytest $(BENCH_DIRS) \
 		--benchmark-only \
@@ -140,26 +150,17 @@ benchmark:
 		--benchmark-sort=mean
 	@echo "Saved: $(BENCH_JSON)"
 
-# ── benchmark-c ───────────────────────────────────────────────────────────────
-# Run all native C benchmark binaries and save a JSON report.
-# Format matches pytest-benchmark JSON: same top-level keys (datetime,
-# machine_info, commit_info, benchmarks) and per-entry keys (name,
-# extra_info, stats).
-# Requires a prior `make build` (or `make pyext`).
-# Usage:
-#   make benchmark-c                  # save benchmarks/history/20260517T143000Z-c.json
-#   make benchmark-c BENCH_TAG=v1.2.3 # save benchmarks/history/v1.2.3-c.json
-BENCH_C_JSON := benchmarks/history/$(BENCH_TAG)-c.json
-BENCH_C_BINS := $(shell find $(BUILD_DIR)/native/src -name 'bench_*' \
-                    -type f -not -name '*.o' -not -name '*.d' | sort)
-
-benchmark-c: build
+bench-c: build
 	@mkdir -p benchmarks/history
 	uv run python benchmarks/c_bench_json.py \
 	    --build-type $(BUILD_TYPE) \
 	    $(BENCH_C_BINS) \
 	    > $(BENCH_C_JSON)
 	@echo "Saved: $(BENCH_C_JSON)"
+
+# deprecated aliases
+benchmark: bench-python
+benchmark-c: bench-c
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
 rust-test: build
@@ -259,8 +260,9 @@ help:
 	@echo "  make wheel         Build + auditwheel-repair doppler-dsp wheel (Linux)"
 	@echo "  make test-all      Run all test suites (CTest + pytest)"
 	@echo "  make python-test   Run pytest"
-	@echo "  make benchmark     Run Python benchmarks; save JSON to benchmarks/history/"
-	@echo "  make benchmark-c   Run C binary benchmarks; save JSON to benchmarks/history/"
+	@echo "  make bench         Run C + Python benchmarks; save JSON to benchmarks/history/"
+	@echo "  make bench-python  Run Python benchmarks only"
+	@echo "  make bench-c       Run C binary benchmarks only"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make docs-build    Build Zensical site"

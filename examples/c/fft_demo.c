@@ -116,9 +116,11 @@ main (void)
     if (!x || !mid || !out) { fputs ("malloc failed\n", stderr); return 1; }
 
     /* Mixed tone input */
-    for (size_t i = 0; i < N; i++)
-      x[i] = CMPLX (cos (2.0 * M_PI * 2.0 * (double)i / (double)N),
-                    sin (2.0 * M_PI * 2.0 * (double)i / (double)N));
+    for (size_t i = 0; i < N; i++) {
+        double re = cos (2.0 * M_PI * 2.0 * (double)i / (double)N);
+        double im = sin (2.0 * M_PI * 2.0 * (double)i / (double)N);
+        x[i] = re + im * _Complex_I;
+    }
 
     fft_state_t *fwd = fft_create (N, +1, 1);
     fft_state_t *inv = fft_create (N, -1, 1);

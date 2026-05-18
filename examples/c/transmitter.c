@@ -75,7 +75,7 @@ generate_tone_cf64 (double _Complex *samples, size_t n, double freq,
   for (size_t i = 0; i < n; i++)
     {
       double angle = 2.0 * M_PI * freq * (double)i / sample_rate + phase;
-      samples[i] = CMPLX (cos (angle), sin (angle));
+      samples[i] = (cos (angle)) + (sin (angle)) * _Complex_I;
     }
 }
 

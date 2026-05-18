@@ -65,7 +65,7 @@ producer_thread (void *arg)
           double t = 2.0 * M_PI * (double)i / SAMPLES_PER_BATCH;
           double fm = 1.0 + 0.5 * sin (2.0 * M_PI * (double)batch
                                        / NUM_BATCHES);
-          samples[i] = CMPLX (0.8 * cos (fm * t), 0.8 * sin (fm * t));
+          samples[i] = (0.8 * cos (fm * t)) + (0.8 * sin (fm * t)) * _Complex_I;
         }
 
       int rc = dp_push_send_cf64 (ctx, samples, SAMPLES_PER_BATCH, 1e6, 2.4e9);

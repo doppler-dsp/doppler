@@ -16,6 +16,7 @@ WORKDIR /build
 COPY CMakeLists.txt .
 COPY cmake/ cmake/
 COPY native/ native/
+COPY vendor/ vendor/
 COPY examples/ examples/
 
 # Build the library

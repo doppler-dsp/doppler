@@ -1,6 +1,7 @@
 add_library(filter_core OBJECT filter_core.c)
 target_include_directories(filter_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+if(BUILD_PYTHON)
 # filter Python module — aggregates: Fir
 Python3_add_library(filter MODULE WITH_SOABI filter_ext.c)
 target_link_libraries(filter PRIVATE
@@ -29,3 +30,4 @@ add_custom_command(TARGET filter POST_BUILD
         "$<TARGET_FILE:filter>"
         "${PYTHON_PACKAGE_DIR}/filter/$<TARGET_FILE_NAME:filter>"
     VERBATIM)
+endif()

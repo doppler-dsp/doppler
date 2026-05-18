@@ -3,6 +3,7 @@ target_include_directories(ddc_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(ddc_core PUBLIC lo_core resamp_core hbdecim_r2c_core m)
 
+if(BUILD_PYTHON)
 # ddc Python module — Ddc, DdcR
 Python3_add_library(ddc MODULE WITH_SOABI ddc_ext.c)
 target_link_libraries(ddc PRIVATE
@@ -34,3 +35,4 @@ add_custom_command(TARGET ddc POST_BUILD
         "$<TARGET_FILE:ddc>"
         "${PYTHON_PACKAGE_DIR}/ddc/$<TARGET_FILE_NAME:ddc>"
     VERBATIM)
+endif()

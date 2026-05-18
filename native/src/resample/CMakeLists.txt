@@ -1,6 +1,7 @@
 add_library(resample_core OBJECT resample_core.c)
 target_include_directories(resample_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+if(BUILD_PYTHON)
 # resample Python module — Resampler, HalfbandDecimator*
 Python3_add_library(resample MODULE WITH_SOABI resample_ext.c)
 target_link_libraries(resample PRIVATE
@@ -32,3 +33,4 @@ add_custom_command(TARGET resample POST_BUILD
         "$<TARGET_FILE:resample>"
         "${PYTHON_PACKAGE_DIR}/resample/$<TARGET_FILE_NAME:resample>"
     VERBATIM)
+endif()

@@ -1,6 +1,7 @@
 add_library(accumulator_core OBJECT accumulator_core.c)
 target_include_directories(accumulator_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+if(BUILD_PYTHON)
 # accumulator Python module — aggregates: AccF32, AccCf64
 Python3_add_library(accumulator MODULE WITH_SOABI accumulator_ext.c)
 target_link_libraries(accumulator PRIVATE
@@ -30,3 +31,4 @@ add_custom_command(TARGET accumulator POST_BUILD
         "$<TARGET_FILE:accumulator>"
         "${PYTHON_PACKAGE_DIR}/accumulator/$<TARGET_FILE_NAME:accumulator>"
     VERBATIM)
+endif()

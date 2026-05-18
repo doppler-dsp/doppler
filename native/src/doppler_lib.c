@@ -1,10 +1,11 @@
-/* doppler_lib — combined C library.
+/* doppler_lib — combined C library entry point.
  * Component symbols are provided by OBJECT libraries linked via
- * target_sources.
+ * target_sources; only the version string lives here.
  */
-const char *doppler_version (void);
+#include "doppler/version.h"
+
 const char *
-doppler_version (void)
+doppler_version(void)
 {
-  return "0.1.0";
+    return DOPPLER_VERSION;
 }

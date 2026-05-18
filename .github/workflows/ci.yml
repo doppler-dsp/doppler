@@ -74,6 +74,15 @@ jobs:
       shell: msys2 {0}
       run: make test
 
+    - name: Example smoke tests
+      if: matrix.os != 'windows-latest'
+      run: make test-examples
+
+    - name: Example smoke tests (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: msys2 {0}
+      run: make test-examples
+
     - name: Rust FFI tests
       if: matrix.os != 'windows-latest'
       run: make rust-test

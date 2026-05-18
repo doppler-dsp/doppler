@@ -38,7 +38,7 @@ See the [API reference](c-api/index.md) for the full C API.
 
 ## Layer 2 — Transport (ZMQ streaming)
 
-`dp/stream.h` adds a ZMQ-backed wire protocol on top of the DSP
+`stream/stream.h` adds a ZMQ-backed wire protocol on top of the DSP
 library. It defines one header struct (`dp_header_t`), one magic
 value (`SIGS`), and three messaging patterns:
 

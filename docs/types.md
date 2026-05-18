@@ -3,7 +3,7 @@
 doppler uses C99 standard types throughout — no custom struct wrappers
 for complex samples in the DSP path.  Every public API takes or returns
 types from `<stdint.h>` or `<complex.h>`, exactly as the C99 standard
-defines them.  The `dp_*_t` family in `dp/stream.h` provides named
+defines them.  The `dp_*_t` family in `stream/stream.h` provides named
 interleaved-struct aliases for use in streaming and FFI contexts.
 
 ---
@@ -144,7 +144,7 @@ buf.write(iq.view(np.float32))   # reinterpret as float32 pairs
 | `acc_f32/acc_f32_core.h` | `float` | `float` | Running sum / dot product |
 | `acc_cf64/acc_cf64_core.h` | `double complex` | `double complex` | Complex accumulator (I&D) |
 | `delay/delay_core.h` | `double complex` | `double complex` | Polyphase tap delay |
-| `dp/buffer.h` | `float`, `double`, `int16_t` | same | Scalar ring buffer elements |
+| `buffer/buffer.h` | `float`, `double`, `int16_t` | same | Scalar ring buffer elements |
 | `stream/stream.h` | all `dp_sample_type_t` wire types | all types | Wire type set at socket creation |
 
 ---

@@ -307,6 +307,8 @@ help:
 	@echo "  make pyext         Build Python C extensions"
 	@echo "  make wheel         Build + auditwheel-repair doppler-dsp wheel (Linux)"
 	@echo "  make test-all      Run all test suites (CTest + pytest)"
+	@echo "  make test-examples Run C example binaries (build first)"
+	@echo "  make test-examples-python  Run Python example smoke tests (requires pyext)"
 	@echo "  make python-test   Run pytest"
 	@echo "  make bench         Run C + Python benchmarks; save JSON to benchmarks/history/"
 	@echo "  make bench-python  Run Python benchmarks only"

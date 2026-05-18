@@ -15,6 +15,46 @@ and this project adheres to
 
 ---
 
+## [0.3.0] — TBD
+
+### Added
+
+- **C examples** (`examples/c/`): seven self-contained, runnable C programs
+  — `nco_demo`, `fir_demo`, `hbdecim_demo`, `fft_demo` (DSP demos) and
+  `transmitter`, `receiver`, `pipeline_demo`, `spectrum_analyzer`
+  (streaming demos using ZMQ PUB/SUB and PUSH/PULL).  All link
+  `doppler_lib_static` so they run without a system `libdoppler.so`.
+- **Python examples** (`examples/python/`): `fir_demo.py`,
+  `transmitter.py`, `receiver.py` — end-to-end scripts exercising the
+  Python bindings and streaming API.
+- **`doppler.__version__`**: the installed package version is now
+  available as `doppler.__version__` (via `importlib.metadata`);
+  resolves to `"unknown"` when the package is not installed.
+- **Docker Compose demo**: `docker compose up` now starts a full
+  streaming pipeline — transmitter, two receivers, and a spectrum
+  analyzer — as separate containers; all example binaries are included
+  in the runtime image.
+- **`make test-examples`**: runs the C example binaries as smoke tests
+  (FFT, FIR, NCO, halfband decimator); part of `make test-all`.
+- **`make test-examples-python`**: runs Python example smoke tests;
+  part of `make test-all`.
+
+### Changed
+
+- **CMake install**: `doppler_lib_static` (`libdoppler.a`) is now
+  installed without being added to the `doppler-targets` CMake export
+  set.  The shared library (`doppler::doppler`) remains the primary
+  CMake-integrated target; users who want static linking can link
+  `libdoppler.a` directly alongside `-lstdc++ -lpthread -lm`.
+
+### CI
+
+- **glibc 2.28 verification** (`glibc-228` job): builds and runs the
+  C examples on Debian Buster (glibc 2.28); verifies `libdoppler.so`
+  contains no glibc symbols newer than 2.28.
+
+---
+
 ## [0.2.9] — 2026-05-09
 
 ### Fixed
@@ -374,7 +414,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7

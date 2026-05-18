@@ -98,10 +98,10 @@ print(f"Received {len(msg.samples)} samples @ {msg.sample_rate/1e6:.1f} MHz")
 Build the C examples once, then mix and match:
 
 ```bash
-make          # builds ./build/c/transmitter, receiver, etc.
+make          # builds ./build/examples/c/transmitter, receiver, etc.
 
 # Terminal 1
-./build/c/transmitter tcp://*:5555 cf32
+./build/examples/c/transmitter tcp://*:5555 cf32
 
 # Terminal 2 (Python)
 python - <<'EOF'

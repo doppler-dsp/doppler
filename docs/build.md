@@ -203,7 +203,7 @@ pip install doppler-dsp
 
 ```bash
 gcc -o app main.c \
-  -Ic/include \
+  -Inative/inc \
   -Lbuild -ldoppler \
   $(pkg-config --libs libzmq) \
   -Wl,-rpath,$(pwd)/build
@@ -213,16 +213,16 @@ gcc -o app main.c \
 
 ```bash
 gcc -o app main.c \
-  -Ic/include \
+  -Inative/inc \
   build/libdoppler.a \
-  $(pkg-config --libs libzmq) -lm
+  $(pkg-config --libs libzmq) -lm -lstdc++ -lpthread
 ```
 
 **CMake (add_subdirectory):**
 
 ```cmake
-add_subdirectory(path/to/doppler/c)
-target_link_libraries(my_app PRIVATE doppler)
+add_subdirectory(path/to/doppler)
+target_link_libraries(my_app PRIVATE doppler::doppler)
 ```
 
 ## Rust FFI bindings

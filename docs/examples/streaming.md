@@ -5,17 +5,17 @@
 ### Transmitter
 
 ```c
-#include <dp/stream.h>
+#include <stream/stream.h>
+#include <complex.h>
 #include <math.h>
 
 int main(void) {
     dp_pub *tx = dp_pub_create("tcp://*:5555", DP_CF64);
 
-    dp_cf64_t samples[1000];
+    double _Complex samples[1000];
     for (int i = 0; i < 1000; i++) {
         double phase = 2.0 * M_PI * 1000.0 * i / 1e6;
-        samples[i].i = cos(phase);
-        samples[i].q = sin(phase);
+        samples[i] = cos(phase) + sin(phase) * _Complex_I;
     }
 
     dp_pub_send_cf64(tx, samples, 1000, 1e6, 2.4e9);
@@ -27,7 +27,7 @@ int main(void) {
 ### Receiver
 
 ```c
-#include <dp/stream.h>
+#include <stream/stream.h>
 #include <stdio.h>
 
 int main(void) {
@@ -50,7 +50,7 @@ int main(void) {
 ## C: PUSH/PULL pipeline
 
 ```c
-#include <dp/stream.h>
+#include <stream/stream.h>
 #include <stdio.h>
 
 // Producer (binds)
@@ -69,14 +69,14 @@ dp_msg_free(msg);
 dp_pull_destroy(pull);
 ```
 
-For complete, runnable examples see [c/examples/](../../c/examples/).
+For complete, runnable examples see [`examples/c/`](../../examples/c/).
 
 ---
 
 ## Python: Publisher / Subscriber
 
 ```python
-from doppler import Publisher, Subscriber, CF64
+from doppler.stream import Publisher, Subscriber, CF64
 import numpy as np
 
 samples = np.array([1+2j, 3+4j, 5+6j], dtype=np.complex128)
@@ -92,7 +92,7 @@ with Subscriber("tcp://localhost:5555") as sub:
 ## Python: Push / Pull pipeline
 
 ```python
-from doppler import Push, Pull, CF64
+from doppler.stream import Push, Pull, CF64
 import numpy as np
 
 samples = np.ones(512, dtype=np.complex128)
@@ -120,8 +120,8 @@ dp_sub_create("tcp://localhost:5555");
 
 ```bash
 # Run the examples
-./build/transmitter
-./build/receiver
+./build/examples/c/transmitter
+./build/examples/c/receiver
 ```
 
 ### Two machines over LAN
@@ -152,7 +152,7 @@ dp_pub_create("tcp://*:5555", DP_CF64);
 
 ```bash
 # On Machine A (transmitter):
-./build/transmitter
+./build/examples/c/transmitter
 ```
 
 **Step 4:** Run the receiver with the transmitter's IP:
@@ -164,7 +164,7 @@ dp_sub_create("tcp://192.168.1.100:5555");
 
 ```bash
 # On Machine B (receiver) — replace with transmitter's actual IP:
-./build/receiver tcp://192.168.1.100:5555
+./build/examples/c/receiver tcp://192.168.1.100:5555
 ```
 
 ### Local IPC (fastest, same machine only)
@@ -197,7 +197,7 @@ services:
 1. **Verify the receiver is using the correct IP:**
    ```bash
    # On the receiver machine, check you're connecting to the transmitter's IP:
-   ./build/receiver tcp://192.168.1.100:5555
+   ./build/examples/c/receiver tcp://192.168.1.100:5555
    # NOT tcp://localhost:5555 (that's the receiver's own machine!)
    ```
 
@@ -255,8 +255,8 @@ services:
 
 2. **Use a different port:**
    ```bash
-   ./build/transmitter tcp://*:5556
-   ./build/receiver tcp://192.168.1.100:5556
+   ./build/examples/c/transmitter tcp://*:5556
+   ./build/examples/c/receiver tcp://192.168.1.100:5556
    ```
 
 3. **Wait for ZMQ socket cleanup:** Sometimes sockets take a few seconds to release after Ctrl+C.
@@ -267,15 +267,15 @@ services:
 
 ```bash
 export ZMQ_VERBOSE=1
-./build/transmitter
+./build/examples/c/transmitter
 ```
 
 **Check library paths (Linux):**
 
 ```bash
 # Verify libdoppler.so is found:
-ldd ./build/transmitter
-ldd ./build/receiver
+ldd ./build/examples/c/transmitter
+ldd ./build/examples/c/receiver
 
 # If missing, set LD_LIBRARY_PATH:
 export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -294,7 +294,7 @@ If you're still stuck:
 
 1. Check existing issues: https://github.com/doppler-dsp/doppler/issues
 2. Include in your bug report:
-   - Output of `./build/transmitter --help` and `./build/receiver --help`
+   - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
    - Network topology (same machine, LAN, cloud, containers)
    - Error messages with `ZMQ_VERBOSE=1`
    - OS and library versions (`uname -a`, `cmake --version`, `pkg-config --modversion libzmq`)

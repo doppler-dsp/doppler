@@ -73,7 +73,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo \
-        bench bench-python bench-c benchmark benchmark-c \
+        bench bench-python bench-c \
         debug release blazing bump-version tag-release clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
@@ -158,9 +158,6 @@ bench-c: build
 	    > $(BENCH_C_JSON)
 	@echo "Saved: $(BENCH_C_JSON)"
 
-# deprecated aliases
-benchmark: bench-python
-benchmark-c: bench-c
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
 rust-test: build

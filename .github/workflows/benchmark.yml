@@ -69,7 +69,7 @@ jobs:
         fi
 
     - name: Run benchmarks
-      run: make benchmark BENCH_TAG=${{ steps.tag.outputs.bench_tag }}
+      run: make bench-python BENCH_TAG=${{ steps.tag.outputs.bench_tag }}
 
     - name: Commit benchmark snapshot
       run: |

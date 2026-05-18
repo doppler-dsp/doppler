@@ -38,7 +38,7 @@ On a Ryzen 7 AI 350 (16 GB, `-O2`), typical figures range from
 To measure on your machine:
 
 ```bash
-make benchmark          # Python-level; saves JSON to benchmarks/history/
+make bench              # C + Python; saves JSON to benchmarks/history/
 make build              # then run C binaries directly, e.g.:
 ./build/native/src/fir/bench_fir_core
 ./build/native/src/hbdecim/bench_hbdecim_core

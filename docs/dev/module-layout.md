@@ -217,8 +217,8 @@ CI commits a snapshot automatically on every push to `main` and on release
 tags.  Run locally when you need an immediate result:
 
 ```sh
-make benchmark                   # saves benchmarks/history/YYYY-MM-DD-<sha>.json
-make benchmark BENCH_TAG=v1.2.3  # version-tagged snapshot (matches CI on tag push)
+make bench-python                   # saves benchmarks/history/<tag>.json
+make bench-python BENCH_TAG=v1.2.3  # version-tagged snapshot (matches CI on tag push)
 ```
 
 Rules:

@@ -11,7 +11,7 @@ Run these steps in order — each one is a gate for the next.
 git status          # nothing uncommitted
 make test-all       # C (CTest) + Python (pytest) + Rust (cargo test)
 make docs-build     # docs build clean --strict
-make benchmark BENCH_TAG=vX.Y.Z   # local fallback; CI commits automatically on tag push
+make bench-python BENCH_TAG=vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
 
 All suites must pass. Fix failures before continuing.

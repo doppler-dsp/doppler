@@ -17,3 +17,9 @@ site/
 # belong in build/, never committed to the repo root)
 /agc_convergence.png
 /bench_*.json
+
+# Local benchmark snapshots are scratch — the canonical, comparable
+# history is CI-written on the `benchmarks` branch (see docs/dev/
+# benchmarking.md). Only the .gitkeep placeholder is tracked here.
+benchmarks/history/*
+!benchmarks/history/.gitkeep

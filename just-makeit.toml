@@ -60,6 +60,9 @@ name = "kaiser_num_taps"
 return_type = "int"
 params = [{name = "num_phases", type = "int"}, {name = "atten", type = "double"}, {name = "pb", type = "double"}, {name = "sb", type = "double"}]
 
+[module.agc]
+objects = ["agc"]
+
 [acc_f32]
 arg_type = "float"
 return_type = "void"
@@ -495,3 +498,59 @@ type = "double"
 [[HalfbandDecimator.properties]]
 name = "num_taps"
 type = "size_t"
+
+[agc]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "false"
+class_name = "AGC"
+
+[[agc.init_params]]
+name = "ref_db"
+type = "double"
+default = "0.0"
+
+[[agc.init_params]]
+name = "loop_bw"
+type = "double"
+default = "0.0025"
+
+[[agc.init_params]]
+name = "alpha"
+type = "double"
+default = "0.05"
+
+[[agc.properties]]
+name = "gain_db"
+type = "double"
+field = true
+
+[[agc.properties]]
+name = "applied_gain_db"
+type = "double"
+
+[[agc.properties]]
+name = "ref_db"
+type = "double"
+writable = true
+field = true
+
+[[agc.properties]]
+name = "loop_bw"
+type = "double"
+writable = true
+field = true
+
+[[agc.properties]]
+name = "alpha"
+type = "double"
+writable = true
+field = true
+
+[[agc.properties]]
+name = "decim"
+type = "size_t"
+writable = true
+field = true

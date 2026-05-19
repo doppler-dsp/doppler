@@ -42,6 +42,8 @@ extern "C"
 
 #include "doppler/version.h"
 
+#include "agc/agc_core.h"
+
 #ifdef __cplusplus
 }
 #endif

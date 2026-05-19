@@ -27,6 +27,8 @@
 #ifndef JM_SIMD_H
 #define JM_SIMD_H
 
+#include <stddef.h> /* size_t */
+
 /* Reuse JM_RESTRICT from jm_perf.h if available; otherwise define. */
 #ifndef JM_RESTRICT
 #if defined(__GNUC__) || defined(__clang__)
@@ -169,5 +171,49 @@ typedef double JM_VEC_F64;
 #define JM_HSUM_F64(v) ((double)(v))
 
 #endif /* ISA tiers */
+
+/* ════════════════════════════════════════════════════════════════════
+ * Composite reductions — built on the tier macros above, so they are
+ * ISA-portable: the widest available tier vectorises them, the scalar
+ * tier still compiles (and auto-vectorises) with identical results.
+ * ════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Sum of squares: dst = Σ ptr[i]² for i in [0, n).
+ *
+ * The bulk runs JM_SIMD_WIDTH_F32-wide via FMA accumulation; the
+ * trailing @c n % JM_SIMD_WIDTH_F32 elements are summed scalar.  When
+ * @p n is a multiple of the SIMD width (e.g. a power-of-two block whose
+ * length is >= the width) the remainder loop has zero trips and folds
+ * away, leaving a pure vector reduction.
+ *
+ * @param dst  lvalue of type float — receives the sum.
+ * @param ptr  const float * — base of the contiguous input.
+ * @param n    element count (size_t-convertible).
+ *
+ * @code
+ *   float e;
+ *   JM_SUMSQ_F32 (e, buf, 256);   // e = energy of buf[0..255]
+ * @endcode
+ */
+#define JM_SUMSQ_F32(dst, ptr, n)                                             \
+  do                                                                          \
+    {                                                                         \
+      const float *jm__p = (ptr);                                             \
+      size_t jm__n = (size_t)(n);                                             \
+      size_t jm__nv = jm__n - jm__n % (size_t)JM_SIMD_WIDTH_F32;              \
+      JM_VEC_F32 jm__acc = JM_ZERO_F32 ();                                    \
+      for (size_t jm__i = 0; jm__i < jm__nv;                                  \
+           jm__i += (size_t)JM_SIMD_WIDTH_F32)                                \
+        {                                                                     \
+          JM_VEC_F32 jm__v = JM_LOAD_F32 (jm__p + jm__i);                     \
+          JM_FMA_F32 (jm__acc, jm__v, jm__v);                                 \
+        }                                                                     \
+      float jm__s = JM_HSUM_F32 (jm__acc);                                    \
+      for (size_t jm__i = jm__nv; jm__i < jm__n; jm__i++)                     \
+        jm__s += jm__p[jm__i] * jm__p[jm__i];                                 \
+      (dst) = jm__s;                                                          \
+    }                                                                         \
+  while (0)
 
 #endif /* JM_SIMD_H */

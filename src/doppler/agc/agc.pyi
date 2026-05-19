@@ -65,6 +65,13 @@ class AGC:
     @decim.setter
     def decim(self, value: int) -> None: ...
 
+    @property
+    def clip_db(self) -> float:
+        """Output square-clip level in dB, per component (I and Q clipped
+        independently). Default ~120 dB — effectively off."""
+    @clip_db.setter
+    def clip_db(self, value: float) -> None: ...
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 

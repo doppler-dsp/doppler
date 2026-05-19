@@ -11,6 +11,7 @@ agc_create (double ref_db, double loop_bw, double alpha)
   state->loop_bw = loop_bw;
   state->alpha = alpha;
   state->decim = AGC_DECIM_DEFAULT;
+  state->clip_db = AGC_CLIP_DB_DEFAULT;
   state->gain_db = 0.0;
   state->g_last = 1.0; /* gain_db = 0 dB -> linear gain 1.0 */
   /* Seed the detector with the reference power 10^(ref_db/10) so the
@@ -60,6 +61,9 @@ agc_steps (agc_state_t *state, const float complex *input,
   double alpha_d = 1.0 - ac;                     /* EMA pole over d  */
   double k_d = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */
 
+  /* Output clip threshold, linear amplitude — constant for the call. */
+  float clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
+
   for (size_t i = 0; i < n; i += d)
     {
       size_t c = n - i < d ? n - i : d; /* this chunk's length */
@@ -98,6 +102,12 @@ agc_steps (agc_state_t *state, const float complex *input,
        * vector reduction with no scalar remainder. */
       float psum;
       JM_SUMSQ_F32 (psum, (const float *)&output[i], 2 * c);
+
+      /* Square-clip the chunk's output to clip_db via the shared util
+       * primitive.  Done after the power sum, so the detector still
+       * sees the unclipped signal — clipping never perturbs the loop. */
+      for (size_t j = 0; j < c; j++)
+        output[i + j] = square_clip (output[i + j], clip_lin);
 
       /* Control update — once per chunk, with the rescaled coefficients. */
       double p_mean = (double)psum * inv_c;

@@ -63,6 +63,15 @@ params = [{name = "num_phases", type = "int"}, {name = "atten", type = "double"}
 [module.agc]
 objects = ["agc"]
 
+[module.util]
+objects = []
+
+[[module.util.functions]]
+name = "square_clip"
+doc = "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."
+return_type = "float _Complex"
+params = [{name = "y", type = "float _Complex"}, {name = "lin", type = "float"}]
+
 [acc_f32]
 arg_type = "float"
 return_type = "void"
@@ -552,5 +561,11 @@ field = true
 [[agc.properties]]
 name = "decim"
 type = "size_t"
+writable = true
+field = true
+
+[[agc.properties]]
+name = "clip_db"
+type = "double"
 writable = true
 field = true

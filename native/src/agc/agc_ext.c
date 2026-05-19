@@ -265,6 +265,32 @@ AGC_setprop_decim (AGCObject *self, PyObject *value, void *Py_UNUSED (closure))
   return 0;
 }
 
+static PyObject *
+AGC_getprop_clip_db (AGCObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->clip_db);
+}
+static int
+AGC_setprop_clip_db (AGCObject *self, PyObject *value,
+                     void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  double v = 0.0;
+  if (!PyArg_Parse (value, "d", &v))
+    return -1;
+  self->handle->clip_db = v;
+  return 0;
+}
+
 static PyGetSetDef AGC_getset[]
     = { { "gain_db", (getter)AGC_getprop_gain_db, NULL, NULL, NULL },
         { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL, NULL,
@@ -277,6 +303,8 @@ static PyGetSetDef AGC_getset[]
           NULL },
         { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim, NULL,
           NULL },
+        { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
+          NULL, NULL },
         { NULL } };
 
 static PyObject *

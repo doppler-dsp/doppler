@@ -161,6 +161,7 @@ main (void)
     CHECK (ALMOST_EQ (s->ref_db, 0.0, 1e-6));
     CHECK (ALMOST_EQ (s->loop_bw, 0.0025, 1e-6));
     CHECK (ALMOST_EQ (s->alpha, 0.05, 1e-6));
+    CHECK (ALMOST_EQ (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6));
     agc_destroy (s);
   }
 
@@ -173,6 +174,55 @@ main (void)
     run_const (s, dir * 10.0f, 4000);
     CHECK (ALMOST_EQ (agc_get_applied_gain_db (s), s->gain_db, 0.5));
     CHECK (ALMOST_EQ (agc_get_applied_gain_db (s), -20.0, 0.5));
+    agc_destroy (s);
+  }
+
+  /* ---- output clip: square clip (I and Q independent), applied to the
+          output only — it does not feed the detector ---- */
+  {
+    agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+    CHECK (ALMOST_EQ (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6)); /* default */
+    s->clip_db = 6.0; /* L = 10^(6/20) ~ 1.995 */
+    double L = pow (10.0, 6.0 / 20.0);
+    /* first step: gain is exactly unity, so output = clip(x).  re (5)
+       exceeds L and clamps; im (1) is below L and is kept unchanged —
+       proving the clip is square, not a circular magnitude limit. */
+    float complex y = agc_step (s, 5.0f + 1.0f * I);
+    CHECK (ALMOST_EQ (crealf (y), L, 0.02));
+    CHECK (ALMOST_EQ (cimagf (y), 1.0, 1e-6));
+    agc_destroy (s);
+  }
+
+  /* ---- clipping never perturbs the loop: the detector measures the
+          unclipped signal, so gain_db evolves identically whether or
+          not a clip is engaged ---- */
+  {
+    agc_state_t *a = agc_create (0.0, 0.0025, 0.05);
+    agc_state_t *b = agc_create (0.0, 0.0025, 0.05);
+    b->clip_db = -3.0; /* aggressive clip on b only */
+    for (size_t i = 0; i < 4000; i++)
+      {
+        (void)agc_step (a, dir * 10.0f);
+        (void)agc_step (b, dir * 10.0f);
+      }
+    CHECK (ALMOST_EQ (a->gain_db, b->gain_db, 1e-9));
+    agc_destroy (a);
+    agc_destroy (b);
+  }
+
+  /* ---- agc_steps() square-clips its block output too ---- */
+  {
+    static float complex in[256], out[256];
+    for (size_t i = 0; i < 256; i++)
+      in[i] = dir * 50.0f;
+    agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
+    s->clip_db = 0.0; /* L = 10^0 = 1.0 */
+    agc_steps (s, in, out, 256);
+    for (size_t i = 0; i < 256; i++)
+      {
+        CHECK (fabsf (crealf (out[i])) <= 1.0f + 1e-3f);
+        CHECK (fabsf (cimagf (out[i])) <= 1.0f + 1e-3f);
+      }
     agc_destroy (s);
   }
 

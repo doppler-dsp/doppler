@@ -96,14 +96,17 @@ def test_writable_properties():
     assert obj.loop_bw == pytest.approx(0.0025)
     assert obj.alpha == pytest.approx(0.05)
     assert obj.decim == 8  # default decimation factor
+    assert obj.clip_db == pytest.approx(120.0)  # default — effectively off
     obj.ref_db = -3.0
     obj.loop_bw = 0.005
     obj.alpha = 0.1
     obj.decim = 16
+    obj.clip_db = 3.0
     assert obj.ref_db == pytest.approx(-3.0)
     assert obj.loop_bw == pytest.approx(0.005)
     assert obj.alpha == pytest.approx(0.1)
     assert obj.decim == 16
+    assert obj.clip_db == pytest.approx(3.0)
 
 
 def test_decimation_factor():
@@ -138,6 +141,30 @@ def test_applied_gain_db_read_only():
     obj = AGC(0.0, 0.0025, 0.05)
     with pytest.raises(AttributeError):
         obj.applied_gain_db = 1.0
+
+
+def test_square_clip():
+    # Square clip limits I and Q independently. The first sample has
+    # unity gain, so output = clip(input): re clamps to L while im (below
+    # L) passes through unchanged -- circular clipping would scale both.
+    obj = AGC(0.0, 0.0025, 0.05)
+    obj.clip_db = 6.0  # L = 10**(6/20) ~ 1.995
+    L = 10.0 ** (6.0 / 20.0)
+    y = obj.step(5.0 + 1.0j)
+    assert y.real == pytest.approx(L, abs=0.02)
+    assert y.imag == pytest.approx(1.0, abs=1e-6)
+
+
+def test_clip_does_not_affect_convergence():
+    # The detector measures the unclipped signal, so a clip leaves the
+    # loop untouched -- gain converges identically with or without it.
+    free = AGC(0.0, 0.0025, 0.05)
+    clipped = AGC(0.0, 0.0025, 0.05)
+    clipped.clip_db = -3.0
+    x = _const(10.0, 4000)
+    free.steps(x)
+    clipped.steps(x)
+    assert clipped.gain_db == pytest.approx(free.gain_db, abs=1e-9)
 
 
 def test_reset():

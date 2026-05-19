@@ -54,6 +54,15 @@
  * those keep their per-sample meaning; keep @c loop_bw well below
  * @c 1/(4*decim) for loop stability.
  *
+ * @par Output clipping
+ * Each output sample is square-clipped: the real and imaginary parts
+ * are independently limited to @c +/-10^(clip_db/20) — a square region
+ * in the IQ plane, not a circular magnitude limit.  The clip is the
+ * last operation applied to the output and does NOT feed the power
+ * detector: the loop always measures the true, unclipped power, so
+ * clipping never disturbs convergence.  @c clip_db defaults to
+ * @c AGC_CLIP_DB_DEFAULT, which is high enough to be effectively off.
+ *
  * Lifecycle: agc_create -> [step / steps / reset]* -> agc_destroy
  *
  * @code
@@ -69,6 +78,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "util/util_core.h"
 #include <math.h>
 
 #ifdef __cplusplus
@@ -97,6 +107,15 @@ extern "C"
  * AVX-width vector for the in-chunk gain-apply.
  */
 #define AGC_DECIM_DEFAULT 8
+
+/**
+ * @brief Default output clip level (agc_state_t::clip_db), in dB.
+ *
+ * 120 dB is a per-component amplitude limit of 10^6 — far above any
+ * normally scaled signal, so output clipping is effectively disabled
+ * until @c clip_db is lowered.  See agc_state_t::clip_db.
+ */
+#define AGC_CLIP_DB_DEFAULT 120.0
 
   /**
    * @brief Fast 10^v approximation (~1e-3 relative).
@@ -154,9 +173,10 @@ extern "C"
   /**
    * @brief AGC state.
    *
-   * Allocate with agc_create().  @c ref_db, @c loop_bw, @c alpha and
-   * @c decim are configuration (readable and writable at runtime);
-   * @c gain_db, @c p_avg and @c g_last are the loop's internal memory.
+   * Allocate with agc_create().  @c ref_db, @c loop_bw, @c alpha,
+   * @c decim and @c clip_db are configuration (readable and writable at
+   * runtime); @c gain_db, @c p_avg and @c g_last are the loop's
+   * internal memory.
    */
   typedef struct
   {
@@ -164,6 +184,7 @@ extern "C"
     double loop_bw; /* loop noise bandwidth, cycles/sample             */
     double alpha;   /* power-detector EMA coefficient, (0, 1]          */
     size_t decim;   /* agc_steps() chunk length (8 / 16 / 32)          */
+    double clip_db; /* output square-clip level, dB (per component)    */
     double gain_db; /* loop-filter integrator: current gain, dB        */
     double p_avg;   /* power-detector EMA: averaged output power, lin  */
     double g_last;  /* last linear gain applied — ramp continuity      */
@@ -194,7 +215,8 @@ extern "C"
    * @brief Reset the AGC to its post-create state.
    *
    * Zeroes @c gain_db and re-seeds @c p_avg from the current @c ref_db.
-   * Configuration (@c ref_db, @c loop_bw, @c alpha) is unchanged.
+   * Configuration (@c ref_db, @c loop_bw, @c alpha, @c decim,
+   * @c clip_db) is unchanged.
    * @param state  Must be non-NULL.
    */
   void agc_reset (agc_state_t *state);
@@ -203,12 +225,14 @@ extern "C"
    * @brief Process one input sample (exact per-sample control loop).
    *
    * Applies the current gain, updates the power detector from the gained
-   * output, then advances the loop filter by one step.  This is the exact
-   * reference path; agc_steps() is the faster decimated equivalent.
+   * output, advances the loop filter by one step, then square-clips the
+   * returned sample to @c clip_db.  This is the exact reference path;
+   * agc_steps() is the faster decimated equivalent.
    *
    * @param state  Must be non-NULL; mutated (gain_db, p_avg).
    * @param x      Input sample (float complex).
-   * @return Output sample (float complex) = x * 10^(gain_db/20).
+   * @return Output sample = x * 10^(gain_db/20), square-clipped to
+   *         @c clip_db.  The clip does not feed the detector.
    */
   JM_FORCEINLINE JM_HOT float complex
   agc_step (agc_state_t *state, float complex x)
@@ -233,7 +257,11 @@ extern "C"
     double meas_db = 10.0 * agc_log10_ (state->p_avg + AGC_POWER_FLOOR);
     state->gain_db += 4.0 * state->loop_bw * (state->ref_db - meas_db);
 
-    return y;
+    /* Output clip — square clip (I and Q independent) to the
+     * programmable level, via the shared util primitive.  Applied to
+     * the returned sample only; the detector above used the unclipped
+     * y, so the loop is unaffected. */
+    return square_clip (y, (float)agc_exp10_ (state->clip_db * 0.05));
   }
 
   /**
@@ -244,7 +272,9 @@ extern "C"
    * first-order hold — no inter-chunk staircase), and the detector and
    * loop filter run once per chunk on the chunk's mean power.  Not
    * bit-identical to a per-sample agc_step() loop — see the file header
-   * — but equivalent at convergence.
+   * — but equivalent at convergence.  Each output sample is then
+   * square-clipped to @c clip_db; the clip is applied after the power
+   * sum, so it does not feed the detector.
    *
    * @param state   Component state (mutated).
    * @param input   Input array (length >= n).

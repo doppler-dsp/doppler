@@ -78,6 +78,7 @@ add_subdirectory(native/src/acc_f32)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:acc_f32_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_f32_core>)
 # ── Modules (add_subdirectory lines appended here by just-makeit) ─────────────
+add_subdirectory(native/src/util)
 add_subdirectory(native/src/agc)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:agc_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:agc_core>)

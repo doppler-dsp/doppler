@@ -35,7 +35,16 @@ and this project adheres to
 
 ---
 
-## [0.3.0] — TBD
+## [0.3.2] — 2026-05-18
+
+### Fixed
+
+- `doppler.__version__` now resolves correctly under the `doppler-dsp`
+  PyPI distribution name.
+
+---
+
+## [0.3.1] — 2026-05-18
 
 ### Added
 
@@ -61,6 +70,9 @@ and this project adheres to
 
 ### Changed
 
+- **PyPI distribution**: the package is published as `doppler-dsp`. The
+  former separate `doppler-cli` and `doppler-specan` packages are now
+  optional extras of `doppler-dsp` rather than standalone distributions.
 - **CMake install**: `doppler_lib_static` (`libdoppler.a`) is now
   installed without being added to the `doppler-targets` CMake export
   set.  The shared library (`doppler::doppler`) remains the primary
@@ -436,7 +448,8 @@ and this project adheres to
 
 [Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...HEAD
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
-[0.3.0]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.0
+[0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7

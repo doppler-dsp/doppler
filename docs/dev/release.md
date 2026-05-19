@@ -11,7 +11,7 @@ Run these steps in order — each one is a gate for the next.
 git status          # nothing uncommitted
 make test-all       # C (CTest) + Python (pytest) + Rust (cargo test)
 make docs-build     # docs build clean --strict
-make bench-python BENCH_TAG=vX.Y.Z   # local fallback; CI commits automatically on tag push
+just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits automatically on tag push
 ```
 
 All suites must pass. Fix failures before continuing.
@@ -42,13 +42,11 @@ git commit -m "docs: update CHANGELOG for vX.Y.Z"
 
 ## 3. Bump the version
 
-`make bump-version` updates **five files** atomically:
+`make bump-version` updates **three files** atomically:
 
 | File | Field |
 |------|-------|
 | `pyproject.toml` | `version` |
-| `python/specan/pyproject.toml` | `version` |
-| `python/cli/pyproject.toml` | `version` |
 | `ffi/rust/Cargo.toml` | `version` |
 | `CMakeLists.txt` | `project(doppler VERSION …)` |
 
@@ -56,13 +54,11 @@ git commit -m "docs: update CHANGELOG for vX.Y.Z"
 make bump-version VERSION=X.Y.Z
 ```
 
-Review the diff, then commit:
+Review the diff. Do **not** commit here — `make tag-release` (next
+step) creates the `chore: release vX.Y.Z` commit itself:
 
 ```sh
 git diff
-git add pyproject.toml python/specan/pyproject.toml python/cli/pyproject.toml \
-        ffi/rust/Cargo.toml CMakeLists.txt
-git commit -m "chore: release vX.Y.Z"
 ```
 
 ---
@@ -111,8 +107,6 @@ github-release  ──  GitHub Release + auto-generated notes + wheel attachment
 **`verify-version` checks** — the workflow fails immediately if any of these disagree with the tag:
 
 - `pyproject.toml`
-- `python/specan/pyproject.toml`
-- `python/cli/pyproject.toml`
 - `ffi/rust/Cargo.toml`
 - `CMakeLists.txt`
 
@@ -125,46 +119,32 @@ If it fails, bump the missed file manually, push a fixup commit on main, then re
 Once the workflow goes green:
 
 ```sh
-# Fresh venv — confirm all three packages install and import
+# Fresh venv — confirm the package installs and imports
 python -m venv /tmp/doppler-verify && source /tmp/doppler-verify/bin/activate
-pip install doppler-dsp==X.Y.Z doppler-specan==X.Y.Z doppler-cli==X.Y.Z
+pip install doppler-dsp==X.Y.Z
 
 python -c "import doppler; print(doppler.__version__)"
-doppler --help
-doppler-specan --help
 ```
 
 Check the [GitHub Release page](https://github.com/doppler-dsp/doppler/releases)
-to confirm wheels for all three platforms are attached.
-
----
-
-## 7. Bump to the next development version
-
-Immediately after tagging, advance to the next alpha so `main` is
-never at a released version:
-
-```sh
-make bump-version VERSION=X.Y.(Z+1)a0
-git add pyproject.toml python/specan/pyproject.toml python/cli/pyproject.toml \
-        ffi/rust/Cargo.toml CMakeLists.txt
-git commit -m "chore: begin vX.Y.(Z+1) development"
-git push origin main
-```
+to confirm wheels for both platforms (Linux x86_64, macOS arm64) are attached.
 
 ---
 
 ## Version conventions
 
 Doppler uses [Semantic Versioning](https://semver.org) with stable
-`X.Y.Z` releases only — no alpha/beta/rc suffixes.
+`X.Y.Z` releases only — no alpha/beta/rc suffixes. `main` stays at the
+last released version between releases (no post-release dev bump).
+
+While pre-1.0 the digits shift down one place: the minor digit stands
+in for major, and the patch digit absorbs both features and fixes.
 
 | Increment | When to use |
 |-----------|-------------|
-| **Patch** (`Z`) | Bug fixes, no API changes |
-| **Minor** (`Y`) | New features, backwards-compatible |
-| **Major** (`X`) | Breaking API changes |
+| **Patch** (`Z`) | New features and bug fixes (non-breaking) |
+| **Minor** (`Y`) | Breaking API changes |
+| **Major** (`X`) | Unused before `1.0.0` |
 
 !!! note "Pre-1.0"
-    Minor releases **may** contain breaking changes before `1.0.0`.
     `CHANGELOG.md` in the repository root is the authoritative record.

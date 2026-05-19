@@ -6,6 +6,7 @@
 ## a
 
 * **acc** ([**acc\_cf64\_state\_t**](structacc__cf64__state__t.md), [**acc\_f32\_state\_t**](structacc__f32__state__t.md))
+* **alpha** ([**agc\_state\_t**](structagc__state__t.md))
 * **amplitude\_db** ([**dp\_peak\_t**](structdp__peak__t.md))
 
 
@@ -17,6 +18,7 @@
 
 ## c
 
+* **clip\_db** ([**agc\_state\_t**](structagc__state__t.md))
 * **capacity** ([**delay\_state\_t**](structdelay__state__t.md))
 * **center\_freq** ([**dp\_header\_t**](structdp__header__t.md))
 * **centre** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
@@ -25,6 +27,7 @@
 
 ## d
 
+* **decim** ([**agc\_state\_t**](structagc__state__t.md))
 * **delay** ([**fir\_state\_t**](structfir__state__t.md))
 * **decim\_iad** ([**resamp\_state\_t**](structresamp__state__t.md))
 * **decim\_tfd** ([**resamp\_state\_t**](structresamp__state__t.md))
@@ -49,6 +52,12 @@
 * **fir\_on\_even** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 
 
+## g
+
+* **g\_last** ([**agc\_state\_t**](structagc__state__t.md))
+* **gain\_db** ([**agc\_state\_t**](structagc__state__t.md))
+
+
 ## h
 
 * **head** ([**delay\_state\_t**](structdelay__state__t.md))
@@ -58,6 +67,7 @@
 
 ## l
 
+* **loop\_bw** ([**agc\_state\_t**](structagc__state__t.md))
 * **log2\_phases** ([**resamp\_state\_t**](structresamp__state__t.md))
 
 
@@ -87,6 +97,7 @@
 
 ## p
 
+* **p\_avg** ([**agc\_state\_t**](structagc__state__t.md))
 * **protocol** ([**dp\_header\_t**](structdp__header__t.md))
 * **plan\_f32** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **plan\_f64** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
@@ -97,6 +108,7 @@
 
 ## r
 
+* **ref\_db** ([**agc\_state\_t**](structagc__state__t.md))
 * **reserved** ([**dp\_header\_t**](structdp__header__t.md))
 * **rtaps** ([**fir\_state\_t**](structfir__state__t.md))
 * **rate** ([**resamp\_state\_t**](structresamp__state__t.md))

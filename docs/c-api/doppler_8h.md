@@ -20,6 +20,8 @@
 * `#include "fft2d/fft2d_core.h"`
 * `#include "Resampler/Resampler_core.h"`
 * `#include "HalfbandDecimator/HalfbandDecimator_core.h"`
+* `#include "doppler/version.h"`
+* `#include "agc/agc_core.h"`
 
 
 

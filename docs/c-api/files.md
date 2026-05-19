@@ -20,6 +20,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**acc\_f32\_core.h**](acc__f32__core_8h.md) _AccF32 component API._     
         * **dir** [**accumulator**](dir_06136a2119985c3c219633f937232576.md)     
             * **file** [**accumulator\_core.h**](accumulator__core_8h.md) _Accumulator module — public C API._ 
+        * **dir** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md)     
+            * **file** [**agc\_core.h**](agc__core_8h.md) _Log-domain automatic gain control (AGC)._     
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
@@ -53,4 +55,6 @@ Here is a list of all files with brief descriptions:
         * **dir** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md)     
             * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
             * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
+        * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
+            * **file** [**util\_core.h**](util__core_8h.md) _Util module — public C API._     
 

@@ -3,6 +3,13 @@
 
 
 
+## a
+
+* **AGC\_CLIP\_DB\_DEFAULT** ([**agc\_core.h**](agc__core_8h.md))
+* **AGC\_DECIM\_DEFAULT** ([**agc\_core.h**](agc__core_8h.md))
+* **AGC\_POWER\_FLOOR** ([**agc\_core.h**](agc__core_8h.md))
+
+
 ## c
 
 * **CMPLXF** ([**clib\_common.h**](clib__common_8h.md))
@@ -52,6 +59,7 @@
 * **JM\_SPLAT\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_STORE\_F32** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_STORE\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
+* **JM\_SUMSQ\_F32** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_ZERO\_F32** ([**jm\_simd.h**](jm__simd_8h.md))
 * **JM\_ZERO\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
 

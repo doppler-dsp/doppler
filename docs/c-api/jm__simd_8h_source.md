@@ -13,6 +13,8 @@
 #ifndef JM_SIMD_H
 #define JM_SIMD_H
 
+#include <stddef.h> /* size_t */
+
 /* Reuse JM_RESTRICT from jm_perf.h if available; otherwise define. */
 #ifndef JM_RESTRICT
 #if defined(__GNUC__) || defined(__clang__)
@@ -152,6 +154,32 @@ typedef double JM_VEC_F64;
 #define JM_HSUM_F64(v) ((double)(v))
 
 #endif /* ISA tiers */
+
+/* ════════════════════════════════════════════════════════════════════
+ * Composite reductions — built on the tier macros above, so they are
+ * ISA-portable: the widest available tier vectorises them, the scalar
+ * tier still compiles (and auto-vectorises) with identical results.
+ * ════════════════════════════════════════════════════════════════════ */
+
+#define JM_SUMSQ_F32(dst, ptr, n)                                             \
+  do                                                                          \
+    {                                                                         \
+      const float *jm__p = (ptr);                                             \
+      size_t jm__n = (size_t)(n);                                             \
+      size_t jm__nv = jm__n - jm__n % (size_t)JM_SIMD_WIDTH_F32;              \
+      JM_VEC_F32 jm__acc = JM_ZERO_F32 ();                                    \
+      for (size_t jm__i = 0; jm__i < jm__nv;                                  \
+           jm__i += (size_t)JM_SIMD_WIDTH_F32)                                \
+        {                                                                     \
+          JM_VEC_F32 jm__v = JM_LOAD_F32 (jm__p + jm__i);                     \
+          JM_FMA_F32 (jm__acc, jm__v, jm__v);                                 \
+        }                                                                     \
+      float jm__s = JM_HSUM_F32 (jm__acc);                                    \
+      for (size_t jm__i = jm__nv; jm__i < jm__n; jm__i++)                     \
+        jm__s += jm__p[jm__i] * jm__p[jm__i];                                 \
+      (dst) = jm__s;                                                          \
+    }                                                                         \
+  while (0)
 
 #endif /* JM_SIMD_H */
 ```

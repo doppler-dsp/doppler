@@ -6,6 +6,7 @@
 
 * [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md)
 * [**acc\_f32\_state\_t**](structacc__f32__state__t.md)
+* [**agc\_state\_t**](structagc__state__t.md)
 
 
 ## d

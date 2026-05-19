@@ -40,6 +40,13 @@ extern "C"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
 
+  /* ── Version ──────────────────────────────────────────────────────────────
+   */
+
+#include "doppler/version.h"
+
+#include "agc/agc_core.h"
+
 #ifdef __cplusplus
 }
 #endif

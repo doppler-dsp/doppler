@@ -29,6 +29,14 @@
 * **acc\_f32\_set\_acc** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
 * **acc\_f32\_step** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
 * **acc\_f32\_steps** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
+* **agc\_create** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_destroy** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_exp10\_** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_get\_applied\_gain\_db** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_log10\_** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_reset** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_step** ([**agc\_core.h**](agc__core_8h.md))
+* **agc\_steps** ([**agc\_core.h**](agc__core_8h.md))
 
 
 ## d
@@ -192,6 +200,11 @@
 * **resamp\_get\_rate** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_reset** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_set\_rate** ([**resamp\_core.h**](resamp__core_8h.md))
+
+
+## s
+
+* **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 
 

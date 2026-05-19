@@ -4,12 +4,29 @@ project(doppler VERSION 0.3.3 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(ENABLE_SIMD "Enable SIMD flags (-march=native -ffast-math / /arch:AVX2 /fp:fast)" ON)
+option(ENABLE_SIMD "Enable SIMD / fast-math flags (portable baseline under cibuildwheel)" ON)
 if(ENABLE_SIMD)
     if(MSVC)
         add_compile_options(/arch:AVX2 /fp:fast)
     else()
-        add_compile_options(-march=native -ffast-math)
+        # -march: a distributed wheel must run on any user's CPU, not the
+        # build runner's.  Under cibuildwheel, target a portable
+        # x86-64-v2 baseline (SSE4.2, ~2009+); -march=native would bake
+        # in whatever ISA the CI runner happened to have and SIGILL on
+        # older hardware.  Local builds keep -march=native for full speed.
+        set(_doppler_march "native")
+        if(DEFINED ENV{CIBUILDWHEEL}
+           AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            set(_doppler_march "x86-64-v2")
+        endif()
+        # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
+        # glibc's __*_finite aliases (e.g. __exp_finite), removed in
+        # glibc 2.31 — a wheel built in the old-glibc manylinux image
+        # then fails to load (undefined symbol) on modern Linux.
+        # Disabling the finite-only assumption keeps every other
+        # fast-math optimisation.
+        add_compile_options(-march=${_doppler_march} -ffast-math
+                            -fno-finite-math-only)
     endif()
 endif()
 

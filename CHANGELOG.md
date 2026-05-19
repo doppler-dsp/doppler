@@ -15,6 +15,26 @@ and this project adheres to
 
 ---
 
+## [0.3.3] — 2026-05-19
+
+### Added
+
+- **AGC** — a log-domain automatic gain control component. Feedback
+  loop with a 1st-order log-domain loop filter, an EMA power detector,
+  and linear-in-dB gain, so settling time is independent of input
+  level. `agc_steps()` runs a decimated control loop with a
+  first-order-hold gain ramp and an explicit-SIMD power reduction;
+  exposes `applied_gain_db` (the gain the signal actually saw)
+  alongside the commanded `gain_db`.
+
+### Changed
+
+- Benchmarking now delegates to `just-makeit bench`, which writes
+  trimmed, dated snapshots to `benchmarks/history/`. Raw per-iteration
+  timing arrays are dropped, keeping committed snapshots small.
+
+---
+
 ## [0.3.0] — TBD
 
 ### Added
@@ -414,7 +434,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
 [0.3.0]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8

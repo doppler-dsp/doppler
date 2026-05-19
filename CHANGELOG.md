@@ -15,6 +15,32 @@ and this project adheres to
 
 ---
 
+## [0.3.4] — 2026-05-19
+
+### Added
+
+- **`util` module** — a new `doppler.util` extension module. Its first
+  function, `square_clip`, clips a complex sample's real and imaginary
+  parts independently to a [-lin, lin] box. It is header-only and
+  inline, so the AGC and any other module share one definition.
+- **AGC output clipping** — `AGC` gains a writable `clip_db` parameter.
+  The output is square-clipped to `10^(clip_db/20)` per component,
+  applied after the power detector so the control loop is unperturbed.
+  Defaults high enough to be effectively off.
+
+### Fixed
+
+- **Linux wheels** — the `agc` extension failed to import on glibc 2.31+
+  with `undefined symbol: __exp_finite`. `-ffast-math` emitted glibc's
+  removed `__*_finite` math aliases when built in the manylinux image;
+  the SIMD flags now include `-fno-finite-math-only`.
+- **Wheel CPU portability** — released x86-64 wheels were built with
+  `-march=native`, baking in the CI runner's instruction set. Wheels
+  built under cibuildwheel now target a portable `x86-64-v2` baseline;
+  local builds keep `-march=native`.
+
+---
+
 ## [0.3.3] — 2026-05-19
 
 ### Added
@@ -446,7 +472,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1

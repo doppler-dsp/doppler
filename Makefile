@@ -12,9 +12,7 @@
 #   make test                     # run CTest suite (native/ unit tests)
 #   make pyext                    # build Python C extensions
 #   make python-test              # pytest
-#   make bench                    # run C + Python benchmarks, save JSON to benchmarks/history/
-#   make bench-python             # Python benchmarks only
-#   make bench-c                  # C benchmarks only
+#   make bench                    # run C + Python benchmarks, snapshot to benchmarks/history/
 #   make test-all                 # CTest + pytest
 #   make debug                    # clean + Debug build
 #   make release                  # clean + Release build
@@ -73,7 +71,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo \
-        bench bench-python bench-c \
+        bench \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -153,39 +151,12 @@ python-test:
 	uv run pytest src/ -v
 
 # ── bench ─────────────────────────────────────────────────────────────────────
-# Run benchmarks and save dated JSON snapshots to benchmarks/history/.
-# Results are committed so perf regressions are visible in git history.
-#
-# Usage:
-#   make bench                    # C + Python (default)
-#   make bench-python             # Python only
-#   make bench-c                  # C only
-#   make bench BENCH_TAG=v1.2.3   # version-tagged snapshot
-BENCH_TAG    ?= $(shell date -u +%Y%m%dT%H%M%SZ)
-BENCH_JSON    = benchmarks/history/$(BENCH_TAG).json
-BENCH_C_JSON  = benchmarks/history/$(BENCH_TAG)-c.json
-BENCH_DIRS   := $(shell find src/doppler -type d -name benchmarks | sort | tr '\n' ' ')
-BENCH_C_BINS := $(shell find $(BUILD_DIR)/native/src -name 'bench_*' \
-                    -type f -not -name '*.o' -not -name '*.d' | sort)
-
-bench: bench-python bench-c
-
-bench-python:
-	@mkdir -p benchmarks/history
-	uv run pytest $(BENCH_DIRS) \
-		--benchmark-only \
-		--benchmark-json=$(BENCH_JSON) \
-		--benchmark-columns=min,mean,stddev,ops,rounds \
-		--benchmark-sort=mean
-	@echo "Saved: $(BENCH_JSON)"
-
-bench-c: build
-	@mkdir -p benchmarks/history
-	uv run python benchmarks/c_bench_json.py \
-	    --build-type $(BUILD_TYPE) \
-	    $(BENCH_C_BINS) \
-	    > $(BENCH_C_JSON)
-	@echo "Saved: $(BENCH_C_JSON)"
+# Run C + Python benchmarks and save a dated, trimmed snapshot under
+# benchmarks/history/.  Snapshots are committed so perf regressions are
+# visible in git history.  Use the CLI directly for options, e.g.
+# `just-makeit bench --tag v1.2.3` or `just-makeit bench --c-only`.
+bench:
+	just-makeit bench
 
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
@@ -303,9 +274,7 @@ help:
 	@echo "  make test-examples Run C example binaries (build first)"
 	@echo "  make test-examples-python  Run Python example smoke tests (requires pyext)"
 	@echo "  make python-test   Run pytest"
-	@echo "  make bench         Run C + Python benchmarks; save JSON to benchmarks/history/"
-	@echo "  make bench-python  Run Python benchmarks only"
-	@echo "  make bench-c       Run C binary benchmarks only"
+	@echo "  make bench         Run C + Python benchmarks; snapshot to benchmarks/history/"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make docs-build    Build Zensical site"

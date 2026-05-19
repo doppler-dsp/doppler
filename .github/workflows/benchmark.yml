@@ -69,7 +69,9 @@ jobs:
         fi
 
     - name: Run benchmarks
-      run: make bench-python BENCH_TAG=${{ steps.tag.outputs.bench_tag }}
+      run: >-
+        uvx just-makeit bench --python-only
+        --tag ${{ steps.tag.outputs.bench_tag }}
 
     - name: Commit benchmark snapshot
       run: |

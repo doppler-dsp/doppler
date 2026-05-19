@@ -5,7 +5,7 @@ build = "cmake"
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
-schema = "4"
+schema = "5"
 
 [module.accumulator]
 objects = ["acc_f32", "acc_cf64"]

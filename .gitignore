@@ -8,3 +8,12 @@ __pycache__/
 .venv/
 compile_commands.json
 ffi/rust/target/
+
+# Generated documentation output
+docs/doxygen/
+site/
+
+# Example / benchmark artifacts written to the working tree (regenerable;
+# belong in build/, never committed to the repo root)
+/agc_convergence.png
+/bench_*.json

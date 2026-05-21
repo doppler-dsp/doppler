@@ -9,6 +9,10 @@ del _os, _sys
 from .spectral import (  # noqa: E402
     FFT,
     FFT2D,
+    Corr,
+    Corr2D,
+    Detector,
+    Detector2D,
     kaiser_enbw,
     kaiser_window,
     hann_window,
@@ -20,6 +24,10 @@ from .spectral import (  # noqa: E402
 __all__ = [
     "FFT",
     "FFT2D",
+    "Corr",
+    "Corr2D",
+    "Detector",
+    "Detector2D",
     "kaiser_enbw",
     "kaiser_window",
     "hann_window",

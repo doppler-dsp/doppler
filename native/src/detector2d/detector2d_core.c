@@ -64,11 +64,10 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
   state->threshold = threshold;
 
   size_t n = state->n;
-  size_t cap = next_pow2 (n > 512 ? n : 512);
-  state->ring_cap = cap;
-  state->ring = dp_f32_create (cap);
+  state->ring = _ring_create (n > 512 ? n : 512);
   if (!state->ring)
     goto fail;
+  state->ring_cap = state->ring->capacity;
 
   state->corr = corr2d_create (ref, ny, nx, dwell, nthreads);
   if (!state->corr)

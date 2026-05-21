@@ -81,13 +81,10 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   state->noise_mode = noise_mode;
   state->threshold = threshold;
 
-  /* Ring buffer: capacity = next_pow2(max(n, 512)).
-   * The 512-sample minimum ensures n_samples * 8 bytes is page-aligned. */
-  size_t cap = next_pow2 (n > 512 ? n : 512);
-  state->ring_cap = cap;
-  state->ring = dp_f32_create (cap);
+  state->ring = _ring_create (n > 512 ? n : 512);
   if (!state->ring)
     goto fail;
+  state->ring_cap = state->ring->capacity;
 
   state->corr = corr_create (ref, n, dwell, nthreads);
   if (!state->corr)

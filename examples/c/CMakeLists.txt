@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 # Link against the static library so examples are self-contained and have
 # no runtime dependency on libdoppler.so / doppler.dll.
 
-foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo)
+foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc

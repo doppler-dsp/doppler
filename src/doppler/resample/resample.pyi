@@ -3,92 +3,95 @@ import numpy as np
 from numpy.typing import NDArray
 
 class Resampler:
-    """Polyphase resampler.
+    """Resampler component.
 
     Parameters
     ----------
-    rate : float
-        Output / input rate ratio.
+    rate : float, default 0.0
+        rate constructor parameter.
 
     Examples
     --------
+    Create with defaults:
+
     >>> from doppler.resample import Resampler
-    >>> r = Resampler(0.5)
+    >>> obj = Resampler(0.0)
 
     """
-
     def __init__(self, rate: float = ...) -> None: ...
+
     def reset(self) -> None:
-        """Reset resampler state to post-create defaults."""
+        """Reset state to post-create defaults."""
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Resample a block of CF32 samples."""
+        """Execute."""
 
-    def execute_ctrl(
-        self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]
-    ) -> NDArray[np.complex64]:
-        """Resample with per-sample rate control."""
+    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Execute ctrl."""
+
+    def reset(self) -> None:
+        """Reset."""
 
     @property
     def rate(self) -> float:
-        """Output / input rate ratio."""
-
+        """Rate."""
     @rate.setter
     def rate(self, value: float) -> None: ...
+
     @property
     def num_phases(self) -> int:
-        """Number of polyphase branches."""
+        """Num phases."""
 
     @property
     def num_taps(self) -> int:
-        """Taps per polyphase branch."""
+        """Num taps."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
 
     def __enter__(self) -> "Resampler": ...
+
     def __exit__(self, *args: object) -> None: ...
 
-class HalfbandDecimator:
-    """Halfband decimator (2:1, CF32 → CF32).
-
-    Parameters
-    ----------
-    hb_fir : NDArray[np.float32]
-        Halfband FIR coefficients (odd-length, symmetric).
+class Halfbanddecimator:
+    """Halfbanddecimator component.
 
     Examples
     --------
-    >>> import numpy as np
-    >>> from doppler.resample import HalfbandDecimator, _halfband_bank
-    >>> h = _halfband_bank(60.0, 0.4, 0.6)
-    >>> hb = HalfbandDecimator(h)
+    Create with defaults:
+
+    >>> from doppler.resample import Halfbanddecimator
+    >>> obj = Halfbanddecimator()
 
     """
+    def __init__(self, /, *args, **kwargs) -> None: ...
 
-    def __init__(self, hb_fir: NDArray[np.float32]) -> None: ...
     def reset(self) -> None:
-        """Reset delay state."""
+        """Reset state to post-create defaults."""
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Decimate a block of CF32 samples by 2."""
+        """Execute."""
+
+    def reset(self) -> None:
+        """Reset."""
 
     @property
     def rate(self) -> float:
-        """Always 0.5."""
+        """Rate."""
 
     @property
     def num_taps(self) -> int:
-        """Number of FIR taps."""
+        """Num taps."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "HalfbandDecimator": ...
+    def __enter__(self) -> "Halfbanddecimator": ...
+
     def __exit__(self, *args: object) -> None: ...
 
 def kaiser_beta(atten: float) -> float:
-    """Compute Kaiser window beta from stopband attenuation (dB)."""
+    """Kaiser beta."""
 
 def kaiser_num_taps(num_phases: int, atten: float, pb: float, sb: float) -> int:
-    """Compute number of taps per polyphase branch for a Kaiser prototype."""
+    """Kaiser num taps."""

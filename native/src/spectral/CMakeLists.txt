@@ -1,17 +1,18 @@
 add_library(spectral_core OBJECT spectral_core.c)
-target_include_directories(spectral_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(spectral_core PUBLIC m)
+target_include_directories(spectral_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# spectral Python module — aggregates: FFT, FFT2D
+# spectral Python module — aggregates: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D
 Python3_add_library(spectral MODULE WITH_SOABI spectral_ext.c)
 target_link_libraries(spectral PRIVATE
     spectral_core
     fft_core
     fft2d_core
-    pocketfft_cxx
-    Python3::NumPy
-    m)
+    corr_core
+    corr2d_core
+    detector_core
+    detector2d_core
+    Python3::NumPy)
 target_include_directories(spectral PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(spectral PRIVATE -static-libgcc)

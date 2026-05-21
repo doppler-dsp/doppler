@@ -19,6 +19,7 @@ class DelayCf64:
 
     """
     def __init__(self, num_taps: int = ...) -> None: ...
+
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
@@ -46,4 +47,5 @@ class DelayCf64:
         """Release C resources immediately."""
 
     def __enter__(self) -> "DelayCf64": ...
+
     def __exit__(self, *args: object) -> None: ...

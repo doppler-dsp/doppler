@@ -5,7 +5,7 @@ build = "cmake"
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
-schema = "5"
+schema = "6"
 
 [module.accumulator]
 objects = ["acc_f32", "acc_cf64"]
@@ -20,7 +20,7 @@ objects = ["nco", "lo"]
 objects = ["delay"]
 
 [module.spectral]
-objects = ["fft", "fft2d"]
+objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d"]
 
 [[module.spectral.functions]]
 name = "kaiser_enbw"
@@ -37,14 +37,19 @@ params = [{name = "w", type = "float[]"}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"
+out_type = "float"
 params = [{name = "in", type = "float _Complex[]"}, {name = "lin_floor", type = "float"}, {name = "offset_db", type = "float"}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf64"
+out_type = "float"
 params = [{name = "in", type = "double _Complex[]"}, {name = "lin_floor", type = "double"}, {name = "offset_db", type = "float"}]
 
 [[module.spectral.functions]]
 name = "find_peaks_f32"
+return_type = "dp_peak_t"
+max_results_param = "n_peaks"
+result_fields = [{name = "freq_norm", type = "float"}, {name = "amplitude_db", type = "float"}]
 params = [{name = "db", type = "float[]"}, {name = "n_peaks", type = "size_t"}, {name = "min_db", type = "float"}]
 
 [module.resample]
@@ -59,6 +64,54 @@ params = [{name = "atten", type = "double"}]
 name = "kaiser_num_taps"
 return_type = "int"
 params = [{name = "num_phases", type = "int"}, {name = "atten", type = "double"}, {name = "pb", type = "double"}, {name = "sb", type = "double"}]
+
+[module.detection]
+objects = []
+
+[[module.detection.functions]]
+name = "marcum_q"
+return_type = "double"
+params = [{name = "m", type = "int"}, {name = "a", type = "double"}, {name = "b", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_threshold"
+return_type = "double"
+params = [{name = "pfa", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_pd"
+return_type = "double"
+params = [{name = "snr", type = "double"}, {name = "dwell", type = "int"}, {name = "threshold", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_dwell"
+return_type = "int"
+params = [{name = "snr", type = "double"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}, {name = "max_dwell", type = "int"}]
+
+[[module.detection.functions]]
+name = "det_snr"
+return_type = "double"
+params = [{name = "dwell", type = "int"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_threshold_power"
+return_type = "double"
+params = [{name = "pfa", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_pd_power"
+return_type = "double"
+params = [{name = "snr_power", type = "double"}, {name = "dwell", type = "int"}, {name = "power_threshold", type = "double"}]
+
+[[module.detection.functions]]
+name = "det_dwell_power"
+return_type = "int"
+params = [{name = "snr_power", type = "double"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}, {name = "max_dwell", type = "int"}]
+
+[[module.detection.functions]]
+name = "det_snr_power"
+return_type = "double"
+params = [{name = "dwell", type = "int"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}]
 
 [module.agc]
 objects = ["agc"]
@@ -437,6 +490,99 @@ name = "sign"
 type = "int"
 field = true
 
+[corr]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Corr"
+
+[[corr.init_params]]
+name = "ref"
+type = "float _Complex[]"
+
+[[corr.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[corr.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[corr.methods]]
+name = "execute"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+none_on_empty = true
+
+[[corr.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[corr.properties]]
+name = "dwell"
+type = "size_t"
+field = true
+
+[[corr.properties]]
+name = "count"
+type = "size_t"
+field = true
+
+[corr2d]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Corr2D"
+
+[[corr2d.init_params]]
+name = "ref"
+type = "float _Complex[][]"
+
+[[corr2d.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[corr2d.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[corr2d.methods]]
+name = "execute"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+none_on_empty = true
+
+[[corr2d.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "dwell"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "count"
+type = "size_t"
+field = true
+
 [Resampler]
 arg_type = "float _Complex"
 return_type = "float _Complex"
@@ -569,3 +715,205 @@ name = "clip_db"
 type = "double"
 writable = true
 field = true
+
+[detector]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Detector"
+init_post_parse = """
+    if (noise_hi_raw == (unsigned long long)-1ULL)
+        noise_hi = ref_len - 1;
+"""
+
+[[detector.init_params]]
+name = "ref"
+type = "float _Complex[]"
+
+[[detector.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[detector.init_params]]
+name = "noise_lo"
+type = "size_t"
+default = "0"
+
+[[detector.init_params]]
+name = "noise_hi"
+type = "size_t"
+default = "n-1"
+default_raw = "(unsigned long long)-1ULL"
+
+[[detector.init_params]]
+name = "noise_mode"
+type = "string_enum:mean,median,min,max"
+default = "mean"
+
+[[detector.init_params]]
+name = "threshold"
+type = "float"
+default = "0.0f"
+
+[[detector.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[detector.methods]]
+name = "push"
+arg_type = "float _Complex"
+return_type = "det_result_t"
+max_results = 64
+result_fields = [{name = "lag", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
+
+[[detector.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "dwell"
+type = "size_t"
+expr = "self->handle->corr->dwell"
+
+[[detector.properties]]
+name = "count"
+type = "size_t"
+expr = "self->handle->corr->count"
+
+[[detector.properties]]
+name = "ring_cap"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "noise_lo"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "noise_hi"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "threshold"
+type = "float"
+field = true
+
+[[detector.properties]]
+name = "last_corr"
+type = "float _Complex[]"
+buf_field = "out_buf"
+len_field = "n"
+valid_field = "_last_corr_valid"
+
+[detector2d]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Detector2D"
+init_post_parse = """
+    if (noise_hi_raw == (unsigned long long)-1ULL)
+        noise_hi = ref_dim0 * ref_dim1 - 1;
+"""
+
+[[detector2d.init_params]]
+name = "ref"
+type = "float _Complex[][]"
+
+[[detector2d.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[detector2d.init_params]]
+name = "noise_lo"
+type = "size_t"
+default = "0"
+
+[[detector2d.init_params]]
+name = "noise_hi"
+type = "size_t"
+default = "ny*nx-1"
+default_raw = "(unsigned long long)-1ULL"
+
+[[detector2d.init_params]]
+name = "noise_mode"
+type = "string_enum:mean,median,min,max"
+default = "mean"
+
+[[detector2d.init_params]]
+name = "threshold"
+type = "float"
+default = "0.0f"
+
+[[detector2d.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[detector2d.methods]]
+name = "push"
+arg_type = "float _Complex"
+return_type = "det_result2d_t"
+max_results = 64
+result_fields = [{name = "row", type = "size_t"}, {name = "col", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
+
+[[detector2d.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "dwell"
+type = "size_t"
+expr = "self->handle->corr->dwell"
+
+[[detector2d.properties]]
+name = "count"
+type = "size_t"
+expr = "self->handle->corr->count"
+
+[[detector2d.properties]]
+name = "ring_cap"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "noise_lo"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "noise_hi"
+type = "size_t"
+field = true
+
+[[detector2d.properties]]
+name = "threshold"
+type = "float"
+field = true
+
+[[detector2d.properties]]
+name = "last_corr"
+type = "float _Complex[]"
+buf_field = "out_buf"
+len_field = "n"
+valid_field = "_last_corr_valid"

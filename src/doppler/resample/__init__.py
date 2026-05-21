@@ -10,7 +10,7 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, Halfbanddecimator, kaiser_beta, kaiser_num_taps  # noqa: E402
+from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler  # noqa: E402
 
 
 def kaiser_beta(atten: float) -> float:

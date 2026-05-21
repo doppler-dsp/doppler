@@ -38,7 +38,6 @@ nav = [
   { "Type System"       = "types.md"    },
   { "Spectrum Analyzer" = "specan/"     },
   { "CLI & Pipelines" = [
-    { "Overview"    = "cli/index.md"       },
     { "Dopplerfile" = "cli/dopplerfile.md" },
   ]},
   { "Contributing" = [

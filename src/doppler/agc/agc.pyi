@@ -35,11 +35,11 @@ class AGC:
 
     @property
     def gain_db(self) -> float:
-        """Gain db."""
+        """Gain (dB) the loop currently commands."""
 
     @property
     def applied_gain_db(self) -> float:
-        """Applied gain db."""
+        """Gain (dB) actually applied to the most recently processed sample."""
 
     @property
     def ref_db(self) -> float:
@@ -61,13 +61,14 @@ class AGC:
 
     @property
     def decim(self) -> int:
-        """Decim."""
+        """steps() envelope decimation factor (default 8; use 8, 16 or 32)."""
     @decim.setter
     def decim(self, value: int) -> None: ...
 
     @property
     def clip_db(self) -> float:
-        """Clip db."""
+        """Output square-clip level in dB, per component (I and Q clipped
+        independently). Default ~120 dB — effectively off."""
     @clip_db.setter
     def clip_db(self, value: float) -> None: ...
 

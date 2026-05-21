@@ -21,17 +21,16 @@ class NCO:
 
     """
     def __init__(self, norm_freq: float = ..., nmax: int = ...) -> None: ...
-
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def steps_u32(self) -> NDArray[np.uint32]:
+    def steps_u32(self, n: int = 1) -> NDArray[np.uint32]:
         """Steps u32."""
 
-    def steps_u32_scaled(self) -> NDArray[np.uint32]:
+    def steps_u32_scaled(self, n: int = 1) -> NDArray[np.uint32]:
         """Steps u32 scaled."""
 
-    def steps_u32_ovf(self) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
+    def steps_u32_ovf(self, n: int = 1) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
         """Steps u32 ovf."""
 
     @property
@@ -39,13 +38,11 @@ class NCO:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def phase(self) -> int:
         """Phase."""
     @phase.setter
     def phase(self, value: int) -> None: ...
-
     @property
     def phase_inc(self) -> int:
         """Phase inc."""
@@ -54,7 +51,6 @@ class NCO:
         """Release C resources immediately."""
 
     def __enter__(self) -> "NCO": ...
-
     def __exit__(self, *args: object) -> None: ...
 
 class LO:
@@ -74,11 +70,10 @@ class LO:
 
     """
     def __init__(self, norm_freq: float = ...) -> None: ...
-
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def steps(self) -> NDArray[np.complex64]:
+    def steps(self, n: int = 1) -> NDArray[np.complex64]:
         """Steps."""
 
     def steps_ctrl(self, ctrl: NDArray[np.float32]) -> NDArray[np.complex64]:
@@ -89,13 +84,11 @@ class LO:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def phase(self) -> int:
         """Phase."""
     @phase.setter
     def phase(self, value: int) -> None: ...
-
     @property
     def phase_inc(self) -> int:
         """Phase inc."""
@@ -104,5 +97,4 @@ class LO:
         """Release C resources immediately."""
 
     def __enter__(self) -> "LO": ...
-
     def __exit__(self, *args: object) -> None: ...

@@ -15,8 +15,7 @@ add_executable(bench_delay_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_delay_core.c)
 target_link_libraries(bench_delay_core PRIVATE delay_core m)
 target_include_directories(bench_delay_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-            ${CMAKE_SOURCE_DIR}/native/benchmarks)
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(BUILD_PYTHON)
 # delay Python module — aggregates: DelayCf64
 Python3_add_library(delay MODULE WITH_SOABI delay_ext.c)

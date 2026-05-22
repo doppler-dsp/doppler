@@ -87,7 +87,7 @@ on the streaming layer. It runs as a pipeline sink, reads IQ frames
 over a PULL socket, computes FFT magnitude, and serves a live web
 UI. Because it speaks the same wire format as every other block, it
 snaps onto any compose pipeline as a final stage — or runs
-standalone against any `dp_pub` source.
+standalone against any `dp_pub_t` source.
 
 ```sh
 # As a compose sink

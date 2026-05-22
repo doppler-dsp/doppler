@@ -26,15 +26,15 @@ next_pow2 (size_t n)
   return c;
 }
 
-/* Create a dp_f32 ring of at least cap_min complex samples.
+/* Create a dp_f32_t ring of at least cap_min complex samples.
  * dp_f32_create requires the byte count to be page-aligned, which varies
  * by OS (4 KiB on Linux/Windows, 16 KiB on macOS).  We start at the
  * smallest power-of-2 >= cap_min and double until create succeeds. */
-static dp_f32 *
+static dp_f32_t *
 _ring_create (size_t cap_min)
 {
   size_t cap = next_pow2 (cap_min > 1 ? cap_min : 1);
-  dp_f32 *ring = NULL;
+  dp_f32_t *ring = NULL;
   while (!ring)
     {
       ring = dp_f32_create (cap);

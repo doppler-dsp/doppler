@@ -46,7 +46,7 @@ Python → ctypes → libdoppler.so → libzmq.so
 ```python
 # Current ctypes approach:
 _Header(Structure)  # mirrors C struct dp_header_t
-c_void_p            # opaque dp_pub*, dp_sub* pointers
+c_void_p            # opaque dp_pub_t*, dp_sub_t* pointers
 ```
 
 **Issues:**

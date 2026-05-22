@@ -36,7 +36,7 @@
 
 typedef struct
 {
-  PyObject_HEAD dp_f32 *buf; /* NULL after destroy() */
+  PyObject_HEAD dp_f32_t *buf; /* NULL after destroy() */
   npy_intp wait_n;           /* samples currently outstanding */
 } F32BufferObject;
 
@@ -220,7 +220,7 @@ static PyTypeObject F32BufferType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_f64 *buf;
+  PyObject_HEAD dp_f64_t *buf;
   npy_intp wait_n;
 } F64BufferObject;
 
@@ -404,7 +404,7 @@ static PyTypeObject F64BufferType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_i16 *buf;
+  PyObject_HEAD dp_i16_t *buf;
   npy_intp wait_n;
 } I16BufferObject;
 

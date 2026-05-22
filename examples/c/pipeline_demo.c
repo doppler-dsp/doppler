@@ -50,7 +50,7 @@ producer_thread (void *arg)
   (void)arg;
   printf ("Producer: starting...\n");
 
-  dp_push *ctx = dp_push_create (ENDPOINT, CF64);
+  dp_push_t *ctx = dp_push_create (ENDPOINT, CF64);
   if (!ctx) { fputs ("Producer: dp_push_create failed\n", stderr); return NULL; }
 
   dp_usleep (100000); /* allow consumer to connect */
@@ -104,7 +104,7 @@ consumer_thread (void *arg)
 
   printf ("Consumer: connecting to %s\n", ENDPOINT);
 
-  dp_pull *ctx = dp_pull_create (ENDPOINT);
+  dp_pull_t *ctx = dp_pull_create (ENDPOINT);
   if (!ctx) { fputs ("Consumer: dp_pull_create failed\n", stderr); return NULL; }
 
   int      batches     = 0;

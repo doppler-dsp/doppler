@@ -196,7 +196,7 @@ main (int argc, char *argv[])
   fft_state_t *fft = fft_create (fft_size, +1, 1);
   if (!fft) { fputs ("fft_create failed\n", stderr); return 1; }
 
-  dp_sub *ctx = dp_sub_create (endpoint);
+  dp_sub_t *ctx = dp_sub_create (endpoint);
   if (!ctx)
     {
       fprintf (stderr, "Failed to create subscriber on %s\n", endpoint);

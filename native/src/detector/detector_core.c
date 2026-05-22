@@ -169,7 +169,7 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
 
       if (to_write > 0)
         {
-          /* dp_f32 treats each "sample" as one complex (2 floats);
+          /* dp_f32_t treats each "sample" as one complex (2 floats);
            * casting to float* satisfies the API. */
           dp_f32_write (state->ring, (const float *)(in + off), to_write);
           off += to_write;

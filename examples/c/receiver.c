@@ -119,7 +119,7 @@ main (int argc, char *argv[])
   signal (SIGINT,  signal_handler);
   signal (SIGTERM, signal_handler);
 
-  dp_sub *ctx = dp_sub_create (endpoint);
+  dp_sub_t *ctx = dp_sub_create (endpoint);
   if (!ctx)
     {
       fprintf (stderr, "Failed to create subscriber on %s\n", endpoint);

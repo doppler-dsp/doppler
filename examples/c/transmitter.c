@@ -129,7 +129,7 @@ main (int argc, char *argv[])
   signal (SIGINT,  signal_handler);
   signal (SIGTERM, signal_handler);
 
-  dp_pub *ctx = dp_pub_create (endpoint, sample_type);
+  dp_pub_t *ctx = dp_pub_create (endpoint, sample_type);
   if (!ctx)
     {
       fprintf (stderr, "Failed to create publisher on %s\n", endpoint);

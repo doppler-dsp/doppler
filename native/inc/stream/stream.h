@@ -16,13 +16,13 @@
  * #include "stream/stream.h"
  *
  * // Transmitter
- * dp_pub *pub = dp_pub_create("tcp://\*:5555", CF64);
+ * dp_pub_t *pub = dp_pub_create("tcp://\*:5555", CF64);
  * double _Complex samples[1024] = { ... };
  * dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
  * dp_pub_destroy(pub);
  *
  * // Receiver (zero-copy)
- * dp_sub *sub = dp_sub_create("tcp://localhost:5555");
+ * dp_sub_t *sub = dp_sub_create("tcp://localhost:5555");
  * dp_msg_t *msg;  dp_header_t hdr;
  * dp_sub_recv(sub, &msg, &hdr);
  * double _Complex *cf64 = (double _Complex *)dp_msg_data(msg);
@@ -159,12 +159,12 @@ extern "C"
 
   /** @brief Opaque streaming socket handle returned by all create functions.
    */
-  typedef struct dp_ctx dp_pub;
-  typedef struct dp_ctx dp_sub;
-  typedef struct dp_ctx dp_push;
-  typedef struct dp_ctx dp_pull;
-  typedef struct dp_ctx dp_req;
-  typedef struct dp_ctx dp_rep;
+  typedef struct dp_ctx dp_pub_t;
+  typedef struct dp_ctx dp_sub_t;
+  typedef struct dp_ctx dp_push_t;
+  typedef struct dp_ctx dp_pull_t;
+  typedef struct dp_ctx dp_req_t;
+  typedef struct dp_ctx dp_rep_t;
 
   /** @} */ /* end group types */
 
@@ -253,7 +253,7 @@ extern "C"
    * @param sample_type  Sample format that will be sent.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_pub *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_pub_t *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
 
   /**
    * @brief Send an array of CI32 samples via a Publisher.
@@ -265,7 +265,7 @@ extern "C"
    * @param center_freq Centre frequency in Hz.
    * @return DP_OK (0) on success, negative error code on failure.
    */
-  int dp_pub_send_ci32 (dp_pub *ctx, const int32_t *samples,
+  int dp_pub_send_ci32 (dp_pub_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -273,7 +273,7 @@ extern "C"
    * @brief Send an array of CF64 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf64 (dp_pub *ctx, const double _Complex *samples,
+  int dp_pub_send_cf64 (dp_pub_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -281,7 +281,7 @@ extern "C"
    * @brief Send an array of CF128 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf128 (dp_pub *ctx, const long double _Complex *samples,
+  int dp_pub_send_cf128 (dp_pub_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -289,14 +289,14 @@ extern "C"
    * @brief Send an array of CI8 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples, size_t num_samples,
+  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
 
   /**
    * @brief Send an array of CI16 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples,
+  int dp_pub_send_ci16 (dp_pub_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -304,7 +304,7 @@ extern "C"
    * @brief Send an array of CF32 samples via a Publisher.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_pub_send_cf32 (dp_pub *ctx, const float _Complex *samples,
+  int dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -312,7 +312,7 @@ extern "C"
    * @brief Destroy a Publisher context and release all resources.
    * @param ctx Publisher context (may be NULL).
    */
-  void dp_pub_destroy (dp_pub *ctx);
+  void dp_pub_destroy (dp_pub_t *ctx);
 
   /**
    * @brief Create a Subscriber socket and connect to @p endpoint.
@@ -323,7 +323,7 @@ extern "C"
    * `"tcp://localhost:5555"`.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_sub *dp_sub_create (const char *endpoint);
+  dp_sub_t *dp_sub_create (const char *endpoint);
 
   /**
    * @brief Receive one frame from a Subscriber socket (zero-copy).
@@ -337,7 +337,7 @@ extern "C"
    * @param[out] header Set to the frame metadata.
    * @return DP_OK on success, DP_ERR_TIMEOUT on timeout, negative on error.
    */
-  int dp_sub_recv (dp_sub *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_sub_recv (dp_sub_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
   /**
    * @brief Set receive timeout for a Subscriber socket.
@@ -345,13 +345,13 @@ extern "C"
    * @param timeout_ms Timeout in milliseconds (-1 = infinite, 0 =
    * non-blocking).
    */
-  void dp_sub_set_timeout (dp_sub *ctx, int timeout_ms);
+  void dp_sub_set_timeout (dp_sub_t *ctx, int timeout_ms);
 
   /**
    * @brief Destroy a Subscriber context and release all resources.
    * @param ctx Subscriber context (may be NULL).
    */
-  void dp_sub_destroy (dp_sub *ctx);
+  void dp_sub_destroy (dp_sub_t *ctx);
 
   /** @} */ /* end group pubsub */
 
@@ -375,20 +375,20 @@ extern "C"
    * @param sample_type Sample format that will be sent.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_push *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
 
   /**
    * @brief Create a Pull socket and connect to @p endpoint.
    * @param endpoint ZMQ endpoint to connect to, e.g. `"tcp://localhost:5556"`.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_pull *dp_pull_create (const char *endpoint);
+  dp_pull_t *dp_pull_create (const char *endpoint);
 
   /**
    * @brief Send CI32 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_ci32 (dp_push *ctx, const int32_t *samples,
+  int dp_push_send_ci32 (dp_push_t *ctx, const int32_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -396,7 +396,7 @@ extern "C"
    * @brief Send CF64 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_cf64 (dp_push *ctx, const double _Complex *samples,
+  int dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -404,25 +404,25 @@ extern "C"
    * @brief Send CF128 samples via a Push socket.
    * @copydetails dp_pub_send_ci32
    */
-  int dp_push_send_cf128 (dp_push *ctx, const long double _Complex *samples,
+  int dp_push_send_cf128 (dp_push_t *ctx, const long double _Complex *samples,
                           size_t num_samples, double sample_rate,
                           double center_freq);
 
   /** @brief Send CI8 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_ci8 (dp_push *ctx, const int8_t *samples,
+  int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI16 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_ci16 (dp_push *ctx, const int16_t *samples,
+  int dp_push_send_ci16 (dp_push_t *ctx, const int16_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
   /** @brief Send CF32 samples via a Push socket.
    *  @copydetails dp_pub_send_ci32 */
-  int dp_push_send_cf32 (dp_push *ctx, const float _Complex *samples,
+  int dp_push_send_cf32 (dp_push_t *ctx, const float _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
@@ -430,7 +430,7 @@ extern "C"
    * @brief Receive one frame from a Pull socket (zero-copy).
    * @copydetails dp_sub_recv
    */
-  int dp_pull_recv (dp_pull *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_pull_recv (dp_pull_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
   /**
    * @brief Set receive timeout for a Pull socket.
@@ -438,19 +438,19 @@ extern "C"
    * @param timeout_ms Timeout in milliseconds (-1 = infinite, 0 =
    * non-blocking).
    */
-  void dp_pull_set_timeout (dp_pull *ctx, int timeout_ms);
+  void dp_pull_set_timeout (dp_pull_t *ctx, int timeout_ms);
 
   /**
    * @brief Destroy a Push context and release all resources.
    * @param ctx Push context (may be NULL).
    */
-  void dp_push_destroy (dp_push *ctx);
+  void dp_push_destroy (dp_push_t *ctx);
 
   /**
    * @brief Destroy a Pull context and release all resources.
    * @param ctx Pull context (may be NULL).
    */
-  void dp_pull_destroy (dp_pull *ctx);
+  void dp_pull_destroy (dp_pull_t *ctx);
 
   /** @} */ /* end group pipeline */
 
@@ -472,14 +472,14 @@ extern "C"
    * @param endpoint ZMQ endpoint to connect to, e.g. `"tcp://localhost:5557"`.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_req *dp_req_create (const char *endpoint);
+  dp_req_t *dp_req_create (const char *endpoint);
 
   /**
    * @brief Create a Replier socket and bind to @p endpoint.
    * @param endpoint ZMQ endpoint to bind, e.g. `"tcp://\*:5557"`.
    * @return Non-NULL context on success, NULL on failure.
    */
-  dp_rep *dp_rep_create (const char *endpoint);
+  dp_rep_t *dp_rep_create (const char *endpoint);
 
   /* -- Raw-bytes send/recv (control plane) ------------------------------ */
 
@@ -490,7 +490,7 @@ extern "C"
    * @param size Byte count.
    * @return DP_OK on success.
    */
-  int dp_req_send (dp_req *ctx, const void *data, size_t size);
+  int dp_req_send (dp_req_t *ctx, const void *data, size_t size);
 
   /**
    * @brief Receive the reply to a previously sent request (zero-copy).
@@ -499,7 +499,7 @@ extern "C"
    * @param[out] size Set to the reply byte count.
    * @return DP_OK on success.
    */
-  int dp_req_recv (dp_req *ctx, dp_msg_t **msg, size_t *size);
+  int dp_req_recv (dp_req_t *ctx, dp_msg_t **msg, size_t *size);
 
   /**
    * @brief Block until an incoming request arrives on the Replier (zero-copy).
@@ -508,7 +508,7 @@ extern "C"
    * @param[out] size Set to the request byte count.
    * @return DP_OK on success.
    */
-  int dp_rep_recv (dp_rep *ctx, dp_msg_t **msg, size_t *size);
+  int dp_rep_recv (dp_rep_t *ctx, dp_msg_t **msg, size_t *size);
 
   /**
    * @brief Send the reply to the most recent request.
@@ -517,55 +517,55 @@ extern "C"
    * @param size Byte count.
    * @return DP_OK on success.
    */
-  int dp_rep_send (dp_rep *ctx, const void *data, size_t size);
+  int dp_rep_send (dp_rep_t *ctx, const void *data, size_t size);
 
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
   /** @brief Send CI32 signal frame as a request. */
-  int dp_req_send_ci32 (dp_req *ctx, const int32_t *samples,
+  int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a request. */
-  int dp_req_send_cf64 (dp_req *ctx, const double _Complex *samples,
+  int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF128 signal frame as a request. */
-  int dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples,
+  int dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a request. */
-  int dp_req_send_ci8 (dp_req *ctx, const int8_t *samples, size_t num_samples,
+  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
   /** @brief Send CI16 signal frame as a request. */
-  int dp_req_send_ci16 (dp_req *ctx, const int16_t *samples,
+  int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a request. */
-  int dp_req_send_cf32 (dp_req *ctx, const float _Complex *samples,
+  int dp_req_send_cf32 (dp_req_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
   /** @brief Send CI32 signal frame as a reply. */
-  int dp_rep_send_ci32 (dp_rep *ctx, const int32_t *samples,
+  int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF64 signal frame as a reply. */
-  int dp_rep_send_cf64 (dp_rep *ctx, const double _Complex *samples,
+  int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF128 signal frame as a reply. */
-  int dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples,
+  int dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
   /** @brief Send CI8 signal frame as a reply. */
-  int dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples, size_t num_samples,
+  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
   /** @brief Send CI16 signal frame as a reply. */
-  int dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples,
+  int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
   /** @brief Send CF32 signal frame as a reply. */
-  int dp_rep_send_cf32 (dp_rep *ctx, const float _Complex *samples,
+  int dp_rep_send_cf32 (dp_rep_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
@@ -576,7 +576,7 @@ extern "C"
    * @param[out] header Set to the frame metadata.
    * @return DP_OK on success, DP_ERR_TIMEOUT on timeout, negative on error.
    */
-  int dp_req_recv_signal (dp_req *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_req_recv_signal (dp_req_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
   /**
    * @brief Receive a signal frame request (zero-copy).
@@ -585,33 +585,33 @@ extern "C"
    * @param[out] header Set to the frame metadata.
    * @return DP_OK on success, DP_ERR_TIMEOUT on timeout, negative on error.
    */
-  int dp_rep_recv_signal (dp_rep *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_rep_recv_signal (dp_rep_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
   /**
    * @brief Set receive timeout for a Requester socket.
    * @param ctx        Requester context.
    * @param timeout_ms Timeout in milliseconds (-1 = infinite).
    */
-  void dp_req_set_timeout (dp_req *ctx, int timeout_ms);
+  void dp_req_set_timeout (dp_req_t *ctx, int timeout_ms);
 
   /**
    * @brief Set receive timeout for a Replier socket.
    * @param ctx        Replier context.
    * @param timeout_ms Timeout in milliseconds (-1 = infinite).
    */
-  void dp_rep_set_timeout (dp_rep *ctx, int timeout_ms);
+  void dp_rep_set_timeout (dp_rep_t *ctx, int timeout_ms);
 
   /**
    * @brief Destroy a Requester context and release all resources.
    * @param ctx Requester context (may be NULL).
    */
-  void dp_req_destroy (dp_req *ctx);
+  void dp_req_destroy (dp_req_t *ctx);
 
   /**
    * @brief Destroy a Replier context and release all resources.
    * @param ctx Replier context (may be NULL).
    */
-  void dp_rep_destroy (dp_rep *ctx);
+  void dp_rep_destroy (dp_rep_t *ctx);
 
   /** @} */ /* end group reqrep */
 

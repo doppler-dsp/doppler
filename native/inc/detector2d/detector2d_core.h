@@ -76,7 +76,7 @@ typedef struct
 typedef struct
 {
   corr2d_state_t *corr;     /**< 2-D FFT correlator + int-dump engine.     */
-  dp_f32 *ring;             /**< Double-mapped ring buffer (auto-sized).    */
+  dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
   float complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
   float *mag_buf;           /**< |out_buf[k]|, ny*nx floats.               */
   float *noise_scratch;     /**< Scratch for median sort.                   */

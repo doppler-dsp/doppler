@@ -1,8 +1,8 @@
 /*
  * stream_ext.c — Python C extension wrapping the doppler streaming C library.
  *
- * Thin wrapper around libdoppler's dp_pub/dp_sub/dp_push/dp_pull/
- * dp_req/dp_rep API.  All socket creation, header construction,
+ * Thin wrapper around libdoppler's dp_pub_t/dp_sub_t/dp_push_t/dp_pull_t/
+ * dp_req_t/dp_rep_t API.  All socket creation, header construction,
  * send/recv logic, and protocol handling lives in the C library.
  *
  * Zero-copy recv: dp_msg_t owns the ZMQ buffer; we wrap it in dpMsgObject
@@ -230,7 +230,7 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
 
 typedef struct
 {
-  PyObject_HEAD dp_pub *ctx;
+  PyObject_HEAD dp_pub_t *ctx;
   int sample_type;
   int closed;
 } PublisherObject;
@@ -337,7 +337,7 @@ static PyTypeObject PublisherType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_sub *ctx;
+  PyObject_HEAD dp_sub_t *ctx;
   int closed;
 } SubscriberObject;
 
@@ -432,7 +432,7 @@ static PyTypeObject SubscriberType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_push *ctx;
+  PyObject_HEAD dp_push_t *ctx;
   int sample_type;
   int closed;
 } PushObject;
@@ -539,7 +539,7 @@ static PyTypeObject PushType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_pull *ctx;
+  PyObject_HEAD dp_pull_t *ctx;
   int closed;
 } PullObject;
 
@@ -634,7 +634,7 @@ static PyTypeObject PullType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_req *ctx;
+  PyObject_HEAD dp_req_t *ctx;
   int sample_type;
   int closed;
 } RequesterObject;
@@ -749,7 +749,7 @@ static PyTypeObject RequesterType = {
 
 typedef struct
 {
-  PyObject_HEAD dp_rep *ctx;
+  PyObject_HEAD dp_rep_t *ctx;
   int sample_type;
   int closed;
 } ReplierObject;

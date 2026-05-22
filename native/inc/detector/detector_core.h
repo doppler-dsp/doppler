@@ -87,7 +87,7 @@ typedef struct
 typedef struct
 {
   corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
-  dp_f32 *ring;             /**< Double-mapped ring buffer (auto-sized).    */
+  dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
   float complex *out_buf;   /**< Corr output buffer (n complex samples).    */
   float *mag_buf;           /**< |out_buf[k]|, n floats.                   */
   float *noise_scratch;     /**< Scratch for median sort.                   */
@@ -110,7 +110,7 @@ typedef struct
 /**
  * @brief Create a 1-D signal detector.
  *
- * Allocates a corr_state_t, a dp_f32 ring buffer of capacity
+ * Allocates a corr_state_t, a dp_f32_t ring buffer of capacity
  * next_pow2(max(n, 512)), and all scratch buffers.  The ring buffer
  * satisfies the dp_f32_create() page-alignment constraint automatically.
  *

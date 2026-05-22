@@ -18,7 +18,24 @@ All suites must pass. Fix failures before continuing.
 
 ---
 
-## 2. Update CHANGELOG.md
+## 2. Check examples
+
+Review `examples/python/` for any new or updated scripts.  If a script
+produces a plot that isn't yet in `docs/assets/`, regenerate it and
+commit the PNG before tagging:
+
+```sh
+python examples/python/corr_demo.py
+python examples/python/detection_curves.py
+python examples/python/detection_sim.py
+# copy any new/changed .png → docs/assets/
+git add docs/assets/ docs/examples/
+git commit -m "docs: update example plots for vX.Y.Z"
+```
+
+---
+
+## 4. Update CHANGELOG.md
 
 In `CHANGELOG.md`:
 
@@ -40,7 +57,7 @@ git commit -m "docs: update CHANGELOG for vX.Y.Z"
 
 ---
 
-## 3. Bump the version
+## 5. Bump the version
 
 `make bump-version` updates **three files** atomically:
 
@@ -63,7 +80,7 @@ git diff
 
 ---
 
-## 4. Tag and push
+## 6. Tag and push
 
 `make tag-release` creates an annotated tag and pushes it, which
 **triggers the release workflow automatically**:
@@ -78,7 +95,7 @@ make tag-release VERSION=X.Y.Z
 
 ---
 
-## 5. Release workflow (automatic)
+## 7. Release workflow (automatic)
 
 The [`release.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/release.yml)
 workflow runs these jobs in order:
@@ -114,7 +131,7 @@ If it fails, bump the missed file manually, push a fixup commit on main, then re
 
 ---
 
-## 6. Verify the release
+## 8. Verify the release
 
 Once the workflow goes green:
 

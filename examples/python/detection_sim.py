@@ -207,8 +207,8 @@ fig.suptitle(
     fontsize=13,
 )
 
-BLUE = "#1f77b4"
-RED  = "#d62728"
+BLUE = "C0"
+RED  = "C1"
 
 for row, (label, ts_h0, ts_h1, sf_fn, thresh,
           pd_mc, pd_th, ax_sf, ax_pd,

@@ -98,6 +98,8 @@ link = "https://github.com/doppler-dsp/doppler"
 # ----------------------------------------------------------------------------
 # mkdocstrings — auto-generate API reference from Python docstrings
 # ----------------------------------------------------------------------------
+[project.plugins.glightbox]
+
 [project.plugins.mkdocstrings.config]
 default_handler = "python"
 

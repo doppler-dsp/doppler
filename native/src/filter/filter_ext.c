@@ -47,12 +47,24 @@ FIR_init(FIRObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist,
                                      &taps_obj))
         return -1;
-    PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        taps_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-    if (!taps_arr) { return -1; }
-    size_t taps_len = (size_t)PyArray_SIZE(taps_arr);
-    self->handle = fir_create((const float complex *)PyArray_DATA(taps_arr), taps_len);
-    Py_DECREF(taps_arr);
+    PyArrayObject *arr = (PyArrayObject *)PyArray_CheckFromAny(
+        taps_obj, NULL, 1, 1,
+        NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_NOTSWAPPED, NULL);
+    if (!arr) return -1;
+    size_t n = (size_t)PyArray_SIZE(arr);
+    int dtype = PyArray_TYPE(arr);
+    if (dtype == NPY_FLOAT32) {
+        self->handle = fir_create_real(
+            (const float *)PyArray_DATA(arr), n);
+    } else if (dtype == NPY_COMPLEX64) {
+        self->handle = fir_create(
+            (const float complex *)PyArray_DATA(arr), n);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "taps must be float32 or complex64");
+        Py_DECREF(arr);
+        return -1;
+    }
+    Py_DECREF(arr);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,
                         "fir_create returned NULL");

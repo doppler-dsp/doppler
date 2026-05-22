@@ -22,7 +22,7 @@ typedef struct {
 } FIRObject;
 
 static void
-FIR_dealloc(FIRObject *self)
+FIRObj_dealloc(FIRObject *self)
 {
     if (self->handle)
         fir_destroy(self->handle);
@@ -30,7 +30,7 @@ FIR_dealloc(FIRObject *self)
 }
 
 static PyObject *
-FIR_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+FIRObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     FIRObject *self = (FIRObject *)type->tp_alloc(type, 0);
     if (self)
@@ -39,7 +39,7 @@ FIR_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-FIR_init(FIRObject *self, PyObject *args, PyObject *kwds)
+FIRObj_init(FIRObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"taps", NULL};
     PyObject *taps_obj = NULL;
@@ -47,24 +47,29 @@ FIR_init(FIRObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist,
                                      &taps_obj))
         return -1;
-    PyArrayObject *arr = (PyArrayObject *)PyArray_CheckFromAny(
-        taps_obj, NULL, 1, 1,
-        NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_NOTSWAPPED, NULL);
-    if (!arr) return -1;
-    size_t n = (size_t)PyArray_SIZE(arr);
-    int dtype = PyArray_TYPE(arr);
-    if (dtype == NPY_FLOAT32) {
+    /* Use real-tap fast path when taps are float32. */
+    PyArrayObject *check = (PyArrayObject *)PyArray_CheckFromAny(
+        taps_obj, NULL, 0, 0, NPY_ARRAY_C_CONTIGUOUS, NULL);
+    int is_real = check && (PyArray_TYPE(check) == NPY_FLOAT32);
+    Py_XDECREF(check);
+    PyErr_Clear();
+    if (is_real) {
+        PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF(
+            taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+        if (!taps_arr) { return -1; }
+        size_t taps_len = (size_t)PyArray_SIZE(taps_arr);
         self->handle = fir_create_real(
-            (const float *)PyArray_DATA(arr), n);
-    } else if (dtype == NPY_COMPLEX64) {
-        self->handle = fir_create(
-            (const float complex *)PyArray_DATA(arr), n);
+            (const float *)PyArray_DATA(taps_arr), taps_len);
+        Py_DECREF(taps_arr);
     } else {
-        PyErr_SetString(PyExc_TypeError, "taps must be float32 or complex64");
-        Py_DECREF(arr);
-        return -1;
+        PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF(
+            taps_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+        if (!taps_arr) { return -1; }
+        size_t taps_len = (size_t)PyArray_SIZE(taps_arr);
+        self->handle = fir_create(
+            (const float complex *)PyArray_DATA(taps_arr), taps_len);
+        Py_DECREF(taps_arr);
     }
-    Py_DECREF(arr);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,
                         "fir_create returned NULL");
@@ -74,7 +79,7 @@ FIR_init(FIRObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FIR_reset(FIRObject *self, PyObject *Py_UNUSED(ignored))
+FIRObj_reset(FIRObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -90,7 +95,7 @@ FIR_reset(FIRObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-FIR_execute(FIRObject *self, PyObject *args)
+FIRObj_execute(FIRObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -113,7 +118,8 @@ FIR_execute(FIRObject *self, PyObject *args)
         return out_arr;
     npy_intp actual = (npy_intp)n_out;
     PyArray_Dims ds = {&actual, 1};
-    PyObject *result = PyArray_Newshape((PyArrayObject *)out_arr, &ds, NPY_CORDER);
+    PyObject *result = PyArray_Newshape(
+        (PyArrayObject *)out_arr, &ds, NPY_CORDER);
     Py_DECREF(out_arr);
     return result;
 }
@@ -144,7 +150,7 @@ static PyGetSetDef FIR_getset[] = {
 };
 
 static PyObject *
-FIR_destroy(FIRObject *self, PyObject *Py_UNUSED(ignored))
+FIRObj_destroy(FIRObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         fir_destroy(self->handle);
@@ -154,14 +160,14 @@ FIR_destroy(FIRObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-FIR_enter(FIRObject *self, PyObject *Py_UNUSED(ignored))
+FIRObj_enter(FIRObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-FIR_exit(FIRObject *self, PyObject *args)
+FIRObj_exit(FIRObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -171,14 +177,14 @@ FIR_exit(FIRObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef FIR_methods[] = {
-    {"reset",    (PyCFunction)FIR_reset,    METH_NOARGS,
+static PyMethodDef FIRObj_methods[] = {
+    {"reset",    (PyCFunction)FIRObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"execute", (PyCFunction)FIR_execute, METH_VARARGS,
+    {"execute", (PyCFunction)FIRObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Filter x and return a new output array.\n"
+     "Zero-copy view into pre-allocated output buffer.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FIR\n"
@@ -186,24 +192,24 @@ static PyMethodDef FIR_methods[] = {
      "    >>> y = obj.execute(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",  (PyCFunction)FIR_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)FIRObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)FIR_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)FIR_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)FIRObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)FIRObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject FIRType = {
+static PyTypeObject FIRObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "filter.FIR",
     .tp_basicsize = sizeof(FIRObject),
-    .tp_dealloc   = (destructor)FIR_dealloc,
+    .tp_dealloc   = (destructor)FIRObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "FIR type.",
-    .tp_methods   = FIR_methods,
+    .tp_methods   = FIRObj_methods,
     .tp_getset    = FIR_getset,
-    .tp_new       = FIR_new,
-    .tp_init      = (initproc)FIR_init,
+    .tp_new       = FIRObj_new,
+    .tp_init      = (initproc)FIRObj_init,
 };
 
 /* ======================================================== */
@@ -222,12 +228,12 @@ PyMODINIT_FUNC
 PyInit_filter(void)
 {
     import_array();
-    if (PyType_Ready(&FIRType) < 0) return NULL;
+    if (PyType_Ready(&FIRObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&filter_moduledef);
     if (!m) return NULL;
-    Py_INCREF(&FIRType);
-    if (PyModule_AddObject(m, "FIR", (PyObject *)&FIRType) < 0) {
-        Py_DECREF(&FIRType); Py_DECREF(m); return NULL;
+    Py_INCREF(&FIRObjType);
+    if (PyModule_AddObject(m, "FIR", (PyObject *)&FIRObjType) < 0) {
+        Py_DECREF(&FIRObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

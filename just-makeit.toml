@@ -6,6 +6,7 @@ perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
 schema = "6"
+c_deps = ["hbdecim", "resamp"]
 
 [module.accumulator]
 objects = ["acc_f32", "acc_cf64"]
@@ -29,11 +30,11 @@ params = [{name = "w", type = "float[]"}]
 
 [[module.spectral.functions]]
 name = "kaiser_window"
-params = [{name = "w", type = "float[]"}, {name = "beta", type = "float"}]
+params = [{name = "w", type = "float[]", out = true}, {name = "beta", type = "float"}]
 
 [[module.spectral.functions]]
 name = "hann_window"
-params = [{name = "w", type = "float[]"}]
+params = [{name = "w", type = "float[]", out = true}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"
@@ -51,6 +52,15 @@ return_type = "dp_peak_t"
 max_results_param = "n_peaks"
 result_fields = [{name = "freq_norm", type = "float"}, {name = "amplitude_db", type = "float"}]
 params = [{name = "db", type = "float[]"}, {name = "n_peaks", type = "size_t"}, {name = "min_db", type = "float"}]
+
+[module.buffer]
+no_generate = "true"
+
+[module.stream]
+no_generate = "true"
+
+[module.ddc]
+no_generate = "true"
 
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator"]
@@ -212,6 +222,10 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "FIR"
+
+[[fir.init_params]]
+name = "taps"
+type = "float _Complex[]"
 
 [[fir.methods]]
 name = "execute"
@@ -589,6 +603,7 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
+depends_on = ["resamp"]
 
 [[Resampler.init_params]]
 name = "rate"
@@ -633,6 +648,11 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
+depends_on = ["hbdecim"]
+
+[[HalfbandDecimator.init_params]]
+name = "h"
+type = "float[]"
 
 [[HalfbandDecimator.methods]]
 name = "execute"

@@ -325,7 +325,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
  */
 #define DECLARE_DP_BUFFER(name, type)                                         \
                                                                               \
-  /** @struct dp_##name */                                                    \
+  /** @struct dp_##name##_t */                                                \
   typedef struct                                                              \
   {                                                                           \
     type *data;      /**< Double-mapped memory address. */                    \
@@ -335,7 +335,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     DP_ALIGN (DP_CACHELINE) volatile size_t head;    /**< Producer idx. */    \
     DP_ALIGN (DP_CACHELINE) volatile size_t tail;    /**< Consumer idx. */    \
     DP_ALIGN (DP_CACHELINE) volatile size_t dropped; /**< Overrun ctr. */     \
-  } dp_##name;                                                                \
+  } dp_##name##_t;                                                            \
                                                                               \
   /**                                                                         \
    * @brief Creates a double-mapped circular buffer.                          \
@@ -345,9 +345,9 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    *                                                                          \
    * @param n_samples Buffer size in complex samples. MUST be a power of 2,   \
    *                  and n_samples * sizeof(type) * 2 must be page-aligned.  \
-   * @return Pointer to an initialised dp_##name, or NULL on failure.         \
+   * @return Pointer to an initialised dp_##name##_t, or NULL on failure.     \
    */                                                                         \
-  static inline dp_##name *dp_##name##_create (size_t n_samples)              \
+  static inline dp_##name##_t *dp_##name##_create (size_t n_samples)          \
   {                                                                           \
     size_t bytes = n_samples * sizeof (type) * 2;                             \
     if ((n_samples & (n_samples - 1)) != 0)                                   \
@@ -358,7 +358,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     void *addr = dp__buf_alloc (bytes, &handle);                              \
     if (!addr)                                                                \
       return NULL;                                                            \
-    dp_##name *ab = (dp_##name *)calloc (1, sizeof (dp_##name));              \
+    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
     if (!ab)                                                                  \
       {                                                                       \
         dp__buf_free (addr, bytes, handle);                                   \
@@ -372,7 +372,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   }                                                                           \
                                                                               \
   /** @brief Destroys the buffer and releases virtual memory. */              \
-  static inline void dp_##name##_destroy (dp_##name *ab)                      \
+  static inline void dp_##name##_destroy (dp_##name##_t *ab)                  \
   {                                                                           \
     dp__buf_free (ab->data, ab->capacity * sizeof (type) * 2, ab->_handle);   \
     free (ab);                                                                \
@@ -386,7 +386,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    * @param n   Number of complex samples to write.                           \
    * @return true if successful, false on buffer overrun (data dropped).      \
    */                                                                         \
-  static inline bool dp_##name##_write (dp_##name *ab, const type *src,       \
+  static inline bool dp_##name##_write (dp_##name##_t *ab, const type *src,   \
                                         size_t n)                             \
   {                                                                           \
     size_t h = DP_LOAD_RLX (&ab->head);                                       \
@@ -411,7 +411,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    * @param n  Minimum samples required.                                      \
    * @return   Pointer to the read-head in the buffer.                        \
    */                                                                         \
-  static inline type *dp_##name##_wait (dp_##name *ab, size_t n)              \
+  static inline type *dp_##name##_wait (dp_##name##_t *ab, size_t n)          \
   {                                                                           \
     size_t h, t;                                                              \
     while (((h = DP_LOAD_ACQ (&ab->head)) - (t = DP_LOAD_RLX (&ab->tail)))    \
@@ -424,7 +424,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   }                                                                           \
                                                                               \
   /** @brief Releases @p n samples after processing is complete. */           \
-  static inline void dp_##name##_consume (dp_##name *ab, size_t n)            \
+  static inline void dp_##name##_consume (dp_##name##_t *ab, size_t n)        \
   {                                                                           \
     size_t t = DP_LOAD_RLX (&ab->tail);                                       \
     DP_STORE_REL (&ab->tail, t + n);                                          \

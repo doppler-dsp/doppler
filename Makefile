@@ -195,6 +195,7 @@ record-demo:
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
 # Run before releasing whenever examples/python/ has changed.
 GALLERY_SCRIPTS := \
+    examples/python/agc_demo.py \
     examples/python/corr_demo.py \
     examples/python/detection_curves.py \
     examples/python/detection_sim.py
@@ -205,7 +206,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f corr_demo.png detection_curves.png detection_sim.png docs/assets/
+	@mv -f agc_convergence.png corr_demo.png detection_curves.png detection_sim.png docs/assets/
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

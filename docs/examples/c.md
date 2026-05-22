@@ -174,3 +174,125 @@ fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
 fft2d_destroy(fft2d);
 ```
 
+---
+
+## Halfband decimator
+
+2:1 decimation with a symmetric FIR. Input length must be even;
+output length is exactly `n_in / 2`.
+
+```c
+#include <HalfbandDecimator/HalfbandDecimator_core.h>
+#include <complex.h>
+#include <stdio.h>
+
+#define N_TAPS 4
+#define N_IN   32
+
+/* Minimal 4-tap symmetric halfband coefficients. */
+static const float H_FIR[N_TAPS] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
+
+int main(void) {
+    HalfbandDecimator_state_t *dec = HalfbandDecimator_create(N_TAPS, H_FIR);
+
+    float _Complex in[N_IN], out[N_IN / 2];
+    /* ... fill in[] with your signal ... */
+
+    size_t n_out = HalfbandDecimator_execute(dec, in, N_IN, out);
+    printf("output samples: %zu\n", n_out);   /* 16 */
+
+    HalfbandDecimator_destroy(dec);
+    return 0;
+}
+```
+
+Build and run the full demo:
+
+```sh
+make build
+./build/examples/c/hbdecim_demo
+```
+
+---
+
+## AGC — automatic gain control
+
+The AGC drives output power to `ref_db` using a first-order loop filter.
+`agc_step()` processes one sample at a time; the loop is linear in the
+dB domain so settling time is independent of the step size.
+
+```c
+#include <agc/agc_core.h>
+#include <complex.h>
+#include <math.h>
+#include <stdio.h>
+
+#define N      6000
+#define N_STEP 3000
+#define F_TONE 0.02
+
+int main(void) {
+    agc_state_t *agc = agc_create(
+        0.0,      /* ref_db  — target output power */
+        0.00125,  /* loop_bw — noise bandwidth, cycles/sample */
+        0.02      /* alpha   — power-detector EMA coefficient */
+    );
+
+    for (int n = 0; n < N; n++) {
+        double amp = (n < N_STEP) ? pow(10, -10.0/20) : pow(10, 10.0/20);
+        float _Complex x = (float)(amp * cos(2*M_PI*F_TONE*n))
+                         + (float)(amp * sin(2*M_PI*F_TONE*n)) * I;
+        float _Complex y = agc_step(agc, x);
+        (void)y;
+    }
+
+    printf("gain_db = %.2f\n", agc->gain_db);
+    agc_destroy(agc);
+    return 0;
+}
+```
+
+Build and run the full demo (prints a convergence table and writes
+`agc_step_response.csv`):
+
+```sh
+make build
+./build/examples/c/agc_demo
+```
+
+---
+
+## PUSH/PULL pipeline
+
+Two threads in-process — producer pushes 100 batches of 1024 CF64
+samples over a ZMQ PUSH/PULL socket; consumer receives and prints power.
+
+```c
+#include <doppler.h>
+#include <stream/stream.h>
+#include <complex.h>
+
+/* Producer thread */
+dp_push_t *ctx = dp_push_create("ipc:///tmp/dp.ipc", CF64);
+dp_header_t hdr = { .sample_type = CF64, .num_samples = 1024,
+                    .sample_rate = 1e6, .center_freq = 0 };
+dp_push_send(ctx, &hdr, samples, 1024 * sizeof(double _Complex));
+dp_push_destroy(ctx);
+
+/* Consumer thread */
+dp_pull_t *rx = dp_pull_create("ipc:///tmp/dp.ipc");
+dp_header_t rhdr;
+void *buf = malloc(DP_MAX_PAYLOAD);
+dp_pull_recv(rx, &rhdr, buf, DP_MAX_PAYLOAD);
+dp_pull_destroy(rx);
+free(buf);
+```
+
+Build and run the in-process demo (producer + consumer threads, 100
+batches):
+
+```sh
+make build
+./build/examples/c/pipeline_demo
+```
+

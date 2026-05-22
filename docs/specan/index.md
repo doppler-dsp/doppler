@@ -33,7 +33,7 @@ doppler-specan --source socket --address tcp://localhost:5555 --web
 Install:
 
 ```sh
-pip install doppler-specan[web]
+pip install "doppler-dsp[specan-web]"
 ```
 
 Regenerate the recorded demo frames:

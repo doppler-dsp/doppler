@@ -12,8 +12,8 @@ libraries required.
 Optional extras:
 
 ```bash
-pip install doppler-specan    # live spectrum analyzer web UI
-pip install doppler-cli       # compose / Dopplerfile pipeline CLI
+pip install "doppler-dsp[specan-web]"  # live spectrum analyzer web UI
+pip install "doppler-dsp[cli]"         # compose / Dopplerfile pipeline CLI
 ```
 
 ---

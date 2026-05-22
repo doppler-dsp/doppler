@@ -16,7 +16,7 @@ no divergence between languages, C throughput from Python.
 - **DDC** — `Ddc` (complex IQ) and `DDCR` (real ADC, Architecture D2, ~2× cheaper)
 - **Signal streaming** — ZMQ transport (PUB/SUB, PUSH/PULL, REQ/REP); C and Python; multi-machine
 - **Circular buffers** — double-mapped ring buffers, lock-free SPSC, zero-copy IPC (F32/F64/I16)
-- **Spectrum analyzer** — `doppler-specan`: real-time FFT display, waterfall, web UI
+- **Spectrum analyzer** — `doppler-specan` command (`doppler-dsp[specan-web]`): real-time FFT display, waterfall, web UI
 - **Pipeline CLI** — `doppler compose`: wire blocks into processing chains with a YAML file
 - **Multi-language** — clean C ABI; Python bindings and Rust FFI; Dopplerfile for custom blocks
 

@@ -19,9 +19,8 @@ and `RUST_BUILD=ffi/rust/target` (extensions differ by platform):
 | C examples        | `transmitter`, …        | `transmitter.exe`, … | Streaming and DSP demos      |
 | Rust examples     | `$RUST_BUILD/*_demo`, … | same                 | NCO, FFT, SIMD, ...          |
 
-And the Python packages are in `dist/`:
-`doppler_dsp-*.whl`, `doppler_specan-*.whl`, `doppler_cli-*.whl`
-(plus `*.tar.gz` sdists)
+And the Python package is in `dist/`:
+`doppler_dsp-*.whl` (plus `*.tar.gz` sdist)
 
 ### Targets
 
@@ -44,28 +43,21 @@ And the Python packages are in `dist/`:
 
 ## Python bindings
 
-Three packages are published to PyPI:
+One package is published to PyPI with optional extras:
 
-| Package | PyPI name | Description |
-| ------- | --------- | ----------- |
-| Core DSP | `doppler-dsp` | FFT, FIR, NCO, streaming, buffer |
-| Spectrum analyzer | `doppler-specan` | Live spectrum analyzer web app |
-| CLI | `doppler-cli` | `doppler compose` pipeline orchestrator |
-
-```bash
-pip install doppler-dsp
-pip install doppler-specan    # spectrum analyzer
-pip install doppler-cli       # compose / Dopplerfile CLI
-```
+| Extra | Install | Description |
+| ----- | ------- | ----------- |
+| *(none)* | `pip install doppler-dsp` | FFT, FIR, NCO, streaming, buffer |
+| `specan` | `pip install "doppler-dsp[specan]"` | Terminal spectrum analyzer |
+| `specan-web` | `pip install "doppler-dsp[specan-web]"` | Web spectrum analyzer (FastAPI + WebSocket) |
+| `cli` | `pip install "doppler-dsp[cli]"` | `doppler compose` pipeline orchestrator |
 
 **From source** — build and install the C library first, then install
-the Python packages:
+the Python package:
 
 ```bash
 make && sudo make install && sudo ldconfig
 pip install .
-pip install specan/
-pip install cli/
 ```
 
 The `doppler-dsp` wheel contains one compiled extension per subpackage

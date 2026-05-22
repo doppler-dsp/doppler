@@ -1,14 +1,14 @@
 # Doppler CLI
 
-`doppler-cli` is a pipeline orchestrator for Doppler signal processing
-chains. It lets you wire sources, DSP blocks, and sinks together with
-a single command — or a declarative compose file — and manages the
-lifetime of every process.
+The `doppler compose` CLI is a pipeline orchestrator for Doppler signal
+processing chains. It lets you wire sources, DSP blocks, and sinks
+together with a single command — or a declarative compose file — and
+manages the lifetime of every process.
 
 Install:
 
 ```sh
-pip install doppler-cli
+pip install "doppler-dsp[cli]"
 ```
 
 ---

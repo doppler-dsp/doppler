@@ -11,3 +11,9 @@ target_include_directories(test_corr_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 target_link_libraries(test_corr_core PRIVATE corr_core fft_core m)
 add_test(NAME test_corr_core COMMAND test_corr_core)
+
+add_executable(bench_corr_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_corr_core.c)
+target_include_directories(bench_corr_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(bench_corr_core PRIVATE corr_core fft_core m)

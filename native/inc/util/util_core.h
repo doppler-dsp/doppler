@@ -22,12 +22,12 @@ extern "C"
   /**
    * @brief Square-clip a complex sample.
    *
-   * Clips the real and imaginary parts independently to [-lin, lin] —
+   * Clips the real and imaginary parts independently to &#91;-lin, lin&#93; —
    * a square region in the IQ plane, not a circular magnitude limit.
    *
    * @param y    Input sample.
    * @param lin  Per-component clip threshold (linear amplitude, >= 0).
-   * @return Sample with each component limited to [-lin, lin].
+   * @return Sample with each component limited to &#91;-lin, lin&#93;.
    */
   JM_FORCEINLINE float complex
   square_clip (float complex y, float lin)

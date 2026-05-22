@@ -24,10 +24,21 @@ Here is a list of all files with brief descriptions:
             * **file** [**agc\_core.h**](agc__core_8h.md) _Log-domain automatic gain control (AGC)._     
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
+        * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
+            * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
+        * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     
+            * **file** [**corr2d\_core.h**](corr2d__core_8h.md) _2-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
             * **file** [**ddc\_core.h**](ddc__core_8h.md) _Digital Down-Converter — composes LO + polyphase resampler._     
         * **dir** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md)     
             * **file** [**delay\_core.h**](delay__core_8h.md) _Delay component API._     
+        * **dir** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md)     
+            * **file** [**detection\_core.h**](detection__core_8h.md) _Detection-theory utilities for the amplitude-ratio test statistic._     
+        * **dir** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md)     
+            * **file** [**det\_private.h**](det__private_8h.md) _Shared internals for detector\_core.c and detector2d\_core.c._     
+            * **file** [**detector\_core.h**](detector__core_8h.md) _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
+        * **dir** [**detector2d**](dir_bd7354e9665bd912180ec22b3c69b55c.md)     
+            * **file** [**detector2d\_core.h**](detector2d__core_8h.md) _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
             * **file** [**fft\_core.h**](fft__core_8h.md) _Per-instance 1-D FFT using pocketfft directly._     
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     

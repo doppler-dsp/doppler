@@ -179,7 +179,7 @@ typedef double JM_VEC_F64;
  * ════════════════════════════════════════════════════════════════════ */
 
 /**
- * @brief Sum of squares: dst = Σ ptr[i]² for i in [0, n).
+ * @brief Sum of squares: dst = Σ ptr&#91;i&#93;² for i in &#91;0, n).
  *
  * The bulk runs JM_SIMD_WIDTH_F32-wide via FMA accumulation; the
  * trailing @c n % JM_SIMD_WIDTH_F32 elements are summed scalar.  When

@@ -9,9 +9,19 @@
 * [**agc\_state\_t**](structagc__state__t.md)
 
 
+## c
+
+* [**corr2d\_state\_t**](structcorr2d__state__t.md)
+* [**corr\_state\_t**](structcorr__state__t.md)
+
+
 ## d
 
 * [**delay\_state\_t**](structdelay__state__t.md)
+* [**det\_result2d\_t**](structdet__result2d__t.md)
+* [**det\_result\_t**](structdet__result__t.md)
+* [**detector2d\_state\_t**](structdetector2d__state__t.md)
+* [**detector\_state\_t**](structdetector__state__t.md)
 * [**dp\_header\_t**](structdp__header__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 

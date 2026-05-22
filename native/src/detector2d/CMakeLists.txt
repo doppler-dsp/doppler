@@ -13,3 +13,10 @@ target_include_directories(test_detector2d_core
 target_link_libraries(test_detector2d_core
     PRIVATE detector2d_core corr2d_core fft2d_core fft_core m)
 add_test(NAME test_detector2d_core COMMAND test_detector2d_core)
+
+add_executable(bench_detector2d_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_detector2d_core.c)
+target_include_directories(bench_detector2d_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(bench_detector2d_core
+    PRIVATE detector2d_core corr2d_core fft2d_core fft_core m)

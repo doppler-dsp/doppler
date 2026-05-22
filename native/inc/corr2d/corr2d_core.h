@@ -5,7 +5,7 @@
  * Two-dimensional extension of corr_core: all buffers are ny×nx row-major
  * flat arrays of length ny*nx.  The correlation theorem extends naturally:
  *
- *   R_xh[i,j] = IFFT2( FFT2(x) · conj(FFT2(h)) ) / (ny*nx)
+ *   `R_xh[i,j] = IFFT2( FFT2(x) · conj(FFT2(h)) ) / (ny*nx)`
  *
  * The reference spectrum is pre-computed at create time.  The int-dump
  * semantics are identical to the 1-D case: coherently sum ``dwell``
@@ -93,9 +93,9 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
  *
  * Steps:
  *   1. FFT2(in) → work_fft
- *   2. work_fft[k] *= ref_spec[k]
+ *   2. `work_fft[k] *= ref_spec[k]`
  *   3. IFFT2(work_fft) → work_ifft  (divide by ny*nx)
- *   4. accum[k] += work_ifft[k] / (ny*nx)
+ *   4. `accum[k] += work_ifft[k] / (ny*nx)`
  *   5. If count == dwell: copy accum → out, zero, reset, return ny*nx.
  *   6. Otherwise: return 0.
  *

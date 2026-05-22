@@ -61,8 +61,8 @@ typedef struct
 {
   size_t row;       /**< Row of the correlation peak (0-indexed).           */
   size_t col;       /**< Column of the correlation peak (0-indexed).        */
-  float peak_mag;   /**< max |R[i,j]| (linear magnitude).                  */
-  float noise_est;  /**< Noise estimate aggregated over [noise_lo, hi].     */
+  float peak_mag;   /**< max |R&#91;i,j&#93;| (linear magnitude).                  */
+  float noise_est;  /**< Noise estimate aggregated over &#91;noise_lo, hi&#93;.     */
   float test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.        */
 } det_result2d_t;
 
@@ -78,7 +78,7 @@ typedef struct
   corr2d_state_t *corr;     /**< 2-D FFT correlator + int-dump engine.     */
   dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
   float complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
-  float *mag_buf;           /**< |out_buf[k]|, ny*nx floats.               */
+  float *mag_buf;           /**< |out_buf&#91;k&#93;|, ny*nx floats.               */
   float *noise_scratch;     /**< Scratch for median sort.                   */
   size_t ny;                /**< Number of rows.                            */
   size_t nx;                /**< Number of columns.                         */

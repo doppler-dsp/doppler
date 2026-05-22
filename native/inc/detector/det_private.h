@@ -57,7 +57,7 @@ _cmp_f32_asc (const void *a, const void *b)
 }
 
 /**
- * @brief Aggregate |corr| over bins [lo, hi] using the selected mode.
+ * @brief Aggregate |corr| over bins &#91;lo, hi&#93; using the selected mode.
  *
  * Returns 0 if lo > hi (empty range) — the caller maps that to test_stat=0.
  *

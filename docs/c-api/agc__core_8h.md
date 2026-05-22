@@ -133,9 +133,11 @@ The loop filter is a single integrator whose step size is `4*loop_bw`. `loop_bw`
 The control variable `gain_db` and the detector output are both in decibels, so the closed loop is a linear 1st-order recursion in the dB domain. Because output power (dB) equals input power (dB) plus `gain_db`, the loop reduces to
 
 
-gain\_db[n+1] = (1 - 4\*loop\_bw) \* gain\_db[n]
-* (4\*loop\_bw) \* (ref\_db - px\_db[n])
 
+```C++
+gain_db[n+1] = (1 - 4*loop_bw) * gain_db[n]
+             + (4*loop_bw) * (ref_db - px_db[n])
+```
 
 
 
@@ -174,7 +176,7 @@ Feedback — power is measured AFTER the gain. The gain applied to sample `n` is
 Each output sample is square-clipped: the real and imaginary parts are independently limited to `+/-10^`(clip\_db/20) — a square region in the IQ plane, not a circular magnitude limit. The clip is the last operation applied to the output and does NOT feed the power detector: the loop always measures the true, unclipped power, so clipping never disturbs convergence. `clip_db` defaults to `AGC_CLIP_DB_DEFAULT`, which is high enough to be effectively off.
 
 
-Lifecycle: agc\_create -&gt; [step / steps / reset]\* -&gt; agc\_destroy
+Lifecycle: `agc_create -> [step / steps / reset]* -> agc_destroy`
 
 
 
@@ -351,7 +353,7 @@ JM_FORCEINLINE double agc_log10_ (
 
 
 
-Splits p = m \* 2^e via the IEEE-754 fields, takes log2(m) from the atanh series with t = (m-1)/(m+1) in [0, 1/3] (two terms), and scales log2 by log10(2). Used only on the decimated control path, so even the divide is amortised across a decimation chunk. 
+Splits p = m \* 2^e via the IEEE-754 fields, takes log2(m) from the atanh series with t = (m-1)/(m+1) in &#91;0, 1/3&#93; (two terms), and scales log2 by log10(2). Used only on the decimated control path, so even the divide is amortised across a decimation chunk. 
 
 
         

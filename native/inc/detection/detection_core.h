@@ -58,7 +58,7 @@ extern "C" {
  * @param m  Integration order; must be >= 1.
  * @param a  Non-centrality parameter (signal strength).  a = 0 for H0.
  * @param b  Threshold (same units as test_stat).
- * @return   Q_M(a, b) in [0, 1].
+ * @return   Q_M(a, b) in &#91;0, 1&#93;.
  *
  * Verifiable reference values (scipy.special.marcum_q):
  *   marcum_q(1, 0.0, 1.0) = exp(-0.5) ~ 0.60653
@@ -97,7 +97,7 @@ double det_threshold (double pfa);
  *                   linear).  snr = 0 gives Pd = Pfa.
  * @param dwell      Coherent integration depth; must be >= 1.
  * @param threshold  Test-stat threshold eta, e.g. from det_threshold().
- * @return           Detection probability in [0, 1].
+ * @return           Detection probability in &#91;0, 1&#93;.
  *
  * Example: det_pd(1.0, 4, det_threshold(1e-6)) ~ 0.78
  */
@@ -125,7 +125,7 @@ int det_dwell (double snr, double pd_min, double pfa, int max_dwell);
 /**
  * @brief Minimum per-sample amplitude SNR achieving Pd >= pd_min.
  *
- * Binary search over SNR in [0, hi] where hi is doubled from 1.0 until
+ * Binary search over SNR in &#91;0, hi&#93; where hi is doubled from 1.0 until
  * det_pd(hi, dwell, threshold) >= pd_min.  64 bisection iterations yield
  * ~1e-19 relative precision on the final interval.
  *
@@ -182,7 +182,7 @@ double det_threshold_power (double pfa);
  *                        the correlator output, linear).  0 gives Pd = Pfa.
  * @param dwell           Coherent integration depth; must be >= 1.
  * @param power_threshold Threshold p, e.g. from det_threshold_power().
- * @return                Detection probability in [0, 1].
+ * @return                Detection probability in &#91;0, 1&#93;.
  *
  * Example: det_pd_power(1.0, 4, det_threshold_power(1e-6)) ~ 0.78
  *   (same result as det_pd(1.0, 4, det_threshold(1e-6)) since snr_power=1

@@ -43,13 +43,13 @@
 | ---: | :--- |
 | typedef struct dp\_msg | [**dp\_msg\_t**](#typedef-dp_msg_t)  <br>_Opaque zero-copy message handle returned by recv functions._  |
 | enum  | [**dp\_protocol\_t**](#enum-dp_protocol_t)  <br>_Protocol identifier for the wire header._  |
-| typedef struct dp\_ctx | [**dp\_pub**](#typedef-dp_pub)  <br>_Opaque streaming socket handle returned by all create functions._  |
-| typedef struct dp\_ctx | [**dp\_pull**](#typedef-dp_pull)  <br> |
-| typedef struct dp\_ctx | [**dp\_push**](#typedef-dp_push)  <br> |
-| typedef struct dp\_ctx | [**dp\_rep**](#typedef-dp_rep)  <br> |
-| typedef struct dp\_ctx | [**dp\_req**](#typedef-dp_req)  <br> |
+| typedef struct dp\_ctx | [**dp\_pub\_t**](#typedef-dp_pub_t)  <br>_Opaque streaming socket handle returned by all create functions._  |
+| typedef struct dp\_ctx | [**dp\_pull\_t**](#typedef-dp_pull_t)  <br> |
+| typedef struct dp\_ctx | [**dp\_push\_t**](#typedef-dp_push_t)  <br> |
+| typedef struct dp\_ctx | [**dp\_rep\_t**](#typedef-dp_rep_t)  <br> |
+| typedef struct dp\_ctx | [**dp\_req\_t**](#typedef-dp_req_t)  <br> |
 | enum  | [**dp\_sample\_type\_t**](#enum-dp_sample_type_t)  <br>_Selects the wire format of complex samples._  |
-| typedef struct dp\_ctx | [**dp\_sub**](#typedef-dp_sub)  <br> |
+| typedef struct dp\_ctx | [**dp\_sub\_t**](#typedef-dp_sub_t)  <br> |
 
 
 
@@ -138,11 +138,11 @@ enum dp_protocol_t {
 
 
 
-### typedef dp\_pub 
+### typedef dp\_pub\_t 
 
 _Opaque streaming socket handle returned by all create functions._ 
 ```
-typedef struct dp_ctx dp_pub;
+typedef struct dp_ctx dp_pub_t;
 ```
 
 
@@ -152,23 +152,10 @@ typedef struct dp_ctx dp_pub;
 
 
 
-### typedef dp\_pull 
+### typedef dp\_pull\_t 
 
 ```
-typedef struct dp_ctx dp_pull;
-```
-
-
-
-
-<hr>
-
-
-
-### typedef dp\_push 
-
-```
-typedef struct dp_ctx dp_push;
+typedef struct dp_ctx dp_pull_t;
 ```
 
 
@@ -178,10 +165,10 @@ typedef struct dp_ctx dp_push;
 
 
 
-### typedef dp\_rep 
+### typedef dp\_push\_t 
 
 ```
-typedef struct dp_ctx dp_rep;
+typedef struct dp_ctx dp_push_t;
 ```
 
 
@@ -191,10 +178,23 @@ typedef struct dp_ctx dp_rep;
 
 
 
-### typedef dp\_req 
+### typedef dp\_rep\_t 
 
 ```
-typedef struct dp_ctx dp_req;
+typedef struct dp_ctx dp_rep_t;
+```
+
+
+
+
+<hr>
+
+
+
+### typedef dp\_req\_t 
+
+```
+typedef struct dp_ctx dp_req_t;
 ```
 
 
@@ -232,10 +232,10 @@ Values are fixed — new types are appended to preserve wire compatibility with 
 
 
 
-### typedef dp\_sub 
+### typedef dp\_sub\_t 
 
 ```
-typedef struct dp_ctx dp_sub;
+typedef struct dp_ctx dp_sub_t;
 ```
 
 

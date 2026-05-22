@@ -10,17 +10,20 @@
 
 
 
+* `#include "acc_f32/acc_f32_core.h"`
+* `#include "acc_cf64/acc_cf64_core.h"`
 * `#include "fir/fir_core.h"`
 * `#include "nco/nco_core.h"`
 * `#include "lo/lo_core.h"`
-* `#include "acc_f32/acc_f32_core.h"`
-* `#include "acc_cf64/acc_cf64_core.h"`
 * `#include "delay/delay_core.h"`
 * `#include "fft/fft_core.h"`
 * `#include "fft2d/fft2d_core.h"`
+* `#include "corr/corr_core.h"`
+* `#include "corr2d/corr2d_core.h"`
+* `#include "detector/detector_core.h"`
+* `#include "detector2d/detector2d_core.h"`
 * `#include "Resampler/Resampler_core.h"`
 * `#include "HalfbandDecimator/HalfbandDecimator_core.h"`
-* `#include "doppler/version.h"`
 * `#include "agc/agc_core.h"`
 
 

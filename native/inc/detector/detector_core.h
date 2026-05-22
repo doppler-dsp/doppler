@@ -9,8 +9,8 @@
  *
  *   test_stat = peak_mag / noise_est
  *
- * where peak_mag = max|R[τ]| and noise_est is an aggregate (mean, median,
- * min, or max) of |R[τ]| over a user-supplied bin range [noise_lo, noise_hi].
+ * where peak_mag = max|R&#91;τ&#93;| and noise_est is an aggregate (mean, median,
+ * min, or max) of |R&#91;τ&#93;| over a user-supplied bin range &#91;noise_lo, noise_hi&#93;.
  * A detection event is emitted when test_stat > threshold (or whenever
  * threshold == 0.0, which means "always fire").
  *
@@ -46,7 +46,7 @@ extern "C" {
 
 /**
  * @brief Selects how noise power is estimated from the correlation magnitude
- *        vector over bins [noise_lo, noise_hi].
+ *        vector over bins &#91;noise_lo, noise_hi&#93;.
  *
  * The test statistic is peak_mag / noise_est.  A zero noise_est (e.g., when
  * all bins in the range are zero) yields test_stat = 0.
@@ -55,10 +55,10 @@ extern "C" {
 #define DET_NOISE_MODE_T_DEFINED
 typedef enum
 {
-  DET_NOISE_MEAN = 0,   /**< Arithmetic mean of |R[τ]| over [lo, hi]. */
-  DET_NOISE_MEDIAN = 1, /**< Median of |R[τ]| over [lo, hi].          */
-  DET_NOISE_MIN = 2,    /**< Minimum of |R[τ]| over [lo, hi].         */
-  DET_NOISE_MAX = 3,    /**< Maximum of |R[τ]| over [lo, hi].         */
+  DET_NOISE_MEAN = 0,   /**< Arithmetic mean of |R&#91;τ&#93;| over &#91;lo, hi&#93;. */
+  DET_NOISE_MEDIAN = 1, /**< Median of |R&#91;τ&#93;| over &#91;lo, hi&#93;.          */
+  DET_NOISE_MIN = 2,    /**< Minimum of |R&#91;τ&#93;| over &#91;lo, hi&#93;.         */
+  DET_NOISE_MAX = 3,    /**< Maximum of |R&#91;τ&#93;| over &#91;lo, hi&#93;.         */
 } det_noise_mode_t;
 #endif /* DET_NOISE_MODE_T_DEFINED */
 
@@ -71,9 +71,9 @@ typedef enum
  */
 typedef struct
 {
-  size_t lag;       /**< argmax |R[τ]| — lag index of the correlation peak. */
-  float peak_mag;   /**< max |R[τ]| (linear magnitude, not power).          */
-  float noise_est;  /**< Noise estimate (aggregated |R| in [noise_lo,hi]).   */
+  size_t lag;       /**< argmax |R&#91;τ&#93;| — lag index of the correlation peak. */
+  float peak_mag;   /**< max |R&#91;τ&#93;| (linear magnitude, not power).          */
+  float noise_est;  /**< Noise estimate (aggregated |R| in &#91;noise_lo,hi&#93;).   */
   float test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.         */
 } det_result_t;
 
@@ -89,7 +89,7 @@ typedef struct
   corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
   dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
   float complex *out_buf;   /**< Corr output buffer (n complex samples).    */
-  float *mag_buf;           /**< |out_buf[k]|, n floats.                   */
+  float *mag_buf;           /**< |out_buf&#91;k&#93;|, n floats.                   */
   float *noise_scratch;     /**< Scratch for median sort.                   */
   size_t n;                 /**< Frame / FFT length in complex samples.     */
   size_t ring_cap;          /**< Ring buffer capacity in complex samples.   */

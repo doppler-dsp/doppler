@@ -51,18 +51,18 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_pub**](group__types.md#typedef-dp_pub) \* | [**dp\_pub\_create**](#function-dp_pub_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Publisher socket and bind to_ `endpoint` _._ |
-|  void | [**dp\_pub\_destroy**](#function-dp_pub_destroy) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx) <br>_Destroy a Publisher context and release all resources._  |
-|  int | [**dp\_pub\_send\_cf128**](#function-dp_pub_send_cf128) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF128 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_cf32**](#function-dp_pub_send_cf32) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF32 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_cf64**](#function-dp_pub_send_cf64) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF64 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
-|  int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub**](group__types.md#typedef-dp_pub) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
-|  [**dp\_sub**](group__types.md#typedef-dp_sub) \* | [**dp\_sub\_create**](#function-dp_sub_create) (const char \* endpoint) <br>_Create a Subscriber socket and connect to_ `endpoint` _._ |
-|  void | [**dp\_sub\_destroy**](#function-dp_sub_destroy) ([**dp\_sub**](group__types.md#typedef-dp_sub) \* ctx) <br>_Destroy a Subscriber context and release all resources._  |
-|  int | [**dp\_sub\_recv**](#function-dp_sub_recv) ([**dp\_sub**](group__types.md#typedef-dp_sub) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Subscriber socket (zero-copy)._  |
-|  void | [**dp\_sub\_set\_timeout**](#function-dp_sub_set_timeout) ([**dp\_sub**](group__types.md#typedef-dp_sub) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Subscriber socket._  |
+|  [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* | [**dp\_pub\_create**](#function-dp_pub_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Publisher socket and bind to_ `endpoint` _._ |
+|  void | [**dp\_pub\_destroy**](#function-dp_pub_destroy) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Destroy a Publisher context and release all resources._  |
+|  int | [**dp\_pub\_send\_cf128**](#function-dp_pub_send_cf128) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF128 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_cf32**](#function-dp_pub_send_cf32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF32 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_cf64**](#function-dp_pub_send_cf64) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CF64 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_ci16**](#function-dp_pub_send_ci16) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI16 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_ci32**](#function-dp_pub_send_ci32) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI32 samples via a Publisher._  |
+|  int | [**dp\_pub\_send\_ci8**](#function-dp_pub_send_ci8) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send an array of CI8 samples via a Publisher._  |
+|  [**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* | [**dp\_sub\_create**](#function-dp_sub_create) (const char \* endpoint) <br>_Create a Subscriber socket and connect to_ `endpoint` _._ |
+|  void | [**dp\_sub\_destroy**](#function-dp_sub_destroy) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx) <br>_Destroy a Subscriber context and release all resources._  |
+|  int | [**dp\_sub\_recv**](#function-dp_sub_recv) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Subscriber socket (zero-copy)._  |
+|  void | [**dp\_sub\_set\_timeout**](#function-dp_sub_set_timeout) ([**dp\_sub\_t**](group__types.md#typedef-dp_sub_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Subscriber socket._  |
 
 
 
@@ -107,7 +107,7 @@ The Publisher binds to an endpoint and fans out every message to all connected S
 
 _Create a Publisher socket and bind to_ `endpoint` _._
 ```
-dp_pub * dp_pub_create (
+dp_pub_t * dp_pub_create (
     const char * endpoint,
     dp_sample_type_t sample_type
 ) 
@@ -144,7 +144,7 @@ Non-NULL context on success, NULL on failure.
 _Destroy a Publisher context and release all resources._ 
 ```
 void dp_pub_destroy (
-    dp_pub * ctx
+    dp_pub_t * ctx
 ) 
 ```
 
@@ -171,7 +171,7 @@ void dp_pub_destroy (
 _Send an array of CF128 samples via a Publisher._ 
 ```
 int dp_pub_send_cf128 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const long double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -213,7 +213,7 @@ DP\_OK (0) on success, negative error code on failure.
 _Send an array of CF32 samples via a Publisher._ 
 ```
 int dp_pub_send_cf32 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const float _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -255,7 +255,7 @@ DP\_OK (0) on success, negative error code on failure.
 _Send an array of CF64 samples via a Publisher._ 
 ```
 int dp_pub_send_cf64 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -297,7 +297,7 @@ DP\_OK (0) on success, negative error code on failure.
 _Send an array of CI16 samples via a Publisher._ 
 ```
 int dp_pub_send_ci16 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const int16_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -339,7 +339,7 @@ DP\_OK (0) on success, negative error code on failure.
 _Send an array of CI32 samples via a Publisher._ 
 ```
 int dp_pub_send_ci32 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const int32_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -381,7 +381,7 @@ DP\_OK (0) on success, negative error code on failure.
 _Send an array of CI8 samples via a Publisher._ 
 ```
 int dp_pub_send_ci8 (
-    dp_pub * ctx,
+    dp_pub_t * ctx,
     const int8_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -422,7 +422,7 @@ DP\_OK (0) on success, negative error code on failure.
 
 _Create a Subscriber socket and connect to_ `endpoint` _._
 ```
-dp_sub * dp_sub_create (
+dp_sub_t * dp_sub_create (
     const char * endpoint
 ) 
 ```
@@ -460,7 +460,7 @@ Non-NULL context on success, NULL on failure.
 _Destroy a Subscriber context and release all resources._ 
 ```
 void dp_sub_destroy (
-    dp_sub * ctx
+    dp_sub_t * ctx
 ) 
 ```
 
@@ -487,7 +487,7 @@ void dp_sub_destroy (
 _Receive one frame from a Subscriber socket (zero-copy)._ 
 ```
 int dp_sub_recv (
-    dp_sub * ctx,
+    dp_sub_t * ctx,
     dp_msg_t ** msg,
     dp_header_t * header
 ) 
@@ -528,7 +528,7 @@ DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.
 _Set receive timeout for a Subscriber socket._ 
 ```
 void dp_sub_set_timeout (
-    dp_sub * ctx,
+    dp_sub_t * ctx,
     int timeout_ms
 ) 
 ```

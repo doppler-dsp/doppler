@@ -18,7 +18,8 @@ elapsed_sec(struct timespec *t0, struct timespec *t1)
 int
 main(void)
 {
-    detector_state_t *obj = detector_create(NULL, 0, 1, 0, n-1, 0, 0.0f, 1);
+    size_t n = BENCH_N;
+    detector_state_t *obj = detector_create(NULL, n, 1, 0, n-1, 0, 0.0f, 1);
     struct timespec t0, t1;
     jm_bench_t _bench = {0};
 

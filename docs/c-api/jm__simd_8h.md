@@ -105,7 +105,7 @@ _Width-portable SIMD operation macros._ [More...](#detailed-description)
 | define  | [**JM\_SPLAT\_F64**](jm__simd_8h.md#define-jm_splat_f64) (x) `((double)(x))`<br> |
 | define  | [**JM\_STORE\_F32**](jm__simd_8h.md#define-jm_store_f32) (p, v) `(\*(float \*)(p) = (v))`<br> |
 | define  | [**JM\_STORE\_F64**](jm__simd_8h.md#define-jm_store_f64) (p, v) `(\*(double \*)(p) = (v))`<br> |
-| define  | [**JM\_SUMSQ\_F32**](jm__simd_8h.md#define-jm_sumsq_f32) (dst, ptr, n) `/* multi line expression */`<br>_Sum of squares: dst = Σ ptr[i]² for i in [0, n)._  |
+| define  | [**JM\_SUMSQ\_F32**](jm__simd_8h.md#define-jm_sumsq_f32) (dst, ptr, n) `/* multi line expression */`<br>_Sum of squares: dst = Σ ptr&#91;i&#93;² for i in &#91;0, n)._  |
 | define  | [**JM\_ZERO\_F32**](jm__simd_8h.md#define-jm_zero_f32) () `(0.0f)`<br> |
 | define  | [**JM\_ZERO\_F64**](jm__simd_8h.md#define-jm_zero_f64) () `(0.0)`<br> |
 
@@ -474,7 +474,7 @@ typedef double JM_VEC_F64;
 
 ### define JM\_SUMSQ\_F32 
 
-_Sum of squares: dst = Σ ptr[i]² for i in [0, n)._ 
+_Sum of squares: dst = Σ ptr&#91;i&#93;² for i in &#91;0, n)._ 
 ```C++
 #define JM_SUMSQ_F32 (
     dst,

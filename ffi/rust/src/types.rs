@@ -20,6 +20,26 @@ impl From<num_complex::Complex<f32>> for DpCf32 {
     }
 }
 
+/// Complex 64-bit float sample (`{double i; double q;}`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct DpCf64 {
+    pub i: f64,
+    pub q: f64,
+}
+
+impl From<DpCf64> for num_complex::Complex<f64> {
+    fn from(s: DpCf64) -> Self {
+        num_complex::Complex::new(s.i, s.q)
+    }
+}
+
+impl From<num_complex::Complex<f64>> for DpCf64 {
+    fn from(c: num_complex::Complex<f64>) -> Self {
+        DpCf64 { i: c.re, q: c.im }
+    }
+}
+
 /// Complex 8-bit integer sample (`{int8_t i; int8_t q;}`).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

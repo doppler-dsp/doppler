@@ -39,6 +39,22 @@
 * **agc\_steps** ([**agc\_core.h**](agc__core_8h.md))
 
 
+## c
+
+* **corr\_create** ([**corr\_core.h**](corr__core_8h.md))
+* **corr\_destroy** ([**corr\_core.h**](corr__core_8h.md))
+* **corr\_execute** ([**corr\_core.h**](corr__core_8h.md))
+* **corr\_execute\_max\_out** ([**corr\_core.h**](corr__core_8h.md))
+* **corr\_reset** ([**corr\_core.h**](corr__core_8h.md))
+* **corr\_set\_ref** ([**corr\_core.h**](corr__core_8h.md))
+* **corr2d\_create** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **corr2d\_destroy** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **corr2d\_execute** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **corr2d\_execute\_max\_out** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **corr2d\_reset** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **corr2d\_set\_ref** ([**corr2d\_core.h**](corr2d__core_8h.md))
+
+
 ## d
 
 * **dp\_\_buf\_alloc** ([**buffer.h**](buffer_8h.md))
@@ -67,6 +83,26 @@
 * **delay\_push\_ptr\_max\_out** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_reset** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_write** ([**delay\_core.h**](delay__core_8h.md))
+* **det\_dwell** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_dwell\_power** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_pd** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_pd\_power** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_snr** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_snr\_power** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_threshold** ([**detection\_core.h**](detection__core_8h.md))
+* **det\_threshold\_power** ([**detection\_core.h**](detection__core_8h.md))
+* **detector\_create** ([**detector\_core.h**](detector__core_8h.md))
+* **detector\_destroy** ([**detector\_core.h**](detector__core_8h.md))
+* **detector\_push** ([**detector\_core.h**](detector__core_8h.md))
+* **detector\_reset** ([**detector\_core.h**](detector__core_8h.md))
+* **detector\_set\_ref** ([**detector\_core.h**](detector__core_8h.md))
+* **detector\_set\_threshold** ([**detector\_core.h**](detector__core_8h.md))
+* **detector2d\_create** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **detector2d\_destroy** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **detector2d\_push** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **detector2d\_reset** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **detector2d\_set\_ref** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **detector2d\_set\_threshold** ([**detector2d\_core.h**](detector2d__core_8h.md))
 
 
 ## f
@@ -154,12 +190,14 @@
 
 ## m
 
+* **marcum\_q** ([**detection\_core.h**](detection__core_8h.md))
 * **magnitude\_db\_cf32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
 
 
 ## n
 
+* **next\_pow2** ([**det\_private.h**](det__private_8h.md))
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_create** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_destroy** ([**nco\_core.h**](nco__core_8h.md))
@@ -205,6 +243,13 @@
 ## s
 
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
+
+
+## _
+
+* **\_cmp\_f32\_asc** ([**det\_private.h**](det__private_8h.md))
+* **\_noise\_estimate** ([**det\_private.h**](det__private_8h.md))
+* **\_ring\_create** ([**det\_private.h**](det__private_8h.md))
 
 
 

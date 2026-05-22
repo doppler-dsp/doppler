@@ -153,7 +153,7 @@ typedef struct {
 } FFTObject;
 
 static void
-FFT_dealloc(FFTObject *self)
+FFTObj_dealloc(FFTObject *self)
 {
     if (self->handle)
         fft_destroy(self->handle);
@@ -165,7 +165,7 @@ FFT_dealloc(FFTObject *self)
 }
 
 static PyObject *
-FFT_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+FFTObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     FFTObject *self = (FFTObject *)type->tp_alloc(type, 0);
     if (self)
@@ -174,7 +174,7 @@ FFT_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-FFT_init(FFTObject *self, PyObject *args, PyObject *kwds)
+FFTObj_init(FFTObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"n", "sign", "nthreads", NULL};
     unsigned long long n_raw = 0ULL;
@@ -207,7 +207,7 @@ FFT_init(FFTObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FFT_reset(FFTObject *self, PyObject *Py_UNUSED(ignored))
+FFTObj_reset(FFTObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -223,7 +223,7 @@ FFT_reset(FFTObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-FFT_execute_cf64(FFTObject *self, PyObject *args)
+FFTObj_execute_cf64(FFTObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -248,7 +248,7 @@ FFT_execute_cf64(FFTObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT_execute_cf32(FFTObject *self, PyObject *args)
+FFTObj_execute_cf32(FFTObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -273,7 +273,7 @@ FFT_execute_cf32(FFTObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT_execute_inplace_cf64(FFTObject *self, PyObject *args)
+FFTObj_execute_inplace_cf64(FFTObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -298,7 +298,7 @@ FFT_execute_inplace_cf64(FFTObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT_execute_inplace_cf32(FFTObject *self, PyObject *args)
+FFTObj_execute_inplace_cf32(FFTObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -347,7 +347,7 @@ static PyGetSetDef FFT_getset[] = {
 };
 
 static PyObject *
-FFT_destroy(FFTObject *self, PyObject *Py_UNUSED(ignored))
+FFTObj_destroy(FFTObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         fft_destroy(self->handle);
@@ -357,14 +357,14 @@ FFT_destroy(FFTObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-FFT_enter(FFTObject *self, PyObject *Py_UNUSED(ignored))
+FFTObj_enter(FFTObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-FFT_exit(FFTObject *self, PyObject *args)
+FFTObj_exit(FFTObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -374,11 +374,11 @@ FFT_exit(FFTObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef FFT_methods[] = {
-    {"reset",    (PyCFunction)FFT_reset,    METH_NOARGS,
+static PyMethodDef FFTObj_methods[] = {
+    {"reset",    (PyCFunction)FFTObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"execute_cf64", (PyCFunction)FFT_execute_cf64, METH_VARARGS,
+    {"execute_cf64", (PyCFunction)FFTObj_execute_cf64, METH_VARARGS,
      "execute_cf64(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -389,7 +389,7 @@ static PyMethodDef FFT_methods[] = {
      "    >>> y = obj.execute_cf64(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex128')\n"},
-    {"execute_cf32", (PyCFunction)FFT_execute_cf32, METH_VARARGS,
+    {"execute_cf32", (PyCFunction)FFTObj_execute_cf32, METH_VARARGS,
      "execute_cf32(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -400,7 +400,7 @@ static PyMethodDef FFT_methods[] = {
      "    >>> y = obj.execute_cf32(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"execute_inplace_cf64", (PyCFunction)FFT_execute_inplace_cf64, METH_VARARGS,
+    {"execute_inplace_cf64", (PyCFunction)FFTObj_execute_inplace_cf64, METH_VARARGS,
      "execute_inplace_cf64(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -411,7 +411,7 @@ static PyMethodDef FFT_methods[] = {
      "    >>> y = obj.execute_inplace_cf64(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex128')\n"},
-    {"execute_inplace_cf32", (PyCFunction)FFT_execute_inplace_cf32, METH_VARARGS,
+    {"execute_inplace_cf32", (PyCFunction)FFTObj_execute_inplace_cf32, METH_VARARGS,
      "execute_inplace_cf32(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -422,24 +422,24 @@ static PyMethodDef FFT_methods[] = {
      "    >>> y = obj.execute_inplace_cf32(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",  (PyCFunction)FFT_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)FFTObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)FFT_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)FFT_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)FFTObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)FFTObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject FFTType = {
+static PyTypeObject FFTObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.FFT",
     .tp_basicsize = sizeof(FFTObject),
-    .tp_dealloc   = (destructor)FFT_dealloc,
+    .tp_dealloc   = (destructor)FFTObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "FFT type.",
-    .tp_methods   = FFT_methods,
+    .tp_methods   = FFTObj_methods,
     .tp_getset    = FFT_getset,
-    .tp_new       = FFT_new,
-    .tp_init      = (initproc)FFT_init,
+    .tp_new       = FFTObj_new,
+    .tp_init      = (initproc)FFTObj_init,
 };
 /* ======================================================== */
 /* FFT2DObject — wraps fft2d_state_t *       */
@@ -457,7 +457,7 @@ typedef struct {
 } FFT2DObject;
 
 static void
-FFT2D_dealloc(FFT2DObject *self)
+FFT2DObj_dealloc(FFT2DObject *self)
 {
     if (self->handle)
         fft2d_destroy(self->handle);
@@ -469,7 +469,7 @@ FFT2D_dealloc(FFT2DObject *self)
 }
 
 static PyObject *
-FFT2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+FFT2DObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     FFT2DObject *self = (FFT2DObject *)type->tp_alloc(type, 0);
     if (self)
@@ -478,7 +478,7 @@ FFT2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-FFT2D_init(FFT2DObject *self, PyObject *args, PyObject *kwds)
+FFT2DObj_init(FFT2DObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"ny", "nx", "sign", "nthreads", NULL};
     unsigned long long ny_raw = 0ULL;
@@ -513,7 +513,7 @@ FFT2D_init(FFT2DObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FFT2D_reset(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
+FFT2DObj_reset(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -529,7 +529,7 @@ FFT2D_reset(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-FFT2D_execute_cf64(FFT2DObject *self, PyObject *args)
+FFT2DObj_execute_cf64(FFT2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -554,7 +554,7 @@ FFT2D_execute_cf64(FFT2DObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT2D_execute_cf32(FFT2DObject *self, PyObject *args)
+FFT2DObj_execute_cf32(FFT2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -579,7 +579,7 @@ FFT2D_execute_cf32(FFT2DObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT2D_execute_inplace_cf64(FFT2DObject *self, PyObject *args)
+FFT2DObj_execute_inplace_cf64(FFT2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -604,7 +604,7 @@ FFT2D_execute_inplace_cf64(FFT2DObject *self, PyObject *args)
 }
 
 static PyObject *
-FFT2D_execute_inplace_cf32(FFT2DObject *self, PyObject *args)
+FFT2DObj_execute_inplace_cf32(FFT2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -663,7 +663,7 @@ static PyGetSetDef FFT2D_getset[] = {
 };
 
 static PyObject *
-FFT2D_destroy(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
+FFT2DObj_destroy(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         fft2d_destroy(self->handle);
@@ -673,14 +673,14 @@ FFT2D_destroy(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-FFT2D_enter(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
+FFT2DObj_enter(FFT2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-FFT2D_exit(FFT2DObject *self, PyObject *args)
+FFT2DObj_exit(FFT2DObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -690,11 +690,11 @@ FFT2D_exit(FFT2DObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef FFT2D_methods[] = {
-    {"reset",    (PyCFunction)FFT2D_reset,    METH_NOARGS,
+static PyMethodDef FFT2DObj_methods[] = {
+    {"reset",    (PyCFunction)FFT2DObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"execute_cf64", (PyCFunction)FFT2D_execute_cf64, METH_VARARGS,
+    {"execute_cf64", (PyCFunction)FFT2DObj_execute_cf64, METH_VARARGS,
      "execute_cf64(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -705,7 +705,7 @@ static PyMethodDef FFT2D_methods[] = {
      "    >>> y = obj.execute_cf64(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex128')\n"},
-    {"execute_cf32", (PyCFunction)FFT2D_execute_cf32, METH_VARARGS,
+    {"execute_cf32", (PyCFunction)FFT2DObj_execute_cf32, METH_VARARGS,
      "execute_cf32(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -716,7 +716,7 @@ static PyMethodDef FFT2D_methods[] = {
      "    >>> y = obj.execute_cf32(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"execute_inplace_cf64", (PyCFunction)FFT2D_execute_inplace_cf64, METH_VARARGS,
+    {"execute_inplace_cf64", (PyCFunction)FFT2DObj_execute_inplace_cf64, METH_VARARGS,
      "execute_inplace_cf64(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -727,7 +727,7 @@ static PyMethodDef FFT2D_methods[] = {
      "    >>> y = obj.execute_inplace_cf64(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex128')\n"},
-    {"execute_inplace_cf32", (PyCFunction)FFT2D_execute_inplace_cf32, METH_VARARGS,
+    {"execute_inplace_cf32", (PyCFunction)FFT2DObj_execute_inplace_cf32, METH_VARARGS,
      "execute_inplace_cf32(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -738,24 +738,24 @@ static PyMethodDef FFT2D_methods[] = {
      "    >>> y = obj.execute_inplace_cf32(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",  (PyCFunction)FFT2D_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)FFT2DObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)FFT2D_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)FFT2D_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)FFT2DObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)FFT2DObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject FFT2DType = {
+static PyTypeObject FFT2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.FFT2D",
     .tp_basicsize = sizeof(FFT2DObject),
-    .tp_dealloc   = (destructor)FFT2D_dealloc,
+    .tp_dealloc   = (destructor)FFT2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "FFT2D type.",
-    .tp_methods   = FFT2D_methods,
+    .tp_methods   = FFT2DObj_methods,
     .tp_getset    = FFT2D_getset,
-    .tp_new       = FFT2D_new,
-    .tp_init      = (initproc)FFT2D_init,
+    .tp_new       = FFT2DObj_new,
+    .tp_init      = (initproc)FFT2DObj_init,
 };
 /* ======================================================== */
 /* CorrObject — wraps corr_state_t *       */
@@ -770,7 +770,7 @@ typedef struct {
 } CorrObject;
 
 static void
-Corr_dealloc(CorrObject *self)
+CorrObj_dealloc(CorrObject *self)
 {
     if (self->handle)
         corr_destroy(self->handle);
@@ -779,7 +779,7 @@ Corr_dealloc(CorrObject *self)
 }
 
 static PyObject *
-Corr_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+CorrObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     CorrObject *self = (CorrObject *)type->tp_alloc(type, 0);
     if (self)
@@ -788,7 +788,7 @@ Corr_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-Corr_init(CorrObject *self, PyObject *args, PyObject *kwds)
+CorrObj_init(CorrObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"ref", "dwell", "nthreads", NULL};
     PyObject *ref_obj = NULL;
@@ -817,7 +817,7 @@ Corr_init(CorrObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Corr_reset(CorrObject *self, PyObject *Py_UNUSED(ignored))
+CorrObj_reset(CorrObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -833,7 +833,7 @@ Corr_reset(CorrObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-Corr_execute(CorrObject *self, PyObject *args)
+CorrObj_execute(CorrObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -893,7 +893,7 @@ static PyGetSetDef Corr_getset[] = {
 };
 
 static PyObject *
-Corr_destroy(CorrObject *self, PyObject *Py_UNUSED(ignored))
+CorrObj_destroy(CorrObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         corr_destroy(self->handle);
@@ -903,14 +903,14 @@ Corr_destroy(CorrObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Corr_enter(CorrObject *self, PyObject *Py_UNUSED(ignored))
+CorrObj_enter(CorrObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-Corr_exit(CorrObject *self, PyObject *args)
+CorrObj_exit(CorrObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -920,11 +920,11 @@ Corr_exit(CorrObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef Corr_methods[] = {
-    {"reset",    (PyCFunction)Corr_reset,    METH_NOARGS,
+static PyMethodDef CorrObj_methods[] = {
+    {"reset",    (PyCFunction)CorrObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"execute", (PyCFunction)Corr_execute, METH_VARARGS,
+    {"execute", (PyCFunction)CorrObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -935,24 +935,24 @@ static PyMethodDef Corr_methods[] = {
      "    >>> y = obj.execute(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",  (PyCFunction)Corr_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)CorrObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)Corr_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)Corr_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)CorrObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)CorrObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject CorrType = {
+static PyTypeObject CorrObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.Corr",
     .tp_basicsize = sizeof(CorrObject),
-    .tp_dealloc   = (destructor)Corr_dealloc,
+    .tp_dealloc   = (destructor)CorrObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "Corr type.",
-    .tp_methods   = Corr_methods,
+    .tp_methods   = CorrObj_methods,
     .tp_getset    = Corr_getset,
-    .tp_new       = Corr_new,
-    .tp_init      = (initproc)Corr_init,
+    .tp_new       = CorrObj_new,
+    .tp_init      = (initproc)CorrObj_init,
 };
 /* ======================================================== */
 /* Corr2DObject — wraps corr2d_state_t *       */
@@ -967,7 +967,7 @@ typedef struct {
 } Corr2DObject;
 
 static void
-Corr2D_dealloc(Corr2DObject *self)
+Corr2DObj_dealloc(Corr2DObject *self)
 {
     if (self->handle)
         corr2d_destroy(self->handle);
@@ -976,7 +976,7 @@ Corr2D_dealloc(Corr2DObject *self)
 }
 
 static PyObject *
-Corr2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+Corr2DObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     Corr2DObject *self = (Corr2DObject *)type->tp_alloc(type, 0);
     if (self)
@@ -985,7 +985,7 @@ Corr2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-Corr2D_init(Corr2DObject *self, PyObject *args, PyObject *kwds)
+Corr2DObj_init(Corr2DObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"ref", "dwell", "nthreads", NULL};
     PyObject *ref_obj = NULL;
@@ -1020,7 +1020,7 @@ Corr2D_init(Corr2DObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Corr2D_reset(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
+Corr2DObj_reset(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1036,7 +1036,7 @@ Corr2D_reset(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-Corr2D_execute(Corr2DObject *self, PyObject *args)
+Corr2DObj_execute(Corr2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1106,7 +1106,7 @@ static PyGetSetDef Corr2D_getset[] = {
 };
 
 static PyObject *
-Corr2D_destroy(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
+Corr2DObj_destroy(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         corr2d_destroy(self->handle);
@@ -1116,14 +1116,14 @@ Corr2D_destroy(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Corr2D_enter(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
+Corr2DObj_enter(Corr2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-Corr2D_exit(Corr2DObject *self, PyObject *args)
+Corr2DObj_exit(Corr2DObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -1133,11 +1133,11 @@ Corr2D_exit(Corr2DObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef Corr2D_methods[] = {
-    {"reset",    (PyCFunction)Corr2D_reset,    METH_NOARGS,
+static PyMethodDef Corr2DObj_methods[] = {
+    {"reset",    (PyCFunction)Corr2DObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"execute", (PyCFunction)Corr2D_execute, METH_VARARGS,
+    {"execute", (PyCFunction)Corr2DObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
      "Zero-copy view into pre-allocated output buffer.\n"
@@ -1148,24 +1148,24 @@ static PyMethodDef Corr2D_methods[] = {
      "    >>> y = obj.execute(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",  (PyCFunction)Corr2D_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)Corr2DObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)Corr2D_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)Corr2D_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)Corr2DObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)Corr2DObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject Corr2DType = {
+static PyTypeObject Corr2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.Corr2D",
     .tp_basicsize = sizeof(Corr2DObject),
-    .tp_dealloc   = (destructor)Corr2D_dealloc,
+    .tp_dealloc   = (destructor)Corr2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "Corr2D type.",
-    .tp_methods   = Corr2D_methods,
+    .tp_methods   = Corr2DObj_methods,
     .tp_getset    = Corr2D_getset,
-    .tp_new       = Corr2D_new,
-    .tp_init      = (initproc)Corr2D_init,
+    .tp_new       = Corr2DObj_new,
+    .tp_init      = (initproc)Corr2DObj_init,
 };
 /* ======================================================== */
 /* DetectorObject — wraps detector_state_t *       */
@@ -1179,7 +1179,7 @@ typedef struct {
 } DetectorObject;
 
 static void
-Detector_dealloc(DetectorObject *self)
+DetectorObj_dealloc(DetectorObject *self)
 {
     if (self->handle)
         detector_destroy(self->handle);
@@ -1187,7 +1187,7 @@ Detector_dealloc(DetectorObject *self)
 }
 
 static PyObject *
-Detector_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+DetectorObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     DetectorObject *self = (DetectorObject *)type->tp_alloc(type, 0);
     if (self)
@@ -1196,7 +1196,7 @@ Detector_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-Detector_init(DetectorObject *self, PyObject *args, PyObject *kwds)
+DetectorObj_init(DetectorObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"ref", "noise_mode", "dwell", "noise_lo", "noise_hi", "threshold", "nthreads", NULL};
     PyObject *ref_obj = NULL;
@@ -1237,7 +1237,7 @@ Detector_init(DetectorObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Detector_reset(DetectorObject *self, PyObject *Py_UNUSED(ignored))
+DetectorObj_reset(DetectorObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1253,7 +1253,7 @@ Detector_reset(DetectorObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-Detector_push(DetectorObject *self, PyObject *args)
+DetectorObj_push(DetectorObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1373,7 +1373,7 @@ static PyGetSetDef Detector_getset[] = {
 };
 
 static PyObject *
-Detector_destroy(DetectorObject *self, PyObject *Py_UNUSED(ignored))
+DetectorObj_destroy(DetectorObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         detector_destroy(self->handle);
@@ -1383,14 +1383,14 @@ Detector_destroy(DetectorObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Detector_enter(DetectorObject *self, PyObject *Py_UNUSED(ignored))
+DetectorObj_enter(DetectorObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-Detector_exit(DetectorObject *self, PyObject *args)
+DetectorObj_exit(DetectorObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -1400,11 +1400,11 @@ Detector_exit(DetectorObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef Detector_methods[] = {
-    {"reset",    (PyCFunction)Detector_reset,    METH_NOARGS,
+static PyMethodDef DetectorObj_methods[] = {
+    {"reset",    (PyCFunction)DetectorObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"push", (PyCFunction)Detector_push, METH_VARARGS,
+    {"push", (PyCFunction)DetectorObj_push, METH_VARARGS,
      "push(x) -> list[tuple]\n"
      "\n"
      "Returns list of (lag, peak_mag, noise_est, test_stat,) tuples.\n"
@@ -1415,24 +1415,24 @@ static PyMethodDef Detector_methods[] = {
      "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
      "    >>> isinstance(results, list)\n"
      "    True\n"},
-    {"destroy",  (PyCFunction)Detector_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)DetectorObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)Detector_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)Detector_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)DetectorObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)DetectorObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject DetectorType = {
+static PyTypeObject DetectorObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.Detector",
     .tp_basicsize = sizeof(DetectorObject),
-    .tp_dealloc   = (destructor)Detector_dealloc,
+    .tp_dealloc   = (destructor)DetectorObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "Detector type.",
-    .tp_methods   = Detector_methods,
+    .tp_methods   = DetectorObj_methods,
     .tp_getset    = Detector_getset,
-    .tp_new       = Detector_new,
-    .tp_init      = (initproc)Detector_init,
+    .tp_new       = DetectorObj_new,
+    .tp_init      = (initproc)DetectorObj_init,
 };
 /* ======================================================== */
 /* Detector2DObject — wraps detector2d_state_t *       */
@@ -1446,7 +1446,7 @@ typedef struct {
 } Detector2DObject;
 
 static void
-Detector2D_dealloc(Detector2DObject *self)
+Detector2DObj_dealloc(Detector2DObject *self)
 {
     if (self->handle)
         detector2d_destroy(self->handle);
@@ -1454,7 +1454,7 @@ Detector2D_dealloc(Detector2DObject *self)
 }
 
 static PyObject *
-Detector2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+Detector2DObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     Detector2DObject *self = (Detector2DObject *)type->tp_alloc(type, 0);
     if (self)
@@ -1463,7 +1463,7 @@ Detector2D_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-Detector2D_init(Detector2DObject *self, PyObject *args, PyObject *kwds)
+Detector2DObj_init(Detector2DObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"ref", "noise_mode", "dwell", "noise_lo", "noise_hi", "threshold", "nthreads", NULL};
     PyObject *ref_obj = NULL;
@@ -1510,7 +1510,7 @@ Detector2D_init(Detector2DObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Detector2D_reset(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
+Detector2DObj_reset(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1526,7 +1526,7 @@ Detector2D_reset(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-Detector2D_push(Detector2DObject *self, PyObject *args)
+Detector2DObj_push(Detector2DObject *self, PyObject *args)
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -1666,7 +1666,7 @@ static PyGetSetDef Detector2D_getset[] = {
 };
 
 static PyObject *
-Detector2D_destroy(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
+Detector2DObj_destroy(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         detector2d_destroy(self->handle);
@@ -1676,14 +1676,14 @@ Detector2D_destroy(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-Detector2D_enter(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
+Detector2DObj_enter(Detector2DObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-Detector2D_exit(Detector2DObject *self, PyObject *args)
+Detector2DObj_exit(Detector2DObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -1693,11 +1693,11 @@ Detector2D_exit(Detector2DObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef Detector2D_methods[] = {
-    {"reset",    (PyCFunction)Detector2D_reset,    METH_NOARGS,
+static PyMethodDef Detector2DObj_methods[] = {
+    {"reset",    (PyCFunction)Detector2DObj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
-    {"push", (PyCFunction)Detector2D_push, METH_VARARGS,
+    {"push", (PyCFunction)Detector2DObj_push, METH_VARARGS,
      "push(x) -> list[tuple]\n"
      "\n"
      "Returns list of (row, col, peak_mag, noise_est, test_stat,) tuples.\n"
@@ -1708,24 +1708,24 @@ static PyMethodDef Detector2D_methods[] = {
      "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
      "    >>> isinstance(results, list)\n"
      "    True\n"},
-    {"destroy",  (PyCFunction)Detector2D_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)Detector2DObj_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)Detector2D_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)Detector2D_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)Detector2DObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)Detector2DObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject Detector2DType = {
+static PyTypeObject Detector2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "spectral.Detector2D",
     .tp_basicsize = sizeof(Detector2DObject),
-    .tp_dealloc   = (destructor)Detector2D_dealloc,
+    .tp_dealloc   = (destructor)Detector2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "Detector2D type.",
-    .tp_methods   = Detector2D_methods,
+    .tp_methods   = Detector2DObj_methods,
     .tp_getset    = Detector2D_getset,
-    .tp_new       = Detector2D_new,
-    .tp_init      = (initproc)Detector2D_init,
+    .tp_new       = Detector2DObj_new,
+    .tp_init      = (initproc)Detector2DObj_init,
 };
 
 /* ======================================================== */
@@ -1754,37 +1754,37 @@ PyMODINIT_FUNC
 PyInit_spectral(void)
 {
     import_array();
-    if (PyType_Ready(&FFTType) < 0) return NULL;
-    if (PyType_Ready(&FFT2DType) < 0) return NULL;
-    if (PyType_Ready(&CorrType) < 0) return NULL;
-    if (PyType_Ready(&Corr2DType) < 0) return NULL;
-    if (PyType_Ready(&DetectorType) < 0) return NULL;
-    if (PyType_Ready(&Detector2DType) < 0) return NULL;
+    if (PyType_Ready(&FFTObjType) < 0) return NULL;
+    if (PyType_Ready(&FFT2DObjType) < 0) return NULL;
+    if (PyType_Ready(&CorrObjType) < 0) return NULL;
+    if (PyType_Ready(&Corr2DObjType) < 0) return NULL;
+    if (PyType_Ready(&DetectorObjType) < 0) return NULL;
+    if (PyType_Ready(&Detector2DObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&spectral_moduledef);
     if (!m) return NULL;
-    Py_INCREF(&FFTType);
-    if (PyModule_AddObject(m, "FFT", (PyObject *)&FFTType) < 0) {
-        Py_DECREF(&FFTType); Py_DECREF(m); return NULL;
+    Py_INCREF(&FFTObjType);
+    if (PyModule_AddObject(m, "FFT", (PyObject *)&FFTObjType) < 0) {
+        Py_DECREF(&FFTObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&FFT2DType);
-    if (PyModule_AddObject(m, "FFT2D", (PyObject *)&FFT2DType) < 0) {
-        Py_DECREF(&FFT2DType); Py_DECREF(m); return NULL;
+    Py_INCREF(&FFT2DObjType);
+    if (PyModule_AddObject(m, "FFT2D", (PyObject *)&FFT2DObjType) < 0) {
+        Py_DECREF(&FFT2DObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&CorrType);
-    if (PyModule_AddObject(m, "Corr", (PyObject *)&CorrType) < 0) {
-        Py_DECREF(&CorrType); Py_DECREF(m); return NULL;
+    Py_INCREF(&CorrObjType);
+    if (PyModule_AddObject(m, "Corr", (PyObject *)&CorrObjType) < 0) {
+        Py_DECREF(&CorrObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&Corr2DType);
-    if (PyModule_AddObject(m, "Corr2D", (PyObject *)&Corr2DType) < 0) {
-        Py_DECREF(&Corr2DType); Py_DECREF(m); return NULL;
+    Py_INCREF(&Corr2DObjType);
+    if (PyModule_AddObject(m, "Corr2D", (PyObject *)&Corr2DObjType) < 0) {
+        Py_DECREF(&Corr2DObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&DetectorType);
-    if (PyModule_AddObject(m, "Detector", (PyObject *)&DetectorType) < 0) {
-        Py_DECREF(&DetectorType); Py_DECREF(m); return NULL;
+    Py_INCREF(&DetectorObjType);
+    if (PyModule_AddObject(m, "Detector", (PyObject *)&DetectorObjType) < 0) {
+        Py_DECREF(&DetectorObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&Detector2DType);
-    if (PyModule_AddObject(m, "Detector2D", (PyObject *)&Detector2DType) < 0) {
-        Py_DECREF(&Detector2DType); Py_DECREF(m); return NULL;
+    Py_INCREF(&Detector2DObjType);
+    if (PyModule_AddObject(m, "Detector2D", (PyObject *)&Detector2DObjType) < 0) {
+        Py_DECREF(&Detector2DObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

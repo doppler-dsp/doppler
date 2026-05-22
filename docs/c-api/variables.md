@@ -7,6 +7,7 @@
 
 * **ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
+* **det\_noise\_mode\_t** ([**detector\_core.h**](detector__core_8h.md), [**detector2d\_core.h**](detector2d__core_8h.md))
 
 
 ## h

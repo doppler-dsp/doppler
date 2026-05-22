@@ -6,7 +6,7 @@
   </defs>
 
   <!-- Background -->
-  <circle cx="256" cy="256" r="256" fill="#4C1D95"/>
+  <circle cx="256" cy="256" r="256" fill="#673AB7"/>
 
   <!-- Wavefront arcs — four circles whose centers shift left as radius
        grows, so the right side (direction of motion) is compressed and

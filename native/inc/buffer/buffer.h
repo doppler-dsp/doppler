@@ -47,7 +47,9 @@
 #else /* POSIX ------------------------------------------------------------   \
        */
 #ifdef __linux__
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE /* memfd_create */
+#endif
 #endif
 #ifdef __APPLE__
 #define _DARWIN_C_SOURCE /* MAP_ANON */

@@ -131,10 +131,22 @@ test-examples: build
 	done
 	@echo "All C example smoke tests passed."
 
+PYTHON_EXAMPLE_SCRIPTS := \
+    examples/python/fir_demo.py \
+    examples/python/lo_demo.py \
+    examples/python/nco_demo.py \
+    examples/python/fft_demo.py \
+    examples/python/buffers_demo.py \
+    examples/python/agc_demo.py \
+    examples/python/corr_demo.py \
+    examples/python/detection_curves.py \
+    examples/python/detection_sim.py \
+    examples/python/detection2d_demo.py
+
 test-examples-python:
 	@echo "Running Python example smoke tests..."
-	@for ex in examples/python/fir_demo.py; do \
-	    printf "  %-20s" "$$ex"; \
+	@for ex in $(PYTHON_EXAMPLE_SCRIPTS); do \
+	    printf "  %-45s" "$$ex"; \
 	    if uv run python $$ex > /dev/null 2>&1; then \
 	        echo "PASS"; \
 	    else \
@@ -154,9 +166,9 @@ python-test:
 # Run C + Python benchmarks and save a dated, trimmed snapshot under
 # benchmarks/history/.  Snapshots are committed so perf regressions are
 # visible in git history.  Use the CLI directly for options, e.g.
-# `just-makeit bench --tag v1.2.3` or `just-makeit bench --c-only`.
-bench:
-	just-makeit bench
+# `uvx just-makeit bench --tag v1.2.3` or `just-makeit bench --c-only`.
+bench: pyext
+	uvx just-makeit bench
 
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
@@ -198,7 +210,8 @@ GALLERY_SCRIPTS := \
     examples/python/agc_demo.py \
     examples/python/corr_demo.py \
     examples/python/detection_curves.py \
-    examples/python/detection_sim.py
+    examples/python/detection_sim.py \
+    examples/python/detection2d_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."
@@ -206,7 +219,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png corr_demo.png detection_curves.png detection_sim.png docs/assets/
+	@mv -f agc_convergence.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png docs/assets/
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

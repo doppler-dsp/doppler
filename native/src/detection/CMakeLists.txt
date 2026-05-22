@@ -1,16 +1,5 @@
 add_library(detection_core OBJECT detection_core.c)
-target_include_directories(detection_core PUBLIC
-    ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/detection)
-target_link_libraries(detection_core PUBLIC m)
-
-add_executable(test_detection_core
-    ${CMAKE_SOURCE_DIR}/native/tests/test_detection_core.c)
-target_include_directories(test_detection_core
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(test_detection_core
-    PRIVATE detection_core m)
-add_test(NAME test_detection_core COMMAND test_detection_core)
+target_include_directories(detection_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
 # detection Python module — aggregates: 

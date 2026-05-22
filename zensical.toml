@@ -4,6 +4,7 @@
 # ============================================================================
 
 [project]
+extra_css        = ["stylesheets/extra.css"]
 site_name        = "doppler"
 site_description = "Dead-simple, ultra-fast digital signal processing"
 site_url         = "https://doppler-dsp.github.io/doppler/"
@@ -16,14 +17,31 @@ nav = [
   { "Home"            = "index.md"         },
   { "Quick Start"     = "quickstart.md"    },
   { "Architecture"    = "architecture.md"  },
-  { "Build & Install" = "build.md"         },
+  { "Install" = [
+    { "Python"           = "install/python.md" },
+    { "C Library"        = "install/c.md"      },
+    { "Build from Source"= "install/source.md" },
+    { "Rust"             = "install/rust.md"   },
+    { "Docker"           = "install/docker.md" },
+  ]},
+  { "Gallery"  = "gallery.md"          },
   { "Examples" = [
     { "C"         = "examples/c.md"         },
-    { "Python"    = "examples/python.md"    },
+    { "Python" = [
+      { "Overview"         = "examples/python.md"             },
+      { "LO"               = "examples/python-lo.md"          },
+      { "NCO"              = "examples/python-nco.md"         },
+      { "FFT"              = "examples/python-fft.md"         },
+      { "Ring Buffers"     = "examples/python-buffers.md"     },
+      { "AGC"              = "examples/python-agc.md"         },
+      { "Corr & Detector"  = "examples/python-corr.md"        },
+      { "Detection Theory" = "examples/python-detection.md"   },
+      { "2-D Acquisition"  = "examples/python-detection2d.md" },
+    ]},
     { "Streaming" = "examples/streaming.md" },
   ]},
   { "API Reference" = [
-    { "C API"                   = "c-api/index.md"              },
+    { "C API"                   = "c-api/files.md"              },
     { "Python: FFT"             = "api/python-fft.md"           },
     { "Python: NCO / LO"        = "api/python-nco.md"           },
     { "Python: FIR Filter"      = "api/python-filter.md"        },
@@ -80,11 +98,15 @@ code = "JetBrains Mono"
 # Dark mode first — preferred for a DSP / embedded dev audience
 [[project.theme.palette]]
 scheme      = "slate"
+primary     = "deep purple"
+accent      = "deep purple"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to light mode"
 
 [[project.theme.palette]]
 scheme      = "default"
+primary     = "deep purple"
+accent      = "deep purple"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to dark mode"
 
@@ -116,9 +138,18 @@ show_symbol_type_toc       = true
 members_order              = "source"
 separate_signature         = true
 show_signature_annotations = true
-allow_inspection           = false
+allow_inspection           = true
+
+[project.markdown_extensions.admonition]
+
+[project.markdown_extensions.md_in_html]
+
+[project.markdown_extensions.pymdownx.details]
 
 [project.markdown_extensions.attr_list]
+
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
 
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true

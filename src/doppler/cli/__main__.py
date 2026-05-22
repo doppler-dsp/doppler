@@ -20,10 +20,17 @@ import argparse
 import sys
 from pathlib import Path
 
-# Import blocks to populate the registry
-import doppler.cli.blocks.fir  # noqa: F401
-import doppler.cli.blocks.specan  # noqa: F401
-import doppler.cli.blocks.tone  # noqa: F401
+try:
+    import doppler.cli.blocks.fir  # noqa: F401
+    import doppler.cli.blocks.specan  # noqa: F401
+    import doppler.cli.blocks.tone  # noqa: F401
+except ImportError as _e:
+    print(
+        f"doppler CLI requires optional dependencies: {_e}\n"
+        f"Install with: pip install 'doppler-dsp[cli]'",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 def main() -> None:

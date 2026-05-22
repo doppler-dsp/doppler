@@ -32,7 +32,7 @@ functions. There is no Python reimplementation of the NCO, no Rust
 port of the FIR engine — just glue: type conversion, error
 translation, memory lifetime.
 
-See the [API reference](c-api/index.md) for the full C API.
+See the [API reference](c-api/files.md) for the full C API.
 
 ---
 

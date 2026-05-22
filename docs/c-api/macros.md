@@ -22,6 +22,7 @@
 * **DP\_ASSERT\_PWR2** ([**buffer.h**](buffer_8h.md))
 * **DP\_CACHELINE** ([**buffer.h**](buffer_8h.md))
 * **DP\_SPIN\_HINT** ([**buffer.h**](buffer_8h.md))
+* **DET\_NOISE\_MODE\_T\_DEFINED** ([**detector\_core.h**](detector__core_8h.md), [**detector2d\_core.h**](detector2d__core_8h.md))
 
 
 ## h

@@ -6,15 +6,15 @@
 pip install doppler-dsp
 ```
 
-That's it. The wheel bundles all native dependencies — no system
-libraries required.
+The wheel bundles all native dependencies — no system libraries required.
 
-Optional extras:
-
-```bash
-pip install "doppler-dsp[specan-web]"  # live spectrum analyzer web UI
-pip install "doppler-dsp[cli]"         # compose / Dopplerfile pipeline CLI
-```
+!!! tip "Optional extras"
+    ```bash
+    pip install "doppler-dsp[specan]"      # terminal spectrum analyzer
+    pip install "doppler-dsp[specan-web]"  # live spectrum analyzer web UI
+    pip install "doppler-dsp[cli]"         # compose / Dopplerfile pipeline CLI
+    ```
+    See [Install → Python](install/python.md) for the full extras table.
 
 ---
 
@@ -39,7 +39,7 @@ import numpy as np
 
 x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 f = FFT(1024)
-X = f.execute(x)       # complex64 in → complex64 out (~2× faster than float64)
+X = f.execute_cf32(x)  # complex64 in → complex64 out (~2× faster than float64)
 ```
 
 ### FIR filter
@@ -117,7 +117,13 @@ EOF
 
 ## Spectrum analyzer
 
-`doppler-specan` opens a live FFT display in your browser.
+`doppler-specan` opens a live FFT display in your terminal or browser.
+
+!!! note "Requires the `specan` or `specan-web` extra"
+    ```bash
+    pip install "doppler-dsp[specan]"      # terminal
+    pip install "doppler-dsp[specan-web]"  # browser
+    ```
 
 **Demo mode** (no hardware needed):
 
@@ -125,10 +131,10 @@ EOF
 doppler-specan --source demo
 ```
 
-**From a live IQ stream:**
+**Browser UI:**
 
 ```bash
-doppler-specan --source socket --endpoint tcp://localhost:5555
+doppler-specan --source demo --web
 ```
 
 The web UI is served at `http://127.0.0.1:8765` by default.
@@ -138,17 +144,17 @@ See [Spectrum Analyzer](specan/index.md) for configuration options.
 
 ## Pipeline CLI
 
+!!! note "Requires the `cli` extra"
+    ```bash
+    pip install "doppler-dsp[cli]"
+    ```
+
 `doppler compose` wires blocks into a processing pipeline defined in a
 YAML file.
 
 ```bash
-# Create a named pipeline file
 doppler compose init --name my_pipeline
-
-# Edit my_pipeline.yaml, then start it
 doppler compose up --file my_pipeline.yaml
-
-# Monitor running blocks
 doppler ps
 doppler logs
 ```
@@ -162,20 +168,16 @@ for writing custom blocks.
 
 If you need the C library, examples, or Rust FFI bindings:
 
-**Dependencies:**
-
 === "Ubuntu / Debian"
 
     ```bash
-    sudo apt-get install \
-        build-essential cmake pkg-config \
-        libzmq3-dev libfftw3-dev python3-dev
+    sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
     ```
 
 === "macOS"
 
     ```bash
-    brew install cmake zeromq fftw
+    brew install cmake python numpy
     ```
 
 === "Windows (MSYS2 UCRT64)"
@@ -183,21 +185,20 @@ If you need the C library, examples, or Rust FFI bindings:
     ```bash
     pacman -S mingw-w64-ucrt-x86_64-gcc \
               mingw-w64-ucrt-x86_64-cmake \
-              mingw-w64-ucrt-x86_64-zeromq \
-              mingw-w64-ucrt-x86_64-fftw make
+              mingw-w64-ucrt-x86_64-python \
+              mingw-w64-ucrt-x86_64-python-numpy \
+              make pkg-config
     ```
-
-**Build:**
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler
 cd doppler
-make                      # C library + examples
-make pyext                # Python extensions (requires uv)
-make test-all             # C + Python + Rust test suites
+make           # C library + examples
+make pyext     # Python extensions
+make test-all  # C + Python + Rust test suites
 ```
 
-See [Build & Install](build.md) for CMake options, Docker, and
+See [Build from Source](install/source.md) for CMake options, Docker, and
 platform-specific notes.
 
 ---
@@ -206,6 +207,6 @@ platform-specific notes.
 
 - [Architecture](architecture.md) — design overview and layer diagram
 - [Examples: C](examples/c.md) · [Python](examples/python.md) · [Streaming](examples/streaming.md)
-- [API reference](c-api/index.md) — full C and Python API docs
+- [API reference](c-api/files.md) — full C and Python API docs
 - [Spectrum Analyzer](specan/index.md) — specan configuration
 - [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

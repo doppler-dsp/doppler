@@ -107,7 +107,7 @@ JM_FORCEINLINE float complex square_clip (
 
 
 
-Clips the real and imaginary parts independently to [-lin, lin] — a square region in the IQ plane, not a circular magnitude limit.
+Clips the real and imaginary parts independently to &#91;-lin, lin&#93; — a square region in the IQ plane, not a circular magnitude limit.
 
 
 
@@ -122,7 +122,7 @@ Clips the real and imaginary parts independently to [-lin, lin] — a square reg
 
 **Returns:**
 
-Sample with each component limited to [-lin, lin]. 
+Sample with each component limited to &#91;-lin, lin&#93;. 
 
 
 

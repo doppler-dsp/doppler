@@ -38,12 +38,12 @@ extern "C"
 
   typedef enum
   {
-    DP_CI32 = 0,  
-    DP_CF64 = 1,  
-    DP_CF128 = 2, 
-    DP_CI8 = 3,   
-    DP_CI16 = 4,  
-    DP_CF32 = 5,  
+    CI32 = 0,  
+    CF64 = 1,  
+    CF128 = 2, 
+    CI8 = 3,   
+    CI16 = 4,  
+    CF32 = 5,  
   } dp_sample_type_t;
 
   typedef enum
@@ -72,12 +72,12 @@ extern "C"
 
   typedef struct dp_msg dp_msg_t;
 
-  typedef struct dp_ctx dp_pub;
-  typedef struct dp_ctx dp_sub;
-  typedef struct dp_ctx dp_push;
-  typedef struct dp_ctx dp_pull;
-  typedef struct dp_ctx dp_req;
-  typedef struct dp_ctx dp_rep;
+  typedef struct dp_ctx dp_pub_t;
+  typedef struct dp_ctx dp_sub_t;
+  typedef struct dp_ctx dp_push_t;
+  typedef struct dp_ctx dp_pull_t;
+  typedef struct dp_ctx dp_req_t;
+  typedef struct dp_ctx dp_rep_t;
  /* end group types */
 
   /* -------------------------------------------------------------------------
@@ -113,40 +113,40 @@ extern "C"
    * ---------------------------------------------------------------------- */
 
 
-  dp_pub *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_pub_t *dp_pub_create (const char *endpoint, dp_sample_type_t sample_type);
 
-  int dp_pub_send_ci32 (dp_pub *ctx, const int32_t *samples,
+  int dp_pub_send_ci32 (dp_pub_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_pub_send_cf64 (dp_pub *ctx, const double _Complex *samples,
+  int dp_pub_send_cf64 (dp_pub_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_pub_send_cf128 (dp_pub *ctx, const long double _Complex *samples,
+  int dp_pub_send_cf128 (dp_pub_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples, size_t num_samples,
+  int dp_pub_send_ci8 (dp_pub_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
 
-  int dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples,
+  int dp_pub_send_ci16 (dp_pub_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_pub_send_cf32 (dp_pub *ctx, const float _Complex *samples,
+  int dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  void dp_pub_destroy (dp_pub *ctx);
+  void dp_pub_destroy (dp_pub_t *ctx);
 
-  dp_sub *dp_sub_create (const char *endpoint);
+  dp_sub_t *dp_sub_create (const char *endpoint);
 
-  int dp_sub_recv (dp_sub *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_sub_recv (dp_sub_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
-  void dp_sub_set_timeout (dp_sub *ctx, int timeout_ms);
+  void dp_sub_set_timeout (dp_sub_t *ctx, int timeout_ms);
 
-  void dp_sub_destroy (dp_sub *ctx);
+  void dp_sub_destroy (dp_sub_t *ctx);
  /* end group pubsub */
 
   /* -------------------------------------------------------------------------
@@ -154,41 +154,41 @@ extern "C"
    * ---------------------------------------------------------------------- */
 
 
-  dp_push *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
+  dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
 
-  dp_pull *dp_pull_create (const char *endpoint);
+  dp_pull_t *dp_pull_create (const char *endpoint);
 
-  int dp_push_send_ci32 (dp_push *ctx, const int32_t *samples,
+  int dp_push_send_ci32 (dp_push_t *ctx, const int32_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_push_send_cf64 (dp_push *ctx, const double _Complex *samples,
+  int dp_push_send_cf64 (dp_push_t *ctx, const double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_push_send_cf128 (dp_push *ctx, const long double _Complex *samples,
+  int dp_push_send_cf128 (dp_push_t *ctx, const long double _Complex *samples,
                           size_t num_samples, double sample_rate,
                           double center_freq);
 
-  int dp_push_send_ci8 (dp_push *ctx, const int8_t *samples,
+  int dp_push_send_ci8 (dp_push_t *ctx, const int8_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_push_send_ci16 (dp_push *ctx, const int16_t *samples,
+  int dp_push_send_ci16 (dp_push_t *ctx, const int16_t *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_push_send_cf32 (dp_push *ctx, const float _Complex *samples,
+  int dp_push_send_cf32 (dp_push_t *ctx, const float _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
 
-  int dp_pull_recv (dp_pull *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_pull_recv (dp_pull_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
-  void dp_pull_set_timeout (dp_pull *ctx, int timeout_ms);
+  void dp_pull_set_timeout (dp_pull_t *ctx, int timeout_ms);
 
-  void dp_push_destroy (dp_push *ctx);
+  void dp_push_destroy (dp_push_t *ctx);
 
-  void dp_pull_destroy (dp_pull *ctx);
+  void dp_pull_destroy (dp_pull_t *ctx);
  /* end group pipeline */
 
   /* -------------------------------------------------------------------------
@@ -196,69 +196,69 @@ extern "C"
    * ---------------------------------------------------------------------- */
 
 
-  dp_req *dp_req_create (const char *endpoint);
+  dp_req_t *dp_req_create (const char *endpoint);
 
-  dp_rep *dp_rep_create (const char *endpoint);
+  dp_rep_t *dp_rep_create (const char *endpoint);
 
   /* -- Raw-bytes send/recv (control plane) ------------------------------ */
 
-  int dp_req_send (dp_req *ctx, const void *data, size_t size);
+  int dp_req_send (dp_req_t *ctx, const void *data, size_t size);
 
-  int dp_req_recv (dp_req *ctx, dp_msg_t **msg, size_t *size);
+  int dp_req_recv (dp_req_t *ctx, dp_msg_t **msg, size_t *size);
 
-  int dp_rep_recv (dp_rep *ctx, dp_msg_t **msg, size_t *size);
+  int dp_rep_recv (dp_rep_t *ctx, dp_msg_t **msg, size_t *size);
 
-  int dp_rep_send (dp_rep *ctx, const void *data, size_t size);
+  int dp_rep_send (dp_rep_t *ctx, const void *data, size_t size);
 
   /* -- Signal-frame send/recv (data plane) ------------------------------ */
 
-  int dp_req_send_ci32 (dp_req *ctx, const int32_t *samples,
+  int dp_req_send_ci32 (dp_req_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_req_send_cf64 (dp_req *ctx, const double _Complex *samples,
+  int dp_req_send_cf64 (dp_req_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples,
+  int dp_req_send_cf128 (dp_req_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_req_send_ci8 (dp_req *ctx, const int8_t *samples, size_t num_samples,
+  int dp_req_send_ci8 (dp_req_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
-  int dp_req_send_ci16 (dp_req *ctx, const int16_t *samples,
+  int dp_req_send_ci16 (dp_req_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_req_send_cf32 (dp_req *ctx, const float _Complex *samples,
+  int dp_req_send_cf32 (dp_req_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_rep_send_ci32 (dp_rep *ctx, const int32_t *samples,
+  int dp_rep_send_ci32 (dp_rep_t *ctx, const int32_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_rep_send_cf64 (dp_rep *ctx, const double _Complex *samples,
+  int dp_rep_send_cf64 (dp_rep_t *ctx, const double _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples,
+  int dp_rep_send_cf128 (dp_rep_t *ctx, const long double _Complex *samples,
                          size_t num_samples, double sample_rate,
                          double center_freq);
-  int dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples, size_t num_samples,
+  int dp_rep_send_ci8 (dp_rep_t *ctx, const int8_t *samples, size_t num_samples,
                        double sample_rate, double center_freq);
-  int dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples,
+  int dp_rep_send_ci16 (dp_rep_t *ctx, const int16_t *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
-  int dp_rep_send_cf32 (dp_rep *ctx, const float _Complex *samples,
+  int dp_rep_send_cf32 (dp_rep_t *ctx, const float _Complex *samples,
                         size_t num_samples, double sample_rate,
                         double center_freq);
 
-  int dp_req_recv_signal (dp_req *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_req_recv_signal (dp_req_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
-  int dp_rep_recv_signal (dp_rep *ctx, dp_msg_t **msg, dp_header_t *header);
+  int dp_rep_recv_signal (dp_rep_t *ctx, dp_msg_t **msg, dp_header_t *header);
 
-  void dp_req_set_timeout (dp_req *ctx, int timeout_ms);
+  void dp_req_set_timeout (dp_req_t *ctx, int timeout_ms);
 
-  void dp_rep_set_timeout (dp_rep *ctx, int timeout_ms);
+  void dp_rep_set_timeout (dp_rep_t *ctx, int timeout_ms);
 
-  void dp_req_destroy (dp_req *ctx);
+  void dp_req_destroy (dp_req_t *ctx);
 
-  void dp_rep_destroy (dp_rep *ctx);
+  void dp_rep_destroy (dp_rep_t *ctx);
  /* end group reqrep */
 
   /* -------------------------------------------------------------------------

@@ -22,8 +22,10 @@
  * dB domain.  Because output power (dB) equals input power (dB) plus
  * @c gain_db, the loop reduces to
  *
+ * @code
  *   gain_db[n+1] = (1 - 4*loop_bw) * gain_db[n]
  *                + (4*loop_bw) * (ref_db - px_db[n])
+ * @endcode
  *
  * which converges to @c gain_db = ref_db - px_db with a time constant of
  * roughly @c 1/(4*loop_bw) samples — independent of the absolute signal
@@ -63,7 +65,7 @@
  * clipping never disturbs convergence.  @c clip_db defaults to
  * @c AGC_CLIP_DB_DEFAULT, which is high enough to be effectively off.
  *
- * Lifecycle: agc_create -> [step / steps / reset]* -> agc_destroy
+ * Lifecycle: `agc_create -> [step / steps / reset]* -> agc_destroy`
  *
  * @code
  * // Hold output power at 0 dB; slow loop, moderate detector smoothing.
@@ -151,7 +153,7 @@ extern "C"
    * @brief Fast log10(p) approximation for p > 0 (~1e-3 absolute).
    *
    * Splits p = m * 2^e via the IEEE-754 fields, takes log2(m) from the
-   * atanh series with t = (m-1)/(m+1) in [0, 1/3] (two terms), and scales
+   * atanh series with t = (m-1)/(m+1) in &#91;0, 1/3&#93; (two terms), and scales
    * log2 by log10(2).  Used only on the decimated control path, so even
    * the divide is amortised across a decimation chunk.
    */

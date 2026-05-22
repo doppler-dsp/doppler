@@ -51,30 +51,30 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_rep**](group__types.md#typedef-dp_rep) \* | [**dp\_rep\_create**](#function-dp_rep_create) (const char \* endpoint) <br>_Create a Replier socket and bind to_ `endpoint` _._ |
-|  void | [**dp\_rep\_destroy**](#function-dp_rep_destroy) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx) <br>_Destroy a Replier context and release all resources._  |
-|  int | [**dp\_rep\_recv**](#function-dp_rep_recv) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Block until an incoming request arrives on the Replier (zero-copy)._  |
-|  int | [**dp\_rep\_recv\_signal**](#function-dp_rep_recv_signal) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame request (zero-copy)._  |
-|  int | [**dp\_rep\_send**](#function-dp_rep_send) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const void \* data, size\_t size) <br>_Send the reply to the most recent request._  |
-|  int | [**dp\_rep\_send\_cf128**](#function-dp_rep_send_cf128) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a reply._  |
-|  int | [**dp\_rep\_send\_cf32**](#function-dp_rep_send_cf32) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a reply._  |
-|  int | [**dp\_rep\_send\_cf64**](#function-dp_rep_send_cf64) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a reply._  |
-|  int | [**dp\_rep\_send\_ci16**](#function-dp_rep_send_ci16) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a reply._  |
-|  int | [**dp\_rep\_send\_ci32**](#function-dp_rep_send_ci32) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 signal frame as a reply._  |
-|  int | [**dp\_rep\_send\_ci8**](#function-dp_rep_send_ci8) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 signal frame as a reply._  |
-|  void | [**dp\_rep\_set\_timeout**](#function-dp_rep_set_timeout) ([**dp\_rep**](group__types.md#typedef-dp_rep) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Replier socket._  |
-|  [**dp\_req**](group__types.md#typedef-dp_req) \* | [**dp\_req\_create**](#function-dp_req_create) (const char \* endpoint) <br>_Create a Requester socket and connect to_ `endpoint` _._ |
-|  void | [**dp\_req\_destroy**](#function-dp_req_destroy) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx) <br>_Destroy a Requester context and release all resources._  |
-|  int | [**dp\_req\_recv**](#function-dp_req_recv) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Receive the reply to a previously sent request (zero-copy)._  |
-|  int | [**dp\_req\_recv\_signal**](#function-dp_req_recv_signal) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame reply (zero-copy)._  |
-|  int | [**dp\_req\_send**](#function-dp_req_send) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const void \* data, size\_t size) <br>_Send raw bytes as a request._  |
-|  int | [**dp\_req\_send\_cf128**](#function-dp_req_send_cf128) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a request._  |
-|  int | [**dp\_req\_send\_cf32**](#function-dp_req_send_cf32) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a request._  |
-|  int | [**dp\_req\_send\_cf64**](#function-dp_req_send_cf64) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a request._  |
-|  int | [**dp\_req\_send\_ci16**](#function-dp_req_send_ci16) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a request._  |
-|  int | [**dp\_req\_send\_ci32**](#function-dp_req_send_ci32) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 signal frame as a request._  |
-|  int | [**dp\_req\_send\_ci8**](#function-dp_req_send_ci8) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 signal frame as a request._  |
-|  void | [**dp\_req\_set\_timeout**](#function-dp_req_set_timeout) ([**dp\_req**](group__types.md#typedef-dp_req) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Requester socket._  |
+|  [**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* | [**dp\_rep\_create**](#function-dp_rep_create) (const char \* endpoint) <br>_Create a Replier socket and bind to_ `endpoint` _._ |
+|  void | [**dp\_rep\_destroy**](#function-dp_rep_destroy) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx) <br>_Destroy a Replier context and release all resources._  |
+|  int | [**dp\_rep\_recv**](#function-dp_rep_recv) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Block until an incoming request arrives on the Replier (zero-copy)._  |
+|  int | [**dp\_rep\_recv\_signal**](#function-dp_rep_recv_signal) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame request (zero-copy)._  |
+|  int | [**dp\_rep\_send**](#function-dp_rep_send) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const void \* data, size\_t size) <br>_Send the reply to the most recent request._  |
+|  int | [**dp\_rep\_send\_cf128**](#function-dp_rep_send_cf128) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a reply._  |
+|  int | [**dp\_rep\_send\_cf32**](#function-dp_rep_send_cf32) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a reply._  |
+|  int | [**dp\_rep\_send\_cf64**](#function-dp_rep_send_cf64) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a reply._  |
+|  int | [**dp\_rep\_send\_ci16**](#function-dp_rep_send_ci16) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a reply._  |
+|  int | [**dp\_rep\_send\_ci32**](#function-dp_rep_send_ci32) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 signal frame as a reply._  |
+|  int | [**dp\_rep\_send\_ci8**](#function-dp_rep_send_ci8) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 signal frame as a reply._  |
+|  void | [**dp\_rep\_set\_timeout**](#function-dp_rep_set_timeout) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Replier socket._  |
+|  [**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* | [**dp\_req\_create**](#function-dp_req_create) (const char \* endpoint) <br>_Create a Requester socket and connect to_ `endpoint` _._ |
+|  void | [**dp\_req\_destroy**](#function-dp_req_destroy) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx) <br>_Destroy a Requester context and release all resources._  |
+|  int | [**dp\_req\_recv**](#function-dp_req_recv) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Receive the reply to a previously sent request (zero-copy)._  |
+|  int | [**dp\_req\_recv\_signal**](#function-dp_req_recv_signal) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame reply (zero-copy)._  |
+|  int | [**dp\_req\_send**](#function-dp_req_send) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const void \* data, size\_t size) <br>_Send raw bytes as a request._  |
+|  int | [**dp\_req\_send\_cf128**](#function-dp_req_send_cf128) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 signal frame as a request._  |
+|  int | [**dp\_req\_send\_cf32**](#function-dp_req_send_cf32) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 signal frame as a request._  |
+|  int | [**dp\_req\_send\_cf64**](#function-dp_req_send_cf64) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF64 signal frame as a request._  |
+|  int | [**dp\_req\_send\_ci16**](#function-dp_req_send_ci16) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const int16\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI16 signal frame as a request._  |
+|  int | [**dp\_req\_send\_ci32**](#function-dp_req_send_ci32) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 signal frame as a request._  |
+|  int | [**dp\_req\_send\_ci8**](#function-dp_req_send_ci8) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 signal frame as a request._  |
+|  void | [**dp\_req\_set\_timeout**](#function-dp_req_set_timeout) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Requester socket._  |
 
 
 
@@ -119,7 +119,7 @@ Strict synchronous request/reply. The Requester sends a message and must call re
 
 _Create a Replier socket and bind to_ `endpoint` _._
 ```
-dp_rep * dp_rep_create (
+dp_rep_t * dp_rep_create (
     const char * endpoint
 ) 
 ```
@@ -154,7 +154,7 @@ Non-NULL context on success, NULL on failure.
 _Destroy a Replier context and release all resources._ 
 ```
 void dp_rep_destroy (
-    dp_rep * ctx
+    dp_rep_t * ctx
 ) 
 ```
 
@@ -181,7 +181,7 @@ void dp_rep_destroy (
 _Block until an incoming request arrives on the Replier (zero-copy)._ 
 ```
 int dp_rep_recv (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     dp_msg_t ** msg,
     size_t * size
 ) 
@@ -219,7 +219,7 @@ DP\_OK on success.
 _Receive a signal frame request (zero-copy)._ 
 ```
 int dp_rep_recv_signal (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     dp_msg_t ** msg,
     dp_header_t * header
 ) 
@@ -257,7 +257,7 @@ DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.
 _Send the reply to the most recent request._ 
 ```
 int dp_rep_send (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const void * data,
     size_t size
 ) 
@@ -295,7 +295,7 @@ DP\_OK on success.
 _Send CF128 signal frame as a reply._ 
 ```
 int dp_rep_send_cf128 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const long double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -315,7 +315,7 @@ int dp_rep_send_cf128 (
 _Send CF32 signal frame as a reply._ 
 ```
 int dp_rep_send_cf32 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const float _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -335,7 +335,7 @@ int dp_rep_send_cf32 (
 _Send CF64 signal frame as a reply._ 
 ```
 int dp_rep_send_cf64 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -355,7 +355,7 @@ int dp_rep_send_cf64 (
 _Send CI16 signal frame as a reply._ 
 ```
 int dp_rep_send_ci16 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const int16_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -375,7 +375,7 @@ int dp_rep_send_ci16 (
 _Send CI32 signal frame as a reply._ 
 ```
 int dp_rep_send_ci32 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const int32_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -395,7 +395,7 @@ int dp_rep_send_ci32 (
 _Send CI8 signal frame as a reply._ 
 ```
 int dp_rep_send_ci8 (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     const int8_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -415,7 +415,7 @@ int dp_rep_send_ci8 (
 _Set receive timeout for a Replier socket._ 
 ```
 void dp_rep_set_timeout (
-    dp_rep * ctx,
+    dp_rep_t * ctx,
     int timeout_ms
 ) 
 ```
@@ -443,7 +443,7 @@ void dp_rep_set_timeout (
 
 _Create a Requester socket and connect to_ `endpoint` _._
 ```
-dp_req * dp_req_create (
+dp_req_t * dp_req_create (
     const char * endpoint
 ) 
 ```
@@ -478,7 +478,7 @@ Non-NULL context on success, NULL on failure.
 _Destroy a Requester context and release all resources._ 
 ```
 void dp_req_destroy (
-    dp_req * ctx
+    dp_req_t * ctx
 ) 
 ```
 
@@ -505,7 +505,7 @@ void dp_req_destroy (
 _Receive the reply to a previously sent request (zero-copy)._ 
 ```
 int dp_req_recv (
-    dp_req * ctx,
+    dp_req_t * ctx,
     dp_msg_t ** msg,
     size_t * size
 ) 
@@ -543,7 +543,7 @@ DP\_OK on success.
 _Receive a signal frame reply (zero-copy)._ 
 ```
 int dp_req_recv_signal (
-    dp_req * ctx,
+    dp_req_t * ctx,
     dp_msg_t ** msg,
     dp_header_t * header
 ) 
@@ -581,7 +581,7 @@ DP\_OK on success, DP\_ERR\_TIMEOUT on timeout, negative on error.
 _Send raw bytes as a request._ 
 ```
 int dp_req_send (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const void * data,
     size_t size
 ) 
@@ -619,7 +619,7 @@ DP\_OK on success.
 _Send CF128 signal frame as a request._ 
 ```
 int dp_req_send_cf128 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const long double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -639,7 +639,7 @@ int dp_req_send_cf128 (
 _Send CF32 signal frame as a request._ 
 ```
 int dp_req_send_cf32 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const float _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -659,7 +659,7 @@ int dp_req_send_cf32 (
 _Send CF64 signal frame as a request._ 
 ```
 int dp_req_send_cf64 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const double _Complex * samples,
     size_t num_samples,
     double sample_rate,
@@ -679,7 +679,7 @@ int dp_req_send_cf64 (
 _Send CI16 signal frame as a request._ 
 ```
 int dp_req_send_ci16 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const int16_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -699,7 +699,7 @@ int dp_req_send_ci16 (
 _Send CI32 signal frame as a request._ 
 ```
 int dp_req_send_ci32 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const int32_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -719,7 +719,7 @@ int dp_req_send_ci32 (
 _Send CI8 signal frame as a request._ 
 ```
 int dp_req_send_ci8 (
-    dp_req * ctx,
+    dp_req_t * ctx,
     const int8_t * samples,
     size_t num_samples,
     double sample_rate,
@@ -739,7 +739,7 @@ int dp_req_send_ci8 (
 _Set receive timeout for a Requester socket._ 
 ```
 void dp_req_set_timeout (
-    dp_req * ctx,
+    dp_req_t * ctx,
     int timeout_ms
 ) 
 ```

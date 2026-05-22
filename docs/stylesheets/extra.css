@@ -1,0 +1,51 @@
+/* ── Table captions ─────────────────────────────────────────────────────── */
+
+.md-typeset figure {
+  margin: 1.5em 0;
+}
+
+.md-typeset figcaption {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.4em;
+  padding-left: 0.2em;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+.md-typeset table:not([class]) {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  font-size: 0.8rem;
+  display: table;
+  width: 100%;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  padding: 0.7em 1em;
+  white-space: nowrap;
+}
+
+.md-typeset table:not([class]) td {
+  padding: 0.55em 1em;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+  vertical-align: top;
+}
+
+.md-typeset table:not([class]) tr:nth-child(even) td {
+  background-color: var(--md-code-bg-color);
+}
+
+.md-typeset table:not([class]) tr:hover td {
+  background-color: var(--md-accent-fg-color--transparent);
+}

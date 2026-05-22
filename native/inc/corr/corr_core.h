@@ -6,7 +6,7 @@
  * equivalent to pointwise multiplication of the forward spectrum with the
  * conjugate reference spectrum, followed by an inverse FFT.
  *
- *   R_xh[τ] = IFFT( FFT(x) · conj(FFT(h)) ) / n
+ *   `R_xh[τ] = IFFT( FFT(x) · conj(FFT(h)) ) / n`
  *
  * The reference spectrum ``conj(FFT(h))`` is pre-computed at create time and
  * stored in ``ref_spec``, so each execute call costs two FFTs (forward +
@@ -113,9 +113,9 @@ size_t corr_execute_max_out(corr_state_t *state);
  *
  * Steps:
  *   1. FFT(in) → work_fft
- *   2. work_fft[k] *= ref_spec[k]  (frequency-domain multiplication)
+ *   2. `work_fft[k] *= ref_spec[k]`  (frequency-domain multiplication)
  *   3. IFFT(work_fft) → work_ifft  (unnormalized; divide by n)
- *   4. accum[k] += work_ifft[k] / n
+ *   4. `accum[k] += work_ifft[k] / n`
  *   5. count++
  *   6. If count == dwell: copy accum → out, zero accum, reset count,
  *      return n.

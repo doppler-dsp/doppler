@@ -207,9 +207,18 @@ def main() -> None:
 
 def _run_terminal(cfg) -> None:
     """Launch the terminal spectrum display."""
+    try:
+        from doppler.specan.terminal import TerminalDisplay  # noqa: PLC0415
+    except ImportError as e:
+        print(
+            f"doppler-specan terminal mode requires optional dependencies: {e}\n"
+            f"Install with: pip install 'doppler-dsp[specan]'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     from doppler.specan.engine import SpecanEngine  # noqa: PLC0415
     from doppler.specan.source import make_source  # noqa: PLC0415
-    from doppler.specan.terminal import TerminalDisplay  # noqa: PLC0415
 
     source = make_source(cfg)
     engine = SpecanEngine(cfg)
@@ -226,10 +235,10 @@ def _run_web(cfg) -> None:
     try:
         import fastapi  # noqa: F401
         import uvicorn  # noqa: F401
-    except ImportError:
+    except ImportError as e:
         print(
-            "doppler-specan web mode requires the 'web' extra:\n\n"
-            "    pip install 'doppler-specan[web]'\n",
+            f"doppler-specan web mode requires optional dependencies: {e}\n"
+            f"Install with: pip install 'doppler-dsp[specan-web]'",
             file=sys.stderr,
         )
         sys.exit(1)

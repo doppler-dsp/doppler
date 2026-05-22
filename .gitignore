@@ -15,7 +15,7 @@ site/
 
 # Example / benchmark artifacts written to the working tree (regenerable;
 # belong in build/, never committed to the repo root)
-/agc_convergence.png
+/*.png
 /bench_*.json
 
 # Local benchmark snapshots are scratch — the canonical, comparable

@@ -7,7 +7,13 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**acc\_cf64\_state\_t**](structacc__cf64__state__t.md) _AccCf64 state._ 
 * **struct** [**acc\_f32\_state\_t**](structacc__f32__state__t.md) _AccF32 state._ 
 * **struct** [**agc\_state\_t**](structagc__state__t.md) _AGC state._ 
+* **struct** [**corr2d\_state\_t**](structcorr2d__state__t.md) _2-D FFT correlator state._ 
+* **struct** [**corr\_state\_t**](structcorr__state__t.md) _1-D FFT correlator state._ 
 * **struct** [**delay\_state\_t**](structdelay__state__t.md) _Delay state._ 
+* **struct** [**det\_result2d\_t**](structdet__result2d__t.md) _Detection event returned by_ [_**detector2d\_push()**_](detector2d__core_8h.md#function-detector2d_push) _._
+* **struct** [**det\_result\_t**](structdet__result__t.md) _Detection event returned by_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _._
+* **struct** [**detector2d\_state\_t**](structdetector2d__state__t.md) _2-D signal detector state._ 
+* **struct** [**detector\_state\_t**](structdetector__state__t.md) _1-D signal detector state._ 
 * **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata header carried in every ZMQ message._ 
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md) 

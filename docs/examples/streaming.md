@@ -10,7 +10,7 @@
 #include <math.h>
 
 int main(void) {
-    dp_pub *tx = dp_pub_create("tcp://*:5555", DP_CF64);
+    dp_pub *tx = dp_pub_create("tcp://*:5555", CF64);
 
     double _Complex samples[1000];
     for (int i = 0; i < 1000; i++) {
@@ -54,7 +54,7 @@ int main(void) {
 #include <stdio.h>
 
 // Producer (binds)
-dp_push *push = dp_push_create("ipc:///tmp/pipe.ipc", DP_CF64);
+dp_push *push = dp_push_create("ipc:///tmp/pipe.ipc", CF64);
 dp_push_send_cf64(push, samples, count, 1e6, 2.4e9);
 dp_push_destroy(push);
 
@@ -112,7 +112,7 @@ with Pull("tcp://localhost:5556") as pull:
 
 ```c
 // Transmitter
-dp_pub_create("tcp://*:5555", DP_CF64);
+dp_pub_create("tcp://*:5555", CF64);
 
 // Receiver (same machine)
 dp_sub_create("tcp://localhost:5555");
@@ -147,7 +147,7 @@ sudo ufw status
 
 ```c
 // Transmitter code — binds to *all* network interfaces
-dp_pub_create("tcp://*:5555", DP_CF64);
+dp_pub_create("tcp://*:5555", CF64);
 ```
 
 ```bash
@@ -170,7 +170,7 @@ dp_sub_create("tcp://192.168.1.100:5555");
 ### Local IPC (fastest, same machine only)
 
 ```c
-dp_pub_create("ipc:///tmp/doppler.ipc", DP_CF64);
+dp_pub_create("ipc:///tmp/doppler.ipc", CF64);
 dp_sub_create("ipc:///tmp/doppler.ipc");
 ```
 

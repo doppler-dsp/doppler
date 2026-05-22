@@ -209,12 +209,12 @@ typedef struct dp_ctx dp_req;
 _Selects the wire format of complex samples._ 
 ```
 enum dp_sample_type_t {
-    DP_CI32 = 0,
-    DP_CF64 = 1,
-    DP_CF128 = 2,
-    DP_CI8 = 3,
-    DP_CI16 = 4,
-    DP_CF32 = 5
+    CI32 = 0,
+    CF64 = 1,
+    CF128 = 2,
+    CI8 = 3,
+    CI16 = 4,
+    CF32 = 5
 };
 ```
 

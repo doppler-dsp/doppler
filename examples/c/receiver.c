@@ -80,18 +80,18 @@ print_samples (const void *samples, dp_sample_type_t type, size_t count)
   printf ("  First %zu samples:\n", show);
   for (size_t i = 0; i < show; i++)
     {
-      if (type == DP_CI32)
+      if (type == CI32)
         {
           const int32_t *s = (const int32_t *)samples;
           printf ("    [%zu] I: %d, Q: %d\n", i, s[2*i], s[2*i+1]);
         }
-      else if (type == DP_CF64)
+      else if (type == CF64)
         {
           const double _Complex *s = (const double _Complex *)samples;
           printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i,
                   creal (s[i]), cimag (s[i]));
         }
-      else if (type == DP_CF128)
+      else if (type == CF128)
         {
           const long double _Complex *s = (const long double _Complex *)samples;
           printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i,
@@ -154,8 +154,8 @@ main (int argc, char *argv[])
       last_seq = hdr.sequence;
 
       double pwr = 0.0;
-      if      (type == DP_CI32) pwr = power_ci32 ((const int32_t *)data, n);
-      else if (type == DP_CF64) pwr = power_cf64 ((const double _Complex *)data, n);
+      if      (type == CI32) pwr = power_ci32 ((const int32_t *)data, n);
+      else if (type == CF64) pwr = power_cf64 ((const double _Complex *)data, n);
       double pwr_db = 10.0 * log10 (pwr + 1e-12);
 
       char ts[32];

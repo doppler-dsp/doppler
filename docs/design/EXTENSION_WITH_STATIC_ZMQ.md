@@ -327,9 +327,9 @@ pytest python/dsp/doppler/tests/ -v
 #include <time.h>
 
 // Sample type constants
-#define DP_CI32  0
-#define DP_CF64  1
-#define DP_CF128 2
+#define CI32  0
+#define CF64  1
+#define CF128 2
 
 // =========================================================================
 // Module-level functions
@@ -371,9 +371,9 @@ PyInit_dp_stream(void)
     if (!m) return NULL;
 
     // Add sample type constants
-    PyModule_AddIntConstant(m, "CI32", DP_CI32);
-    PyModule_AddIntConstant(m, "CF64", DP_CF64);
-    PyModule_AddIntConstant(m, "CF128", DP_CF128);
+    PyModule_AddIntConstant(m, "CI32", CI32);
+    PyModule_AddIntConstant(m, "CF64", CF64);
+    PyModule_AddIntConstant(m, "CF128", CF128);
 
     return m;
 }

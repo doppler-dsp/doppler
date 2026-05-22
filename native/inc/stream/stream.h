@@ -16,7 +16,7 @@
  * #include "stream/stream.h"
  *
  * // Transmitter
- * dp_pub *pub = dp_pub_create("tcp://\*:5555", DP_CF64);
+ * dp_pub *pub = dp_pub_create("tcp://\*:5555", CF64);
  * double _Complex samples[1024] = { ... };
  * dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
  * dp_pub_destroy(pub);
@@ -81,12 +81,12 @@ extern "C"
    */
   typedef enum
   {
-    DP_CI32 = 0,  /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
-    DP_CF64 = 1,  /**< Complex float64: double I/Q  (16 bytes/sample). */
-    DP_CF128 = 2, /**< Complex long double I/Q      (32 bytes/sample). */
-    DP_CI8 = 3,   /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
-    DP_CI16 = 4,  /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
-    DP_CF32 = 5,  /**< Complex float32: float I/Q   (8 bytes/sample).  */
+    CI32 = 0,  /**< Complex int32: int32_t I/Q   (8 bytes/sample). */
+    CF64 = 1,  /**< Complex float64: double I/Q  (16 bytes/sample). */
+    CF128 = 2, /**< Complex long double I/Q      (32 bytes/sample). */
+    CI8 = 3,   /**< Complex int8: int8_t I/Q     (2 bytes/sample).  */
+    CI16 = 4,  /**< Complex int16: int16_t I/Q   (4 bytes/sample).  */
+    CF32 = 5,  /**< Complex float32: float I/Q   (8 bytes/sample).  */
   } dp_sample_type_t;
 
   /**
@@ -105,9 +105,9 @@ extern "C"
    *
    * | Wire type | C type               | bytes/sample |
    * |-----------|----------------------|--------------|
-   * | DP_CF32   | @c float _Complex    | 8            |
-   * | DP_CF64   | @c double _Complex   | 16           |
-   * | DP_CF128  | @c long double _Complex | 32        |
+   * | CF32   | @c float _Complex    | 8            |
+   * | CF64   | @c double _Complex   | 16           |
+   * | CF128  | @c long double _Complex | 32        |
    *
    * Integer complex types have no C99 equivalent.  They are represented
    * as interleaved I/Q arrays where each complex sample occupies two
@@ -115,9 +115,9 @@ extern "C"
    *
    * | Wire type | C element type | bytes/sample | array length |
    * |-----------|----------------|--------------|--------------|
-   * | DP_CI8    | @c int8_t      | 2            | 2×n          |
-   * | DP_CI16   | @c int16_t     | 4            | 2×n          |
-   * | DP_CI32   | @c int32_t     | 8            | 2×n          |
+   * | CI8    | @c int8_t      | 2            | 2×n          |
+   * | CI16   | @c int16_t     | 4            | 2×n          |
+   * | CI32   | @c int32_t     | 8            | 2×n          |
    *
    * For @p n complex samples the send functions accept a pointer to
    * @c 2*n elements of the integer type (element 2k = I, 2k+1 = Q).

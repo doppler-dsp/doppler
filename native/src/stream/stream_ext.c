@@ -65,17 +65,17 @@ build_recv_result (dp_msg_t *msg, const dp_header_t *hdr)
   int typenum;
   dp_sample_type_t st = dp_msg_sample_type (msg);
 
-  if (st == DP_CI32)
+  if (st == CI32)
     {
       dims[0] = (npy_intp)(dp_msg_num_samples (msg) * 2); /* interleaved I/Q */
       typenum = NPY_INT32;
     }
-  else if (st == DP_CF64)
+  else if (st == CF64)
     {
       dims[0] = (npy_intp)dp_msg_num_samples (msg);
       typenum = NPY_COMPLEX128;
     }
-  else if (st == DP_CF128)
+  else if (st == CF128)
     {
       dims[0] = (npy_intp)dp_msg_num_samples (msg);
       typenum = NPY_CLONGDOUBLE;
@@ -148,8 +148,8 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
       return NULL;
     }
 
-  int expected = (sample_type == DP_CI32)   ? NPY_INT32
-                 : (sample_type == DP_CF64) ? NPY_COMPLEX128
+  int expected = (sample_type == CI32)   ? NPY_INT32
+                 : (sample_type == CF64) ? NPY_COMPLEX128
                                             : NPY_CLONGDOUBLE;
   if (PyArray_TYPE (arr) != expected)
     {
@@ -158,17 +158,17 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
     }
 
   npy_intp num_samples = PyArray_SIZE (arr);
-  if (sample_type == DP_CI32)
+  if (sample_type == CI32)
     num_samples /= 2;
 
   int rc;
   void *data = PyArray_DATA (arr);
 
   Py_BEGIN_ALLOW_THREADS;
-  if (sample_type == DP_CI32)
+  if (sample_type == CI32)
     rc = fn_ci32 (ctx, (const int32_t *)data, (size_t)num_samples, sample_rate,
                   center_freq);
-  else if (sample_type == DP_CF64)
+  else if (sample_type == CF64)
     rc = fn_cf64 (ctx, (const double _Complex *)data, (size_t)num_samples,
                   sample_rate, center_freq);
   else
@@ -247,14 +247,14 @@ static PyObject *
 Publisher_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = DP_CF64;
+  int sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
                                     &sample_type))
     return NULL;
 
-  if (sample_type < DP_CI32 || sample_type > DP_CF128)
+  if (sample_type < CI32 || sample_type > CF128)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -449,14 +449,14 @@ static PyObject *
 Push_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = DP_CF64;
+  int sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
                                     &sample_type))
     return NULL;
 
-  if (sample_type < DP_CI32 || sample_type > DP_CF128)
+  if (sample_type < CI32 || sample_type > CF128)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -651,14 +651,14 @@ static PyObject *
 Requester_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = DP_CF64;
+  int sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
                                     &sample_type))
     return NULL;
 
-  if (sample_type < DP_CI32 || sample_type > DP_CF128)
+  if (sample_type < CI32 || sample_type > CF128)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -766,14 +766,14 @@ static PyObject *
 Replier_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   const char *endpoint;
-  int sample_type = DP_CF64;
+  int sample_type = CF64;
 
   static char *kwlist[] = { "endpoint", "sample_type", NULL };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "s|i", kwlist, &endpoint,
                                     &sample_type))
     return NULL;
 
-  if (sample_type < DP_CI32 || sample_type > DP_CF128)
+  if (sample_type < CI32 || sample_type > CF128)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid sample_type");
       return NULL;
@@ -926,9 +926,9 @@ PyInit_stream (void)
   Py_INCREF (&ReplierType);
   PyModule_AddObject (m, "Replier", (PyObject *)&ReplierType);
 
-  PyModule_AddIntConstant (m, "CI32", DP_CI32);
-  PyModule_AddIntConstant (m, "CF64", DP_CF64);
-  PyModule_AddIntConstant (m, "CF128", DP_CF128);
+  PyModule_AddIntConstant (m, "CI32", CI32);
+  PyModule_AddIntConstant (m, "CF64", CF64);
+  PyModule_AddIntConstant (m, "CF128", CF128);
 
   return m;
 }

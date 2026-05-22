@@ -143,9 +143,9 @@ Python → dp_stream.so (C extension) → libzmq.so
 
 // Mirror C types (same as current libdoppler)
 typedef enum {
-    DP_CI32  = 0,
-    DP_CF64  = 1,
-    DP_CF128 = 2
+    CI32  = 0,
+    CF64  = 1,
+    CF128 = 2
 } dp_sample_type_t;
 
 typedef struct {
@@ -180,7 +180,7 @@ static PyObject *
 Publisher_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     const char *endpoint;
-    int sample_type = DP_CF64;
+    int sample_type = CF64;
 
     if (!PyArg_ParseTuple(args, "s|i", &endpoint, &sample_type))
         return NULL;
@@ -467,9 +467,9 @@ PyInit_dp_stream(void)
     PyModule_AddObject(m, "Publisher", (PyObject *)&PublisherType);
 
     // Constants
-    PyModule_AddIntConstant(m, "CI32", DP_CI32);
-    PyModule_AddIntConstant(m, "CF64", DP_CF64);
-    PyModule_AddIntConstant(m, "CF128", DP_CF128);
+    PyModule_AddIntConstant(m, "CI32", CI32);
+    PyModule_AddIntConstant(m, "CF64", CF64);
+    PyModule_AddIntConstant(m, "CF128", CF128);
 
     return m;
 }

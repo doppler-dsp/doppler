@@ -109,7 +109,7 @@ int
 main (int argc, char *argv[])
 {
   const char *endpoint = "tcp://*:5555";
-  dp_sample_type_t sample_type = DP_CF64;
+  dp_sample_type_t sample_type = CF64;
 
   if (argc > 1 && (strcmp (argv[1], "--help") == 0
                    || strcmp (argv[1], "-h") == 0))
@@ -117,8 +117,8 @@ main (int argc, char *argv[])
   if (argc > 1) endpoint = argv[1];
   if (argc > 2)
     {
-      if      (strcmp (argv[2], "ci32") == 0) sample_type = DP_CI32;
-      else if (strcmp (argv[2], "cf64") == 0) sample_type = DP_CF64;
+      if      (strcmp (argv[2], "ci32") == 0) sample_type = CI32;
+      else if (strcmp (argv[2], "cf64") == 0) sample_type = CF64;
       else
         {
           fprintf (stderr, "Unknown type '%s'. Use: ci32, cf64\n", argv[2]);
@@ -149,7 +149,7 @@ main (int argc, char *argv[])
   dp_usleep (1000000);
 
   void *samples = NULL;
-  if (sample_type == DP_CI32)
+  if (sample_type == CI32)
     samples = malloc (BUFFER_SIZE * 2 * sizeof (int32_t));
   else
     samples = malloc (BUFFER_SIZE * sizeof (double _Complex));
@@ -168,7 +168,7 @@ main (int argc, char *argv[])
   while (keep_running)
     {
       int rc;
-      if (sample_type == DP_CI32)
+      if (sample_type == CI32)
         {
           generate_tone_ci32 ((int32_t *)samples, BUFFER_SIZE,
                               SIGNAL_FREQ, SAMPLE_RATE, phase);

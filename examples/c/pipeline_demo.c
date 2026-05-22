@@ -50,7 +50,7 @@ producer_thread (void *arg)
   (void)arg;
   printf ("Producer: starting...\n");
 
-  dp_push *ctx = dp_push_create (ENDPOINT, DP_CF64);
+  dp_push *ctx = dp_push_create (ENDPOINT, CF64);
   if (!ctx) { fputs ("Producer: dp_push_create failed\n", stderr); return NULL; }
 
   dp_usleep (100000); /* allow consumer to connect */
@@ -128,7 +128,7 @@ consumer_thread (void *arg)
       total_samps += n;
 
       double pwr = 0.0;
-      if (type == DP_CF64)
+      if (type == CF64)
         pwr = mean_power_cf64 ((const double _Complex *)dp_msg_data (msg), n);
       power_sum += pwr;
 

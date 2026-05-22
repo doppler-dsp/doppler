@@ -53,7 +53,7 @@ dp_msg_num_samples (dp_msg_t *msg)
 dp_sample_type_t
 dp_msg_sample_type (dp_msg_t *msg)
 {
-  return msg ? msg->sample_type : DP_CF64;
+  return msg ? msg->sample_type : CF64;
 }
 
 void
@@ -82,17 +82,17 @@ dp_sample_size (dp_sample_type_t type)
 {
   switch (type)
     {
-    case DP_CI8:
+    case CI8:
       return 2 * sizeof (int8_t);
-    case DP_CI16:
+    case CI16:
       return 2 * sizeof (int16_t);
-    case DP_CI32:
+    case CI32:
       return 2 * sizeof (int32_t);
-    case DP_CF32:
+    case CF32:
       return sizeof (float _Complex);
-    case DP_CF64:
+    case CF64:
       return sizeof (double _Complex);
-    case DP_CF128:
+    case CF128:
       return sizeof (long double _Complex);
     default:
       return 0;
@@ -104,17 +104,17 @@ dp_sample_type_str (dp_sample_type_t type)
 {
   switch (type)
     {
-    case DP_CI8:
+    case CI8:
       return "CI8";
-    case DP_CI16:
+    case CI16:
       return "CI16";
-    case DP_CI32:
+    case CI32:
       return "CI32";
-    case DP_CF32:
+    case CF32:
       return "CF32";
-    case DP_CF64:
+    case CF64:
       return "CF64";
-    case DP_CF128:
+    case CF128:
       return "CF128";
     default:
       return "UNKNOWN";
@@ -334,7 +334,7 @@ recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
       return DP_ERR_RECV;
     }
 
-  msg->sample_type = DP_CF64; /* not meaningful for raw recv */
+  msg->sample_type = CF64; /* not meaningful for raw recv */
   msg->num_samples = 0;
 
   *out_msg = msg;
@@ -366,7 +366,7 @@ dp_pub_send_ci32 (dp_pub *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI32);
+                      CI32);
 }
 
 int
@@ -374,7 +374,7 @@ dp_pub_send_cf64 (dp_pub *ctx, const double _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF64);
+                      CF64);
 }
 
 int
@@ -382,7 +382,7 @@ dp_pub_send_cf128 (dp_pub *ctx, const long double _Complex *samples,
                    size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF128);
+                      CF128);
 }
 
 int
@@ -390,7 +390,7 @@ dp_pub_send_ci8 (dp_pub *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI8);
+                      CI8);
 }
 
 int
@@ -398,7 +398,7 @@ dp_pub_send_ci16 (dp_pub *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI16);
+                      CI16);
 }
 
 int
@@ -406,7 +406,7 @@ dp_pub_send_cf32 (dp_pub *ctx, const float _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF32);
+                      CF32);
 }
 
 void
@@ -418,7 +418,7 @@ dp_pub_destroy (dp_pub *ctx)
 dp_sub *
 dp_sub_create (const char *endpoint)
 {
-  return ctx_create (ZMQ_SUB, endpoint, 0, DP_CF64);
+  return ctx_create (ZMQ_SUB, endpoint, 0, CF64);
 }
 
 int
@@ -454,7 +454,7 @@ dp_push_send_ci32 (dp_push *ctx, const int32_t *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI32);
+                      CI32);
 }
 
 int
@@ -462,7 +462,7 @@ dp_push_send_cf64 (dp_push *ctx, const double _Complex *samples,
                    size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF64);
+                      CF64);
 }
 
 int
@@ -470,7 +470,7 @@ dp_push_send_cf128 (dp_push *ctx, const long double _Complex *samples,
                     size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF128);
+                      CF128);
 }
 
 int
@@ -478,7 +478,7 @@ dp_push_send_ci8 (dp_push *ctx, const int8_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI8);
+                      CI8);
 }
 
 int
@@ -486,7 +486,7 @@ dp_push_send_ci16 (dp_push *ctx, const int16_t *samples, size_t num_samples,
                    double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI16);
+                      CI16);
 }
 
 int
@@ -494,13 +494,13 @@ dp_push_send_cf32 (dp_push *ctx, const float _Complex *samples,
                    size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF32);
+                      CF32);
 }
 
 dp_pull *
 dp_pull_create (const char *endpoint)
 {
-  return ctx_create (ZMQ_PULL, endpoint, 0, DP_CF64);
+  return ctx_create (ZMQ_PULL, endpoint, 0, CF64);
 }
 
 int
@@ -534,13 +534,13 @@ dp_pull_destroy (dp_pull *ctx)
 dp_req *
 dp_req_create (const char *endpoint)
 {
-  return ctx_create (ZMQ_REQ, endpoint, 0, DP_CF64);
+  return ctx_create (ZMQ_REQ, endpoint, 0, CF64);
 }
 
 dp_rep *
 dp_rep_create (const char *endpoint)
 {
-  return ctx_create (ZMQ_REP, endpoint, 1, DP_CF64);
+  return ctx_create (ZMQ_REP, endpoint, 1, CF64);
 }
 
 /* -- Raw-bytes send/recv ------------------------------------------------ */
@@ -582,7 +582,7 @@ dp_req_send_ci32 (dp_req *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI32);
+                      CI32);
 }
 
 int
@@ -590,7 +590,7 @@ dp_req_send_cf64 (dp_req *ctx, const double _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF64);
+                      CF64);
 }
 
 int
@@ -598,7 +598,7 @@ dp_req_send_cf128 (dp_req *ctx, const long double _Complex *samples,
                    size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF128);
+                      CF128);
 }
 
 int
@@ -606,7 +606,7 @@ dp_req_send_ci8 (dp_req *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI8);
+                      CI8);
 }
 
 int
@@ -614,7 +614,7 @@ dp_req_send_ci16 (dp_req *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI16);
+                      CI16);
 }
 
 int
@@ -622,7 +622,7 @@ dp_req_send_cf32 (dp_req *ctx, const float _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF32);
+                      CF32);
 }
 
 int
@@ -630,7 +630,7 @@ dp_rep_send_ci32 (dp_rep *ctx, const int32_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI32);
+                      CI32);
 }
 
 int
@@ -638,7 +638,7 @@ dp_rep_send_cf64 (dp_rep *ctx, const double _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF64);
+                      CF64);
 }
 
 int
@@ -646,7 +646,7 @@ dp_rep_send_cf128 (dp_rep *ctx, const long double _Complex *samples,
                    size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF128);
+                      CF128);
 }
 
 int
@@ -654,7 +654,7 @@ dp_rep_send_ci8 (dp_rep *ctx, const int8_t *samples, size_t num_samples,
                  double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI8);
+                      CI8);
 }
 
 int
@@ -662,7 +662,7 @@ dp_rep_send_ci16 (dp_rep *ctx, const int16_t *samples, size_t num_samples,
                   double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CI16);
+                      CI16);
 }
 
 int
@@ -670,7 +670,7 @@ dp_rep_send_cf32 (dp_rep *ctx, const float _Complex *samples,
                   size_t num_samples, double sample_rate, double center_freq)
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
-                      DP_CF32);
+                      CF32);
 }
 
 int

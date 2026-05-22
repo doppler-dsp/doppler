@@ -233,12 +233,12 @@ main (int argc, char *argv[])
       void            *raw  = dp_msg_data (msg);
       size_t           N    = n < fft_size ? n : fft_size;
 
-      if (type == DP_CF64)
+      if (type == CF64)
         {
           const double _Complex *src = (const double _Complex *)raw;
           for (size_t i = 0; i < N; i++) win_buf[i] = src[i];
         }
-      else if (type == DP_CI32)
+      else if (type == CI32)
         {
           const int32_t *src = (const int32_t *)raw;
           const double   sc  = 1.0 / 2147483647.0;

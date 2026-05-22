@@ -20,18 +20,17 @@ All suites must pass. Fix failures before continuing.
 
 ## 2. Check examples
 
-Review `examples/python/` for any new or updated scripts.  If a script
-produces a plot that isn't yet in `docs/assets/`, regenerate it and
-commit the PNG before tagging:
+If any gallery example scripts in `examples/python/` changed since the
+last release, regenerate the plots:
 
 ```sh
-python examples/python/corr_demo.py
-python examples/python/detection_curves.py
-python examples/python/detection_sim.py
-# copy any new/changed .png → docs/assets/
-git add docs/assets/ docs/examples/
-git commit -m "docs: update example plots for vX.Y.Z"
+make gallery
+git add docs/assets/
+git commit -m "docs: update gallery plots for vX.Y.Z"
 ```
+
+If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
+in the Makefile before running `make gallery`.
 
 ---
 

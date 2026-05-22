@@ -70,7 +70,7 @@ endif
 
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
-        specan record-demo \
+        specan record-demo gallery \
         bench \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
@@ -191,6 +191,23 @@ record-demo:
 	    --frames 120 --fft-size 512 \
 	    -o docs/specan/frames.json
 
+# ── gallery ───────────────────────────────────────────────────────────────────
+# Run all plot-generating examples and copy output PNGs to docs/assets/.
+# Run before releasing whenever examples/python/ has changed.
+GALLERY_SCRIPTS := \
+    examples/python/corr_demo.py \
+    examples/python/detection_curves.py \
+    examples/python/detection_sim.py
+
+gallery:
+	@echo "Regenerating gallery plots..."
+	@for script in $(GALLERY_SCRIPTS); do \
+	    printf "  %-45s" "$$script"; \
+	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
+	done
+	@mv -f corr_demo.png detection_curves.png detection_sim.png docs/assets/
+	@echo "Gallery plots written to docs/assets/."
+
 # ── debug / release ───────────────────────────────────────────────────────────
 debug: clean
 	$(MAKE) build BUILD_TYPE=Debug
@@ -277,6 +294,7 @@ help:
 	@echo "  make bench         Run C + Python benchmarks; snapshot to benchmarks/history/"
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
+	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
 	@echo "  make docs-build    Build Zensical site"
 	@echo "  make docs-serve    Serve Zensical site locally"
 	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"

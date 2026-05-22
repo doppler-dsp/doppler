@@ -5,12 +5,37 @@ build-backend = "just_buildit"
 [project]
 name = "doppler-dsp"
 version = "0.3.4"
-description = "TODO: describe your project."
+description = "Dead-simple, ultra-fast digital signal processing."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "doppler contributors" },
+]
+keywords = ["dsp", "sdr", "fft", "fir", "nco", "signal-processing", "zmq", "iq"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
 dependencies = [
     "numpy",
 ]
+
+[project.urls]
+Homepage      = "https://doppler-dsp.github.io/doppler/"
+Repository    = "https://github.com/doppler-dsp/doppler"
+Documentation = "https://doppler-dsp.github.io/doppler/"
+"Bug Tracker" = "https://github.com/doppler-dsp/doppler/issues"
 
 [project.optional-dependencies]
 cli = [

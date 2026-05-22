@@ -431,7 +431,7 @@ static PyMethodDef FFTObj_methods[] = {
 
 static PyTypeObject FFTObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.FFT",
+    .tp_name      = "doppler.spectral.spectral.FFT",
     .tp_basicsize = sizeof(FFTObject),
     .tp_dealloc   = (destructor)FFTObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -747,7 +747,7 @@ static PyMethodDef FFT2DObj_methods[] = {
 
 static PyTypeObject FFT2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.FFT2D",
+    .tp_name      = "doppler.spectral.spectral.FFT2D",
     .tp_basicsize = sizeof(FFT2DObject),
     .tp_dealloc   = (destructor)FFT2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -944,7 +944,7 @@ static PyMethodDef CorrObj_methods[] = {
 
 static PyTypeObject CorrObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.Corr",
+    .tp_name      = "doppler.spectral.spectral.Corr",
     .tp_basicsize = sizeof(CorrObject),
     .tp_dealloc   = (destructor)CorrObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1157,7 +1157,7 @@ static PyMethodDef Corr2DObj_methods[] = {
 
 static PyTypeObject Corr2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.Corr2D",
+    .tp_name      = "doppler.spectral.spectral.Corr2D",
     .tp_basicsize = sizeof(Corr2DObject),
     .tp_dealloc   = (destructor)Corr2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1424,7 +1424,7 @@ static PyMethodDef DetectorObj_methods[] = {
 
 static PyTypeObject DetectorObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.Detector",
+    .tp_name      = "doppler.spectral.spectral.Detector",
     .tp_basicsize = sizeof(DetectorObject),
     .tp_dealloc   = (destructor)DetectorObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1717,7 +1717,7 @@ static PyMethodDef Detector2DObj_methods[] = {
 
 static PyTypeObject Detector2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "spectral.Detector2D",
+    .tp_name      = "doppler.spectral.spectral.Detector2D",
     .tp_basicsize = sizeof(Detector2DObject),
     .tp_dealloc   = (destructor)Detector2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,

@@ -15,7 +15,7 @@ and this project adheres to
 
 ---
 
-## [0.3.5] — 2026-05-22
+## [0.3.6] — 2026-05-22
 
 ### Added
 
@@ -52,6 +52,31 @@ and this project adheres to
   `doppler.spectral.spectral` submodule and fail with
   `AliasResolutionError` on every `zensical build`. Fixed parameter
   names and added missing `from typing import Any`.
+
+---
+
+## [0.3.5] — 2026-05-22
+
+### Added
+
+- **`Corr` / `Corr2D`** — cross-correlation components backed by
+  `corr_state_t` / `corr2d_state_t`; exported from `doppler.spectral`.
+- **`Detector` / `Detector2D`** — CFAR detectors on top of the
+  correlators; configurable noise mode (`mean`, `median`, `min`, `max`)
+  and per-dwell threshold; exported from `doppler.spectral`.
+- **`detection` module** — Marcum Q function, envelope detector, and
+  power detector; exported from `doppler.detection`.
+- **Python 3.14** — added to the release wheel build matrix.
+
+### Changed
+
+- **`dp_sample_type_t` enum values** — `DP_` prefix dropped
+  (e.g. `DP_CF32` → `CF32`). Breaking for C callers using the old names.
+- **Stream / pub-sub type names** — `_t` suffix added to
+  `dp_pub`, `dp_sub`, `dp_push`, `dp_pull`, `dp_req`, `dp_rep`,
+  `dp_f32`, `dp_f64`, `dp_i16`. Breaking for C callers.
+- **`DECLARE_DP_BUFFER` macro** — generated typedef now carries the
+  `_t` suffix to match the convention above.
 
 ---
 
@@ -512,7 +537,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3

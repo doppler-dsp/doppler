@@ -81,6 +81,15 @@ jobs:
         # protection rules on `main` don't block the commit.
         SNAP="${{ steps.tag.outputs.bench_tag }}"
         SRC="$GITHUB_WORKSPACE/benchmarks/history/${SNAP}.json"
+        # Refuse to commit a snapshot that wasn't trimmed properly — raw
+        # pytest-benchmark JSON with stats.data arrays can exceed 100 MB.
+        MAX_BYTES=524288  # 512 KB
+        ACTUAL=$(stat -c%s "$SRC")
+        if [ "$ACTUAL" -gt "$MAX_BYTES" ]; then
+          echo "ERROR: snapshot is ${ACTUAL} bytes (limit ${MAX_BYTES})." >&2
+          echo "       stats.data arrays were not trimmed — check just-makeit bench." >&2
+          exit 1
+        fi
         git fetch origin benchmarks 2>/dev/null || true
         if git ls-remote --exit-code origin benchmarks > /dev/null 2>&1; then
           git worktree add /tmp/bench-branch origin/benchmarks

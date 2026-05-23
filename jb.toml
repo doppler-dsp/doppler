@@ -1,0 +1,15 @@
+[project]
+name    = "doppler"
+version = "0.3.6"
+
+# Tool declarations — override default namespace resolution.
+# `jbx TOOL` resolves these before falling through to aliases.toml.
+
+[tools.install-deps]
+source    = "just-bashit:install-deps"
+deps_file = "deps.toml"
+groups    = ["runtime", "dev"]
+
+[tools.just-makeit]
+source = "just-bashit:just-makeit"
+config = "just-makeit.toml"

@@ -15,6 +15,46 @@ and this project adheres to
 
 ---
 
+## [0.3.5] — 2026-05-22
+
+### Added
+
+- **`Resampler` custom filter bank** — `Resampler` accepts an optional
+  `bank=` keyword argument to supply a pre-computed polyphase filter
+  bank, routing to `resamp_create_custom` internally.
+- **`HalfbandDecimatorDp` / `HalfbandDecimatorR2C`** — two new Python
+  types wrapping the double-precision and real-to-complex halfband
+  decimator variants; both are exported from `doppler.resample`.
+- **Gallery examples** — detection/correlation and AGC plot-generating
+  examples added; `make gallery` target regenerates all gallery images.
+- **C examples** — `docs/examples/c.md` filled with working C snippets
+  covering AGC, FIR filter, delay, source, accumulator, and resample.
+
+### Fixed
+
+- **FIR heap corruption** — `FIR.execute` used a pre-allocated output
+  buffer sized by `fir_execute_max_out()`, which returns 0 at
+  construction time. `malloc(0)` produced a zero-byte allocation that
+  every `execute` call silently overflowed. Output is now allocated
+  fresh per call with `PyArray_SimpleNew`.
+- **FIR real-tap dispatch** — `FIR.__init__` now inspects the tap
+  array dtype: `float32` routes to `fir_create_real`; `complex64`
+  routes to `fir_create`. Previously only the complex path was wired.
+- **`Delay.ptr()` default length** — the default `n` for `ptr()` was
+  hardcoded to 1; it now defaults to `handle->num_taps` (the full
+  delay line), matching the expected no-argument behaviour.
+- **`HalfbandDecimator` argument order** — `HalfbandDecimator_create`
+  was called with `(ptr, h_len)` instead of the correct `(h_len, ptr)`.
+- **`Resampler.execute_ctrl` guard** — added a length check requiring
+  the control array to be at least as long as the input array.
+- **Docs build** — `spectral.pyi` used `in` (a Python keyword) as a
+  parameter name, causing griffe to silently drop the
+  `doppler.spectral.spectral` submodule and fail with
+  `AliasResolutionError` on every `zensical build`. Fixed parameter
+  names and added missing `from typing import Any`.
+
+---
+
 ## [0.3.4] — 2026-05-19
 
 ### Added
@@ -472,7 +512,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2

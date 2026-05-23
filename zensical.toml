@@ -138,7 +138,7 @@ show_symbol_type_toc       = true
 members_order              = "source"
 separate_signature         = true
 show_signature_annotations = true
-allow_inspection           = true
+allow_inspection           = false
 
 [project.markdown_extensions.admonition]
 

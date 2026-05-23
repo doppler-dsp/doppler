@@ -1,15 +1,11 @@
 name: Benchmark
 
-# Runs on every push to main and on release tags.
-# Results are committed back to benchmarks/history/ so regressions are
-# visible in git history.  Always runs on the same platform and Python
-# version so snapshots are directly comparable.
-#
-# Also triggerable manually via the GitHub Actions UI (workflow_dispatch).
+# Runs automatically on release tags; opt-in otherwise via workflow_dispatch.
+# Always runs on the same platform and Python version so snapshots are
+# directly comparable.
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:

@@ -15,6 +15,21 @@ and this project adheres to
 
 ---
 
+## [0.3.7] — 2026-05-24
+
+### Changed
+
+- CI now uses `jbx install-deps` to install system dependencies from
+  `jb.toml`, replacing inline `apt-get`/`brew install` blocks.
+- `jb.toml` is the single system-deps manifest; the standalone
+  `install-deps.sh` shim and `jb-deps.toml` are removed.
+- Benchmark workflow runs automatically on release tags only; opt-in
+  via `workflow_dispatch` otherwise.
+- Benchmark snapshots are capped at 512 KB to prevent `stats.data`
+  arrays from bloating the repository.
+
+---
+
 ## [0.3.6] — 2026-05-22
 
 ### Added
@@ -538,6 +553,12 @@ and this project adheres to
 - **Python executable matching** in CI for C extension builds
 
 [Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
+[0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
+[0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
+[0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4

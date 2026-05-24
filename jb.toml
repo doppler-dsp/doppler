@@ -2,14 +2,103 @@
 name    = "doppler"
 version = "0.3.6"
 
-# Tool declarations — override default namespace resolution.
-# `jbx TOOL` resolves these before falling through to aliases.toml.
-
 [tools.install-deps]
-source    = "just-bashit:install-deps"
-deps_file = "deps.toml"
-groups    = ["runtime", "dev"]
+source = "just-bashit:install-deps"
+groups = ["runtime", "dev"]
 
 [tools.just-makeit]
 source = "just-bashit:just-makeit"
 config = "just-makeit.toml"
+
+[runtime.apt]
+packages = [
+    "libzmq3-dev",
+    "libfftw3-dev",
+    "libfftw3-bin",
+]
+
+[runtime.pacman]
+packages = [
+    "zeromq",
+    "fftw",
+]
+
+[runtime.brew]
+packages = [
+    "zeromq",
+    "fftw",
+]
+
+[runtime.dnf]
+packages = [
+    "zeromq-devel",
+    "fftw-devel",
+]
+
+[runtime.zypper]
+packages = [
+    "zeromq-devel",
+    "fftw3-devel",
+]
+
+[runtime.msys2]
+packages = [
+    "mingw-w64-ucrt-x86_64-zeromq",
+    "mingw-w64-ucrt-x86_64-fftw",
+]
+
+[dev.apt]
+packages = [
+    "build-essential",
+    "cmake",
+    "pkg-config",
+    "python3-dev",
+    "python3-numpy",
+]
+
+[dev.pacman]
+packages = [
+    "base-devel",
+    "cmake",
+    "pkgconf",
+    "python",
+    "python-numpy",
+]
+
+[dev.brew]
+packages = [
+    "cmake",
+    "pkg-config",
+]
+
+[dev.dnf]
+packages = [
+    "gcc",
+    "gcc-c++",
+    "make",
+    "cmake",
+    "pkgconf-pkg-config",
+    "python3-devel",
+    "python3-numpy",
+]
+
+[dev.zypper]
+packages = [
+    "gcc",
+    "gcc-c++",
+    "make",
+    "cmake",
+    "pkg-config",
+    "python3-devel",
+    "python3-numpy",
+]
+
+[dev.msys2]
+packages = [
+    "mingw-w64-ucrt-x86_64-gcc",
+    "mingw-w64-ucrt-x86_64-cmake",
+    "mingw-w64-ucrt-x86_64-python",
+    "mingw-w64-ucrt-x86_64-python-numpy",
+    "make",
+    "pkg-config",
+]

@@ -40,11 +40,11 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         sudo apt-get update
-        jbx install-deps -g runtime,dev -s apt
+        jbx -r install-deps -g runtime,dev -s apt
 
     - name: Install dependencies (macOS)
       if: startsWith(matrix.os, 'macos')
-      run: jbx install-deps -g runtime,dev -s brew
+      run: jbx -r install-deps -g runtime,dev -s brew
 
     - name: Install dependencies (Windows / MSYS2)
       if: matrix.os == 'windows-latest'
@@ -126,7 +126,7 @@ jobs:
     - name: Install system deps
       run: |
         sudo apt-get update
-        jbx install-deps -g runtime,dev -s apt
+        jbx -r install-deps -g runtime,dev -s apt
 
     - name: Install uv + Python + package deps
       uses: astral-sh/setup-uv@v4
@@ -235,7 +235,7 @@ jobs:
     - name: Install doxygen + LaTeX
       run: |
         sudo apt-get update
-        jbx install-deps -g docs -s apt
+        jbx -r install-deps -g docs -s apt
 
     - name: Run doxygen (zero warnings)
       run: |

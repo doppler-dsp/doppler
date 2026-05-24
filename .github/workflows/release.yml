@@ -139,7 +139,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install system dependencies
-        run: jbx install-deps -g runtime,dev -s brew
+        run: jbx -r install-deps -g runtime,dev -s brew
 
       - name: Build wheel (Python ${{ matrix.python }})
         run: |

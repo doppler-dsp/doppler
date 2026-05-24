@@ -106,6 +106,7 @@ pyext:
 		-DBUILD_PYTHON=ON \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+	uv sync
 
 # ── just-build ────────────────────────────────────────────────────────────────
 # PEP 517 build hook for just-buildit.

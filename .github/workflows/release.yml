@@ -127,8 +127,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
+      - name: Install jbx
+        run: |
+          . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Install system dependencies
-        run: brew install cmake zeromq fftw pkg-config
+        run: jbx install-deps -g runtime,dev -s brew
 
       - name: Build wheel (Python ${{ matrix.python }})
         run: |

@@ -102,3 +102,12 @@ packages = [
     "make",
     "pkg-config",
 ]
+
+[docs.apt]
+packages = [
+    "doxygen",
+    "graphviz",
+    "texlive-base",
+    "texlive-latex-extra",
+    "dvipng",
+]

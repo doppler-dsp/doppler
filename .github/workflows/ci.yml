@@ -24,21 +24,21 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install jbx
+      if: matrix.os != 'windows-latest'
+      run: |
+        . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Install dependencies (Ubuntu)
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          libzmq3-dev \
-          libfftw3-dev \
-          libfftw3-bin \
-          cmake \
-          pkg-config
+        jbx install-deps -g runtime,dev -s apt
 
     - name: Install dependencies (macOS)
       if: startsWith(matrix.os, 'macos')
-      run: |
-        brew install zeromq fftw cmake
+      run: jbx install-deps -g runtime,dev -s brew
 
     - name: Install dependencies (Windows / MSYS2)
       if: matrix.os == 'windows-latest'
@@ -106,16 +106,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install jbx
+      run: |
+        . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Install system deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          libzmq3-dev \
-          libfftw3-dev \
-          cmake \
-          pkg-config \
-          python3-dev
+        jbx install-deps -g runtime,dev -s apt
 
     - name: Install uv + Python + package deps
       uses: astral-sh/setup-uv@v4
@@ -210,15 +209,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install jbx
+      run: |
+        . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Install doxygen + LaTeX
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          doxygen \
-          graphviz \
-          texlive-base \
-          texlive-latex-extra \
-          dvipng
+        jbx install-deps -g docs -s apt
 
     - name: Run doxygen (zero warnings)
       run: |

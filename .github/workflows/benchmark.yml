@@ -27,16 +27,15 @@ jobs:
         # Full history so the commit push works cleanly
         fetch-depth: 0
 
+    - name: Install jbx
+      run: |
+        . <(curl -sSL https://just-buildit.github.io/get-jb.sh)
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
     - name: Install system deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          libzmq3-dev \
-          libfftw3-dev \
-          cmake \
-          pkg-config \
-          python3-dev
+        jbx install-deps -g runtime,dev -s apt
 
     - name: Install uv + Python 3.12
       uses: astral-sh/setup-uv@v4

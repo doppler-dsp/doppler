@@ -61,10 +61,12 @@ async def get_state():
         "level": _cfg.level,
     }
     if isinstance(_source, DemoSource):
+        t0 = _source._tones[0]
         state["demo"] = {
-            "tone_freq": _source._tone_fn,
-            "tone_power": _source._tone_power_dbm,
+            "tone_freq": t0["fn"],
+            "tone_power": t0["dbm"],
             "noise_floor": _source._noise_floor_dbm,
+            "tones": _source.get_tones(),
         }
     return state
 
@@ -102,6 +104,16 @@ async def _apply_cmd(cmd: dict) -> None:
                 _source.set_chirp(0.0)
             else:
                 _source.set_chirp(float(v))
+        if "add_tone" in cmd:
+            v = cmd["add_tone"]
+            freq_hz = float(v.get("freq_hz", 0.0))
+            dbm = float(v.get("power_dbm", -20.0))
+            # NCO runs at input rate; fn is offset from DC normalised
+            # to input sample rate, not the (possibly decimated) fs_out.
+            fn = (freq_hz - _source._cf) / _source._fs
+            _source.add_tone(fn, dbm)
+        if "remove_tone" in cmd:
+            _source.remove_tone(int(cmd["remove_tone"]))
 
 
 @app.post("/tune")
@@ -149,6 +161,13 @@ async def websocket_endpoint(ws: WebSocket):
             )
 
             if frame is not None:
+                from doppler.specan.source import DemoSource  # noqa: PLC0415
+
+                tones = (
+                    _source.get_tones()
+                    if isinstance(_source, DemoSource)
+                    else []
+                )
                 payload = json.dumps(
                     {
                         "fft_size": frame.fft_size,
@@ -158,8 +177,10 @@ async def websocket_endpoint(ws: WebSocket):
                         "rbw": frame.rbw,
                         "db": frame.db,
                         "peaks": [
-                            {"freq_hz": p.freq_hz, "db": p.db} for p in frame.peaks
+                            {"freq_hz": p.freq_hz, "db": p.db}
+                            for p in frame.peaks
                         ],
+                        "tones": tones,
                     }
                 )
                 await ws.send_text(payload)

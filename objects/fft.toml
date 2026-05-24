@@ -1,0 +1,56 @@
+[fft]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "FFT"
+
+[[fft.init_params]]
+name = "n"
+type = "size_t"
+default = "1024"
+
+[[fft.init_params]]
+name = "sign"
+type = "int"
+default = "-1"
+
+[[fft.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[fft.methods]]
+name = "execute_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_inplace_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft.methods]]
+name = "execute_inplace_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[fft.properties]]
+name = "sign"
+type = "int"
+field = true

@@ -1,0 +1,39 @@
+[lo]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "LO"
+
+[[lo.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[lo.methods]]
+name = "steps"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+
+[[lo.methods]]
+name = "steps_ctrl"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "ctrl", type = "float[]"}]
+
+[[lo.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[lo.properties]]
+name = "phase"
+type = "uint32_t"
+writable = true
+
+[[lo.properties]]
+name = "phase_inc"
+type = "uint32_t"

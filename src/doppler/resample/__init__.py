@@ -10,7 +10,12 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, Halfbanddecimator, kaiser_beta, kaiser_num_taps  # noqa: E402
+from .resample import (  # noqa: E402
+    HalfbandDecimator,
+    HalfbandDecimatorDp,
+    HalfbandDecimatorR2C,
+    Resampler,
+)
 
 
 def kaiser_beta(atten: float) -> float:
@@ -109,4 +114,14 @@ def _num_phases_for_rejection(rejection: float) -> int:
 # underscore alias kept for test/internal compatibility
 _kaiser_num_taps = kaiser_num_taps
 
-__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "Halfbanddecimator", "kaiser_beta", "kaiser_num_taps"]
+__all__ = [
+    "Resampler",
+    "HalfbandDecimator",
+    "HalfbandDecimatorDp",
+    "HalfbandDecimatorR2C",
+    "kaiser_beta",
+    "kaiser_num_taps",
+    "_build_bank",
+    "_halfband_bank",
+    "_num_phases_for_rejection",
+]

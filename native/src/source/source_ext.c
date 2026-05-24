@@ -63,18 +63,29 @@ NCOObj_init(NCOObject *self, PyObject *args, PyObject *kwds)
                         "nco_create returned NULL");
         return -1;
     }
-    self->_steps_u32_buf = malloc(
-        nco_steps_u32_max_out(self->handle) * sizeof(uint32_t));
-    if (!self->_steps_u32_buf) { PyErr_NoMemory(); return -1; }
-    self->_steps_u32_scaled_buf = malloc(
-        nco_steps_u32_scaled_max_out(self->handle) * sizeof(uint32_t));
-    if (!self->_steps_u32_scaled_buf) { PyErr_NoMemory(); return -1; }
-    self->_steps_u32_ovf_buf = malloc(
-        nco_steps_u32_ovf_max_out(self->handle) * sizeof(uint32_t));
-    if (!self->_steps_u32_ovf_buf) { PyErr_NoMemory(); return -1; }
-    self->_steps_u32_ovf_buf_1 = malloc(
-        nco_steps_u32_ovf_max_out(self->handle) * sizeof(uint8_t));
-    if (!self->_steps_u32_ovf_buf_1) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = nco_steps_u32_max_out(self->handle);
+        if (_max) {
+        self->_steps_u32_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = nco_steps_u32_scaled_max_out(self->handle);
+        if (_max) {
+        self->_steps_u32_scaled_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_scaled_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = nco_steps_u32_ovf_max_out(self->handle);
+        if (_max) {
+        self->_steps_u32_ovf_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_ovf_buf) { PyErr_NoMemory(); return -1; }
+        self->_steps_u32_ovf_buf_1 = malloc(_max * sizeof(uint8_t));
+        if (!self->_steps_u32_ovf_buf_1) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -104,6 +115,12 @@ NCOObj_steps_u32(NCOObject *self, PyObject *args)
     Py_ssize_t n = 1;
     if (!PyArg_ParseTuple(args, "|n", &n))
         return NULL;
+    if (!self->_steps_u32_buf) {
+        size_t _max = nco_steps_u32_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_steps_u32_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_buf) { PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = nco_steps_u32(self->handle, (size_t)n, self->_steps_u32_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -124,6 +141,12 @@ NCOObj_steps_u32_scaled(NCOObject *self, PyObject *args)
     Py_ssize_t n = 1;
     if (!PyArg_ParseTuple(args, "|n", &n))
         return NULL;
+    if (!self->_steps_u32_scaled_buf) {
+        size_t _max = nco_steps_u32_scaled_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_steps_u32_scaled_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_scaled_buf) { PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = nco_steps_u32_scaled(self->handle, (size_t)n, self->_steps_u32_scaled_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -354,12 +377,20 @@ LOObj_init(LOObject *self, PyObject *args, PyObject *kwds)
                         "lo_create returned NULL");
         return -1;
     }
-    self->_steps_buf = malloc(
-        lo_steps_max_out(self->handle) * sizeof(float complex));
-    if (!self->_steps_buf) { PyErr_NoMemory(); return -1; }
-    self->_steps_ctrl_buf = malloc(
-        lo_steps_ctrl_max_out(self->handle) * sizeof(float complex));
-    if (!self->_steps_ctrl_buf) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = lo_steps_max_out(self->handle);
+        if (_max) {
+        self->_steps_buf = malloc(_max * sizeof(float complex));
+        if (!self->_steps_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = lo_steps_ctrl_max_out(self->handle);
+        if (_max) {
+        self->_steps_ctrl_buf = malloc(_max * sizeof(float complex));
+        if (!self->_steps_ctrl_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -389,6 +420,12 @@ LOObj_steps(LOObject *self, PyObject *args)
     Py_ssize_t n = 1;
     if (!PyArg_ParseTuple(args, "|n", &n))
         return NULL;
+    if (!self->_steps_buf) {
+        size_t _max = lo_steps_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_steps_buf = malloc(_max * sizeof(float complex));
+        if (!self->_steps_buf) { PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = lo_steps(self->handle, (size_t)n, self->_steps_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -413,6 +450,12 @@ LOObj_steps_ctrl(LOObject *self, PyObject *args)
     ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF(
         ctrl_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
     if (!ctrl_arr) return NULL;
+    if (!self->_steps_ctrl_buf) {
+        size_t _max = lo_steps_ctrl_max_out(self->handle);
+        if (!_max) _max = (size_t)PyArray_SIZE(ctrl_arr);
+        self->_steps_ctrl_buf = malloc(_max * sizeof(float complex));
+        if (!self->_steps_ctrl_buf) { Py_DECREF(ctrl_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = lo_steps_ctrl(self->handle, (const float *)PyArray_DATA(ctrl_arr), (size_t)PyArray_SIZE(ctrl_arr), self->_steps_ctrl_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(

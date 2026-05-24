@@ -1,0 +1,26 @@
+[fir]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "FIR"
+
+[[fir.init_params]]
+name = "taps"
+type = "float _Complex[]"
+
+[[fir.methods]]
+name = "execute"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fir.properties]]
+name = "num_taps"
+type = "size_t"
+field = true
+
+[[fir.properties]]
+name = "is_real"
+type = "bool"

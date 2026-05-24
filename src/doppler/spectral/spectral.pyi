@@ -1,5 +1,4 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
-from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
@@ -378,10 +377,10 @@ def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
 def hann_window(w: NDArray[np.float32]) -> None:
     """Hann window."""
 
-def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
+def magnitude_db_cf32(in: NDArray[np.complex64], lin_floor: float, offset_db: float) -> None:
     """Magnitude db cf32."""
 
-def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
+def magnitude_db_cf64(in: NDArray[np.complex128], lin_floor: float, offset_db: float) -> None:
     """Magnitude db cf64."""
 
 def find_peaks_f32(db: NDArray[np.float32], n_peaks: int, min_db: float) -> Any:

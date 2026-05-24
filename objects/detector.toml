@@ -1,0 +1,91 @@
+[detector]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Detector"
+
+[[detector.init_params]]
+name = "ref"
+type = "float _Complex[]"
+
+[[detector.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[detector.init_params]]
+name = "noise_lo"
+type = "size_t"
+default = "0"
+
+[[detector.init_params]]
+name = "noise_hi"
+type = "size_t"
+default = "n-1"
+default_raw = "(unsigned long long)-1ULL"
+
+[[detector.init_params]]
+name = "noise_mode"
+type = "string_enum:mean,median,min,max"
+default = "mean"
+
+[[detector.init_params]]
+name = "threshold"
+type = "float"
+default = "0.0f"
+
+[[detector.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[detector.methods]]
+name = "push"
+arg_type = "float _Complex"
+return_type = "det_result_t"
+max_results = 64
+result_fields = [{name = "lag", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}]
+
+[[detector.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "dwell"
+type = "size_t"
+expr = "self->handle->corr->dwell"
+
+[[detector.properties]]
+name = "count"
+type = "size_t"
+expr = "self->handle->corr->count"
+
+[[detector.properties]]
+name = "ring_cap"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "noise_lo"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "noise_hi"
+type = "size_t"
+field = true
+
+[[detector.properties]]
+name = "threshold"
+type = "float"
+field = true
+
+[[detector.properties]]
+name = "last_corr"
+type = "float _Complex[]"
+buf_field = "out_buf"
+len_field = "n"
+valid_field = "_last_corr_valid"

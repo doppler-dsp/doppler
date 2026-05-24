@@ -1,0 +1,39 @@
+[acc_f32]
+arg_type = "float"
+return_type = "void"
+mutable = "true"
+no_state = "false"
+no_step = "false"
+
+[[acc_f32.state]]
+name = "acc"
+type = "float"
+default = "0.0f"
+
+[[acc_f32.methods]]
+name = "get"
+arg_type = "void"
+return_type = "float"
+
+[[acc_f32.methods]]
+name = "dump"
+arg_type = "void"
+return_type = "float"
+
+[[acc_f32.methods]]
+name = "madd"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}, {name = "h", type = "float[]"}]
+
+[[acc_f32.methods]]
+name = "add2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}]
+
+[[acc_f32.methods]]
+name = "madd2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "float[]"}, {name = "h", type = "float[]"}]

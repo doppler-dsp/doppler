@@ -1,0 +1,39 @@
+[acc_cf64]
+arg_type = "double _Complex"
+return_type = "void"
+mutable = "true"
+no_state = "false"
+no_step = "false"
+
+[[acc_cf64.state]]
+name = "acc"
+type = "double _Complex"
+default = "0.0 + 0.0 * I"
+
+[[acc_cf64.methods]]
+name = "get"
+arg_type = "void"
+return_type = "double _Complex"
+
+[[acc_cf64.methods]]
+name = "dump"
+arg_type = "void"
+return_type = "double _Complex"
+
+[[acc_cf64.methods]]
+name = "madd"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}, {name = "h", type = "float[]"}]
+
+[[acc_cf64.methods]]
+name = "add2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}]
+
+[[acc_cf64.methods]]
+name = "madd2d"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex[]"}, {name = "h", type = "float[]"}]

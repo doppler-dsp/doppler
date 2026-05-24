@@ -1,0 +1,70 @@
+# block_nostate.toml — template for block-processing objects that wrap an
+# opaque C handle (no_state + no_step).
+#
+# When to use this template (instead of the CLI default step/steps pattern):
+#   - The C API owns block I/O: takes (state, *in, n_in, *out) or similar
+#   - Output length may differ from input (decimation, resampling, correlation)
+#   - State is heap-allocated and opaque — jm cannot infer its fields
+#
+# Covers: decimators (CIC, HalfbandDecimator), block filters (FIR),
+#         resamplers, FFTs, correlators.
+#
+# Usage:
+#   cp templates/block_nostate.toml objects/<obj>.toml
+#   # Edit: replace <<OBJ>> with the C symbol prefix (e.g. cic),
+#   #        <<CLASS>> with the Python class name (e.g. CIC),
+#   #        <<MODULE>> with the module name (e.g. filter),
+#   #        and fill in init_params, methods, properties for your algorithm.
+#   # Add to just-makeit.toml: objects = [..., "<<OBJ>>"]
+#   jm apply objects/<<OBJ>>.toml
+#
+# Hand-edit after apply (required for all objects using this template):
+#   native/inc/<<OBJ>>/<<OBJ>>_core.h  — add state struct fields + extra decls
+#   native/src/<<OBJ>>/<<OBJ>>_core.c  — lifecycle (create/destroy/reset) + method bodies
+#   # ext.c only if: dtype dispatch, non-trivial validation, or lazy-alloc path needs fix
+
+[<<OBJ>>]
+arg_type    = "float _Complex"
+return_type = "float _Complex"
+mutable     = "false"
+no_state    = "true"
+no_step     = "true"
+class_name  = "<<CLASS>>"
+# impl_file = "native/src/<<OBJ>>/<<OBJ>>_core.c::<<OBJ>>_execute"
+
+# ── Constructor parameters ────────────────────────────────────────────────────
+# List all parameters needed by <<OBJ>>_create(). Use sensible defaults.
+# Remove params with no default (required args) or add default = "..." freely.
+
+[[<<OBJ>>.init_params]]
+name    = "n"
+type    = "size_t"
+default = "1024"
+
+# ── Primary execute method ────────────────────────────────────────────────────
+# variable_output = true: pre-allocates output buffer at init; returns
+# zero-copy numpy view per call. max_out() == 0 triggers lazy alloc on
+# first call (sized to n_in). Block size must stay consistent after first call.
+
+[[<<OBJ>>.methods]]
+name           = "execute"
+arg_type       = "float _Complex"
+return_type    = "float _Complex"
+variable_output = true
+
+# ── Reconfigure (optional) ────────────────────────────────────────────────────
+# Include only if the C API supports in-place reconfiguration.
+# [[<<OBJ>>.methods]]
+# name       = "reconfigure"
+# arg_type   = "void"
+# return_type = "void"
+# params     = [{name = "n", type = "size_t"}]
+
+# ── Properties ────────────────────────────────────────────────────────────────
+# field = true: reads self->handle->name directly (no getter function needed).
+# Remove field = true and add a getter in <<OBJ>>_core.c for computed values.
+
+[[<<OBJ>>.properties]]
+name  = "n"
+type  = "size_t"
+field = true

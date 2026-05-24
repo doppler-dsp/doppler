@@ -1,0 +1,31 @@
+[HalfbandDecimator]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+depends_on = ["hbdecim"]
+
+[[HalfbandDecimator.init_params]]
+name = "h"
+type = "float[]"
+
+[[HalfbandDecimator.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[HalfbandDecimator.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+[[HalfbandDecimator.properties]]
+name = "rate"
+type = "double"
+
+[[HalfbandDecimator.properties]]
+name = "num_taps"
+type = "size_t"

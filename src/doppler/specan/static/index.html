@@ -267,6 +267,13 @@ let chirpEnabled = false;
 // Waterfall image buffer
 let wfImageData = null;
 
+// Tone markers for hit-testing on right-click
+// [{px: canvasPx, idx: toneIdx}]
+let tonePositions = [];
+
+// Most recent tone list from server (for rendering + hit-test)
+let currentTones = [];
+
 // ── Canvas setup ──────────────────────────────────────────────────────────
 const specCanvas = document.getElementById("spectrum");
 const wfCanvas   = document.getElementById("waterfall");
@@ -471,6 +478,70 @@ function drawSpectrum(db, sampleRate, centerFreq, peaks) {
       }
     }
   }
+
+  // Tone markers overlay (after peaks so labels don't collide)
+  drawTones(currentTones, centerFreq, sampleRate);
+}
+
+// ── Tone marker draw ──────────────────────────────────────────────────────
+// Colors: primary tone matches trace (cyan); extra tones are lime green.
+const TONE0_COLOR = "#22d3ee";   // cyan — same as trace
+const TONE_COLOR  = "#4ade80";   // lime green — user-added tones
+
+function drawTones(tones, centerFreq, span) {
+  if (!tones || tones.length === 0) return;
+  const W   = specCanvas.width;
+  const H   = specCanvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  const PAD = { l: 52 * dpr, r: 8 * dpr, t: 8 * dpr, b: 24 * dpr };
+  const pw  = W - PAD.l - PAD.r;
+  const ph  = H - PAD.t - PAD.b;
+
+  tonePositions = [];
+
+  specCtx.save();
+  specCtx.font         = `${10 * dpr}px "JetBrains Mono", monospace`;
+  specCtx.textBaseline = "top";
+  specCtx.textAlign    = "center";
+
+  for (let i = 0; i < tones.length; i++) {
+    const t    = tones[i];
+    const frac = (t.freq_hz - centerFreq) / span + 0.5;
+    if (frac < 0 || frac > 1) continue;
+    const px = PAD.l + frac * pw;
+    tonePositions.push({ px, idx: i });
+
+    const col = i === 0 ? TONE0_COLOR : TONE_COLOR;
+
+    // Dashed vertical line spanning the plot area
+    specCtx.strokeStyle = col;
+    specCtx.lineWidth   = 1 * dpr;
+    specCtx.globalAlpha = 0.55;
+    specCtx.setLineDash([4 * dpr, 4 * dpr]);
+    specCtx.beginPath();
+    specCtx.moveTo(px, PAD.t);
+    specCtx.lineTo(px, PAD.t + ph);
+    specCtx.stroke();
+    specCtx.setLineDash([]);
+    specCtx.globalAlpha = 1.0;
+
+    // Downward-pointing triangle at the top of the plot area
+    const ts = 5 * dpr;
+    specCtx.fillStyle = col;
+    specCtx.beginPath();
+    specCtx.moveTo(px - ts, PAD.t);
+    specCtx.lineTo(px + ts, PAD.t);
+    specCtx.lineTo(px,      PAD.t + ts * 2);
+    specCtx.closePath();
+    specCtx.fill();
+
+    // Frequency label just below the triangle
+    specCtx.fillStyle = col;
+    const label = fmtFreqShort(t.freq_hz);
+    specCtx.fillText(label, px, PAD.t + ts * 2 + 2 * dpr);
+  }
+
+  specCtx.restore();
 }
 
 // ── Waterfall draw ────────────────────────────────────────────────────────
@@ -552,6 +623,7 @@ function connect() {
 
     // Track current sample rate for tone freq display
     currentFs = msg.fs_out || currentFs;
+    currentTones = msg.tones || [];
 
     // Update pills
     document.getElementById("sr-pill").textContent =
@@ -574,6 +646,12 @@ function connect() {
 
     drawSpectrum(msg.db, msg.span, msg.center_freq, msg.peaks || []);
     drawWaterfall(msg.db);
+    // Sync tone-freq slider display to primary tone after chirp
+    if (currentTones.length > 0) {
+      const t0fn = (currentTones[0].freq_hz - msg.center_freq) / msg.fs_out;
+      toneFreqSlider.value = t0fn;
+      toneFreqVal.textContent = fmtHz(currentTones[0].freq_hz - msg.center_freq);
+    }
   };
 }
 
@@ -653,6 +731,51 @@ maxholdBtn.addEventListener("click", () => {
 
 resetBtn.addEventListener("click", () => {
   maxHold = null;
+});
+
+// ── Interactive tone editor ───────────────────────────────────────
+// Left-click on spectrum plot → add tone at clicked frequency.
+// Right-click near an existing tone marker (idx > 0) → remove it.
+
+// Return canvas-relative X in physical pixels from a mouse event.
+function canvasX(canvas, e) {
+  return (e.clientX - canvas.getBoundingClientRect().left)
+         * (window.devicePixelRatio || 1);
+}
+
+// Return the plot-area PAD.l in physical pixels.
+function padL() { return 52 * (window.devicePixelRatio || 1); }
+function padR() { return  8 * (window.devicePixelRatio || 1); }
+
+specCanvas.style.cursor = "crosshair";
+
+specCanvas.addEventListener("click", e => {
+  if (!lastFrame) return;
+  const x   = canvasX(specCanvas, e);
+  const pl  = padL();
+  const pr  = padR();
+  const pw  = specCanvas.width - pl - pr;
+  if (x < pl || x > specCanvas.width - pr) return;
+
+  const frac    = (x - pl) / pw;
+  const freq_hz = lastFrame.center_freq + (frac - 0.5) * lastFrame.span;
+  send({ add_tone: { freq_hz } });
+});
+
+specCanvas.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  if (!lastFrame) return;
+  const x        = canvasX(specCanvas, e);
+  const HIT_PX   = 15 * (window.devicePixelRatio || 1);
+
+  // Find nearest removable tone (idx > 0) within HIT_PX
+  let best = null, bestDist = HIT_PX;
+  for (const t of tonePositions) {
+    if (t.idx === 0) continue;   // primary tone is protected
+    const d = Math.abs(x - t.px);
+    if (d < bestDist) { best = t; bestDist = d; }
+  }
+  if (best !== null) send({ remove_tone: best.idx });
 });
 </script>
 </body>

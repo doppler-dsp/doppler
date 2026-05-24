@@ -1,0 +1,66 @@
+[fft2d]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "FFT2D"
+
+[[fft2d.init_params]]
+name = "ny"
+type = "size_t"
+default = "64"
+
+[[fft2d.init_params]]
+name = "nx"
+type = "size_t"
+default = "64"
+
+[[fft2d.init_params]]
+name = "sign"
+type = "int"
+default = "-1"
+
+[[fft2d.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[fft2d.methods]]
+name = "execute_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_inplace_cf64"
+arg_type = "double _Complex"
+return_type = "double _Complex"
+variable_output = true
+
+[[fft2d.methods]]
+name = "execute_inplace_cf32"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[fft2d.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[fft2d.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[fft2d.properties]]
+name = "sign"
+type = "int"
+field = true

@@ -1,0 +1,50 @@
+[nco]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "NCO"
+
+[[nco.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[nco.init_params]]
+name = "nmax"
+type = "uint32_t"
+default = "0"
+
+[[nco.methods]]
+name = "steps_u32"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+
+[[nco.methods]]
+name = "steps_u32_scaled"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+
+[[nco.methods]]
+name = "steps_u32_ovf"
+arg_type = "void"
+return_type = "uint32_t"
+variable_output = true
+multi_output = ["uint8_t"]
+
+[[nco.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[nco.properties]]
+name = "phase"
+type = "uint32_t"
+writable = true
+
+[[nco.properties]]
+name = "phase_inc"
+type = "uint32_t"

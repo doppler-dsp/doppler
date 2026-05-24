@@ -24,7 +24,7 @@ typedef struct {
 } DelayCf64Object;
 
 static void
-DelayCf64Obj_dealloc(DelayCf64Object *self)
+DelayCf64_dealloc(DelayCf64Object *self)
 {
     if (self->handle)
         delay_destroy(self->handle);
@@ -34,7 +34,7 @@ DelayCf64Obj_dealloc(DelayCf64Object *self)
 }
 
 static PyObject *
-DelayCf64Obj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+DelayCf64_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     DelayCf64Object *self = (DelayCf64Object *)type->tp_alloc(type, 0);
     if (self)
@@ -43,7 +43,7 @@ DelayCf64Obj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-DelayCf64Obj_init(DelayCf64Object *self, PyObject *args, PyObject *kwds)
+DelayCf64_init(DelayCf64Object *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"num_taps", NULL};
     unsigned long long num_taps_raw = 0ULL;
@@ -179,7 +179,7 @@ static PyGetSetDef DelayCf64_getset[] = {
 };
 
 static PyObject *
-DelayCf64Obj_destroy(DelayCf64Object *self, PyObject *Py_UNUSED(ignored))
+DelayCf64_destroy(DelayCf64Object *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         delay_destroy(self->handle);
@@ -189,14 +189,14 @@ DelayCf64Obj_destroy(DelayCf64Object *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-DelayCf64Obj_enter(DelayCf64Object *self, PyObject *Py_UNUSED(ignored))
+DelayCf64_enter(DelayCf64Object *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-DelayCf64Obj_exit(DelayCf64Object *self, PyObject *args)
+DelayCf64_exit(DelayCf64Object *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -206,7 +206,7 @@ DelayCf64Obj_exit(DelayCf64Object *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef DelayCf64Obj_methods[] = {
+static PyMethodDef DelayCf64_methods[] = {
     {"reset",    (PyCFunction)DelayCf64Obj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
 
@@ -250,24 +250,24 @@ static PyMethodDef DelayCf64Obj_methods[] = {
      "    >>> from doppler import DelayCf64\n"
      "    >>> obj = DelayCf64(1)\n"
      "    >>> obj.write(1.0 + 0.0j)\n"},
-    {"destroy",  (PyCFunction)DelayCf64Obj_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)DelayCf64_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)DelayCf64Obj_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)DelayCf64Obj_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)DelayCf64_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)DelayCf64_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject DelayCf64ObjType = {
+static PyTypeObject DelayCf64Type = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "delay.DelayCf64",
     .tp_basicsize = sizeof(DelayCf64Object),
-    .tp_dealloc   = (destructor)DelayCf64Obj_dealloc,
+    .tp_dealloc   = (destructor)DelayCf64_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "DelayCf64 type.",
-    .tp_methods   = DelayCf64Obj_methods,
+    .tp_methods   = DelayCf64_methods,
     .tp_getset    = DelayCf64_getset,
-    .tp_new       = DelayCf64Obj_new,
-    .tp_init      = (initproc)DelayCf64Obj_init,
+    .tp_new       = DelayCf64_new,
+    .tp_init      = (initproc)DelayCf64_init,
 };
 
 /* ======================================================== */
@@ -286,12 +286,12 @@ PyMODINIT_FUNC
 PyInit_delay(void)
 {
     import_array();
-    if (PyType_Ready(&DelayCf64ObjType) < 0) return NULL;
+    if (PyType_Ready(&DelayCf64Type) < 0) return NULL;
     PyObject *m = PyModule_Create(&delay_moduledef);
     if (!m) return NULL;
-    Py_INCREF(&DelayCf64ObjType);
-    if (PyModule_AddObject(m, "DelayCf64", (PyObject *)&DelayCf64ObjType) < 0) {
-        Py_DECREF(&DelayCf64ObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&DelayCf64Type);
+    if (PyModule_AddObject(m, "DelayCf64", (PyObject *)&DelayCf64Type) < 0) {
+        Py_DECREF(&DelayCf64Type); Py_DECREF(m); return NULL;
     }
     return m;
 }

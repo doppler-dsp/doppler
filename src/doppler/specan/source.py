@@ -76,11 +76,15 @@ def _dbm_to_amplitude(dbm: float) -> float:
 
 class DemoSource(Source):
     """
-    Synthetic IQ source: calibrated tone + AWGN.
+    Synthetic IQ source: calibrated tones + AWGN.
 
-    Generates a complex tone at ``tone_freq`` offset from DC using
-    doppler's NCO, plus Gaussian noise at ``noise_floor`` dBm.
-    Signal levels are calibrated: amplitude=1 ↔ +10 dBm into 50 Ω.
+    Generates one or more complex tones using doppler's NCO, plus
+    Gaussian noise at ``noise_floor`` dBm.  Signal levels are
+    calibrated: amplitude=1 ↔ +10 dBm into 50 Ω.
+
+    The primary tone (index 0) is set at construction time and is
+    always present.  Additional tones can be added via
+    :meth:`add_tone` and removed via :meth:`remove_tone`.
 
     Parameters
     ----------
@@ -89,9 +93,9 @@ class DemoSource(Source):
     center_freq : float
         Nominal center frequency in Hz (metadata only, no RF tuning).
     tone_freq : float
-        Tone offset from DC in Hz.
+        Primary tone offset from DC in Hz.
     tone_power : float
-        Tone power in dBm.
+        Primary tone power in dBm.
     noise_floor : float
         AWGN floor in dBm.
     """
@@ -107,29 +111,62 @@ class DemoSource(Source):
     ) -> None:
         self._fs = float(sample_rate)
         self._cf = float(center_freq)
-        self._tone_fn = float(tone_freq) / self._fs  # normalised [0,1)
-        self._tone_amp = _dbm_to_amplitude(tone_power)
-        self._noise_amp = _dbm_to_amplitude(noise_floor)
-        self._nco = None  # created lazily
         self._fft_size = 512  # updated by engine via set_fft_size()
-        # Store dBm values for external readback
-        self._tone_power_dbm = float(tone_power)
+        self._noise_amp = _dbm_to_amplitude(noise_floor)
         self._noise_floor_dbm = float(noise_floor)
-        # Chirp: sweep tone_fn back and forth at chirp_rate per read()
         self._chirp_rate: float = float(chirp_rate)
         self._chirp_dir: int = 1
+        # Multi-tone list: each entry is {fn, amp, dbm, nco}.
+        # Index 0 is the primary tone (always present; controlled by
+        # set_tone_freq / set_tone_power and the chirp sweep).
+        self._tones: list[dict] = [
+            self._make_tone(float(tone_freq) / self._fs, tone_power)
+        ]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _make_tone(self, fn: float, dbm: float) -> dict:
+        return {
+            "fn": float(fn) % 1.0,
+            "amp": _dbm_to_amplitude(dbm),
+            "dbm": float(dbm),
+            "nco": None,
+        }
+
+    def _nco_for(self, tone: dict):
+        if tone["nco"] is None:
+            from doppler.source import LO  # noqa: PLC0415
+
+            tone["nco"] = LO(tone["fn"])
+        return tone["nco"]
+
+    # ------------------------------------------------------------------
+    # Source interface
+    # ------------------------------------------------------------------
 
     def set_fft_size(self, n: int) -> None:
         self._fft_size = n
 
     def set_tone_freq(self, fn: float) -> None:
-        """Set tone frequency (normalised [0, 1))."""
-        self._tone_fn = float(fn) % 1.0
-        if self._nco is not None:
-            self._nco.norm_freq = self._tone_fn
+        """Set primary tone frequency (normalised [0, 1))."""
+        self._tones[0]["fn"] = float(fn) % 1.0
+        if self._tones[0]["nco"] is not None:
+            self._tones[0]["nco"].norm_freq = self._tones[0]["fn"]
+
+    def set_tone_power(self, dbm: float) -> None:
+        """Set primary tone power in dBm."""
+        self._tones[0]["dbm"] = float(dbm)
+        self._tones[0]["amp"] = _dbm_to_amplitude(dbm)
+
+    def set_noise_floor(self, dbm: float) -> None:
+        """Set noise floor in dBm."""
+        self._noise_floor_dbm = float(dbm)
+        self._noise_amp = _dbm_to_amplitude(dbm)
 
     def set_chirp(self, rate: float) -> None:
-        """Enable/disable chirp sweep.
+        """Enable/disable chirp sweep on the primary tone.
 
         Parameters
         ----------
@@ -140,39 +177,57 @@ class DemoSource(Source):
         """
         self._chirp_rate = float(rate)
 
-    def set_tone_power(self, dbm: float) -> None:
-        """Set tone power in dBm."""
-        self._tone_power_dbm = float(dbm)
-        self._tone_amp = _dbm_to_amplitude(dbm)
+    # ------------------------------------------------------------------
+    # Multi-tone API
+    # ------------------------------------------------------------------
 
-    def set_noise_floor(self, dbm: float) -> None:
-        """Set noise floor in dBm."""
-        self._noise_floor_dbm = float(dbm)
-        self._noise_amp = _dbm_to_amplitude(dbm)
+    def add_tone(self, fn: float, dbm: float = -20.0) -> int:
+        """Add a tone and return its index.
 
-    def _get_nco(self):
-        if self._nco is None:
-            from doppler.source import LO  # noqa: PLC0415
+        Parameters
+        ----------
+        fn : float
+            Normalised frequency [0, 1).
+        dbm : float
+            Power in dBm.
+        """
+        self._tones.append(self._make_tone(fn, dbm))
+        return len(self._tones) - 1
 
-            self._nco = LO(self._tone_fn)
-        return self._nco
+    def remove_tone(self, idx: int) -> None:
+        """Remove tone at *idx*.  Index 0 (primary) is protected."""
+        if 0 < idx < len(self._tones):
+            self._tones.pop(idx)
+
+    def get_tones(self) -> list[dict]:
+        """Return tone list as ``[{freq_hz, power_dbm}, ...]``."""
+        return [
+            {"freq_hz": t["fn"] * self._fs, "power_dbm": t["dbm"]}
+            for t in self._tones
+        ]
+
+    # ------------------------------------------------------------------
+    # read()
+    # ------------------------------------------------------------------
 
     def read(self, n: int) -> tuple[np.ndarray, float, float]:
-        # Advance chirp before generating samples
+        # Advance chirp on primary tone before generating samples
         if self._chirp_rate != 0.0:
-            self._tone_fn += self._chirp_rate * self._chirp_dir
-            if self._tone_fn >= 0.49:
-                self._tone_fn = 0.49
+            fn = self._tones[0]["fn"] + self._chirp_rate * self._chirp_dir
+            if fn >= 0.49:
+                fn = 0.49
                 self._chirp_dir = -1
-            elif self._tone_fn <= -0.49:
-                self._tone_fn = -0.49
+            elif fn <= -0.49:
+                fn = -0.49
                 self._chirp_dir = 1
-            if self._nco is not None:
-                self._nco.norm_freq = self._tone_fn
+            self._tones[0]["fn"] = fn
+            if self._tones[0]["nco"] is not None:
+                self._tones[0]["nco"].norm_freq = fn
 
-        nco = self._get_nco()
-        # Tone: LO at normalised frequency
-        sig = nco.steps(n) * self._tone_amp
+        # Sum all tones
+        sig = np.zeros(n, dtype=np.complex64)
+        for tone in self._tones:
+            sig += self._nco_for(tone).steps(n) * tone["amp"]
 
         # AWGN: scale by sqrt(fft_size) so the displayed noise floor
         # matches noise_floor_dbm at the current FFT size.  Uses the
@@ -189,7 +244,8 @@ class DemoSource(Source):
         return sig, self._fs, self._cf
 
     def close(self) -> None:
-        self._nco = None
+        for tone in self._tones:
+            tone["nco"] = None
 
 
 # ------------------------------------------------------------------

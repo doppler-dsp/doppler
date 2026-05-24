@@ -1,0 +1,74 @@
+# void_source.toml — template for signal generator / oscillator objects.
+#
+# When to use this template:
+#   - The object generates samples from internal state (no input signal)
+#   - Output is a block of N samples on each call
+#   - State is opaque (phase accumulator, LUT pointer, etc.)
+#
+# Covers: NCO, LO, tone generators, PN sequence generators.
+#
+# Usage:
+#   cp templates/void_source.toml objects/<obj>.toml
+#   # Edit: replace <<OBJ>> and <<CLASS>>, fill in init_params and properties.
+#   # Add to just-makeit.toml: objects = [..., "<<OBJ>>"]
+#   jm apply objects/<<OBJ>>.toml
+#
+# Hand-edit after apply (required):
+#   native/inc/<<OBJ>>/<<OBJ>>_core.h  — state struct, LUT declaration if needed
+#   native/src/<<OBJ>>/<<OBJ>>_core.c  — <<OBJ>>_create, phase increment logic,
+#                                         output generation loop
+
+[<<OBJ>>]
+arg_type    = "float _Complex"
+return_type = "float _Complex"
+mutable     = "false"
+no_state    = "true"
+no_step     = "true"
+class_name  = "<<CLASS>>"
+
+# ── Constructor parameters ────────────────────────────────────────────────────
+# norm_freq is nearly universal for oscillators (0.0 = DC, 0.5 = Nyquist).
+# Add other init-time configuration (LUT size, nmax, etc.) as needed.
+
+[[<<OBJ>>.init_params]]
+name    = "norm_freq"
+type    = "double"
+default = "0.0"
+
+# ── Primary output method ─────────────────────────────────────────────────────
+# void input → CF32[] output. The caller passes n (block size) as the
+# size parameter to the generated Python wrapper.
+# variable_output = true: pre-allocates on first call (size = n requested).
+
+[[<<OBJ>>.methods]]
+name            = "steps"
+arg_type        = "void"
+return_type     = "float _Complex"
+variable_output = true
+
+# ── Frequency-modulated variant (optional) ───────────────────────────────────
+# Include if the oscillator accepts a per-sample FM deviation array.
+# [[<<OBJ>>.methods]]
+# name            = "steps_ctrl"
+# arg_type        = "void"
+# return_type     = "float _Complex"
+# variable_output = true
+# params          = [{name = "ctrl", type = "float[]"}]
+
+# ── Properties ────────────────────────────────────────────────────────────────
+# norm_freq is writable (runtime tuning). phase is writable (sync/reset to
+# known angle). phase_inc is read-only (derived from norm_freq at create).
+
+[[<<OBJ>>.properties]]
+name     = "norm_freq"
+type     = "double"
+writable = true
+
+[[<<OBJ>>.properties]]
+name     = "phase"
+type     = "uint32_t"
+writable = true
+
+[[<<OBJ>>.properties]]
+name  = "phase_inc"
+type  = "uint32_t"

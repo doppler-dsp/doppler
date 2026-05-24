@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# LEGACY: pre-split-TOML bootstrap history. Objects now live in objects/*.toml.
+# To regenerate: edit objects/<obj>.toml then: jm apply objects/<obj>.toml
 # stream_scaffold.sh — declare the stream module interface via just-makeit.
 #
 # Run from: doppler-jm/ (project root, must contain just-makeit.toml)

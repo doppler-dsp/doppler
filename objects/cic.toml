@@ -1,0 +1,59 @@
+[cic]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "CIC"
+
+[[cic.init_params]]
+name = "R"
+type = "uint32_t"
+default = "1"
+
+[[cic.init_params]]
+name = "N"
+type = "uint32_t"
+default = "4"
+
+[[cic.init_params]]
+name = "M"
+type = "uint32_t"
+default = "1"
+
+[[cic.methods]]
+name = "reconfigure"
+arg_type = "void"
+return_type = "void"
+params = [{name = "R", type = "uint32_t"}, {name = "N", type = "uint32_t"}, {name = "M", type = "uint32_t"}]
+
+[[cic.methods]]
+name = "decimate"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+
+[[cic.properties]]
+name = "R"
+type = "uint32_t"
+field = true
+
+[[cic.properties]]
+name = "N"
+type = "uint32_t"
+field = true
+
+[[cic.properties]]
+name = "M"
+type = "uint32_t"
+field = true
+
+[[cic.properties]]
+name = "input_scale"
+type = "double"
+field = true
+
+[[cic.properties]]
+name = "output_scale"
+type = "double"
+field = true

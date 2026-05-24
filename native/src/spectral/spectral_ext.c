@@ -191,18 +191,34 @@ FFTObj_init(FFTObject *self, PyObject *args, PyObject *kwds)
                         "fft_create returned NULL");
         return -1;
     }
-    self->_execute_cf64_buf = malloc(
-        fft_execute_cf64_max_out(self->handle) * sizeof(double complex));
-    if (!self->_execute_cf64_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_cf32_buf = malloc(
-        fft_execute_cf32_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_cf32_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_inplace_cf64_buf = malloc(
-        fft_execute_inplace_cf64_max_out(self->handle) * sizeof(double complex));
-    if (!self->_execute_inplace_cf64_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_inplace_cf32_buf = malloc(
-        fft_execute_inplace_cf32_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_inplace_cf32_buf) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = fft_execute_cf64_max_out(self->handle);
+        if (_max) {
+        self->_execute_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_cf64_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft_execute_cf32_max_out(self->handle);
+        if (_max) {
+        self->_execute_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_cf32_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft_execute_inplace_cf64_max_out(self->handle);
+        if (_max) {
+        self->_execute_inplace_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_inplace_cf64_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft_execute_inplace_cf32_max_out(self->handle);
+        if (_max) {
+        self->_execute_inplace_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_inplace_cf32_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -236,6 +252,12 @@ FFTObj_execute_cf64(FFTObject *self, PyObject *args)
         in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_cf64_buf) {
+        size_t _max = fft_execute_cf64_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_cf64_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft_execute_cf64(self->handle, (const double complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_cf64_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -261,6 +283,12 @@ FFTObj_execute_cf32(FFTObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_cf32_buf) {
+        size_t _max = fft_execute_cf32_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_cf32_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft_execute_cf32(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_cf32_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -286,6 +314,12 @@ FFTObj_execute_inplace_cf64(FFTObject *self, PyObject *args)
         in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_inplace_cf64_buf) {
+        size_t _max = fft_execute_inplace_cf64_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_inplace_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_inplace_cf64_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft_execute_inplace_cf64(self->handle, (const double complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_inplace_cf64_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -311,6 +345,12 @@ FFTObj_execute_inplace_cf32(FFTObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_inplace_cf32_buf) {
+        size_t _max = fft_execute_inplace_cf32_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_inplace_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_inplace_cf32_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft_execute_inplace_cf32(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_inplace_cf32_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -431,7 +471,7 @@ static PyMethodDef FFTObj_methods[] = {
 
 static PyTypeObject FFTObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.FFT",
+    .tp_name      = "spectral.FFT",
     .tp_basicsize = sizeof(FFTObject),
     .tp_dealloc   = (destructor)FFTObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -497,18 +537,34 @@ FFT2DObj_init(FFT2DObject *self, PyObject *args, PyObject *kwds)
                         "fft2d_create returned NULL");
         return -1;
     }
-    self->_execute_cf64_buf = malloc(
-        fft2d_execute_cf64_max_out(self->handle) * sizeof(double complex));
-    if (!self->_execute_cf64_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_cf32_buf = malloc(
-        fft2d_execute_cf32_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_cf32_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_inplace_cf64_buf = malloc(
-        fft2d_execute_inplace_cf64_max_out(self->handle) * sizeof(double complex));
-    if (!self->_execute_inplace_cf64_buf) { PyErr_NoMemory(); return -1; }
-    self->_execute_inplace_cf32_buf = malloc(
-        fft2d_execute_inplace_cf32_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_inplace_cf32_buf) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = fft2d_execute_cf64_max_out(self->handle);
+        if (_max) {
+        self->_execute_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_cf64_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft2d_execute_cf32_max_out(self->handle);
+        if (_max) {
+        self->_execute_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_cf32_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft2d_execute_inplace_cf64_max_out(self->handle);
+        if (_max) {
+        self->_execute_inplace_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_inplace_cf64_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
+    {
+        size_t _max = fft2d_execute_inplace_cf32_max_out(self->handle);
+        if (_max) {
+        self->_execute_inplace_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_inplace_cf32_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -542,6 +598,12 @@ FFT2DObj_execute_cf64(FFT2DObject *self, PyObject *args)
         in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_cf64_buf) {
+        size_t _max = fft2d_execute_cf64_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_cf64_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft2d_execute_cf64(self->handle, (const double complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_cf64_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -567,6 +629,12 @@ FFT2DObj_execute_cf32(FFT2DObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_cf32_buf) {
+        size_t _max = fft2d_execute_cf32_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_cf32_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft2d_execute_cf32(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_cf32_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -592,6 +660,12 @@ FFT2DObj_execute_inplace_cf64(FFT2DObject *self, PyObject *args)
         in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_inplace_cf64_buf) {
+        size_t _max = fft2d_execute_inplace_cf64_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_inplace_cf64_buf = malloc(_max * sizeof(double complex));
+        if (!self->_execute_inplace_cf64_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft2d_execute_inplace_cf64(self->handle, (const double complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_inplace_cf64_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -617,6 +691,12 @@ FFT2DObj_execute_inplace_cf32(FFT2DObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_inplace_cf32_buf) {
+        size_t _max = fft2d_execute_inplace_cf32_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_inplace_cf32_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_inplace_cf32_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = fft2d_execute_inplace_cf32(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_inplace_cf32_buf);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
@@ -747,7 +827,7 @@ static PyMethodDef FFT2DObj_methods[] = {
 
 static PyTypeObject FFT2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.FFT2D",
+    .tp_name      = "spectral.FFT2D",
     .tp_basicsize = sizeof(FFT2DObject),
     .tp_dealloc   = (destructor)FFT2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -810,9 +890,13 @@ CorrObj_init(CorrObject *self, PyObject *args, PyObject *kwds)
                         "corr_create returned NULL");
         return -1;
     }
-    self->_execute_buf = malloc(
-        corr_execute_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_buf) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = corr_execute_max_out(self->handle);
+        if (_max) {
+        self->_execute_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -846,6 +930,12 @@ CorrObj_execute(CorrObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_buf) {
+        size_t _max = corr_execute_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = corr_execute(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_buf);
     if (!n_out) Py_RETURN_NONE;
     npy_intp dim = (npy_intp)n_out;
@@ -944,7 +1034,7 @@ static PyMethodDef CorrObj_methods[] = {
 
 static PyTypeObject CorrObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.Corr",
+    .tp_name      = "spectral.Corr",
     .tp_basicsize = sizeof(CorrObject),
     .tp_dealloc   = (destructor)CorrObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1013,9 +1103,13 @@ Corr2DObj_init(Corr2DObject *self, PyObject *args, PyObject *kwds)
                         "corr2d_create returned NULL");
         return -1;
     }
-    self->_execute_buf = malloc(
-        corr2d_execute_max_out(self->handle) * sizeof(float complex));
-    if (!self->_execute_buf) { PyErr_NoMemory(); return -1; }
+    {
+        size_t _max = corr2d_execute_max_out(self->handle);
+        if (_max) {
+        self->_execute_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_buf) { PyErr_NoMemory(); return -1; }
+        }
+    }
     return 0;
 }
 
@@ -1049,6 +1143,12 @@ Corr2DObj_execute(Corr2DObject *self, PyObject *args)
         in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
     if (!in_arr) return NULL;
     Py_ssize_t n = PyArray_SIZE(in_arr);
+    if (!self->_execute_buf) {
+        size_t _max = corr2d_execute_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_execute_buf = malloc(_max * sizeof(float complex));
+        if (!self->_execute_buf) { Py_DECREF(in_arr); PyErr_NoMemory(); return NULL; }
+    }
     size_t n_out = corr2d_execute(self->handle, (const float complex *)PyArray_DATA(in_arr), (size_t)n, self->_execute_buf);
     if (!n_out) Py_RETURN_NONE;
     npy_intp dim = (npy_intp)n_out;
@@ -1157,7 +1257,7 @@ static PyMethodDef Corr2DObj_methods[] = {
 
 static PyTypeObject Corr2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.Corr2D",
+    .tp_name      = "spectral.Corr2D",
     .tp_basicsize = sizeof(Corr2DObject),
     .tp_dealloc   = (destructor)Corr2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1424,7 +1524,7 @@ static PyMethodDef DetectorObj_methods[] = {
 
 static PyTypeObject DetectorObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.Detector",
+    .tp_name      = "spectral.Detector",
     .tp_basicsize = sizeof(DetectorObject),
     .tp_dealloc   = (destructor)DetectorObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
@@ -1717,7 +1817,7 @@ static PyMethodDef Detector2DObj_methods[] = {
 
 static PyTypeObject Detector2DObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.spectral.spectral.Detector2D",
+    .tp_name      = "spectral.Detector2D",
     .tp_basicsize = sizeof(Detector2DObject),
     .tp_dealloc   = (destructor)Detector2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,

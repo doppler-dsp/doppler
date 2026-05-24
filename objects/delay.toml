@@ -1,0 +1,46 @@
+[delay]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DelayCf64"
+
+[[delay.init_params]]
+name = "num_taps"
+type = "size_t"
+default = "1"
+
+[[delay.methods]]
+name = "push"
+arg_type = "void"
+return_type = "void"
+params = [{name = "x", type = "double _Complex"}]
+
+[[delay.methods]]
+name = "ptr"
+arg_type = "void"
+return_type = "double _Complex"
+variable_output = true
+
+[[delay.methods]]
+name = "push_ptr"
+arg_type = "void"
+return_type = "double _Complex"
+variable_output = true
+params = [{name = "x", type = "double _Complex"}]
+
+[[delay.methods]]
+name = "write"
+arg_type = "double _Complex"
+return_type = "void"
+
+[[delay.properties]]
+name = "num_taps"
+type = "size_t"
+field = true
+
+[[delay.properties]]
+name = "capacity"
+type = "size_t"
+field = true

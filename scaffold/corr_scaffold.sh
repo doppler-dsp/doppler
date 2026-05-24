@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# LEGACY: pre-split-TOML bootstrap history. Objects now live in objects/*.toml.
+# To regenerate: edit objects/<obj>.toml then: jm apply objects/<obj>.toml
 # corr_scaffold.sh — declare the Corr and Corr2D objects via just-makeit.
 #
 # Run from: doppler/   (project root, must contain just-makeit.toml)

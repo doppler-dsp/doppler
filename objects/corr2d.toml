@@ -1,0 +1,48 @@
+[corr2d]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Corr2D"
+
+[[corr2d.init_params]]
+name = "ref"
+type = "float _Complex[][]"
+
+[[corr2d.init_params]]
+name = "dwell"
+type = "size_t"
+default = "1"
+
+[[corr2d.init_params]]
+name = "nthreads"
+type = "int"
+default = "1"
+
+[[corr2d.methods]]
+name = "execute"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+variable_output = true
+none_on_empty = true
+
+[[corr2d.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "dwell"
+type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "count"
+type = "size_t"
+field = true

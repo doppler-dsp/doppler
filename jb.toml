@@ -1,6 +1,6 @@
 [project]
 name    = "doppler"
-version = "0.3.6"
+version = "0.3.7"
 
 [tools.install-deps]
 source = "just-bashit:install-deps"
@@ -63,6 +63,7 @@ packages = [
     "pkgconf",
     "python",
     "python-numpy",
+    "rust",
 ]
 
 [dev.brew]

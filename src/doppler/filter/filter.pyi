@@ -7,7 +7,7 @@ class FIR:
 
     Parameters
     ----------
-    taps : Any, default ...
+    taps : NDArray[np.complex64], default ...
         taps constructor parameter.
 
     Examples

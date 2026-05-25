@@ -1,4 +1,5 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -117,7 +118,7 @@ class Corr:
 
     Parameters
     ----------
-    ref : Any, default ...
+    ref : NDArray[np.complex64], default ...
         ref constructor parameter.
     dwell : int, default 1
         dwell constructor parameter.
@@ -164,7 +165,7 @@ class Corr2D:
 
     Parameters
     ----------
-    ref : Any, default ...
+    ref : NDArray[np.complex64], default ...
         ref constructor parameter.
     dwell : int, default 1
         dwell constructor parameter.
@@ -215,7 +216,7 @@ class Detector:
 
     Parameters
     ----------
-    ref : Any, default ...
+    ref : NDArray[np.complex64], default ...
         ref constructor parameter.
     dwell : int, default 1
         dwell constructor parameter.
@@ -223,7 +224,7 @@ class Detector:
         noise_lo constructor parameter.
     noise_hi : int, default n-1
         noise_hi constructor parameter.
-    noise_mode : Any, default ...
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         noise_mode constructor parameter.
     threshold : float, default 0.0
         threshold constructor parameter.
@@ -238,12 +239,12 @@ class Detector:
     >>> obj = Detector(..., 1, 0, n-1, ..., 0.0, 1)
 
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Any = ..., threshold: float = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def push(self, x: complex) -> Any:
+    def push(self, x: complex) -> list[tuple[int, float, float, float]]:
         """Push."""
 
     @property
@@ -290,7 +291,7 @@ class Detector2D:
 
     Parameters
     ----------
-    ref : Any, default ...
+    ref : NDArray[np.complex64], default ...
         ref constructor parameter.
     dwell : int, default 1
         dwell constructor parameter.
@@ -298,7 +299,7 @@ class Detector2D:
         noise_lo constructor parameter.
     noise_hi : int, default ny*nx-1
         noise_hi constructor parameter.
-    noise_mode : Any, default ...
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         noise_mode constructor parameter.
     threshold : float, default 0.0
         threshold constructor parameter.
@@ -313,12 +314,12 @@ class Detector2D:
     >>> obj = Detector2D(..., 1, 0, ny*nx-1, ..., 0.0, 1)
 
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Any = ..., threshold: float = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def push(self, x: complex) -> Any:
+    def push(self, x: complex) -> list[tuple[int, int, float, float, float]]:
         """Push."""
 
     @property
@@ -377,10 +378,10 @@ def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
 def hann_window(w: NDArray[np.float32]) -> None:
     """Hann window."""
 
-def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: float) -> None:
+def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
     """Magnitude db cf32."""
 
-def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: float) -> None:
+def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
     """Magnitude db cf64."""
 
 def find_peaks_f32(db: NDArray[np.float32], n_peaks: int, min_db: float) -> Any:

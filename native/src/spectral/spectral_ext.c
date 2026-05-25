@@ -75,21 +75,21 @@ static PyObject *
 _bind_magnitude_db_cf32(PyObject *self, PyObject *args)
 {
     (void)self;
-    PyObject *in_obj = NULL;
+    PyObject *x_obj = NULL;
     float lin_floor = 0.0f;
     float offset_db = 0.0f;
-    if (!PyArg_ParseTuple(args, "Off", &in_obj, &lin_floor, &offset_db))
+    if (!PyArg_ParseTuple(args, "Off", &x_obj, &lin_floor, &offset_db))
         return NULL;
-    PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-    if (!in_arr) { return NULL; }
-    const float complex *in = (const float complex *)PyArray_DATA(in_arr);
-    size_t in_len = (size_t)PyArray_SIZE(in_arr);
-    npy_intp _dim = (npy_intp)in_len;
+    PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+    if (!x_arr) { return NULL; }
+    const float complex *x = (const float complex *)PyArray_DATA(x_arr);
+    size_t x_len = (size_t)PyArray_SIZE(x_arr);
+    npy_intp _dim = (npy_intp)x_len;
     PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_FLOAT, 0);
-    if (!_out) {Py_DECREF(in_arr); return NULL; }
-    magnitude_db_cf32(in, in_len, (float *)PyArray_DATA((PyArrayObject *)_out), lin_floor, offset_db);
-    Py_DECREF(in_arr);
+    if (!_out) {Py_DECREF(x_arr); return NULL; }
+    magnitude_db_cf32(x, x_len, (float *)PyArray_DATA((PyArrayObject *)_out), lin_floor, offset_db);
+    Py_DECREF(x_arr);
     return _out;
 }
 
@@ -97,21 +97,21 @@ static PyObject *
 _bind_magnitude_db_cf64(PyObject *self, PyObject *args)
 {
     (void)self;
-    PyObject *in_obj = NULL;
+    PyObject *x_obj = NULL;
     double lin_floor = 0.0;
     float offset_db = 0.0f;
-    if (!PyArg_ParseTuple(args, "Odf", &in_obj, &lin_floor, &offset_db))
+    if (!PyArg_ParseTuple(args, "Odf", &x_obj, &lin_floor, &offset_db))
         return NULL;
-    PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        in_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
-    if (!in_arr) { return NULL; }
-    const double complex *in = (const double complex *)PyArray_DATA(in_arr);
-    size_t in_len = (size_t)PyArray_SIZE(in_arr);
-    npy_intp _dim = (npy_intp)in_len;
+    PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
+    if (!x_arr) { return NULL; }
+    const double complex *x = (const double complex *)PyArray_DATA(x_arr);
+    size_t x_len = (size_t)PyArray_SIZE(x_arr);
+    npy_intp _dim = (npy_intp)x_len;
     PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_FLOAT, 0);
-    if (!_out) {Py_DECREF(in_arr); return NULL; }
-    magnitude_db_cf64(in, in_len, (float *)PyArray_DATA((PyArrayObject *)_out), lin_floor, offset_db);
-    Py_DECREF(in_arr);
+    if (!_out) {Py_DECREF(x_arr); return NULL; }
+    magnitude_db_cf64(x, x_len, (float *)PyArray_DATA((PyArrayObject *)_out), lin_floor, offset_db);
+    Py_DECREF(x_arr);
     return _out;
 }
 

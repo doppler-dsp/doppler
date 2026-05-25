@@ -11,9 +11,9 @@
  *   input  +1.0 → int16  32767 → uint32 0x00007FFF
  *   input  -1.0 → int16 -32768 → uint32 0x00008000
  *
- * The default scale of 32768.0 maps [-1, +1] float to Q15 range.
+ * The default scale of 32768.0 maps `[-1, +1]` float to Q15 range.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

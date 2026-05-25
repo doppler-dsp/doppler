@@ -41,6 +41,12 @@
 
 ## c
 
+* **cic\_create** ([**cic\_core.h**](cic__core_8h.md))
+* **cic\_decimate** ([**cic\_core.h**](cic__core_8h.md))
+* **cic\_decimate\_max\_out** ([**cic\_core.h**](cic__core_8h.md))
+* **cic\_destroy** ([**cic\_core.h**](cic__core_8h.md))
+* **cic\_reconfigure** ([**cic\_core.h**](cic__core_8h.md))
+* **cic\_reset** ([**cic\_core.h**](cic__core_8h.md))
 * **corr\_create** ([**corr\_core.h**](corr__core_8h.md))
 * **corr\_destroy** ([**corr\_core.h**](corr__core_8h.md))
 * **corr\_execute** ([**corr\_core.h**](corr__core_8h.md))
@@ -107,6 +113,21 @@
 
 ## f
 
+* **f32\_to\_i16\_create** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
+* **f32\_to\_i16\_destroy** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
+* **f32\_to\_i16\_reset** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
+* **f32\_to\_i16\_step** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
+* **f32\_to\_i16\_steps** ([**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md))
+* **f32\_to\_i16u32\_create** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))
+* **f32\_to\_i16u32\_destroy** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))
+* **f32\_to\_i16u32\_reset** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))
+* **f32\_to\_i16u32\_step** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))
+* **f32\_to\_i16u32\_steps** ([**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md))
+* **f32\_to\_i16u64\_create** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
+* **f32\_to\_i16u64\_destroy** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
+* **f32\_to\_i16u64\_reset** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
+* **f32\_to\_i16u64\_step** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
+* **f32\_to\_i16u64\_steps** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
 * **fft\_create** ([**fft\_core.h**](fft__core_8h.md))
 * **fft\_destroy** ([**fft\_core.h**](fft__core_8h.md))
 * **fft\_execute\_cf32** ([**fft\_core.h**](fft__core_8h.md))
@@ -164,6 +185,25 @@
 * **hann\_window** ([**spectral\_core.h**](spectral__core_8h.md))
 
 
+## i
+
+* **i16\_to\_f32\_create** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
+* **i16\_to\_f32\_destroy** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
+* **i16\_to\_f32\_reset** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
+* **i16\_to\_f32\_step** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
+* **i16\_to\_f32\_steps** ([**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md))
+* **i16u32\_to\_f32\_create** ([**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md))
+* **i16u32\_to\_f32\_destroy** ([**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md))
+* **i16u32\_to\_f32\_reset** ([**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md))
+* **i16u32\_to\_f32\_step** ([**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md))
+* **i16u32\_to\_f32\_steps** ([**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md))
+* **i16u64\_to\_f32\_create** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+* **i16u64\_to\_f32\_destroy** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+* **i16u64\_to\_f32\_reset** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+* **i16u64\_to\_f32\_step** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+* **i16u64\_to\_f32\_steps** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+
+
 ## k
 
 * **kaiser\_beta** ([**resample\_core.h**](resample__core_8h.md))
@@ -218,6 +258,7 @@
 ## r
 
 * **Resampler\_create** ([**Resampler\_core.h**](Resampler__core_8h.md))
+* **Resampler\_create\_custom** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_destroy** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_execute** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_execute\_ctrl** ([**Resampler\_core.h**](Resampler__core_8h.md))

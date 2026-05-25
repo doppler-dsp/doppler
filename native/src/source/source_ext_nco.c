@@ -25,6 +25,10 @@ NCOObj_dealloc(NCOObject *self)
 {
     if (self->handle)
         nco_destroy(self->handle);
+    free(self->_steps_u32_buf);
+    free(self->_steps_u32_scaled_buf);
+    free(self->_steps_u32_ovf_buf);
+    free(self->_steps_u32_ovf_buf_1);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
@@ -135,6 +139,18 @@ NCOObj_steps_u32_ovf(NCOObject *self, PyObject *args)
     Py_ssize_t n = 1;
     if (!PyArg_ParseTuple(args, "|n", &n))
         return NULL;
+    if (!self->_steps_u32_ovf_buf) {
+        size_t _max = nco_steps_u32_ovf_max_out(self->handle);
+        if (!_max) _max = (size_t)n;
+        self->_steps_u32_ovf_buf = malloc(_max * sizeof(uint32_t));
+        if (!self->_steps_u32_ovf_buf) { PyErr_NoMemory(); return NULL; }
+        self->_steps_u32_ovf_buf_1 = malloc(_max * sizeof(uint8_t));
+        if (!self->_steps_u32_ovf_buf_1) {
+            free(self->_steps_u32_ovf_buf);
+            self->_steps_u32_ovf_buf = NULL;
+            PyErr_NoMemory(); return NULL;
+        }
+    }
     size_t n_out = nco_steps_u32_ovf(self->handle, (size_t)n, self->_steps_u32_ovf_buf, self->_steps_u32_ovf_buf_1);
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr0 = PyArray_SimpleNewFromData(

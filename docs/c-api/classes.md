@@ -11,6 +11,7 @@
 
 ## c
 
+* [**cic\_state\_t**](structcic__state__t.md)
 * [**corr2d\_state\_t**](structcorr2d__state__t.md)
 * [**corr\_state\_t**](structcorr__state__t.md)
 
@@ -28,6 +29,9 @@
 
 ## f
 
+* [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md)
+* [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md)
+* [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md)
 * [**fft2d\_state\_t**](structfft2d__state__t.md)
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
@@ -36,6 +40,13 @@
 ## h
 
 * [**hbdecim\_state\_t**](structhbdecim__state__t.md)
+
+
+## i
+
+* [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md)
+* [**i16u32\_to\_f32\_state\_t**](structi16u32__to__f32__state__t.md)
+* [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md)
 
 
 ## l

@@ -3,13 +3,13 @@
  * @brief int16-to-float converter with configurable inverse scale.
  *
  * Multiplies the signed int16 sample by @c 1/scale. The default scale of
- * 32768.0 maps the full Q15 range [-32768, 32767] into [-1.0, ~1.0), which
+ * 32768.0 maps the full Q15 range `[-32768, 32767]` into `[-1.0, ~1.0)`, which
  * is the inverse of F32ToI16 with its default scale.
  *
  * The inverse scale is pre-computed at construction time so the step path
  * is a single multiply.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

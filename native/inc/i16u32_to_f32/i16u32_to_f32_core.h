@@ -2,7 +2,7 @@
  * @file i16u32_to_f32_core.h
  * @brief I16U32ToF32 component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

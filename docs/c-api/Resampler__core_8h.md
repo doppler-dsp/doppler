@@ -58,6 +58,7 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 | Type | Name |
 | ---: | :--- |
 |  [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* | [**Resampler\_create**](#function-resampler_create) (double rate) <br>_Create a Resampler with the built-in 4096×19 Kaiser bank._  |
+|  [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* | [**Resampler\_create\_custom**](#function-resampler_create_custom) (size\_t num\_phases, size\_t num\_taps, const float \* bank, double rate) <br>_Create a Resampler with a user-supplied polyphase bank._  |
 |  void | [**Resampler\_destroy**](#function-resampler_destroy) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_execute**](#function-resampler_execute) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float complex \* x, size\_t x\_len, float complex \* out) <br>_Resample x(0..x\_len-1) into out(0..n\_out-1)._  |
 |  size\_t | [**Resampler\_execute\_ctrl**](#function-resampler_execute_ctrl) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const float complex \* x, size\_t x\_len, const float complex \* ctrl, size\_t ctrl\_len, float complex \* out) <br>_Resample with per-sample rate deviations._  |
@@ -164,6 +165,46 @@ Resampler_state_t * Resampler_create (
 **Returns:**
 
 Non-NULL on success, NULL on OOM. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function Resampler\_create\_custom 
+
+_Create a Resampler with a user-supplied polyphase bank._ 
+```C++
+Resampler_state_t * Resampler_create_custom (
+    size_t num_phases,
+    size_t num_taps,
+    const float * bank,
+    double rate
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `num_phases` Number of polyphase branches (must be power of two). 
+* `num_taps` Taps per branch. 
+* `bank` Row-major float32 array, shape num\_phases × num\_taps. 
+* `rate` Initial resample ratio. 
+
+
+
+**Returns:**
+
+Non-NULL on success, NULL on invalid args or OOM. 
 
 
 

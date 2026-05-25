@@ -80,8 +80,8 @@ N            = N_DOPPLER * N_CODE_PHASE   # total cells
 # True signal location in the search grid.
 # Flat index 0 → noise reference uses all other N-1=255 cells, maximising
 # the reference population and minimising CFAR scalloping loss.
-DOPPLER_BIN_TRUE   = 0    # true Doppler bin
-CODE_PHASE_BIN_TRUE = 0   # true code-phase offset (chips)
+DOPPLER_BIN_TRUE    = 5    # true Doppler bin
+CODE_PHASE_BIN_TRUE = 11   # true code-phase offset (chips)
 
 # ── Detection parameters ──────────────────────────────────────────────────────
 

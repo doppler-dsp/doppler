@@ -24,10 +24,14 @@ Here is a list of all files with brief descriptions:
             * **file** [**agc\_core.h**](agc__core_8h.md) _Log-domain automatic gain control (AGC)._     
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
+        * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
+            * **file** [**cic\_core.h**](cic__core_8h.md) _Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ._     
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
             * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     
             * **file** [**corr2d\_core.h**](corr2d__core_8h.md) _2-D FFT-based cross-correlator with coherent integrate-and-dump._     
+        * **dir** [**cvt**](dir_7aebb15fbd538257eeb7884581a8ab59.md)     
+            * **file** [**cvt\_core.h**](cvt__core_8h.md) _Cvt module — public C API._ 
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
             * **file** [**ddc\_core.h**](ddc__core_8h.md) _Digital Down-Converter — composes LO + polyphase resampler._     
         * **dir** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md)     
@@ -39,6 +43,12 @@ Here is a list of all files with brief descriptions:
             * **file** [**detector\_core.h**](detector__core_8h.md) _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
         * **dir** [**detector2d**](dir_bd7354e9665bd912180ec22b3c69b55c.md)     
             * **file** [**detector2d\_core.h**](detector2d__core_8h.md) _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
+        * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     
+            * **file** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md) _Scale-and-saturate float-to-int16 converter._     
+        * **dir** [**f32\_to\_i16u32**](dir_5361bfc3c658147f85e2e18e4bfef9b4.md)     
+            * **file** [**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md) _Scale-and-saturate float to Q15-in-uint32 converter._     
+        * **dir** [**f32\_to\_i16u64**](dir_212e21299d76aa740bbad8810e4bf50a.md)     
+            * **file** [**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md) _Scale-and-saturate float to Q15-in-uint64 converter._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
             * **file** [**fft\_core.h**](fft__core_8h.md) _Per-instance 1-D FFT using pocketfft directly._     
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     
@@ -50,6 +60,12 @@ Here is a list of all files with brief descriptions:
         * **dir** [**hbdecim**](dir_3828151286b0ff520a0d701b39db5af1.md)     
             * **file** [**hbdecim\_core.h**](hbdecim__core_8h.md) _Halfband 2:1 decimator for CF32 IQ samples._     
             * **file** [**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md) _Real-to-complex halfband 2:1 decimator (Architecture D2)._     
+        * **dir** [**i16\_to\_f32**](dir_5ec56354373793af7b5bc8e9296f5472.md)     
+            * **file** [**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md) _int16-to-float converter with configurable inverse scale._     
+        * **dir** [**i16u32\_to\_f32**](dir_a216b988e44f4b34f41ebc1122731aa5.md)     
+            * **file** [**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md) _I16U32ToF32 component API._     
+        * **dir** [**i16u64\_to\_f32**](dir_8835689c72c9893bedb52cd5868912e0.md)     
+            * **file** [**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md) _I16U64ToF32 component API._     
         * **dir** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md)     
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     

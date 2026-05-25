@@ -8,7 +8,7 @@ class_name = "Detector2D"
 
 [[detector2d.init_params]]
 name = "ref"
-type = "float _Complex[][]"
+type = "float _Complex[]"
 
 [[detector2d.init_params]]
 name = "dwell"

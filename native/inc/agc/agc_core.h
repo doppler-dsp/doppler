@@ -65,7 +65,7 @@
  * clipping never disturbs convergence.  @c clip_db defaults to
  * @c AGC_CLIP_DB_DEFAULT, which is high enough to be effectively off.
  *
- * Lifecycle: `agc_create -> [step / steps / reset]* -> agc_destroy`
+ * Lifecycle: `agc_create -> (step / steps / reset)* -> agc_destroy`
  *
  * @code
  * // Hold output power at 0 dB; slow loop, moderate detector smoothing.

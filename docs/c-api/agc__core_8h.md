@@ -176,7 +176,7 @@ Feedback — power is measured AFTER the gain. The gain applied to sample `n` is
 Each output sample is square-clipped: the real and imaginary parts are independently limited to `+/-10^`(clip\_db/20) — a square region in the IQ plane, not a circular magnitude limit. The clip is the last operation applied to the output and does NOT feed the power detector: the loop always measures the true, unclipped power, so clipping never disturbs convergence. `clip_db` defaults to `AGC_CLIP_DB_DEFAULT`, which is high enough to be effectively off.
 
 
-Lifecycle: `agc_create -> [step / steps / reset]* -> agc_destroy`
+Lifecycle: `agc_create -> (step / steps / reset)* -> agc_destroy`
 
 
 

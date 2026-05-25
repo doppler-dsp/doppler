@@ -30,6 +30,11 @@ extern "C"
 
   Resampler_state_t *Resampler_create (double rate);
 
+  Resampler_state_t *Resampler_create_custom (size_t num_phases,
+                                              size_t num_taps,
+                                              const float *bank,
+                                              double rate);
+
   void Resampler_destroy (Resampler_state_t *state);
 
   void Resampler_reset (Resampler_state_t *state);

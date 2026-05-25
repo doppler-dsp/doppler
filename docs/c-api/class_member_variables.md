@@ -20,6 +20,9 @@
 ## c
 
 * **clip\_db** ([**agc\_state\_t**](structagc__state__t.md))
+* **comb\_head** ([**cic\_state\_t**](structcic__state__t.md))
+* **comb\_im** ([**cic\_state\_t**](structcic__state__t.md))
+* **comb\_re** ([**cic\_state\_t**](structcic__state__t.md))
 * **count** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
 * **capacity** ([**delay\_state\_t**](structdelay__state__t.md))
 * **col** ([**det\_result2d\_t**](structdet__result2d__t.md))
@@ -73,7 +76,11 @@
 
 ## i
 
+* **input\_scale** ([**cic\_state\_t**](structcic__state__t.md))
+* **integ\_im** ([**cic\_state\_t**](structcic__state__t.md))
+* **integ\_re** ([**cic\_state\_t**](structcic__state__t.md))
 * **inv** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
+* **iscale** ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md), [**i16u32\_to\_f32\_state\_t**](structi16u32__to__f32__state__t.md), [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md))
 
 
 ## l
@@ -85,6 +92,7 @@
 
 ## m
 
+* **M** ([**cic\_state\_t**](structcic__state__t.md))
 * **mask** ([**delay\_state\_t**](structdelay__state__t.md))
 * **mag\_buf** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **magic** ([**dp\_header\_t**](structdp__header__t.md))
@@ -92,6 +100,7 @@
 
 ## n
 
+* **N** ([**cic\_state\_t**](structcic__state__t.md))
 * **n** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **nx** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**fft2d\_state\_t**](structfft2d__state__t.md))
 * **ny** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**fft2d\_state\_t**](structfft2d__state__t.md))
@@ -109,6 +118,7 @@
 
 ## o
 
+* **output\_scale** ([**cic\_state\_t**](structcic__state__t.md))
 * **out\_buf** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **odd\_buf** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **odd\_head** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
@@ -117,6 +127,7 @@
 ## p
 
 * **p\_avg** ([**agc\_state\_t**](structagc__state__t.md))
+* **phase** ([**cic\_state\_t**](structcic__state__t.md), [**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 * **peak\_mag** ([**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **peak\_col** ([**detector2d\_state\_t**](structdetector2d__state__t.md))
 * **peak\_row** ([**detector2d\_state\_t**](structdetector2d__state__t.md))
@@ -125,13 +136,13 @@
 * **plan\_f32** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **plan\_f64** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **pending** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
-* **phase** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 * **phase\_inc** ([**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 
 
 ## r
 
 * **ref\_db** ([**agc\_state\_t**](structagc__state__t.md))
+* **R** ([**cic\_state\_t**](structcic__state__t.md))
 * **ref\_spec** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
 * **row** ([**det\_result2d\_t**](structdet__result2d__t.md))
 * **ring** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
@@ -147,6 +158,7 @@
 * **sample\_type** ([**dp\_header\_t**](structdp__header__t.md))
 * **sequence** ([**dp\_header\_t**](structdp__header__t.md))
 * **stream\_id** ([**dp\_header\_t**](structdp__header__t.md))
+* **scale** ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md), [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md), [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md))
 * **sign** ([**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **scratch** ([**fir\_state\_t**](structfir__state__t.md))
 * **scratch\_cap** ([**fir\_state\_t**](structfir__state__t.md))

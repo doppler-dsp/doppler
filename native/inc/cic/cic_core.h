@@ -10,7 +10,7 @@
  *
  * Structure (decimating by R, N stages, differential delay M):
  *
- *   x[n] → INT_1 → … → INT_N → ↓R → COMB_1 → … → COMB_N → y[n]
+ *   `x[n]` → INT_1 → … → INT_N → ↓R → COMB_1 → … → COMB_N → `y[n]`
  *
  * input_scale is chosen to maximise dynamic range for ±1.0 input:
  *

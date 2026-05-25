@@ -2,11 +2,11 @@
  * @file f32_to_i16_core.h
  * @brief Scale-and-saturate float-to-int16 converter.
  *
- * Multiplies by @c scale then round-to-nearest and clamps to [-32768, 32767].
- * The default scale of 32768.0 converts a [-1, +1] normalised float to full
+ * Multiplies by @c scale then round-to-nearest and clamps to `[-32768, 32767]`.
+ * The default scale of 32768.0 converts a `[-1, +1]` normalised float to full
  * Q15 range.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
  * Example:
  * @code

@@ -11,12 +11,47 @@ See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 
 ## Table of contents
 
+- [Git workflow](#git-workflow)
 - [Adding a new C module](#adding-a-new-c-module)
 - [Adding a Python binding](#adding-a-python-binding)
 - [Adding a Rust FFI binding](#adding-a-rust-ffi-binding)
 - [Build commands](#build-commands)
 - [Code style](#code-style)
 - [Gotchas](#gotchas)
+
+---
+
+## Git workflow
+
+All non-trivial changes go through a branch and a PR. Direct pushes to
+`main` are reserved for the release version-bump commit only.
+
+### Branch naming
+
+| Prefix | Use |
+|---|---|
+| `feat/` | new algorithm, module, or binding |
+| `fix/` | bug fix |
+| `docs/` | documentation only |
+| `chore/` | tooling, CI, deps, version bump |
+
+```sh
+git checkout -b feat/cic-compensator
+# ... implement, test ...
+gh pr create --fill
+# squash-merge once CI is green, then delete the branch
+```
+
+### PR rules
+
+- CI must be green before merging.
+- Keep PRs focused — one logical change per PR.
+- The PR title becomes the CHANGELOG entry; write it accordingly.
+
+### What goes directly on `main`
+
+Only the release bump (`chore: release vX.Y.Z`) skips the PR process —
+see [release.md](docs/dev/release.md).
 
 ---
 

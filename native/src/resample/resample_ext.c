@@ -87,6 +87,8 @@ PyInit_resample(void)
     if (PyType_Ready(&ResamplerObjType) < 0) return NULL;
     if (PyType_Ready(&HalfbandDecimatorObjType) < 0) return NULL;
     if (PyType_Ready(&CICObjType) < 0) return NULL;
+    if (PyType_Ready(&HalfbandDecimatorDpType) < 0) return NULL;
+    if (PyType_Ready(&HalfbandDecimatorR2CType) < 0) return NULL;
     PyObject *m = PyModule_Create(&resample_moduledef);
     if (!m) return NULL;
     Py_INCREF(&ResamplerObjType);
@@ -101,13 +103,10 @@ PyInit_resample(void)
     if (PyModule_AddObject(m, "CIC", (PyObject *)&CICObjType) < 0) {
         Py_DECREF(&CICObjType); Py_DECREF(m); return NULL;
     }
-    /* resample_ext_extra.c — hand-registered; re-apply after jm apply */
-    if (PyType_Ready(&HalfbandDecimatorDpType) < 0) return NULL;
     Py_INCREF(&HalfbandDecimatorDpType);
     if (PyModule_AddObject(m, "HalfbandDecimatorDp", (PyObject *)&HalfbandDecimatorDpType) < 0) {
         Py_DECREF(&HalfbandDecimatorDpType); Py_DECREF(m); return NULL;
     }
-    if (PyType_Ready(&HalfbandDecimatorR2CType) < 0) return NULL;
     Py_INCREF(&HalfbandDecimatorR2CType);
     if (PyModule_AddObject(m, "HalfbandDecimatorR2C", (PyObject *)&HalfbandDecimatorR2CType) < 0) {
         Py_DECREF(&HalfbandDecimatorR2CType); Py_DECREF(m); return NULL;

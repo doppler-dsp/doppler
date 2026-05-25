@@ -242,13 +242,13 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R, N,
         f"CIC Decimation  R={R}, N={N}, M=1\n"
         f"Input {fs_in/1e6:.3f} Msps → Output {fs_out/1e3:.0f} ksps",
         fontsize=12,
+        color="#f1f5f9",
     )
 
     # ── input spectrum ───────────────────────────────────────────────────────
     freq_in, amp_in = _spectrum_db(x, fs_in)
     freq_in_khz = freq_in / 1e3
-    ax_in.plot(freq_in_khz, amp_in, color="#60a5fa", lw=0.8,
-               label="Input spectrum", zorder=2)
+    ax_in.plot(freq_in_khz, amp_in, color="#60a5fa", lw=0.8, zorder=2)
 
     # CIC response overlay
     h_db = _cic_response_db(freq_in, fs_in, R, N)
@@ -257,25 +257,30 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R, N,
 
     # Output Nyquist boundary
     nyq_out = fs_out / 2 / 1e3
-    ax_in.axvline(nyq_out, color="#a3e635", lw=1.2, linestyle=":",
+    ax_in.axvline(nyq_out, color="#ffffff", lw=1.2, linestyle=":",
                   label=f"Output Nyquist ({nyq_out:.0f} kHz)", zorder=4)
 
     # Tone annotations
     ax_in.axvline(f_wanted / 1e3, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8)
-    ax_in.text(f_wanted / 1e3 + 8, -5,
-               f"Wanted\n{f_wanted/1e3:.0f} kHz", color="#4ade80",
-               fontsize=8, va="top")
+    ax_in.annotate(
+        f"Wanted\n{f_wanted/1e3:.0f} kHz",
+        xy=(f_wanted / 1e3, -2), xytext=(100, -8),
+        color="#4ade80", fontsize=11, va="top",
+        arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.2),
+    )
     ax_in.axvline(f_jammer / 1e3, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8)
     ax_in.text(f_jammer / 1e3 + 8, -5,
                f"Jammer\n{f_jammer/1e3:.0f} kHz", color="#f87171",
-               fontsize=8, va="top")
+               fontsize=11, va="top")
 
     ax_in.set_xlim(0, fs_in / 2 / 1e3)
     ax_in.set_ylim(-120, 10)
     ax_in.set_xlabel("Frequency (kHz)")
     ax_in.set_ylabel("Amplitude (dBFS)")
-    ax_in.set_title("Input spectrum")
-    ax_in.legend(loc="lower left", fontsize=8)
+    ax_in.set_title("Input spectrum", loc="right", color="#f1f5f9")
+    ax_in.legend(loc="upper right", fontsize=11,
+                 facecolor="#1f2937", edgecolor="#4b5563",
+                 labelcolor="#d1d5db")
     ax_in.grid(True, color="#374151", lw=0.4)
     ax_in.set_facecolor("#111827")
     ax_in.tick_params(colors="#d1d5db")
@@ -285,8 +290,7 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R, N,
     # ── output spectrum ──────────────────────────────────────────────────────
     freq_out, amp_out = _spectrum_db(y_settled, fs_out)
     freq_out_khz = freq_out / 1e3
-    ax_out.plot(freq_out_khz, amp_out, color="#60a5fa", lw=0.8,
-                label="Output spectrum", zorder=2)
+    ax_out.plot(freq_out_khz, amp_out, color="#60a5fa", lw=0.8, zorder=2)
 
     # Wanted tone in output coordinates
     f_wanted_out_khz = f_wanted / 1e3
@@ -294,7 +298,7 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R, N,
                    lw=1.0, linestyle="-.", alpha=0.8)
     ax_out.text(f_wanted_out_khz + 1, -5,
                 f"Wanted\n{f_wanted_out_khz:.0f} kHz",
-                color="#4ade80", fontsize=8, va="top")
+                color="#4ade80", fontsize=11, va="top")
 
     # Jammer alias frequency: fold into [0, fs_out/2]
     f_alias = f_jammer % fs_out
@@ -304,14 +308,14 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R, N,
                    lw=1.0, linestyle="-.", alpha=0.8)
     ax_out.text(f_alias / 1e3 + 1, -30,
                 f"Jammer alias\n{f_alias/1e3:.0f} kHz\n(attenuated)",
-                color="#f87171", fontsize=8, va="top")
+                color="#f87171", fontsize=11, va="top")
 
     ax_out.set_xlim(0, fs_out / 2 / 1e3)
     ax_out.set_ylim(-120, 10)
     ax_out.set_xlabel("Frequency (kHz)")
     ax_out.set_ylabel("Amplitude (dBFS)")
-    ax_out.set_title("Output spectrum  (decimated)")
-    ax_out.legend(loc="lower left", fontsize=8)
+    ax_out.set_title("Output spectrum  (decimated)", loc="right", color="#f1f5f9")
+    ax_out.legend(loc="lower left", fontsize=11)
     ax_out.grid(True, color="#374151", lw=0.4)
     ax_out.set_facecolor("#111827")
     ax_out.tick_params(colors="#d1d5db")

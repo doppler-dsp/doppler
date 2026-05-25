@@ -9,12 +9,17 @@
  *   - Reconfigure: output count and DC response correct after R/N/M change
  *   - M=2 differential delay variant
  *   - cic_destroy(NULL): no crash
+ *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
 #include "cic/cic_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #define CHECK(cond) \
     do { if (!(cond)) { \
@@ -224,6 +229,47 @@ int main(void)
 
         cic_destroy(a);
         cic_destroy(b);
+    }
+
+    /* ── Alias rejection: stopband tone must be heavily attenuated ───────── */
+    /* Feed a tone at 0.95*fs/R (near first CIC null) and compare output
+     * power to a DC (passband) reference.  Requires ≥ 20 dB rejection. */
+    {
+        uint32_t R = 8, N = 4, M = 1;
+        double   f_alias = 0.95 / R;   /* just inside first null at fs/R */
+        size_t   n_in    = 32 * R * N;
+        size_t   n_out   = n_in / R;
+        size_t   n_drop  = N * (R - 1) / R + 2;  /* skip transient */
+        size_t   n_meas  = n_out - n_drop;
+
+        float complex *in  = malloc(n_in  * sizeof(float complex));
+        float complex *out = malloc(n_out * sizeof(float complex));
+
+        /* passband reference: DC input → should be ~1.0 at output */
+        for (size_t i = 0; i < n_in; i++) in[i] = 1.0f + 0.0f * I;
+        cic_state_t *obj = cic_create(R, N, M);
+        cic_decimate(obj, in, n_in, out);
+        double pwr_pass = 0.0;
+        for (size_t i = n_drop; i < n_out; i++)
+            pwr_pass += (double)cabsf(out[i]) * cabsf(out[i]);
+        pwr_pass /= (double)n_meas;
+
+        /* alias-zone tone */
+        cic_reset(obj);
+        for (size_t i = 0; i < n_in; i++)
+            in[i] = CMPLXF((float)cos(2*M_PI*f_alias*i),
+                           (float)sin(2*M_PI*f_alias*i));
+        cic_decimate(obj, in, n_in, out);
+        double pwr_alias = 0.0;
+        for (size_t i = n_drop; i < n_out; i++)
+            pwr_alias += (double)cabsf(out[i]) * cabsf(out[i]);
+        pwr_alias /= (double)n_meas;
+
+        double rejection_db = 10.0 * log10(pwr_pass / (pwr_alias + 1e-300));
+        CHECK(rejection_db >= 20.0);
+
+        cic_destroy(obj);
+        free(in); free(out);
     }
 
     if (_fails) {

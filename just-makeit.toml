@@ -44,12 +44,12 @@ params = [{name = "w", type = "float[]"}]
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"
 out_type = "float"
-params = [{name = "in", type = "float _Complex[]"}, {name = "lin_floor", type = "float"}, {name = "offset_db", type = "float"}]
+params = [{name = "x", type = "float _Complex[]"}, {name = "lin_floor", type = "float"}, {name = "offset_db", type = "float"}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf64"
 out_type = "float"
-params = [{name = "in", type = "double _Complex[]"}, {name = "lin_floor", type = "double"}, {name = "offset_db", type = "float"}]
+params = [{name = "x", type = "double _Complex[]"}, {name = "lin_floor", type = "double"}, {name = "offset_db", type = "float"}]
 
 [[module.spectral.functions]]
 name = "find_peaks_f32"

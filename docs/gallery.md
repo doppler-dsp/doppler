@@ -20,7 +20,7 @@ python examples/python/agc_demo.py
 
 ![CIC decimation spectrum](assets/cic_demo_spectrum.png)
 
-Top: wideband input spectrum (2.048 Msps) with the CIC magnitude response overlaid.  The jammer at 600 kHz falls outside the output Nyquist boundary and is suppressed by 40+ dB.  Bottom: decimated output at 128 ksps — the 15 kHz wanted tone survives while the jammer alias is buried in the noise floor.
+Top: wideband input spectrum (2.048 Msps) with the CIC magnitude response overlaid.  The jammer sits at 208 kHz — just inside the first aliasing band, where the CIC sidelobe provides only ~59 dB of rejection.  Bottom: decimated output at 128 ksps — the 15 kHz wanted tone dominates, but the jammer alias is visible at 48 kHz, ~71 dB below the wanted signal.
 
 ```bash
 python examples/python/cic_demo.py

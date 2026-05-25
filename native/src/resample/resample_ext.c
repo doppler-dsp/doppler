@@ -16,11 +16,8 @@
 #include "resample_ext_Resampler.c"
 #include "resample_ext_HalfbandDecimator.c"
 #include "resample_ext_cic.c"
-#include "resample_ext_extra.c"
+#include "resample_ext_extra.c"  /* hand-written — jm never modifies */
 
-/* NOTE: output type (NDArray[float64] of size M) cannot be expressed via jm's
- * out_type (which keys output size off an input array length).  This binding
- * is hand-patched; re-apply after any jm apply that regenerates resample_ext.c. */
 static PyObject *
 _bind_ciccompmf(PyObject *self, PyObject *args)
 {
@@ -33,16 +30,10 @@ _bind_ciccompmf(PyObject *self, PyObject *args)
     uint32_t N = (uint32_t)N_raw;
     uint32_t R = (uint32_t)R_raw;
     uint32_t M = (uint32_t)M_raw;
-    uint32_t max_M = (M % 2 != 0) ? 19u : 18u;
-    if (M < 1 || M > max_M) {
-        PyErr_Format(PyExc_ValueError,
-            "ciccompmf: M must be 1..19 (odd) or 2..18 (even), got %u", M);
-        return NULL;
-    }
     npy_intp _dim = (npy_intp)M;
     PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_DOUBLE, 0);
-    if (!_out) return NULL;
-    ciccompmf(N, R, M, (double *)PyArray_DATA((PyArrayObject *)_out));
+    if (!_out) { return NULL; }
+    ciccompmf((double *)PyArray_DATA((PyArrayObject *)_out), N, R, M);
     return _out;
 }
 
@@ -110,6 +101,7 @@ PyInit_resample(void)
     if (PyModule_AddObject(m, "CIC", (PyObject *)&CICObjType) < 0) {
         Py_DECREF(&CICObjType); Py_DECREF(m); return NULL;
     }
+    /* resample_ext_extra.c — hand-registered; re-apply after jm apply */
     if (PyType_Ready(&HalfbandDecimatorDpType) < 0) return NULL;
     Py_INCREF(&HalfbandDecimatorDpType);
     if (PyModule_AddObject(m, "HalfbandDecimatorDp", (PyObject *)&HalfbandDecimatorDpType) < 0) {

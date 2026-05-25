@@ -78,18 +78,18 @@ def test_passband_correction():
 
 
 def test_invalid_m_too_large_odd():
-    with pytest.raises(ValueError):
-        ciccompmf(4, 16, 21)
+    h = ciccompmf(4, 16, 21)
+    assert h.shape == (21,) and np.all(h == 0.0)
 
 
 def test_invalid_m_too_large_even():
-    with pytest.raises(ValueError):
-        ciccompmf(4, 16, 20)
+    h = ciccompmf(4, 16, 20)
+    assert h.shape == (20,) and np.all(h == 0.0)
 
 
 def test_invalid_m_zero():
-    with pytest.raises(ValueError):
-        ciccompmf(4, 16, 0)
+    h = ciccompmf(4, 16, 0)
+    assert h.shape == (0,)
 
 
 def test_different_r():

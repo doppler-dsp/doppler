@@ -7,11 +7,11 @@ Python3_add_library(resample MODULE WITH_SOABI resample_ext.c)
 target_link_libraries(resample PRIVATE
     resample_core
     Resampler_core
-    resamp_core
     HalfbandDecimator_core
+    cic_core
+    resamp_core
     hbdecim_core
     hbdecim_r2c_core
-    cic_core
     m
     Python3::NumPy)
 target_include_directories(resample PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

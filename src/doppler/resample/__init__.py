@@ -116,10 +116,4 @@ def _num_phases_for_rejection(rejection: float) -> int:
 # underscore alias kept for test/internal compatibility
 _kaiser_num_taps = kaiser_num_taps
 
-__all__ = [
-    "HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C",
-    "Resampler", "CIC", "ciccompmf",
-    "kaiser_beta", "kaiser_num_taps",
-    "cic_precision_bits", "cic_alias_rejection", "cic_passband_droop",
-    "cic_min_order", "cic_design",
-]
+__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "CIC", "ciccompmf", "kaiser_beta", "kaiser_num_taps"]

@@ -69,9 +69,11 @@ no_generate = "true"
 
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic"]
+extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "m"]
 
 [[module.resample.functions]]
 name = "ciccompmf"
+out_type = "float64[M]"
 params = [{name = "N", type = "uint32_t"}, {name = "R", type = "uint32_t"}, {name = "M", type = "uint32_t"}]
 
 [[module.resample.functions]]

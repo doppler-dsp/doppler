@@ -58,7 +58,7 @@ class Halfbanddecimator:
 
     Parameters
     ----------
-    h : Any, default ...
+    h : NDArray[np.float32], default ...
         h constructor parameter.
 
     Examples
@@ -153,7 +153,7 @@ class CIC:
 
     def __exit__(self, *args: object) -> None: ...
 
-def ciccompmf(N: int, R: int, M: int) -> None:
+def ciccompmf(N: int, R: int, M: int) -> NDArray[np.float64]:
     """Ciccompmf."""
 
 def kaiser_beta(atten: float) -> float:

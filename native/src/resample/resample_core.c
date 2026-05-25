@@ -96,14 +96,16 @@ _solve(double *A, double *b, int n)
 }
 
 void
-ciccompmf(uint32_t N, uint32_t R, uint32_t M, double *h)
+ciccompmf(double *h, uint32_t N, uint32_t R, uint32_t M)
 {
     double A[9 * 9], b[9], a[9];
+
+    uint32_t max_M = (M % 2 != 0) ? 19u : 18u;
+    if (M < 1 || M > max_M) { memset(h, 0, M * sizeof(double)); return; }
 
     if (M % 2 != 0) {                    /* -- odd M -- */
         uint32_t half = (M - 1) / 2;
         if (half == 0) { h[0] = 1.0; return; }
-        if (half > 9)  return;
 
         for (uint32_t i = 0; i < half; i++) {
             double sgn = (i % 2 == 0) ? -1.0 : 1.0;

@@ -36,13 +36,13 @@ extern "C"
    *   even M: 2, 4, 6, ... 18  (half = M/2     <= 9)
    * M outside these ranges -> h is left unmodified.
    *
+   * @param h  Output buffer, caller-allocated, M elements. DC gain = 1.0.
    * @param N  CIC filter order (number of integrator/comb stages, >= 1).
    * @param R  CIC decimation factor (>= 2).
    * @param M  Number of compensator taps. Odd M -> symmetric linear-phase;
    *           even M -> half-sample-shifted linear-phase.
-   * @param h  Output buffer, caller-allocated, M elements. DC gain = 1.0.
    */
-  void ciccompmf(uint32_t N, uint32_t R, uint32_t M, double *h);
+  void ciccompmf(double *h, uint32_t N, uint32_t R, uint32_t M);
 
 #ifdef __cplusplus
 }

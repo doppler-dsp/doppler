@@ -209,6 +209,7 @@ record-demo:
 # Run before releasing whenever examples/python/ has changed.
 GALLERY_SCRIPTS := \
     examples/python/agc_demo.py \
+    examples/python/cic_demo.py \
     examples/python/corr_demo.py \
     examples/python/detection_curves.py \
     examples/python/detection_sim.py \
@@ -220,7 +221,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png docs/assets/
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

@@ -70,6 +70,7 @@ no_generate = "true"
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic"]
 extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "m"]
+extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
 
 [[module.resample.functions]]
 name = "ciccompmf"

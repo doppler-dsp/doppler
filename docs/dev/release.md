@@ -47,11 +47,15 @@ In `CHANGELOG.md`:
 [X.Y.Z]: https://github.com/doppler-dsp/doppler/compare/vPREV...vX.Y.Z
 ```
 
-Commit the CHANGELOG separately so the diff is easy to review:
+Open a release branch, commit the CHANGELOG, get CI green, then merge:
 
 ```sh
+git checkout -b chore/release-X.Y.Z
 git add CHANGELOG.md
 git commit -m "docs: update CHANGELOG for vX.Y.Z"
+git push -u origin chore/release-X.Y.Z
+gh pr create --fill
+# merge once CI is green
 ```
 
 ---
@@ -71,18 +75,14 @@ make bump-version VERSION=X.Y.Z
 ```
 
 Review the diff. Do **not** commit here — `make tag-release` (next
-step) creates the `chore: release vX.Y.Z` commit itself:
-
-```sh
-git diff
-```
+step) creates the `chore: release vX.Y.Z` commit itself.
 
 ---
 
 ## 6. Tag and push
 
-`make tag-release` creates an annotated tag and pushes it, which
-**triggers the release workflow automatically**:
+`make tag-release` creates the release commit, an annotated tag, and
+pushes both, which **triggers the release workflow automatically**:
 
 ```sh
 make tag-release VERSION=X.Y.Z

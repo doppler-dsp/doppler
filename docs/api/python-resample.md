@@ -13,7 +13,10 @@ Source:
 | Class | Algorithm | Rate | Best for |
 |-------|-----------|------|----------|
 | `Resampler` | Polyphase (4096 phases × 19 taps) | any | General rate conversion |
-| `HalfbandDecimator` | Halfband 2:1 | 0.5 (fixed) | First stage in a DDC chain |
+| `HalfbandDecimator` | Halfband 2:1 CF32 | 0.5 (fixed) | First stage in a DDC chain |
+| `HalfbandDecimatorDp` | Halfband 2:1 CF64 | 0.5 (fixed) | Double-precision DDC chain |
+| `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32 | 0.5 (fixed) | Real ADC input → complex baseband |
+| `CIC` | Cascaded integrator-comb | 1/R (fixed) | High-rate first decimation stage |
 
 ---
 
@@ -81,8 +84,51 @@ for block in iq_stream:              # 4096-sample CF32 arrays
 
 ---
 
+---
+
+## `CIC` — cascaded integrator-comb decimator
+
+Fixed-rate integer decimation (factor R, order N).  Runs directly on the
+input stream at full rate — no multipliers, just integrators and combs.
+Pair with `ciccompmf` to correct passband droop.
+
+```python
+from doppler.resample import CIC, ciccompmf
+import numpy as np
+
+cic = CIC(R=16, N=4)
+x = np.random.randn(4096).astype(np.complex64)
+y = cic.execute(x)              # len(y) = 256
+
+# Design a 7-tap droop compensator (runs at output rate)
+h = ciccompmf(N=4, R=16, M=7)  # NDArray[float64], length 7
+```
+
+---
+
+## `ciccompmf` — CIC droop-compensator design
+
+Closed-form maximally-flat FIR compensator (Molnar & Vucic, IEEE TCAS-II
+58(12):926–930, 2011).  Returns a symmetric FIR kernel that corrects CIC
+passband droop; apply it at the decimated output rate.
+
+```python
+from doppler.resample import ciccompmf
+
+h = ciccompmf(N=4, R=16, M=7)
+# h is NDArray[float64] of length M=7, DC gain ≈ 1.0
+```
+
+Valid M: odd 1–19, even 2–18.  Out-of-range M returns all-zeros.
+
+---
+
 ::: doppler.resample
     options:
       members:
         - Resampler
         - HalfbandDecimator
+        - HalfbandDecimatorDp
+        - HalfbandDecimatorR2C
+        - CIC
+        - ciccompmf

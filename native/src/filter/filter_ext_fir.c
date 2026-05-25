@@ -43,11 +43,20 @@ FIRObj_init(FIRObject *self, PyObject *args, PyObject *kwds)
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist,
                                      &taps_obj))
         return -1;
+    int want_dtype = (PyArray_Check(taps_obj) &&
+        PyArray_TYPE((PyArrayObject *)taps_obj) == NPY_FLOAT32)
+        ? NPY_FLOAT32 : NPY_COMPLEX64;
     PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        taps_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+        taps_obj, want_dtype, NPY_ARRAY_C_CONTIGUOUS);
     if (!taps_arr) { return -1; }
     size_t taps_len = (size_t)PyArray_SIZE(taps_arr);
-    self->handle = fir_create((const float complex *)PyArray_DATA(taps_arr), taps_len);
+    if (want_dtype == NPY_FLOAT32) {
+        self->handle = fir_create_real(
+            (const float *)PyArray_DATA(taps_arr), taps_len);
+    } else {
+        self->handle = fir_create(
+            (const float complex *)PyArray_DATA(taps_arr), taps_len);
+    }
     Py_DECREF(taps_arr);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,

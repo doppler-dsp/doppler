@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
-from doppler.filter import CIC
+from doppler.resample import CIC
 
 
 # ---------------------------------------------------------------------------

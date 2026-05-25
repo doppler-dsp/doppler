@@ -1,7 +1,7 @@
 /*
  * resample_ext.c — Python extension module resample
  *
- * Objects: Resampler, HalfbandDecimator
+ * Objects: Resampler, HalfbandDecimator, CIC
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -15,7 +15,36 @@
 
 #include "resample_ext_Resampler.c"
 #include "resample_ext_HalfbandDecimator.c"
+#include "resample_ext_cic.c"
 #include "resample_ext_extra.c"
+
+/* NOTE: output type (NDArray[float64] of size M) cannot be expressed via jm's
+ * out_type (which keys output size off an input array length).  This binding
+ * is hand-patched; re-apply after any jm apply that regenerates resample_ext.c. */
+static PyObject *
+_bind_ciccompmf(PyObject *self, PyObject *args)
+{
+    (void)self;
+    unsigned long N_raw = 0UL;
+    unsigned long R_raw = 0UL;
+    unsigned long M_raw = 0UL;
+    if (!PyArg_ParseTuple(args, "kkk", &N_raw, &R_raw, &M_raw))
+        return NULL;
+    uint32_t N = (uint32_t)N_raw;
+    uint32_t R = (uint32_t)R_raw;
+    uint32_t M = (uint32_t)M_raw;
+    uint32_t max_M = (M % 2 != 0) ? 19u : 18u;
+    if (M < 1 || M > max_M) {
+        PyErr_Format(PyExc_ValueError,
+            "ciccompmf: M must be 1..19 (odd) or 2..18 (even), got %u", M);
+        return NULL;
+    }
+    npy_intp _dim = (npy_intp)M;
+    PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_DOUBLE, 0);
+    if (!_out) return NULL;
+    ciccompmf(N, R, M, (double *)PyArray_DATA((PyArrayObject *)_out));
+    return _out;
+}
 
 static PyObject *
 _bind_kaiser_beta(PyObject *self, PyObject *args)
@@ -46,6 +75,7 @@ _bind_kaiser_num_taps(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef Resample_methods[] = {
+    {"ciccompmf", _bind_ciccompmf, METH_VARARGS, "ciccompmf."},
     {"kaiser_beta", _bind_kaiser_beta, METH_VARARGS, "kaiser_beta."},
     {"kaiser_num_taps", _bind_kaiser_num_taps, METH_VARARGS, "kaiser_num_taps."},
     {NULL, NULL, 0, NULL}
@@ -65,6 +95,7 @@ PyInit_resample(void)
     import_array();
     if (PyType_Ready(&ResamplerObjType) < 0) return NULL;
     if (PyType_Ready(&HalfbandDecimatorObjType) < 0) return NULL;
+    if (PyType_Ready(&CICObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&resample_moduledef);
     if (!m) return NULL;
     Py_INCREF(&ResamplerObjType);
@@ -74,6 +105,10 @@ PyInit_resample(void)
     Py_INCREF(&HalfbandDecimatorObjType);
     if (PyModule_AddObject(m, "HalfbandDecimator", (PyObject *)&HalfbandDecimatorObjType) < 0) {
         Py_DECREF(&HalfbandDecimatorObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&CICObjType);
+    if (PyModule_AddObject(m, "CIC", (PyObject *)&CICObjType) < 0) {
+        Py_DECREF(&CICObjType); Py_DECREF(m); return NULL;
     }
     if (PyType_Ready(&HalfbandDecimatorDpType) < 0) return NULL;
     Py_INCREF(&HalfbandDecimatorDpType);

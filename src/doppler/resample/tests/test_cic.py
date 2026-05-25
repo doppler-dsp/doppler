@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.filter import CIC
+from doppler.resample import CIC
 
 # ---------------------------------------------------------------------------
 # Helpers

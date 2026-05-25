@@ -33,8 +33,6 @@ extern "C" {
 
 #include "fir/fir_core.h"
 
-#include "cic/cic_core.h"
-
 #include "nco/nco_core.h"
 
 #include "lo/lo_core.h"
@@ -56,6 +54,8 @@ extern "C" {
 #include "Resampler/Resampler_core.h"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
+
+#include "cic/cic_core.h"
 
 #include "agc/agc_core.h"
 

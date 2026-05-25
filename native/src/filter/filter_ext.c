@@ -1,7 +1,7 @@
 /*
  * filter_ext.c — Python extension module filter
  *
- * Objects: FIR, CIC
+ * Objects: FIR
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,7 +13,6 @@
 
 
 #include "filter_ext_fir.c"
-#include "filter_ext_cic.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -32,16 +31,11 @@ PyInit_filter(void)
 {
     import_array();
     if (PyType_Ready(&FIRObjType) < 0) return NULL;
-    if (PyType_Ready(&CICObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&filter_moduledef);
     if (!m) return NULL;
     Py_INCREF(&FIRObjType);
     if (PyModule_AddObject(m, "FIR", (PyObject *)&FIRObjType) < 0) {
         Py_DECREF(&FIRObjType); Py_DECREF(m); return NULL;
-    }
-    Py_INCREF(&CICObjType);
-    if (PyModule_AddObject(m, "CIC", (PyObject *)&CICObjType) < 0) {
-        Py_DECREF(&CICObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

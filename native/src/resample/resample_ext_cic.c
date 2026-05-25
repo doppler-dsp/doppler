@@ -1,9 +1,9 @@
 /*
- * filter_ext_cic.c — CIC type for the filter module.
+ * resample_ext_cic.c — CIC type for the resample module.
  *
- * Included by filter_ext.c (the module aggregator).
+ * Included by resample_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
- * Do NOT compile this file directly — only filter_ext.c is compiled.
+ * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
 /* CICObject — wraps cic_state_t *       */
@@ -215,7 +215,7 @@ static PyMethodDef CICObj_methods[] = {
      "reconfigure.\n"
      "\n"
      "    >>> import numpy as np\n"
-     "    >>> from doppler import CIC\n"
+     "    >>> from doppler.resample import CIC\n"
      "    >>> obj = CIC(1, 4, 1)\n"
      "    >>> obj.reconfigure(0, 0, 0)\n"},
     {"decimate", (PyCFunction)CICObj_decimate, METH_VARARGS,
@@ -224,7 +224,7 @@ static PyMethodDef CICObj_methods[] = {
      "Zero-copy view into pre-allocated output buffer.\n"
      "\n"
      "    >>> import numpy as np\n"
-     "    >>> from doppler import CIC\n"
+     "    >>> from doppler.resample import CIC\n"
      "    >>> obj = CIC(1, 4, 1)\n"
      "    >>> y = obj.decimate(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
@@ -238,7 +238,7 @@ static PyMethodDef CICObj_methods[] = {
 
 static PyTypeObject CICObjType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "filter.CIC",
+    .tp_name      = "resample.CIC",
     .tp_basicsize = sizeof(CICObject),
     .tp_dealloc   = (destructor)CICObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,

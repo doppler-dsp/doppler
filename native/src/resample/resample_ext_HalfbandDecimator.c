@@ -91,14 +91,14 @@ HalfbandDecimatorObj_execute(HalfbandDecimatorObject *self, PyObject *args)
         if (!self->_execute_buf) { Py_DECREF(x_arr); PyErr_NoMemory(); return NULL; }
     }
     size_t n_out = HalfbandDecimator_execute(self->handle, (const float complex *)PyArray_DATA(x_arr), (size_t)PyArray_SIZE(x_arr), self->_execute_buf);
-    npy_intp dim = (npy_intp)n_out;
-    PyObject *arr = PyArray_SimpleNewFromData(
-        1, &dim, NPY_COMPLEX64, self->_execute_buf);
-    if (!arr) return NULL;
-    PyArray_SetBaseObject((PyArrayObject *)arr, (PyObject *)self);
-    Py_INCREF(self);
     Py_DECREF(x_arr);
-    return arr;
+    npy_intp dim = (npy_intp)n_out;
+    PyArrayObject *out_arr = (PyArrayObject *)PyArray_SimpleNew(
+        1, &dim, NPY_COMPLEX64);
+    if (!out_arr) return NULL;
+    memcpy(PyArray_DATA(out_arr), self->_execute_buf,
+           n_out * sizeof(float complex));
+    return (PyObject *)out_arr;
 }
 
 static PyObject *

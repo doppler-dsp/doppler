@@ -6,6 +6,13 @@ Resampler_create (double rate)
   return resamp_create (rate);
 }
 
+Resampler_state_t *
+Resampler_create_custom (size_t num_phases, size_t num_taps, const float *bank,
+                         double rate)
+{
+  return resamp_create_custom (num_phases, num_taps, bank, rate);
+}
+
 void
 Resampler_destroy (Resampler_state_t *state)
 {

@@ -38,13 +38,33 @@ ResamplerObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ResamplerObj_init(ResamplerObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"rate", NULL};
+    static char *kwlist[] = {"rate", "bank", NULL};
     double rate = 0.0;
+    PyObject *bank_obj = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|d", kwlist,
-                                     &rate))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|dO", kwlist,
+                                     &rate, &bank_obj))
         return -1;
-    self->handle = Resampler_create(rate);
+
+    if (bank_obj && bank_obj != Py_None) {
+        PyArrayObject *bank_arr = (PyArrayObject *)PyArray_FROM_OTF(
+            bank_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+        if (!bank_arr) return -1;
+        if (PyArray_NDIM(bank_arr) != 2) {
+            Py_DECREF(bank_arr);
+            PyErr_SetString(PyExc_ValueError, "bank must be 2-D float32");
+            return -1;
+        }
+        size_t num_phases = (size_t)PyArray_DIM(bank_arr, 0);
+        size_t num_taps   = (size_t)PyArray_DIM(bank_arr, 1);
+        self->handle = Resampler_create_custom(
+            num_phases, num_taps,
+            (const float *)PyArray_DATA(bank_arr), rate);
+        Py_DECREF(bank_arr);
+    } else {
+        self->handle = Resampler_create(rate);
+    }
+
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,
                         "Resampler_create returned NULL");
@@ -109,7 +129,13 @@ ResamplerObj_execute_ctrl(ResamplerObject *self, PyObject *args)
     if (!x_arr) return NULL;
     ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF(
         ctrl_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-    if (!ctrl_arr) return NULL;
+    if (!ctrl_arr) { Py_DECREF(x_arr); return NULL; }
+    if (PyArray_SIZE(ctrl_arr) < PyArray_SIZE(x_arr)) {
+        Py_DECREF(x_arr); Py_DECREF(ctrl_arr);
+        PyErr_SetString(PyExc_ValueError,
+                        "ctrl must be at least as long as x");
+        return NULL;
+    }
     if (!self->_execute_ctrl_buf) {
         size_t _max = Resampler_execute_ctrl_max_out(self->handle);
         if (!_max) _max = (size_t)PyArray_SIZE(x_arr);

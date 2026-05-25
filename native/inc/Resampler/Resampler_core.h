@@ -45,6 +45,20 @@ extern "C"
    */
   Resampler_state_t *Resampler_create (double rate);
 
+  /**
+   * @brief Create a Resampler with a user-supplied polyphase bank.
+   *
+   * @param num_phases  Number of polyphase branches (must be power of two).
+   * @param num_taps    Taps per branch.
+   * @param bank        Row-major float32 array, shape num_phases × num_taps.
+   * @param rate        Initial resample ratio.
+   * @return Non-NULL on success, NULL on invalid args or OOM.
+   */
+  Resampler_state_t *Resampler_create_custom (size_t num_phases,
+                                              size_t num_taps,
+                                              const float *bank,
+                                              double rate);
+
   /** Free all resources.  NULL is a no-op. */
   void Resampler_destroy (Resampler_state_t *state);
 

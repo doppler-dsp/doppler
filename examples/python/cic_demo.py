@@ -187,7 +187,7 @@ def demo_sdr_pipeline():
     fn_wanted = f_wanted / fs_in
     fn_jammer = f_jammer / fs_in
 
-    N_IN  = 8 * R * 12
+    N_IN  = 8 * R * 48
     # Jammer is a real cosine so both ±208 kHz components alias to ±48 kHz
     # in the output, producing a visible real-valued alias in the spectrum.
     jammer_real = np.cos(2 * np.pi * fn_jammer * np.arange(N_IN)).astype(np.complex64)

@@ -420,4 +420,4 @@ Before opening a PR:
 - [Benchmarking](benchmarking.md) — C and Python benchmark pipelines, history files, comparisons
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — full
   command reference
-- [Build & Install](../build/) — cmake flags and targets
+- [Build & Install](../build.md) — cmake flags and targets

@@ -92,7 +92,7 @@ DelayCf64Obj_ptr(DelayCf64Object *self, PyObject *args)
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
         return NULL;
     }
-    Py_ssize_t n = 1;
+    Py_ssize_t n = (Py_ssize_t)self->handle->num_taps;
     if (!PyArg_ParseTuple(args, "|n", &n))
         return NULL;
     if (!self->_ptr_buf) {

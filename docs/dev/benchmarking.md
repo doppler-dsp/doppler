@@ -233,7 +233,7 @@ releases. That only works if every snapshot is measured the same way, so
 the policy is deliberately strict about *which* snapshots are kept.
 
 **CI owns the committed history.** The
-[`benchmark.yml`](../../.github/workflows/benchmark.yml) workflow runs
+[`benchmark.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/benchmark.yml) workflow runs
 `just-makeit bench` on a pinned runner (fixed OS and Python version) on
 every push to `main` and on every release tag, then commits the trimmed
 snapshot to the dedicated `benchmarks` branch. Because the hardware and
@@ -294,5 +294,5 @@ tooling works on both.
 ## See also
 
 - [Adding a Module](adding-a-module.md) — full workflow for new components
-- [jm_bench.h source](../../native/benchmarks/jm_bench.h) — header-only implementation
+- [jm_bench.h source](https://github.com/doppler-dsp/doppler/blob/main/native/benchmarks/jm_bench.h) — header-only implementation
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — scaffold, upgrade, and bench commands

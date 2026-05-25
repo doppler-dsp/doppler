@@ -2,6 +2,7 @@
  * detection_ext.c — Python extension module detection
  *
  * Objects: 
+ * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -11,6 +12,9 @@
 #include <complex.h>
 
 #include "detection/detection_core.h"
+
+
+
 static PyObject *
 _bind_marcum_q(PyObject *self, PyObject *args)
 {

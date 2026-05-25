@@ -2,6 +2,7 @@
  * util_ext.c — Python extension module util
  *
  * Objects: 
+ * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -11,6 +12,9 @@
 #include <complex.h>
 
 #include "util/util_core.h"
+
+
+
 static PyObject *
 _bind_square_clip(PyObject *self, PyObject *args)
 {

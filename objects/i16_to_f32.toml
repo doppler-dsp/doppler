@@ -1,0 +1,12 @@
+[i16_to_f32]
+arg_type = "int16_t"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "I16ToF32"
+
+[[i16_to_f32.init_params]]
+name = "scale"
+type = "float"
+default = "32768.0f"

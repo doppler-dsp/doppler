@@ -94,7 +94,7 @@ float sr → [saturate to [-32768, 32767]] → (int16_t)sr
 1. Saturation makes the `(int16_t)` cast defined (§6.3.1.4 safe zone).
 2. Widen to `int32_t` before adding 32768: range `[-32768+32768, 32767+32768]
    = [0, 65535]` — no signed overflow (§6.5).
-3. `(uint64_t)` from `int32_t` in [0, 65535]: always defined (§6.3.1.3).
+3. `(uint64_t)` from `int32_t` in `[0, 65535]`: always defined (§6.3.1.3).
    All inputs are non-negative; no sign extension; no signed integers anywhere
    in the hot path.
 
@@ -119,7 +119,7 @@ float x → [saturate to [-32768, 32767]] → (int16_t)v
 1. Saturation makes the `(int16_t)` cast defined.
 2. Widen to `int32_t` before adding 32768: the range `[-32768 + 32768,
    32767 + 32768] = [0, 65535]` fits in `int32_t` with no signed overflow.
-3. `(uint16_t)` cast from the in-range `int32_t` value [0, 65535]: always
+3. `(uint16_t)` cast from the in-range `int32_t` value `[0, 65535]`: always
    defined (§6.3.1.3, to unsigned).
 4. Zero-extend into `uint32_t` / `uint64_t`: always defined.
 

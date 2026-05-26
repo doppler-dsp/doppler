@@ -31,7 +31,7 @@ extern "C" {
  * Allocate with f32_to_i16_create().
  *
  * @c clipped is sticky: set to 1 by the first sample whose pre-saturation
- * scaled value falls outside [-32768, 32767]; cleared only by reset().
+ * scaled value falls outside `[-32768, 32767]`; cleared only by reset().
  */
 typedef struct {
     float   scale;   /* multiply factor applied before saturation */

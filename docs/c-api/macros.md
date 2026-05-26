@@ -13,6 +13,7 @@
 ## c
 
 * **CMPLXF** ([**clib\_common.h**](clib__common_8h.md))
+* **CIC\_N** ([**cic\_core.h**](cic__core_8h.md))
 
 
 ## d

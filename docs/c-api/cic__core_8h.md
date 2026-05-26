@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](cic__core_8h_source.md)
 
-_Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ._ [More...](#detailed-description)
+_CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
@@ -58,12 +58,12 @@ _Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R, uint32\_t N, uint32\_t M) <br>_Create a CIC decimation filter._  |
-|  size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Decimate n\_in CF32 samples; write output to out._  |
-|  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output for the lazy-alloc ext path._  |
+|  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R) <br>_Create a CIC decimation filter._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Decimate n\_in CF32 samples; write output to out._  |
+|  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
-|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R, uint32\_t N, uint32\_t M) <br>_Reconfigure R, N, M in place; resets all filter state._  |
-|  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero integrators and comb delay lines; preserve R, N, M._  |
+|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place; resets all filter state._  |
+|  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all filter state; preserve R and shift._  |
 
 
 
@@ -91,35 +91,36 @@ _Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ._ [More...](#detai
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**CIC\_N**](cic__core_8h.md#define-cic_n)  `4`<br> |
 
 ## Detailed Description
 
 
-Internally runs two identical uint64\_t pipelines — one for the real part and one for the imaginary part. All arithmetic is unsigned, so C-guaranteed wrap-around handles intermediate overflow automatically. The final output is correct as long as the true (infinite-precision) result fits in 63 bits after applying input\_scale.
+Fixed design parameters: N = 4 stages (~77 dB alias rejection at f\_p = 0.1 \* f\_out) M = 1 (differential delay — one-sample comb) R = power-of-two decimation ratio (enforced at create time)
 
 
-Structure (decimating by R, N stages, differential delay M):
+Input/output boundary: CF32 (`float _Complex`), matching the doppler default signal type. Internally, each sample is converted to UQ16 — offset-binary: v\_q15 + 32768 → `[0, 65535]` in a uint64\_t — giving 48 bits of headroom for the pipeline gain of N \* log2(R) bits. For R &lt;= 4096 (log2 = 12) the gain is 48 bits; max accumulation = 65535 \* R^N = (2^16 - 1) \* 2^48 = 2^64 - 2^48 &lt; 2^64, so no overflow occurs.
 
 
-`x[n]` → INT\_1 → … → INT\_N → ↓R → COMB\_1 → … → COMB\_N → `y[n]`
+All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping is defined (mod 2^64), and the output decode subtracts the offset in floating-point — no signed integer casts anywhere in the hot path.
 
 
-input\_scale is chosen to maximise dynamic range for ±1.0 input:
+The unsigned modular-arithmetic CIC property guarantees exact outputs: every intermediate overflow in the integrators cancels in the comb stages, provided the true result fits in 64 bits. No saturation, no range checks, no floating-point in the inner loop.
 
 
-input\_scale = floor((2^63 − 1) / (R × M)^N)
+With M=1 and N fixed, the entire comb state is four uint64\_t values per channel — no heap allocation beyond the state struct itself.
 
 
-output\_scale is the reciprocal normalisation so the float output is back in ±1.0 range for a ±1.0 input signal at full CIC passband.
-
-
-Dynamic range (bits) for M=1: 
+Alias rejection : ~77 dB at f\_p = 0.1 \* f\_out (independent of R) Passband droop : ~0.57 dB at f\_p = 0.1 \* f\_out (independent of R) Output precision: 16-bit Q15 (independent of R and N)
 
 
 
 ```C++
-cic_state_t *cic = cic_create(32, 4, 1);
-// stream processing — block size must stay consistent after first call
+cic_state_t *cic = cic_create(16);   // R=16, N=4, M=1
 size_t n_out = cic_decimate(cic, in, 1024, out);
 cic_destroy(cic);
 ```
@@ -137,15 +138,10 @@ cic_destroy(cic);
 _Create a CIC decimation filter._ 
 ```C++
 cic_state_t * cic_create (
-    uint32_t R,
-    uint32_t N,
-    uint32_t M
+    uint32_t R
 ) 
 ```
 
-
-
-input\_scale is computed as floor((2^63−1) / (R×M)^N), which fills every available bit and leaves no headroom — correct for ±1.0 inputs.
 
 
 
@@ -153,15 +149,13 @@ input\_scale is computed as floor((2^63−1) / (R×M)^N), which fills every avai
 **Parameters:**
 
 
-* `R` Decimation ratio (≥ 1). 
-* `N` Number of stages (1–6). 
-* `M` Differential delay (1 or 2). 
+* `R` Decimation ratio. Must be a power of two in `[2, 4096]`. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid args or OOM. 
+Heap-allocated state, or NULL on invalid R or OOM. 
 
 
 
@@ -177,7 +171,7 @@ Heap-allocated state, or NULL on invalid args or OOM.
 
 _Decimate n\_in CF32 samples; write output to out._ 
 ```C++
-size_t cic_decimate (
+JM_FORCEINLINE  JM_HOT size_t cic_decimate (
     cic_state_t * state,
     const float complex * in,
     size_t n_in,
@@ -187,7 +181,7 @@ size_t cic_decimate (
 
 
 
-Each input sample is converted to a uint64\_t (two's complement) via input\_scale, run through N integrators, and tested against the decimation phase. Every R-th sample is passed through N comb stages and converted back to CF32 via output\_scale.
+Each sample is converted to UQ16, run through CIC\_N integrators, tested against the decimation phase, then (if a decimation boundary) passed through CIC\_N comb stages and converted back to CF32.
 
 
 
@@ -218,7 +212,7 @@ Number of output samples written.
 
 ### function cic\_decimate\_max\_out 
 
-_Upper bound on decimate output for the lazy-alloc ext path._ 
+_Upper bound on decimate output — returns 0 (lazy-alloc signal)._ 
 ```C++
 size_t cic_decimate_max_out (
     cic_state_t * state
@@ -227,7 +221,7 @@ size_t cic_decimate_max_out (
 
 
 
-Returns 0 so the Python extension allocates the output buffer on the first call (sized to n\_in, which is always ≥ the actual output count n\_in/R). Block size must stay consistent after the first call. 
+The Python extension allocates n\_in elements on the first call. Since n\_in &gt;= ceil(n\_in/R) = n\_out for all R &gt;= 1, the buffer is always large enough as long as block size stays consistent. 
 
 
         
@@ -246,7 +240,7 @@ void cic_destroy (
 
 
 
-Free all resources. NULL is a no-op. 
+Free resources. NULL is a no-op. 
 
 
         
@@ -257,19 +251,28 @@ Free all resources. NULL is a no-op.
 
 ### function cic\_reconfigure 
 
-_Reconfigure R, N, M in place; resets all filter state._ 
+_Change the decimation ratio in place; resets all filter state._ 
 ```C++
 void cic_reconfigure (
     cic_state_t * state,
-    uint32_t R,
-    uint32_t N,
-    uint32_t M
+    uint32_t R
 ) 
 ```
 
 
 
-Reallocates the comb delay lines if N×M changes. Silently ignores invalid parameters (R=0, N=0 or N&gt;6, M=0 or M&gt;2, or OOM). 
+Silently ignores invalid R (non-power-of-two, out of range).
+
+
+
+
+**Parameters:**
+
+
+* `state` Filter state to reconfigure. Must be non-NULL. 
+* `R` New decimation ratio. Same constraints as [**cic\_create()**](cic__core_8h.md#function-cic_create). 
+
+
 
 
         
@@ -280,7 +283,7 @@ Reallocates the comb delay lines if N×M changes. Silently ignores invalid param
 
 ### function cic\_reset 
 
-_Zero integrators and comb delay lines; preserve R, N, M._ 
+_Zero all filter state; preserve R and shift._ 
 ```C++
 void cic_reset (
     cic_state_t * state
@@ -289,7 +292,27 @@ void cic_reset (
 
 
 
-Resets the phase counter so the first output sample after reset is produced on input sample R-1 (same as after cic\_create). 
+The first output sample after reset is produced on input sample R-1, matching post-create behaviour. 
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define CIC\_N 
+
+```C++
+#define CIC_N `4`
+```
+
+
+
+Fixed stage count. Alias rejection ~19.2 dB/stage at f\_p=0.1. 
 
 
         

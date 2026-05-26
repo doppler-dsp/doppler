@@ -25,7 +25,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
-            * **file** [**cic\_core.h**](cic__core_8h.md) _Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ._     
+            * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
             * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     

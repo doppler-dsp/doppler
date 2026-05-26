@@ -20,7 +20,6 @@
 ## c
 
 * **clip\_db** ([**agc\_state\_t**](structagc__state__t.md))
-* **comb\_head** ([**cic\_state\_t**](structcic__state__t.md))
 * **comb\_im** ([**cic\_state\_t**](structcic__state__t.md))
 * **comb\_re** ([**cic\_state\_t**](structcic__state__t.md))
 * **count** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
@@ -28,6 +27,7 @@
 * **col** ([**det\_result2d\_t**](structdet__result2d__t.md))
 * **corr** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **center\_freq** ([**dp\_header\_t**](structdp__header__t.md))
+* **clipped** ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md), [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md), [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md))
 * **centre** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **ctrl\_acc** ([**resamp\_state\_t**](structresamp__state__t.md))
 
@@ -76,7 +76,6 @@
 
 ## i
 
-* **input\_scale** ([**cic\_state\_t**](structcic__state__t.md))
 * **integ\_im** ([**cic\_state\_t**](structcic__state__t.md))
 * **integ\_re** ([**cic\_state\_t**](structcic__state__t.md))
 * **inv** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
@@ -92,7 +91,6 @@
 
 ## m
 
-* **M** ([**cic\_state\_t**](structcic__state__t.md))
 * **mask** ([**delay\_state\_t**](structdelay__state__t.md))
 * **mag\_buf** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **magic** ([**dp\_header\_t**](structdp__header__t.md))
@@ -100,7 +98,6 @@
 
 ## n
 
-* **N** ([**cic\_state\_t**](structcic__state__t.md))
 * **n** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
 * **nx** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**fft2d\_state\_t**](structfft2d__state__t.md))
 * **ny** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**fft2d\_state\_t**](structfft2d__state__t.md))
@@ -118,7 +115,6 @@
 
 ## o
 
-* **output\_scale** ([**cic\_state\_t**](structcic__state__t.md))
 * **out\_buf** ([**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **odd\_buf** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
 * **odd\_head** ([**hbdecim\_state\_t**](structhbdecim__state__t.md))
@@ -154,6 +150,7 @@
 
 ## s
 
+* **shift** ([**cic\_state\_t**](structcic__state__t.md))
 * **sample\_rate** ([**dp\_header\_t**](structdp__header__t.md))
 * **sample\_type** ([**dp\_header\_t**](structdp__header__t.md))
 * **sequence** ([**dp\_header\_t**](structdp__header__t.md))

@@ -64,5 +64,5 @@ drop those before measuring power.
 python examples/python/cic_demo.py   # → cic_demo_spectrum.png
 ```
 
-See [`doppler.resample.CIC`](../api/python-resample.md#cic--cascaded-integrator-comb-decimator)
+See [`doppler.resample.CIC`](../api/python-resample.md#cic-cascaded-integrator-comb-decimator)
 for the full API reference.

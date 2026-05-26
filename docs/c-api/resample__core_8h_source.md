@@ -25,6 +25,8 @@ extern "C"
 
   int kaiser_num_taps (int num_phases, double atten, double pb, double sb);
 
+  void ciccompmf(double *h, uint32_t N, uint32_t R, uint32_t M);
+
 #ifdef __cplusplus
 }
 #endif

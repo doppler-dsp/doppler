@@ -9,12 +9,12 @@
  *
  * Input/output boundary: CF32 (`float _Complex`), matching the doppler
  * default signal type.  Internally, each sample is converted to UQ16 —
- * offset-binary: v_q15 + 32768 → [0, 65535] in a uint64_t — giving 48
+ * offset-binary: v_q15 + 32768 → `[0, 65535]` in a uint64_t — giving 48
  * bits of headroom for the pipeline gain of N * log2(R) bits.  For R <= 4096
  * (log2 = 12) the gain is 48 bits; max accumulation = 65535 * R^N =
  * (2^16 - 1) * 2^48 = 2^64 - 2^48 < 2^64, so no overflow occurs.
  *
- * All arithmetic is unsigned: inputs are non-negative [0, 65535], wrapping
+ * All arithmetic is unsigned: inputs are non-negative `[0, 65535]`, wrapping
  * is defined (mod 2^64), and the output decode subtracts the offset in
  * floating-point — no signed integer casts anywhere in the hot path.
  *
@@ -68,7 +68,7 @@ typedef struct {
 /**
  * @brief Create a CIC decimation filter.
  *
- * @param R  Decimation ratio.  Must be a power of two in [2, 4096].
+ * @param R  Decimation ratio.  Must be a power of two in `[2, 4096]`.
  *           Returns NULL for R=0, non-power-of-two, or R > 4096.
  * @return   Heap-allocated state, or NULL on invalid R or OOM.
  */

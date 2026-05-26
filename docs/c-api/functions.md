@@ -59,6 +59,7 @@
 * **corr2d\_execute\_max\_out** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **corr2d\_reset** ([**corr2d\_core.h**](corr2d__core_8h.md))
 * **corr2d\_set\_ref** ([**corr2d\_core.h**](corr2d__core_8h.md))
+* **ciccompmf** ([**resample\_core.h**](resample__core_8h.md))
 
 
 ## d

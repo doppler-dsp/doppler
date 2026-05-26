@@ -20,7 +20,8 @@ extern "C" {
 #endif
 
 typedef struct {
-    float scale; /* multiply factor applied before saturation */
+    float   scale;   /* multiply factor applied before saturation */
+    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
 } f32_to_i16_state_t;
 
 f32_to_i16_state_t *f32_to_i16_create(float scale);
@@ -30,10 +31,11 @@ void f32_to_i16_destroy(f32_to_i16_state_t *state);
 void f32_to_i16_reset(f32_to_i16_state_t *state);
 
 JM_FORCEINLINE JM_HOT int16_t
-f32_to_i16_step(const f32_to_i16_state_t *state, float x)
+f32_to_i16_step(f32_to_i16_state_t *state, float x)
 {
-    /* Scale, round-to-nearest, then saturate to int16 range. */
     float s = state->scale * x;
+    /* Detect saturation before clamping; set sticky flag. */
+    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     return (int16_t)lroundf(s);

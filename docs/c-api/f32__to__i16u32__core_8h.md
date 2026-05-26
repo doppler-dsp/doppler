@@ -62,7 +62,7 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 |  [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* | [**f32\_to\_i16u32\_create**](#function-f32_to_i16u32_create) (float scale) <br>_Create a f32\_to\_i16u32 instance._  |
 |  void | [**f32\_to\_i16u32\_destroy**](#function-f32_to_i16u32_destroy) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u32 instance and release all memory._  |
 |  void | [**f32\_to\_i16u32\_reset**](#function-f32_to_i16u32_reset) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Reset f32\_to\_i16u32 to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**f32\_to\_i16u32\_step**](#function-f32_to_i16u32_step) (const [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, float x) <br>_Process one input sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**f32\_to\_i16u32\_step**](#function-f32_to_i16u32_step) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, float x) <br>_Process one input sample._  |
 |  void | [**f32\_to\_i16u32\_steps**](#function-f32_to_i16u32_steps) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, const float \* input, uint32\_t \* output, size\_t n) <br>_Process a block of samples._  |
 
 
@@ -222,7 +222,7 @@ void f32_to_i16u32_reset (
 _Process one input sample._ 
 ```C++
 JM_FORCEINLINE  JM_HOT uint32_t f32_to_i16u32_step (
-    const f32_to_i16u32_state_t * state,
+    f32_to_i16u32_state_t * state,
     float x
 ) 
 ```

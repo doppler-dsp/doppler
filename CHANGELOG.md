@@ -15,6 +15,37 @@ and this project adheres to
 
 ---
 
+## [0.4.0] — 2026-05-26
+
+### Changed
+
+- **Breaking**: `CIC` constructor and `reconfigure()` now take only `R`
+  (decimation ratio).  `N` and `M` are fixed constants (`N=4`, `M=1`) and
+  are no longer accepted as arguments.  The `N`, `M`, `input_scale`, and
+  `output_scale` properties are removed; `shift` (`= 4 * log2(R)`) is
+  added.
+- CIC internal encoding switched from sign-extended Q15 to offset-binary
+  UQ16 (`v_Q15 + 32768 → uint64`).  All integrator/comb arithmetic is now
+  purely unsigned, eliminating the C99 implementation-defined
+  `(int16_t)(uint16_t)v` cast in the output path.
+- Zero CF32 input now produces a non-zero transient for the first `N=4`
+  output periods (the DC offset bias ramps the integrators before the comb
+  chain fills); output is exactly `0+0j` from index 4 onward.
+
+### Added
+
+- `F32ToI16`, `F32ToI16U32`, `F32ToI16U64`: sticky `clipped` property
+  (`bool`) — reads `True` if any sample has been saturated since the last
+  `reset()`.
+- `docs/design/QUANTIZATION.md`: full C99 cast-chain analysis for both
+  UQ16 encode and decode paths.
+- Spectral purity roundtrip tests for all three cvt encoder/decoder pairs
+  (−80 dBc threshold, `src/doppler/cvt/tests/test_roundtrip_spectral.py`).
+- Gallery: Q15 vs UQ15 quantization demo (`examples/python/q15_uq15_demo.py`)
+  and cvt quantization noise comparison (`examples/python/cvt_quantization_demo.py`).
+
+---
+
 ## [0.3.7] — 2026-05-24
 
 ### Changed
@@ -557,7 +588,8 @@ and this project adheres to
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5

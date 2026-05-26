@@ -2,16 +2,19 @@ add_library(resample_core OBJECT resample_core.c)
 target_include_directories(resample_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# resample Python module — aggregates: Resampler, HalfbandDecimator, CIC
+# resample Python module — aggregates: Resampler, HalfbandDecimator, CIC, RateConverter
 Python3_add_library(resample MODULE WITH_SOABI resample_ext.c)
 target_link_libraries(resample PRIVATE
     resample_core
     Resampler_core
     HalfbandDecimator_core
     cic_core
+    RateConverter_core
     resamp_core
     hbdecim_core
     hbdecim_r2c_core
+    resample_core
+    fir_core
     m
     Python3::NumPy)
 target_include_directories(resample PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

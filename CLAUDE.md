@@ -126,6 +126,18 @@ These apply to all block-I/O objects (template users):
 | Init params all optional (`\|kkk` format string) | Expected — `create(0,0,0)` → NULL → `MemoryError`. Add validation in `_core.c` for human-readable errors |
 | Reconfigure method doctest silently no-ops on invalid args | Hand-fix the docstring; the C API intentionally ignores invalid params |
 
+### `no_state + no_step + variable_output` objects (e.g. RateConverter)
+
+These five patches are always required after `jm apply` on this pattern:
+
+| Issue | Fix |
+|---|---|
+| `_execute_buf_cap` missing from struct | Add `size_t _execute_buf_cap;` to the C object struct — jm only generates `float complex *_execute_buf` |
+| Grow-on-demand execute buffer | jm allocs once at `max_out()` size. For objects where rate can change or input block size varies: `size_t need = (size_t)(n_in * ratio) + 4; if (need > self->_execute_buf_cap) { free(old); malloc(need); self->_execute_buf_cap = need; }` |
+| Rate setter must invalidate buffer | jm emits only the C API call in the setter. Add after it: `free(self->_execute_buf); self->_execute_buf = NULL; self->_execute_buf_cap = 0;` — or the stale buffer is used at the new (possibly larger) rate |
+| `list[str]` property (e.g. `stages`) | jm has no `list[str]` return primitive; write the getter by hand: call `{Obj}_stage_label()` in a loop, build with `PyList_New(n)` + `PyList_SET_ITEM` |
+| `_execute_buf` not freed on destroy | jm's dealloc/destroy/exit only call `{Obj}_destroy(handle)` — prepend `free(self->_execute_buf)` in each of the three paths |
+
 ---
 
 ## Build

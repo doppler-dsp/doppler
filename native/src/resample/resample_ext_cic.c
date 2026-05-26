@@ -6,7 +6,7 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* CICObject — wraps cic_state_t *                          */
+/* CICObject — wraps cic_state_t *       */
 /* ======================================================== */
 
 #include "cic/cic_core.h"
@@ -14,7 +14,7 @@
 typedef struct {
     PyObject_HEAD
     cic_state_t *handle;
-    float complex *_decimate_buf;
+    float complex *_decimate_buf;  /* pre-allocated output for decimate */
 } CICObject;
 
 static void
@@ -64,6 +64,11 @@ CICObj_reset(CICObject *self, PyObject *Py_UNUSED(ignored))
     cic_reset(self->handle);
     Py_RETURN_NONE;
 }
+
+
+
+
+
 
 static PyObject *
 CICObj_reconfigure(CICObject *self, PyObject *args)
@@ -116,7 +121,6 @@ CICObj_decimate(CICObject *self, PyObject *args)
     Py_DECREF(in_arr);
     return arr;
 }
-
 static PyObject *
 CIC_getprop_R(CICObject *self, void *Py_UNUSED(closure))
 {
@@ -126,7 +130,6 @@ CIC_getprop_R(CICObject *self, void *Py_UNUSED(closure))
     }
     return PyLong_FromUnsignedLong((unsigned long)self->handle->R);
 }
-
 static PyObject *
 CIC_getprop_shift(CICObject *self, void *Py_UNUSED(closure))
 {
@@ -138,7 +141,7 @@ CIC_getprop_shift(CICObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef CIC_getset[] = {
-    { "R",     (getter)CIC_getprop_R,     NULL, NULL, NULL },
+    { "R", (getter)CIC_getprop_R, NULL, NULL, NULL },
     { "shift", (getter)CIC_getprop_shift, NULL, NULL, NULL },
     { NULL }
 };
@@ -172,33 +175,33 @@ CICObj_exit(CICObject *self, PyObject *args)
 }
 
 static PyMethodDef CICObj_methods[] = {
-    {"reset", (PyCFunction)CICObj_reset, METH_NOARGS,
-     "Reset filter state; preserve R."},
+    {"reset",    (PyCFunction)CICObj_reset,    METH_NOARGS,
+     "Reset state to post-create defaults."},
+
     {"reconfigure", (PyCFunction)CICObj_reconfigure, METH_VARARGS,
      "reconfigure(R) -> None\n"
      "\n"
-     "Change decimation ratio and reset filter state.\n"
-     "R must be a power of two in [2, 4096].\n"
+     "reconfigure.\n"
      "\n"
-     "    >>> from doppler.resample import CIC\n"
+     "    >>> import numpy as np\n"
+     "    >>> from doppler import CIC\n"
      "    >>> obj = CIC(16)\n"
-     "    >>> obj.reconfigure(32)\n"},
+     "    >>> obj.reconfigure(0)\n"},
     {"decimate", (PyCFunction)CICObj_decimate, METH_VARARGS,
      "decimate(x) -> ndarray\n"
      "\n"
-     "Decimate CF32 input by R.  Returns a zero-copy view into a\n"
-     "pre-allocated output buffer; copy before the next call if you\n"
-     "need to retain the data.\n"
+     "Zero-copy view into pre-allocated output buffer.\n"
      "\n"
      "    >>> import numpy as np\n"
-     "    >>> from doppler.resample import CIC\n"
+     "    >>> from doppler import CIC\n"
      "    >>> obj = CIC(16)\n"
-     "    >>> y = obj.decimate(np.zeros(1024, dtype=np.complex64))\n"
+     "    >>> y = obj.decimate(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
-    {"destroy",   (PyCFunction)CICObj_destroy,  METH_NOARGS,  "Release resources."},
-    {"__enter__", (PyCFunction)CICObj_enter,    METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)CICObj_exit,     METH_VARARGS, NULL},
+    {"destroy",  (PyCFunction)CICObj_destroy,  METH_NOARGS,
+     "Release resources."},
+    {"__enter__", (PyCFunction)CICObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)CICObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
@@ -208,7 +211,7 @@ static PyTypeObject CICObjType = {
     .tp_basicsize = sizeof(CICObject),
     .tp_dealloc   = (destructor)CICObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "CIC decimation filter (N=4, M=1, power-of-two R).",
+    .tp_doc       = "CIC type.",
     .tp_methods   = CICObj_methods,
     .tp_getset    = CIC_getset,
     .tp_new       = CICObj_new,

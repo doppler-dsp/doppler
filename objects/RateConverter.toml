@@ -1,0 +1,35 @@
+[RateConverter]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "RateConverter"
+depends_on = ["resamp_core", "hbdecim_core", "cic_core", "fir_core", "resample_core"]
+
+[[RateConverter.init_params]]
+name = "rate"
+type = "double"
+default = "1.0"
+
+[[RateConverter.init_params]]
+name = "compensate"
+type = "int"
+default = "0"
+
+[[RateConverter.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[RateConverter.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+
+[[RateConverter.properties]]
+name = "rate"
+type = "double"
+writable = true

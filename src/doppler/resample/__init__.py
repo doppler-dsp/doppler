@@ -10,7 +10,7 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, CIC, ciccompmf, kaiser_beta, kaiser_num_taps  # noqa: E402
+from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, CIC, ciccompmf, kaiser_beta, kaiser_num_taps, RateConverter  # noqa: E402
 from .cic_design import (  # noqa: E402
     cic_precision_bits,
     cic_alias_rejection,
@@ -116,4 +116,38 @@ def _num_phases_for_rejection(rejection: float) -> int:
 # underscore alias kept for test/internal compatibility
 _kaiser_num_taps = kaiser_num_taps
 
-__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "CIC", "ciccompmf", "kaiser_beta", "kaiser_num_taps"]
+
+def rate_convert(x, rate, rc=None):
+    """Convert samples to a new sample rate.
+
+    Parameters
+    ----------
+    x : array_like, complex64
+        Input samples.
+    rate : float
+        Output-to-input sample rate ratio.
+    rc : RateConverter, optional
+        Existing converter to reuse; a new one is created if None.
+
+    Returns
+    -------
+    out : ndarray, complex64
+        Converted samples.
+    rc : RateConverter
+        The converter used (pass back in to maintain state across calls).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.resample import rate_convert
+    >>> x = np.ones(256, dtype=np.complex64)
+    >>> y, rc = rate_convert(x, 0.5)
+    >>> len(y) == 128
+    True
+    """
+    if rc is None:
+        rc = RateConverter(rate)
+    return rc.execute(x), rc
+
+
+__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "CIC", "ciccompmf", "kaiser_beta", "kaiser_num_taps", "RateConverter"]

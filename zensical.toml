@@ -34,11 +34,13 @@ nav = [
     { "Detection Curves"   = "gallery/detection-curves.md" },
     { "Monte Carlo"        = "gallery/detection-sim.md"    },
     { "2-D Acquisition"    = "gallery/detection2d.md"      },
+    { "RateConverter"      = "gallery/rate-converter.md"   },
   ]},
   { "Examples" = [
     { "C"         = "examples/c.md"         },
     { "Python" = [
       { "Overview"         = "examples/python.md"             },
+      { "RateConverter"    = "examples/python-rate-converter.md" },
       { "LO"               = "examples/python-lo.md"          },
       { "NCO"              = "examples/python-nco.md"         },
       { "FFT"              = "examples/python-fft.md"         },

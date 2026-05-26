@@ -12,11 +12,88 @@ Source:
 
 | Class | Algorithm | Rate | Best for |
 |-------|-----------|------|----------|
-| `Resampler` | Polyphase (4096 phases × 19 taps) | any | General rate conversion |
-| `HalfbandDecimator` | Halfband 2:1 CF32 | 0.5 (fixed) | First stage in a DDC chain |
+| `RateConverter` | Auto-selected cascade | any | Single-class interface for all rates |
+| `Resampler` | Polyphase (4096 phases × 19 taps) | any | Custom Kaiser spec or `execute_ctrl` |
+| `HalfbandDecimator` | Halfband 2:1 CF32 | 0.5 (fixed) | First stage in a hand-tuned DDC chain |
 | `HalfbandDecimatorDp` | Halfband 2:1 CF64 | 0.5 (fixed) | Double-precision DDC chain |
 | `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32 | 0.5 (fixed) | Real ADC input → complex baseband |
 | `CIC` | Cascaded integrator-comb | 1/R (fixed) | High-rate first decimation stage |
+
+---
+
+## `RateConverter` — automatic cascade
+
+Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase
+Resampler stages for the requested rate ratio at construction time.  The
+cascade is rebuilt transparently whenever `rate` is changed.
+
+### Stage selection
+
+| Condition (D = 1/rate) | Cascade |
+|---|---|
+| rate ≥ 1.0 or D < 2 | `Resampler(rate)` |
+| D ≈ 2 | `HalfbandDecimator` |
+| D ≈ 4 | `HalfbandDecimator → HalfbandDecimator` |
+| D = 2ⁿ, n ≥ 3, D ≤ 4096 | `CIC(D)` |
+| D ≥ 8, non-power-of-2 | `CIC(R*) → Resampler(R*/D)` |
+| 2 ≤ D < 8, non-integer | `Resampler(rate)` |
+
+where R\* = nearest power-of-two to D.
+
+```python
+from doppler.resample import RateConverter
+import numpy as np
+
+x = np.random.randn(4096).astype(np.complex64)
+
+rc = RateConverter(0.5)        # HalfbandDecimator
+y = rc.execute(x)              # len(y) = 2048
+
+rc = RateConverter(0.125)      # CIC(8)
+y = rc.execute(x)              # len(y) = 512
+
+rc = RateConverter(0.1)        # CIC(8) → Resampler(0.8)
+y = rc.execute(x)              # len(y) ≈ 410
+print(rc.stages)               # ['CIC(8)', 'Resampler(0.8)']
+
+# Change rate — cascade rebuilt, filter state reset
+rc.rate = 0.25
+print(rc.stages)               # ['HalfbandDecimator', 'HalfbandDecimator']
+```
+
+### Streaming
+
+State is preserved across `execute()` calls; split at any boundary:
+
+```python
+rc = RateConverter(0.5)
+for block in iq_stream:        # CF32 blocks, any length
+    y = rc.execute(block)
+    process(y)
+```
+
+### Functional wrapper
+
+`rate_convert()` creates a `RateConverter` on the first call and returns it
+so it can be passed back to maintain state:
+
+```python
+from doppler.resample import rate_convert
+
+y1, rc = rate_convert(x, 0.5)
+y2, rc = rate_convert(x, 0.5, rc=rc)   # same converter, state preserved
+```
+
+### CIC droop compensation
+
+Pass `compensate=1` to append a passband-droop compensating FIR after any
+CIC stage.  The FIR is designed with `ciccompmf(N=4, R=R, M=7)`:
+
+```python
+rc = RateConverter(0.125, compensate=1)
+# cascade: CIC(8) → FIR-comp(7 taps)
+print(rc.stages)   # ['CIC(8)+FIR']
+```
 
 ---
 
@@ -127,6 +204,8 @@ Valid M: odd 1–19, even 2–18.  Out-of-range M returns all-zeros.
 ::: doppler.resample
     options:
       members:
+        - RateConverter
+        - rate_convert
         - Resampler
         - HalfbandDecimator
         - HalfbandDecimatorDp

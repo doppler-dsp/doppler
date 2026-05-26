@@ -151,8 +151,8 @@ show_signature_annotations = true
 allow_inspection           = false
 
 [project.markdown_extensions.pymdownx.emoji]
-emoji_index     = "material.extensions.emoji:twemoji"
-emoji_generator = "material.extensions.emoji:to_svg"
+emoji_index     = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
 
 [project.markdown_extensions.admonition]
 

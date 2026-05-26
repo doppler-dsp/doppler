@@ -165,7 +165,8 @@ cic_decimate(cic_state_t *state, const float complex *in,
  *
  * Silently ignores invalid R (non-power-of-two, out of range).
  *
- * @param R  New decimation ratio.  Same constraints as cic_create().
+ * @param state  Filter state to reconfigure.  Must be non-NULL.
+ * @param R      New decimation ratio.  Same constraints as cic_create().
  */
 void cic_reconfigure(cic_state_t *state, uint32_t R);
 

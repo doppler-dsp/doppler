@@ -22,10 +22,32 @@ Run `make gallery` to regenerate all images.
 
     [![CIC decimation spectrum](../assets/cic_demo_spectrum.png)](cic.md)
 
-    Wideband IQ → CIC → narrowband slice.  Jammer alias visible at
-    48 kHz, ~71 dB below the wanted tone.
+    Wideband IQ → CIC → narrowband slice.  Jammer alias attenuated
+    ~90 dB; offset-binary UQ16 integer pipeline shown in middle panel.
 
     [:octicons-arrow-right-24: Walkthrough](cic.md)
+
+-   **[Q15 vs UQ15 Quantization](q15-uq15.md)**
+
+    ---
+
+    [![Q15 vs UQ15 spectrum](../assets/q15_uq15_demo.png)](q15-uq15.md)
+
+    Bipolar and offset-binary encodings of the same Q15 step — identical
+    noise floor, different integer conventions.
+
+    [:octicons-arrow-right-24: Walkthrough](q15-uq15.md)
+
+-   **[cvt Quantization Noise](cvt-quantization.md)**
+
+    ---
+
+    [![cvt quantization noise](../assets/cvt_quantization_demo.png)](cvt-quantization.md)
+
+    All three cvt formats (I16, I16U32, I16U64) overlaid — identical
+    Q15 noise floor across 80 dB dynamic range.
+
+    [:octicons-arrow-right-24: Walkthrough](cvt-quantization.md)
 
 -   **[Correlation and Detection](corr.md)**
 

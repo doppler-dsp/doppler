@@ -97,6 +97,27 @@ Rule: *compute in the cheapest type that keeps the math clean.*
 
 ---
 
+## Quantization schemes
+
+The `cvt` module converts between CF32 and fixed-point integer formats.
+All formats derive from **Q15** (15-bit signed fractional, Δ = 2⁻¹⁵).
+
+<figure markdown>
+| Scheme | Container  | `0.0` code | Description |
+|--------|------------|------------|-------------|
+| Q15    | `int16_t`  | `0x0000`   | Bipolar two's-complement |
+| I16U32 | `uint32_t` | `0x00000000` | Q15 zero-extended to 32 bits |
+| I16U64 | `uint64_t` | `0x0000000000000000` | Q15 zero-extended to 64 bits |
+| UQ15   | `uint16_t` | `0x8000`   | Offset-binary (0.0 → 32768) |
+| UQ16   | `uint64_t` | `0x0000000000008000` | UQ15 in uint64 — CIC pipeline format |
+<figcaption>Quantization schemes — all derived from Q15</figcaption>
+</figure>
+
+See [Quantization Design](design/QUANTIZATION.md) for encoding formulas,
+C99 cast semantics, and the CIC headroom budget.
+
+---
+
 ## See also
 
 - [just-makeit — State Variable Types](https://just-buildit.github.io/just-makeit/types/) —

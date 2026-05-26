@@ -109,7 +109,7 @@ float sr → [saturate to [-32768, 32767]] → (int16_t)sr
 3. Subtract 32768.0f in floating-point: removes the offset-binary bias;
    no signed integer cast, no implementation-defined behaviour.
 
-**Unsigned encode (offset-binary — future `cvt`)**
+**UQ15 encode (offset-binary)**
 
 ```
 float x → [saturate to [-32768, 32767]] → (int16_t)v
@@ -323,9 +323,27 @@ x̂ = (v_unipolar - 32768) · 2⁻¹⁵
 ```
 
 Conversion between the two is an integer add/subtract — no precision is
-lost.  The `cvt` module currently implements bipolar formats only.
-Offset-binary conversion (for hardware that requires it) belongs in `cvt`
-as a future `F32ToUI16` / `UI16ToF32` converter pair.
+lost.
+
+### 7.1 UQ15 — offset-binary in uint16
+
+When the offset-binary value is stored in a `uint16_t` container, the
+format is called **UQ15**:
+
+```
+encode: u = (uint16_t)((int32_t)v_Q15 + 32768),  u ∈ [0, 65535]
+decode: x̂ = ((int32_t)u − 32768) · 2⁻¹⁵
+```
+
+| Input | Q15 (`int16_t`) | UQ15 (`uint16_t`) |
+|-------|-----------------|-------------------|
+| +32767/32768 | `0x7FFF` | `0xFFFF` (65535) |
+|  0.0         | `0x0000` | `0x8000` (32768) |
+| −1.0         | `0x8000` | `0x0000` (0) |
+
+The `cvt` module provides `F32ToUQ15` / `UQ15ToF32` for this encoding.
+For the CIC pipeline's UQ16 variant (same bias, stored in `uint64_t` with
+48 bits of headroom) see §2.4 and §8.
 
 ---
 
@@ -372,9 +390,11 @@ CF32, restoring unit gain for DC.
 
 ## See also
 
-- [`docs/types.md`](../types.md) — CF32, CI16, and the full type table
+- [`docs/types.md`](../types.md) — CF32, CI16, and the full type table including
+  the quantization scheme summary
 - [`cic_core.h`](../c-api/cic__core_8h.md) — CIC integer pipeline
-  implementation
-- `native/inc/cvt/` — cvt converter headers
+  implementation (UQ16 encode/decode)
+- `native/inc/cvt/f32_to_uq15/` — F32ToUQ15 C header (UQ15 encode)
+- `native/inc/cvt/uq15_to_f32/` — UQ15ToF32 C header (UQ15 decode)
 - `examples/python/cvt_quantization_demo.py` — spectral comparison of all
-  three quantization formats
+  three bipolar quantization formats

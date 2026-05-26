@@ -1,0 +1,12 @@
+[uq15_to_f32]
+arg_type = "uint16_t"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "UQ15ToF32"
+
+[[uq15_to_f32.init_params]]
+name = "scale"
+type = "float"
+default = "32768.0f"

@@ -27,6 +27,10 @@ extern "C" {
 
 #include "i16u64_to_f32/i16u64_to_f32_core.h"
 
+#include "f32_to_uq15/f32_to_uq15_core.h"
+
+#include "uq15_to_f32/uq15_to_f32_core.h"
+
 #include "acc_f32/acc_f32_core.h"
 
 #include "acc_cf64/acc_cf64_core.h"

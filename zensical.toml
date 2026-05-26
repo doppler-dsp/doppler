@@ -64,6 +64,9 @@ nav = [
     { "Polyphase → Resample"    = "api/python-polyphase.md"     },
   ]},
   { "Type System"       = "types.md"    },
+  { "Design" = [
+    { "Quantization" = "design/QUANTIZATION.md" },
+  ]},
   { "Spectrum Analyzer" = "specan/"     },
   { "CLI & Pipelines" = [
     { "Dopplerfile" = "cli/dopplerfile.md" },

@@ -2,6 +2,7 @@
 
 Short code examples for each doppler Python module.
 
+- [RateConverter](python-rate-converter.md) — Automatic cascade (CIC / halfband / polyphase) for any rate ratio.
 - [LO](python-lo.md) — Complex phasor generator with FM control and phase continuity.
 - [NCO](python-nco.md) — Raw uint32 phase accumulator with overflow carry and fixed-point scaling.
 - [FFT](python-fft.md) — Per-instance 1-D and 2-D FFT with plan reuse.

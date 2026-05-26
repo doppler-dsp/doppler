@@ -61,6 +61,8 @@ extern "C" {
 
 #include "cic/cic_core.h"
 
+#include "RateConverter/RateConverter_core.h"
+
 #include "agc/agc_core.h"
 
 #ifdef __cplusplus

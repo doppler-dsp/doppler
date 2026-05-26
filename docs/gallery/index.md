@@ -93,4 +93,15 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](detection2d.md)
 
+-   **[RateConverter — Cascade Selection](rate-converter.md)**
+
+    ---
+
+    [![RateConverter spectral demo](../assets/rate_converter_demo.png)](rate-converter.md)
+
+    CIC, halfband, and polyphase Resampler stages selected automatically
+    by rate ratio.  Tone-frequency preservation verified across four regimes.
+
+    [:octicons-arrow-right-24: Walkthrough](rate-converter.md)
+
 </div>

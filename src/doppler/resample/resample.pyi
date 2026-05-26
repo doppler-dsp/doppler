@@ -137,6 +137,48 @@ class CIC:
 
     def __exit__(self, *args: object) -> None: ...
 
+class RateConverter:
+    """RateConverter component.
+
+    Parameters
+    ----------
+    rate : float, default 1.0
+        rate constructor parameter.
+    compensate : int, default 0
+        compensate constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.resample import RateConverter
+    >>> obj = RateConverter(1.0, 0)
+
+    """
+    def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Execute."""
+
+    def reset(self) -> None:
+        """Reset."""
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+    @rate.setter
+    def rate(self, value: float) -> None: ...
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "RateConverter": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 def ciccompmf(N: int, R: int, M: int) -> NDArray[np.float64]:
     """Ciccompmf."""
 

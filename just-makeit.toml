@@ -68,9 +68,9 @@ no_generate = "true"
 no_generate = "true"
 
 [module.resample]
-objects = ["Resampler", "HalfbandDecimator", "cic"]
-extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "m"]
+objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
+extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "resample_core", "fir_core", "m"]
 
 [[module.resample.functions]]
 name = "ciccompmf"

@@ -373,8 +373,8 @@ CF32, restoring unit gain for DC.
 ## See also
 
 - [`docs/types.md`](../types.md) — CF32, CI16, and the full type table
-- [`native/inc/cic/cic_core.h`](../../native/inc/cic/cic_core.h) — CIC
-  integer pipeline implementation
-- [`native/inc/cvt/`](../../native/inc/cvt/) — cvt converter headers
-- [`examples/python/cvt_quantization_demo.py`](../../examples/python/cvt_quantization_demo.py) —
-  spectral comparison of all three quantization formats
+- [`cic_core.h`](../c-api/cic__core_8h.md) — CIC integer pipeline
+  implementation
+- `native/inc/cvt/` — cvt converter headers
+- `examples/python/cvt_quantization_demo.py` — spectral comparison of all
+  three quantization formats

@@ -88,17 +88,18 @@ for block in iq_stream:              # 4096-sample CF32 arrays
 
 ## `CIC` — cascaded integrator-comb decimator
 
-Fixed-rate integer decimation (factor R, order N).  Runs directly on the
-input stream at full rate — no multipliers, just integrators and combs.
-Pair with `ciccompmf` to correct passband droop.
+Fixed-rate integer decimation by a power-of-two factor R.  Fixed at N=4
+stages, M=1.  Runs directly on the input stream at full rate — no
+multipliers, just integrators and combs.  Pair with `ciccompmf` to correct
+passband droop.
 
 ```python
 from doppler.resample import CIC, ciccompmf
 import numpy as np
 
-cic = CIC(R=16, N=4)
+cic = CIC(16)                   # R=16, N=4 (fixed), M=1 (fixed)
 x = np.random.randn(4096).astype(np.complex64)
-y = cic.execute(x)              # len(y) = 256
+y = cic.decimate(x)             # len(y) = 256
 
 # Design a 7-tap droop compensator (runs at output rate)
 h = ciccompmf(N=4, R=16, M=7)  # NDArray[float64], length 7

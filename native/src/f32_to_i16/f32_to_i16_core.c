@@ -21,7 +21,7 @@ f32_to_i16_destroy(f32_to_i16_state_t *state)
 void
 f32_to_i16_reset(f32_to_i16_state_t *state)
 {
-    (void)state; /* no dynamic state to reset */
+    state->clipped = 0;
 }
 
 void f32_to_i16_steps(

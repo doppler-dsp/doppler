@@ -21,7 +21,7 @@ f32_to_i16u64_destroy(f32_to_i16u64_state_t *state)
 void
 f32_to_i16u64_reset(f32_to_i16u64_state_t *state)
 {
-    (void)state;
+    state->clipped = 0;
 }
 
 void f32_to_i16u64_steps(

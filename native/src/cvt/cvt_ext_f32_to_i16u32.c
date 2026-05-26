@@ -165,6 +165,24 @@ F32ToI16U32Obj_exit(F32ToI16U32Object *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
+static PyObject *
+F32ToI16U32Obj_get_clipped(F32ToI16U32Object *self, void *Py_UNUSED(closure))
+{
+    if (!self->handle) {
+        PyErr_SetString(PyExc_RuntimeError, "destroyed");
+        return NULL;
+    }
+    return PyBool_FromLong(self->handle->clipped);
+}
+
+static PyGetSetDef F32ToI16U32Obj_getset[] = {
+    {"clipped",
+     (getter)F32ToI16U32Obj_get_clipped, NULL,
+     "True if any sample has been saturated since the last reset().",
+     NULL},
+    {NULL}
+};
+
 static PyMethodDef F32ToI16U32Obj_methods[] = {
     {"reset",    (PyCFunction)F32ToI16U32Obj_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
@@ -206,6 +224,7 @@ static PyTypeObject F32ToI16U32ObjType = {
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "F32ToI16U32 type.",
     .tp_methods   = F32ToI16U32Obj_methods,
+    .tp_getset    = F32ToI16U32Obj_getset,
     .tp_new       = F32ToI16U32Obj_new,
     .tp_init      = (initproc)F32ToI16U32Obj_init,
 };

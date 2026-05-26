@@ -1,13 +1,14 @@
 /* test_cic_core.c — CIC decimation filter unit tests.
  *
+ * CIC is fixed at N=4 stages, M=1, power-of-two R.
+ *
  * Covers:
  *   - Invalid constructor arguments → NULL
  *   - Output sample count: n_in/R for any block size multiple of R
  *   - DC response: settled output = 1.0 for ±1.0 DC input, real and complex
  *   - Zero input: output is exactly 0+0j throughout
  *   - Reset: second run with same input produces byte-identical output
- *   - Reconfigure: output count and DC response correct after R/N/M change
- *   - M=2 differential delay variant
+ *   - Reconfigure: output count and DC response correct after R change
  *   - cic_destroy(NULL): no crash
  *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
@@ -56,20 +57,34 @@ int main(void)
     int _fails = 0;
 
     /* ── Invalid constructor args → NULL ─────────────────────────────────── */
-    CHECK(cic_create(0, 4, 1) == NULL);  /* R = 0 */
-    CHECK(cic_create(4, 0, 1) == NULL);  /* N = 0 */
-    CHECK(cic_create(4, 7, 1) == NULL);  /* N > 6 */
-    CHECK(cic_create(4, 4, 0) == NULL);  /* M = 0 */
-    CHECK(cic_create(4, 4, 3) == NULL);  /* M > 2 */
+    CHECK(cic_create(0)    == NULL);  /* R = 0 */
+    CHECK(cic_create(1)    == NULL);  /* R = 1: < 2 */
+    CHECK(cic_create(3)    == NULL);  /* non-power-of-two */
+    CHECK(cic_create(8192) == NULL);  /* R > 4096 */
 
     /* NULL destroy is a documented no-op */
     cic_destroy(NULL);
+
+    /* ── shift field: CIC_N * log2(R) ────────────────────────────────────── */
+    {
+        cic_state_t *obj = cic_create(16);
+        CHECK(obj != NULL);
+        CHECK(obj->R == 16);
+        CHECK(obj->shift == 16);  /* CIC_N=4, log2(16)=4 → 4*4=16 */
+        cic_destroy(obj);
+    }
+    {
+        cic_state_t *obj = cic_create(8);
+        CHECK(obj != NULL);
+        CHECK(obj->shift == 12);  /* CIC_N=4, log2(8)=3 → 4*3=12 */
+        cic_destroy(obj);
+    }
 
     /* ── Output sample count ─────────────────────────────────────────────── */
     /* For a fresh filter, n_in = k*R must produce exactly k outputs. */
     {
         uint32_t R = 8;
-        cic_state_t *obj = cic_create(R, 3, 1);
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
         float complex in[256] = {0}, out[256];
         for (int k = 1; k <= 4; k++) {
@@ -85,78 +100,83 @@ int main(void)
         cic_destroy(obj);
     }
 
-    /* ── Zero input → exactly zero output ───────────────────────────────── */
+    /* ── Zero input → zero settled output ───────────────────────────────── */
+    /* With offset-binary encoding, zero input maps to u=32768 (not 0), so
+     * the integrators ramp during the first CIC_N output periods before the
+     * comb delay chain fills.  From output index CIC_N onward the output is
+     * exactly 0+0j. */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        cic_state_t *obj = cic_create(4);
         CHECK(obj != NULL);
         float complex in[64] = {0}, out[64];
         size_t n = cic_decimate(obj, in, 64, out);
         CHECK(n == 16);
-        for (size_t i = 0; i < n; i++)
+        for (size_t i = CIC_N; i < n; i++)
             CHECK(FEQC(out[i], 0.0f, 0.0f));
         cic_destroy(obj);
     }
 
     /* ── DC response: +1.0 real ──────────────────────────────────────────── */
-    /* Transient ≈ N*(R-1) input samples; use 8*R*N to ensure full settling. */
+    /* Transient ≈ CIC_N*(R-1) input samples; 8*R*CIC_N ensures full settling. */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        uint32_t R = 4;
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
-        float complex out[256];
-        float complex last = dc_last(obj, 1.0f + 0.0f * I, out, 8 * 4 * 2);
-        CHECK(FEQC(last, 1.0f + 0.0f * I, 1e-5f));
+        size_t n_in = 8 * R * CIC_N;
+        float complex *out = malloc((n_in / R + 1) * sizeof(float complex));
+        float complex last = dc_last(obj, 1.0f + 0.0f * I, out, n_in);
+        CHECK(FEQC(last, 1.0f + 0.0f * I, 4e-5f));
+        free(out);
         cic_destroy(obj);
     }
 
     /* ── DC response: −1.0 real (tests signed two's-complement path) ─────── */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        uint32_t R = 4;
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
-        float complex out[256];
-        float complex last = dc_last(obj, -1.0f + 0.0f * I, out, 8 * 4 * 2);
-        CHECK(FEQC(last, -1.0f + 0.0f * I, 1e-5f));
+        size_t n_in = 8 * R * CIC_N;
+        float complex *out = malloc((n_in / R + 1) * sizeof(float complex));
+        float complex last = dc_last(obj, -1.0f + 0.0f * I, out, n_in);
+        CHECK(FEQC(last, -1.0f + 0.0f * I, 4e-5f));
+        free(out);
         cic_destroy(obj);
     }
 
     /* ── DC response: +j (imaginary path independent of real) ────────────── */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        uint32_t R = 4;
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
-        float complex out[256];
-        float complex last = dc_last(obj, 0.0f + 1.0f * I, out, 8 * 4 * 2);
-        CHECK(FEQC(last, 0.0f + 1.0f * I, 1e-5f));
+        size_t n_in = 8 * R * CIC_N;
+        float complex *out = malloc((n_in / R + 1) * sizeof(float complex));
+        float complex last = dc_last(obj, 0.0f + 1.0f * I, out, n_in);
+        CHECK(FEQC(last, 0.0f + 1.0f * I, 4e-5f));
+        free(out);
         cic_destroy(obj);
     }
 
-    /* ── DC response: (0.5 + 0.5j) — typical SDR config R=32 N=4 ─────────── */
-    /* Transient ≈ 4*(32-1) = 124 inputs ≈ 4 outputs; use 12*R outputs */
+    /* ── DC response: (0.5 + 0.5j) — typical SDR config R=32 ────────────── */
+    /* Transient ≈ CIC_N*(32-1) = 124 inputs; 12*R outputs ensures settling. */
     {
-        cic_state_t *obj = cic_create(32, 4, 1);
+        uint32_t R = 32;
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
-        float complex out[512];
-        size_t n_in = 12 * 32;
+        size_t n_in = 12 * R * CIC_N;
+        float complex *out = malloc((n_in / R + 1) * sizeof(float complex));
         float complex last = dc_last(obj, 0.5f + 0.5f * I, out, n_in);
-        CHECK(FEQC(last, 0.5f + 0.5f * I, 1e-5f));
-        cic_destroy(obj);
-    }
-
-    /* ── M=2 differential delay ──────────────────────────────────────────── */
-    {
-        cic_state_t *obj = cic_create(8, 3, 2);
-        CHECK(obj != NULL);
-        float complex out[512];
-        /* Transient ≈ N*(R-1)*M = 3*7*2 = 42 inputs; use 8*R outputs */
-        float complex last = dc_last(obj, 1.0f + 0.0f * I, out, 8 * 8);
-        CHECK(FEQC(last, 1.0f + 0.0f * I, 1e-5f));
+        CHECK(FEQC(last, 0.5f + 0.5f * I, 4e-5f));
+        free(out);
         cic_destroy(obj);
     }
 
     /* ── Reset: second run produces byte-identical output ────────────────── */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        uint32_t R = 4;
+        cic_state_t *obj = cic_create(R);
         CHECK(obj != NULL);
         size_t n_in = 64;
-        float complex *in  = malloc(n_in * sizeof(float complex));
+        float complex *in   = malloc(n_in * sizeof(float complex));
         float complex *out1 = malloc(n_in * sizeof(float complex));
         float complex *out2 = malloc(n_in * sizeof(float complex));
         /* non-trivial input: ramp on real, constant on imag */
@@ -175,7 +195,7 @@ int main(void)
 
     /* ── Reconfigure: output count and DC response update correctly ──────── */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        cic_state_t *obj = cic_create(4);
         CHECK(obj != NULL);
         float complex in[256], out[256];
         for (int i = 0; i < 256; i++) in[i] = 1.0f;
@@ -183,26 +203,30 @@ int main(void)
         /* warm up with R=4 */
         cic_decimate(obj, in, 32, out);
 
-        /* reconfigure to R=8, N=3 */
-        cic_reconfigure(obj, 8, 3, 1);
+        /* reconfigure to R=8 */
+        cic_reconfigure(obj, 8);
+        CHECK(obj->R == 8);
+        CHECK(obj->shift == 12);  /* CIC_N=4, log2(8)=3 */
 
         /* output count must reflect new R */
-        size_t n = cic_decimate(obj, in, 8 * 8 * 3, out);
-        CHECK(n == (size_t)(8 * 3));
+        size_t n = cic_decimate(obj, in, 8 * 8 * CIC_N, out);
+        CHECK(n == (size_t)(8 * CIC_N));
 
         /* settled output must be 1.0 */
-        CHECK(FEQC(out[n - 1], 1.0f + 0.0f * I, 1e-5f));
+        CHECK(FEQC(out[n - 1], 1.0f + 0.0f * I, 4e-5f));
         cic_destroy(obj);
     }
 
     /* ── Reconfigure: invalid args are silently ignored ─────────────────── */
     {
-        cic_state_t *obj = cic_create(4, 2, 1);
+        cic_state_t *obj = cic_create(8);
         CHECK(obj != NULL);
-        cic_reconfigure(obj, 0, 2, 1);   /* R=0: invalid, ignored */
-        CHECK(obj->R == 4);              /* unchanged */
-        cic_reconfigure(obj, 4, 7, 1);   /* N=7 > 6: invalid, ignored */
-        CHECK(obj->N == 2);              /* unchanged */
+        cic_reconfigure(obj, 0);     /* R=0: invalid, ignored */
+        CHECK(obj->R == 8);
+        cic_reconfigure(obj, 3);     /* non-power-of-two: invalid, ignored */
+        CHECK(obj->R == 8);
+        cic_reconfigure(obj, 8192);  /* R > 4096: invalid, ignored */
+        CHECK(obj->R == 8);
         cic_destroy(obj);
     }
 
@@ -213,8 +237,8 @@ int main(void)
         float complex in[64], out_split[4], out_whole[4];
         for (int i = 0; i < 64; i++) in[i] = 0.7f - 0.3f * I;
 
-        cic_state_t *a = cic_create(R, 3, 1);
-        cic_state_t *b = cic_create(R, 3, 1);
+        cic_state_t *a = cic_create(R);
+        cic_state_t *b = cic_create(R);
         CHECK(a && b);
 
         /* whole: 2R in one call */
@@ -235,19 +259,19 @@ int main(void)
     /* Feed a tone at 0.95*fs/R (near first CIC null) and compare output
      * power to a DC (passband) reference.  Requires ≥ 20 dB rejection. */
     {
-        uint32_t R = 8, N = 4, M = 1;
-        double   f_alias = 0.95 / R;   /* just inside first null at fs/R */
-        size_t   n_in    = 32 * R * N;
-        size_t   n_out   = n_in / R;
-        size_t   n_drop  = N * (R - 1) / R + 2;  /* skip transient */
-        size_t   n_meas  = n_out - n_drop;
+        uint32_t R    = 8;
+        double f_alias = 0.95 / R;   /* just inside first null at fs/R */
+        size_t n_in   = 32 * R * CIC_N;
+        size_t n_out  = n_in / R;
+        size_t n_drop = CIC_N * (R - 1) / R + 2;  /* skip transient */
+        size_t n_meas = n_out - n_drop;
 
         float complex *in  = malloc(n_in  * sizeof(float complex));
         float complex *out = malloc(n_out * sizeof(float complex));
 
         /* passband reference: DC input → should be ~1.0 at output */
         for (size_t i = 0; i < n_in; i++) in[i] = 1.0f + 0.0f * I;
-        cic_state_t *obj = cic_create(R, N, M);
+        cic_state_t *obj = cic_create(R);
         cic_decimate(obj, in, n_in, out);
         double pwr_pass = 0.0;
         for (size_t i = n_drop; i < n_out; i++)

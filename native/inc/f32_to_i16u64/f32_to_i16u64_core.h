@@ -35,9 +35,13 @@ extern "C" {
  * @brief F32ToI16U64 state.
  *
  * Allocate with f32_to_i16u64_create().
+ *
+ * @c clipped is sticky: set to 1 by the first sample whose pre-saturation
+ * scaled value falls outside [-32768, 32767]; cleared only by reset().
  */
 typedef struct {
-    float scale; /* multiply factor applied before saturation */
+    float   scale;   /* multiply factor applied before saturation */
+    uint8_t clipped; /* 1 if any sample has been saturated; 0 otherwise */
 } f32_to_i16u64_state_t;
 
 /**
@@ -68,10 +72,11 @@ void f32_to_i16u64_reset(f32_to_i16u64_state_t *state);
  * @return Output sample (uint64_t).
  */
 JM_FORCEINLINE JM_HOT uint64_t
-f32_to_i16u64_step(const f32_to_i16u64_state_t *state, float x)
+f32_to_i16u64_step(f32_to_i16u64_state_t *state, float x)
 {
-    /* Saturate to int16, then zero-extend into the lower 16 bits of uint64. */
     float s = state->scale * x;
+    /* Detect saturation before clamping; set sticky flag. */
+    state->clipped |= (uint8_t)(s > 32767.0f || s < -32768.0f);
     s = fmaxf(s, -32768.0f);
     s = fminf(s,  32767.0f);
     int16_t v = (int16_t)lroundf(s);

@@ -1,36 +1,37 @@
 /**
  * @file cic_core.h
- * @brief Cascaded Integrator-Comb (CIC) decimation filter for CF32 IQ.
+ * @brief CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline.
  *
- * Internally runs two identical uint64_t pipelines — one for the real
- * part and one for the imaginary part.  All arithmetic is unsigned, so
- * C-guaranteed wrap-around handles intermediate overflow automatically.
- * The final output is correct as long as the true (infinite-precision)
- * result fits in 63 bits after applying input_scale.
+ * Fixed design parameters:
+ *   N = 4 stages  (~77 dB alias rejection at f_p = 0.1 * f_out)
+ *   M = 1         (differential delay — one-sample comb)
+ *   R = power-of-two decimation ratio (enforced at create time)
  *
- * Structure (decimating by R, N stages, differential delay M):
+ * Input/output boundary: CF32 (`float _Complex`), matching the doppler
+ * default signal type.  Internally, each sample is converted to UQ16 —
+ * offset-binary: v_q15 + 32768 → [0, 65535] in a uint64_t — giving 48
+ * bits of headroom for the pipeline gain of N * log2(R) bits.  For R <= 4096
+ * (log2 = 12) the gain is 48 bits; max accumulation = 65535 * R^N =
+ * (2^16 - 1) * 2^48 = 2^64 - 2^48 < 2^64, so no overflow occurs.
  *
- *   `x[n]` → INT_1 → … → INT_N → ↓R → COMB_1 → … → COMB_N → `y[n]`
+ * All arithmetic is unsigned: inputs are non-negative [0, 65535], wrapping
+ * is defined (mod 2^64), and the output decode subtracts the offset in
+ * floating-point — no signed integer casts anywhere in the hot path.
  *
- * input_scale is chosen to maximise dynamic range for ±1.0 input:
+ * The unsigned modular-arithmetic CIC property guarantees exact outputs:
+ * every intermediate overflow in the integrators cancels in the comb
+ * stages, provided the true result fits in 64 bits.  No saturation,
+ * no range checks, no floating-point in the inner loop.
  *
- *   input_scale = floor((2^63 − 1) / (R × M)^N)
+ * With M=1 and N fixed, the entire comb state is four uint64_t values
+ * per channel — no heap allocation beyond the state struct itself.
  *
- * output_scale is the reciprocal normalisation so the float output
- * is back in ±1.0 range for a ±1.0 input signal at full CIC passband.
- *
- * Dynamic range (bits) for M=1:
- *
- *        R     N=2  N=3  N=4  N=5  N=6
- *        2      61   60   59   58   57
- *        8      57   54   51   48   45
- *       32      53   48   43   38   33
- *      256      47   39   31   23   15
- *     1024      43   33   23   13    3
+ * Alias rejection : ~77 dB at f_p = 0.1 * f_out (independent of R)
+ * Passband droop  : ~0.57 dB at f_p = 0.1 * f_out (independent of R)
+ * Output precision: 16-bit Q15 (independent of R and N)
  *
  * @code
- * cic_state_t *cic = cic_create(32, 4, 1);
- * // stream processing — block size must stay consistent after first call
+ * cic_state_t *cic = cic_create(16);   // R=16, N=4, M=1
  * size_t n_out = cic_decimate(cic, in, 1024, out);
  * cic_destroy(cic);
  * @endcode
@@ -45,68 +46,60 @@
 extern "C" {
 #endif
 
+/** Fixed stage count.  Alias rejection ~19.2 dB/stage at f_p=0.1. */
+#define CIC_N 4
+
 /**
  * @brief CIC filter state.
  *
  * Allocate with cic_create(); free with cic_destroy().
- *
- * integ_re / integ_im are fixed-size (max N=6); comb_re / comb_im are
- * heap-allocated to N×M elements and freed in cic_destroy().
+ * All comb state fits in-struct — no heap members.
  */
 typedef struct {
-    uint64_t  integ_re[6];   /* N integrator accumulators, real path   */
-    uint64_t  integ_im[6];   /* N integrator accumulators, imag path   */
-    uint64_t *comb_re;       /* N×M comb delay line, real — heap       */
-    uint64_t *comb_im;       /* N×M comb delay line, imag — heap       */
-    uint32_t  comb_head[6];  /* circular write index per comb stage    */
-    uint32_t  R;             /* decimation ratio                        */
-    uint32_t  N;             /* number of integrator/comb stages (1–6) */
-    uint32_t  M;             /* comb differential delay (1 or 2)       */
-    uint32_t  phase;         /* input sample phase counter 0..R-1      */
-    double    input_scale;   /* float → int64 scale (auto-computed)    */
-    double    output_scale;  /* 1 / (input_scale × (R×M)^N)            */
+    uint64_t integ_re[CIC_N]; /* integrator accumulators, real path    */
+    uint64_t integ_im[CIC_N]; /* integrator accumulators, imag path    */
+    uint64_t comb_re[CIC_N];  /* previous comb input per stage, real   */
+    uint64_t comb_im[CIC_N];  /* previous comb input per stage, imag   */
+    uint32_t R;               /* decimation ratio (power of two)       */
+    uint32_t phase;           /* input sample counter 0..R-1           */
+    uint32_t shift;           /* CIC_N * log2(R) — right-shift to norm */
 } cic_state_t;
 
 /**
  * @brief Create a CIC decimation filter.
  *
- * input_scale is computed as floor((2^63−1) / (R×M)^N), which fills
- * every available bit and leaves no headroom — correct for ±1.0 inputs.
- *
- * @param R  Decimation ratio (≥ 1).
- * @param N  Number of stages (1–6).
- * @param M  Differential delay (1 or 2).
- * @return   Heap-allocated state, or NULL on invalid args or OOM.
+ * @param R  Decimation ratio.  Must be a power of two in [2, 4096].
+ *           Returns NULL for R=0, non-power-of-two, or R > 4096.
+ * @return   Heap-allocated state, or NULL on invalid R or OOM.
  */
-cic_state_t *cic_create(uint32_t R, uint32_t N, uint32_t M);
+cic_state_t *cic_create(uint32_t R);
 
-/** Free all resources.  NULL is a no-op. */
+/** Free resources.  NULL is a no-op. */
 void cic_destroy(cic_state_t *state);
 
 /**
- * @brief Zero integrators and comb delay lines; preserve R, N, M.
+ * @brief Zero all filter state; preserve R and shift.
  *
- * Resets the phase counter so the first output sample after reset
- * is produced on input sample R-1 (same as after cic_create).
+ * The first output sample after reset is produced on input sample R-1,
+ * matching post-create behaviour.
  */
 void cic_reset(cic_state_t *state);
 
 /**
- * @brief Upper bound on decimate output for the lazy-alloc ext path.
+ * @brief Upper bound on decimate output — returns 0 (lazy-alloc signal).
  *
- * Returns 0 so the Python extension allocates the output buffer on the
- * first call (sized to n_in, which is always ≥ the actual output count
- * n_in/R).  Block size must stay consistent after the first call.
+ * The Python extension allocates n_in elements on the first call.
+ * Since n_in >= ceil(n_in/R) = n_out for all R >= 1, the buffer is
+ * always large enough as long as block size stays consistent.
  */
 size_t cic_decimate_max_out(cic_state_t *state);
 
 /**
  * @brief Decimate n_in CF32 samples; write output to out.
  *
- * Each input sample is converted to a uint64_t (two's complement) via
- * input_scale, run through N integrators, and tested against the
- * decimation phase.  Every R-th sample is passed through N comb stages
- * and converted back to CF32 via output_scale.
+ * Each sample is converted to UQ16, run through CIC_N integrators,
+ * tested against the decimation phase, then (if a decimation boundary)
+ * passed through CIC_N comb stages and converted back to CF32.
  *
  * @param state  Must be non-NULL.
  * @param in     CF32 input array, length n_in.
@@ -115,17 +108,66 @@ size_t cic_decimate_max_out(cic_state_t *state);
  *               ceil((state->phase + n_in) / state->R) elements.
  * @return       Number of output samples written.
  */
-size_t cic_decimate(cic_state_t *state, const float complex *in,
-                    size_t n_in, float complex *out);
+JM_FORCEINLINE JM_HOT size_t
+cic_decimate(cic_state_t *state, const float complex *in,
+             size_t n_in, float complex *out)
+{
+    const uint32_t R     = state->R;
+    const uint32_t shift = state->shift;
+    size_t n_out = 0;
+
+    for (size_t i = 0; i < n_in; i++) {
+        /* CF32 → UQ16: saturate to Q15, shift to offset-binary [0, 65535]. */
+        float sr = crealf(in[i]) * 32768.0f;
+        float si = cimagf(in[i]) * 32768.0f;
+        if (sr >  32767.0f) sr =  32767.0f;
+        if (sr < -32768.0f) sr = -32768.0f;
+        if (si >  32767.0f) si =  32767.0f;
+        if (si < -32768.0f) si = -32768.0f;
+        uint64_t re = (uint64_t)((int32_t)(int16_t)sr + 32768);
+        uint64_t im = (uint64_t)((int32_t)(int16_t)si + 32768);
+
+        /* 4 integrators — unsigned wrap-around is intentional. */
+        re = state->integ_re[0] += re;
+        re = state->integ_re[1] += re;
+        re = state->integ_re[2] += re;
+        re = state->integ_re[3] += re;
+        im = state->integ_im[0] += im;
+        im = state->integ_im[1] += im;
+        im = state->integ_im[2] += im;
+        im = state->integ_im[3] += im;
+
+        if (++state->phase < R)
+            continue;
+        state->phase = 0;
+
+        /* 4 comb stages — M=1: y = x - prev; prev = x. */
+        uint64_t t;
+        t = state->comb_re[0]; state->comb_re[0] = re; re -= t;
+        t = state->comb_re[1]; state->comb_re[1] = re; re -= t;
+        t = state->comb_re[2]; state->comb_re[2] = re; re -= t;
+        t = state->comb_re[3]; state->comb_re[3] = re; re -= t;
+        t = state->comb_im[0]; state->comb_im[0] = im; im -= t;
+        t = state->comb_im[1]; state->comb_im[1] = im; im -= t;
+        t = state->comb_im[2]; state->comb_im[2] = im; im -= t;
+        t = state->comb_im[3]; state->comb_im[3] = im; im -= t;
+
+        /* UQ16 → CF32: right-shift to normalise, remove offset-binary bias. */
+        out[n_out++] = CMPLXF(
+            ((float)(uint16_t)(re >> shift) - 32768.0f) * (1.0f / 32768.0f),
+            ((float)(uint16_t)(im >> shift) - 32768.0f) * (1.0f / 32768.0f));
+    }
+    return n_out;
+}
 
 /**
- * @brief Reconfigure R, N, M in place; resets all filter state.
+ * @brief Change the decimation ratio in place; resets all filter state.
  *
- * Reallocates the comb delay lines if N×M changes.  Silently ignores
- * invalid parameters (R=0, N=0 or N>6, M=0 or M>2, or OOM).
+ * Silently ignores invalid R (non-power-of-two, out of range).
+ *
+ * @param R  New decimation ratio.  Same constraints as cic_create().
  */
-void cic_reconfigure(cic_state_t *state, uint32_t R, uint32_t N,
-                     uint32_t M);
+void cic_reconfigure(cic_state_t *state, uint32_t R);
 
 #ifdef __cplusplus
 }

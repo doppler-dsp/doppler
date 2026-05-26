@@ -3,13 +3,13 @@
  *
  * Shows:
  *   1. Alias rejection — two tones (passband + alias zone) measured at output
- *   2. Reconfigure — change R/N/M at runtime without reallocation
+ *   2. Reconfigure — change R at runtime without reallocation
  *   3. State persistence — split input produces same output as one block
  *
  * CIC filters are computationally cheap (no multiplications) and suit
- * very high decimation ratios (R = 8…1024) as a first stage before a
- * polyphase FIR.  They pass DC with unity gain; alias rejection at the
- * first alias (f = fs/R) is approximately 20*N*log10(R) dB.
+ * very high decimation ratios (R up to 4096) as a first stage before a
+ * polyphase FIR.  Fixed at N=4 stages, M=1.  Passes DC with unity gain;
+ * alias rejection at the first null (f = fs/R) is ~77 dB.
  *
  * Build:
  *   make build
@@ -51,15 +51,15 @@ main(void)
      *   - alias-zone tone at 0.11*fs (inside stopband, near first null)   *
      * Then measure output RMS for each tone in isolation.                 *
      * ------------------------------------------------------------------ */
-    printf("--- 1. Alias rejection (R=8, N=4, M=1) ---\n");
+    printf("--- 1. Alias rejection (R=8, N=%d, M=1) ---\n", CIC_N);
     {
-        const uint32_t R = 8, N = 4, M = 1;
-        /* Give enough samples for the transient (N*(R-1) inputs) to settle
-         * and to get a reliable RMS estimate: 24*R*N inputs → 24*N outputs. */
-        const size_t n_in  = 24 * R * N;
+        const uint32_t R = 8;
+        /* Give enough samples for the transient (CIC_N*(R-1) inputs) to settle
+         * and to get a reliable RMS estimate. */
+        const size_t n_in  = 24 * R * CIC_N;
         const size_t n_out = n_in / R;
 
-        double f_pass  = 0.01;          /* well inside output Nyquist */
+        double f_pass  = 0.01;            /* well inside output Nyquist */
         double f_alias = 1.0 / R * 0.95; /* just inside first CIC null */
 
         float complex *in_pass  = malloc(n_in  * sizeof(float complex));
@@ -73,11 +73,11 @@ main(void)
                                  (float)sin(2*M_PI*f_alias*i));
         }
 
-        cic_state_t *cic = cic_create(R, N, M);
+        cic_state_t *cic = cic_create(R);
 
         /* Drop the first n_drop outputs (filter transient). */
-        size_t n_drop  = N * (R - 1) / R + 1;
-        size_t n_meas  = n_out - n_drop;
+        size_t n_drop = CIC_N * (R - 1) / R + 1;
+        size_t n_meas = n_out - n_drop;
 
         size_t n = cic_decimate(cic, in_pass, n_in, out);
         double rms_pass = rms(out + n_drop, n_meas);
@@ -92,8 +92,7 @@ main(void)
                f_pass,  rms_pass);
         printf("  alias-zone tone(f=%.3f*fs)  RMS = %.4f\n",
                f_alias, rms_alias);
-        printf("  alias rejection: %.1f dB  (N=%u stages × ~%.0f dB each)\n\n",
-               rejection_db, N, rejection_db / N);
+        printf("  alias rejection: %.1f dB\n\n", rejection_db);
 
         (void)n;
         cic_destroy(cic);
@@ -101,23 +100,21 @@ main(void)
     }
 
     /* ------------------------------------------------------------------ *
-     * 2. Runtime reconfigure — change R/N/M without reallocation          *
+     * 2. Runtime reconfigure — change R without reallocation              *
      *                                                                     *
-     * cic_reconfigure() resets state and updates R, N, M in place.       *
+     * cic_reconfigure() resets state and updates R and shift in place.   *
      * Useful in scanning receivers that switch decimation on-the-fly.     *
      * ------------------------------------------------------------------ */
     printf("--- 2. Runtime reconfigure ---\n");
     {
-        cic_state_t *cic = cic_create(4, 2, 1);
-        printf("  initial:      R=%u N=%u M=%u  input_scale=%.0f\n",
-               cic->R, cic->N, cic->M, cic->input_scale);
+        cic_state_t *cic = cic_create(4);
+        printf("  initial:      R=%u  shift=%u\n", cic->R, cic->shift);
 
-        cic_reconfigure(cic, 32, 4, 1);
-        printf("  after reconf: R=%u N=%u M=%u  input_scale=%.0f\n",
-               cic->R, cic->N, cic->M, cic->input_scale);
+        cic_reconfigure(cic, 32);
+        printf("  after reconf: R=%u  shift=%u\n", cic->R, cic->shift);
 
         /* Invalid args are silently ignored — existing config preserved. */
-        cic_reconfigure(cic, 0, 4, 1);
+        cic_reconfigure(cic, 0);
         printf("  after R=0:    R=%u (unchanged — invalid arg ignored)\n\n",
                cic->R);
 
@@ -143,8 +140,8 @@ main(void)
             in[i] = CMPLXF((float)cos(2*M_PI*0.03*i),
                            (float)sin(2*M_PI*0.03*i));
 
-        cic_state_t *whole = cic_create(R, 3, 1);
-        cic_state_t *split = cic_create(R, 3, 1);
+        cic_state_t *whole = cic_create(R);
+        cic_state_t *split = cic_create(R);
 
         /* Whole: one call of 4R samples → 4 outputs. */
         cic_decimate(whole, in, n_in, out_whole);

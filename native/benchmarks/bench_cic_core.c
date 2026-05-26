@@ -18,8 +18,8 @@ elapsed_sec(struct timespec *t0, struct timespec *t1)
 int
 main(void)
 {
-    /* R=32, N=4, M=1 — typical SDR first-stage decimator */
-    cic_state_t *obj = cic_create(32, 4, 1);
+    /* R=32, N=4 (fixed), M=1 (fixed) — typical SDR first-stage decimator */
+    cic_state_t *obj = cic_create(32);
     struct timespec t0, t1;
     jm_bench_t _bench = {0};
 

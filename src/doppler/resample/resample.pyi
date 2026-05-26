@@ -100,27 +100,23 @@ class CIC:
 
     Parameters
     ----------
-    R : int, default 1
+    R : int, default 16
         R constructor parameter.
-    N : int, default 4
-        N constructor parameter.
-    M : int, default 1
-        M constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.resample import CIC
-    >>> obj = CIC(1, 4, 1)
+    >>> obj = CIC(16)
 
     """
-    def __init__(self, R: int = ..., N: int = ..., M: int = ...) -> None: ...
+    def __init__(self, R: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
-    def reconfigure(self, R: int, N: int, M: int) -> None:
+    def reconfigure(self, R: int) -> None:
         """Reconfigure."""
 
     def decimate(self, x: complex) -> NDArray[np.complex64]:
@@ -131,20 +127,8 @@ class CIC:
         """R."""
 
     @property
-    def N(self) -> int:
-        """N."""
-
-    @property
-    def M(self) -> int:
-        """M."""
-
-    @property
-    def input_scale(self) -> float:
-        """Input scale."""
-
-    @property
-    def output_scale(self) -> float:
-        """Output scale."""
+    def shift(self) -> int:
+        """Shift."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

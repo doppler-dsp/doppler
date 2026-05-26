@@ -20,8 +20,16 @@ class F32ToI16:
     """
     def __init__(self, scale: float = ...) -> None: ...
 
+    clipped: bool
+    """Sticky saturation flag.
+
+    Set to ``True`` by the first sample whose pre-saturation scaled value
+    falls outside ``[-32768, 32767]``; cleared only by :meth:`reset`.
+    Read-only.
+    """
+
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Reset state to post-create defaults (clears ``clipped``)."""
 
     def step(self, x: float) -> int:
         """Process one input sample."""
@@ -88,8 +96,11 @@ class F32ToI16U32:
     """
     def __init__(self, scale: float = ...) -> None: ...
 
+    clipped: bool
+    """Sticky saturation flag — see :attr:`F32ToI16.clipped`."""
+
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Reset state to post-create defaults (clears ``clipped``)."""
 
     def step(self, x: float) -> int:
         """Process one input sample."""
@@ -122,8 +133,11 @@ class F32ToI16U64:
     """
     def __init__(self, scale: float = ...) -> None: ...
 
+    clipped: bool
+    """Sticky saturation flag — see :attr:`F32ToI16.clipped`."""
+
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Reset state to post-create defaults (clears ``clipped``)."""
 
     def step(self, x: float) -> int:
         """Process one input sample."""

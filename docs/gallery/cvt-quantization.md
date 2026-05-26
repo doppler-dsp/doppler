@@ -39,14 +39,26 @@ The encoders expose a sticky `.clipped` property that reads `True` if any
 sample has been saturated since the last `reset()`:
 
 ```python
-from doppler.cvt import F32ToI16
+from doppler.cvt import F32ToI16, I16ToF32
 import numpy as np
 
+# Encode float32 → int16 (Q15)
 enc = F32ToI16()
-enc.steps(np.array([0.5, 1.2, -0.3], dtype=np.float32))
-print(enc.clipped)   # True — 1.2 exceeded full scale
-enc.reset()
-print(enc.clipped)   # False
+x = np.array([0.5, 0.8, -0.3, -0.9], dtype=np.float32)
+q = enc.steps(x)                   # q.dtype == int16
+print(enc.clipped)                  # False — all values within (-1, 1)
+
+# Decode int16 → float32
+dec = I16ToF32()
+x_hat = dec.steps(q)               # x_hat.dtype == float32
+print(np.max(np.abs(x - x_hat)))   # ~1.5e-5 (Q15 step size)
+
+# sticky clipped flag
+enc2 = F32ToI16()
+enc2.steps(np.array([0.5, 1.2, -0.3], dtype=np.float32))
+print(enc2.clipped)                 # True — 1.2 exceeded full scale
+enc2.reset()
+print(enc2.clipped)                 # False
 ```
 
 ```bash

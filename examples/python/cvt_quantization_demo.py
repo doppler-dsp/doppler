@@ -76,12 +76,15 @@ def _make_signal(n: int) -> np.ndarray:
     Complex tones at 0 dBFS, −20 dBFS, −40 dBFS, −60 dBFS, −80 dBFS
     at distinct normalised frequencies.
     """
+    # Scale so the worst-case coherent sum of all peaks stays below Q15
+    # full-scale (32767/32768 ≈ 0.99997).  Sum of peak amplitudes ≈ 0.889,
+    # leaving >10% headroom even when all cosines align simultaneously.
     tones = [
-        (0.07,  1.0),        #   0 dBFS
-        (0.13,  0.1),        # −20 dBFS
-        (0.21,  0.01),       # −40 dBFS
-        (-0.31, 0.001),      # −60 dBFS  (negative freq — only visible in full spectrum)
-        (0.43,  0.0001),     # −80 dBFS
+        (0.07,  0.80),       #   0 dBFS (dominant)
+        (0.13,  0.080),      # −20 dBFS
+        (0.21,  0.0080),     # −40 dBFS
+        (-0.31, 0.00080),    # −60 dBFS  (negative freq — only visible in full spectrum)
+        (0.43,  0.000080),   # −80 dBFS
     ]
     return sum(a * _tone(f, n) for f, a in tones).astype(np.complex64)
 

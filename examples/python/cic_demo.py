@@ -206,7 +206,7 @@ def demo_sdr_pipeline():
     fs_out = fs_in / R
 
     f_wanted = 15e3
-    f_jammer = 208e3   # first alias zone [fs_out, 2*fs_out); aliases to 48 kHz
+    f_jammer = 208e3   # first alias zone [fs_out, 2*fs_out); aliases to -48 kHz
 
     fn_wanted = f_wanted / fs_in
     fn_jammer = f_jammer / fs_in

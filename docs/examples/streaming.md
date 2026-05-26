@@ -86,7 +86,14 @@ with Publisher("tcp://*:5555", CF64) as pub:
 
 with Subscriber("tcp://localhost:5555") as sub:
     data, hdr = sub.recv(timeout_ms=500)
-    print(f"Got {hdr.num_samples} samples, seq={hdr.sequence}")
+    print(f"Got {hdr['num_samples']} samples, seq={hdr['sequence']}")
+```
+
+For a complete runnable example with live dashboard and graceful shutdown:
+
+```bash
+python examples/python/transmitter.py tcp://*:5555
+python examples/python/receiver.py tcp://localhost:5555
 ```
 
 ## Python: Push / Pull pipeline
@@ -97,11 +104,61 @@ import numpy as np
 
 samples = np.ones(512, dtype=np.complex128)
 
-with Push("tcp://*:5556", CF64) as push:
+# Push binds; Pull connects.  Multiple Pull workers share frames round-robin.
+with Push("tcp://*:5560", CF64) as push:
     push.send(samples, sample_rate=1e6, center_freq=2.4e9)
 
-with Pull("tcp://localhost:5556") as pull:
+with Pull("tcp://localhost:5560") as pull:
     data, hdr = pull.recv(timeout_ms=500)
+    print(f"Got {hdr['num_samples']} samples at {hdr['sample_rate'] / 1e6:.2f} MHz")
+```
+
+Run multiple workers for parallel processing:
+
+```bash
+# Terminal 1 — sender
+python examples/python/pipeline_send.py tcp://*:5560
+
+# Terminals 2 and 3 — two parallel workers
+python examples/python/pipeline_recv.py tcp://localhost:5560 0
+python examples/python/pipeline_recv.py tcp://localhost:5560 1
+```
+
+## Python: Requester / Replier
+
+REQ/REP models a remote DSP service: the client sends a signal block,
+the server processes it and returns the result.  The exchange is strictly
+alternating — `send` then `recv` on the Requester, `recv` then `send` on
+the Replier.
+
+```python
+from doppler.stream import Requester, Replier, CF64
+import numpy as np
+
+ep = "tcp://127.0.0.1:5562"
+
+# Server side — run in a thread or separate process
+with Replier(ep, CF64) as rep:
+    request, hdr = rep.recv(timeout_ms=5000)
+    result = request * 0.5                    # example: apply -6 dB gain
+    rep.send(result, sample_rate=hdr["sample_rate"])
+
+# Client side
+x = np.ones(1024, dtype=np.complex128)
+with Requester(ep, CF64) as req:
+    req.send(x, sample_rate=int(1e6), center_freq=int(2.4e9))
+    reply, hdr = req.recv(timeout_ms=2000)
+    print(f"Reply: {len(reply)} samples, seq={hdr['sequence']}")
+```
+
+Complete standalone examples:
+
+```bash
+# Terminal 1 — server (start first)
+python examples/python/replier.py tcp://*:5562 --gain 0.5
+
+# Terminal 2 — client
+python examples/python/requester.py tcp://localhost:5562 --count 20
 ```
 
 ---

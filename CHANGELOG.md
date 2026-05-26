@@ -15,6 +15,37 @@ and this project adheres to
 
 ---
 
+## [0.4.1] — 2026-05-26
+
+### Added
+
+- **`F32ToUQ15` / `UQ15ToF32`** — offset-binary uint16 converters in
+  `doppler.cvt`.  Encode: `v_Q15 + 32768 → uint16` (−1.0 → 0, 0.0 → 32768,
+  ~+1.0 → 65535).  `F32ToUQ15` has a sticky `clipped` property identical to
+  `F32ToI16`.  13 new tests; roundtrip error ≤ 0.5 LSB.
+- **`docs/design/QUANTIZATION.md` — §7.1 UQ15 definition**: formal
+  encode/decode formulas, code-point table, and reference to the new cvt
+  converters.  The document is now reachable from the website nav under
+  **Design → Quantization**.
+- **`docs/types.md` — quantization schemes table**: Q15, I16U32, I16U64,
+  UQ15, and UQ16 listed with container type, zero-code, and one-line
+  description; links to QUANTIZATION.md.
+
+### Fixed
+
+- **Stream module test coverage**: 28 tests covering all six socket patterns
+  (PUSH/PULL, PUB/SUB, REQ/REP) with CI32, CF64, and CF128 types; context
+  manager and timeout tests added.
+- **cvt gallery decode example** (`docs/gallery/cvt-quantization.md`):
+  corrected snippet to show the `I16ToF32` decode step and the `clipped`
+  property; demo signal amplitudes rescaled to stay within Q15 full-scale.
+- **CIC gallery snippet** (`docs/gallery/cic.md`): added missing `f_jammer`
+  variable and `_tone` helper so the example is copy-pasteable.
+- **CIC alias comment** (`examples/python/cic_demo.py`): `aliases to 48 kHz`
+  corrected to `aliases to -48 kHz` (208 kHz − 2×128 kHz = −48 kHz).
+
+---
+
 ## [0.4.0] — 2026-05-26
 
 ### Changed
@@ -583,12 +614,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...HEAD
-[0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6
-[0.3.5]: https://github.com/doppler-dsp/doppler/compare/v0.3.4...v0.3.5
-[0.3.4]: https://github.com/doppler-dsp/doppler/compare/v0.3.3...v0.3.4
-[0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7
 [0.3.6]: https://github.com/doppler-dsp/doppler/compare/v0.3.5...v0.3.6

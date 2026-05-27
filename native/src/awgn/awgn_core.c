@@ -337,7 +337,7 @@ awgn (uint64_t seed, float amplitude, size_t n, float complex *out)
 {
   awgn_state_t *g = awgn_create (seed, amplitude);
   if (!g)
-    return DP_ENOMEM;
+    return DP_ERR_MEMORY;
   awgn_generate (g, n, out);
   awgn_destroy (g);
   return DP_OK;

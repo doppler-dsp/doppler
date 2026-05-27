@@ -108,7 +108,7 @@ extern "C"
    * @param amplitude  Per-component (Re, Im) standard deviation.
    * @param n          Number of samples to generate.
    * @param out        Output buffer, capacity ≥ n.
-   * @return DP_OK on success, DP_ENOMEM on allocation failure.
+   * @return DP_OK on success, DP_ERR_MEMORY on allocation failure.
    */
   int awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
 

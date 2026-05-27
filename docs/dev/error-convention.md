@@ -12,8 +12,11 @@ Functions that return `int` use the named constants from `clib_common.h`:
 | Constant | Value | Meaning |
 |----------|-------|---------|
 | `DP_OK` | `0` | Success |
-| `DP_ENOMEM` | `−1` | Memory allocation failure |
-| `DP_EINVAL` | `−2` | Invalid argument |
+| `DP_ERR_MEMORY` | `−1` | Memory allocation failure |
+| `DP_ERR_INVALID` | `−2` | Invalid argument |
+
+The `DP_ERR_*` prefix mirrors the streaming layer (`stream.h`), which uses
+the same namespace for I/O errors (`DP_ERR_SEND`, `DP_ERR_RECV`, etc.).
 
 ```c
 #include "clib_common.h"
@@ -77,8 +80,12 @@ No changes to jm are needed or expected.
 
 ## Where the constants live
 
-`DP_OK`, `DP_ENOMEM`, and `DP_EINVAL` are defined in `native/inc/clib_common.h`,
-which every `_core.c` and `_core.h` includes transitively.  The streaming
-layer (`native/inc/stream/stream.h`) defines its own `DP_ERR_*` codes for
-network/I/O failures; those are distinct and not used in the DSP algorithm
-layer.
+`DP_OK`, `DP_ERR_MEMORY`, and `DP_ERR_INVALID` are defined in
+`native/inc/clib_common.h`, which every `_core.c` and `_core.h` includes
+transitively.
+
+The streaming layer (`native/inc/stream/stream.h`) defines additional
+`DP_ERR_*` codes for network/I/O failures (`DP_ERR_SEND`, `DP_ERR_RECV`,
+`DP_ERR_TIMEOUT`, etc.) that are not relevant to the DSP algorithm layer.
+Both layers share the `DP_ERR_*` prefix and `DP_OK = 0` as the success
+value.

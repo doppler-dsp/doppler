@@ -25,9 +25,9 @@
 /* operate on already-created objects and cannot fail.                */
 /* Pointer-returning functions return NULL on failure.                */
 /* ------------------------------------------------------------------ */
-#define DP_OK     0   /**< Success.                    */
-#define DP_ENOMEM (-1) /**< Memory allocation failure. */
-#define DP_EINVAL (-2) /**< Invalid argument.          */
+#define DP_OK          0   /**< Success.                    */
+#define DP_ERR_MEMORY  (-1) /**< Memory allocation failure. */
+#define DP_ERR_INVALID (-2) /**< Invalid argument.          */
 
 #include "jm_perf.h"
 

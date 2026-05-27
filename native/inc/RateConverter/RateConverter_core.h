@@ -161,7 +161,7 @@ int RateConverter_stage_label (RateConverter_state_t *s, int i,
  * @param n_in       Number of input samples.
  * @param out        Output buffer.
  * @param max_out    Output buffer capacity in samples.
- * @return Number of output samples written, or 0 on allocation failure.
+ * @return Number of output samples written; 0 only if OOM or n_in == 0.
  */
 size_t RateConverter_convert (double rate, int compensate,
                               const float _Complex *in, size_t n_in,

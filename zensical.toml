@@ -76,10 +76,11 @@ nav = [
     { "Dopplerfile" = "cli/dopplerfile.md" },
   ]},
   { "Contributing" = [
-    { "Module Layout"   = "dev/module-layout.md"   },
-    { "Adding a Module" = "dev/adding-a-module.md" },
-    { "Benchmarking"    = "dev/benchmarking.md"    },
-    { "Release"         = "dev/release.md"         },
+    { "Module Layout"    = "dev/module-layout.md"    },
+    { "Adding a Module"  = "dev/adding-a-module.md"  },
+    { "Error Convention" = "dev/error-convention.md" },
+    { "Benchmarking"     = "dev/benchmarking.md"     },
+    { "Release"          = "dev/release.md"          },
   ]},
 ]
 

@@ -108,9 +108,9 @@ extern "C"
    * @param amplitude  Per-component (Re, Im) standard deviation.
    * @param n          Number of samples to generate.
    * @param out        Output buffer, capacity ≥ n.
-   * @return n on success, 0 on allocation failure.
+   * @return 0 on success, -1 on allocation failure.
    */
-  size_t awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
+  int awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
 
 #ifdef __cplusplus
 }

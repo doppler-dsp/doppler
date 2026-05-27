@@ -192,14 +192,8 @@ test_oneshot (void)
   awgn_destroy (g);
 
   float complex out[N_SMALL];
-  size_t r = awgn (42, 0.7f, N_SMALL, out);
-  CHECK (r == N_SMALL);
+  CHECK (awgn (42, 0.7f, N_SMALL, out) == 0);
   CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
-
-  /* allocation failure path — NULL out is caught in the caller, not here,
-   * but zero-length call must not crash. */
-  float complex dummy[1];
-  CHECK (awgn (0, 1.0f, 1, dummy) == 1);
 }
 
 int

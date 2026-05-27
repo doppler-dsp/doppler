@@ -331,3 +331,14 @@ awgn_generate (awgn_state_t *state, size_t n, float complex *out)
 #endif
   return n;
 }
+
+size_t
+awgn (uint64_t seed, float amplitude, size_t n, float complex *out)
+{
+  awgn_state_t *g = awgn_create (seed, amplitude);
+  if (!g)
+    return 0;
+  awgn_generate (g, n, out);
+  awgn_destroy (g);
+  return n;
+}

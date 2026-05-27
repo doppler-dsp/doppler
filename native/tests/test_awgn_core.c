@@ -177,6 +177,31 @@ test_split_block (void)
   CHECK (memcmp (full, part, N_SMALL * sizeof *full) == 0);
 }
 
+/* ------------------------------------------------------------------
+ * test_oneshot: awgn() matches awgn_create+generate+destroy.
+ * ------------------------------------------------------------------ */
+static void
+test_oneshot (void)
+{
+  printf ("\n-- One-shot awgn() --\n");
+
+  float complex ref[N_SMALL];
+  awgn_state_t *g = awgn_create (42, 0.7f);
+  CHECK (g != NULL);
+  awgn_generate (g, N_SMALL, ref);
+  awgn_destroy (g);
+
+  float complex out[N_SMALL];
+  size_t r = awgn (42, 0.7f, N_SMALL, out);
+  CHECK (r == N_SMALL);
+  CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
+
+  /* allocation failure path — NULL out is caught in the caller, not here,
+   * but zero-length call must not crash. */
+  float complex dummy[1];
+  CHECK (awgn (0, 1.0f, 1, dummy) == 1);
+}
+
 int
 main (void)
 {
@@ -187,6 +212,7 @@ main (void)
   test_reseed ();
   test_statistics ();
   test_split_block ();
+  test_oneshot ();
 
   printf ("\n");
   if (_fails)

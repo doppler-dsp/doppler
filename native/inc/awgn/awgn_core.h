@@ -93,6 +93,25 @@ extern "C"
    */
   size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out);
 
+  /**
+   * @brief One-shot AWGN generation — no persistent state required.
+   *
+   * Creates a temporary generator, fills `out`, then frees it.
+   * Equivalent to:
+   * @code
+   * awgn_state_t *g = awgn_create(seed, amplitude);
+   * awgn_generate(g, n, out);
+   * awgn_destroy(g);
+   * @endcode
+   *
+   * @param seed       RNG seed.
+   * @param amplitude  Per-component (Re, Im) standard deviation.
+   * @param n          Number of samples to generate.
+   * @param out        Output buffer, capacity ≥ n.
+   * @return n on success, 0 on allocation failure.
+   */
+  size_t awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
+
 #ifdef __cplusplus
 }
 #endif

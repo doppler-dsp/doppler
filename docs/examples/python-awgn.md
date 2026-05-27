@@ -9,7 +9,25 @@ Source:
 
 ---
 
-## Basic generation
+## One-shot function
+
+For simple noise injection with no state, use the functional interface:
+
+```python
+from doppler.source import awgn
+import numpy as np
+
+noise = awgn(1024)                    # seed=0, amplitude=1.0
+noise = awgn(1024, amplitude=0.3)
+noise = awgn(1024, amplitude=0.3, seed=42)
+```
+
+Use :class:`AWGN` directly when you need phase-continuous streams,
+reproducible multi-call replay, or per-call amplitude adjustments.
+
+---
+
+## Stateful generation
 
 ```python
 from doppler.source import AWGN

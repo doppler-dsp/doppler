@@ -53,6 +53,71 @@ lo_destroy(lo);
 
 ---
 
+## AWGN — Additive White Gaussian Noise
+
+### One-shot (no persistent state)
+
+```c
+#include <awgn/awgn_core.h>
+#include <complex.h>
+
+float complex out[1024];
+awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0 — 0 on success, -1 on failure */
+```
+
+### Stateful generator (streaming / reproducible replay)
+
+```c
+#include <awgn/awgn_core.h>
+#include <complex.h>
+#include <stdio.h>
+
+int main(void) {
+    awgn_state_t *g = awgn_create(42, 1.0f);   /* seed, amplitude */
+
+    float complex buf[4096];
+    awgn_generate(g, 4096, buf);                /* fill buf */
+
+    /* Retune amplitude without disturbing RNG state */
+    awgn_set_amplitude(g, 0.5f);
+    awgn_generate(g, 4096, buf);
+
+    /* Deterministic replay */
+    awgn_reset(g);
+    awgn_generate(g, 4096, buf);               /* identical to first call */
+
+    awgn_destroy(g);
+    return 0;
+}
+```
+
+### Noisy carrier
+
+```c
+#include <awgn/awgn_core.h>
+#include <lo/lo_core.h>
+#include <complex.h>
+
+#define N 4096
+
+int main(void) {
+    lo_state_t   *lo   = lo_create(0.1f);
+    awgn_state_t *noise = awgn_create(0, 0.3f);   /* σ=0.3 per component */
+
+    float complex carrier[N], n[N], rx[N];
+    lo_steps(lo, N, carrier);
+    awgn_generate(noise, N, n);
+    for (size_t i = 0; i < N; i++)
+        rx[i] = carrier[i] + n[i];
+
+    lo_destroy(lo);
+    awgn_destroy(noise);
+    return 0;
+}
+```
+
+---
+
 ## NCO — raw phase accumulator
 
 `NCO` exposes the bare uint32 phase accumulator — useful for driving

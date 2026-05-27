@@ -49,5 +49,21 @@ instructions — reaching **~525 MSa/s** on a single AVX-512 core.
 python examples/python/awgn_demo.py   # → docs/assets/awgn_demo.png
 ```
 
+**C one-shot** (no persistent state):
+
+```c
+float complex out[1024];
+awgn(0, 1.0f, 1024, out);   /* seed=0, amplitude=1.0; returns 0 on success */
+```
+
+**C stateful** (streaming / replay):
+
+```c
+awgn_state_t *g = awgn_create(42, 1.0f);
+awgn_generate(g, 1024, out);
+awgn_destroy(g);
+```
+
 See [`doppler.source.AWGN`](../api/python-nco.md#awgn-additive-white-gaussian-noise)
-for the full API reference.
+for the Python API reference, and [`examples/c`](../examples/c.md#awgn-additive-white-gaussian-noise)
+for the full C examples.

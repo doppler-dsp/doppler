@@ -41,6 +41,8 @@ extern "C" {
 
 #include "lo/lo_core.h"
 
+#include "awgn/awgn_core.h"
+
 #include "delay/delay_core.h"
 
 #include "fft/fft_core.h"

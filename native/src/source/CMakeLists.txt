@@ -2,13 +2,15 @@ add_library(source_core OBJECT source_core.c)
 target_include_directories(source_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# source Python module — aggregates: NCO, LO
+# source Python module — aggregates: NCO, LO, AWGN
 Python3_add_library(source MODULE WITH_SOABI source_ext.c)
 target_link_libraries(source PRIVATE
     source_core
     nco_core
     lo_core
-    Python3::NumPy)
+    awgn_core
+    Python3::NumPy
+    mvec)
 target_include_directories(source PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(source PRIVATE -static-libgcc)

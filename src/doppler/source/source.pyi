@@ -106,3 +106,45 @@ class LO:
     def __enter__(self) -> "LO": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class AWGN:
+    """AWGN component.
+
+    Parameters
+    ----------
+    seed : int, default 0
+        seed constructor parameter.
+    amplitude : float, default 1.0
+        amplitude constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.source import AWGN
+    >>> obj = AWGN(0, 1.0)
+
+    """
+    def __init__(self, seed: int = ..., amplitude: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def generate(self, n: int = ...) -> NDArray[np.complex64]:
+        """Generate n complex CF32 AWGN samples."""
+
+    def reseed(self, seed: int) -> None:
+        """Reseed the RNG and reset state."""
+
+    @property
+    def amplitude(self) -> float:
+        """Amplitude."""
+    @amplitude.setter
+    def amplitude(self, value: float) -> None: ...
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "AWGN": ...
+
+    def __exit__(self, *args: object) -> None: ...

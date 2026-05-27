@@ -20,7 +20,7 @@ objects = ["acc_f32", "acc_cf64"]
 objects = ["fir"]
 
 [module.source]
-objects = ["nco", "lo"]
+objects = ["nco", "lo", "awgn"]
 
 [module.delay]
 objects = ["delay"]

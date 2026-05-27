@@ -1,0 +1,32 @@
+[awgn]
+arg_type    = "float _Complex"
+return_type = "float _Complex"
+mutable     = "false"
+no_state    = "true"
+no_step     = "true"
+class_name  = "AWGN"
+
+[[awgn.init_params]]
+name    = "seed"
+type    = "uint64_t"
+default = "0"
+
+[[awgn.init_params]]
+name    = "amplitude"
+type    = "float"
+default = "1.0"
+
+[[awgn.methods]]
+name            = "generate"
+arg_type        = "void"
+return_type     = "float _Complex"
+variable_output = true
+
+[[awgn.methods]]
+name   = "reseed"
+params = [{name = "seed", type = "uint64_t"}]
+
+[[awgn.properties]]
+name     = "amplitude"
+type     = "float"
+writable = true

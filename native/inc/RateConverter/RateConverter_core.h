@@ -141,6 +141,32 @@ void RateConverter_set_rate (RateConverter_state_t *s, double rate);
 int RateConverter_stage_label (RateConverter_state_t *s, int i,
                                char *buf, size_t len);
 
+/**
+ * @brief One-shot rate conversion — no persistent state required.
+ *
+ * Creates a temporary converter, converts n_in samples, destroys it.
+ * Equivalent to:
+ * @code
+ * RateConverter_state_t *rc = RateConverter_create(rate, compensate);
+ * size_t n = RateConverter_execute(rc, in, n_in, out, max_out);
+ * RateConverter_destroy(rc);
+ * @endcode
+ *
+ * Use RateConverter_create() directly when processing multiple blocks at
+ * the same rate — the one-shot form resets filter memory on every call.
+ *
+ * @param rate       Output-to-input sample rate ratio.
+ * @param compensate Non-zero to enable CIC droop compensation.
+ * @param in         CF32 input samples.
+ * @param n_in       Number of input samples.
+ * @param out        Output buffer.
+ * @param max_out    Output buffer capacity in samples.
+ * @return Number of output samples written, or 0 on allocation failure.
+ */
+size_t RateConverter_convert (double rate, int compensate,
+                              const float _Complex *in, size_t n_in,
+                              float _Complex *out, size_t max_out);
+
 #ifdef __cplusplus
 }
 #endif

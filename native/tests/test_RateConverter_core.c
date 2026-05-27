@@ -329,6 +329,38 @@ static void test_execute_max_out(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* test_convert: one-shot matches create+execute+destroy.             */
+/* ------------------------------------------------------------------ */
+static void test_convert(void)
+{
+    printf("\n-- RateConverter_convert --\n");
+
+    const size_t N_IN  = 256;
+    const size_t N_OUT = 256;   /* rate=1.0 → same length */
+    float _Complex in[256], ref[256], out[256];
+    for (size_t i = 0; i < N_IN; i++)
+        in[i] = 1.0f + 0.0f * _Complex_I;
+
+    /* Reference: stateful path */
+    RateConverter_state_t *rc = RateConverter_create(1.0, 0);
+    CHECK(rc != NULL);
+    size_t n_ref = RateConverter_execute(rc, in, N_IN, ref, N_OUT);
+    RateConverter_destroy(rc);
+
+    /* One-shot */
+    size_t n_out = RateConverter_convert(1.0, 0, in, N_IN, out, N_OUT);
+    CHECK(n_out == n_ref);
+    CHECK(memcmp(ref, out, n_ref * sizeof *ref) == 0);
+
+    /* Decimation: rate=0.5 → n_out ≈ n_in/2 */
+    float _Complex dec_in[256], dec_out[256];
+    for (size_t i = 0; i < 256; i++)
+        dec_in[i] = 1.0f + 0.0f * _Complex_I;
+    size_t n_dec = RateConverter_convert(0.5, 0, dec_in, 256, dec_out, 256);
+    CHECK(n_dec == 128);
+}
+
+/* ------------------------------------------------------------------ */
 
 int main(void)
 {
@@ -339,6 +371,7 @@ int main(void)
     test_set_rate();
     test_reset_reproducible();
     test_execute_max_out();
+    test_convert();
 
     if (_fails) {
         fprintf(stderr, "test_RateConverter_core FAILED (%d)\n", _fails);

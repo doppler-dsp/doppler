@@ -540,3 +540,16 @@ RateConverter_stage_label (RateConverter_state_t *s, int i, char *buf,
     }
   return 1;
 }
+
+size_t
+RateConverter_convert (double rate, int compensate,
+                       const float _Complex *in, size_t n_in,
+                       float _Complex *out, size_t max_out)
+{
+  RateConverter_state_t *rc = RateConverter_create (rate, compensate);
+  if (!rc)
+    return 0;
+  size_t n = RateConverter_execute (rc, in, n_in, out, max_out);
+  RateConverter_destroy (rc);
+  return n;
+}

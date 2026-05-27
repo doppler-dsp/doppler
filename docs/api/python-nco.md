@@ -1,11 +1,12 @@
-# Python NCO / LO API
+# Python Source API — NCO / LO / AWGN
 
-Two signal-source classes backed by `nco_state_t` and `lo_state_t`:
+Three signal-source classes in the `doppler.source` module:
 
 | Class | Output | Use when |
 |-------|--------|----------|
 | `LO` | CF32 complex phasors via 2¹⁶-entry sin/cos LUT | Generate IQ tones, FM signals |
 | `NCO` | uint32 raw phase accumulator | Drive polyphase clock, generate carries |
+| `AWGN` | CF32 complex Gaussian noise | Noise injection, SNR testing, Monte Carlo |
 
 Source:
 [`src/doppler/source/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/__init__.py)
@@ -78,3 +79,32 @@ scaled = nco2.steps_u32_scaled(16)   # values in [0, 1000)
 ---
 
 ::: doppler.source.NCO
+
+---
+
+## `AWGN` — Additive White Gaussian Noise
+
+xoshiro256++ RNG + Box-Muller transform.  Per-component std dev = `amplitude`.
+AVX-512 path runs 8 independent streams in parallel (~525 MSa/s).
+
+```python
+from doppler.source import AWGN
+import numpy as np
+
+g = AWGN(seed=42, amplitude=1.0)
+noise = g.generate(1024)    # complex64, length 1024
+
+# Amplitude can be changed without disturbing the RNG state
+g.amplitude = 0.5
+
+# Deterministic replay
+g.reset()
+same_noise = g.generate(1024)
+
+# New seed
+g.reseed(999)
+```
+
+---
+
+::: doppler.source.AWGN

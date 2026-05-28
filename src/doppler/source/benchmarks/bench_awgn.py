@@ -3,7 +3,6 @@
 Run: pytest src/doppler/source/benchmarks/bench_awgn.py --benchmark-only
 """
 import pytest
-import numpy as np
 
 from doppler.source import AWGN
 
@@ -15,14 +14,10 @@ BLOCK_64K = 65_536
 def obj():
     return AWGN(0, 1.0)
 
-def test_bench_step(benchmark, obj):
-    benchmark(obj.step, 1.0 + 0.0j)
+
+def test_bench_generate_1k(benchmark, obj):
+    benchmark(obj.generate, BLOCK_1K)
 
 
-def test_bench_steps_1k(benchmark, obj):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(obj.steps, x)
-
-def test_bench_steps_64k(benchmark, obj):
-    x = np.ones(BLOCK_64K, dtype=np.complex64)
-    benchmark(obj.steps, x)
+def test_bench_generate_64k(benchmark, obj):
+    benchmark(obj.generate, BLOCK_64K)

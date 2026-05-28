@@ -15,6 +15,16 @@ and this project adheres to
 
 ---
 
+## [0.4.2] — 2026-05-28
+
+### Fixed
+
+- Release workflow now publishes all artifact types: sdist, Linux x86_64 and
+  macOS arm64 C library tarballs (headers + static + shared libs), and OCI
+  packages on GitHub Container Registry (`ghcr.io`).
+
+---
+
 ## [0.4.1] — 2026-05-26
 
 ### Added

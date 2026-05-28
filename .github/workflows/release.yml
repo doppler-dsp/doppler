@@ -156,11 +156,147 @@ jobs:
           path: dist/*.whl
 
   # ------------------------------------------------------------------
+  # Build sdist (source distribution for PyPI)
+  # ------------------------------------------------------------------
+  build-sdist:
+    name: Build sdist
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Build sdist
+        run: |
+          uv pip install --system build just-buildit numpy
+          mkdir -p dist
+          python -m build --no-isolation --sdist --outdir dist/
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist-sdist
+          path: dist/*.tar.gz
+
+  # ------------------------------------------------------------------
+  # Build and package C libraries (headers + static + shared)
+  # for Linux x86_64 and macOS arm64.
+  # ------------------------------------------------------------------
+  build-c-linux:
+    name: Package C library (manylinux_2_28 x86_64)
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build in manylinux container and install to prefix
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/project" \
+            -w /project \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -euxc "
+              dnf install -y cmake zeromq-devel fftw-devel pkg-config
+              cmake -B build \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_PYTHON=OFF
+              cmake --build build --parallel
+              cmake --install build --prefix /project/install
+            "
+
+      - name: Create tarball
+        run: |
+          VERSION="${{ needs.verify-version.outputs.version }}"
+          mkdir -p dist
+          tar -czf "dist/doppler-${VERSION}-linux-x86_64.tar.gz" \
+            -C install .
+
+      - name: Upload C library (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-dist-linux
+          path: dist/doppler-*-linux-x86_64.tar.gz
+
+  build-c-macos:
+    name: Package C library (macOS arm64)
+    needs: verify-version
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: brew install cmake zeromq fftw pkg-config
+
+      - name: Build and install to prefix
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_PYTHON=OFF
+          cmake --build build --parallel
+          cmake --install build \
+            --prefix "${{ github.workspace }}/install"
+
+      - name: Create tarball
+        run: |
+          VERSION="${{ needs.verify-version.outputs.version }}"
+          mkdir -p dist
+          tar -czf "dist/doppler-${VERSION}-macos-arm64.tar.gz" \
+            -C install .
+
+      - name: Upload C library (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-dist-macos
+          path: dist/doppler-*-macos-arm64.tar.gz
+
+  # ------------------------------------------------------------------
+  # Publish C libraries to GitHub Container Registry as OCI artifacts.
+  # Consumers can pull with:
+  #   oras pull ghcr.io/<repo>/doppler-c:<version>
+  # ------------------------------------------------------------------
+  publish-c:
+    name: Publish C libraries to GitHub Packages
+    needs: [verify-version, build-c-linux, build-c-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Download C artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: c-dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Install oras
+        uses: oras-project/setup-oras@v1
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            oras login ghcr.io \
+              --username "${{ github.actor }}" \
+              --password-stdin
+
+      - name: Push to ghcr.io
+        run: |
+          VERSION="${{ needs.verify-version.outputs.version }}"
+          IMAGE="ghcr.io/${{ github.repository }}/doppler-c"
+          cd dist
+          oras push "${IMAGE}:${VERSION}" \
+            --artifact-type application/vnd.doppler.c-lib.manifest.v1+json \
+            "doppler-${VERSION}-linux-x86_64.tar.gz:application/vnd.doppler.c-lib.linux-x86_64.v1+tar+gzip" \
+            "doppler-${VERSION}-macos-arm64.tar.gz:application/vnd.doppler.c-lib.macos-arm64.v1+tar+gzip"
+          oras tag "${IMAGE}:${VERSION}" latest
+
+  # ------------------------------------------------------------------
   # Publish to PyPI (uses trusted publishing — configure in PyPI)
   # ------------------------------------------------------------------
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, build-python, build-macos]
+    needs: [verify-version, build-sdist, build-python, build-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -181,17 +317,32 @@ jobs:
   # ------------------------------------------------------------------
   github-release:
     name: Create GitHub Release
-    needs: [verify-version, build-python, build-macos, publish-python]
+    needs:
+      - verify-version
+      - build-sdist
+      - build-python
+      - build-macos
+      - build-c-linux
+      - build-c-macos
+      - publish-python
+      - publish-c
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download Python artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: python-dist-*
+          merge-multiple: true
+          path: dist/
+
+      - name: Download C artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: c-dist-*
           merge-multiple: true
           path: dist/
 
@@ -203,10 +354,18 @@ jobs:
           body: |
             ## Install
 
+            **Python:**
             ```sh
             pip install doppler-dsp==${{ needs.verify-version.outputs.version }}
             pip install "doppler-dsp[cli]==${{ needs.verify-version.outputs.version }}"
             pip install "doppler-dsp[specan]==${{ needs.verify-version.outputs.version }}"
             ```
+
+            **C library (via oras):**
+            ```sh
+            oras pull ghcr.io/${{ github.repository }}/doppler-c:${{ needs.verify-version.outputs.version }}
+            ```
+
+            Or download the pre-built tarballs from the assets below.
 
             See [CHANGELOG.md](CHANGELOG.md) for details.

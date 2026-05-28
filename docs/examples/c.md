@@ -1,5 +1,60 @@
 # C Examples
 
+## Standalone project
+
+A self-contained example lives at
+[`examples/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/examples/standalone).
+It calls `awgn()`, prints empirical mean and std dev, and links statically
+so it has no runtime `.so` dependency.
+
+### Build from source tree
+
+Build doppler once, then point the example at the build directory:
+
+```sh
+# 1. Build doppler (skip Python extension for speed)
+cmake -B build -DBUILD_PYTHON=OFF
+cmake --build build -j$(nproc)
+
+# 2. Configure and build the example
+cmake -B examples/standalone/build examples/standalone \
+      -DDOPPLER_BUILD_DIR=$(pwd)/build
+cmake --build examples/standalone/build
+
+./examples/standalone/build/awgn_example
+```
+
+### Build from installed artifact
+
+After `cmake --install` (or installing a pre-built package):
+
+```sh
+cmake -B examples/standalone/build examples/standalone
+cmake --build examples/standalone/build
+./examples/standalone/build/awgn_example
+```
+
+### Plain gcc (build tree)
+
+No CMake required once `libdoppler.a` exists:
+
+```sh
+gcc -o awgn_example examples/standalone/main.c \
+    -Inative/inc -Ibuild/native/inc \
+    build/libdoppler.a -lm -lstdc++ -lpthread
+./awgn_example
+```
+
+Expected output:
+
+```
+samples : 4096
+mean    : -0.0168 + 0.0288i  (expect ≈ 0)
+std dev : 0.9952 (Re)  1.0090 (Im)  (expect ≈ 1.0)
+```
+
+---
+
 ## LO — complex phasor generator
 
 The `LO` type chains a 32-bit NCO with a 2¹⁶-entry sin/cos LUT to produce

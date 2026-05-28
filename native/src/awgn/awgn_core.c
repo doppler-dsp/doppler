@@ -229,9 +229,21 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
 
 /*
  * _ZGVdN8v_logf: glibc libmvec 8-wide float32 log (AVX2).
- * Linked from libm on glibc systems.
+ * Only glibc (Linux) ships libmvec; provide a scalar fallback elsewhere
+ * so the AVX-512 fast path still compiles on macOS and Windows.
  */
+#ifdef __linux__
 extern __m256 _ZGVdN8v_logf (__m256);
+#else
+static inline __m256
+_ZGVdN8v_logf (__m256 x)
+{
+  float v[8];
+  _mm256_storeu_ps (v, x);
+  for (int i = 0; i < 8; i++) v[i] = logf (v[i]);
+  return _mm256_loadu_ps (v);
+}
+#endif
 
 /*
  * 8-wide xoshiro256++ step using __m512i (8 independent 64-bit lanes).

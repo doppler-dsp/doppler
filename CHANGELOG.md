@@ -15,7 +15,7 @@ and this project adheres to
 
 ---
 
-## [0.4.5] — 2026-05-28
+## [0.4.6] — 2026-05-28
 
 ### Fixed
 

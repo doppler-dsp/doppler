@@ -120,6 +120,7 @@ just-build: pyext
 # Smoke-test the standalone C examples (DSP only — streaming examples require
 # a live transmitter and are excluded from automated runs).
 EXAMPLE_BIN_DIR := $(BUILD_DIR)/examples/c
+STANDALONE_BUILD_DIR := examples/standalone/build
 test-examples: build
 	@echo "Running C example smoke tests..."
 	@for ex in nco_demo fir_demo hbdecim_demo fft_demo; do \
@@ -130,6 +131,18 @@ test-examples: build
 	        echo "FAIL"; exit 1; \
 	    fi; \
 	done
+	@echo "Building standalone example..."
+	@cmake -B $(STANDALONE_BUILD_DIR) examples/standalone \
+	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \
+	    -DCMAKE_BUILD_TYPE=Release \
+	    > /dev/null 2>&1
+	@cmake --build $(STANDALONE_BUILD_DIR) > /dev/null 2>&1
+	@printf "  %-20s" "awgn_example"; \
+	if $(STANDALONE_BUILD_DIR)/awgn_example > /dev/null 2>&1; then \
+	    echo "PASS"; \
+	else \
+	    echo "FAIL"; exit 1; \
+	fi
 	@echo "All C example smoke tests passed."
 
 PYTHON_EXAMPLE_SCRIPTS := \
@@ -143,7 +156,9 @@ PYTHON_EXAMPLE_SCRIPTS := \
     examples/python/detection_curves.py \
     examples/python/detection_sim.py \
     examples/python/detection2d_demo.py \
-    examples/python/rate_converter_demo.py
+    examples/python/rate_converter_demo.py \
+    examples/python/awgn_demo.py \
+    examples/standalone/example.py
 
 test-examples-python:
 	@echo "Running Python example smoke tests..."

@@ -17,8 +17,7 @@ The same example is also available as a one-liner Python script.
     code; no system libraries needed.
 
     ```sh
-    pip install doppler-dsp
-    python examples/standalone/example.py
+    --8<-- "tests/install/standalone.sh:python-pip"
     ```
 
 === "Source"
@@ -27,10 +26,7 @@ The same example is also available as a one-liner Python script.
     (with `BUILD_PYTHON=ON`) the Python extension in `src/doppler/`.
 
     ```sh
-    git clone https://github.com/doppler-dsp/doppler
-    cd doppler
-    cmake -B build -DCMAKE_BUILD_TYPE=Release
-    cmake --build build -j$(nproc)
+    --8<-- "tests/install/standalone.sh:get-source"
     ```
 
 === "Release artifact"
@@ -39,42 +35,31 @@ The same example is also available as a one-liner Python script.
     choice.
 
     ```sh
-    cmake --install build --prefix ~/.local
-    export CMAKE_PREFIX_PATH=~/.local
-    export PKG_CONFIG_PATH=~/.local/lib/pkgconfig
+    --8<-- "tests/install/standalone.sh:get-artifact"
     ```
 
 ---
 
 ### C — static linking
 
-No runtime `.so` dependency.  Recommended for embedded use and
-distribution.
+No runtime `.so` dependency.  Recommended for embedded use and distribution.
 
 === "Build tree"
 
     ```sh
-    cmake -B examples/standalone/build examples/standalone \
-          -DDOPPLER_BUILD_DIR=$(pwd)/build
-    cmake --build examples/standalone/build
-    ./examples/standalone/build/awgn_example
+    --8<-- "tests/install/standalone.sh:cmake-static-build-tree"
     ```
 
 === "Installed artifact"
 
     ```sh
-    cmake -B examples/standalone/build examples/standalone
-    cmake --build examples/standalone/build
-    ./examples/standalone/build/awgn_example
+    --8<-- "tests/install/standalone.sh:cmake-static-installed"
     ```
 
 === "Plain gcc"
 
     ```sh
-    gcc -o awgn_example examples/standalone/main.c \
-        -Inative/inc -Ibuild/native/inc \
-        build/libdoppler.a -lm -lstdc++ -lpthread
-    ./awgn_example
+    --8<-- "tests/install/standalone.sh:gcc-static"
     ```
 
 ---
@@ -87,11 +72,7 @@ runs without setting `LD_LIBRARY_PATH`.
 === "Build tree"
 
     ```sh
-    cmake -B examples/standalone/build examples/standalone \
-          -DDOPPLER_BUILD_DIR=$(pwd)/build \
-          -DDOPPLER_LINK=shared
-    cmake --build examples/standalone/build
-    ./examples/standalone/build/awgn_example
+    --8<-- "tests/install/standalone.sh:cmake-shared-build-tree"
     ```
 
 === "Installed artifact"
@@ -100,37 +81,32 @@ runs without setting `LD_LIBRARY_PATH`.
     library variant was installed:
 
     ```sh
-    cmake -B examples/standalone/build examples/standalone
-    cmake --build examples/standalone/build
-    ./examples/standalone/build/awgn_example
+    --8<-- "tests/install/standalone.sh:cmake-shared-installed"
     ```
 
 === "Plain gcc"
 
     ```sh
-    gcc -o awgn_example examples/standalone/main.c \
-        -Inative/inc -Ibuild/native/inc \
-        -Lbuild -ldoppler -Wl,-rpath,$(pwd)/build -lm
-    ./awgn_example
+    --8<-- "tests/install/standalone.sh:gcc-shared"
     ```
 
 ---
 
 ### Python extension
 
-```sh
-pip install doppler-dsp          # or: uv add doppler-dsp
-python examples/standalone/example.py
-```
+=== "pip"
 
-Or from a source build:
+    ```sh
+    --8<-- "tests/install/standalone.sh:python-pip"
+    ```
 
-```sh
-cmake -B build -DBUILD_PYTHON=ON && cmake --build build -j$(nproc)
-python examples/standalone/example.py
-```
+=== "Source build"
 
-Expected output (all three paths):
+    ```sh
+    --8<-- "tests/install/standalone.sh:python-source"
+    ```
+
+Expected output (all paths):
 
 ```
 samples : 4096

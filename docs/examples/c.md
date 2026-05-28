@@ -2,50 +2,135 @@
 
 ## Standalone project
 
-A self-contained example lives at
+A minimal working project lives at
 [`examples/standalone/`](https://github.com/doppler-dsp/doppler/tree/main/examples/standalone).
-It calls `awgn()`, prints empirical mean and std dev, and links statically
-so it has no runtime `.so` dependency.
+It generates 4096 AWGN samples with `awgn()` and prints empirical statistics.
+The same example is also available as a one-liner Python script.
 
-### Build from source tree
+---
 
-Build doppler once, then point the example at the build directory:
+### Get the code
+
+=== "Python (wheel)"
+
+    The quickest path — no compiler required.  The wheel bundles all native
+    code; no system libraries needed.
+
+    ```sh
+    pip install doppler-dsp
+    python examples/standalone/example.py
+    ```
+
+=== "Source"
+
+    Clone and build.  This produces `libdoppler.a`, `libdoppler.so`, and
+    (with `BUILD_PYTHON=ON`) the Python extension in `src/doppler/`.
+
+    ```sh
+    git clone https://github.com/doppler-dsp/doppler
+    cd doppler
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build -j$(nproc)
+    ```
+
+=== "Release artifact"
+
+    Download a pre-built release from GitHub and install to a prefix of your
+    choice.
+
+    ```sh
+    cmake --install build --prefix ~/.local
+    export CMAKE_PREFIX_PATH=~/.local
+    export PKG_CONFIG_PATH=~/.local/lib/pkgconfig
+    ```
+
+---
+
+### C — static linking
+
+No runtime `.so` dependency.  Recommended for embedded use and
+distribution.
+
+=== "Build tree"
+
+    ```sh
+    cmake -B examples/standalone/build examples/standalone \
+          -DDOPPLER_BUILD_DIR=$(pwd)/build
+    cmake --build examples/standalone/build
+    ./examples/standalone/build/awgn_example
+    ```
+
+=== "Installed artifact"
+
+    ```sh
+    cmake -B examples/standalone/build examples/standalone
+    cmake --build examples/standalone/build
+    ./examples/standalone/build/awgn_example
+    ```
+
+=== "Plain gcc"
+
+    ```sh
+    gcc -o awgn_example examples/standalone/main.c \
+        -Inative/inc -Ibuild/native/inc \
+        build/libdoppler.a -lm -lstdc++ -lpthread
+    ./awgn_example
+    ```
+
+---
+
+### C — dynamic linking
+
+Links against `libdoppler.so`.  The rpath is baked in so the binary
+runs without setting `LD_LIBRARY_PATH`.
+
+=== "Build tree"
+
+    ```sh
+    cmake -B examples/standalone/build examples/standalone \
+          -DDOPPLER_BUILD_DIR=$(pwd)/build \
+          -DDOPPLER_LINK=shared
+    cmake --build examples/standalone/build
+    ./examples/standalone/build/awgn_example
+    ```
+
+=== "Installed artifact"
+
+    After `cmake --install` the `find_package` path picks up whichever
+    library variant was installed:
+
+    ```sh
+    cmake -B examples/standalone/build examples/standalone
+    cmake --build examples/standalone/build
+    ./examples/standalone/build/awgn_example
+    ```
+
+=== "Plain gcc"
+
+    ```sh
+    gcc -o awgn_example examples/standalone/main.c \
+        -Inative/inc -Ibuild/native/inc \
+        -Lbuild -ldoppler -Wl,-rpath,$(pwd)/build -lm
+    ./awgn_example
+    ```
+
+---
+
+### Python extension
 
 ```sh
-# 1. Build doppler (skip Python extension for speed)
-cmake -B build -DBUILD_PYTHON=OFF
-cmake --build build -j$(nproc)
-
-# 2. Configure and build the example
-cmake -B examples/standalone/build examples/standalone \
-      -DDOPPLER_BUILD_DIR=$(pwd)/build
-cmake --build examples/standalone/build
-
-./examples/standalone/build/awgn_example
+pip install doppler-dsp          # or: uv add doppler-dsp
+python examples/standalone/example.py
 ```
 
-### Build from installed artifact
-
-After `cmake --install` (or installing a pre-built package):
+Or from a source build:
 
 ```sh
-cmake -B examples/standalone/build examples/standalone
-cmake --build examples/standalone/build
-./examples/standalone/build/awgn_example
+cmake -B build -DBUILD_PYTHON=ON && cmake --build build -j$(nproc)
+python examples/standalone/example.py
 ```
 
-### Plain gcc (build tree)
-
-No CMake required once `libdoppler.a` exists:
-
-```sh
-gcc -o awgn_example examples/standalone/main.c \
-    -Inative/inc -Ibuild/native/inc \
-    build/libdoppler.a -lm -lstdc++ -lpthread
-./awgn_example
-```
-
-Expected output:
+Expected output (all three paths):
 
 ```
 samples : 4096

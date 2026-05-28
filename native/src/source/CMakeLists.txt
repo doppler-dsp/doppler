@@ -10,7 +10,7 @@ target_link_libraries(source PRIVATE
     lo_core
     awgn_core
     Python3::NumPy
-    mvec)
+    $<$<PLATFORM_ID:Linux>:mvec>)
 target_include_directories(source PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(source PRIVATE -static-libgcc)

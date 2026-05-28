@@ -253,46 +253,6 @@ jobs:
           path: dist/doppler-*-macos-arm64.tar.gz
 
   # ------------------------------------------------------------------
-  # Publish C libraries to GitHub Container Registry as OCI artifacts.
-  # Consumers can pull with:
-  #   oras pull ghcr.io/<repo>/doppler-c:<version>
-  # ------------------------------------------------------------------
-  publish-c:
-    name: Publish C libraries to GitHub Packages
-    needs: [verify-version, build-c-linux, build-c-macos]
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: Download C artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: c-dist-*
-          merge-multiple: true
-          path: dist/
-
-      - name: Install oras
-        uses: oras-project/setup-oras@v1
-
-      - name: Log in to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | \
-            oras login ghcr.io \
-              --username "${{ github.actor }}" \
-              --password-stdin
-
-      - name: Push to ghcr.io
-        run: |
-          VERSION="${{ needs.verify-version.outputs.version }}"
-          IMAGE="ghcr.io/${{ github.repository }}/doppler-c"
-          cd dist
-          oras push "${IMAGE}:${VERSION}" \
-            --artifact-type application/vnd.doppler.c-lib.manifest.v1+json \
-            "doppler-${VERSION}-linux-x86_64.tar.gz:application/vnd.doppler.c-lib.linux-x86_64.v1+tar+gzip" \
-            "doppler-${VERSION}-macos-arm64.tar.gz:application/vnd.doppler.c-lib.macos-arm64.v1+tar+gzip"
-          oras tag "${IMAGE}:${VERSION}" latest
-
-  # ------------------------------------------------------------------
   # Publish to PyPI (uses trusted publishing — configure in PyPI)
   # ------------------------------------------------------------------
   publish-python:
@@ -326,7 +286,6 @@ jobs:
       - build-c-linux
       - build-c-macos
       - publish-python
-      - publish-c
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -362,11 +321,6 @@ jobs:
             pip install "doppler-dsp[specan]==${{ needs.verify-version.outputs.version }}"
             ```
 
-            **C library (via oras):**
-            ```sh
-            oras pull ghcr.io/${{ github.repository }}/doppler-c:${{ needs.verify-version.outputs.version }}
-            ```
-
-            Or download the pre-built tarballs from the assets below.
+            **C library:** download the pre-built tarballs from the assets below.
 
             See [CHANGELOG.md](CHANGELOG.md) for details.

@@ -170,9 +170,10 @@ jobs:
 
       - name: Build sdist
         run: |
-          uv pip install --system build just-buildit numpy
+          uv venv .venv
+          uv pip install --python .venv/bin/python build just-buildit numpy
           mkdir -p dist
-          python -m build --no-isolation --sdist --outdir dist/
+          .venv/bin/python -m build --no-isolation --sdist --outdir dist/
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4

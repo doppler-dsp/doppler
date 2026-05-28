@@ -19,14 +19,23 @@ if(ENABLE_SIMD)
            AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
             set(_doppler_march "x86-64-v2")
         endif()
-        # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
-        # glibc's __*_finite aliases (e.g. __exp_finite), removed in
-        # glibc 2.31 — a wheel built in the old-glibc manylinux image
-        # then fails to load (undefined symbol) on modern Linux.
-        # Disabling the finite-only assumption keeps every other
-        # fast-math optimisation.
-        add_compile_options(-march=${_doppler_march} -ffast-math
-                            -fno-finite-math-only)
+        if(WIN32)
+            # MinGW has no libmvec; -ffast-math + AVX2 causes GCC 16 to emit
+            # calls to _ZGVdN8v_logf (vectorised logf) which is undefined on
+            # Windows. Use a safe fast-math subset that skips the math-lib ABI.
+            add_compile_options(-march=${_doppler_march}
+                                -fno-math-errno -fno-trapping-math
+                                -fno-signed-zeros -fno-rounding-math)
+        else()
+            # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
+            # glibc's __*_finite aliases (e.g. __exp_finite), removed in
+            # glibc 2.31 — a wheel built in the old-glibc manylinux image
+            # then fails to load (undefined symbol) on modern Linux.
+            # Disabling the finite-only assumption keeps every other
+            # fast-math optimisation.
+            add_compile_options(-march=${_doppler_march} -ffast-math
+                                -fno-finite-math-only)
+        endif()
     endif()
 endif()
 

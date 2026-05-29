@@ -1,0 +1,153 @@
+diff --git a/src/just_makeit/_object.py b/src/just_makeit/_object.py
+index a8a9ec9..7d963e0 100644
+--- a/src/just_makeit/_object.py
++++ b/src/just_makeit/_object.py
+@@ -332,8 +332,15 @@ def _restore_c_function_bodies(new_source: str, preserved: dict[str, str]) -> st
+     Only replaces functions that already existed in the old source AND still
+     exist in the newly generated source.  New functions (first-time stubs) are
+     left unchanged, so fresh scaffolded methods get their TODO stubs.
++
++    Buffer-lifecycle functions (_dealloc, _init) are always regenerated from
++    the template so that newly added variable_output free() and malloc() calls
++    are never silently dropped when the old fragment has no buffers yet.
+     """
++    _INFRA_SUFFIXES = ("_dealloc", "_init")
+     for fn_name, old_body in preserved.items():
++        if any(fn_name.endswith(s) for s in _INFRA_SUFFIXES):
++            continue
+         # Locate the function in new_source using the same brace-counting
+         # approach (handles Py_UNUSED and other nested-paren params).
+         header_pat = re.compile(r"static [^\n]+\n" + re.escape(fn_name) + r"\(")
+diff --git a/tests/test_method.py b/tests/test_method.py
+index 7c2b337..460e696 100644
+--- a/tests/test_method.py
++++ b/tests/test_method.py
+@@ -11,6 +11,8 @@ _STRAY_PLACEHOLDER = re.compile(r"<<(?!IMPLEMENT:)")
+ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+ 
+ from just_makeit._new import run as new_run
++from just_makeit._module import run as module_run
++from just_makeit._object import run as object_run
+ from just_makeit._method import run as method_run
+ from just_makeit._config import load, methods
+ 
+@@ -747,6 +749,75 @@ class TestMethodFixedMultiOutput:
+         assert "PyTuple_Pack(3," in ext
+ 
+ 
++# ---------------------------------------------------------------------------
++# Regression: infrastructure functions (_dealloc, _init, ...) must never be
++# body-preserved when regenerating a module fragment.  Before the fix,
++# _restore_c_function_bodies would splice the old _dealloc / _init back in,
++# silently dropping variable_output free() calls and multi_output secondary
++# buffer allocs that the template had just generated correctly.
++# ---------------------------------------------------------------------------
++
++@pytest.fixture()
++def module_project(tmp_path):
++    dest = tmp_path / "dsp"
++    new_run("dsp", dest)
++    module_run(dest, "sig")
++    object_run(dest, "nco", "sig", state_vars=[("freq", "double", "0.0")])
++    return dest
++
++
++def _nco_frag(module_project: Path) -> str:
++    return (
++        module_project / "native" / "src" / "sig" / "sig_ext_nco.c"
++    ).read_text(encoding="utf-8")
++
++
++class TestModuleInfraRegenOnMethod:
++    """Adding a method to a module object must keep _dealloc / _init correct.
++
++    The fragment for object 'nco' in module 'sig' is created (without any
++    variable_output buffers) when the object is first registered.  When
++    method_run is then called with variable_output / multi_output, the fresh
++    template includes free() in _dealloc and malloc() in _init.  The bug was
++    that _restore_c_function_bodies would overwrite those correct functions
++    with the old (pre-method) bodies, silently breaking memory management.
++    """
++
++    def test_dealloc_has_free_after_variable_output_method(self, module_project):
++        method_run(
++            module_project, "nco", "execute_cf32",
++            "sig", "void", "float _Complex", True, [],
++        )
++        assert "free(self->_execute_cf32_buf)" in _nco_frag(module_project)
++
++    def test_init_allocs_buf_after_variable_output_method(self, module_project):
++        method_run(
++            module_project, "nco", "execute_cf32",
++            "sig", "void", "float _Complex", True, [],
++        )
++        frag = _nco_frag(module_project)
++        assert "_execute_cf32_buf" in frag
++        assert "malloc(" in frag
++
++    def test_dealloc_has_free_after_multi_output_method(self, module_project):
++        method_run(
++            module_project, "nco", "execute_iq",
++            "sig", "void", "float _Complex", True, ["float _Complex"],
++        )
++        frag = _nco_frag(module_project)
++        assert "free(self->_execute_iq_buf)" in frag
++        assert "free(self->_execute_iq_buf_1)" in frag
++
++    def test_init_allocs_secondary_buf_after_multi_output_method(self, module_project):
++        method_run(
++            module_project, "nco", "execute_iq",
++            "sig", "void", "float _Complex", True, ["float _Complex"],
++        )
++        frag = _nco_frag(module_project)
++        assert "_execute_iq_buf_1" in frag
++        assert "malloc(_max * sizeof(float complex))" in frag
++
++
+ class TestMethodWithParams:
+     """--param name:type generates named C params and typed Python wrapper."""
+ 
+diff --git a/tests/test_module_gaps.py b/tests/test_module_gaps.py
+index 985b344..b9a53f5 100644
+--- a/tests/test_module_gaps.py
++++ b/tests/test_module_gaps.py
+@@ -184,10 +184,13 @@ class TestCBodyPreservation:
+         root = tmp_path / "pkg"
+         new_run("pkg", root, modules=["dsp"])
+         object_run(root, "nco", "dsp", state_vars=[("freq", "float", "0.0f")])
++        # Use "compute" as the method name to avoid a naming collision with the
++        # auto-generated "freq" property getter (both would resolve to the C
++        # function name Nco_get_freq if we used "get_freq" as the method name).
+         method_run(
+             root,
+             "nco",
+-            "get_freq",
++            "compute",
+             module="dsp",
+             arg_type="void",
+             return_type="float",
+@@ -197,15 +200,20 @@ class TestCBodyPreservation:
+ 
+         ext_path = root / "native" / "src" / "dsp" / "dsp_ext_nco.c"
+         original = ext_path.read_text(encoding="utf-8")
+-        # Inject a sentinel inside the Nco_get_freq body (uses RuntimeError).
++        # Inject a sentinel specifically inside Nco_compute — the call
++        # nco_compute(self->handle) is unique to that wrapper function.
+         sentinel = "/* SENTINEL: user-edited body */"
++        unique_call = "nco_compute(self->handle)"
++        assert unique_call in original, (
++            "test setup failed: nco_compute call not found in fragment"
++        )
+         patched = original.replace(
+-            'PyErr_SetString(PyExc_RuntimeError, "destroyed")',
+-            f'{sentinel}\n    PyErr_SetString(PyExc_RuntimeError, "destroyed")',
++            unique_call,
++            f"{sentinel}\n    float y = {unique_call}",
+             1,
+         )
+         assert sentinel in patched, (
+-            "test setup failed: could not inject sentinel into Nco_get_freq"
++            "test setup failed: could not inject sentinel into Nco_compute"
+         )
+         ext_path.write_text(patched, encoding="utf-8")
+ 

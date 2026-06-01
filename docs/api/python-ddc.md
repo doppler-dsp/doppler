@@ -180,19 +180,16 @@ for s in states:
 | Any call after `ddcr_destroy` | Raises `RuntimeError` |
 | `None` or wrong type as state | Raises `TypeError` / `ValueError` |
 
-::: doppler.ddc.ddcr_create
+### API reference
 
-::: doppler.ddc.ddcr_execute
+Full parameter and return-type documentation is available at the REPL:
 
-::: doppler.ddc.ddcr_reset
+```python
+help(ddcr_create)
+help(ddcr_execute)
+```
 
-::: doppler.ddc.ddcr_destroy
-
-::: doppler.ddc.ddcr_get_norm_freq
-
-::: doppler.ddc.ddcr_set_norm_freq
-
-::: doppler.ddc.ddcr_get_rate
+and in the type stubs (`ddc.pyi`) for IDE completion.
 
 ---
 

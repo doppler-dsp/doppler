@@ -51,19 +51,19 @@ extern "C"
    * @return Heap-allocated state, or NULL on allocation failure.
    * @note Caller must call delay_destroy() when done.
    */
-  delay_state_t *delay_create (size_t num_taps);
+delay_state_t *delay_create(size_t num_taps);
 
   /**
    * @brief Destroy a delay instance and release all memory.
    * @param state  May be NULL.
    */
-  void delay_destroy (delay_state_t *state);
+void delay_destroy(delay_state_t *state);
 
   /**
    * @brief Reset delay to its post-create state.
    * @param state  Must be non-NULL.
    */
-  void delay_reset (delay_state_t *state);
+void delay_reset(delay_state_t *state);
 
   /**
    * @brief push.
@@ -71,7 +71,7 @@ extern "C"
    * @param state  Must be non-NULL.
    * @param x  double complex parameter.
    */
-  void delay_push (delay_state_t *state, double complex x);
+void delay_push(delay_state_t *state, double complex x);
 
   /**
    * @brief ptr.
@@ -79,11 +79,11 @@ extern "C"
    * @param state  Must be non-NULL.
    * @return Result (double complex).
    */
-  size_t delay_ptr_max_out (delay_state_t *state);
-  size_t delay_ptr (delay_state_t *state, size_t n, double complex *out);
+size_t delay_ptr_max_out(delay_state_t *state);
+size_t delay_ptr(delay_state_t *state, size_t n, double complex *out);
 
   /** Maximum output samples per delay_push_ptr call. */
-  size_t delay_push_ptr_max_out (delay_state_t *state);
+size_t delay_push_ptr_max_out(delay_state_t *state);
   size_t delay_push_ptr (delay_state_t *state, double complex x,
                          double complex *out);
 
@@ -93,8 +93,9 @@ extern "C"
    * @param state  Must be non-NULL.
    * @param x      Input (double complex).
    */
-  void delay_write (delay_state_t *state, double complex x);
+void delay_write(delay_state_t *state, double complex x);
 
+size_t delay_push_ptr(delay_state_t *state, double complex x, double complex *out);
 #ifdef __cplusplus
 }
 #endif

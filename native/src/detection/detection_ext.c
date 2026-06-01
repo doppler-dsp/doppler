@@ -126,7 +126,7 @@ _bind_det_snr_power(PyObject *self, PyObject *args)
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef Detection_methods[] = {
+static PyMethodDef detection_module_methods[] = {
     {"marcum_q", _bind_marcum_q, METH_VARARGS, "marcum_q."},
     {"det_threshold", _bind_det_threshold, METH_VARARGS, "det_threshold."},
     {"det_pd", _bind_det_pd, METH_VARARGS, "det_pd."},
@@ -144,7 +144,7 @@ static PyModuleDef detection_moduledef = {
     .m_name    = "detection",
     .m_doc     = "Detection module.",
     .m_size    = -1,
-    .m_methods = Detection_methods,
+    .m_methods = detection_module_methods,
 };
 
 PyMODINIT_FUNC

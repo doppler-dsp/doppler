@@ -1,0 +1,53 @@
+[ddc]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "DDC"
+depends_on = [
+    "lo_core",
+    "RateConverter_core",
+    "resamp_core",
+    "hbdecim_core",
+    "hbdecim_r2c_core",
+    "cic_core",
+    "fir_core",
+    "resample_core",
+]
+
+[[ddc.init_params]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+doc = "LO frequency in cycles/sample at input rate."
+
+[[ddc.init_params]]
+name = "rate"
+type = "double"
+default = "0.25"
+doc = "Output / input rate ratio.  Must be > 0."
+
+[[ddc.methods]]
+name = "execute"
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+params = [{name = "x", type = "float _Complex[]"}]
+doc = "Mix input block with LO, then rate-convert."
+
+[[ddc.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+doc = "Zero LO phase and filter history."
+
+[[ddc.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[ddc.properties]]
+name = "rate"
+type = "double"
+writable = false

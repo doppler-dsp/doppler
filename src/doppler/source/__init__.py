@@ -46,4 +46,4 @@ def awgn(n, amplitude=1.0, seed=0):
     return AWGN(seed, amplitude).generate(n)
 
 
-__all__ = ["NCO", "LO", "AWGN", "awgn"]
+__all__ = ["NCO", "LO", "AWGN"]

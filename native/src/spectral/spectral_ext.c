@@ -151,7 +151,7 @@ _bind_find_peaks_f32(PyObject *self, PyObject *args)
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef Spectral_methods[] = {
+static PyMethodDef spectral_module_methods[] = {
     {"kaiser_enbw", _bind_kaiser_enbw, METH_VARARGS, "kaiser_enbw."},
     {"kaiser_window", _bind_kaiser_window, METH_VARARGS, "kaiser_window."},
     {"hann_window", _bind_hann_window, METH_VARARGS, "hann_window."},
@@ -166,7 +166,7 @@ static PyModuleDef spectral_moduledef = {
     .m_name    = "spectral",
     .m_doc     = "Spectral module.",
     .m_size    = -1,
-    .m_methods = Spectral_methods,
+    .m_methods = spectral_module_methods,
 };
 
 PyMODINIT_FUNC

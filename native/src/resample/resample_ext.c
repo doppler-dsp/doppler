@@ -66,7 +66,7 @@ _bind_kaiser_num_taps(PyObject *self, PyObject *args)
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef Resample_methods[] = {
+static PyMethodDef resample_module_methods[] = {
     {"ciccompmf", _bind_ciccompmf, METH_VARARGS, "ciccompmf."},
     {"kaiser_beta", _bind_kaiser_beta, METH_VARARGS, "kaiser_beta."},
     {"kaiser_num_taps", _bind_kaiser_num_taps, METH_VARARGS, "kaiser_num_taps."},
@@ -78,7 +78,7 @@ static PyModuleDef resample_moduledef = {
     .m_name    = "resample",
     .m_doc     = "Resample module.",
     .m_size    = -1,
-    .m_methods = Resample_methods,
+    .m_methods = resample_module_methods,
 };
 
 PyMODINIT_FUNC

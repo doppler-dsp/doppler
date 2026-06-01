@@ -37,7 +37,7 @@ extern "C"
    * @param w_len  Number of window samples.
    * @return ENBW in bins.
    */
-  float kaiser_enbw (const float *w, size_t w_len);
+float kaiser_enbw(const float *w, size_t w_len);
 
   /**
    * @brief Fill @p w with a Kaiser window of shape parameter @p beta.
@@ -49,7 +49,7 @@ extern "C"
    * @param beta   Shape parameter (higher = more attenuation, wider main
    * lobe).
    */
-  void kaiser_window (float *w, size_t w_len, float beta);
+void kaiser_window(float *w, size_t w_len, float beta);
 
   /**
    * @brief Fill @p w with a Hann window.
@@ -59,7 +59,7 @@ extern "C"
    * @param w      Output buffer, length @p w_len (modified in-place).
    * @param w_len  Window length >= 1.
    */
-  void hann_window (float *w, size_t w_len);
+void hann_window(float *w, size_t w_len);
 
   /**
    * @brief Convert CF32 spectrum to F32 dB.
@@ -107,6 +107,9 @@ extern "C"
   size_t find_peaks_f32 (const float *db, size_t n, size_t n_peaks,
                          float min_db, dp_peak_t *out);
 
+void magnitude_db_cf32(const float complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
+void magnitude_db_cf64(const double complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
+size_t find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
 #ifdef __cplusplus
 }
 #endif

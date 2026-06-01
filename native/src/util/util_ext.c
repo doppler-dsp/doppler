@@ -32,7 +32,7 @@ _bind_square_clip(PyObject *self, PyObject *args)
 /* Module                                                    */
 /* ======================================================== */
 
-static PyMethodDef Util_methods[] = {
+static PyMethodDef util_module_methods[] = {
     {"square_clip", _bind_square_clip, METH_VARARGS, "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."},
     {NULL, NULL, 0, NULL}
 };
@@ -42,7 +42,7 @@ static PyModuleDef util_moduledef = {
     .m_name    = "util",
     .m_doc     = "Util module.",
     .m_size    = -1,
-    .m_methods = Util_methods,
+    .m_methods = util_module_methods,
 };
 
 PyMODINIT_FUNC

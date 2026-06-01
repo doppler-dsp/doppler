@@ -122,9 +122,11 @@ def ddcr_create(norm_freq: float, rate: float) -> DDCRState:
     """
 
 def ddcr_execute(
-    state: DDCRState, x: NDArray[np.float32]
+    state: DDCRState,
+    x: NDArray[np.float32],
+    out: NDArray[np.complex64],
 ) -> NDArray[np.complex64]:
-    """Process a block of real float32 samples.
+    """Write output into caller-supplied buffer; return a view of the filled slice.
 
     Parameters
     ----------
@@ -132,11 +134,15 @@ def ddcr_execute(
         Handle returned by ddcr_create.
     x : NDArray[np.float32]
         Real input samples.
+    out : NDArray[np.complex64]
+        Caller-owned output buffer.  Must be writable complex64 with capacity
+        >= len(x) (a decimating DDC never produces more samples than the input).
 
     Returns
     -------
     NDArray[np.complex64]
-        Decimated complex output (copy, not a view into the internal buffer).
+        Zero-copy view ``out[:n_out]``.  Valid as long as ``out`` is alive;
+        the state handle has no ownership of ``out``.
     """
 
 def ddcr_reset(state: DDCRState) -> None:

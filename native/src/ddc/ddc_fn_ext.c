@@ -1,16 +1,16 @@
 /*
  * ddc_fn_ext.c — Functional DDCR Python API.
  *
- * Exposes ddcr_create / ddcr_execute / ddcr_reset / ddcr_destroy and the
- * norm_freq / rate accessors as module-level free functions.  State is an
- * opaque PyCapsule; the wrapper struct caches the output buffer so
- * successive execute calls avoid repeated malloc.
+ * State is an opaque PyCapsule.  The output buffer is caller-managed;
+ * ddcr_execute writes into it and returns a zero-copy view of the
+ * filled slice.  No buffer is cached in the capsule.
  *
  * Usage:
  *
  *   from doppler.ddc import ddcr_create, ddcr_execute, ddcr_destroy
- *   state = ddcr_create(norm_freq=-0.7, rate=0.25)
- *   y     = ddcr_execute(state, x)
+ *   state  = ddcr_create(norm_freq=-0.7, rate=0.25)
+ *   buf    = np.empty(1024, dtype=np.complex64)   # caller owns this
+ *   y      = ddcr_execute(state, x, buf)          # view of buf[:n_out]
  *   ddcr_destroy(state)
  */
 
@@ -20,7 +20,6 @@
 #include <numpy/arrayobject.h>
 #include <complex.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "ddc/ddc_core.h"
 
@@ -31,10 +30,8 @@
 static const char _CAPS[] = "doppler.ddc.ddcr_state";
 
 typedef struct {
-    ddcr_state_t  *state;
-    float complex *buf;
-    size_t         buf_cap;
-    int            destroyed;
+    ddcr_state_t *state;
+    int           destroyed;
 } _wrap_t;
 
 static void
@@ -42,19 +39,16 @@ _wrap_destructor(PyObject *cap)
 {
     _wrap_t *w = (_wrap_t *)PyCapsule_GetPointer(cap, _CAPS);
     if (!w) return;
-    if (!w->destroyed) {
+    if (!w->destroyed)
         ddcr_destroy(w->state);
-        free(w->buf);
-    }
     free(w);
 }
 
-/* Check capsule, set exception and return NULL on any error. */
 static _wrap_t *
 _get_wrap(PyObject *cap)
 {
     _wrap_t *w = (_wrap_t *)PyCapsule_GetPointer(cap, _CAPS);
-    if (!w) return NULL;   /* PyCapsule_GetPointer already set TypeError */
+    if (!w) return NULL;
     if (w->destroyed) {
         PyErr_SetString(PyExc_RuntimeError,
                         "ddcr_state has already been destroyed");
@@ -80,16 +74,10 @@ _fn_ddcr_create(PyObject *mod, PyObject *args)
 
     w->state = ddcr_create(norm_freq, rate);
     if (!w->state) { free(w); return PyErr_NoMemory(); }
-    w->buf       = NULL;
-    w->buf_cap   = 0;
     w->destroyed = 0;
 
     PyObject *cap = PyCapsule_New(w, _CAPS, _wrap_destructor);
-    if (!cap) {
-        ddcr_destroy(w->state);
-        free(w);
-        return NULL;
-    }
+    if (!cap) { ddcr_destroy(w->state); free(w); return NULL; }
     return cap;
 }
 
@@ -101,8 +89,8 @@ static PyObject *
 _fn_ddcr_execute(PyObject *mod, PyObject *args)
 {
     (void)mod;
-    PyObject *cap, *x_obj;
-    if (!PyArg_ParseTuple(args, "OO", &cap, &x_obj))
+    PyObject *cap, *x_obj, *out_obj;
+    if (!PyArg_ParseTuple(args, "OOO", &cap, &x_obj, &out_obj))
         return NULL;
 
     _wrap_t *w = _get_wrap(cap);
@@ -112,34 +100,40 @@ _fn_ddcr_execute(PyObject *mod, PyObject *args)
         x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
     if (!x_arr) return NULL;
 
-    size_t n_in = (size_t)PyArray_SIZE(x_arr);
-    if (!n_in) {
+    /* Require complex64 exactly — no silent cast; a cast would write into a
+     * temp copy instead of the caller's buffer. */
+    if (!PyArray_Check(out_obj) ||
+        PyArray_TYPE((PyArrayObject *)out_obj) != NPY_COMPLEX64 ||
+        !PyArray_ISWRITEABLE((PyArrayObject *)out_obj)) {
+        PyErr_SetString(PyExc_TypeError,
+            "out must be a writable ndarray[complex64]");
         Py_DECREF(x_arr);
-        npy_intp zero = 0;
-        return PyArray_EMPTY(1, &zero, NPY_COMPLEX64, 0);
+        return NULL;
     }
+    PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        out_obj, NPY_COMPLEX64,
+        NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+    if (!out_arr) { Py_DECREF(x_arr); return NULL; }
 
-    /* Buffer: n_in is a safe upper bound (DDC is always decimating). */
-    if (w->buf_cap < n_in) {
-        float complex *tmp = (float complex *)realloc(
-            w->buf, n_in * sizeof(float complex));
-        if (!tmp) { Py_DECREF(x_arr); return PyErr_NoMemory(); }
-        w->buf     = tmp;
-        w->buf_cap = n_in;
-    }
+    size_t n_in    = (size_t)PyArray_SIZE(x_arr);
+    size_t max_out = (size_t)PyArray_SIZE(out_arr);
 
     size_t n_out = ddcr_execute(
         w->state,
         (const float *)PyArray_DATA(x_arr), n_in,
-        w->buf, w->buf_cap);
+        (float _Complex *)PyArray_DATA(out_arr), max_out);
     Py_DECREF(x_arr);
 
-    npy_intp dim = (npy_intp)n_out;
-    PyObject *out = PyArray_EMPTY(1, &dim, NPY_COMPLEX64, 0);
-    if (!out) return NULL;
-    memcpy(PyArray_DATA((PyArrayObject *)out),
-           w->buf, n_out * sizeof(float complex));
-    return out;
+    /* Return out_arr[:n_out] — zero-copy view into the caller's buffer. */
+    PyObject *stop  = PyLong_FromSsize_t((Py_ssize_t)n_out);
+    PyObject *slice = stop ? PySlice_New(NULL, stop, NULL) : NULL;
+    Py_XDECREF(stop);
+    PyObject *view  = slice
+        ? PyObject_GetItem((PyObject *)out_arr, slice)
+        : NULL;
+    Py_XDECREF(slice);
+    Py_DECREF(out_arr);
+    return view;
 }
 
 /* ------------------------------------------------------------------ */
@@ -171,12 +165,8 @@ _fn_ddcr_destroy(PyObject *mod, PyObject *args)
     _wrap_t *w = _get_wrap(cap);
     if (!w) return NULL;
     ddcr_destroy(w->state);
-    free(w->buf);
     w->state     = NULL;
-    w->buf       = NULL;
-    w->buf_cap   = 0;
     w->destroyed = 1;
-    /* Destructor is still live — it checks destroyed and skips the free. */
     Py_RETURN_NONE;
 }
 
@@ -230,8 +220,8 @@ static PyMethodDef _methods[] = {
      "Allocate a DDCR state handle."},
     {"ddcr_execute",
      _fn_ddcr_execute, METH_VARARGS,
-     "ddcr_execute(state, x) -> ndarray[complex64]\n"
-     "Process a block of real float32 samples."},
+     "ddcr_execute(state, x, out) -> ndarray[complex64]\n"
+     "Write output into caller-supplied buffer; return out[:n_out]."},
     {"ddcr_reset",
      _fn_ddcr_reset, METH_VARARGS,
      "ddcr_reset(state) -> None\n"
@@ -255,7 +245,7 @@ static PyMethodDef _methods[] = {
 static PyModuleDef _moduledef = {
     PyModuleDef_HEAD_INIT,
     .m_name    = "ddc_fn",
-    .m_doc     = "Functional DDCR API — state passed explicitly.",
+    .m_doc     = "Functional DDCR API — state and buffer passed explicitly.",
     .m_size    = -1,
     .m_methods = _methods,
 };

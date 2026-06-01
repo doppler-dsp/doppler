@@ -217,28 +217,80 @@ static PyMethodDef _methods[] = {
     {"ddcr_create",
      _fn_ddcr_create, METH_VARARGS,
      "ddcr_create(norm_freq, rate) -> state\n"
-     "Allocate a DDCR state handle."},
+     "\n"
+     "Allocate a DDCR state handle.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "norm_freq : float\n"
+     "    Fine NCO frequency at the intermediate rate (fs_in / 2).\n"
+     "    To tune a real tone at f_carrier (normalised to fs_in) to DC:\n"
+     "    norm_freq = -(2 * f_carrier + 0.5).\n"
+     "rate : float\n"
+     "    Total output / input rate.  Must be in (0, 0.5).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "state : capsule\n"
+     "    Opaque handle.  Pass to ddcr_execute / ddcr_reset / ddcr_destroy.\n"
+     "    Released by the GC if ddcr_destroy is never called."},
     {"ddcr_execute",
      _fn_ddcr_execute, METH_VARARGS,
      "ddcr_execute(state, x, out) -> ndarray[complex64]\n"
-     "Write output into caller-supplied buffer; return out[:n_out]."},
+     "\n"
+     "Process a block of real float32 samples.\n"
+     "\n"
+     "Writes into the caller-supplied buffer and returns a zero-copy view\n"
+     "of the filled slice (out[:n_out]).  The view lifetime is tied to\n"
+     "``out``, not to ``state``.\n"
+     "\n"
+     "Parameters\n"
+     "----------\n"
+     "state : capsule\n"
+     "    Handle returned by ddcr_create.\n"
+     "x : ndarray[float32]\n"
+     "    Real input samples (C-contiguous).\n"
+     "out : ndarray[complex64]\n"
+     "    Caller-owned, writable output buffer.  Capacity >= len(x)\n"
+     "    is always sufficient (DDCR is always decimating).\n"
+     "\n"
+     "Returns\n"
+     "-------\n"
+     "ndarray[complex64]\n"
+     "    Zero-copy view out[:n_out]."},
     {"ddcr_reset",
      _fn_ddcr_reset, METH_VARARGS,
      "ddcr_reset(state) -> None\n"
-     "Zero halfband, LO, and resampler history."},
+     "\n"
+     "Zero halfband, LO phase, and resampler history.\n"
+     "Equivalent to destroy + create with the same parameters, but cheaper."},
     {"ddcr_destroy",
      _fn_ddcr_destroy, METH_VARARGS,
      "ddcr_destroy(state) -> None\n"
-     "Release C resources immediately.  Further use raises RuntimeError."},
+     "\n"
+     "Release C resources immediately.\n"
+     "\n"
+     "The GC also frees correctly if this is never called.  Any further\n"
+     "call on the same state after destroy raises RuntimeError.\n"
+     "Live views of previous execute() output remain valid because they\n"
+     "reference the caller's buffer, not the state."},
     {"ddcr_get_norm_freq",
      _fn_ddcr_get_norm_freq, METH_VARARGS,
-     "ddcr_get_norm_freq(state) -> float"},
+     "ddcr_get_norm_freq(state) -> float\n"
+     "\n"
+     "Return the current fine NCO normalised frequency (at fs_in / 2)."},
     {"ddcr_set_norm_freq",
      _fn_ddcr_set_norm_freq, METH_VARARGS,
-     "ddcr_set_norm_freq(state, norm_freq) -> None"},
+     "ddcr_set_norm_freq(state, norm_freq) -> None\n"
+     "\n"
+     "Retune the fine NCO without resetting halfband or resampler history.\n"
+     "Phase-continuous across block boundaries."},
     {"ddcr_get_rate",
      _fn_ddcr_get_rate, METH_VARARGS,
-     "ddcr_get_rate(state) -> float"},
+     "ddcr_get_rate(state) -> float\n"
+     "\n"
+     "Return the total configured rate (fs_out / fs_in).  Read-only;\n"
+     "changing the rate requires destroy + re-create."},
     {NULL, NULL, 0, NULL},
 };
 

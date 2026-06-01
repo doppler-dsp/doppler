@@ -1,18 +1,23 @@
 /**
  * @file ddc_core.h
- * @brief Digital Down-Converter — composes LO + polyphase resampler.
+ * @brief Digital Down-Converter — composes LO + RateConverter cascade.
  *
  * Two types:
  *
- *   Ddc   — complex (CF32) input.  Chain: LO mix → resample.
- *   DdcR  — real (float32) input.  Chain: halfband R2C → LO mix → resample.
+ *   Ddc   — complex (CF32) input.  Chain: LO mix → RateConverter.
+ *   DdcR  — real (float32) input.  Chain: halfband R2C → LO mix → RateConverter.
  *
  * Both are streaming (variable block size per execute call).
+ *
+ * RateConverter selects the cheapest cascade (CIC + optional halfband +
+ * polyphase resampler) for the requested rate at create time.  This
+ * makes large-ratio decimation (e.g., 100:1) significantly cheaper than
+ * a single polyphase stage.
  *
  * ### Ddc signal chain
  *
  * ```
- * CF32 in (fs_in)  →  LO mix  →  resample  →  CF32 out (fs_out)
+ * CF32 in (fs_in)  →  LO mix  →  RateConverter  →  CF32 out (fs_out)
  * ```
  *
  * norm_freq:  NCO normalised frequency (cycles/sample at fs_in).
@@ -23,7 +28,7 @@
  * ```
  * float in (fs_in)  →  halfband R2C (2:1, embedded fs/4 shift)
  *                   →  LO mix at intermediate rate (fs_in/2)
- *                   →  resample  →  CF32 out (fs_out)
+ *                   →  RateConverter  →  CF32 out (fs_out)
  * ```
  *
  * norm_freq:  Fine NCO frequency at the INTERMEDIATE rate (fs_in/2).
@@ -83,26 +88,26 @@ extern "C"
    * @param rate       Output rate / input rate.  Must be > 0.
    * @return Non-NULL on success, NULL on OOM or invalid args.
    */
-  ddc_state_t *ddc_create (double norm_freq, double rate);
+ddc_state_t *ddc_create(double norm_freq, double rate);
 
   /** Free all resources.  NULL is a no-op. */
-  void ddc_destroy (ddc_state_t *s);
+void ddc_destroy(ddc_state_t *state);
 
   /** Zero LO phase and resampler history. */
-  void ddc_reset (ddc_state_t *s);
+void ddc_reset(ddc_state_t *state);
 
   /** Return the current LO normalised frequency. */
-  double ddc_get_norm_freq (const ddc_state_t *s);
+double ddc_get_norm_freq(const ddc_state_t *state);
 
   /**
    * @brief Retune the LO without resetting phase or resampler history.
-   * @param s          Must be non-NULL.
-   * @param norm_freq  New normalised frequency.
+   * @param state  Must be non-NULL.
+   * @param val    New normalised frequency.
    */
-  void ddc_set_norm_freq (ddc_state_t *s, double norm_freq);
+void ddc_set_norm_freq(ddc_state_t *state, double val);
 
   /** Return the configured output/input rate ratio. */
-  double ddc_get_rate (const ddc_state_t *s);
+double ddc_get_rate(const ddc_state_t *state);
 
   /**
    * @brief Mix and resample a block of CF32 samples.
@@ -160,6 +165,14 @@ extern "C"
    */
   size_t ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
                        float _Complex *out, size_t max_out);
+
+  /**
+   * @brief Return the maximum output samples for one execute call.
+   *
+   * Returns 0, signalling the Python extension to fall back to
+   * allocating n_in samples — always sufficient for a decimating DDC.
+   */
+  size_t ddc_execute_max_out (ddc_state_t *state);
 
 #ifdef __cplusplus
 }

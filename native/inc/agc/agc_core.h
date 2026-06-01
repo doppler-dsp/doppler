@@ -205,13 +205,13 @@ extern "C"
    *       the reference power 10^(ref_db/10) so the loop starts settled.
    * @note Caller must call agc_destroy() when done.
    */
-  agc_state_t *agc_create (double ref_db, double loop_bw, double alpha);
+agc_state_t *agc_create(double ref_db, double loop_bw, double alpha);
 
   /**
    * @brief Destroy an AGC instance and release all memory.
    * @param state  May be NULL.
    */
-  void agc_destroy (agc_state_t *state);
+void agc_destroy(agc_state_t *state);
 
   /**
    * @brief Reset the AGC to its post-create state.
@@ -221,7 +221,7 @@ extern "C"
    * @c clip_db) is unchanged.
    * @param state  Must be non-NULL.
    */
-  void agc_reset (agc_state_t *state);
+void agc_reset(agc_state_t *state);
 
   /**
    * @brief Process one input sample (exact per-sample control loop).
@@ -305,7 +305,7 @@ extern "C"
    * @param state  Must be non-NULL.
    * @return Applied gain in dB; 0.0 dB (unity) at create / reset.
    */
-  double agc_get_applied_gain_db (const agc_state_t *state);
+double agc_get_applied_gain_db(const agc_state_t *state);
 
 #ifdef __cplusplus
 }

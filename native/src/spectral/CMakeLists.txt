@@ -1,5 +1,5 @@
-add_library(spectral_core OBJECT spectral_core.c)
-target_include_directories(spectral_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_library(spectral_core OBJECT spectral_core.c kaiser_enbw.c kaiser_window.c hann_window.c magnitude_db_cf32.c magnitude_db_cf64.c find_peaks_f32.c)
+target_include_directories(spectral_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
 # spectral Python module — aggregates: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D
@@ -16,14 +16,15 @@ target_link_libraries(spectral PRIVATE
 target_include_directories(spectral PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(spectral PRIVATE -static-libgcc)
-    get_filename_component(_gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
-    foreach(_dll IN ITEMS libwinpthread-1.dll)
-        if(EXISTS "${_gcc_bin}/${_dll}")
+    get_filename_component(gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
+    foreach(dll_name IN ITEMS libwinpthread-1.dll)
+        if(EXISTS "${gcc_bin}/${dll_name}")
             add_custom_command(TARGET spectral POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_gcc_bin}/${_dll}"
+                    "${gcc_bin}/${dll_name}"
                     "${PYTHON_PACKAGE_DIR}/spectral"
-                VERBATIM)
+                VERBATIM
+                COMMENT "Copy Windows runtime DLL ${dll_name}")
         endif()
     endforeach()
 endif()
@@ -34,5 +35,6 @@ add_custom_command(TARGET spectral POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:spectral>"
         "${PYTHON_PACKAGE_DIR}/spectral/$<TARGET_FILE_NAME:spectral>"
-    VERBATIM)
+    VERBATIM
+    COMMENT "Copy spectral extension module")
 endif()

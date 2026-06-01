@@ -1,5 +1,5 @@
-add_library(detection_core OBJECT detection_core.c)
-target_include_directories(detection_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_library(detection_core OBJECT detection_core.c marcum_q.c det_threshold.c det_pd.c det_dwell.c det_snr.c det_threshold_power.c det_pd_power.c det_dwell_power.c det_snr_power.c)
+target_include_directories(detection_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
 # detection Python module — aggregates: 
@@ -10,14 +10,15 @@ target_link_libraries(detection PRIVATE
 target_include_directories(detection PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(detection PRIVATE -static-libgcc)
-    get_filename_component(_gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
-    foreach(_dll IN ITEMS libwinpthread-1.dll)
-        if(EXISTS "${_gcc_bin}/${_dll}")
+    get_filename_component(gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
+    foreach(dll_name IN ITEMS libwinpthread-1.dll)
+        if(EXISTS "${gcc_bin}/${dll_name}")
             add_custom_command(TARGET detection POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_gcc_bin}/${_dll}"
+                    "${gcc_bin}/${dll_name}"
                     "${PYTHON_PACKAGE_DIR}/detection"
-                VERBATIM)
+                VERBATIM
+                COMMENT "Copy Windows runtime DLL ${dll_name}")
         endif()
     endforeach()
 endif()
@@ -28,5 +29,6 @@ add_custom_command(TARGET detection POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:detection>"
         "${PYTHON_PACKAGE_DIR}/detection/$<TARGET_FILE_NAME:detection>"
-    VERBATIM)
+    VERBATIM
+    COMMENT "Copy detection extension module")
 endif()

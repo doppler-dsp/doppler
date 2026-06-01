@@ -1,124 +1,165 @@
 # ddc/ddc.pyi — type stubs for the ddc C extension.
 import numpy as np
 from numpy.typing import NDArray
+from typing import Any
 
 class DDC:
-    """Digital Down-Converter — complex input.
-
-    Signal chain: CF32 in → LO mix → polyphase resample → CF32 out.
+    """DDC component.
 
     Parameters
     ----------
-    norm_freq : float
-        LO frequency in cycles/sample at the input rate.
-        Set to ``-f_carrier`` to shift a carrier at ``f_carrier`` to DC.
-    rate : float
-        Output / input rate ratio.  Must be > 0.
+    norm_freq : float, default 0.0
+        norm_freq constructor parameter.
+    rate : float, default 0.25
+        rate constructor parameter.
 
     Examples
     --------
-    >>> import numpy as np
+    Create with defaults:
+
     >>> from doppler.ddc import DDC
-    >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
-    >>> x = np.exp(2j * np.pi * 0.1 * np.arange(4096)).astype(np.complex64)
-    >>> y = ddc.execute(x)
-    >>> y.dtype
-    dtype('complex64')
+    >>> obj = DDC(0.0, 0.25)
 
     """
-
-    def __init__(self, norm_freq: float, rate: float) -> None: ...
-    def __enter__(self) -> "DDC": ...
-    def __exit__(self, *args: object) -> None: ...
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Mix input block with LO, then resample.
-
-        Parameters
-        ----------
-        x : NDArray[np.complex64]
-            Input samples at the input rate.
-
-        Returns
-        -------
-        NDArray[np.complex64]
-            Resampled output at ``rate * fs_in``.
-        """
+    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Zero LO phase and resampler history."""
+        """Reset state to post-create defaults."""
 
-    def get_norm_freq(self) -> float:
-        """Return the current LO normalised frequency."""
+    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Execute."""
 
-    def set_norm_freq(self, norm_freq: float) -> None:
-        """Retune the LO without resetting phase or resampler history."""
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
 
     @property
     def rate(self) -> float:
-        """Output / input rate ratio."""
+        """Rate."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
+
+    def __enter__(self) -> "DDC": ...
+
+    def __exit__(self, *args: object) -> None: ...
 
 class DDCR:
-    """Digital Down-Converter — real input (Architecture D2).
+    """DDCR component.
 
-    Signal chain:
-    float in → halfband R2C (2:1, embedded fs/4 shift)
-             → LO mix at intermediate rate (fs_in/2)
-             → polyphase resample → CF32 out.
+    Parameters
+    ----------
+    norm_freq : float, default 0.0
+        norm_freq constructor parameter.
+    rate : float, default 0.25
+        rate constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.ddc import DDCR
+    >>> obj = DDCR(0.0, 0.25)
+
+    """
+    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def execute(self, x: NDArray[np.float32]) -> NDArray[np.complex64]:
+        """Execute."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "DDCR": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+# ------------------------------------------------------------------ #
+# Functional DDCR API — state passed explicitly                        #
+# ------------------------------------------------------------------ #
+#
+# State is an opaque capsule allocated by ddcr_create.  The buffer for
+# execute output is cached inside the capsule and grows on demand; it
+# is freed by ddcr_destroy or the GC, whichever comes first.
+#
+# Usage:
+#   state = ddcr_create(-0.7, 0.25)
+#   y     = ddcr_execute(state, x)
+#   ddcr_destroy(state)          # optional: GC also frees correctly
+
+# Opaque state handle returned by ddcr_create.
+DDCRState = Any
+
+def ddcr_create(norm_freq: float, rate: float) -> DDCRState:
+    """Allocate a DDCR state handle.
 
     Parameters
     ----------
     norm_freq : float
-        Fine NCO frequency at the *intermediate* rate (fs_in/2).
-        To tune a real tone at ``f_carrier`` (input-normalised) to DC:
-        ``norm_freq = -(2*f_carrier + 0.5)``.
+        Fine NCO frequency at the intermediate rate (fs_in/2).
     rate : float
-        Total output / input rate.  Must be in (0, 0.5).
+        Total output/input rate.  Must be in (0, 0.5).
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from doppler.ddc import DDCR
-    >>> f_carrier = 0.1
-    >>> ddcr = DDCR(norm_freq=-(2*f_carrier + 0.5), rate=0.25)
-    >>> x = np.cos(2 * np.pi * f_carrier * np.arange(4096)).astype(np.float32)
-    >>> y = ddcr.execute(x)
-    >>> y.dtype
-    dtype('complex64')
-
+    Returns
+    -------
+    DDCRState
+        Opaque capsule.  Pass to ddcr_execute / ddcr_reset / ddcr_destroy.
     """
 
-    def __init__(self, norm_freq: float, rate: float) -> None: ...
-    def __enter__(self) -> "DDCR": ...
-    def __exit__(self, *args: object) -> None: ...
-    def execute(self, x: NDArray[np.float32]) -> NDArray[np.complex64]:
-        """Process a block of real float32 samples through the full DDC chain.
+def ddcr_execute(
+    state: DDCRState,
+    x: NDArray[np.float32],
+    out: NDArray[np.complex64],
+) -> NDArray[np.complex64]:
+    """Write output into caller-supplied buffer; return a view of the filled slice.
 
-        Parameters
-        ----------
-        x : NDArray[np.float32]
-            Real input samples at the input rate.
+    Parameters
+    ----------
+    state : DDCRState
+        Handle returned by ddcr_create.
+    x : NDArray[np.float32]
+        Real input samples.
+    out : NDArray[np.complex64]
+        Caller-owned output buffer.  Must be writable complex64 with capacity
+        >= len(x) (a decimating DDC never produces more samples than the input).
 
-        Returns
-        -------
-        NDArray[np.complex64]
-            Complex output at ``rate * fs_in``.
-        """
+    Returns
+    -------
+    NDArray[np.complex64]
+        Zero-copy view ``out[:n_out]``.  Valid as long as ``out`` is alive;
+        the state handle has no ownership of ``out``.
+    """
 
-    def reset(self) -> None:
-        """Zero halfband, LO phase, and resampler history."""
+def ddcr_reset(state: DDCRState) -> None:
+    """Zero halfband, LO phase, and resampler history."""
 
-    def get_norm_freq(self) -> float:
-        """Return the current fine NCO normalised frequency (at intermediate rate)."""
+def ddcr_destroy(state: DDCRState) -> None:
+    """Release C resources immediately.
 
-    def set_norm_freq(self, norm_freq: float) -> None:
-        """Retune the fine NCO without resetting state."""
+    Further calls on the same state raise RuntimeError.
+    The GC also frees correctly if destroy is never called.
+    """
 
-    @property
-    def rate(self) -> float:
-        """Total output / input rate (fs_out / fs_in)."""
+def ddcr_get_norm_freq(state: DDCRState) -> float:
+    """Return the current fine NCO normalised frequency."""
 
-    def destroy(self) -> None:
-        """Release C resources immediately."""
+def ddcr_set_norm_freq(state: DDCRState, norm_freq: float) -> None:
+    """Retune the fine NCO without resetting state."""
+
+def ddcr_get_rate(state: DDCRState) -> float:
+    """Return the total configured rate (fs_out / fs_in)."""

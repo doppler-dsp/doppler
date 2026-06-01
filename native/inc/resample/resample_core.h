@@ -14,9 +14,9 @@ extern "C"
 
   /* Declare module-level functions here. */
 
-  double kaiser_beta (double atten);
+double kaiser_beta(double atten);
 
-  int kaiser_num_taps (int num_phases, double atten, double pb, double sb);
+int kaiser_num_taps(int num_phases, double atten, double pb, double sb);
 
   /**
    * Design a CIC passband-droop compensator FIR filter.
@@ -36,13 +36,13 @@ extern "C"
    *   even M: 2, 4, 6, ... 18  (half = M/2     <= 9)
    * M outside these ranges -> h is left unmodified.
    *
-   * @param h  Output buffer, caller-allocated, M elements. DC gain = 1.0.
-   * @param N  CIC filter order (number of integrator/comb stages, >= 1).
-   * @param R  CIC decimation factor (>= 2).
-   * @param M  Number of compensator taps. Odd M -> symmetric linear-phase;
-   *           even M -> half-sample-shifted linear-phase.
+   * @param out  Output buffer, caller-allocated, M elements. DC gain = 1.0.
+   * @param N    CIC filter order (number of integrator/comb stages, >= 1).
+   * @param R    CIC decimation factor (>= 2).
+   * @param M    Number of compensator taps. Odd M -> symmetric linear-phase;
+   *             even M -> half-sample-shifted linear-phase.
    */
-  void ciccompmf(double *h, uint32_t N, uint32_t R, uint32_t M);
+void ciccompmf(double *out, uint32_t N, uint32_t R, uint32_t M);
 
 #ifdef __cplusplus
 }

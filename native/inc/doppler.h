@@ -57,6 +57,10 @@ extern "C" {
 
 #include "detector2d/detector2d_core.h"
 
+#include "ddc/ddc_core.h"
+
+#include "ddcr/ddcr_core.h"
+
 #include "Resampler/Resampler_core.h"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"

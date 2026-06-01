@@ -8,5 +8,18 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
 del _os, _sys
 
 from .ddc import DDC, DDCR  # noqa: E402
+from .ddc_fn import (  # noqa: E402
+    ddcr_create,
+    ddcr_execute,
+    ddcr_reset,
+    ddcr_destroy,
+    ddcr_get_norm_freq,
+    ddcr_set_norm_freq,
+    ddcr_get_rate,
+)
 
-__all__ = ["DDC", "DDCR"]
+__all__ = [
+    "DDC", "DDCR",
+    "ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy",
+    "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate",
+]

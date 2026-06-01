@@ -44,7 +44,7 @@ class TestDdcConstruction:
 
     def test_get_norm_freq(self):
         ddc = DDC(0.1, 0.25)
-        assert abs(ddc.get_norm_freq() - 0.1) < 1e-5
+        assert abs(ddc.norm_freq - 0.1) < 1e-5
 
     def test_context_manager(self):
         with DDC(0.1, 0.25) as ddc:
@@ -88,13 +88,13 @@ class TestDdcExecute:
 class TestDdcTuning:
     def test_set_norm_freq_roundtrip(self):
         ddc = DDC(0.1, 0.25)
-        ddc.set_norm_freq(0.2)
-        assert abs(ddc.get_norm_freq() - 0.2) < 1e-5
+        ddc.norm_freq = 0.2
+        assert abs(ddc.norm_freq - 0.2) < 1e-5
 
     def test_set_norm_freq_no_reset(self):
         ddc = DDC(0.1, 0.25)
         ddc.execute(np.ones(512, dtype=np.complex64))
-        ddc.set_norm_freq(0.2)
+        ddc.norm_freq = 0.2
         y = ddc.execute(np.ones(512, dtype=np.complex64))
         assert len(y) > 0
 

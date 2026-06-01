@@ -1,5 +1,5 @@
 add_library(accumulator_core OBJECT accumulator_core.c)
-target_include_directories(accumulator_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_include_directories(accumulator_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
 # accumulator Python module — aggregates: AccF32, AccCf64
@@ -12,14 +12,15 @@ target_link_libraries(accumulator PRIVATE
 target_include_directories(accumulator PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(accumulator PRIVATE -static-libgcc)
-    get_filename_component(_gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
-    foreach(_dll IN ITEMS libwinpthread-1.dll)
-        if(EXISTS "${_gcc_bin}/${_dll}")
+    get_filename_component(gcc_bin "${CMAKE_C_COMPILER}" DIRECTORY)
+    foreach(dll_name IN ITEMS libwinpthread-1.dll)
+        if(EXISTS "${gcc_bin}/${dll_name}")
             add_custom_command(TARGET accumulator POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${_gcc_bin}/${_dll}"
+                    "${gcc_bin}/${dll_name}"
                     "${PYTHON_PACKAGE_DIR}/accumulator"
-                VERBATIM)
+                VERBATIM
+                COMMENT "Copy Windows runtime DLL ${dll_name}")
         endif()
     endforeach()
 endif()
@@ -30,5 +31,6 @@ add_custom_command(TARGET accumulator POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:accumulator>"
         "${PYTHON_PACKAGE_DIR}/accumulator/$<TARGET_FILE_NAME:accumulator>"
-    VERBATIM)
+    VERBATIM
+    COMMENT "Copy accumulator extension module")
 endif()

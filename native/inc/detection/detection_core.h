@@ -66,7 +66,7 @@ extern "C" {
  *   marcum_q(2, 0.0, 2.0) = 3*exp(-2) ~ 0.40601
  *   marcum_q(1, 2.0, 1.0) ~ 0.91441
  */
-double marcum_q (int m, double a, double b);
+double marcum_q(int m, double a, double b);
 
 /**
  * @brief Threshold eta for a given false-alarm probability.
@@ -83,7 +83,7 @@ double marcum_q (int m, double a, double b);
  *
  * Example: det_threshold(1e-6) ~ 5.2565
  */
-double det_threshold (double pfa);
+double det_threshold(double pfa);
 
 /**
  * @brief Detection probability for given per-sample amplitude SNR and dwell.
@@ -101,7 +101,7 @@ double det_threshold (double pfa);
  *
  * Example: det_pd(1.0, 4, det_threshold(1e-6)) ~ 0.78
  */
-double det_pd (double snr, int dwell, double threshold);
+double det_pd(double snr, int dwell, double threshold);
 
 /**
  * @brief Minimum dwell such that Pd >= pd_min for the given SNR and Pfa.
@@ -120,7 +120,7 @@ double det_pd (double snr, int dwell, double threshold);
  *          depth needed to detect a 0.5 amplitude-SNR signal with Pd = 0.9
  *          and Pfa = 1e-6.
  */
-int det_dwell (double snr, double pd_min, double pfa, int max_dwell);
+int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
 /**
  * @brief Minimum per-sample amplitude SNR achieving Pd >= pd_min.
@@ -137,7 +137,7 @@ int det_dwell (double snr, double pd_min, double pfa, int max_dwell);
  * Roundtrip invariant:
  *   det_pd(det_snr(M, pd, pfa), M, det_threshold(pfa)) >= pd
  */
-double det_snr (int dwell, double pd_min, double pfa);
+double det_snr(int dwell, double pd_min, double pfa);
 
 /* ── Power detector ──────────────────────────────────────────────────────── */
 /*                                                                            */
@@ -171,7 +171,7 @@ double det_snr (int dwell, double pd_min, double pfa);
  *
  * Example: det_threshold_power(1e-6) = 6·ln(10) ~ 13.816
  */
-double det_threshold_power (double pfa);
+double det_threshold_power(double pfa);
 
 /**
  * @brief Detection probability for the power detector.
@@ -188,7 +188,7 @@ double det_threshold_power (double pfa);
  *   (same result as det_pd(1.0, 4, det_threshold(1e-6)) since snr_power=1
  *   corresponds to snr_amplitude=1 and the Q_1 arguments are identical)
  */
-double det_pd_power (double snr_power, int dwell, double power_threshold);
+double det_pd_power(double snr_power, int dwell, double power_threshold);
 
 /**
  * @brief Minimum dwell such that Pd >= pd_min for the power detector.
@@ -213,8 +213,9 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  * @param pfa     False-alarm probability.
  * @return        Minimum power SNR >= 0.
  */
-double det_snr_power (int dwell, double pd_min, double pfa);
+double det_snr_power(int dwell, double pd_min, double pfa);
 
+int det_dwell_power(double snr_power, double pd_min, double pfa, int max_dwell);
 #ifdef __cplusplus
 }
 #endif

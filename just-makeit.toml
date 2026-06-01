@@ -65,7 +65,18 @@ no_generate = "true"
 no_generate = "true"
 
 [module.ddc]
-no_generate = "true"
+objects = ["ddc", "ddcr"]
+extra_link_libs = [
+    "lo_core",
+    "RateConverter_core",
+    "resamp_core",
+    "hbdecim_core",
+    "hbdecim_r2c_core",
+    "cic_core",
+    "fir_core",
+    "resample_core",
+    "m",
+]
 
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]

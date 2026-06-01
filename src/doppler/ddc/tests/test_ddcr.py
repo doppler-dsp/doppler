@@ -44,7 +44,7 @@ class TestDdcRConstruction:
 
     def test_get_norm_freq(self):
         r = DDCR(0.1, 0.25)
-        assert abs(r.get_norm_freq() - 0.1) < 1e-5
+        assert abs(r.norm_freq - 0.1) < 1e-5
 
     def test_context_manager(self):
         with DDCR(0.0, 0.25) as r:
@@ -87,8 +87,8 @@ class TestDdcRExecute:
 class TestDdcRTuning:
     def test_set_norm_freq_roundtrip(self):
         r = DDCR(0.1, 0.25)
-        r.set_norm_freq(0.2)
-        assert abs(r.get_norm_freq() - 0.2) < 1e-5
+        r.norm_freq = 0.2
+        assert abs(r.norm_freq - 0.2) < 1e-5
 
     def test_reset_gives_same_output(self):
         rng = np.random.default_rng(13)

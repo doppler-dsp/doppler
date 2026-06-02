@@ -39,6 +39,8 @@ extern "C" {
 
 #include "fir/fir_core.h"
 
+#include "hbdecim_q15/hbdecim_q15_core.h"
+
 #include "nco/nco_core.h"
 
 #include "lo/lo_core.h"

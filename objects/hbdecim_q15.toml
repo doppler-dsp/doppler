@@ -1,0 +1,36 @@
+[hbdecim_q15]
+arg_type        = "int16_t"
+return_type     = "int16_t"
+mutable         = "false"
+no_state        = "true"
+no_step         = "true"
+class_name      = "HBDecimQ15"
+
+# Float FIR branch coefficients — converted to Q15 inside create().
+# Same convention as HalfbandDecimator: caller passes only the non-zero
+# FIR branch (symmetric half), not the full sparse prototype.  Length
+# is inferred from the numpy array.
+
+[[hbdecim_q15.init_params]]
+name = "h"
+type = "float[]"
+
+[[hbdecim_q15.methods]]
+name            = "execute"
+arg_type        = "void"
+return_type     = "int16_t"
+variable_output = true
+params          = [{name = "x", type = "int16_t[]"}]
+
+[[hbdecim_q15.methods]]
+name        = "reset"
+arg_type    = "void"
+return_type = "void"
+
+[[hbdecim_q15.properties]]
+name = "num_taps"
+type = "size_t"
+
+[[hbdecim_q15.properties]]
+name = "rate"
+type = "double"

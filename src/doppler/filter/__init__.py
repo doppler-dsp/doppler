@@ -2,10 +2,10 @@
 import os as _os
 import sys as _sys
 
-from .filter import FIR  # noqa: E402
+from .filter import FIR, HBDecimQ15  # noqa: E402
 
 if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-__all__ = ["FIR"]
+__all__ = ["FIR", "HBDecimQ15"]

@@ -1,7 +1,7 @@
 /*
  * filter_ext.c — Python extension module filter
  *
- * Objects: FIR
+ * Objects: FIR, HBDecimQ15
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,7 @@
 
 
 #include "filter_ext_fir.c"
+#include "filter_ext_hbdecim_q15.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -31,11 +32,16 @@ PyInit_filter(void)
 {
     import_array();
     if (PyType_Ready(&FIRObjType) < 0) return NULL;
+    if (PyType_Ready(&HBDecimQ15ObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&filter_moduledef);
     if (!m) return NULL;
     Py_INCREF(&FIRObjType);
     if (PyModule_AddObject(m, "FIR", (PyObject *)&FIRObjType) < 0) {
         Py_DECREF(&FIRObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&HBDecimQ15ObjType);
+    if (PyModule_AddObject(m, "HBDecimQ15", (PyObject *)&HBDecimQ15ObjType) < 0) {
+        Py_DECREF(&HBDecimQ15ObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

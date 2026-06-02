@@ -31,6 +31,8 @@ extern "C" {
 
 #include "uq15_to_f32/uq15_to_f32_core.h"
 
+#include "adc/adc_core.h"
+
 #include "acc_f32/acc_f32_core.h"
 
 #include "acc_cf64/acc_cf64_core.h"

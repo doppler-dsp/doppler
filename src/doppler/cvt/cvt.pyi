@@ -273,3 +273,53 @@ class UQ15ToF32:
     def __enter__(self) -> "UQ15ToF32": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class ADC:
+    """ADC component.
+
+    Parameters
+    ----------
+    bits : int, default 16
+        bits constructor parameter.
+    dbfs : float, default -10.0
+        dbfs constructor parameter.
+    dithering : int, default 0
+        dithering constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import ADC
+    >>> obj = ADC(16, -10.0, 0)
+
+    """
+    def __init__(self, bits: int = ..., dbfs: float = ..., dithering: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def step(self, x: float) -> int:
+        """Process one input sample."""
+
+    def steps(self, x: NDArray[np.float32], out: NDArray[np.int64] | None = None) -> NDArray[np.int64]:
+        """Process a samples array."""
+
+    @property
+    def clipped(self) -> bool:
+        """Clipped."""
+
+    @property
+    def scale(self) -> float:
+        """Scale."""
+
+    @property
+    def bits(self) -> int:
+        """Bits."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "ADC": ...
+
+    def __exit__(self, *args: object) -> None: ...

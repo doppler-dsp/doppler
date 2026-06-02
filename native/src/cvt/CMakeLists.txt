@@ -2,7 +2,7 @@ add_library(cvt_core OBJECT cvt_core.c)
 target_include_directories(cvt_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# cvt Python module — aggregates: F32ToI16, I16ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32
+# cvt Python module — aggregates: F32ToI16, I16ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC
 Python3_add_library(cvt MODULE WITH_SOABI cvt_ext.c)
 target_link_libraries(cvt PRIVATE
     cvt_core
@@ -14,6 +14,7 @@ target_link_libraries(cvt PRIVATE
     i16u64_to_f32_core
     f32_to_uq15_core
     uq15_to_f32_core
+    adc_core
     Python3::NumPy)
 target_include_directories(cvt PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")

@@ -1,0 +1,56 @@
+[adc]
+arg_type    = "float"
+return_type = "int64_t"
+mutable     = "false"
+no_state    = "true"
+no_step     = "false"
+class_name  = "ADC"
+impl = """
+    double s = (double)in * state->scale;
+    if (state->dithering) {
+        /* TPDF dither: two xorshift32 draws summed → triangular PDF
+         * over [-1, +1] LSB.  Each uniform is in [-0.5, +0.5] LSB. */
+        state->rng ^= state->rng << 13;
+        state->rng ^= state->rng >> 17;
+        state->rng ^= state->rng << 5;
+        uint32_t r2 = state->rng * 2654435761u;
+        s += ((double)(int32_t)state->rng + (double)(int32_t)r2)
+             * (1.0 / 4294967296.0);
+    }
+    state->clipped |= (uint8_t)(s > (double)state->clip_max
+                              || s < (double)state->clip_min);
+    int64_t v = llround(s);
+    if (v > state->clip_max) v = state->clip_max;
+    if (v < state->clip_min) v = state->clip_min;
+    return (int64_t)v;
+"""
+
+[[adc.init_params]]
+name    = "bits"
+type    = "int"
+default = "16"
+
+[[adc.init_params]]
+name    = "dbfs"
+type    = "float"
+default = "-10.0f"
+
+[[adc.init_params]]
+name    = "dithering"
+type    = "int"
+default = "0"
+
+[[adc.properties]]
+name  = "clipped"
+type  = "bool"
+field = true
+
+[[adc.properties]]
+name  = "scale"
+type  = "double"
+field = true
+
+[[adc.properties]]
+name  = "bits"
+type  = "int"
+field = true

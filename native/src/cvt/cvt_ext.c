@@ -1,7 +1,7 @@
 /*
  * cvt_ext.c — Python extension module cvt
  *
- * Objects: F32ToI16, I16ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32
+ * Objects: F32ToI16, I16ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -20,6 +20,7 @@
 #include "cvt_ext_i16u64_to_f32.c"
 #include "cvt_ext_f32_to_uq15.c"
 #include "cvt_ext_uq15_to_f32.c"
+#include "cvt_ext_adc.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -45,6 +46,7 @@ PyInit_cvt(void)
     if (PyType_Ready(&I16U64ToF32ObjType) < 0) return NULL;
     if (PyType_Ready(&F32ToUQ15ObjType) < 0) return NULL;
     if (PyType_Ready(&UQ15ToF32ObjType) < 0) return NULL;
+    if (PyType_Ready(&ADCObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&cvt_moduledef);
     if (!m) return NULL;
     Py_INCREF(&F32ToI16ObjType);
@@ -78,6 +80,10 @@ PyInit_cvt(void)
     Py_INCREF(&UQ15ToF32ObjType);
     if (PyModule_AddObject(m, "UQ15ToF32", (PyObject *)&UQ15ToF32ObjType) < 0) {
         Py_DECREF(&UQ15ToF32ObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&ADCObjType);
+    if (PyModule_AddObject(m, "ADC", (PyObject *)&ADCObjType) < 0) {
+        Py_DECREF(&ADCObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

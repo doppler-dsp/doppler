@@ -15,6 +15,51 @@ and this project adheres to
 
 ---
 
+## [0.5.0] — 2026-06-02
+
+### Added
+
+- **`doppler.cvt.ADC`** — signed N-bit (1–64) two's-complement ADC model.
+  Configurable full-scale level (`dbfs`), optional TPDF dither, sticky
+  `clipped` flag, and `steps()` with SIMD float-scale path.  Accepts any
+  bit depth; uses `double` precision scale for bits > 23.
+- **`doppler.cvt.ADCIQ`** — CF32 → interleaved IQ int16 wrapper around `ADC`.
+  Exploits the complex64 memory layout (I₀ Q₀ I₁ Q₁ …) to process both
+  channels in a single SIMD call.  Restricted to bits ≤ 16 so output fits
+  int16.
+- **`doppler.filter.HBDecimQ15`** — fixed-point halfband 2:1 decimator for
+  interleaved IQ int16 (ADCIQ output format → 2:1 decimated IQ int16).
+  AVX2 inner loop uses a two-pass `_mm256_madd_epi16` strategy (left side +
+  right side reversed) that avoids computing the symmetric fold as int16,
+  eliminating saturation at any valid input level.  I and Q run as two
+  independent madd chains on the same coefficient vector — free ILP on any
+  superscalar core.  Scalar fallback for non-AVX2 targets.
+- **Functional DDCR API** (`doppler.ddc.ddcr_create` / `ddcr_execute` /
+  `ddcr_reset` / `ddcr_destroy` / `ddcr_get_norm_freq` / `ddcr_set_norm_freq`
+  / `ddcr_get_rate`) — state passed explicitly as an opaque capsule rather
+  than bound to a Python object; suited for multi-pipeline use cases.
+- **Gallery examples**: ADC quantisation staircase (3–8 bits, time + spectrum)
+  and HBDecimQ15 (frequency response Q15 vs float32, input/output spectra
+  showing −60 dB stopband suppression).
+
+### Changed
+
+- **`doppler.ddc` build layout**: `ddc_fn_ext.c` moved to
+  `native/src/ddc_fn/` with its own `CMakeLists.txt`, isolated from
+  `just-makeit` regeneration so `jm apply` can no longer clobber the
+  functional DDCR API.
+
+### Fixed
+
+- **HBDecimQ15 SIMD**: replaced `_mm256_adds_epi16` (saturating fold) with
+  two-pass `_mm256_madd_epi16`; the saturating add clipped fold values above
+  −6 dBFS and destroyed the stopband cancellation at frequencies where
+  adjacent delay-line samples are in-phase (e.g. f = 0.45 with a 60 dB
+  halfband design gives fold ≈ 38 044 > 32 767, turning a theoretical
+  −82 dBFS null into −29 dBFS leakage).
+
+---
+
 ## [0.4.6] — 2026-05-28
 
 ### Fixed

@@ -115,4 +115,26 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](rate-converter.md)
 
+-   **[HBDecimQ15 — Fixed-Point Halfband](hbdecim_q15.md)**
+
+    ---
+
+    [![HBDecimQ15 decimation demo](../assets/hbdecim_q15_demo.png)](hbdecim_q15.md)
+
+    Q15 halfband 2:1 decimator for interleaved IQ int16.  AVX2
+    two-pass madd inner loop; passband flat, stopband −60 dB.
+
+    [:octicons-arrow-right-24: Walkthrough](hbdecim_q15.md)
+
+-   **[ADC Quantisation — 3–8 Bits](adc.md)**
+
+    ---
+
+    [![ADC quantisation demo](../assets/adc_demo.png)](adc.md)
+
+    Staircase resolution and spectral noise floor across six bit depths.
+    Each additional bit halves the step size and drops noise by 6 dB.
+
+    [:octicons-arrow-right-24: Walkthrough](adc.md)
+
 </div>

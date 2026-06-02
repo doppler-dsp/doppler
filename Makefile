@@ -231,7 +231,8 @@ GALLERY_SCRIPTS := \
     examples/python/detection_sim.py \
     examples/python/detection2d_demo.py \
     examples/python/rate_converter_demo.py \
-    examples/python/adc_demo.py
+    examples/python/adc_demo.py \
+    examples/python/hbdecim_q15_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."
@@ -239,7 +240,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png adc_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png adc_demo.png hbdecim_q15_demo.png docs/assets/
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

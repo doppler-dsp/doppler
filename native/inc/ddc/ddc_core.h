@@ -119,8 +119,7 @@ double ddc_get_rate(const ddc_state_t *state);
    * @param max_out  Maximum output samples to write.
    * @return Number of output samples written.
    */
-  size_t ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
-                      float _Complex *out, size_t max_out);
+size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 
   /* ================================================================== */
   /* DdcR — real-input DDC (Architecture D2)                           */

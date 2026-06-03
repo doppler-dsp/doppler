@@ -147,20 +147,22 @@ generated aggregator `<mod>_ext.c` `#include`s. `jm status`/`apply` regenerate
 binding logic (e.g. HalfbandDecimatorR2C's float64→float32 input cast) lives
 there by design and is **not** drift.
 
-### Known jm gaps (filed; tracked in `~/claude/jm_improvement.md`)
+### jm gaps — all resolved in **jm 0.14.4** (pin bumped)
 
-| Gap | Effect on doppler | Status |
-|---|---|---|
-| `jm apply` re-injects a 4-arg `variable_output` prototype (`_refresh_core_h_decls` lacks the skip-set `jm method` uses; decl recognition is single-line-only — incomplete fix of #118/#120) | `jm apply` wants to add a conflicting 4-arg `ddc_execute`/`ddcr_execute` to `ddc_core.h` (the cores are 5-arg, forwarding an output capacity to `RateConverter_execute`). **`native/inc/ddc/ddc_core.h` is allowlisted in the CI drift gate.** | [jm#137](https://github.com/just-buildit/just-makeit/issues/137) |
-| `variable_output` cannot declare an explicit output-capacity param | doppler's 5-arg `*_execute(..., out, max_out)` pattern (ddc, ddcr, RateConverter, hbdecim, hbdecim_r2c) is a deliberate deviation from jm's 4-arg model | [jm#138](https://github.com/just-buildit/just-makeit/issues/138) (feature) |
-| `--arg-type "T[]"` renders malformed `const T[] *in` in `_core.h`/`_ext.c` | avoided — doppler uses `arg_type="void"` + `params=[{x, "T[]"}]` | [jm#139](https://github.com/just-buildit/just-makeit/issues/139) |
-| No Rust backend (jm emits CPython only) | `ffi/rust/` is maintained by hand against the C ABI | not filed (speculative) |
-| `jm status` has no `--allow`/`--json`/`--diff` — CI drift gate must be hand-rolled in shell | the `manifest-drift` CI job sed-parses status output + allowlists | [jm#140](https://github.com/just-buildit/just-makeit/issues/140) (feature) |
+doppler drove five jm fixes/features; all shipped in 0.14.4 and are adopted
+here, so `jm apply` is now fully idempotent with **no allowlist**:
 
-**Resolved this round:** `spectral` window functions (`kaiser_window`,
-`hann_window`) now declare `w` as a writable out-param
-(`{name="w", type="float[]", out = true}`) so `jm apply` no longer adds a
-spurious `const` — the spectral header revert is gone.
+| Was | Resolution in 0.14.4 |
+|---|---|
+| `jm apply` re-injected a conflicting 4-arg `variable_output` prototype for the multi-line 5-arg `ddc_execute`/`ddcr_execute` decls | [jm#137](https://github.com/just-buildit/just-makeit/issues/137) — multi-line decl recognition in `_inject_decls_into_core_h`; replay no longer preserves |
+| `variable_output` could not declare an explicit output-capacity param | [jm#138](https://github.com/just-buildit/just-makeit/issues/138) — **`pass_capacity = true`** generates the 5-arg `(..., out, max_out)` form. ddc, ddcr, RateConverter now set it (see their `objects/*.toml`) |
+| `--arg-type "T[]"` rendered malformed `const T[] *in` | [jm#139](https://github.com/just-buildit/just-makeit/issues/139) — element type used for the block input |
+| `jm status` had no CI-gate surface — drift gate was hand-rolled in shell | [jm#140](https://github.com/just-buildit/just-makeit/issues/140) — `jm status --allow/--json/--diff/--check`; the `manifest-drift` CI job is now just `jm status --check` |
+| no perf-regression gate | [jm#141](https://github.com/just-buildit/just-makeit/issues/141) — `jm bench --check` (available; not yet wired into doppler CI) |
+
+`spectral` window out-param fix (`{name="w", type="float[]", out = true}`)
+from the prior round also stands. The only remaining non-jm surface is
+`ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
 ---
 

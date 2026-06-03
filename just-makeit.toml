@@ -35,11 +35,11 @@ params = [{name = "w", type = "float[]"}]
 
 [[module.spectral.functions]]
 name = "kaiser_window"
-params = [{name = "w", type = "float[]"}, {name = "beta", type = "float"}]
+params = [{name = "w", type = "float[]", out = true}, {name = "beta", type = "float"}]
 
 [[module.spectral.functions]]
 name = "hann_window"
-params = [{name = "w", type = "float[]"}]
+params = [{name = "w", type = "float[]", out = true}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"

@@ -122,21 +122,45 @@ These apply to all block-I/O objects (template users):
 
 | Issue | Fix |
 |---|---|
-| `variable_output` lazy-alloc: buffer NULL until first call | Generated `if (!self->_buf) { _max = n; ... }` is correct since jm 0.13.6 — verify it's present |
 | Init params all optional (`\|kkk` format string) | Expected — `create(0,0,0)` → NULL → `MemoryError`. Add validation in `_core.c` for human-readable errors |
 | Reconfigure method doctest silently no-ops on invalid args | Hand-fix the docstring; the C API intentionally ignores invalid params |
 
-### `no_state + no_step + variable_output` objects (e.g. RateConverter)
+### `variable_output` block objects — jm now generates the machinery
 
-These five patches are always required after `jm apply` on this pattern:
+As of **jm 0.14.3**, a `variable_output` method generates the full execute
+buffer machinery itself; the five hand-patches this file used to list are
+**obsolete**. Verified against a fresh scaffold, jm emits:
 
-| Issue | Fix |
-|---|---|
-| `_execute_buf_cap` missing from struct | Add `size_t _execute_buf_cap;` to the C object struct — jm only generates `float complex *_execute_buf` |
-| Grow-on-demand execute buffer | jm allocs once at `max_out()` size. For objects where rate can change or input block size varies: `size_t need = (size_t)(n_in * ratio) + 4; if (need > self->_execute_buf_cap) { free(old); malloc(need); self->_execute_buf_cap = need; }` |
-| Rate setter must invalidate buffer | jm emits only the C API call in the setter. Add after it: `free(self->_execute_buf); self->_execute_buf = NULL; self->_execute_buf_cap = 0;` — or the stale buffer is used at the new (possibly larger) rate |
-| `list[str]` property (e.g. `stages`) | jm has no `list[str]` return primitive; write the getter by hand: call `{Obj}_stage_label()` in a loop, build with `PyList_New(n)` + `PyList_SET_ITEM` |
-| `_execute_buf` not freed on destroy | jm's dealloc/destroy/exit only call `{Obj}_destroy(handle)` — prepend `free(self->_execute_buf)` in each of the three paths |
+- `float complex *_execute_buf;` **and** `size_t _execute_buf_cap;` struct fields
+- lazy first-call `malloc` plus grow-on-demand `realloc`
+  (`if (!_execute_buf || _execute_buf_cap < _need) { realloc(...) }`)
+- `free(self->_execute_buf)` in the dealloc path
+
+Because grow-on-demand re-sizes on the next `execute`, an explicit
+buffer-invalidation in a rate/​config setter is no longer required (it is at
+most defensive; RateConverter keeps one, harmlessly).
+
+**`_ext_<obj>.c` fragments are hand-owned.** doppler splits each module
+binding into per-object `native/src/<mod>/<mod>_ext_<obj>.c` fragments that the
+generated aggregator `<mod>_ext.c` `#include`s. `jm status`/`apply` regenerate
+**only the aggregator** — the fragments are sacred, like `_core.c`. Bespoke
+binding logic (e.g. HalfbandDecimatorR2C's float64→float32 input cast) lives
+there by design and is **not** drift.
+
+### Known jm gaps (filed; tracked in `~/claude/jm_improvement.md`)
+
+| Gap | Effect on doppler | Status |
+|---|---|---|
+| `jm apply` re-injects a 4-arg `variable_output` prototype (`_refresh_core_h_decls` lacks the skip-set `jm method` uses; decl recognition is single-line-only — incomplete fix of #118/#120) | `jm apply` wants to add a conflicting 4-arg `ddc_execute`/`ddcr_execute` to `ddc_core.h` (the cores are 5-arg, forwarding an output capacity to `RateConverter_execute`). **`native/inc/ddc/ddc_core.h` is allowlisted in the CI drift gate.** | [jm#137](https://github.com/just-buildit/just-makeit/issues/137) |
+| `variable_output` cannot declare an explicit output-capacity param | doppler's 5-arg `*_execute(..., out, max_out)` pattern (ddc, ddcr, RateConverter, hbdecim, hbdecim_r2c) is a deliberate deviation from jm's 4-arg model | [jm#138](https://github.com/just-buildit/just-makeit/issues/138) (feature) |
+| `--arg-type "T[]"` renders malformed `const T[] *in` in `_core.h`/`_ext.c` | avoided — doppler uses `arg_type="void"` + `params=[{x, "T[]"}]` | [jm#139](https://github.com/just-buildit/just-makeit/issues/139) |
+| No Rust backend (jm emits CPython only) | `ffi/rust/` is maintained by hand against the C ABI | not filed (speculative) |
+| `jm status` has no `--allow`/`--json`/`--diff` — CI drift gate must be hand-rolled in shell | the `manifest-drift` CI job sed-parses status output + allowlists | [jm#140](https://github.com/just-buildit/just-makeit/issues/140) (feature) |
+
+**Resolved this round:** `spectral` window functions (`kaiser_window`,
+`hann_window`) now declare `w` as a writable out-param
+(`{name="w", type="float[]", out = true}`) so `jm apply` no longer adds a
+spurious `const` — the spectral header revert is gone.
 
 ---
 

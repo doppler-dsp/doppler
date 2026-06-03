@@ -312,3 +312,54 @@ jobs:
             "$t" || rc=$?
           done
           exit $rc'
+
+  # ------------------------------------------------------------------
+  # just-makeit manifest drift gate
+  #
+  # Interim shell gate pending native support (just-buildit/just-makeit#140:
+  # jm status --allow/--json/--diff). Asserts the generated glue (bindings,
+  # stubs, CMake, _core.h decls) on
+  # disk still matches what `jm apply` would produce from just-makeit.toml +
+  # objects/*.toml. This is what makes doppler a clean jm poster child: any
+  # hand-edit to a glue file, or a manifest change left un-applied, fails CI.
+  #
+  # jm is pinned to the version the tree was generated with; bump it in lock
+  # step with a `jm apply` reconcile commit.
+  #
+  # ALLOWLIST: native/inc/ddc/ddc_core.h is a known, accepted deviation.
+  # ddc/ddcr keep a 5-arg `*_execute(..., out, max_out)` that forwards an
+  # explicit output capacity to RateConverter_execute; jm's variable_output
+  # model is 4-arg, so `jm apply` re-injects a conflicting 4-arg prototype.
+  # Tracked upstream as just-buildit/just-makeit#137 (see CLAUDE.md "Known jm
+  # gaps"). Remove from ALLOW once jm honours the variable_output skip-set in
+  # _refresh_core_h_decls (jm apply path).
+  # ------------------------------------------------------------------
+  manifest-drift:
+    name: jm manifest drift gate
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Check manifest drift
+      run: |
+        ALLOW="native/inc/ddc/ddc_core.h"
+        out="$(uvx --from 'just-makeit==0.14.3' just-makeit status 2>&1 || true)"
+        printf '%s\n' "$out"
+        # Pull the '  + path' (missing) and '  ~ path' (stale) lines.
+        drift="$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*[+~][[:space:]]\{1,\}//p')"
+        bad=0
+        while IFS= read -r f; do
+          [ -z "$f" ] && continue
+          case " $ALLOW " in
+            *" $f "*) echo "::notice::known-accepted jm drift (upstream gap): $f" ;;
+            *) echo "::error::unexpected jm manifest drift: $f — run 'jm apply' and commit"; bad=1 ;;
+          esac
+        done <<EOF
+$drift
+EOF
+        [ "$bad" -eq 0 ] || exit 1
+        echo "OK — no unexpected manifest drift."

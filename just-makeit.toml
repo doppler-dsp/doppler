@@ -21,6 +21,9 @@ objects = ["fir", "hbdecim_q15"]
 
 [module.source]
 objects = ["nco", "lo", "awgn"]
+# awgn_core's logf is auto-vectorised by GCC into a libmvec call
+# (_ZGVdN8v_logf); link libmvec on Linux so source.so resolves it.
+extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.delay]
 objects = ["delay"]

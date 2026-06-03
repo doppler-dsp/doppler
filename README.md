@@ -7,6 +7,7 @@
 [![PyPI](https://img.shields.io/pypi/v/doppler-dsp)](https://pypi.org/project/doppler-dsp/)
 [![Python](https://img.shields.io/badge/python-3.12%20|%203.13%20|%203.14-blue)](https://pypi.org/project/doppler-dsp/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 [![C99](https://img.shields.io/badge/C-C99-blue)](https://en.wikipedia.org/wiki/C99)
 [![Rust](https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white)](ffi/rust)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)

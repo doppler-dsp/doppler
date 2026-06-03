@@ -49,17 +49,6 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](cvt-quantization.md)
 
--   **[ADC Quantisation — 6–10 Bits](adc.md)**
-
-    ---
-
-    [![ADC quantisation demo](../assets/adc_demo.png)](adc.md)
-
-    −10 dBFS sinusoid through `ADC` at 6–10 bits.  Time-domain staircase
-    and 6 dB/bit noise-floor descent visible in spectrum.
-
-    [:octicons-arrow-right-24: Walkthrough](adc.md)
-
 -   **[Correlation and Detection](corr.md)**
 
     ---

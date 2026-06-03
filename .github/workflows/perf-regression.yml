@@ -1,0 +1,76 @@
+name: Perf regression (advisory)
+
+# Advisory perf gate (jm bench --check, just-makeit#141). On a PR it benches the
+# base (main) and the PR head on the SAME pinned runner and flags any benchmark
+# that regresses beyond the threshold.
+#
+# Why advisory (continue-on-error) and not blocking: microbenchmark wall-times
+# vary run-to-run on shared CI runners. A same-runner base-vs-head comparison
+# with pytest-benchmark (--python-only, which calibrates rounds/iterations) is
+# the least-noisy signal available, but it is still not tight enough to *block*
+# merges without false positives. This surfaces regressions for a human to
+# judge; promote to a required check once the variance is characterised.
+#
+# A committed baseline is deliberately NOT used: snapshots in benchmarks/history
+# drift across releases/implementations and produce meaningless deltas.
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    name: perf regression (advisory)
+    runs-on: ubuntu-24.04        # pinned for run-to-run comparability
+    continue-on-error: true      # informational — never blocks the PR
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0           # need the PR base commit for the baseline
+
+    - name: Install jbx
+      run: |
+        mkdir -p "$HOME/.local/bin"
+        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
+          -o "$HOME/.local/bin/just-runit"
+        chmod +x "$HOME/.local/bin/just-runit"
+        ln -sf just-runit "$HOME/.local/bin/jb"
+        ln -sf just-runit "$HOME/.local/bin/jbx"
+        ln -sf just-runit "$HOME/.local/bin/just-buildit"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Install system deps
+      run: |
+        sudo apt-get update
+        jbx -r install-deps -g runtime,dev -s apt
+
+    - name: Install uv + Python 3.12
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.12'   # pinned for comparability
+
+    - name: Benchmark the PR base (main) as baseline
+      run: |
+        git worktree add /tmp/base "${{ github.event.pull_request.base.sha }}"
+        cd /tmp/base
+        uv sync --group dev
+        # Build the Python extensions first — jm bench builds with BUILD_PYTHON
+        # off, so the pytest-benchmark suite can't import doppler.* without this.
+        make build
+        make pyext
+        uvx --refresh --from 'just-makeit==0.14.5' just-makeit bench --python-only --tag base
+        mkdir -p "$GITHUB_WORKSPACE/benchmarks/history"
+        cp benchmarks/history/base.json \
+           "$GITHUB_WORKSPACE/benchmarks/history/base.json"
+
+    - name: Benchmark the PR head and check against the baseline
+      run: |
+        uv sync --group dev
+        make build
+        make pyext
+        uvx --refresh --from 'just-makeit==0.14.5' just-makeit bench --check \
+          --python-only --baseline base --threshold 0.30

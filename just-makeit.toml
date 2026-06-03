@@ -9,6 +9,12 @@ pytest = "true"
 pytest_benchmark = "true"
 schema = "6"
 c_deps = ["hbdecim", "resamp"]
+# CMakeLists.txt is partly hand-managed (the ddc_fn Python-extension subdir and
+# the vendored-libzmq section). `jm apply` only splices the Components/Modules
+# blocks and strips the hand-added `add_subdirectory(native/src/ddc_fn)` it
+# can't model, so the drift gate allows this one file. Glue (_ext.c, .pyi, the
+# CMake module blocks) is still gated.
+status_allow = ["CMakeLists.txt"]
 
 [module.cvt]
 objects = ["f32_to_i16", "i16_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
@@ -35,11 +41,11 @@ params = [{name = "w", type = "float[]"}]
 
 [[module.spectral.functions]]
 name = "kaiser_window"
-params = [{name = "w", type = "float[]"}, {name = "beta", type = "float"}]
+params = [{name = "w", type = "float[]", out = true}, {name = "beta", type = "float"}]
 
 [[module.spectral.functions]]
 name = "hann_window"
-params = [{name = "w", type = "float[]"}]
+params = [{name = "w", type = "float[]", out = true}]
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"

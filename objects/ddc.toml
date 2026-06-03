@@ -33,6 +33,7 @@ name = "execute"
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
+pass_capacity = true
 params = [{name = "x", type = "float _Complex[]"}]
 doc = "Mix input block with LO, then rate-convert."
 

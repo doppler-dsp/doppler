@@ -1,0 +1,29 @@
+[acc_q15]
+arg_type = "int16_t"
+return_type = "void"
+mutable = "true"
+class_name = "AccQ15"
+
+[[acc_q15.state]]
+name = "acc"
+type = "int64_t"
+default = "0"
+
+[[acc_q15.methods]]
+name = "get"
+arg_type = "void"
+return_type = "int64_t"
+doc = "Return the current accumulated value without resetting."
+
+[[acc_q15.methods]]
+name = "dump"
+arg_type = "void"
+return_type = "int64_t"
+doc = "Return the accumulated value and reset to zero."
+
+[[acc_q15.methods]]
+name = "madd"
+arg_type = "void"
+return_type = "void"
+params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+doc = "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available."

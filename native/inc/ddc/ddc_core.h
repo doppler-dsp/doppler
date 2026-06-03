@@ -112,15 +112,14 @@ double ddc_get_rate(const ddc_state_t *state);
   /**
    * @brief Mix and resample a block of CF32 samples.
    *
-   * @param s        Must be non-NULL.
-   * @param in       Input samples, complex64, length n_in.
-   * @param n_in     Number of input samples.
+   * @param state    Must be non-NULL.
+   * @param x        Input samples, complex64, length x_len.
+   * @param x_len    Number of input samples.
    * @param out      Output buffer, complex64, capacity max_out.
    * @param max_out  Maximum output samples to write.
    * @return Number of output samples written.
    */
-  size_t ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
-                      float _Complex *out, size_t max_out);
+size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 
   /* ================================================================== */
   /* DdcR — real-input DDC (Architecture D2)                           */
@@ -172,7 +171,7 @@ double ddc_get_rate(const ddc_state_t *state);
    * Returns 0, signalling the Python extension to fall back to
    * allocating n_in samples — always sufficient for a decimating DDC.
    */
-  size_t ddc_execute_max_out (ddc_state_t *state);
+size_t ddc_execute_max_out(ddc_state_t *state);
 
 #ifdef __cplusplus
 }

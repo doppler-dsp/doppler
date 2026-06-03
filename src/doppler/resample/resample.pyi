@@ -20,9 +20,6 @@ class Resampler:
     """
     def __init__(self, rate: float = ...) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
-
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Execute."""
 
@@ -70,9 +67,6 @@ class Halfbanddecimator:
 
     """
     def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
-
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Execute."""
@@ -156,9 +150,6 @@ class RateConverter:
 
     """
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
-
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Execute."""

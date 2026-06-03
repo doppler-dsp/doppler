@@ -6,7 +6,7 @@ no_state    = "true"
 no_step     = "false"
 class_name  = "ADC"
 impl = """
-    double s = (double)in * state->scale;
+    double s = (double)x * state->scale;
     if (state->dithering) {
         /* TPDF dither: two xorshift32 draws summed → triangular PDF
          * over [-1, +1] LSB.  Each uniform is in [-0.5, +0.5] LSB. */

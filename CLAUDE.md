@@ -122,21 +122,47 @@ These apply to all block-I/O objects (template users):
 
 | Issue | Fix |
 |---|---|
-| `variable_output` lazy-alloc: buffer NULL until first call | Generated `if (!self->_buf) { _max = n; ... }` is correct since jm 0.13.6 — verify it's present |
 | Init params all optional (`\|kkk` format string) | Expected — `create(0,0,0)` → NULL → `MemoryError`. Add validation in `_core.c` for human-readable errors |
 | Reconfigure method doctest silently no-ops on invalid args | Hand-fix the docstring; the C API intentionally ignores invalid params |
 
-### `no_state + no_step + variable_output` objects (e.g. RateConverter)
+### `variable_output` block objects — jm now generates the machinery
 
-These five patches are always required after `jm apply` on this pattern:
+As of **jm 0.14.3**, a `variable_output` method generates the full execute
+buffer machinery itself; the five hand-patches this file used to list are
+**obsolete**. Verified against a fresh scaffold, jm emits:
 
-| Issue | Fix |
+- `float complex *_execute_buf;` **and** `size_t _execute_buf_cap;` struct fields
+- lazy first-call `malloc` plus grow-on-demand `realloc`
+  (`if (!_execute_buf || _execute_buf_cap < _need) { realloc(...) }`)
+- `free(self->_execute_buf)` in the dealloc path
+
+Because grow-on-demand re-sizes on the next `execute`, an explicit
+buffer-invalidation in a rate/​config setter is no longer required (it is at
+most defensive; RateConverter keeps one, harmlessly).
+
+**`_ext_<obj>.c` fragments are hand-owned.** doppler splits each module
+binding into per-object `native/src/<mod>/<mod>_ext_<obj>.c` fragments that the
+generated aggregator `<mod>_ext.c` `#include`s. `jm status`/`apply` regenerate
+**only the aggregator** — the fragments are sacred, like `_core.c`. Bespoke
+binding logic (e.g. HalfbandDecimatorR2C's float64→float32 input cast) lives
+there by design and is **not** drift.
+
+### jm gaps — all resolved in **jm 0.14.4** (pin bumped)
+
+doppler drove five jm fixes/features; all shipped in 0.14.4 and are adopted
+here, so `jm apply` is now fully idempotent with **no allowlist**:
+
+| Was | Resolution in 0.14.4 |
 |---|---|
-| `_execute_buf_cap` missing from struct | Add `size_t _execute_buf_cap;` to the C object struct — jm only generates `float complex *_execute_buf` |
-| Grow-on-demand execute buffer | jm allocs once at `max_out()` size. For objects where rate can change or input block size varies: `size_t need = (size_t)(n_in * ratio) + 4; if (need > self->_execute_buf_cap) { free(old); malloc(need); self->_execute_buf_cap = need; }` |
-| Rate setter must invalidate buffer | jm emits only the C API call in the setter. Add after it: `free(self->_execute_buf); self->_execute_buf = NULL; self->_execute_buf_cap = 0;` — or the stale buffer is used at the new (possibly larger) rate |
-| `list[str]` property (e.g. `stages`) | jm has no `list[str]` return primitive; write the getter by hand: call `{Obj}_stage_label()` in a loop, build with `PyList_New(n)` + `PyList_SET_ITEM` |
-| `_execute_buf` not freed on destroy | jm's dealloc/destroy/exit only call `{Obj}_destroy(handle)` — prepend `free(self->_execute_buf)` in each of the three paths |
+| `jm apply` re-injected a conflicting 4-arg `variable_output` prototype for the multi-line 5-arg `ddc_execute`/`ddcr_execute` decls | [jm#137](https://github.com/just-buildit/just-makeit/issues/137) — multi-line decl recognition in `_inject_decls_into_core_h`; replay no longer preserves |
+| `variable_output` could not declare an explicit output-capacity param | [jm#138](https://github.com/just-buildit/just-makeit/issues/138) — **`pass_capacity = true`** generates the 5-arg `(..., out, max_out)` form. ddc, ddcr, RateConverter now set it (see their `objects/*.toml`) |
+| `--arg-type "T[]"` rendered malformed `const T[] *in` | [jm#139](https://github.com/just-buildit/just-makeit/issues/139) — element type used for the block input |
+| `jm status` had no CI-gate surface — drift gate was hand-rolled in shell | [jm#140](https://github.com/just-buildit/just-makeit/issues/140) — `jm status --allow/--json/--diff/--check`; the `manifest-drift` CI job is now just `jm status --check` |
+| no perf-regression gate | [jm#141](https://github.com/just-buildit/just-makeit/issues/141) — `jm bench --check` (available; not yet wired into doppler CI) |
+
+`spectral` window out-param fix (`{name="w", type="float[]", out = true}`)
+from the prior round also stands. The only remaining non-jm surface is
+`ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
 ---
 

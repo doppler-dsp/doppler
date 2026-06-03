@@ -68,6 +68,9 @@ nav = [
     { "Polyphase → Resample"    = "api/python-polyphase.md"     },
   ]},
   { "Type System"       = "types.md"    },
+  { "Guides" = [
+    { "Fixed-Point Arithmetic" = "guide/fixed-point.md" },
+  ]},
   { "Design" = [
     { "Quantization" = "design/QUANTIZATION.md" },
   ]},

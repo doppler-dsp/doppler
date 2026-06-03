@@ -9,7 +9,6 @@ target_link_libraries(source PRIVATE
     nco_core
     lo_core
     awgn_core
-    m
     Python3::NumPy)
 target_include_directories(source PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 if(WIN32 AND CMAKE_C_COMPILER_ID STREQUAL "GNU")

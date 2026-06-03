@@ -178,7 +178,7 @@ def main(out_path: str = "adc_demo.png") -> None:
         )
 
     ax_s.set_xlim(0.0, 0.5)
-    ax_s.set_ylim(-120, 5)
+    ax_s.set_ylim(-80, 0)
     ax_s.set_xlabel("Normalised frequency (cycles/sample)")
     ax_s.set_ylabel("Amplitude (dBFS)")
     ax_s.set_title(

@@ -22,11 +22,11 @@ class DDC:
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
-
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Execute."""
+
+    def reset(self) -> None:
+        """Reset."""
 
     @property
     def norm_freq(self) -> float:
@@ -65,11 +65,11 @@ class DDCR:
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
-
     def execute(self, x: NDArray[np.float32]) -> NDArray[np.complex64]:
         """Execute."""
+
+    def reset(self) -> None:
+        """Reset."""
 
     @property
     def norm_freq(self) -> float:

@@ -59,9 +59,6 @@ class HBDecimQ15:
     """
     def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
-
     def execute(self, x: NDArray[np.int16]) -> NDArray[np.int16]:
         """Execute."""
 

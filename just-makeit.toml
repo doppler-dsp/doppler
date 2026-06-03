@@ -157,3 +157,90 @@ name = "square_clip"
 doc = "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."
 return_type = "float _Complex"
 params = [{name = "y", type = "float _Complex"}, {name = "lin", type = "float"}]
+
+[module.arith]
+objects = ["acc_q15", "acc_q8"]
+
+[[module.arith.functions]]
+name = "add_q15"
+doc = "Elementwise saturating two's complement add of two Q15 arrays."
+out_type = "int16_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions]]
+name = "sub_q15"
+doc = "Elementwise saturating two's complement subtract of two Q15 arrays."
+out_type = "int16_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions]]
+name = "mul_q15"
+doc = "Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15)."
+out_type = "int16_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions]]
+name = "dot_q15"
+doc = "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar."
+return_type = "int64_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions]]
+name = "shl_q15"
+doc = "Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point."
+out_type = "int16_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions]]
+name = "shr_q15"
+doc = "Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n."
+out_type = "int16_t"
+params = [{name = "a", type = "int16_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions]]
+name = "add_q8"
+doc = "Elementwise saturating two's complement add of two Q8 arrays."
+out_type = "int8_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions]]
+name = "sub_q8"
+doc = "Elementwise saturating two's complement subtract of two Q8 arrays."
+out_type = "int8_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions]]
+name = "mul_q8"
+doc = "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7)."
+out_type = "int8_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions]]
+name = "dot_q8"
+doc = "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t."
+return_type = "int32_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions]]
+name = "shl_q8"
+doc = "Elementwise arithmetic left shift of a Q8 array with saturation."
+out_type = "int8_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions]]
+name = "shr_q8"
+doc = "Elementwise arithmetic right shift of a Q8 array with round-half-up."
+out_type = "int8_t"
+params = [{name = "a", type = "int8_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions]]
+name = "shl_i64"
+doc = "Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow)."
+out_type = "int64_t"
+params = [{name = "a", type = "int64_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions]]
+name = "shr_i64"
+doc = "Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15."
+out_type = "int64_t"
+params = [{name = "a", type = "int64_t[]"}, {name = "n", type = "int"}]

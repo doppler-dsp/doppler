@@ -172,7 +172,7 @@ double ddc_get_rate(const ddc_state_t *state);
    * Returns 0, signalling the Python extension to fall back to
    * allocating n_in samples — always sufficient for a decimating DDC.
    */
-  size_t ddc_execute_max_out (ddc_state_t *state);
+size_t ddc_execute_max_out(ddc_state_t *state);
 
 #ifdef __cplusplus
 }

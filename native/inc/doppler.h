@@ -75,6 +75,10 @@ extern "C" {
 
 #include "agc/agc_core.h"
 
+#include "acc_q15/acc_q15_core.h"
+
+#include "acc_q8/acc_q8_core.h"
+
 #ifdef __cplusplus
 }
 #endif

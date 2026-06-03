@@ -18,8 +18,4 @@ from .ddc_fn import (  # noqa: E402
     ddcr_get_rate,
 )
 
-__all__ = [
-    "DDC", "DDCR",
-    "ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy",
-    "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate",
-]
+__all__ = ["DDC", "DDCR"]

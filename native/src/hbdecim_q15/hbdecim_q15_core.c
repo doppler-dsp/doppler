@@ -5,15 +5,11 @@
  * See hbdecim_q15_core.h for the full algorithm description.
  */
 #include "hbdecim_q15/hbdecim_q15_core.h"
+#include "q15_mac.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* Pull in AVX2 intrinsics when available. */
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
-#  include <immintrin.h>
-#endif
 
 /* ================================================================== */
 /* Delay-line helpers (dual-write circular buffers)                   */
@@ -66,21 +62,6 @@ rev16_256(__m256i v)
     hi = _mm_shuffle_epi8(hi, bm);
     /* Swap lanes: old-hi → lane 0, old-lo → lane 1. */
     return _mm256_inserti128_si256(_mm256_castsi128_si256(hi), lo, 1);
-}
-
-/* Horizontal-sum 8 int32_t lanes → int64_t scalar. */
-static inline int64_t
-hsum_epi32_i64(__m256i v)
-{
-    __m128i lo  = _mm256_extracti128_si256(v, 0);
-    __m128i hi  = _mm256_extracti128_si256(v, 1);
-    __m128i s   = _mm_add_epi32(lo, hi);          /* 4 × int32             */
-    __m128i s64 = _mm_cvtepi32_epi64(s);          /* lo 2 → int64          */
-    __m128i hi2 = _mm_unpackhi_epi64(s, s);       /* move hi 2 to lo       */
-    __m128i h64 = _mm_cvtepi32_epi64(hi2);        /* hi 2 → int64          */
-    __m128i r   = _mm_add_epi64(s64, h64);        /* 2 × int64             */
-    /* Sum the two remaining int64 lanes via scalar extract. */
-    return (int64_t)_mm_extract_epi64(r, 0) + (int64_t)_mm_extract_epi64(r, 1);
 }
 
 /*

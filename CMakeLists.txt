@@ -188,6 +188,9 @@ add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/stream)
 
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
+# NB: jm apply regenerates the Components/Modules blocks above; keep
+# hand-wired subdirs below this line so they survive a reconcile.
+add_subdirectory(native/src/ddc_fn)
 
 # ── Vendored libzmq (static, PIC) ────────────────────────────────────────────
 # stream.so statically links libzmq so it has no runtime dep on libzmq.so.5.

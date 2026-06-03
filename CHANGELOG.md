@@ -15,6 +15,39 @@ and this project adheres to
 
 ---
 
+## [0.5.1] — 2026-06-03
+
+### Added
+
+- **`doppler.arith`** — Q8/Q15 fixed-point arithmetic module. `AccQ15` /
+  `AccQ8` saturating accumulators, plus elementwise `add`/`sub`/`mul`/`dot`/
+  `shl`/`shr` for Q15 and Q8 arrays (`add_q15`, `mul_q8`, `dot_q15`, …) and
+  `shl_i64`/`shr_i64`. Two's-complement saturation with round-half-up.
+- "Getting Started with Fixed-Point Arithmetic" guide.
+
+### Changed
+
+- Upgraded the just-makeit toolchain to 0.14.4. `ddc` / `ddcr` /
+  `RateConverter` now declare `pass_capacity`, so jm generates their 5-arg
+  `*_execute(..., out, max_out)` signature directly (no hand-patched header).
+  `ddc_fn` is declared as a `no_generate` module so its CMake wiring is
+  jm-managed.
+- CI gained a native manifest-drift gate (`jm status --check`); the generated
+  glue is asserted in sync with `just-makeit.toml` on every run.
+- Vendored cJSON 1.7.19 under `vendor/cjson/` (drop-in, not yet wired into the
+  build).
+
+### Fixed
+
+- **`doppler.source` import failure on some Linux toolchains**
+  (`source.so: undefined symbol: _ZGVdN8v_logf`). GCC auto-vectorises
+  `awgn`'s `logf` into a libmvec call; the extension now links `libmvec` on
+  Linux.
+- `spectral` `kaiser_window` / `hann_window` header drift — `w` is now a
+  writable out-param, so `jm apply` no longer adds a spurious `const`.
+
+---
+
 ## [0.5.0] — 2026-06-02
 
 ### Added
@@ -669,7 +702,9 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/doppler-dsp/doppler/compare/v0.3.7...v0.4.0
 [0.3.7]: https://github.com/doppler-dsp/doppler/compare/v0.3.6...v0.3.7

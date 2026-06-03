@@ -9,12 +9,6 @@ pytest = "true"
 pytest_benchmark = "true"
 schema = "6"
 c_deps = ["hbdecim", "resamp"]
-# CMakeLists.txt is partly hand-managed (the ddc_fn Python-extension subdir and
-# the vendored-libzmq section). `jm apply` only splices the Components/Modules
-# blocks and strips the hand-added `add_subdirectory(native/src/ddc_fn)` it
-# can't model, so the drift gate allows this one file. Glue (_ext.c, .pyi, the
-# CMake module blocks) is still gated.
-status_allow = ["CMakeLists.txt"]
 
 [module.cvt]
 objects = ["f32_to_i16", "i16_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
@@ -27,6 +21,9 @@ objects = ["fir", "hbdecim_q15"]
 
 [module.source]
 objects = ["nco", "lo", "awgn"]
+# awgn_core's logf is auto-vectorised by GCC into a libmvec call
+# (_ZGVdN8v_logf); link libmvec on Linux so source.so resolves it.
+extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.delay]
 objects = ["delay"]
@@ -68,6 +65,11 @@ params = [{name = "db", type = "float[]"}, {name = "n_peaks", type = "size_t"}, 
 no_generate = "true"
 
 [module.stream]
+no_generate = "true"
+
+# ddc_fn: hand-written functional DDCR Python API (state as PyCapsule). jm only
+# manages its CMake add_subdirectory; the source is hand-written.
+[module.ddc_fn]
 no_generate = "true"
 
 [module.ddc]

@@ -31,7 +31,18 @@ if(ENABLE_SIMD)
         if(DOPPLER_NATIVE)
             add_compile_options(-march=native)
         elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-            add_compile_options(-march=x86-64-v2)
+            # x86-64-v2 (SSE4.2) is the preferred portable baseline, but the
+            # microarch-level name only exists in GCC >= 11 / Clang >= 12.
+            # Older toolchains (e.g. Debian 10's GCC 8) reject it, so probe
+            # and fall back to the plain x86-64 baseline, which builds
+            # everywhere and is equally portable.
+            include(CheckCCompilerFlag)
+            check_c_compiler_flag("-march=x86-64-v2" _doppler_have_v2)
+            if(_doppler_have_v2)
+                add_compile_options(-march=x86-64-v2)
+            else()
+                add_compile_options(-march=x86-64)
+            endif()
         endif()
         # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
         # glibc's __*_finite aliases (e.g. __exp_finite), removed in

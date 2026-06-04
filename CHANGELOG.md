@@ -15,6 +15,28 @@ and this project adheres to
 
 ---
 
+## [0.5.4] — 2026-06-04
+
+### Added
+
+- **Rich Python docstrings, derived from the C headers.** Upgraded the
+  just-makeit toolchain to 0.14.7, which synthesizes numpy-style docstrings
+  for every class, method, and property from the hand-written Doxygen
+  (`@brief`/`@param`/`@return`) already in each `<obj>_core.h`. The generated
+  `.pyi` stubs (and the C bindings' `__doc__`) now carry real documentation
+  instead of `"""Execute."""` — e.g. `help(DDC.execute)` shows "Mix input
+  block with LO, then rate-convert." with its parameters. The header stays the
+  single source of truth; `jm apply` regenerates the docs.
+- **Doctest gate in CI.** The synthesized `.pyi` examples are run against the
+  freshly built extensions (`pytest --doctest-glob='*.pyi'`), so a docstring
+  that drifts from the API fails CI.
+
+### Fixed
+
+- Hand-written `stream.pyi` doctests that perform live socket I/O are marked
+  `# doctest: +SKIP` (they need a running peer); the `get_timestamp_ns`
+  example gains the blank line doctest-as-text parsing requires.
+
 ## [0.5.3] — 2026-06-03
 
 ### Fixed
@@ -750,7 +772,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1

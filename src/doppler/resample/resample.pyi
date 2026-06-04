@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class Resampler:
-    """Resampler component.
+    """Create a Resampler with the built-in 4096×19 Kaiser bank.
 
     Parameters
     ----------
@@ -21,13 +21,46 @@ class Resampler:
     def __init__(self, rate: float = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Execute."""
+        """Resample x(0..x_len-1) into out(0..n_out-1).
+
+        out must be at least Resampler_execute_max_out() samples wide.
+
+        Returns the number of output samples written.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Execute ctrl."""
+        """Resample with per-sample rate deviations.
+
+        rate_i = base_rate + crealf(ctrl(i)).  ctrl and x must be the
+
+        same length.  Returns number of output samples written.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+        ctrl : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero delay line and phase accumulator.  Rate and bank preserved.
+        """
 
     @property
     def rate(self) -> float:
@@ -51,36 +84,45 @@ class Resampler:
     def __exit__(self, *args: object) -> None: ...
 
 class Halfbanddecimator:
-    """Halfbanddecimator component.
+    """Create a HalfbandDecimator.
 
     Parameters
     ----------
     h : NDArray[np.float32], default ...
         h constructor parameter.
 
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.resample import Halfbanddecimator
-    >>> obj = Halfbanddecimator(...)
-
     """
     def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Execute."""
+        """Decimate x(0..x_len-1) by 2 into out(0..n_out-1).
+
+        out must be at least HalfbandDecimator_execute_max_out() samples.
+
+        Returns actual output count (roughly x_len / 2).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero delay lines.  Coefficients preserved.
+        """
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Always returns 0.5."""
 
     @property
     def num_taps(self) -> int:
-        """Num taps."""
+        """Returns the FIR branch length passed to create."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -90,7 +132,7 @@ class Halfbanddecimator:
     def __exit__(self, *args: object) -> None: ...
 
 class CIC:
-    """CIC component.
+    """Create a CIC decimation filter.
 
     Parameters
     ----------
@@ -111,7 +153,15 @@ class CIC:
         """Reset state to post-create defaults."""
 
     def reconfigure(self, R: int) -> None:
-        """Reconfigure."""
+        """Change the decimation ratio in place; resets all filter state.
+
+        Silently ignores invalid R (non-power-of-two, out of range).
+
+        Parameters
+        ----------
+        R : int
+            New decimation ratio.  Same constraints as cic_create().
+        """
 
     def decimate(self, x: complex) -> NDArray[np.complex64]:
         """Decimate."""
@@ -132,7 +182,7 @@ class CIC:
     def __exit__(self, *args: object) -> None: ...
 
 class RateConverter:
-    """RateConverter component.
+    """Create a rate converter for the given output/input rate ratio.
 
     Parameters
     ----------
@@ -152,14 +202,30 @@ class RateConverter:
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Execute."""
+        """Convert n_in samples and write results to out.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written.
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero all sub-stage filter memories.
+
+        Rate and stage structure are preserved.  Processing from a reset state
+
+        produces the same output as a freshly created converter.
+        """
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Return the current rate ratio."""
     @rate.setter
     def rate(self, value: float) -> None: ...
 

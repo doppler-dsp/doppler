@@ -27,6 +27,49 @@ import numpy as np
 _DBM_OFFSET = 10.0  # 20·log10(1.0) + 10 = 10 dBm at amplitude=1
 
 
+def _kaiser_beta_for_enbw(target_enbw: float, n: int = 1024) -> float:
+    """Find the Kaiser beta whose ENBW equals *target_enbw* (in bins).
+
+    Uses bisection on the actual window so the result is exact for the
+    given *n*.  Converges in ~60 iterations; trivially fast at init time.
+
+    Parameters
+    ----------
+    target_enbw : float
+        Desired ENBW in FFT bins.  Must be >= 1.0 (rectangular window).
+        Values > ~2.1 require very large beta and are unusual in practice.
+    n : int
+        Window length used for the bisection.  1024 is sufficient for any
+        practical FFT size.
+
+    Returns
+    -------
+    float
+        Kaiser beta >= 0 that achieves *target_enbw*.
+    """
+    # Design-time helper, specan-only: doppler.spectral exposes the C
+    # primitives (kaiser_window/kaiser_enbw) but its __init__ is re-export
+    # only, so the inverse search lives here with its sole consumer.
+    from doppler.spectral import kaiser_enbw, kaiser_window  # noqa: PLC0415
+
+    if target_enbw <= 1.0:
+        return 0.0
+    w = np.empty(n, dtype=np.float32)
+
+    def _enbw(beta: float) -> float:
+        kaiser_window(w, beta)  # in-place (new C API)
+        return kaiser_enbw(w)
+
+    lo, hi = 0.0, 60.0  # beta=60 gives ENBW >> 2.1
+    for _ in range(60):
+        mid = (lo + hi) / 2.0
+        if _enbw(mid) < target_enbw:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
 @dataclass
 class Peak:
     """One detected spectral peak."""
@@ -83,10 +126,9 @@ class SpecanEngine:
 
     def _init_chain(self, fs_in: float, center_freq: float) -> None:
         """Build or rebuild the DDC chain for a given input rate."""
-        from doppler.ddc import Ddc  # noqa: PLC0415
+        from doppler.ddc import DDC  # noqa: PLC0415
         from doppler.spectral import (  # noqa: PLC0415
             FFT,
-            kaiser_beta_for_enbw,
             kaiser_enbw,
             kaiser_window,
         )
@@ -111,7 +153,9 @@ class SpecanEngine:
         norm_freq = (cfg.center - center_freq) / fs_in
         if self._ddc is not None:
             self._ddc.__exit__(None, None, None)
-        self._ddc = Ddc(norm_freq, self._block_size, rate)
+        # DDC infers block size from each execute() call (variable output),
+        # so the constructor takes only (norm_freq, rate).
+        self._ddc = DDC(norm_freq, rate)
         self._ddc.__enter__()
 
         # Kaiser window — beta is the little RBW knob, N the big knob.
@@ -119,7 +163,7 @@ class SpecanEngine:
         # because N is the smallest power-of-two >= fs_out / rbw.
         bin_width = fs_out / n
         target_enbw_bins = rbw / bin_width
-        beta = kaiser_beta_for_enbw(target_enbw_bins, n)
+        beta = _kaiser_beta_for_enbw(target_enbw_bins, n)
         w = np.empty(n, dtype=np.float32)
         kaiser_window(w, beta)
         self._enbw_bins = kaiser_enbw(w)
@@ -194,7 +238,7 @@ class SpecanEngine:
         windowed = iq * self._window
         padded = np.zeros(nfft, dtype=np.complex64)
         padded[:n] = windowed
-        spectrum = self._fft.execute(padded)  # CF32 in → CF32 out
+        spectrum = self._fft.execute_cf32(padded)  # CF32 in → CF32 out
 
         # Magnitude → dBm via C helper; avoids three separate numpy passes.
         offset = float(_DBM_OFFSET - self._cfg.level)
@@ -245,7 +289,7 @@ class SpecanEngine:
         self._cfg.center = center
         if self._fs_in > 0 and self._ddc is not None:
             norm_freq = (center - self._center_freq) / self._fs_in
-            self._ddc.set_freq(norm_freq)
+            self._ddc.norm_freq = norm_freq
 
     def zoom(self, span: float) -> None:
         """Change the display span (triggers full chain rebuild)."""

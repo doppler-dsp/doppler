@@ -101,6 +101,34 @@ jobs:
               \$PYTHON -m build --no-isolation --wheel --outdir dist/
             "
 
+      - name: Verify wheel is portable (no AVX2/AVX-512 baked in)
+        run: |
+          # Defense in depth: a distributed wheel must run on any x86-64
+          # CPU. -march=native on the build host would emit AVX2 (%ymm) or
+          # AVX-512 (%zmm) instructions and SIGILL on older hardware
+          # (doppler-dsp 0.5.1 shipped exactly this bug). Disassemble every
+          # bundled extension and fail the release if wide SIMD is present.
+          python3 -m pip install --quiet --user pyelftools >/dev/null 2>&1 || true
+          fail=0
+          tmp="$(mktemp -d)"
+          for whl in dist/*.whl; do
+            unzip -q -o "$whl" -d "$tmp/extract"
+            while IFS= read -r so; do
+              if objdump -d "$so" 2>/dev/null \
+                   | grep -qE '%zmm[0-9]+|%ymm[0-9]+'; then
+                echo "::error::$(basename "$whl"): $(basename "$so") contains AVX2/AVX-512 — non-portable wheel (built with -march=native?)"
+                fail=1
+              fi
+            done < <(find "$tmp/extract" -name '*.so')
+            rm -rf "$tmp/extract"
+          done
+          rm -rf "$tmp"
+          if [ "$fail" -ne 0 ]; then
+            echo "Refusing to publish a non-portable wheel. Build the wheel WITHOUT -DDOPPLER_NATIVE." >&2
+            exit 1
+          fi
+          echo "All bundled extensions are portable (no %ymm/%zmm)."
+
       - name: Upload wheel (${{ matrix.python }})
         uses: actions/upload-artifact@v4
         with:

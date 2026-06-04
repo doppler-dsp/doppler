@@ -15,6 +15,31 @@ and this project adheres to
 
 ---
 
+## [0.5.2] — 2026-06-03
+
+### Fixed
+
+- **Published Linux wheels are now portable.** The 0.5.1 manylinux wheel was
+  built with `-march=native`, baking the CI build host's AVX-512 instructions
+  into the binary; on any CPU without AVX-512 it crashed at first use with
+  `Illegal instruction (core dumped)` (e.g. `doppler-specan --source demo`).
+  The build's `-march` portability guard keyed on a `CIBUILDWHEEL` env var that
+  the release workflow (`python -m build`, not cibuildwheel) never set, so the
+  guard never fired.
+
+### Changed
+
+- **`-march` policy inverted to safe-by-default.** All builds, including every
+  release/wheel path, now target a portable baseline (`x86-64-v2` on x86-64);
+  `-march=native` is strictly opt-in via `-DDOPPLER_NATIVE=ON` (`make blazing`)
+  for local dev/bench only. Correctness no longer depends on any CI tool
+  exporting an env var.
+- The release workflow now disassembles every bundled extension and **fails the
+  release if any AVX2/AVX-512 (`%ymm`/`%zmm`) instruction is present**, so a
+  non-portable wheel can never be published again.
+
+---
+
 ## [0.5.1] — 2026-06-03
 
 ### Added
@@ -702,7 +727,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/doppler-dsp/doppler/compare/v0.4.0...v0.4.1

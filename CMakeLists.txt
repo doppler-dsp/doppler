@@ -1,23 +1,48 @@
 cmake_minimum_required(VERSION 3.16)
-project(doppler VERSION 0.5.1 LANGUAGES C CXX)
+project(doppler VERSION 0.5.2 LANGUAGES C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(ENABLE_SIMD "Enable SIMD / fast-math flags (portable baseline under cibuildwheel)" ON)
+option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
+
+# -march policy — DISTRIBUTION SAFETY IS THE DEFAULT.
+#
+# A distributed wheel must run on any user's CPU, not the build host's.
+# -march=native bakes in whatever ISA the build machine happened to have
+# (e.g. AVX-512 on a CI runner) and then raises SIGILL ("Illegal
+# instruction") on older hardware that lacks it.  So the DEFAULT build
+# targets a portable baseline, and -march=native is strictly OPT-IN:
+#
+#   default (any build, incl. every release/wheel path):
+#       x86_64  -> -march=x86-64-v2  (SSE4.2, ~2009+; the manylinux baseline)
+#       other   -> compiler default  (no -march; never the host's native ISA)
+#   -DDOPPLER_NATIVE=ON (local dev/bench only; see `make blazing`):
+#       -march=native  — MUST NOT reach a published wheel.
+#
+# Correctness no longer depends on any CI tool exporting an env var: the
+# safe path is the default, speed is the thing you ask for.
+option(DOPPLER_NATIVE
+       "Tune for the build host CPU (-march=native). Local dev/bench ONLY — never for distributed wheels." OFF)
 if(ENABLE_SIMD)
     if(MSVC)
         add_compile_options(/arch:AVX2 /fp:fast)
     else()
-        # -march: a distributed wheel must run on any user's CPU, not the
-        # build runner's.  Under cibuildwheel, target a portable
-        # x86-64-v2 baseline (SSE4.2, ~2009+); -march=native would bake
-        # in whatever ISA the CI runner happened to have and SIGILL on
-        # older hardware.  Local builds keep -march=native for full speed.
-        set(_doppler_march "native")
-        if(DEFINED ENV{CIBUILDWHEEL}
-           AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-            set(_doppler_march "x86-64-v2")
+        if(DOPPLER_NATIVE)
+            add_compile_options(-march=native)
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            # x86-64-v2 (SSE4.2) is the preferred portable baseline, but the
+            # microarch-level name only exists in GCC >= 11 / Clang >= 12.
+            # Older toolchains (e.g. Debian 10's GCC 8) reject it, so probe
+            # and fall back to the plain x86-64 baseline, which builds
+            # everywhere and is equally portable.
+            include(CheckCCompilerFlag)
+            check_c_compiler_flag("-march=x86-64-v2" _doppler_have_v2)
+            if(_doppler_have_v2)
+                add_compile_options(-march=x86-64-v2)
+            else()
+                add_compile_options(-march=x86-64)
+            endif()
         endif()
         # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
         # glibc's __*_finite aliases (e.g. __exp_finite), removed in
@@ -25,8 +50,7 @@ if(ENABLE_SIMD)
         # then fails to load (undefined symbol) on modern Linux.
         # Disabling the finite-only assumption keeps every other
         # fast-math optimisation.
-        add_compile_options(-march=${_doppler_march} -ffast-math
-                            -fno-finite-math-only)
+        add_compile_options(-ffast-math -fno-finite-math-only)
     endif()
 endif()
 

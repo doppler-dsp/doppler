@@ -187,6 +187,11 @@ class TerminalDisplay:
         self._freq_step = 0.0
         self._defaults = (cfg.center, cfg.span, cfg.level)
 
+        # Last DSP-loop error, surfaced in the display so a persistent
+        # failure (e.g. an extension-API mismatch) shows a diagnostic
+        # instead of hanging forever on "Waiting for signal...".
+        self._error: Optional[str] = None
+
     # ----------------------------------------------------------------
     # DSP thread
     # ----------------------------------------------------------------
@@ -205,9 +210,15 @@ class TerminalDisplay:
                         block = max(self._engine.block_size, 4096)
                     with self._lock:
                         self._frame = frame
+                        self._error = None
                         if self._freq_step == 0.0:
                             self._freq_step = frame.span / 10.0
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                # Don't let a single bad block kill the display, but do
+                # record the cause so it can be shown rather than silently
+                # spinning. A persistent error here is a real bug.
+                with self._lock:
+                    self._error = f"{type(exc).__name__}: {exc}"
                 time.sleep(0.05)
 
     # ----------------------------------------------------------------
@@ -304,6 +315,7 @@ class TerminalDisplay:
 
                     with self._lock:
                         frame = self._frame
+                        error = self._error
 
                     if frame is not None:
                         panel = _build_display(
@@ -313,6 +325,20 @@ class TerminalDisplay:
                             console.width,
                         )
                         live.update(panel, refresh=True)
+                    elif error is not None:
+                        # No frame yet and the DSP loop is erroring — show
+                        # why instead of an indefinite "Waiting for signal".
+                        live.update(
+                            Panel(
+                                Text(
+                                    f"Signal processing error:\n{error}",
+                                    style="bold red",
+                                ),
+                                title="[bold red]doppler specan[/]",
+                                border_style="red",
+                            ),
+                            refresh=True,
+                        )
                     time.sleep(1 / 30)
             except KeyboardInterrupt:
                 pass

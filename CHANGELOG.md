@@ -15,6 +15,29 @@ and this project adheres to
 
 ---
 
+## [0.5.3] — 2026-06-03
+
+### Fixed
+
+- **`doppler-specan` no longer hangs on "Waiting for signal…".** The specan
+  engine was never updated after the ddc/spectral/jm migrations and referenced
+  five renamed/removed extension APIs; every per-block failure was swallowed by
+  the display's DSP loop, turning a hard error into a silent forever-hang.
+  Restored: `DDC` (was `Ddc`), the 2-arg `DDC(norm_freq, rate)` constructor,
+  the `norm_freq` property setter (was `set_freq`), a specan-local
+  `kaiser_beta_for_enbw` (deleted in the migration) adapted to the in-place
+  `kaiser_window`, and `FFT.execute_cf32` (was `FFT.execute`).
+- The terminal DSP loop now records and **displays** processing errors instead
+  of silently retrying — a persistent failure shows a diagnostic panel.
+
+### Added
+
+- First integration tests for `doppler.specan` — drive the full demo → DDC →
+  Kaiser → FFT → peak-detection chain through the real C extensions, so an
+  extension-API drift can no longer ship undetected.
+
+---
+
 ## [0.5.2] — 2026-06-03
 
 ### Fixed
@@ -727,7 +750,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.1...v0.5.0

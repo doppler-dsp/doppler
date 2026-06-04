@@ -39,13 +39,33 @@ class AccQ15:
         """Process a samples array."""
 
     def get(self) -> int:
-        """Get."""
+        """Return the current accumulated value without resetting.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def dump(self) -> int:
-        """Dump."""
+        """Return the accumulated value and reset to zero.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def madd(self, a: NDArray[np.int16], b: NDArray[np.int16]) -> None:
-        """Madd."""
+        """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available.
+
+        Parameters
+        ----------
+        a : NDArray[np.int16]
+            Input.
+        b : NDArray[np.int16]
+            Input.
+        """
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -91,13 +111,33 @@ class AccQ8:
         """Process a samples array."""
 
     def get(self) -> int:
-        """Get."""
+        """Return the current accumulated value without resetting.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def dump(self) -> int:
-        """Dump."""
+        """Return the accumulated value and reset to zero.
+
+        Returns
+        -------
+        int
+            Output.
+        """
 
     def madd(self, a: NDArray[np.int8], b: NDArray[np.int8]) -> None:
-        """Madd."""
+        """Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).
+
+        Parameters
+        ----------
+        a : NDArray[np.int8]
+            Input.
+        b : NDArray[np.int8]
+            Input.
+        """
 
     def destroy(self) -> None:
         """Release C resources immediately."""

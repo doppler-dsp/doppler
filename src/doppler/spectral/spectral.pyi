@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class FFT:
-    """FFT component.
+    """Create a 1-D FFT instance.
 
     Parameters
     ----------
@@ -29,16 +29,60 @@ class FFT:
         """Reset state to post-create defaults."""
 
     def execute_cf64(self, x: complex) -> NDArray[np.complex128]:
-        """Execute cf64."""
+        """Out-of-place 1-D CF64 FFT.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex128]
+            n (samples written).
+        """
 
     def execute_cf32(self, x: complex) -> NDArray[np.complex64]:
-        """Execute cf32."""
+        """Out-of-place 1-D CF32 FFT.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n (samples written).
+        """
 
     def execute_inplace_cf64(self, x: complex) -> NDArray[np.complex128]:
-        """Execute inplace cf64."""
+        """In-place 1-D CF64 FFT (copies in→out, then transforms in out).
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex128]
+            n (samples written).
+        """
 
     def execute_inplace_cf32(self, x: complex) -> NDArray[np.complex64]:
-        """Execute inplace cf32."""
+        """In-place 1-D CF32 FFT (copies in→out, then transforms in out).
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n (samples written).
+        """
 
     @property
     def n(self) -> int:
@@ -56,7 +100,7 @@ class FFT:
     def __exit__(self, *args: object) -> None: ...
 
 class FFT2D:
-    """FFT2D component.
+    """Create a 2-D FFT instance.
 
     Parameters
     ----------
@@ -83,16 +127,60 @@ class FFT2D:
         """Reset state to post-create defaults."""
 
     def execute_cf64(self, x: complex) -> NDArray[np.complex128]:
-        """Execute cf64."""
+        """Out-of-place 2-D CF64 FFT.  Returns ny*nx.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex128]
+            Output.
+        """
 
     def execute_cf32(self, x: complex) -> NDArray[np.complex64]:
-        """Execute cf32."""
+        """Out-of-place 2-D CF32 FFT.  Returns ny*nx.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def execute_inplace_cf64(self, x: complex) -> NDArray[np.complex128]:
-        """Execute inplace cf64."""
+        """In-place 2-D CF64 FFT (copies in→out, then transforms).
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex128]
+            Output.
+        """
 
     def execute_inplace_cf32(self, x: complex) -> NDArray[np.complex64]:
-        """Execute inplace cf32."""
+        """In-place 2-D CF32 FFT (copies in→out, then transforms).
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     @property
     def ny(self) -> int:
@@ -114,7 +202,7 @@ class FFT2D:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr:
-    """Corr component.
+    """Create a 1-D FFT correlator.
 
     Parameters
     ----------
@@ -125,13 +213,6 @@ class Corr:
     nthreads : int, default 1
         nthreads constructor parameter.
 
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.spectral import Corr
-    >>> obj = Corr(..., 1, 1)
-
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ...) -> None: ...
 
@@ -139,7 +220,36 @@ class Corr:
         """Reset state to post-create defaults."""
 
     def execute(self, x: complex) -> NDArray[np.complex64]:
-        """Execute."""
+        """Correlate one frame and optionally dump the accumulator.
+
+        Steps:
+
+        1. FFT(in) → work_fft
+
+        2. `work_fft[k] *= ref_spec[k]`  (frequency-domain multiplication)
+
+        3. IFFT(work_fft) → work_ifft  (unnormalized; divide by n)
+
+        4. `accum[k] += work_ifft[k] / n`
+
+        5. count++
+
+        6. If count == dwell: copy accum → out, zero accum, reset count,
+
+        return n.
+
+        7. Otherwise: return 0 (no output this call).
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n on a dump, 0 otherwise.
+        """
 
     @property
     def n(self) -> int:
@@ -161,7 +271,7 @@ class Corr:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr2D:
-    """Corr2D component.
+    """Create a 2-D FFT correlator.
 
     Parameters
     ----------
@@ -172,13 +282,6 @@ class Corr2D:
     nthreads : int, default 1
         nthreads constructor parameter.
 
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.spectral import Corr2D
-    >>> obj = Corr2D(..., 1, 1)
-
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ...) -> None: ...
 
@@ -186,7 +289,32 @@ class Corr2D:
         """Reset state to post-create defaults."""
 
     def execute(self, x: complex) -> NDArray[np.complex64]:
-        """Execute."""
+        """Correlate one 2-D frame and optionally dump the accumulator.
+
+        Steps:
+
+        1. FFT2(in) → work_fft
+
+        2. `work_fft[k] *= ref_spec[k]`
+
+        3. IFFT2(work_fft) → work_ifft  (divide by ny*nx)
+
+        4. `accum[k] += work_ifft[k] / (ny*nx)`
+
+        5. If count == dwell: copy accum → out, zero, reset, return ny*nx.
+
+        6. Otherwise: return 0.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            ny*nx on a dump, 0 otherwise.
+        """
 
     @property
     def ny(self) -> int:
@@ -212,7 +340,7 @@ class Corr2D:
     def __exit__(self, *args: object) -> None: ...
 
 class Detector:
-    """Detector component.
+    """Create a 1-D signal detector.
 
     Parameters
     ----------
@@ -231,13 +359,6 @@ class Detector:
     nthreads : int, default 1
         nthreads constructor parameter.
 
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.spectral import Detector
-    >>> obj = Detector(..., 1, 0, n-1, ..., 0.0, 1)
-
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
@@ -245,7 +366,43 @@ class Detector:
         """Reset state to post-create defaults."""
 
     def push(self, x: complex) -> list[tuple[int, float, float, float]]:
-        """Push."""
+        """Push an arbitrary-length CF32 chunk through the detector.
+
+        Writes @p n_in complex samples into the ring buffer in the minimum number
+
+        of chunks that fit, then drains all complete n-sample frames through the
+
+        correlator.  On every int-dump a test statistic is computed; if it passes
+
+        the threshold, a det_result_t is appended to @p result[].  The function
+
+        returns as soon as @p n_in samples have been consumed or @p max_results
+
+        detections have been stored, whichever comes first.
+
+
+        The @p result array must be pre-allocated by the caller.  A stack array of
+
+        64 elements is sufficient for any realistic push size:
+
+        @code
+
+        det_result_t buf[64];
+
+        size_t n = detector_push(det, chunk, len, buf, 64);
+
+        @endcode
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        list[tuple[int, float, float, float]]
+            Number of detections stored in @p result[].
+        """
 
     @property
     def n(self) -> int:
@@ -287,7 +444,7 @@ class Detector:
     def __exit__(self, *args: object) -> None: ...
 
 class Detector2D:
-    """Detector2D component.
+    """Create a 2-D signal detector.
 
     Parameters
     ----------
@@ -306,13 +463,6 @@ class Detector2D:
     nthreads : int, default 1
         nthreads constructor parameter.
 
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.spectral import Detector2D
-    >>> obj = Detector2D(..., 1, 0, ny*nx-1, ..., 0.0, 1)
-
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
 
@@ -320,7 +470,22 @@ class Detector2D:
         """Reset state to post-create defaults."""
 
     def push(self, x: complex) -> list[tuple[int, int, float, float, float]]:
-        """Push."""
+        """Push an arbitrary-length CF32 chunk through the 2-D detector.
+
+        Behaviour is identical to detector_push() except frames have length ny*nx
+
+        and results carry (row, col) instead of a single lag.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        list[tuple[int, int, float, float, float]]
+            Number of detections stored in @p result[].
+        """
 
     @property
     def ny(self) -> int:

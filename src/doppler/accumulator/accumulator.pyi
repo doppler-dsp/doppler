@@ -39,19 +39,53 @@ class AccF32:
         """Process a samples array."""
 
     def get(self) -> float:
-        """Get."""
+        """get.
+
+        Returns
+        -------
+        float
+            Result (float).
+        """
 
     def dump(self) -> float:
-        """Dump."""
+        """dump.
+
+        Returns
+        -------
+        float
+            Result (float).
+        """
 
     def madd(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """Madd."""
+        """Multiply-accumulate: acc += sum(x * h) over x_len samples.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input array (float), length x_len.
+        h : NDArray[np.float32]
+            Coefficient array (float), length h_len.
+        """
 
     def add2d(self, x: NDArray[np.float32]) -> None:
-        """Add2d."""
+        """Accumulate a 2-D array: acc += sum of all elements in x.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input array (float), x_len elements total.
+        """
 
     def madd2d(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """Madd2d."""
+        """2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input array (float), length x_len.
+        h : NDArray[np.float32]
+            Coefficient array (float), length h_len.
+        """
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -97,19 +131,53 @@ class AccCf64:
         """Process a samples array."""
 
     def get(self) -> complex:
-        """Get."""
+        """get.
+
+        Returns
+        -------
+        complex
+            Result (double complex).
+        """
 
     def dump(self) -> complex:
-        """Dump."""
+        """dump.
+
+        Returns
+        -------
+        complex
+            Result (double complex).
+        """
 
     def madd(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """Madd."""
+        """Multiply-accumulate: acc += sum(x * h) over x_len samples.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex128]
+            Input array (double complex), length x_len.
+        h : NDArray[np.float32]
+            Coefficient array (float), length h_len.
+        """
 
     def add2d(self, x: NDArray[np.complex128]) -> None:
-        """Add2d."""
+        """Accumulate a 2-D array: acc += sum of all elements in x.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex128]
+            Input array (double complex), x_len elements total.
+        """
 
     def madd2d(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """Madd2d."""
+        """2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex128]
+            Input array (double complex), length x_len.
+        h : NDArray[np.float32]
+            Coefficient array (float), length h_len.
+        """
 
     def destroy(self) -> None:
         """Release C resources immediately."""

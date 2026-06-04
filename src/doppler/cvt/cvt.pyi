@@ -275,7 +275,7 @@ class UQ15ToF32:
     def __exit__(self, *args: object) -> None: ...
 
 class ADC:
-    """ADC component.
+    """Create an ADC instance.
 
     Parameters
     ----------

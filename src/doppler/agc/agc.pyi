@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class AGC:
-    """AGC component.
+    """Create an AGC instance.
 
     Parameters
     ----------
@@ -39,7 +39,7 @@ class AGC:
 
     @property
     def applied_gain_db(self) -> float:
-        """Applied gain db."""
+        """Gain actually applied to the most recent sample, in dB."""
 
     @property
     def ref_db(self) -> float:

@@ -142,6 +142,15 @@ jobs:
     - name: Build Python C extensions
       run: make pyext
 
+    - name: Doctest generated stubs
+      # The .pyi docstrings are derived from each _core.h's Doxygen by jm.
+      # Run their synthesized examples against the freshly built extensions so
+      # a doc that no longer matches the API fails CI ("passing examples
+      # everywhere"). Only the .pyi files are collected as doctest sources.
+      run: |
+        uv run python -m pytest --doctest-glob='*.pyi' -q \
+          $(find src/doppler -name '*.pyi')
+
     - name: Test with coverage
       run: |
         uv run pytest src/ -v \
@@ -340,4 +349,4 @@ jobs:
     - name: Check manifest drift
       # --refresh: ignore setup-uv's cached PyPI index so a just-published jm
       # pin resolves on the first run after a release (no stale-cache race).
-      run: uvx --refresh --from 'just-makeit==0.14.4' just-makeit status --check
+      run: uvx --refresh --from 'just-makeit==0.14.7' just-makeit status --check

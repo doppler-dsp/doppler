@@ -24,7 +24,13 @@ class DelayCf64:
         """Reset state to post-create defaults."""
 
     def push(self, x: complex) -> None:
-        """Push."""
+        """push.
+
+        Parameters
+        ----------
+        x : complex
+            double complex parameter.
+        """
 
     def ptr(self) -> NDArray[np.complex128]:
         """Ptr."""
@@ -33,7 +39,13 @@ class DelayCf64:
         """Push ptr."""
 
     def write(self, x: complex) -> None:
-        """Write."""
+        """write.
+
+        Parameters
+        ----------
+        x : complex
+            Input (double complex).
+        """
 
     @property
     def num_taps(self) -> int:

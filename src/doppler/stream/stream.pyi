@@ -48,6 +48,7 @@ def get_timestamp_ns() -> int:
     >>> t = get_timestamp_ns()
     >>> t > 0
     True
+
     """
     ...
 
@@ -73,7 +74,7 @@ class Publisher:
     >>> from doppler.stream import Publisher, CF64
     >>> import numpy as np
     >>> samples = np.array([1+2j, 3+4j], dtype=np.complex128)
-    >>> with Publisher("tcp://*:5556", CF64) as pub:
+    >>> with Publisher("tcp://*:5556", CF64) as pub:  # doctest: +SKIP
     ...     pub.send(samples, sample_rate=int(1e6), center_freq=int(2.4e9))
 
     """
@@ -122,7 +123,7 @@ class Subscriber:
     Examples
     --------
     >>> from doppler.stream import Subscriber
-    >>> with Subscriber("tcp://localhost:5556") as sub:
+    >>> with Subscriber("tcp://localhost:5556") as sub:  # doctest: +SKIP
     ...     samples, hdr = sub.recv(timeout_ms=1000)
 
     """
@@ -195,7 +196,7 @@ class Push:
     >>> from doppler.stream import Push, Pull, CF64
     >>> import numpy as np
     >>> ep = "tcp://127.0.0.1:5557"
-    >>> with Push(ep, CF64) as push, Pull(ep) as pull:
+    >>> with Push(ep, CF64) as push, Pull(ep) as pull:  # doctest: +SKIP
     ...     push.send(np.ones(4, dtype=np.complex128))
     ...     samples, hdr = pull.recv(timeout_ms=1000)
 
@@ -242,7 +243,7 @@ class Pull:
     Examples
     --------
     >>> from doppler.stream import Pull
-    >>> with Pull("tcp://localhost:5557") as pull:
+    >>> with Pull("tcp://localhost:5557") as pull:  # doctest: +SKIP
     ...     samples, hdr = pull.recv(timeout_ms=1000)
 
     """
@@ -299,7 +300,7 @@ class Requester:
     --------
     >>> from doppler.stream import Requester, CF64
     >>> import numpy as np
-    >>> with Requester("tcp://localhost:5558", CF64) as req:
+    >>> with Requester("tcp://localhost:5558", CF64) as req:  # doctest: +SKIP
     ...     req.send(np.ones(4, dtype=np.complex128), sample_rate=int(1e6))
     ...     reply, hdr = req.recv(timeout_ms=2000)
 
@@ -378,7 +379,7 @@ class Replier:
     --------
     >>> from doppler.stream import Replier, CF64
     >>> import numpy as np
-    >>> with Replier("tcp://*:5558", CF64) as rep:
+    >>> with Replier("tcp://*:5558", CF64) as rep:  # doctest: +SKIP
     ...     request, hdr = rep.recv(timeout_ms=5000)
     ...     # process request...
     ...     rep.send(request, sample_rate=hdr["sample_rate"])

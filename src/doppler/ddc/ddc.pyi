@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class DDC:
-    """DDC component.
+    """Create a complex-input DDC.
 
     Parameters
     ----------
@@ -23,20 +23,32 @@ class DDC:
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Execute."""
+        """Mix input block with LO, then rate-convert.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples, complex64, length x_len.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of output samples written.
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero LO phase and filter history.
+        """
 
     @property
     def norm_freq(self) -> float:
-        """Norm freq."""
+        """Return the current LO normalised frequency."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
 
     @property
     def rate(self) -> float:
-        """Rate."""
+        """Return the configured output/input rate ratio."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -66,10 +78,22 @@ class DDCR:
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
     def execute(self, x: NDArray[np.float32]) -> NDArray[np.complex64]:
-        """Execute."""
+        """Halfband R2C decimate, LO mix, then rate-convert.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def reset(self) -> None:
-        """Reset."""
+        """Zero halfband, LO phase, and filter history.
+        """
 
     @property
     def norm_freq(self) -> float:

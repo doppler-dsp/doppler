@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class NCO:
-    """NCO component.
+    """Create an NCO instance.
 
     Parameters
     ----------
@@ -26,13 +26,49 @@ class NCO:
         """Reset state to post-create defaults."""
 
     def steps_u32(self) -> NDArray[np.uint32]:
-        """Steps u32."""
+        """Advance n samples; write raw uint32 accumulator values.
+
+        Output is emitted before increment: out(0) = current phase,
+
+        out(1) = phase + phase_inc, etc.  Returns n.
+
+        Returns
+        -------
+        NDArray[np.uint32]
+            Output.
+        """
 
     def steps_u32_scaled(self) -> NDArray[np.uint32]:
-        """Steps u32 scaled."""
+        """Advance n samples; values scaled to [0, nmax).
+
+        Uses the branchless fixed-point identity:
+
+        out(i) = (uint64_t)phase * nmax >> 32
+
+        When nmax == 0 falls back to the raw accumulator.
+
+        Returns
+        -------
+        NDArray[np.uint32]
+            Output.
+        """
 
     def steps_u32_ovf(self) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
-        """Steps u32 ovf."""
+        """Advance n samples; write raw phase values and per-sample carry.
+
+        out(i)  — raw 32-bit phase value (same as nco_steps_u32).
+
+        out1(i) — 1 when the accumulator wrapped on sample i, 0 otherwise.
+
+        The carry marks the boundary of one input period; useful for
+
+        polyphase sample-clock generation.
+
+        Returns
+        -------
+        tuple[NDArray[np.uint32], NDArray[np.uint8]]
+            Output.
+        """
 
     @property
     def norm_freq(self) -> float:
@@ -58,7 +94,7 @@ class NCO:
     def __exit__(self, *args: object) -> None: ...
 
 class LO:
-    """LO component.
+    """Create an LO instance.
 
     Parameters
     ----------
@@ -79,10 +115,40 @@ class LO:
         """Reset state to post-create defaults."""
 
     def steps(self) -> NDArray[np.complex64]:
-        """Steps."""
+        """Generate n CF32 phasors at the current norm_freq.
+
+        Output is emitted before increment: out(0) corresponds to the phase
+
+        at entry, out(1) to phase + phase_inc, etc.  Returns n.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     def steps_ctrl(self, ctrl: NDArray[np.float32]) -> NDArray[np.complex64]:
-        """Steps ctrl."""
+        """Generate CF32 phasors with per-sample FM deviation.
+
+        ctrl(i) (real float, fractional part used) is converted to a per-sample
+
+        phase-increment delta added on top of the base phase_inc.  The base
+
+        norm_freq is not modified.
+
+
+        Output length equals ctrl_len.  Returns ctrl_len.
+
+        Parameters
+        ----------
+        ctrl : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
 
     @property
     def norm_freq(self) -> float:
@@ -108,7 +174,7 @@ class LO:
     def __exit__(self, *args: object) -> None: ...
 
 class AWGN:
-    """AWGN component.
+    """Create an AWGN generator.
 
     Parameters
     ----------
@@ -131,14 +197,31 @@ class AWGN:
         """Reset state to post-create defaults."""
 
     def generate(self) -> NDArray[np.complex64]:
-        """Generate."""
+        """Generate n complex CF32 AWGN samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n (always; generate produces exactly n samples).
+        """
 
     def reseed(self, seed: int) -> complex:
-        """Reseed."""
+        """Reseed the RNG and reset state.
+
+        Parameters
+        ----------
+        seed : int
+            Input.
+
+        Returns
+        -------
+        complex
+            Output.
+        """
 
     @property
     def amplitude(self) -> float:
-        """Amplitude."""
+        """Return the current amplitude (per-component std dev)."""
     @amplitude.setter
     def amplitude(self, value: float) -> None: ...
 

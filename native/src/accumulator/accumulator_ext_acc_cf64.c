@@ -300,7 +300,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"madd", (PyCFunction)AccCf64_madd, METH_VARARGS,
      "madd(x, h) -> None\n"
      "\n"
-     "madd.\n"
+     "Multiply-accumulate: acc += sum(x * h) over x_len samples.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccCf64\n"
@@ -309,7 +309,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"add2d", (PyCFunction)AccCf64_add2d, METH_VARARGS,
      "add2d(x) -> None\n"
      "\n"
-     "add2d.\n"
+     "Accumulate a 2-D array: acc += sum of all elements in x.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccCf64\n"
@@ -318,7 +318,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"madd2d", (PyCFunction)AccCf64_madd2d, METH_VARARGS,
      "madd2d(x, h) -> None\n"
      "\n"
-     "madd2d.\n"
+     "2-D multiply-accumulate: acc += sum(x * h) over x_len elements.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccCf64\n"
@@ -337,7 +337,7 @@ static PyTypeObject AccCf64Type = {
     .tp_basicsize = sizeof(AccCf64Object),
     .tp_dealloc   = (destructor)AccCf64_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccCf64 type.",
+    .tp_doc       = "AccCf64 type.\n",
     .tp_methods   = AccCf64_methods,
     .tp_new       = AccCf64_new,
     .tp_init      = (initproc)AccCf64_init,

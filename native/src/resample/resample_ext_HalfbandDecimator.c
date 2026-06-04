@@ -15,6 +15,7 @@ typedef struct {
     PyObject_HEAD
     HalfbandDecimator_state_t *handle;
     float complex *_execute_buf;  /* pre-allocated output for execute */
+    size_t _execute_buf_cap;  /* allocated capacity for execute */
 } HalfbandDecimatorObject;
 
 static void
@@ -133,8 +134,8 @@ HalfbandDecimator_getprop_num_taps(HalfbandDecimatorObject *self, void *Py_UNUSE
 }
 
 static PyGetSetDef HalfbandDecimator_getset[] = {
-    { "rate", (getter)HalfbandDecimator_getprop_rate, NULL, NULL, NULL },
-    { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL, NULL, NULL },
+    { "rate", (getter)HalfbandDecimator_getprop_rate, NULL, "Always returns 0.5.\n", NULL },
+    { "num_taps", (getter)HalfbandDecimator_getprop_num_taps, NULL, "Returns the FIR branch length passed to create.\n", NULL },
     { NULL }
 };
 
@@ -171,7 +172,7 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     {"execute", (PyCFunction)HalfbandDecimatorObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Decimate x(0..x_len-1) by 2 into out(0..n_out-1).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import HalfbandDecimator\n"
@@ -182,7 +183,7 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     {"reset", (PyCFunction)HalfbandDecimatorObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero delay lines.  Coefficients preserved.\n"
      "\n"
      "    >>> from doppler import HalfbandDecimator\n"
      "    >>> obj = HalfbandDecimator(np.zeros(1, dtype=np.float32))\n"
@@ -200,7 +201,7 @@ static PyTypeObject HalfbandDecimatorObjType = {
     .tp_basicsize = sizeof(HalfbandDecimatorObject),
     .tp_dealloc   = (destructor)HalfbandDecimatorObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "HalfbandDecimator type.",
+    .tp_doc       = "Create a HalfbandDecimator.\n",
     .tp_methods   = HalfbandDecimatorObj_methods,
     .tp_getset    = HalfbandDecimator_getset,
     .tp_new       = HalfbandDecimatorObj_new,

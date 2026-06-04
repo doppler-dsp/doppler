@@ -223,16 +223,16 @@ Detector2D_getprop_last_corr(Detector2DObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Detector2D_getset[] = {
-    { "ny", (getter)Detector2D_getprop_ny, NULL, NULL, NULL },
-    { "nx", (getter)Detector2D_getprop_nx, NULL, NULL, NULL },
-    { "n", (getter)Detector2D_getprop_n, NULL, NULL, NULL },
-    { "dwell", (getter)Detector2D_getprop_dwell, NULL, NULL, NULL },
-    { "count", (getter)Detector2D_getprop_count, NULL, NULL, NULL },
-    { "ring_cap", (getter)Detector2D_getprop_ring_cap, NULL, NULL, NULL },
-    { "noise_lo", (getter)Detector2D_getprop_noise_lo, NULL, NULL, NULL },
-    { "noise_hi", (getter)Detector2D_getprop_noise_hi, NULL, NULL, NULL },
-    { "threshold", (getter)Detector2D_getprop_threshold, NULL, NULL, NULL },
-    { "last_corr", (getter)Detector2D_getprop_last_corr, NULL, NULL, NULL },
+    { "ny", (getter)Detector2D_getprop_ny, NULL, "Ny.\n", NULL },
+    { "nx", (getter)Detector2D_getprop_nx, NULL, "Nx.\n", NULL },
+    { "n", (getter)Detector2D_getprop_n, NULL, "N.\n", NULL },
+    { "dwell", (getter)Detector2D_getprop_dwell, NULL, "Dwell.\n", NULL },
+    { "count", (getter)Detector2D_getprop_count, NULL, "Count.\n", NULL },
+    { "ring_cap", (getter)Detector2D_getprop_ring_cap, NULL, "Ring cap.\n", NULL },
+    { "noise_lo", (getter)Detector2D_getprop_noise_lo, NULL, "Noise lo.\n", NULL },
+    { "noise_hi", (getter)Detector2D_getprop_noise_hi, NULL, "Noise hi.\n", NULL },
+    { "threshold", (getter)Detector2D_getprop_threshold, NULL, "Threshold.\n", NULL },
+    { "last_corr", (getter)Detector2D_getprop_last_corr, NULL, "Last corr.\n", NULL },
     { NULL }
 };
 
@@ -275,7 +275,7 @@ static PyMethodDef Detector2DObj_methods[] = {
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Detector2D\n"
-     "    >>> obj = Detector2D(np.zeros((1, 1), dtype=np.complex64), \"mean\", 1, 0, ny*nx-1, 0.0, 1)\n"
+     "    >>> obj = Detector2D(np.zeros(1, dtype=np.complex64), \"mean\", 1, 0, ny*nx-1, 0.0, 1)\n"
      "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
      "    >>> isinstance(results, list)\n"
      "    True\n"},
@@ -292,7 +292,7 @@ static PyTypeObject Detector2DObjType = {
     .tp_basicsize = sizeof(Detector2DObject),
     .tp_dealloc   = (destructor)Detector2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Detector2D type.",
+    .tp_doc       = "Create a 2-D signal detector.\n",
     .tp_methods   = Detector2DObj_methods,
     .tp_getset    = Detector2D_getset,
     .tp_new       = Detector2DObj_new,

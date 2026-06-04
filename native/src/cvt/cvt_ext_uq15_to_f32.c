@@ -174,23 +174,19 @@ static PyMethodDef UQ15ToF32Obj_methods[] = {
      "\n"
      "Process one input sample.\n"
      "\n"
-     "Decodes UQ15 offset-binary: 0 -> -1.0, 32768 -> 0.0, 65535 -> ~+1.0.\n"
-     "\n"
-     "    >>> from doppler.cvt import UQ15ToF32\n"
-     "    >>> obj = UQ15ToF32()\n"
-     "    >>> obj.step(32768)\n"
-     "    0.0\n"
-     "    >>> obj.step(0)\n"
-     "    -1.0\n"},
+     "    >>> from doppler import UQ15ToF32\n"
+     "    >>> obj = UQ15ToF32(32768.0)\n"
+     "    >>> obj.step(1)\n"
+     "    0.0\n"},
     {"steps",    (PyCFunction)UQ15ToF32_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
      "Process a block of samples in batch.\n"
      "\n"
      "    >>> import numpy as np\n"
-     "    >>> from doppler.cvt import UQ15ToF32\n"
-     "    >>> obj = UQ15ToF32()\n"
-     "    >>> y = obj.steps(np.full(4, 32768, dtype=np.uint16))\n"
+     "    >>> from doppler import UQ15ToF32\n"
+     "    >>> obj = UQ15ToF32(32768.0)\n"
+     "    >>> y = obj.steps(np.zeros(4, dtype=np.uint16))\n"
      "    >>> y.shape\n"
      "    (4,)\n"
      "    >>> y.dtype\n"
@@ -209,7 +205,7 @@ static PyTypeObject UQ15ToF32ObjType = {
     .tp_basicsize = sizeof(UQ15ToF32Object),
     .tp_dealloc   = (destructor)UQ15ToF32Obj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "UQ15ToF32 type.",
+    .tp_doc       = "UQ15ToF32 type.\n",
     .tp_methods   = UQ15ToF32Obj_methods,
     .tp_new       = UQ15ToF32Obj_new,
     .tp_init      = (initproc)UQ15ToF32Obj_init,

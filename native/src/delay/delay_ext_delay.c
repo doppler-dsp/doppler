@@ -15,7 +15,9 @@ typedef struct {
     PyObject_HEAD
     delay_state_t *handle;
     double complex *_ptr_buf;  /* pre-allocated output for ptr */
+    size_t _ptr_buf_cap;  /* allocated capacity for ptr */
     double complex *_push_ptr_buf;  /* pre-allocated output for push_ptr */
+    size_t _push_ptr_buf_cap;  /* allocated capacity for push_ptr */
 } DelayCf64Object;
 
 static void
@@ -172,8 +174,8 @@ DelayCf64_getprop_capacity(DelayCf64Object *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef DelayCf64_getset[] = {
-    { "num_taps", (getter)DelayCf64_getprop_num_taps, NULL, NULL, NULL },
-    { "capacity", (getter)DelayCf64_getprop_capacity, NULL, NULL, NULL },
+    { "num_taps", (getter)DelayCf64_getprop_num_taps, NULL, "Num taps.\n", NULL },
+    { "capacity", (getter)DelayCf64_getprop_capacity, NULL, "Capacity.\n", NULL },
     { NULL }
 };
 
@@ -262,7 +264,7 @@ static PyTypeObject DelayCf64ObjType = {
     .tp_basicsize = sizeof(DelayCf64Object),
     .tp_dealloc   = (destructor)DelayCf64Obj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "DelayCf64 type.",
+    .tp_doc       = "DelayCf64 type.\n",
     .tp_methods   = DelayCf64Obj_methods,
     .tp_getset    = DelayCf64_getset,
     .tp_new       = DelayCf64Obj_new,

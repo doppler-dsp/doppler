@@ -205,18 +205,13 @@ class AWGN:
             n (always; generate produces exactly n samples).
         """
 
-    def reseed(self, seed: int) -> complex:
+    def reseed(self, seed: int) -> None:
         """Reseed the RNG and reset state.
 
         Parameters
         ----------
         seed : int
             Input.
-
-        Returns
-        -------
-        complex
-            Output.
         """
 
     @property

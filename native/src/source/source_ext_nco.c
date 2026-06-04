@@ -15,9 +15,12 @@ typedef struct {
     PyObject_HEAD
     nco_state_t *handle;
     uint32_t *_steps_u32_buf;  /* pre-allocated output for steps_u32 */
+    size_t _steps_u32_buf_cap;  /* allocated capacity for steps_u32 */
     uint32_t *_steps_u32_scaled_buf;  /* pre-allocated output for steps_u32_scaled */
+    size_t _steps_u32_scaled_buf_cap;  /* allocated capacity for steps_u32_scaled */
     uint32_t *_steps_u32_ovf_buf;  /* pre-allocated output for steps_u32_ovf */
     uint8_t *_steps_u32_ovf_buf_1;  /* pre-allocated output for steps_u32_ovf */
+    size_t _steps_u32_ovf_buf_cap;  /* allocated capacity for steps_u32_ovf */
 } NCOObject;
 
 static void
@@ -224,9 +227,9 @@ NCO_getprop_phase_inc(NCOObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef NCO_getset[] = {
-    { "norm_freq", (getter)NCO_getprop_norm_freq, (setter)NCO_setprop_norm_freq, NULL, NULL },
-    { "phase", (getter)NCO_getprop_phase, (setter)NCO_setprop_phase, NULL, NULL },
-    { "phase_inc", (getter)NCO_getprop_phase_inc, NULL, NULL, NULL },
+    { "norm_freq", (getter)NCO_getprop_norm_freq, (setter)NCO_setprop_norm_freq, "Norm freq.\n", NULL },
+    { "phase", (getter)NCO_getprop_phase, (setter)NCO_setprop_phase, "Phase.\n", NULL },
+    { "phase_inc", (getter)NCO_getprop_phase_inc, NULL, "Phase inc.\n", NULL },
     { NULL }
 };
 
@@ -265,7 +268,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32", (PyCFunction)NCOObj_steps_u32, METH_VARARGS,
      "steps_u32(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; write raw uint32 accumulator values.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -276,7 +279,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32_scaled", (PyCFunction)NCOObj_steps_u32_scaled, METH_VARARGS,
      "steps_u32_scaled(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; values scaled to [0, nmax).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -287,7 +290,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
      "steps_u32_ovf(n=1) -> tuple[ndarray, ndarray]\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; write raw phase values and per-sample carry.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -308,7 +311,7 @@ static PyTypeObject NCOObjType = {
     .tp_basicsize = sizeof(NCOObject),
     .tp_dealloc   = (destructor)NCOObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "NCO type.",
+    .tp_doc       = "Create an NCO instance.\n",
     .tp_methods   = NCOObj_methods,
     .tp_getset    = NCO_getset,
     .tp_new       = NCOObj_new,

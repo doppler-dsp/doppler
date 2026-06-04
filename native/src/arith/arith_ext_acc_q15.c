@@ -235,7 +235,7 @@ static PyMethodDef AccQ15_methods[] = {
     {"get", (PyCFunction)AccQ15_get, METH_NOARGS,
      "get() -> int\n"
      "\n"
-     "get.\n"
+     "Return the current accumulated value without resetting.\n"
      "\n"
      "    >>> from doppler import AccQ15\n"
      "    >>> obj = AccQ15(0)\n"
@@ -244,7 +244,7 @@ static PyMethodDef AccQ15_methods[] = {
     {"dump", (PyCFunction)AccQ15_dump, METH_NOARGS,
      "dump() -> int\n"
      "\n"
-     "dump.\n"
+     "Return the accumulated value and reset to zero.\n"
      "\n"
      "    >>> from doppler import AccQ15\n"
      "    >>> obj = AccQ15(0)\n"
@@ -253,7 +253,7 @@ static PyMethodDef AccQ15_methods[] = {
     {"madd", (PyCFunction)AccQ15_madd, METH_VARARGS,
      "madd(a, b) -> None\n"
      "\n"
-     "madd.\n"
+     "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccQ15\n"
@@ -272,7 +272,7 @@ static PyTypeObject AccQ15Type = {
     .tp_basicsize = sizeof(AccQ15Object),
     .tp_dealloc   = (destructor)AccQ15_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccQ15 type.",
+    .tp_doc       = "AccQ15 type.\n",
     .tp_methods   = AccQ15_methods,
     .tp_new       = AccQ15_new,
     .tp_init      = (initproc)AccQ15_init,

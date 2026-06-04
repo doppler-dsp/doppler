@@ -15,7 +15,9 @@ typedef struct {
     PyObject_HEAD
     Resampler_state_t *handle;
     float complex *_execute_buf;  /* pre-allocated output for execute */
+    size_t _execute_buf_cap;  /* allocated capacity for execute */
     float complex *_execute_ctrl_buf;  /* pre-allocated output for execute_ctrl */
+    size_t _execute_ctrl_buf_cap;  /* allocated capacity for execute_ctrl */
 } ResamplerObject;
 
 static void
@@ -208,9 +210,9 @@ Resampler_getprop_num_taps(ResamplerObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Resampler_getset[] = {
-    { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate, NULL, NULL },
-    { "num_phases", (getter)Resampler_getprop_num_phases, NULL, NULL, NULL },
-    { "num_taps", (getter)Resampler_getprop_num_taps, NULL, NULL, NULL },
+    { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate, "Rate.\n", NULL },
+    { "num_phases", (getter)Resampler_getprop_num_phases, NULL, "Num phases.\n", NULL },
+    { "num_taps", (getter)Resampler_getprop_num_taps, NULL, "Num taps.\n", NULL },
     { NULL }
 };
 
@@ -247,7 +249,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"execute", (PyCFunction)ResamplerObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Resample x(0..x_len-1) into out(0..n_out-1).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Resampler\n"
@@ -258,7 +260,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"execute_ctrl", (PyCFunction)ResamplerObj_execute_ctrl, METH_VARARGS,
      "execute_ctrl(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Resample with per-sample rate deviations.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Resampler\n"
@@ -269,7 +271,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"reset", (PyCFunction)ResamplerObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero delay line and phase accumulator.  Rate and bank preserved.\n"
      "\n"
      "    >>> from doppler import Resampler\n"
      "    >>> obj = Resampler(0.0)\n"
@@ -287,7 +289,7 @@ static PyTypeObject ResamplerObjType = {
     .tp_basicsize = sizeof(ResamplerObject),
     .tp_dealloc   = (destructor)ResamplerObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Resampler type.",
+    .tp_doc       = "Create a Resampler with the built-in 4096×19 Kaiser bank.\n",
     .tp_methods   = ResamplerObj_methods,
     .tp_getset    = Resampler_getset,
     .tp_new       = ResamplerObj_new,

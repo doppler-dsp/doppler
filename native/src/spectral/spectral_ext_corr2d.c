@@ -15,6 +15,7 @@ typedef struct {
     PyObject_HEAD
     corr2d_state_t *handle;
     float complex *_execute_buf;  /* pre-allocated output for execute */
+    size_t _execute_buf_cap;  /* allocated capacity for execute */
 } Corr2DObject;
 
 static void
@@ -151,10 +152,10 @@ Corr2D_getprop_count(Corr2DObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Corr2D_getset[] = {
-    { "ny", (getter)Corr2D_getprop_ny, NULL, NULL, NULL },
-    { "nx", (getter)Corr2D_getprop_nx, NULL, NULL, NULL },
-    { "dwell", (getter)Corr2D_getprop_dwell, NULL, NULL, NULL },
-    { "count", (getter)Corr2D_getprop_count, NULL, NULL, NULL },
+    { "ny", (getter)Corr2D_getprop_ny, NULL, "Ny.\n", NULL },
+    { "nx", (getter)Corr2D_getprop_nx, NULL, "Nx.\n", NULL },
+    { "dwell", (getter)Corr2D_getprop_dwell, NULL, "Dwell.\n", NULL },
+    { "count", (getter)Corr2D_getprop_count, NULL, "Count.\n", NULL },
     { NULL }
 };
 
@@ -193,11 +194,11 @@ static PyMethodDef Corr2DObj_methods[] = {
     {"execute", (PyCFunction)Corr2DObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Correlate one 2-D frame and optionally dump the accumulator.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Corr2D\n"
-     "    >>> obj = Corr2D(np.zeros((1, 1), dtype=np.complex64), 1, 1)\n"
+     "    >>> obj = Corr2D(np.zeros(1, dtype=np.complex64), 1, 1)\n"
      "    >>> y = obj.execute(1.0 + 0.0j)\n"
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
@@ -214,7 +215,7 @@ static PyTypeObject Corr2DObjType = {
     .tp_basicsize = sizeof(Corr2DObject),
     .tp_dealloc   = (destructor)Corr2DObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Corr2D type.",
+    .tp_doc       = "Create a 2-D FFT correlator.\n",
     .tp_methods   = Corr2DObj_methods,
     .tp_getset    = Corr2D_getset,
     .tp_new       = Corr2DObj_new,

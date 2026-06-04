@@ -199,14 +199,14 @@ Detector_getprop_last_corr(DetectorObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Detector_getset[] = {
-    { "n", (getter)Detector_getprop_n, NULL, NULL, NULL },
-    { "dwell", (getter)Detector_getprop_dwell, NULL, NULL, NULL },
-    { "count", (getter)Detector_getprop_count, NULL, NULL, NULL },
-    { "ring_cap", (getter)Detector_getprop_ring_cap, NULL, NULL, NULL },
-    { "noise_lo", (getter)Detector_getprop_noise_lo, NULL, NULL, NULL },
-    { "noise_hi", (getter)Detector_getprop_noise_hi, NULL, NULL, NULL },
-    { "threshold", (getter)Detector_getprop_threshold, NULL, NULL, NULL },
-    { "last_corr", (getter)Detector_getprop_last_corr, NULL, NULL, NULL },
+    { "n", (getter)Detector_getprop_n, NULL, "N.\n", NULL },
+    { "dwell", (getter)Detector_getprop_dwell, NULL, "Dwell.\n", NULL },
+    { "count", (getter)Detector_getprop_count, NULL, "Count.\n", NULL },
+    { "ring_cap", (getter)Detector_getprop_ring_cap, NULL, "Ring cap.\n", NULL },
+    { "noise_lo", (getter)Detector_getprop_noise_lo, NULL, "Noise lo.\n", NULL },
+    { "noise_hi", (getter)Detector_getprop_noise_hi, NULL, "Noise hi.\n", NULL },
+    { "threshold", (getter)Detector_getprop_threshold, NULL, "Threshold.\n", NULL },
+    { "last_corr", (getter)Detector_getprop_last_corr, NULL, "Last corr.\n", NULL },
     { NULL }
 };
 
@@ -266,7 +266,7 @@ static PyTypeObject DetectorObjType = {
     .tp_basicsize = sizeof(DetectorObject),
     .tp_dealloc   = (destructor)DetectorObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Detector type.",
+    .tp_doc       = "Create a 1-D signal detector.\n",
     .tp_methods   = DetectorObj_methods,
     .tp_getset    = Detector_getset,
     .tp_new       = DetectorObj_new,

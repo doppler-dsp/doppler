@@ -15,6 +15,7 @@ typedef struct {
     PyObject_HEAD
     corr_state_t *handle;
     float complex *_execute_buf;  /* pre-allocated output for execute */
+    size_t _execute_buf_cap;  /* allocated capacity for execute */
 } CorrObject;
 
 static void
@@ -136,9 +137,9 @@ Corr_getprop_count(CorrObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Corr_getset[] = {
-    { "n", (getter)Corr_getprop_n, NULL, NULL, NULL },
-    { "dwell", (getter)Corr_getprop_dwell, NULL, NULL, NULL },
-    { "count", (getter)Corr_getprop_count, NULL, NULL, NULL },
+    { "n", (getter)Corr_getprop_n, NULL, "N.\n", NULL },
+    { "dwell", (getter)Corr_getprop_dwell, NULL, "Dwell.\n", NULL },
+    { "count", (getter)Corr_getprop_count, NULL, "Count.\n", NULL },
     { NULL }
 };
 
@@ -177,7 +178,7 @@ static PyMethodDef CorrObj_methods[] = {
     {"execute", (PyCFunction)CorrObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Correlate one frame and optionally dump the accumulator.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Corr\n"
@@ -198,7 +199,7 @@ static PyTypeObject CorrObjType = {
     .tp_basicsize = sizeof(CorrObject),
     .tp_dealloc   = (destructor)CorrObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Corr type.",
+    .tp_doc       = "Create a 1-D FFT correlator.\n",
     .tp_methods   = CorrObj_methods,
     .tp_getset    = Corr_getset,
     .tp_new       = CorrObj_new,

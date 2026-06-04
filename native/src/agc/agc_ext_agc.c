@@ -266,13 +266,13 @@ AGC_setprop_clip_db(AGCObject *self, PyObject *value, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef AGC_getset[] = {
-    { "gain_db", (getter)AGC_getprop_gain_db, NULL, NULL, NULL },
-    { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL, NULL, NULL },
-    { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db, NULL, NULL },
-    { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw, NULL, NULL },
-    { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha, NULL, NULL },
-    { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim, NULL, NULL },
-    { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db, NULL, NULL },
+    { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
+    { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL, "Gain actually applied to the most recent sample, in dB.\n", NULL },
+    { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db, "Ref db.\n", NULL },
+    { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw, "Loop bw.\n", NULL },
+    { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha, "Alpha.\n", NULL },
+    { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim, "Decim.\n", NULL },
+    { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db, "Clip db.\n", NULL },
     { NULL }
 };
 
@@ -343,7 +343,7 @@ static PyTypeObject AGCObjType = {
     .tp_basicsize = sizeof(AGCObject),
     .tp_dealloc   = (destructor)AGCObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AGC type.",
+    .tp_doc       = "Create an AGC instance.\n",
     .tp_methods   = AGCObj_methods,
     .tp_getset    = AGC_getset,
     .tp_new       = AGCObj_new,

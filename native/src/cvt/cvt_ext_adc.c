@@ -167,9 +167,9 @@ ADC_getprop_bits(ADCObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef ADC_getset[] = {
-    { "clipped", (getter)ADC_getprop_clipped, NULL, NULL, NULL },
-    { "scale", (getter)ADC_getprop_scale, NULL, NULL, NULL },
-    { "bits", (getter)ADC_getprop_bits, NULL, NULL, NULL },
+    { "clipped", (getter)ADC_getprop_clipped, NULL, "Clipped.\n", NULL },
+    { "scale", (getter)ADC_getprop_scale, NULL, "Scale.\n", NULL },
+    { "bits", (getter)ADC_getprop_bits, NULL, "Bits.\n", NULL },
     { NULL }
 };
 
@@ -240,7 +240,7 @@ static PyTypeObject ADCObjType = {
     .tp_basicsize = sizeof(ADCObject),
     .tp_dealloc   = (destructor)ADCObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "ADC type.",
+    .tp_doc       = "Create an ADC instance.\n",
     .tp_methods   = ADCObj_methods,
     .tp_getset    = ADC_getset,
     .tp_new       = ADCObj_new,

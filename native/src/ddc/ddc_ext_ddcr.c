@@ -148,8 +148,8 @@ DDCR_getprop_rate(DDCRObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef DDCR_getset[] = {
-    { "norm_freq", (getter)DDCR_getprop_norm_freq, (setter)DDCR_setprop_norm_freq, NULL, NULL },
-    { "rate", (getter)DDCR_getprop_rate, NULL, NULL, NULL },
+    { "norm_freq", (getter)DDCR_getprop_norm_freq, (setter)DDCR_setprop_norm_freq, "Norm freq.\n", NULL },
+    { "rate", (getter)DDCR_getprop_rate, NULL, "Rate.\n", NULL },
     { NULL }
 };
 
@@ -186,7 +186,7 @@ static PyMethodDef DDCRObj_methods[] = {
     {"execute", (PyCFunction)DDCRObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Halfband R2C decimate, LO mix, then rate-convert.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import DDCR\n"
@@ -197,7 +197,7 @@ static PyMethodDef DDCRObj_methods[] = {
     {"reset", (PyCFunction)DDCRObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero halfband, LO phase, and filter history.\n"
      "\n"
      "    >>> from doppler import DDCR\n"
      "    >>> obj = DDCR(0.0, 0.25)\n"
@@ -215,7 +215,7 @@ static PyTypeObject DDCRObjType = {
     .tp_basicsize = sizeof(DDCRObject),
     .tp_dealloc   = (destructor)DDCRObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "DDCR type.",
+    .tp_doc       = "DDCR type.\n",
     .tp_methods   = DDCRObj_methods,
     .tp_getset    = DDCR_getset,
     .tp_new       = DDCRObj_new,

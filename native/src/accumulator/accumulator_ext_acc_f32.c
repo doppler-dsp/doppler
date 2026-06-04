@@ -297,7 +297,7 @@ static PyMethodDef AccF32_methods[] = {
     {"madd", (PyCFunction)AccF32_madd, METH_VARARGS,
      "madd(x, h) -> None\n"
      "\n"
-     "madd.\n"
+     "Multiply-accumulate: acc += sum(x * h) over x_len samples.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccF32\n"
@@ -306,7 +306,7 @@ static PyMethodDef AccF32_methods[] = {
     {"add2d", (PyCFunction)AccF32_add2d, METH_VARARGS,
      "add2d(x) -> None\n"
      "\n"
-     "add2d.\n"
+     "Accumulate a 2-D array: acc += sum of all elements in x.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccF32\n"
@@ -315,7 +315,7 @@ static PyMethodDef AccF32_methods[] = {
     {"madd2d", (PyCFunction)AccF32_madd2d, METH_VARARGS,
      "madd2d(x, h) -> None\n"
      "\n"
-     "madd2d.\n"
+     "2-D multiply-accumulate: acc += sum(x * h) over x_len elements.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccF32\n"
@@ -334,7 +334,7 @@ static PyTypeObject AccF32Type = {
     .tp_basicsize = sizeof(AccF32Object),
     .tp_dealloc   = (destructor)AccF32_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccF32 type.",
+    .tp_doc       = "AccF32 type.\n",
     .tp_methods   = AccF32_methods,
     .tp_new       = AccF32_new,
     .tp_init      = (initproc)AccF32_init,

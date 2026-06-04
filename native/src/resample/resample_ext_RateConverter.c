@@ -6,7 +6,7 @@
  * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* RateConverterObject — wraps RateConverter_state_t *      */
+/* RateConverterObject — wraps RateConverter_state_t *       */
 /* ======================================================== */
 
 #include "RateConverter/RateConverter_core.h"
@@ -14,8 +14,8 @@
 typedef struct {
     PyObject_HEAD
     RateConverter_state_t *handle;
-    float complex         *_execute_buf;
-    size_t                 _execute_buf_cap;
+    float complex *_execute_buf;  /* pre-allocated output for execute */
+    size_t _execute_buf_cap;  /* allocated capacity for execute */
 } RateConverterObject;
 
 static void
@@ -65,11 +65,13 @@ RateConverterObj_init(RateConverterObject *self, PyObject *args,
     return 0;
 }
 
-/* -------------------------------------------------------------- */
-/* execute(x) -> ndarray[complex64]                               */
-/*                                                                */
-/* Output length varies with rate; buffer is grown on demand.     */
-/* -------------------------------------------------------------- */
+
+
+
+
+
+
+
 static PyObject *
 RateConverterObj_execute(RateConverterObject *self, PyObject *args)
 {
@@ -125,9 +127,6 @@ RateConverterObj_execute(RateConverterObject *self, PyObject *args)
     return out;
 }
 
-/* -------------------------------------------------------------- */
-/* reset() -> None                                                */
-/* -------------------------------------------------------------- */
 static PyObject *
 RateConverterObj_reset(RateConverterObject *self,
                        PyObject *Py_UNUSED(ignored))
@@ -139,10 +138,34 @@ RateConverterObj_reset(RateConverterObject *self,
     RateConverter_reset(self->handle);
     Py_RETURN_NONE;
 }
+static PyObject *
+RateConverter_getprop_rate(RateConverterObject *self, void *Py_UNUSED(closure))
+{
+    if (!self->handle) {
+        PyErr_SetString(PyExc_RuntimeError, "destroyed");
+        return NULL;
+    }
+    /* <<IMPLEMENT: return the computed or stored value>> */
+    return PyFloat_FromDouble(RateConverter_get_rate(self->handle));
+}
+static int
+RateConverter_setprop_rate(RateConverterObject *self, PyObject *value, void *Py_UNUSED(closure))
+{
+    if (!self->handle) {
+        PyErr_SetString(PyExc_RuntimeError, "destroyed");
+        return -1;
+    }
+    double v = 0.0;
+    if (!PyArg_Parse(value, "d", &v)) return -1;
+    RateConverter_set_rate(self->handle, v);
+    return 0;
+}
 
-/* -------------------------------------------------------------- */
-/* destroy() -> None                                              */
-/* -------------------------------------------------------------- */
+static PyGetSetDef RateConverter_getset[] = {
+    { "rate", (getter)RateConverter_getprop_rate, (setter)RateConverter_setprop_rate, "Return the current rate ratio.\n", NULL },
+    { NULL }
+};
+
 static PyObject *
 RateConverterObj_destroy(RateConverterObject *self,
                          PyObject *Py_UNUSED(ignored))
@@ -179,110 +202,31 @@ RateConverterObj_exit(RateConverterObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-/* -------------------------------------------------------------- */
-/* Properties: rate (read/write), stages (read-only)              */
-/* -------------------------------------------------------------- */
+static PyMethodDef RateConverterObj_methods[] = {
 
-static PyObject *
-RateConverterObj_get_rate(RateConverterObject *self, void *Py_UNUSED(c))
-{
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
-    }
-    return PyFloat_FromDouble(RateConverter_get_rate(self->handle));
-}
-
-static int
-RateConverterObj_set_rate(RateConverterObject *self, PyObject *value,
-                          void *Py_UNUSED(c))
-{
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return -1;
-    }
-    double v = PyFloat_AsDouble(value);
-    if (PyErr_Occurred())
-        return -1;
-    RateConverter_set_rate(self->handle, v);
-
-    /* Invalidate execute buffer — rate change means different output size. */
-    free(self->_execute_buf);
-    self->_execute_buf     = NULL;
-    self->_execute_buf_cap = 0;
-    return 0;
-}
-
-static PyObject *
-RateConverterObj_get_stages(RateConverterObject *self, void *Py_UNUSED(c))
-{
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
-    }
-    int n = self->handle->n_stages;
-    PyObject *list = PyList_New(n);
-    if (!list)
-        return NULL;
-    for (int i = 0; i < n; i++) {
-        char buf[64];
-        RateConverter_stage_label(self->handle, i, buf, sizeof(buf));
-        PyObject *s = PyUnicode_FromString(buf);
-        if (!s) { Py_DECREF(list); return NULL; }
-        PyList_SET_ITEM(list, i, s);
-    }
-    return list;
-}
-
-/* -------------------------------------------------------------- */
-/* Method and property tables                                     */
-/* -------------------------------------------------------------- */
-
-static PyMethodDef RateConverter_methods[] = {
-    {"execute",   (PyCFunction)RateConverterObj_execute,  METH_VARARGS,
+    {"execute", (PyCFunction)RateConverterObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Convert a block of complex64 samples.\n"
+     "Convert n_in samples and write results to out.\n"
      "\n"
-     "Parameters\n"
-     "----------\n"
-     "x : array_like, complex64\n"
-     "    Input samples.\n"
-     "\n"
-     "Returns\n"
-     "-------\n"
-     "ndarray, complex64\n"
-     "    Output samples.  Length is approximately ``len(x) * rate``.\n"
-     "\n"
-     "Examples\n"
-     "--------\n"
      "    >>> import numpy as np\n"
-     "    >>> from doppler.resample import RateConverter\n"
-     "    >>> rc = RateConverter(0.5)\n"
-     "    >>> y = rc.execute(np.ones(256, dtype=np.complex64))\n"
-     "    >>> len(y) == 128\n"
-     "    True\n"},
-    {"reset",     (PyCFunction)RateConverterObj_reset,    METH_NOARGS,
+     "    >>> from doppler import RateConverter\n"
+     "    >>> obj = RateConverter(1.0, 0)\n"
+     "    >>> y = obj.execute(np.zeros(4))\n"
+     "    >>> y.dtype\n"
+     "    dtype('complex64')\n"},
+    {"reset", (PyCFunction)RateConverterObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "Zero all sub-stage filter memories without changing the rate."},
-    {"destroy",   (PyCFunction)RateConverterObj_destroy,  METH_NOARGS,
-     "Release resources early."},
-    {"__enter__", (PyCFunction)RateConverterObj_enter,    METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)RateConverterObj_exit,     METH_VARARGS, NULL},
-    {NULL}
-};
-
-static PyGetSetDef RateConverter_getset[] = {
-    {"rate",
-     (getter)RateConverterObj_get_rate,
-     (setter)RateConverterObj_set_rate,
-     "Output-to-input sample rate ratio.", NULL},
-    {"stages",
-     (getter)RateConverterObj_get_stages,
-     NULL,
-     "List of stage labels (e.g. ['CIC(8)', 'Resampler(0.8)']).",
-     NULL},
+     "Zero all sub-stage filter memories.\n"
+     "\n"
+     "    >>> from doppler import RateConverter\n"
+     "    >>> obj = RateConverter(1.0, 0)\n"
+     "    >>> obj.reset()\n"},
+    {"destroy",  (PyCFunction)RateConverterObj_destroy,  METH_NOARGS,
+     "Release resources."},
+    {"__enter__", (PyCFunction)RateConverterObj_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)RateConverterObj_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
@@ -292,35 +236,8 @@ static PyTypeObject RateConverterObjType = {
     .tp_basicsize = sizeof(RateConverterObject),
     .tp_dealloc   = (destructor)RateConverterObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       =
-        "RateConverter(rate=1.0, compensate=0)\n"
-        "\n"
-        "Optimal-speed rate conversion cascade.\n"
-        "\n"
-        "Selects the cheapest cascade of CIC, HalfbandDecimator, and/or\n"
-        "polyphase Resampler stages at creation time.\n"
-        "\n"
-        "Parameters\n"
-        "----------\n"
-        "rate : float\n"
-        "    Output-to-input sample rate ratio.  Any positive float.\n"
-        "compensate : int\n"
-        "    Non-zero to append a CIC passband-droop compensating FIR.\n"
-        "\n"
-        "Attributes\n"
-        "----------\n"
-        "rate : float\n"
-        "    Current rate ratio (writable; rebuilds cascade on set).\n"
-        "stages : list of str\n"
-        "    Human-readable stage labels.\n"
-        "\n"
-        "Examples\n"
-        "--------\n"
-        "    >>> from doppler.resample import RateConverter\n"
-        "    >>> rc = RateConverter(0.125)\n"
-        "    >>> rc.stages\n"
-        "    ['CIC(8)']\n",
-    .tp_methods   = RateConverter_methods,
+    .tp_doc       = "Create a rate converter for the given output/input rate ratio.\n",
+    .tp_methods   = RateConverterObj_methods,
     .tp_getset    = RateConverter_getset,
     .tp_new       = RateConverterObj_new,
     .tp_init      = (initproc)RateConverterObj_init,

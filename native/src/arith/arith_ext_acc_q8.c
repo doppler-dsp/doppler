@@ -235,7 +235,7 @@ static PyMethodDef AccQ8_methods[] = {
     {"get", (PyCFunction)AccQ8_get, METH_NOARGS,
      "get() -> int\n"
      "\n"
-     "get.\n"
+     "Return the current accumulated value without resetting.\n"
      "\n"
      "    >>> from doppler import AccQ8\n"
      "    >>> obj = AccQ8(0)\n"
@@ -244,7 +244,7 @@ static PyMethodDef AccQ8_methods[] = {
     {"dump", (PyCFunction)AccQ8_dump, METH_NOARGS,
      "dump() -> int\n"
      "\n"
-     "dump.\n"
+     "Return the accumulated value and reset to zero.\n"
      "\n"
      "    >>> from doppler import AccQ8\n"
      "    >>> obj = AccQ8(0)\n"
@@ -253,7 +253,7 @@ static PyMethodDef AccQ8_methods[] = {
     {"madd", (PyCFunction)AccQ8_madd, METH_VARARGS,
      "madd(a, b) -> None\n"
      "\n"
-     "madd.\n"
+     "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccQ8\n"
@@ -272,7 +272,7 @@ static PyTypeObject AccQ8Type = {
     .tp_basicsize = sizeof(AccQ8Object),
     .tp_dealloc   = (destructor)AccQ8_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccQ8 type.",
+    .tp_doc       = "AccQ8 type.\n",
     .tp_methods   = AccQ8_methods,
     .tp_new       = AccQ8_new,
     .tp_init      = (initproc)AccQ8_init,

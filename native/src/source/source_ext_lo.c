@@ -15,7 +15,9 @@ typedef struct {
     PyObject_HEAD
     lo_state_t *handle;
     float complex *_steps_buf;  /* pre-allocated output for steps */
+    size_t _steps_buf_cap;  /* allocated capacity for steps */
     float complex *_steps_ctrl_buf;  /* pre-allocated output for steps_ctrl */
+    size_t _steps_ctrl_buf_cap;  /* allocated capacity for steps_ctrl */
 } LOObject;
 
 static void
@@ -182,9 +184,9 @@ LO_getprop_phase_inc(LOObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef LO_getset[] = {
-    { "norm_freq", (getter)LO_getprop_norm_freq, (setter)LO_setprop_norm_freq, NULL, NULL },
-    { "phase", (getter)LO_getprop_phase, (setter)LO_setprop_phase, NULL, NULL },
-    { "phase_inc", (getter)LO_getprop_phase_inc, NULL, NULL, NULL },
+    { "norm_freq", (getter)LO_getprop_norm_freq, (setter)LO_setprop_norm_freq, "Norm freq.\n", NULL },
+    { "phase", (getter)LO_getprop_phase, (setter)LO_setprop_phase, "Phase.\n", NULL },
+    { "phase_inc", (getter)LO_getprop_phase_inc, NULL, "Phase inc.\n", NULL },
     { NULL }
 };
 
@@ -223,7 +225,7 @@ static PyMethodDef LOObj_methods[] = {
     {"steps", (PyCFunction)LOObj_steps, METH_VARARGS,
      "steps(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Generate n CF32 phasors at the current norm_freq.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import LO\n"
@@ -234,7 +236,7 @@ static PyMethodDef LOObj_methods[] = {
     {"steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS,
      "steps_ctrl(ctrl) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Generate CF32 phasors with per-sample FM deviation.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import LO\n"
@@ -255,7 +257,7 @@ static PyTypeObject LOObjType = {
     .tp_basicsize = sizeof(LOObject),
     .tp_dealloc   = (destructor)LOObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "LO type.",
+    .tp_doc       = "Create an LO instance.\n",
     .tp_methods   = LOObj_methods,
     .tp_getset    = LO_getset,
     .tp_new       = LOObj_new,

@@ -15,6 +15,18 @@ and this project adheres to
 
 ---
 
+## [0.5.5] — 2026-06-04
+
+### Fixed
+
+- **`help()` now matches the `.pyi`.** Upgraded just-makeit to 0.14.9, whose
+  `jm apply` refreshes the per-object binding fragments — so the derived
+  docstrings reach the runtime C bindings, not just the stubs.
+  `help(DDC.execute)` / `DDC.execute.__doc__` now shows *"Mix input block with
+  LO, then rate-convert."* (was the generic fallback); class and property
+  `__doc__` are likewise derived. Hand-written constructor/binding bodies
+  (e.g. the float64→float32 cast paths) are preserved across the refresh.
+
 ## [0.5.4] — 2026-06-04
 
 ### Added
@@ -772,7 +784,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2

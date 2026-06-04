@@ -41,8 +41,13 @@ PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
 CMAKE_ARGS  ?=
-# C flags used by the `blazing` target (-march=native enables all CPU
-# extensions: SSE2/AVX on x86-64, NEON/SVE on AArch64, etc.)
+# Everyday `make build` / `make pyext` target a PORTABLE baseline
+# (x86-64-v2) — the same flags every released wheel uses, so a local build
+# can never behave differently from what ships.  For host-tuned speed, use
+# `make blazing` (sets -DDOPPLER_NATIVE=ON -> -march=native) or pass
+# CMAKE_ARGS=-DDOPPLER_NATIVE=ON.  Native builds must never be packaged.
+#
+# Extra C flags layered on top of -march=native by the `blazing` target.
 BLAZING_CFLAGS ?= -march=native
 
 # ── MSYS2: use the MinGW-native cmake, not the MSYS POSIX cmake ─────────────
@@ -254,6 +259,7 @@ blazing: clean
 	$(CMAKE) -B $(BUILD_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		-DDOPPLER_NATIVE=ON \
 		"-DCMAKE_C_FLAGS=$(BLAZING_CFLAGS)" \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)

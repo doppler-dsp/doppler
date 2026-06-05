@@ -71,6 +71,70 @@ After `ddcr_destroy`, any further call on the same capsule raises
 `RuntimeError`; live views of earlier output stay valid because they reference
 the caller's buffer, not the state.
 
+## Streaming semantics — the capsule is mutable C state
+
+`state` is a handle to a C struct that is **mutated in place** on every call.
+There is no value semantics and no copy: the same capsule object carries the
+LO phase, halfband taps, and resampler history forward from one `ddcr_execute`
+to the next. That is what makes block-by-block processing **phase-continuous** —
+feeding a signal as two halves through the *same* state is bit-identical to
+processing it in one shot:
+
+```python
+# one shot ----------------------------------------------------------------
+s = ddcr_create(lo, 0.25)
+y_whole = ddcr_execute(s, x, out).copy()
+
+# same input, same state, two blocks --------------------------------------
+s = ddcr_create(lo, 0.25)
+y0 = ddcr_execute(s, x[:4096], out).copy()   # state advances in place
+y1 = ddcr_execute(s, x[4096:], out).copy()   # picks up exactly where y0 left off
+# np.concatenate([y0, y1]) == y_whole   (max|Δ| == 0)
+```
+
+Run those same two halves through *fresh* states instead and the seam shows a
+phase jump and a filter transient (`max|Δ| ≈ 0.78`) — the carried history is
+exactly the in-place state. `ddcr_set_norm_freq` and `ddcr_reset` likewise
+mutate the same capsule (no new handle is returned).
+
+Consequences:
+
+- **One capsule = one stream.** Don't share a capsule across threads
+  concurrently; give each stream its own.
+- **Deterministic lifetime.** `ddcr_destroy` frees the C resources when *you*
+  say so, not when the GC happens to run.
+- The **only** value handed back is the output view (`out[:n_out]`);
+  everything else lives in — and mutates — the capsule.
+
+## Performance — zero-copy, zero steady-state allocation
+
+The functional face is **not faster than the `DDCR` object** — it's the same C
+core, and on a 4096-sample block all three paths land within ~2 %
+(≈16 µs/block on this machine). The benefit is *where the output goes* and
+*what gets allocated*, not raw throughput:
+
+| Path | per-call allocation | output lands in |
+|---|---|---|
+| `ddcr_execute(state, x, out)`, `out` reused | **none** (steady state) | a buffer **you own** |
+| `ddcr_execute(state, x, np.empty(...))` | one output array | a fresh array each call |
+| `DDCR.execute(x)` (object) | none | one **internal** buffer, overwritten next call |
+
+So the functional API buys you:
+
+- **Zero-copy into caller memory.** Write results straight into a slice of a
+  larger array, a memory-mapped region, or the next pipeline stage's input
+  buffer — no copy to move the result into place afterward.
+- **Multiple live outputs.** The object's `execute` returns a view into one
+  internal buffer that the next call overwrites; the functional API can target
+  a different `out` per call, so several outputs stay valid at once.
+- **No per-call allocation** in the steady state when you reuse one `out` —
+  small here (the allocator recycles the 32 KiB block cheaply), but it removes
+  allocator traffic and GC pressure entirely, which matters under many parallel
+  streams or tight real-time budgets.
+
+In short: same speed, but you own the buffer and the lifetime — exactly what a
+zero-copy streaming pipeline wants.
+
 ## Run it
 
 ```sh

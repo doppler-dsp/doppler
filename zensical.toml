@@ -35,6 +35,7 @@ nav = [
     { "Monte Carlo"        = "gallery/detection-sim.md"    },
     { "2-D Acquisition"    = "gallery/detection2d.md"      },
     { "RateConverter"      = "gallery/rate-converter.md"   },
+    { "Functional DDCR"    = "gallery/ddc-fn.md"           },
     { "AWGN"               = "gallery/awgn.md"             },
   ]},
   { "Examples" = [

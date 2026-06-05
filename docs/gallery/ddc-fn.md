@@ -73,12 +73,15 @@ the caller's buffer, not the state.
 
 ## Streaming semantics — the capsule is mutable C state
 
-`state` is a handle to a C struct that is **mutated in place** on every call.
-There is no value semantics and no copy: the same capsule object carries the
-LO phase, halfband taps, and resampler history forward from one `ddcr_execute`
-to the next. That is what makes block-by-block processing **phase-continuous** —
-feeding a signal as two halves through the *same* state is bit-identical to
-processing it in one shot:
+`state` is an **opaque handle** — a PyCapsule wrapping a single C pointer — to a
+struct that is **mutated in place** on every call. The actual DDCR state (the
+LO phase, the halfband taps, the polyphase resampler banks, the history
+buffers) lives entirely in C and **never crosses the Python/C boundary**: each
+call passes the ~8-byte handle, not the kilobytes of state, so nothing is
+serialized, marshaled, or copied per call. That is also what makes block-by-block
+processing **phase-continuous** — the same capsule carries its history forward
+from one `ddcr_execute` to the next, so feeding a signal as two halves through
+the *same* state is bit-identical to processing it in one shot:
 
 ```python
 # one shot ----------------------------------------------------------------

@@ -257,7 +257,7 @@ static PyMethodDef FFTObj_methods[] = {
     {"execute_cf64", (PyCFunction)FFTObj_execute_cf64, METH_VARARGS,
      "execute_cf64(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Out-of-place 1-D CF64 FFT.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FFT\n"
@@ -268,7 +268,7 @@ static PyMethodDef FFTObj_methods[] = {
     {"execute_cf32", (PyCFunction)FFTObj_execute_cf32, METH_VARARGS,
      "execute_cf32(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Out-of-place 1-D CF32 FFT.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FFT\n"
@@ -279,7 +279,7 @@ static PyMethodDef FFTObj_methods[] = {
     {"execute_inplace_cf64", (PyCFunction)FFTObj_execute_inplace_cf64, METH_VARARGS,
      "execute_inplace_cf64(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "In-place 1-D CF64 FFT (copies in→out, then transforms in out).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FFT\n"
@@ -290,7 +290,7 @@ static PyMethodDef FFTObj_methods[] = {
     {"execute_inplace_cf32", (PyCFunction)FFTObj_execute_inplace_cf32, METH_VARARGS,
      "execute_inplace_cf32(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "In-place 1-D CF32 FFT (copies in→out, then transforms in out).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FFT\n"
@@ -311,7 +311,7 @@ static PyTypeObject FFTObjType = {
     .tp_basicsize = sizeof(FFTObject),
     .tp_dealloc   = (destructor)FFTObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "FFT type.",
+    .tp_doc       = "Create a 1-D FFT instance.\n",
     .tp_methods   = FFTObj_methods,
     .tp_getset    = FFT_getset,
     .tp_new       = FFTObj_new,

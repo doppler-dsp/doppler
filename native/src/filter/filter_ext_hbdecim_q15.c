@@ -145,8 +145,8 @@ HBDecimQ15_getprop_rate(HBDecimQ15Object *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef HBDecimQ15_getset[] = {
-    { "num_taps", (getter)HBDecimQ15_getprop_num_taps, NULL, NULL, NULL },
-    { "rate", (getter)HBDecimQ15_getprop_rate, NULL, NULL, NULL },
+    { "num_taps", (getter)HBDecimQ15_getprop_num_taps, NULL, "Returns num_taps as supplied to hbdecim_q15_create.\n", NULL },
+    { "rate", (getter)HBDecimQ15_getprop_rate, NULL, "Always returns 0.5.\n", NULL },
     { NULL }
 };
 
@@ -183,7 +183,7 @@ static PyMethodDef HBDecimQ15Obj_methods[] = {
     {"execute", (PyCFunction)HBDecimQ15Obj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Decimate a block of interleaved IQ int16 samples by 2.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import HBDecimQ15\n"
@@ -194,7 +194,7 @@ static PyMethodDef HBDecimQ15Obj_methods[] = {
     {"reset", (PyCFunction)HBDecimQ15Obj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero all delay rings and clear the pending-sample flag.\n"
      "\n"
      "    >>> from doppler import HBDecimQ15\n"
      "    >>> obj = HBDecimQ15(np.zeros(1, dtype=np.float32))\n"
@@ -212,7 +212,7 @@ static PyTypeObject HBDecimQ15ObjType = {
     .tp_basicsize = sizeof(HBDecimQ15Object),
     .tp_dealloc   = (destructor)HBDecimQ15Obj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "HBDecimQ15 type.",
+    .tp_doc       = "Allocate and initialise a fixed-point halfband 2:1 decimator.\n",
     .tp_methods   = HBDecimQ15Obj_methods,
     .tp_getset    = HBDecimQ15_getset,
     .tp_new       = HBDecimQ15Obj_new,

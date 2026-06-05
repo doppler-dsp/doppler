@@ -133,8 +133,8 @@ FIR_getprop_is_real(FIRObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef FIR_getset[] = {
-    { "num_taps", (getter)FIR_getprop_num_taps, NULL, NULL, NULL },
-    { "is_real", (getter)FIR_getprop_is_real, NULL, NULL, NULL },
+    { "num_taps", (getter)FIR_getprop_num_taps, NULL, "Number of tap coefficients.\n", NULL },
+    { "is_real", (getter)FIR_getprop_is_real, NULL, "1 if filter was created with real taps, 0 if complex.\n", NULL },
     { NULL }
 };
 
@@ -173,7 +173,7 @@ static PyMethodDef FIRObj_methods[] = {
     {"execute", (PyCFunction)FIRObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Filter n_in CF32 samples; write results to out.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import FIR\n"
@@ -194,7 +194,7 @@ static PyTypeObject FIRObjType = {
     .tp_basicsize = sizeof(FIRObject),
     .tp_dealloc   = (destructor)FIRObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "FIR type.",
+    .tp_doc       = "Create a FIR filter from complex CF32 tap coefficients.\n",
     .tp_methods   = FIRObj_methods,
     .tp_getset    = FIR_getset,
     .tp_new       = FIRObj_new,

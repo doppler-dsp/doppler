@@ -265,7 +265,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32", (PyCFunction)NCOObj_steps_u32, METH_VARARGS,
      "steps_u32(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; write raw uint32 accumulator values.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -276,7 +276,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32_scaled", (PyCFunction)NCOObj_steps_u32_scaled, METH_VARARGS,
      "steps_u32_scaled(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; values scaled to [0, nmax).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -287,7 +287,7 @@ static PyMethodDef NCOObj_methods[] = {
     {"steps_u32_ovf", (PyCFunction)NCOObj_steps_u32_ovf, METH_VARARGS,
      "steps_u32_ovf(n=1) -> tuple[ndarray, ndarray]\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Advance n samples; write raw phase values and per-sample carry.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import NCO\n"
@@ -308,7 +308,7 @@ static PyTypeObject NCOObjType = {
     .tp_basicsize = sizeof(NCOObject),
     .tp_dealloc   = (destructor)NCOObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "NCO type.",
+    .tp_doc       = "Create an NCO instance.\n",
     .tp_methods   = NCOObj_methods,
     .tp_getset    = NCO_getset,
     .tp_new       = NCOObj_new,

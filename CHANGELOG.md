@@ -15,6 +15,29 @@ and this project adheres to
 
 ---
 
+## [0.5.5] — 2026-06-04
+
+### Fixed
+
+- **Runtime `__doc__` now matches the derived docs — for real this time.**
+  0.5.4 derived numpy docstrings into the `.pyi` stubs, but the C runtime docs
+  (`help(DDC.execute)`, `DDC.__doc__`, property docs) still showed the stale
+  scaffold fallback ("Zero-copy view…", "DDC type."), because those strings
+  live in the sacred per-object `<mod>_ext_<obj>.c` binding fragments that
+  `jm apply` does not regenerate. Upgraded just-makeit to **0.14.12** (the
+  doc-slot refresh landed in 0.14.11; 0.14.12 is the first published build to
+  carry it), whose `apply` transplants the derived docstrings into the
+  fragment's `PyMethodDef`
+  / `PyGetSetDef` / `tp_doc` slots — but **only** where the slot still holds
+  the scaffold form or is empty. Hand-written docstrings and bindings the
+  manifest can't express are preserved untouched: `RateConverter`'s rich class
+  doc and `stages` accessor, and the `cvt` `clipped` getters, are unchanged.
+  Now `DDC.execute.__doc__` really is "Mix input block with LO, then
+  rate-convert." and `DDC.norm_freq.__doc__` is "Return the current LO
+  normalised frequency.".
+
+---
+
 ## [0.5.4] — 2026-06-04
 
 ### Added
@@ -772,7 +795,8 @@ and this project adheres to
   root-level cmake artifacts cleaned up
 - **Python executable matching** in CI for C extension builds
 
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2

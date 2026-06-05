@@ -181,7 +181,7 @@ static PyMethodDef CICObj_methods[] = {
     {"reconfigure", (PyCFunction)CICObj_reconfigure, METH_VARARGS,
      "reconfigure(R) -> None\n"
      "\n"
-     "reconfigure.\n"
+     "Change the decimation ratio in place; resets all filter state.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import CIC\n"
@@ -211,7 +211,7 @@ static PyTypeObject CICObjType = {
     .tp_basicsize = sizeof(CICObject),
     .tp_dealloc   = (destructor)CICObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "CIC type.",
+    .tp_doc       = "Create a CIC decimation filter.\n",
     .tp_methods   = CICObj_methods,
     .tp_getset    = CIC_getset,
     .tp_new       = CICObj_new,

@@ -148,8 +148,8 @@ DDC_getprop_rate(DDCObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef DDC_getset[] = {
-    { "norm_freq", (getter)DDC_getprop_norm_freq, (setter)DDC_setprop_norm_freq, NULL, NULL },
-    { "rate", (getter)DDC_getprop_rate, NULL, NULL, NULL },
+    { "norm_freq", (getter)DDC_getprop_norm_freq, (setter)DDC_setprop_norm_freq, "Return the current LO normalised frequency.\n", NULL },
+    { "rate", (getter)DDC_getprop_rate, NULL, "Return the configured output/input rate ratio.\n", NULL },
     { NULL }
 };
 
@@ -186,7 +186,7 @@ static PyMethodDef DDCObj_methods[] = {
     {"execute", (PyCFunction)DDCObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Mix input block with LO, then rate-convert.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import DDC\n"
@@ -197,7 +197,7 @@ static PyMethodDef DDCObj_methods[] = {
     {"reset", (PyCFunction)DDCObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero LO phase and filter history.\n"
      "\n"
      "    >>> from doppler import DDC\n"
      "    >>> obj = DDC(0.0, 0.25)\n"
@@ -215,7 +215,7 @@ static PyTypeObject DDCObjType = {
     .tp_basicsize = sizeof(DDCObject),
     .tp_dealloc   = (destructor)DDCObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "DDC type.",
+    .tp_doc       = "Create a complex-input DDC.\n",
     .tp_methods   = DDCObj_methods,
     .tp_getset    = DDC_getset,
     .tp_new       = DDCObj_new,

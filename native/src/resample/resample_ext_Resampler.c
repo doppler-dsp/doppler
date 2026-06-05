@@ -247,7 +247,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"execute", (PyCFunction)ResamplerObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Resample x(0..x_len-1) into out(0..n_out-1).\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Resampler\n"
@@ -258,7 +258,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"execute_ctrl", (PyCFunction)ResamplerObj_execute_ctrl, METH_VARARGS,
      "execute_ctrl(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Resample with per-sample rate deviations.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Resampler\n"
@@ -269,7 +269,7 @@ static PyMethodDef ResamplerObj_methods[] = {
     {"reset", (PyCFunction)ResamplerObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero delay line and phase accumulator.  Rate and bank preserved.\n"
      "\n"
      "    >>> from doppler import Resampler\n"
      "    >>> obj = Resampler(0.0)\n"
@@ -287,7 +287,7 @@ static PyTypeObject ResamplerObjType = {
     .tp_basicsize = sizeof(ResamplerObject),
     .tp_dealloc   = (destructor)ResamplerObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Resampler type.",
+    .tp_doc       = "Create a Resampler with the built-in 4096×19 Kaiser bank.\n",
     .tp_methods   = ResamplerObj_methods,
     .tp_getset    = Resampler_getset,
     .tp_new       = ResamplerObj_new,

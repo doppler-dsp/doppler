@@ -177,7 +177,7 @@ static PyMethodDef CorrObj_methods[] = {
     {"execute", (PyCFunction)CorrObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Correlate one frame and optionally dump the accumulator.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import Corr\n"
@@ -198,7 +198,7 @@ static PyTypeObject CorrObjType = {
     .tp_basicsize = sizeof(CorrObject),
     .tp_dealloc   = (destructor)CorrObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Corr type.",
+    .tp_doc       = "Create a 1-D FFT correlator.\n",
     .tp_methods   = CorrObj_methods,
     .tp_getset    = Corr_getset,
     .tp_new       = CorrObj_new,

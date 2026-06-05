@@ -223,7 +223,7 @@ static PyMethodDef LOObj_methods[] = {
     {"steps", (PyCFunction)LOObj_steps, METH_VARARGS,
      "steps(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Generate n CF32 phasors at the current norm_freq.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import LO\n"
@@ -234,7 +234,7 @@ static PyMethodDef LOObj_methods[] = {
     {"steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS,
      "steps_ctrl(ctrl) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Generate CF32 phasors with per-sample FM deviation.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import LO\n"
@@ -255,7 +255,7 @@ static PyTypeObject LOObjType = {
     .tp_basicsize = sizeof(LOObject),
     .tp_dealloc   = (destructor)LOObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "LO type.",
+    .tp_doc       = "Create an LO instance.\n",
     .tp_methods   = LOObj_methods,
     .tp_getset    = LO_getset,
     .tp_new       = LOObj_new,

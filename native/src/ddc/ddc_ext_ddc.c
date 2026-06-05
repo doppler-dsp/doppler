@@ -93,7 +93,22 @@ DDCObj_execute(DDCObject *self, PyObject *args)
         self->_execute_buf = _tmp;
         self->_execute_buf_cap = _max;
     }
-    size_t n_out = ddc_execute(self->handle, (const float complex *)PyArray_DATA(x_arr), (size_t)PyArray_SIZE(x_arr), self->_execute_buf, self->_execute_buf_cap);
+    /* Release the GIL across the pure-C kernel. Same contract as the
+     * functional ddcr_execute: one object = one stream, so the kernel touches
+     * only this object's state and internal buffer plus the caller's input —
+     * no Python objects, no shared mutable state. Pointers are fetched first
+     * so no Python C-API runs while the GIL is dropped; the buffer realloc
+     * above (which can raise) stays under the GIL. Lets a thread-per-shard
+     * worker scale across cores. */
+    const float complex *_in =
+        (const float complex *)PyArray_DATA(x_arr);
+    size_t _n_in = (size_t)PyArray_SIZE(x_arr);
+    float complex *_buf = self->_execute_buf;
+    size_t _cap = self->_execute_buf_cap;
+    size_t n_out;
+    Py_BEGIN_ALLOW_THREADS
+    n_out = ddc_execute(self->handle, _in, _n_in, _buf, _cap);
+    Py_END_ALLOW_THREADS
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
         1, &dim, NPY_COMPLEX64, self->_execute_buf);

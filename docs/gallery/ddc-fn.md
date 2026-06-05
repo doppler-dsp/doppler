@@ -135,6 +135,38 @@ So the functional API buys you:
   allocator traffic and GC pressure entirely, which matters under many parallel
   streams or tight real-time budgets.
 
+## Parallelism — `ddcr_execute` releases the GIL
+
+The C kernel runs with the **GIL released** (`Py_BEGIN_ALLOW_THREADS` around the
+`ddcr_execute` call). It's safe precisely because of the one-capsule-per-stream
+contract: the kernel touches only that stream's state and the caller's
+buffers — no Python objects, no shared mutable state. So a **thread-per-shard**
+worker — each thread owning its own capsule and `out` buffer — scales across
+cores instead of serialising on the GIL:
+
+![Functional DDCR thread-per-shard scaling](../assets/ddc_fn_scaling.png)
+
+| threads | speedup | efficiency |
+|--------:|--------:|-----------:|
+| 1 | 1.00× | 100 % |
+| 2 | 1.73× | 86 % |
+| 4 | 3.16× | 79 % |
+| 8 | 5.41× | 68 % |
+| 12 | 7.41× | 62 % |
+| 16 | 8.08× | 51 % |
+
+(8192-sample blocks, representative run on a 20-core box; regenerate with
+`make gallery`. **Before** releasing the GIL the same test was flat at ~1×
+regardless of thread count.) Scaling is near-linear through a handful of cores
+and then **memory-bandwidth bound** — the kernel streams large buffers, so past
+~8–12 threads more cores stop helping. The takeaway for sizing: one replica can
+use *several* cores via threads before you reach for process-per-shard, which
+changes your replica-count math.
+
+This pairs directly with the streaming model above: shard by stream, give each
+worker thread a disjoint set of capsules, and there is **no shared state to
+lock** — the parallelism is embarrassingly so.
+
 In short: same speed, but you own the buffer and the lifetime — exactly what a
 zero-copy streaming pipeline wants.
 

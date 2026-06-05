@@ -24,8 +24,10 @@ and this project adheres to
   (`help(DDC.execute)`, `DDC.__doc__`, property docs) still showed the stale
   scaffold fallback ("Zero-copy view…", "DDC type."), because those strings
   live in the sacred per-object `<mod>_ext_<obj>.c` binding fragments that
-  `jm apply` does not regenerate. Upgraded just-makeit to **0.14.11**, whose
-  `apply` transplants the derived docstrings into the fragment's `PyMethodDef`
+  `jm apply` does not regenerate. Upgraded just-makeit to **0.14.12** (the
+  doc-slot refresh landed in 0.14.11; 0.14.12 is the first published build to
+  carry it), whose `apply` transplants the derived docstrings into the
+  fragment's `PyMethodDef`
   / `PyGetSetDef` / `tp_doc` slots — but **only** where the slot still holds
   the scaffold form or is empty. Hand-written docstrings and bindings the
   manifest can't express are preserved untouched: `RateConverter`'s rich class

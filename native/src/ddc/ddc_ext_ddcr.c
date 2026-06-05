@@ -186,7 +186,7 @@ static PyMethodDef DDCRObj_methods[] = {
     {"execute", (PyCFunction)DDCRObj_execute, METH_VARARGS,
      "execute(x) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Halfband R2C decimate, LO mix, then rate-convert.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import DDCR\n"
@@ -197,7 +197,7 @@ static PyMethodDef DDCRObj_methods[] = {
     {"reset", (PyCFunction)DDCRObj_reset, METH_NOARGS,
      "reset() -> None\n"
      "\n"
-     "reset.\n"
+     "Zero halfband, LO phase, and filter history.\n"
      "\n"
      "    >>> from doppler import DDCR\n"
      "    >>> obj = DDCR(0.0, 0.25)\n"

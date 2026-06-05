@@ -138,7 +138,7 @@ AWGN_setprop_amplitude(AWGNObject *self, PyObject *value, void *Py_UNUSED(closur
 }
 
 static PyGetSetDef AWGN_getset[] = {
-    { "amplitude", (getter)AWGN_getprop_amplitude, (setter)AWGN_setprop_amplitude, NULL, NULL },
+    { "amplitude", (getter)AWGN_getprop_amplitude, (setter)AWGN_setprop_amplitude, "Return the current amplitude (per-component std dev).\n", NULL },
     { NULL }
 };
 
@@ -177,7 +177,7 @@ static PyMethodDef AWGNObj_methods[] = {
     {"generate", (PyCFunction)AWGNObj_generate, METH_VARARGS,
      "generate(n=1) -> ndarray\n"
      "\n"
-     "Zero-copy view into pre-allocated output buffer.\n"
+     "Generate n complex CF32 AWGN samples.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AWGN\n"
@@ -188,7 +188,7 @@ static PyMethodDef AWGNObj_methods[] = {
     {"reseed", (PyCFunction)AWGNObj_reseed, METH_VARARGS,
      "reseed(seed) -> complex\n"
      "\n"
-     "reseed.\n"
+     "Reseed the RNG and reset state.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AWGN\n"
@@ -208,7 +208,7 @@ static PyTypeObject AWGNObjType = {
     .tp_basicsize = sizeof(AWGNObject),
     .tp_dealloc   = (destructor)AWGNObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AWGN type.",
+    .tp_doc       = "Create an AWGN generator.\n",
     .tp_methods   = AWGNObj_methods,
     .tp_getset    = AWGN_getset,
     .tp_new       = AWGNObj_new,

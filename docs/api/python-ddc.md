@@ -169,6 +169,34 @@ for s in states:
     ddcr_destroy(s)
 ```
 
+### Threading — the GIL is released across the kernel
+
+`ddcr_execute` (and `DDC`/`DDCR.execute`) run the pure-C kernel with the **GIL
+released** (`Py_BEGIN_ALLOW_THREADS`; numpy accessors hoisted out first). So a
+**thread-per-shard** worker — each thread owning its own state/object and
+output buffer — scales across cores instead of serialising on the GIL:
+
+```python
+import threading
+
+def worker(state, blocks, out):
+    for x in blocks:                 # this thread's own state + buffer
+        process(ddcr_execute(state, x, out))
+
+threads = [
+    threading.Thread(target=worker, args=(ddcr_create(-0.7, 0.25),
+                                          shard, np.empty(N, np.complex64)))
+    for shard in shards
+]
+for t in threads: t.start()
+for t in threads: t.join()
+```
+
+Measured ~5–8× across 8–12 cores (then memory-bandwidth bound). **Contract:**
+one state/object per stream — never share a handle across threads concurrently
+(no internal lock). This is the basis of the sharded-microservice model; see
+the [functional DDCR gallery walkthrough](../gallery/ddc-fn.md).
+
 ### Lifecycle and memory safety
 
 | Scenario | Safe? |

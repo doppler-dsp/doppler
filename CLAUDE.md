@@ -164,6 +164,35 @@ here, so `jm apply` is now fully idempotent with **no allowlist**:
 from the prior round also stands. The only remaining non-jm surface is
 `ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
+### 0.15.x adoptions — formerly-manual patterns are now declarative (pin: 0.15.4)
+
+doppler drove a second round of jm features; with the pin at **0.15.4**, three
+things that used to be hand-patches are now manifest-driven glue — never edit
+the generated file, set the key:
+
+| Pattern | Old (hand-patch) | Now (declarative, jm ≥ 0.15.x) |
+|---|---|---|
+| **Release the GIL** in an execute binding for thread-per-shard scaling | hand-add `Py_BEGIN_ALLOW_THREADS` to `<mod>_ext_<obj>.c` | `nogil = true` on the method (`objects/ddc.toml`, `ddcr.toml`); jm generates the hoist + allow-threads (0.15.2) |
+| **Re-export a sibling's symbols** from a package `__init__.py` | hand-edit `__all__` + `from .ddc_fn import …` | `reexports = { ddc_fn = [...] }` on `[module.ddc]`; regenerates single-line (0.15.1) |
+| **Runtime `__doc__`** parity with the `.pyi` | (was stale fallback) | `jm apply` transplants header-derived docstrings into the sacred fragments' `PyMethodDef`/`tp_doc`/getset slots, scaffold-only (0.14.11) |
+
+Also adopted: `depends_on` auto-includes a dependency's header **only when the
+header exists** (0.15.4 — 0.15.3 wrongly injected `lo_core/lo_core_core.h` for
+doppler's link-target deps and was skipped); `jm apply` is idempotent against a
+hand-tuned `JM_RESTRICT`/non-const prototype (0.15.2). `jm apply` /
+`jm status --check` remain fully idempotent with **no allowlist**.
+
+### `ddc_fn` — the functional DDCR API (`no_generate`)
+
+`[module.ddc_fn]` is `no_generate`: a fully hand-written CPython extension
+exposing the DDCR down-converter as free functions over an opaque PyCapsule
+state (`ddcr_create`/`execute`/`reset`/`destroy`/`get_/set_*`) instead of a
+type. jm only wires its CMake `add_subdirectory`; `ddc_fn_ext.c` and
+`ddc_fn.pyi` are hand-owned (including their GIL release — a no_generate module
+is hand-owned end to end, so `nogil` does not apply). `doppler.ddc` re-exports
+the `ddcr_*` names via the `reexports` key above. See the gallery walkthrough
+(`docs/gallery/ddc-fn.md`) for the streaming/threading model.
+
 ---
 
 ## Build

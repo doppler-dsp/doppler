@@ -6,6 +6,8 @@ target_include_directories(HalfbandDecimator_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc/HalfbandDecimator
     ${CMAKE_SOURCE_DIR}/native/inc/hbdecim)
 
+target_link_libraries(HalfbandDecimator_core PUBLIC
+    hbdecim_core)
 add_executable(test_HalfbandDecimator_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_HalfbandDecimator_core.c)
 target_link_libraries(test_HalfbandDecimator_core

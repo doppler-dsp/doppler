@@ -6,6 +6,8 @@ target_include_directories(Resampler_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc/Resampler
     ${CMAKE_SOURCE_DIR}/native/inc/resamp)
 
+target_link_libraries(Resampler_core PUBLIC
+    resamp_core)
 add_executable(test_Resampler_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_Resampler_core.c)
 target_link_libraries(test_Resampler_core PRIVATE Resampler_core resamp_core m)

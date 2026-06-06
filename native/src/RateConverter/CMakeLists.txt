@@ -4,6 +4,12 @@ target_include_directories(RateConverter_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/RateConverter)
 
+target_link_libraries(RateConverter_core PUBLIC
+    resamp_core
+    hbdecim_core
+    cic_core
+    fir_core
+    resample_core)
 add_executable(test_RateConverter_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_RateConverter_core.c)
 target_link_libraries(test_RateConverter_core PRIVATE

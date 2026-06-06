@@ -23,7 +23,7 @@ main(void)
     if (!out) { fprintf(stderr, "OOM\n"); return 1; }
 
 
-    synth_state_t *obj = synth_create(0, 1000000.0, 0.0, 100.0, 1);
+    synth_state_t *obj = synth_create(0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0);
 
     /* volatile sink prevents DCE of the step() loop */
     volatile float complex _sink;

@@ -55,6 +55,24 @@ void pn_destroy(pn_state_t *state);
  */
 void pn_reset(pn_state_t *state);
 
+/**
+ * @brief Advance the LFSR one step; return the output chip (0 or 1).
+ *
+ * Galois m-sequence step: output = register LSB, shift right, XOR the tap
+ * polynomial on a 1. Inline so per-sample modulators (e.g. synth's bpsk/qpsk
+ * data source) can pull chips in a hot loop without a block call.
+ * @param state  Must be non-NULL.
+ */
+JM_FORCEINLINE uint8_t
+pn_step(pn_state_t *state)
+{
+    uint8_t bit = (uint8_t)(state->reg & 1u);
+    state->reg >>= 1;
+    if (bit)
+        state->reg ^= state->poly;
+    state->reg &= state->mask;
+    return bit;
+}
 
 
 

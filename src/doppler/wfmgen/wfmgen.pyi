@@ -1,4 +1,5 @@
 # wfmgen/wfmgen.pyi — type stubs for the wfmgen C extension.
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -42,26 +43,39 @@ class Synth:
 
     Parameters
     ----------
-    type : int, default 0
-        type constructor parameter.
-    fs : float, default 1000000.0
-        fs constructor parameter.
-    freq_offset : float, default 0.0
-        freq_offset constructor parameter.
-    snr_db : float, default 100.0
-        snr_db constructor parameter.
-    seed : int, default 1
-        seed constructor parameter.
+    wtype : int, default 0
+        wtype state variable.
+    nsps : int, default 8
+        nsps state variable.
+    sym_pos : int, default 0
+        sym_pos state variable.
+    cur_re : float, default 1.0
+        cur_re state variable.
+    cur_im : float, default 0.0
+        cur_im state variable.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.wfmgen import Synth
-    >>> obj = Synth(0, 1000000.0, 0.0, 100.0, 1)
+    >>> obj = Synth(0, 8, 0, 1.0, 0.0)
+    >>> obj.get_wtype()
+    0
+    >>> obj.get_nsps()
+    8
+    >>> obj.get_sym_pos()
+    0
+
+    Reset restores defaults:
+
+    >>> obj.set_wtype(42)
+    >>> obj.reset()
+    >>> obj.get_wtype()
+    0
 
     """
-    def __init__(self, type: int = ..., fs: float = ..., freq_offset: float = ..., snr_db: float = ..., seed: int = ...) -> None: ...
+    def __init__(self, wtype: int = ..., nsps: int = ..., sym_pos: int = ..., cur_re: float = ..., cur_im: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""

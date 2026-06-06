@@ -1,0 +1,72 @@
+/**
+ * @file pn_core.h
+ * @brief PN component API.
+ *
+ * Lifecycle: create -> [step / steps / reset]* -> destroy
+ *
+ * Example:
+ * @code
+ * pn_state_t *obj = pn_create(96, 1, 7);
+ * uint8_t y = pn_step(obj);
+ * pn_destroy(obj);
+ * @endcode
+ */
+#ifndef PN_CORE_H
+#define PN_CORE_H
+
+#include "clib_common.h"
+#include "jm_perf.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief PN state.
+ *
+ * Allocate with pn_create().
+ */
+typedef struct {
+    uint32_t poly; /* Galois feedback polynomial (taps) */
+    uint32_t seed; /* initial register state (for reset) */
+    uint32_t reg;  /* current LFSR register */
+    uint32_t mask; /* (1u << length) - 1 */
+} pn_state_t;
+
+/**
+ * @brief Create a pn instance.
+ *
+ * @param poly  poly (default: 96).
+ * @param seed  seed (default: 1).
+ * @param length  length (default: 7).
+ * @return Heap-allocated state, or NULL on allocation failure.
+ * @note Caller must call pn_destroy() when done.
+ */
+pn_state_t *pn_create(uint32_t poly, uint32_t seed, uint32_t length);
+
+/**
+ * @brief Destroy a pn instance and release all memory.
+ * @param state  May be NULL.
+ */
+void pn_destroy(pn_state_t *state);
+
+/**
+ * @brief Reset PN to its post-create state.
+ * @param state  Must be non-NULL.
+ */
+void pn_reset(pn_state_t *state);
+
+
+
+
+
+
+
+
+
+size_t pn_generate_max_out(pn_state_t *state);
+size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out);
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* PN_CORE_H */

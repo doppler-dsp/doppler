@@ -25,6 +25,34 @@ objects = ["nco", "lo", "awgn"]
 # (_ZGVdN8v_logf); link libmvec on Linux so source.so resolves it.
 extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
+[module.wfmgen]
+objects = ["pn"]
+
+[[module.wfmgen.functions]]
+name = "bpsk_map"
+out_type = "float _Complex"
+doc = "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."
+params = [{name = "bits", type = "uint8_t[]"}]
+
+[[module.wfmgen.functions]]
+name = "qpsk_map"
+out_type = "float _Complex"
+doc = "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."
+params = [{name = "syms", type = "uint8_t[]"}]
+
+[[module.wfmgen.functions]]
+name = "wfm_awgn_amplitude"
+return_type = "float"
+doc = "AWGN amplitude for a target SNR (dB, over fs) given signal power."
+params = [{name = "snr_db", type = "float"}, {name = "signal_power", type = "float"}]
+
+[[module.wfmgen.functions]]
+name = "wfm_ebno_to_snr_db"
+return_type = "float"
+doc = "Convert Eb/No (dB) to SNR (dB over fs)."
+params = [{name = "ebno_db", type = "float"}, {name = "bits_per_symbol", type = "int"}, {name = "samples_per_symbol", type = "float"}]
+
+
 [module.delay]
 objects = ["delay"]
 

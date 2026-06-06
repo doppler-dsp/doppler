@@ -4,6 +4,15 @@ target_include_directories(
   ddcr_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/ddcr)
 
+target_link_libraries(ddcr_core PUBLIC
+    lo_core
+    RateConverter_core
+    resamp_core
+    hbdecim_core
+    hbdecim_r2c_core
+    cic_core
+    fir_core
+    resample_core)
 add_executable(test_ddcr_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_ddcr_core.c)
 target_link_libraries(test_ddcr_core PRIVATE ddcr_core ddc_core

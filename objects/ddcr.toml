@@ -34,6 +34,7 @@ arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
 pass_capacity = true
+nogil = true
 params = [{name = "x", type = "float[]"}]
 doc = "Halfband R2C decimate, LO mix, then rate-convert."
 

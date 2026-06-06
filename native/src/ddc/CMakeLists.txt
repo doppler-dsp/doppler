@@ -3,6 +3,16 @@ add_library(ddc_core OBJECT ddc_core.c)
 target_include_directories(
   ddc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/ddc)
+target_link_libraries(ddc_core PUBLIC
+    lo_core
+    RateConverter_core
+    resamp_core
+    hbdecim_core
+    hbdecim_r2c_core
+    cic_core
+    fir_core
+    resample_core
+    m)
 
 add_executable(test_ddc_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_core.c)

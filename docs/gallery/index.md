@@ -104,6 +104,18 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](rate-converter.md)
 
+-   **[Functional DDCR — Real to Baseband](ddc-fn.md)**
+
+    ---
+
+    [![Functional DDCR spectral demo](../assets/ddc_fn_demo.png)](ddc-fn.md)
+
+    The capsule-state `ddcr_*` API: real passband in, complex baseband out,
+    4× decimation.  Carrier parked at DC, retuned phase-continuously, plus a
+    GIL-released thread-per-shard core-scaling curve.
+
+    [:octicons-arrow-right-24: Walkthrough](ddc-fn.md)
+
 -   **[HBDecimQ15 — Fixed-Point Halfband](hbdecim_q15.md)**
 
     ---

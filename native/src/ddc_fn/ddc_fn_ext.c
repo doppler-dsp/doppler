@@ -118,10 +118,20 @@ _fn_ddcr_execute(PyObject *mod, PyObject *args)
     size_t n_in    = (size_t)PyArray_SIZE(x_arr);
     size_t max_out = (size_t)PyArray_SIZE(out_arr);
 
-    size_t n_out = ddcr_execute(
-        w->state,
-        (const float *)PyArray_DATA(x_arr), n_in,
-        (float _Complex *)PyArray_DATA(out_arr), max_out);
+    /* Release the GIL across the pure-C kernel. Safe by the one-capsule-per-
+     * stream contract: the kernel touches only this stream's state and the
+     * caller's input/output buffers — no Python objects, no shared mutable
+     * state — and we still hold references to x_arr / out_arr, so their data
+     * cannot be freed underneath us. Pointers are fetched before the block so
+     * no Python C-API runs while the GIL is dropped. This is what lets a
+     * thread-per-shard worker scale across cores instead of serialising on
+     * the GIL. */
+    const float    *in_data  = (const float *)PyArray_DATA(x_arr);
+    float _Complex *out_data = (float _Complex *)PyArray_DATA(out_arr);
+    size_t n_out;
+    Py_BEGIN_ALLOW_THREADS
+    n_out = ddcr_execute(w->state, in_data, n_in, out_data, max_out);
+    Py_END_ALLOW_THREADS
     Py_DECREF(x_arr);
 
     /* Return out_arr[:n_out] — zero-copy view into the caller's buffer. */

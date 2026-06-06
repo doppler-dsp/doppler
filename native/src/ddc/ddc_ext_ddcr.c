@@ -93,7 +93,16 @@ DDCRObj_execute(DDCRObject *self, PyObject *args)
         self->_execute_buf = _tmp;
         self->_execute_buf_cap = _max;
     }
-    size_t n_out = ddcr_execute(self->handle, (const float *)PyArray_DATA(x_arr), (size_t)PyArray_SIZE(x_arr), self->_execute_buf, self->_execute_buf_cap);
+    /* nogil: GIL released across the pure-C kernel — sound only when
+     * this object is not shared across threads concurrently (one
+     * object per stream); the kernel touches only this object's
+     * state/buffers and the caller's input. */
+    const float * _ng0 = (const float *)PyArray_DATA(x_arr);
+    size_t _ng1 = (size_t)PyArray_SIZE(x_arr);
+    size_t n_out;
+    Py_BEGIN_ALLOW_THREADS
+    n_out = ddcr_execute(self->handle, _ng0, _ng1, self->_execute_buf, self->_execute_buf_cap);
+    Py_END_ALLOW_THREADS
     npy_intp dim = (npy_intp)n_out;
     PyObject *arr = PyArray_SimpleNewFromData(
         1, &dim, NPY_COMPLEX64, self->_execute_buf);
@@ -148,8 +157,8 @@ DDCR_getprop_rate(DDCRObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef DDCR_getset[] = {
-    { "norm_freq", (getter)DDCR_getprop_norm_freq, (setter)DDCR_setprop_norm_freq, NULL, NULL },
-    { "rate", (getter)DDCR_getprop_rate, NULL, NULL, NULL },
+    { "norm_freq", (getter)DDCR_getprop_norm_freq, (setter)DDCR_setprop_norm_freq, "Norm freq.\n", NULL },
+    { "rate", (getter)DDCR_getprop_rate, NULL, "Rate.\n", NULL },
     { NULL }
 };
 
@@ -215,7 +224,7 @@ static PyTypeObject DDCRObjType = {
     .tp_basicsize = sizeof(DDCRObject),
     .tp_dealloc   = (destructor)DDCRObj_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "DDCR type.",
+    .tp_doc       = "DDCR type.\n",
     .tp_methods   = DDCRObj_methods,
     .tp_getset    = DDCR_getset,
     .tp_new       = DDCRObj_new,

@@ -182,6 +182,23 @@ doppler's link-target deps and was skipped); `jm apply` is idempotent against a
 hand-tuned `JM_RESTRICT`/non-const prototype (0.15.2). `jm apply` /
 `jm status --check` remain fully idempotent with **no allowlist**.
 
+### 0.16.0 adoptions — `jm app` for real tools + version-skew (pin: 0.16.0)
+
+The CI drift gate now pins **0.16.0** (`ci.yml`); `[project].jm_version` is
+stamped in `just-makeit.toml` and **every jm command warns on version skew**
+(gh-183) — so a stale CLI (e.g. the `/tmp/jm-venv` 0.14.12) is caught
+immediately. **Always drive doppler with `uvx --from 'just-makeit==0.16.0'
+just-makeit …`**, never the stale console script.
+
+`jm app` (gh-184) now generates a complete CLI tool from one object:
+init_params → ctor `--flags`, a `string_enum:` init param → a `--flag a|b`
+**choice flag**, a cf32 generator/blockwise object → a built-in
+`--sample_type cf32|cf64|ci32|ci16|ci8` (interleaved-I/Q convert-on-write,
+byte-identical across the c/console/pep723 faces), and `--help`. This is what
+the `wfmgen`/`wavegen` tool is being built on (see `~/.claude/plans`). The
+string-enum binding parses a Python string and maps it to the C enum index, so
+`Obj(kind="tone")` works directly.
+
 ### `ddc_fn` — the functional DDCR API (`no_generate`)
 
 `[module.ddc_fn]` is `no_generate`: a fully hand-written CPython extension

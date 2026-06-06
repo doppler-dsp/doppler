@@ -2,7 +2,7 @@ add_library(util_core OBJECT util_core.c square_clip.c)
 target_include_directories(util_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# util Python module — aggregates: 
+# util Python module
 Python3_add_library(util MODULE WITH_SOABI util_ext.c)
 target_link_libraries(util PRIVATE
     util_core

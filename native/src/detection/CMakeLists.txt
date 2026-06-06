@@ -2,7 +2,7 @@ add_library(detection_core OBJECT detection_core.c marcum_q.c det_threshold.c de
 target_include_directories(detection_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# detection Python module — aggregates: 
+# detection Python module
 Python3_add_library(detection MODULE WITH_SOABI detection_ext.c)
 target_link_libraries(detection PRIVATE
     detection_core

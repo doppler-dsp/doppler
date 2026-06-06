@@ -85,6 +85,17 @@ extra_link_libs = [
     "resample_core",
     "m",
 ]
+# Re-export the hand-written functional DDCR API (the no_generate ddc_fn
+# sibling) from doppler.ddc, so __init__.py regenerates cleanly (jm >= 0.15.1).
+reexports = { ddc_fn = [
+    "ddcr_create",
+    "ddcr_execute",
+    "ddcr_reset",
+    "ddcr_destroy",
+    "ddcr_get_norm_freq",
+    "ddcr_set_norm_freq",
+    "ddcr_get_rate",
+] }
 
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]

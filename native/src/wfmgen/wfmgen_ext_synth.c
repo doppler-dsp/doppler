@@ -17,7 +17,7 @@ typedef struct {
 } SynthObject;
 
 static void
-SynthObj_dealloc(SynthObject *self)
+Synth_dealloc(SynthObject *self)
 {
     if (self->handle)
         synth_destroy(self->handle);
@@ -25,7 +25,7 @@ SynthObj_dealloc(SynthObject *self)
 }
 
 static PyObject *
-SynthObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+Synth_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     SynthObject *self = (SynthObject *)type->tp_alloc(type, 0);
     if (self)
@@ -34,7 +34,7 @@ SynthObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-SynthObj_init(SynthObject *self, PyObject *args, PyObject *kwds)
+Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"type", "fs", "freq_offset", "snr_db", "seed", NULL};
     int type = 0;
@@ -57,7 +57,7 @@ SynthObj_init(SynthObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-SynthObj_reset(SynthObject *self, PyObject *Py_UNUSED(ignored))
+Synth_reset(SynthObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->handle) {
         PyErr_SetString(PyExc_RuntimeError, "destroyed");
@@ -106,7 +106,7 @@ Synth_steps(SynthObject *self, PyObject *args)
 
 
 static PyObject *
-SynthObj_destroy(SynthObject *self, PyObject *Py_UNUSED(ignored))
+Synth_destroy(SynthObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (self->handle) {
         synth_destroy(self->handle);
@@ -116,14 +116,14 @@ SynthObj_destroy(SynthObject *self, PyObject *Py_UNUSED(ignored))
 }
 
 static PyObject *
-SynthObj_enter(SynthObject *self, PyObject *Py_UNUSED(ignored))
+Synth_enter(SynthObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-SynthObj_exit(SynthObject *self, PyObject *args)
+Synth_exit(SynthObject *self, PyObject *args)
 {
     (void)args;
     if (self->handle) {
@@ -133,8 +133,8 @@ SynthObj_exit(SynthObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef SynthObj_methods[] = {
-    {"reset",    (PyCFunction)SynthObj_reset,    METH_NOARGS,
+static PyMethodDef Synth_methods[] = {
+    {"reset",    (PyCFunction)Synth_reset,    METH_NOARGS,
      "Reset state to post-create defaults."},
     {"step",     (PyCFunction)Synth_step,     METH_NOARGS,
      "step() -> float complex\n"
@@ -159,21 +159,21 @@ static PyMethodDef SynthObj_methods[] = {
      "    >>> y.dtype\n"
      "    dtype('complex64')\n"},
 
-    {"destroy",  (PyCFunction)SynthObj_destroy,  METH_NOARGS,
+    {"destroy",  (PyCFunction)Synth_destroy,  METH_NOARGS,
      "Release resources."},
-    {"__enter__", (PyCFunction)SynthObj_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)SynthObj_exit,    METH_VARARGS, NULL},
+    {"__enter__", (PyCFunction)Synth_enter,   METH_NOARGS,  NULL},
+    {"__exit__",  (PyCFunction)Synth_exit,    METH_VARARGS, NULL},
     {NULL}
 };
 
-static PyTypeObject SynthObjType = {
+static PyTypeObject SynthType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "wfmgen.Synth",
     .tp_basicsize = sizeof(SynthObject),
-    .tp_dealloc   = (destructor)SynthObj_dealloc,
+    .tp_dealloc   = (destructor)Synth_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_doc       = "Synth type.\n",
-    .tp_methods   = SynthObj_methods,
-    .tp_new       = SynthObj_new,
-    .tp_init      = (initproc)SynthObj_init,
+    .tp_methods   = Synth_methods,
+    .tp_new       = Synth_new,
+    .tp_init      = (initproc)Synth_init,
 };

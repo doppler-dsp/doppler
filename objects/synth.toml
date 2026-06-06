@@ -2,9 +2,62 @@
 arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
-no_state = "true"
 class_name = "Synth"
-depends_on = ["lo_core", "awgn_core"]
+depends_on = ["lo", "awgn"]
+
+# create()/reset()/destroy() are declarative (jm#51); init_params drive the
+# ctor (jm#69), while the opaque lo/awgn handles are no-ctor state set up here.
+create_impl = """
+if (type == 0) {
+    obj->lo = lo_create(freq_offset);
+    if (!obj->lo) {
+        free(obj);
+        return NULL;
+    }
+    /* additive noise at the requested SNR (tone power = 1); awgn complex
+     * power = 2*amplitude², so amplitude = sqrt(P_sig / (2*SNR_lin)). */
+    float snr_lin = powf(10.0f, (float)snr_db / 10.0f);
+    obj->awgn = awgn_create((uint64_t)seed, sqrtf(1.0f / (2.0f * snr_lin)));
+    if (!obj->awgn) {
+        lo_destroy(obj->lo);
+        free(obj);
+        return NULL;
+    }
+} else {
+    /* SYNTH_NOISE — unit total power (2*amplitude² = 1) */
+    obj->awgn = awgn_create((uint64_t)seed,
+                            (float)(1.0 / 1.4142135623730951));
+    if (!obj->awgn) {
+        free(obj);
+        return NULL;
+    }
+}
+(void)fs;
+"""
+
+destroy_impl = """
+if (state->lo)
+    lo_destroy(state->lo);
+if (state->awgn)
+    awgn_destroy(state->awgn);
+"""
+
+reset_impl = """
+if (state->lo)
+    lo_reset(state->lo);
+if (state->awgn)
+    awgn_reset(state->awgn);
+"""
+
+impl = """
+float complex sig = 0.0f + 0.0f * I;
+if (state->lo)
+    lo_steps(state->lo, 1, &sig);
+float complex noise = 0.0f + 0.0f * I;
+if (state->awgn)
+    awgn_generate(state->awgn, 1, &noise);
+return sig + noise;
+"""
 
 [[synth.init_params]]
 name = "type"
@@ -30,3 +83,13 @@ default = "100.0"
 name = "seed"
 type = "uint32_t"
 default = "1"
+
+[[synth.state]]
+name = "lo"
+type = "lo_state_t *"
+opaque = true
+
+[[synth.state]]
+name = "awgn"
+type = "awgn_state_t *"
+opaque = true

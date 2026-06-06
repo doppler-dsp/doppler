@@ -105,16 +105,16 @@ PyInit_wfmgen(void)
 {
     import_array();
     if (PyType_Ready(&PNObjType) < 0) return NULL;
-    if (PyType_Ready(&SynthObjType) < 0) return NULL;
+    if (PyType_Ready(&SynthType) < 0) return NULL;
     PyObject *m = PyModule_Create(&wfmgen_moduledef);
     if (!m) return NULL;
     Py_INCREF(&PNObjType);
     if (PyModule_AddObject(m, "PN", (PyObject *)&PNObjType) < 0) {
         Py_DECREF(&PNObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&SynthObjType);
-    if (PyModule_AddObject(m, "Synth", (PyObject *)&SynthObjType) < 0) {
-        Py_DECREF(&SynthObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&SynthType);
+    if (PyModule_AddObject(m, "Synth", (PyObject *)&SynthType) < 0) {
+        Py_DECREF(&SynthType); Py_DECREF(m); return NULL;
     }
     return m;
 }

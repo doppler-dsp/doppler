@@ -18,6 +18,7 @@
 #include "jm_perf.h"
 #include "lo/lo_core.h"
 #include "awgn/awgn_core.h"
+#include <math.h> /* powf/sqrtf in create_impl */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -31,13 +32,11 @@ enum {
 /**
  * @brief Synth state.
  *
- * Allocate with synth_create(). `lo` is non-NULL for a tone; `awgn` carries
- * the additive noise (set to the target SNR for a tone, unit-power for noise).
+ * Allocate with synth_create().
  */
 typedef struct {
-    int type;
-    lo_state_t *lo;     /* tone oscillator, or NULL */
-    awgn_state_t *awgn; /* additive noise, or NULL */
+    lo_state_t * lo;
+    awgn_state_t * awgn;
 } synth_state_t;
 
 /**

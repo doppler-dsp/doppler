@@ -128,6 +128,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fft2d_core>)
 add_subdirectory(native/src/fft)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:fft_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fft_core>)
+add_subdirectory(native/src/synth)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:synth_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:synth_core>)
 add_subdirectory(native/src/pn)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:pn_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:pn_core>)
@@ -290,3 +293,6 @@ install(FILES
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+# ── App ───────────────────────────────────────────────────────────
+# ── App end ───────────────────────────────────────────────────────────

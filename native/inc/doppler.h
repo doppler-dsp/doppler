@@ -49,6 +49,8 @@ extern "C" {
 
 #include "pn/pn_core.h"
 
+#include "synth/synth_core.h"
+
 #include "delay/delay_core.h"
 
 #include "fft/fft_core.h"

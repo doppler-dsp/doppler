@@ -1,0 +1,32 @@
+[synth]
+arg_type = "void"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+class_name = "Synth"
+depends_on = ["lo_core", "awgn_core"]
+
+[[synth.init_params]]
+name = "type"
+type = "int"
+default = "0"
+
+[[synth.init_params]]
+name = "fs"
+type = "double"
+default = "1000000.0"
+
+[[synth.init_params]]
+name = "freq_offset"
+type = "double"
+default = "0.0"
+
+[[synth.init_params]]
+name = "snr_db"
+type = "double"
+default = "100.0"
+
+[[synth.init_params]]
+name = "seed"
+type = "uint32_t"
+default = "1"

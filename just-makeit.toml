@@ -26,33 +26,56 @@ objects = ["nco", "lo", "awgn"]
 extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.wfmgen]
-objects = ["pn"]
+objects = ["pn", "synth"]
+extra_link_libs = ["lo_core", "awgn_core"]
 
 [[module.wfmgen.functions]]
 name = "bpsk_map"
 out_type = "float _Complex"
 doc = "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."
-params = [{name = "bits", type = "uint8_t[]"}]
+
+[[module.wfmgen.functions.params]]
+name = "bits"
+type = "uint8_t[]"
 
 [[module.wfmgen.functions]]
 name = "qpsk_map"
 out_type = "float _Complex"
 doc = "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."
-params = [{name = "syms", type = "uint8_t[]"}]
+
+[[module.wfmgen.functions.params]]
+name = "syms"
+type = "uint8_t[]"
 
 [[module.wfmgen.functions]]
 name = "wfm_awgn_amplitude"
 return_type = "float"
 doc = "AWGN amplitude for a target SNR (dB, over fs) given signal power."
-params = [{name = "snr_db", type = "float"}, {name = "signal_power", type = "float"}]
+
+[[module.wfmgen.functions.params]]
+name = "snr_db"
+type = "float"
+
+[[module.wfmgen.functions.params]]
+name = "signal_power"
+type = "float"
 
 [[module.wfmgen.functions]]
 name = "wfm_ebno_to_snr_db"
 return_type = "float"
 doc = "Convert Eb/No (dB) to SNR (dB over fs)."
-params = [{name = "ebno_db", type = "float"}, {name = "bits_per_symbol", type = "int"}, {name = "samples_per_symbol", type = "float"}]
 
+[[module.wfmgen.functions.params]]
+name = "ebno_db"
+type = "float"
 
+[[module.wfmgen.functions.params]]
+name = "bits_per_symbol"
+type = "int"
+
+[[module.wfmgen.functions.params]]
+name = "samples_per_symbol"
+type = "float"
 [module.delay]
 objects = ["delay"]
 
@@ -62,33 +85,87 @@ objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d"]
 [[module.spectral.functions]]
 name = "kaiser_enbw"
 return_type = "float"
-params = [{name = "w", type = "float[]"}]
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
 
 [[module.spectral.functions]]
 name = "kaiser_window"
-params = [{name = "w", type = "float[]", out = true}, {name = "beta", type = "float"}]
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
+
+[[module.spectral.functions.params]]
+name = "beta"
+type = "float"
 
 [[module.spectral.functions]]
 name = "hann_window"
-params = [{name = "w", type = "float[]", out = true}]
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf32"
 out_type = "float"
-params = [{name = "x", type = "float _Complex[]"}, {name = "lin_floor", type = "float"}, {name = "offset_db", type = "float"}]
+
+[[module.spectral.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.spectral.functions.params]]
+name = "lin_floor"
+type = "float"
+
+[[module.spectral.functions.params]]
+name = "offset_db"
+type = "float"
 
 [[module.spectral.functions]]
 name = "magnitude_db_cf64"
 out_type = "float"
-params = [{name = "x", type = "double _Complex[]"}, {name = "lin_floor", type = "double"}, {name = "offset_db", type = "float"}]
+
+[[module.spectral.functions.params]]
+name = "x"
+type = "double _Complex[]"
+
+[[module.spectral.functions.params]]
+name = "lin_floor"
+type = "double"
+
+[[module.spectral.functions.params]]
+name = "offset_db"
+type = "float"
 
 [[module.spectral.functions]]
 name = "find_peaks_f32"
 return_type = "dp_peak_t"
 max_results_param = "n_peaks"
-result_fields = [{name = "freq_norm", type = "float"}, {name = "amplitude_db", type = "float"}]
-params = [{name = "db", type = "float[]"}, {name = "n_peaks", type = "size_t"}, {name = "min_db", type = "float"}]
 
+[[module.spectral.functions.result_fields]]
+name = "freq_norm"
+type = "float"
+
+[[module.spectral.functions.result_fields]]
+name = "amplitude_db"
+type = "float"
+
+[[module.spectral.functions.params]]
+name = "db"
+type = "float[]"
+
+[[module.spectral.functions.params]]
+name = "n_peaks"
+type = "size_t"
+
+[[module.spectral.functions.params]]
+name = "min_db"
+type = "float"
 [module.buffer]
 no_generate = "true"
 
@@ -102,29 +179,12 @@ no_generate = "true"
 
 [module.ddc]
 objects = ["ddc", "ddcr"]
-extra_link_libs = [
-    "lo_core",
-    "RateConverter_core",
-    "resamp_core",
-    "hbdecim_core",
-    "hbdecim_r2c_core",
-    "cic_core",
-    "fir_core",
-    "resample_core",
-    "m",
-]
+extra_link_libs = ["lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core", "m"]
 # Re-export the hand-written functional DDCR API (the no_generate ddc_fn
 # sibling) from doppler.ddc, so __init__.py regenerates cleanly (jm >= 0.15.1).
-reexports = { ddc_fn = [
-    "ddcr_create",
-    "ddcr_execute",
-    "ddcr_reset",
-    "ddcr_destroy",
-    "ddcr_get_norm_freq",
-    "ddcr_set_norm_freq",
-    "ddcr_get_rate",
-] }
 
+[module.ddc.reexports]
+ddc_fn = ["ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy", "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate"]
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
@@ -133,66 +193,184 @@ extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "resample_
 [[module.resample.functions]]
 name = "ciccompmf"
 out_type = "float64[M]"
-params = [{name = "N", type = "uint32_t"}, {name = "R", type = "uint32_t"}, {name = "M", type = "uint32_t"}]
+
+[[module.resample.functions.params]]
+name = "N"
+type = "uint32_t"
+
+[[module.resample.functions.params]]
+name = "R"
+type = "uint32_t"
+
+[[module.resample.functions.params]]
+name = "M"
+type = "uint32_t"
 
 [[module.resample.functions]]
 name = "kaiser_beta"
 return_type = "double"
-params = [{name = "atten", type = "double"}]
+
+[[module.resample.functions.params]]
+name = "atten"
+type = "double"
 
 [[module.resample.functions]]
 name = "kaiser_num_taps"
 return_type = "int"
-params = [{name = "num_phases", type = "int"}, {name = "atten", type = "double"}, {name = "pb", type = "double"}, {name = "sb", type = "double"}]
 
+[[module.resample.functions.params]]
+name = "num_phases"
+type = "int"
+
+[[module.resample.functions.params]]
+name = "atten"
+type = "double"
+
+[[module.resample.functions.params]]
+name = "pb"
+type = "double"
+
+[[module.resample.functions.params]]
+name = "sb"
+type = "double"
 [module.detection]
 objects = []
 
 [[module.detection.functions]]
 name = "marcum_q"
 return_type = "double"
-params = [{name = "m", type = "int"}, {name = "a", type = "double"}, {name = "b", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "m"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "a"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "b"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_threshold"
 return_type = "double"
-params = [{name = "pfa", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_pd"
 return_type = "double"
-params = [{name = "snr", type = "double"}, {name = "dwell", type = "int"}, {name = "threshold", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_dwell"
 return_type = "int"
-params = [{name = "snr", type = "double"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}, {name = "max_dwell", type = "int"}]
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_dwell"
+type = "int"
 
 [[module.detection.functions]]
 name = "det_snr"
 return_type = "double"
-params = [{name = "dwell", type = "int"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_threshold_power"
 return_type = "double"
-params = [{name = "pfa", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_pd_power"
 return_type = "double"
-params = [{name = "snr_power", type = "double"}, {name = "dwell", type = "int"}, {name = "power_threshold", type = "double"}]
+
+[[module.detection.functions.params]]
+name = "snr_power"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "power_threshold"
+type = "double"
 
 [[module.detection.functions]]
 name = "det_dwell_power"
 return_type = "int"
-params = [{name = "snr_power", type = "double"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}, {name = "max_dwell", type = "int"}]
+
+[[module.detection.functions.params]]
+name = "snr_power"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_dwell"
+type = "int"
 
 [[module.detection.functions]]
 name = "det_snr_power"
 return_type = "double"
-params = [{name = "dwell", type = "int"}, {name = "pd_min", type = "double"}, {name = "pfa", type = "double"}]
 
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
 [module.agc]
 objects = ["agc"]
 
@@ -203,8 +381,14 @@ objects = []
 name = "square_clip"
 doc = "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."
 return_type = "float _Complex"
-params = [{name = "y", type = "float _Complex"}, {name = "lin", type = "float"}]
 
+[[module.util.functions.params]]
+name = "y"
+type = "float _Complex"
+
+[[module.util.functions.params]]
+name = "lin"
+type = "float"
 [module.arith]
 objects = ["acc_q15", "acc_q8"]
 
@@ -212,82 +396,181 @@ objects = ["acc_q15", "acc_q8"]
 name = "add_q15"
 doc = "Elementwise saturating two's complement add of two Q15 arrays."
 out_type = "int16_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int16_t[]"
 
 [[module.arith.functions]]
 name = "sub_q15"
 doc = "Elementwise saturating two's complement subtract of two Q15 arrays."
 out_type = "int16_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int16_t[]"
 
 [[module.arith.functions]]
 name = "mul_q15"
 doc = "Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15)."
 out_type = "int16_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int16_t[]"
 
 [[module.arith.functions]]
 name = "dot_q15"
 doc = "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar."
 return_type = "int64_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int16_t[]"
 
 [[module.arith.functions]]
 name = "shl_q15"
 doc = "Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point."
 out_type = "int16_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
 
 [[module.arith.functions]]
 name = "shr_q15"
 doc = "Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n."
 out_type = "int16_t"
-params = [{name = "a", type = "int16_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int16_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
 
 [[module.arith.functions]]
 name = "add_q8"
 doc = "Elementwise saturating two's complement add of two Q8 arrays."
 out_type = "int8_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int8_t[]"
 
 [[module.arith.functions]]
 name = "sub_q8"
 doc = "Elementwise saturating two's complement subtract of two Q8 arrays."
 out_type = "int8_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int8_t[]"
 
 [[module.arith.functions]]
 name = "mul_q8"
 doc = "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7)."
 out_type = "int8_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int8_t[]"
 
 [[module.arith.functions]]
 name = "dot_q8"
 doc = "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t."
 return_type = "int32_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "b"
+type = "int8_t[]"
 
 [[module.arith.functions]]
 name = "shl_q8"
 doc = "Elementwise arithmetic left shift of a Q8 array with saturation."
 out_type = "int8_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
 
 [[module.arith.functions]]
 name = "shr_q8"
 doc = "Elementwise arithmetic right shift of a Q8 array with round-half-up."
 out_type = "int8_t"
-params = [{name = "a", type = "int8_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int8_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
 
 [[module.arith.functions]]
 name = "shl_i64"
 doc = "Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow)."
 out_type = "int64_t"
-params = [{name = "a", type = "int64_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int64_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
 
 [[module.arith.functions]]
 name = "shr_i64"
 doc = "Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15."
 out_type = "int64_t"
-params = [{name = "a", type = "int64_t[]"}, {name = "n", type = "int"}]
+
+[[module.arith.functions.params]]
+name = "a"
+type = "int64_t[]"
+
+[[module.arith.functions.params]]
+name = "n"
+type = "int"
+

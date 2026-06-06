@@ -1,10 +1,10 @@
 [adc]
-arg_type    = "float"
+arg_type = "float"
 return_type = "int64_t"
-mutable     = "false"
-no_state    = "true"
-no_step     = "false"
-class_name  = "ADC"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "ADC"
 impl = """
     double s = (double)x * state->scale;
     if (state->dithering) {
@@ -23,34 +23,40 @@ impl = """
     if (v > state->clip_max) v = state->clip_max;
     if (v < state->clip_min) v = state->clip_min;
     return (int64_t)v;
+
+
+
+
+
+
 """
 
 [[adc.init_params]]
-name    = "bits"
-type    = "int"
+name = "bits"
+type = "int"
 default = "16"
 
 [[adc.init_params]]
-name    = "dbfs"
-type    = "float"
+name = "dbfs"
+type = "float"
 default = "-10.0f"
 
 [[adc.init_params]]
-name    = "dithering"
-type    = "int"
+name = "dithering"
+type = "int"
 default = "0"
 
 [[adc.properties]]
-name  = "clipped"
-type  = "bool"
+name = "clipped"
+type = "bool"
 field = true
 
 [[adc.properties]]
-name  = "scale"
-type  = "double"
+name = "scale"
+type = "double"
 field = true
 
 [[adc.properties]]
-name  = "bits"
-type  = "int"
+name = "bits"
+type = "int"
 field = true

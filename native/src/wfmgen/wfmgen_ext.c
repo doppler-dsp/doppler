@@ -1,7 +1,7 @@
 /*
  * wfmgen_ext.c — Python extension module wfmgen
  *
- * Objects: PN
+ * Objects: PN, Synth
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 #include "wfmgen/wfmgen_core.h"
 
 #include "wfmgen_ext_pn.c"
+#include "wfmgen_ext_synth.c"
 
 static PyObject *
 _bind_bpsk_map(PyObject *self, PyObject *args)
@@ -104,11 +105,16 @@ PyInit_wfmgen(void)
 {
     import_array();
     if (PyType_Ready(&PNObjType) < 0) return NULL;
+    if (PyType_Ready(&SynthObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&wfmgen_moduledef);
     if (!m) return NULL;
     Py_INCREF(&PNObjType);
     if (PyModule_AddObject(m, "PN", (PyObject *)&PNObjType) < 0) {
         Py_DECREF(&PNObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&SynthObjType);
+    if (PyModule_AddObject(m, "Synth", (PyObject *)&SynthObjType) < 0) {
+        Py_DECREF(&SynthObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

@@ -26,4 +26,3 @@ name = "generate"
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
-

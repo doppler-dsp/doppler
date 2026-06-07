@@ -120,6 +120,7 @@ nav:
       - Docker: install/docker.md
   - Gallery:
       - Gallery: gallery/index.md
+      - Waveform Generator: gallery/wfmgen.md
       - AGC: gallery/agc.md
       - CIC Decimation: gallery/cic.md
       - Q15 vs UQ15: gallery/q15-uq15.md
@@ -160,6 +161,7 @@ nav:
       - "Polyphase → Resample": api/python-polyphase.md
   - Type System: types.md
   - Guides:
+      - Waveform Generator (wavegen / wfmgen): guide/wfmgen.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Quantization: design/QUANTIZATION.md

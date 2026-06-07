@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structRateConverterObject" kind="struct" language="C++" prot="public">
+    <compoundname>RateConverterObject</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+        <definition>PyObject_HEAD RateConverter_state_t* RateConverterObject::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>RateConverterObject::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="16" column="27" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* RateConverterObject::_execute_buf</definition>
+        <argsstring></argsstring>
+        <name>_execute_buf</name>
+        <qualifiedname>RateConverterObject::_execute_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="17" column="27" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="17" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t RateConverterObject::_execute_buf_cap</definition>
+        <argsstring></argsstring>
+        <name>_execute_buf_cap</name>
+        <qualifiedname>RateConverterObject::_execute_buf_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="18" column="28" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="18" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>RateConverterObject</label>
+        <link refid="structRateConverterObject"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>RateConverter_state_t</label>
+        <link refid="structRateConverter__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/resample/resample_ext_RateConverter.c" line="14" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="14" bodyend="19"/>
+    <listofallmembers>
+      <member refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" prot="public" virt="non-virtual"><scope>RateConverterObject</scope><name>_execute_buf</name></member>
+      <member refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" prot="public" virt="non-virtual"><scope>RateConverterObject</scope><name>_execute_buf_cap</name></member>
+      <member refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" prot="public" virt="non-virtual"><scope>RateConverterObject</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

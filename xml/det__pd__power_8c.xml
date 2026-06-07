@@ -1,0 +1,94 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="det__pd__power_8c" kind="file" language="C++">
+    <compoundname>det_pd_power.c</compoundname>
+    <includes refid="detection__core_8h" local="yes">detection/detection_core.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+      </node>
+      <node id="1">
+        <label>native/src/detection/det_pd_power.c</label>
+        <link refid="det__pd__power_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>math.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="det__pd__power_8c_1a17e69f0028c5c6e6ba509bac9ef2ce15" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_pd_power</definition>
+        <argsstring>(double snr_power, int dwell, double power_threshold)</argsstring>
+        <name>det_pd_power</name>
+        <param>
+          <type>double</type>
+          <declname>snr_power</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>power_threshold</declname>
+        </param>
+        <briefdescription>
+<para>Detection probability for the power detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Pd = Q_1(sqrt(2·dwell·snr_power), sqrt(2·power_threshold))</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr_power</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample power SNR (signal power / noise power at the correlator output, linear). 0 gives Pd = Pfa. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>power_threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Threshold p, e.g. from <ref refid="detection__core_8h_1a657e4abcb2e394489fd46ae3093a630b" kindref="member">det_threshold_power()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Detection probability in &amp;#91;0, 1&amp;#93;.</para>
+</simplesect>
+Example: det_pd_power(1.0, 4, det_threshold_power(1e-6)) ~ 0.78 (same result as det_pd(1.0, 4, det_threshold(1e-6)) since snr_power=1 corresponds to snr_amplitude=1 and the Q_1 arguments are identical) </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/detection/det_pd_power.c" line="3" column="8" bodyfile="native/src/detection/det_pd_power.c" bodystart="3" bodyend="5"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detection__core_8h" kindref="compound">detection/detection_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="det__pd__power_8c_1a17e69f0028c5c6e6ba509bac9ef2ce15" kindref="member">det_pd_power</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr_power,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>power_threshold)<sp/>{</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a1fa374db52f2c10a8c28993ee4cac1da" kindref="member">marcum_q</ref>(1,<sp/>sqrt(2.0*dwell*snr_power),<sp/>sqrt(2.0*power_threshold));</highlight></codeline>
+<codeline lineno="5"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/detection/det_pd_power.c"/>
+  </compounddef>
+</doxygen>

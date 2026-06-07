@@ -1,0 +1,634 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="RateConverter__core_8h" kind="file" language="C++">
+    <compoundname>RateConverter_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes local="no">complex.h</includes>
+    <includes local="no">stddef.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="RateConverter__core_8c" local="yes">native/src/RateConverter/RateConverter_core.c</includedby>
+    <includedby refid="ddc__core_8c" local="yes">native/src/ddc/ddc_core.c</includedby>
+    <includedby refid="resample__ext__RateConverter_8c" local="yes">native/src/resample/resample_ext_RateConverter.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/RateConverter/RateConverter_core.h</label>
+        <link refid="RateConverter__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/RateConverter/RateConverter_core.h</label>
+        <link refid="RateConverter__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/src/RateConverter/RateConverter_core.c</label>
+        <link refid="RateConverter__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/ddc/ddc_core.c</label>
+        <link refid="ddc__core_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/resample/resample_ext_RateConverter.c</label>
+        <link refid="resample__ext__RateConverter_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structRateConverter__state__t" prot="public">RateConverter_state_t</innerclass>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="RateConverter__core_8h_1a6b4cd0e62143f53e5d750ce82067616d" prot="public" static="no">
+        <name>RC_MAX_STAGES</name>
+        <initializer>3</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Maximum number of visible cascade stages. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="42" column="9" bodyfile="native/inc/RateConverter/RateConverter_core.h" bodystart="42" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="enum">
+      <memberdef kind="enum" id="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178" prot="public" static="no" strong="no">
+        <type></type>
+        <name>rc_stage_t</name>
+        <enumvalue id="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178aa65cc71fab29cdecb791bd5eab9c8e35" prot="public">
+          <name>RC_STAGE_HB</name>
+          <initializer>= 0</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>HalfbandDecimator (2:1, CF32) </para>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a3903c4542071bb1eaa67842202625ddd" prot="public">
+          <name>RC_STAGE_CIC</name>
+          <initializer>= 1</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>CIC decimator (optionally with comp FIR) </para>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a640ccd3c3e325b5e967becf1bdae18e5" prot="public">
+          <name>RC_STAGE_RESAMP</name>
+          <initializer>= 2</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>Polyphase Resampler (any positive rate) </para>
+          </detaileddescription>
+        </enumvalue>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Stage type tags. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="45" column="1" bodyfile="native/inc/RateConverter/RateConverter_core.h" bodystart="46" bodyend="50"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="RateConverter__core_8h_1a9154eac053beb50b80ab756e6cfbc8a2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+        <definition>RateConverter_state_t * RateConverter_create</definition>
+        <argsstring>(double rate, int compensate)</argsstring>
+        <name>RateConverter_create</name>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>compensate</declname>
+        </param>
+        <briefdescription>
+<para>Create a rate converter for the given output/input rate ratio. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output-to-input sample rate ratio. Any positive float. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>compensate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Non-zero to append a CIC passband-droop compensating FIR after any CIC stage. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success; NULL if rate &lt;= 0 or OOM.</para>
+</simplesect>
+<programlisting><codeline><highlight class="normal">RateConverter_state_t<sp/>*rc<sp/>=<sp/>RateConverter_create(0.125,<sp/>0);<sp/>//<sp/>CIC(8)</highlight></codeline>
+<codeline><highlight class="normal">assert(rc-&gt;n_stages<sp/>==<sp/>1);</highlight></codeline>
+</programlisting> </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="82" column="23" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="388" bodyend="412" declfile="native/inc/RateConverter/RateConverter_core.h" declline="82" declcolumn="23"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void RateConverter_destroy</definition>
+        <argsstring>(RateConverter_state_t *s)</argsstring>
+        <name>RateConverter_destroy</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="85" column="6" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="415" bodyend="421" declfile="native/inc/RateConverter/RateConverter_core.h" declline="85" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1ab9cbccb3807e66b2f2644b27c53728fd" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void RateConverter_reset</definition>
+        <argsstring>(RateConverter_state_t *s)</argsstring>
+        <name>RateConverter_reset</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+<para>Zero all sub-stage filter memories. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Rate and stage structure are preserved. Processing from a reset state produces the same output as a freshly created converter. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="93" column="6" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="424" bodyend="428" declfile="native/inc/RateConverter/RateConverter_core.h" declline="93" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1a57d364000a284592c75b389c170908da" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t RateConverter_execute</definition>
+        <argsstring>(RateConverter_state_t *s, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out)</argsstring>
+        <name>RateConverter_execute</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <param>
+          <type>const float _Complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float _Complex *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_out</declname>
+        </param>
+        <briefdescription>
+<para>Convert n_in samples and write results to out. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>s</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF32 input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer capacity in samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of output samples written. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="105" column="8" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="431" bodyend="476" declfile="native/inc/RateConverter/RateConverter_core.h" declline="105" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1a9853621791919f34e658322798a0c031" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t RateConverter_execute_max_out</definition>
+        <argsstring>(RateConverter_state_t *s)</argsstring>
+        <name>RateConverter_execute_max_out</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+<para>Upper bound on execute output for a standard 65536-sample block. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns (size_t)(65536 * max(rate, 1.0)) + 2. The Python extension uses this to pre-allocate the output buffer on the first execute call. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="115" column="8" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="479" bodyend="484" declfile="native/inc/RateConverter/RateConverter_core.h" declline="115" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1ab702e069916ff841415eecee8fac5ba5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double RateConverter_get_rate</definition>
+        <argsstring>(const RateConverter_state_t *s)</argsstring>
+        <name>RateConverter_get_rate</name>
+        <param>
+          <type>const <ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+<para>Return the current rate ratio. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="118" column="8" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="487" bodyend="490" declfile="native/inc/RateConverter/RateConverter_core.h" declline="118" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1a1282367b67d8c070e520adbaa378e441" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void RateConverter_set_rate</definition>
+        <argsstring>(RateConverter_state_t *s, double rate)</argsstring>
+        <name>RateConverter_set_rate</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+<para>Change the rate; rebuilds the cascade and resets all filter state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Silently ignores rate &lt;= 0.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>s</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New output/input rate ratio. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="128" column="6" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="493" bodyend="508" declfile="native/inc/RateConverter/RateConverter_core.h" declline="128" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1a45e99e3355bed1d119d18b05e65c07f8" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int RateConverter_stage_label</definition>
+        <argsstring>(RateConverter_state_t *s, int i, char *buf, size_t len)</argsstring>
+        <name>RateConverter_stage_label</name>
+        <param>
+          <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>i</declname>
+        </param>
+        <param>
+          <type>char *</type>
+          <declname>buf</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>len</declname>
+        </param>
+        <briefdescription>
+<para>Write a human-readable label for stage i into buf. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Examples: &quot;HalfbandDecimator&quot;, &quot;CIC(8)&quot;, &quot;CIC(8)+FIR&quot;, &quot;Resampler(0.8)&quot;.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>s</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>i</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Stage index in [0, s-&gt;n_stages). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>buf</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>len</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Capacity of buf in bytes. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>1 on success, 0 if i is out of range. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="141" column="5" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="511" bodyend="542" declfile="native/inc/RateConverter/RateConverter_core.h" declline="141" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="RateConverter__core_8h_1ac399274a1b73b3cca88340d46e59889a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t RateConverter_convert</definition>
+        <argsstring>(double rate, int compensate, const float _Complex *in, size_t n_in, float _Complex *out, size_t max_out)</argsstring>
+        <name>RateConverter_convert</name>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>compensate</declname>
+        </param>
+        <param>
+          <type>const float _Complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float _Complex *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_out</declname>
+        </param>
+        <briefdescription>
+<para>One-shot rate conversion — no persistent state required. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Creates a temporary converter, converts n_in samples, destroys it. Equivalent to: <programlisting><codeline><highlight class="normal">RateConverter_state_t<sp/>*rc<sp/>=<sp/>RateConverter_create(rate,<sp/>compensate);</highlight></codeline>
+<codeline><highlight class="normal">size_t<sp/>n<sp/>=<sp/>RateConverter_execute(rc,<sp/>in,<sp/>n_in,<sp/>out,<sp/>max_out);</highlight></codeline>
+<codeline><highlight class="normal">RateConverter_destroy(rc);</highlight></codeline>
+</programlisting></para>
+<para>Use <ref refid="RateConverter__core_8h_1a9154eac053beb50b80ab756e6cfbc8a2" kindref="member">RateConverter_create()</ref> directly when processing multiple blocks at the same rate — the one-shot form resets filter memory on every call.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output-to-input sample rate ratio. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>compensate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Non-zero to enable CIC droop compensation. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF32 input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer capacity in samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of output samples written; 0 only if OOM or n_in == 0. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/RateConverter/RateConverter_core.h" line="166" column="8" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="545" bodyend="555" declfile="native/inc/RateConverter/RateConverter_core.h" declline="166" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Optimal-speed rate conversion cascade. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampler stages for a given output/input sample rate ratio at creation time. All sub-stage C objects are owned by the state struct.</para>
+<para>Stage selection (D = 1/rate):</para>
+<para>rate &gt;= 1.0 or D &lt; 2 [Resampler(rate)] D ~= 2^1 [HalfbandDecimator] D ~= 2^2 [HalfbandDecimator, HalfbandDecimator] D ~= 2^n, n&gt;=3, D&lt;=4096 [CIC(D)] D &gt;= 8, non-power-of-2 [CIC(R*), Resampler correction] R* = nearest power-of-2 to D otherwise (2 &lt;= D &lt; 8, non-int) [Resampler(rate)]</para>
+<para>Lifecycle: <programlisting><codeline><highlight class="normal"><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*rc<sp/>=<sp/><ref refid="RateConverter__core_8h_1a9154eac053beb50b80ab756e6cfbc8a2" kindref="member">RateConverter_create</ref>(0.1,<sp/>0);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>rc-&gt;n_stages<sp/>==<sp/>2:<sp/>CIC(8)<sp/>then<sp/>Resampler(0.8)</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>out[512];</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/><ref refid="RateConverter__core_8h_1a57d364000a284592c75b389c170908da" kindref="member">RateConverter_execute</ref>(rc,<sp/>in,<sp/>4096,<sp/>out,<sp/>512);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref>(rc);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>RATE_CONVERTER_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>RATE_CONVERTER_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;complex.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stddef.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42" refid="RateConverter__core_8h_1a6b4cd0e62143f53e5d750ce82067616d" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>RC_MAX_STAGES<sp/>3</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45" refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178" refkind="member"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">enum</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="47" refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178aa65cc71fab29cdecb791bd5eab9c8e35" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178aa65cc71fab29cdecb791bd5eab9c8e35" kindref="member">RC_STAGE_HB</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>0,<sp/></highlight></codeline>
+<codeline lineno="48" refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a3903c4542071bb1eaa67842202625ddd" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a3903c4542071bb1eaa67842202625ddd" kindref="member">RC_STAGE_CIC</ref><sp/><sp/><sp/><sp/>=<sp/>1,<sp/></highlight></codeline>
+<codeline lineno="49" refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a640ccd3c3e325b5e967becf1bdae18e5" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178a640ccd3c3e325b5e967becf1bdae18e5" kindref="member">RC_STAGE_RESAMP</ref><sp/>=<sp/>2,<sp/></highlight></codeline>
+<codeline lineno="50"><highlight class="normal">}<sp/><ref refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178" kindref="member">rc_stage_t</ref>;</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight></codeline>
+<codeline lineno="57" refid="structRateConverter__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="59" refid="structRateConverter__state__t_1a3c510cd06c82c242b7c965938bc0fc1c" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t_1a3c510cd06c82c242b7c965938bc0fc1c" kindref="member">rate</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="60" refid="structRateConverter__state__t_1a1ad81b32c4f66d4104c274b699d794e7" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t_1a1ad81b32c4f66d4104c274b699d794e7" kindref="member">compensate</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="61" refid="structRateConverter__state__t_1a33d54ea8e7460b8b004898b34e7d0027" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t_1a33d54ea8e7460b8b004898b34e7d0027" kindref="member">n_stages</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="62" refid="structRateConverter__state__t_1aeeaa4d4e36ba5b2ce957968105ce643b" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="RateConverter__core_8h_1a4525d8d91cfd6489b78735ddcc253178" kindref="member">rc_stage_t</ref><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t_1aeeaa4d4e36ba5b2ce957968105ce643b" kindref="member">stage_types</ref>[<ref refid="RateConverter__core_8h_1a6b4cd0e62143f53e5d750ce82067616d" kindref="member">RC_MAX_STAGES</ref>];<sp/><sp/></highlight></codeline>
+<codeline lineno="63" refid="structRateConverter__state__t_1a9b71068a1b3ecd2c8bc29a974ca67f0d" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<ref refid="structRateConverter__state__t_1a9b71068a1b3ecd2c8bc29a974ca67f0d" kindref="member">stage_ptrs</ref>[<ref refid="RateConverter__core_8h_1a6b4cd0e62143f53e5d750ce82067616d" kindref="member">RC_MAX_STAGES</ref>];<sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="65" refid="structRateConverter__state__t_1a660f5495adfb6fb76d2b0e42eb3414fa" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*<ref refid="structRateConverter__state__t_1a660f5495adfb6fb76d2b0e42eb3414fa" kindref="member">bufs</ref>[2];</highlight></codeline>
+<codeline lineno="66" refid="structRateConverter__state__t_1aec94878fb8eaf0dd261506bcd8ce17d0" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t_1aec94878fb8eaf0dd261506bcd8ce17d0" kindref="member">buf_cap</ref>;</highlight></codeline>
+<codeline lineno="67"><highlight class="normal">}<sp/><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref>;</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*<ref refid="RateConverter__core_8h_1a9154eac053beb50b80ab756e6cfbc8a2" kindref="member">RateConverter_create</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>compensate);</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1ab9cbccb3807e66b2f2644b27c53728fd" kindref="member">RateConverter_reset</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"></highlight></codeline>
+<codeline lineno="105"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1a57d364000a284592c75b389c170908da" kindref="member">RateConverter_execute</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s,</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*out,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_out);</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1a9853621791919f34e658322798a0c031" kindref="member">RateConverter_execute_max_out</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight></codeline>
+<codeline lineno="118"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1ab702e069916ff841415eecee8fac5ba5" kindref="member">RateConverter_get_rate</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"></highlight></codeline>
+<codeline lineno="128"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1a1282367b67d8c070e520adbaa378e441" kindref="member">RateConverter_set_rate</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate);</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight></codeline>
+<codeline lineno="141"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1a45e99e3355bed1d119d18b05e65c07f8" kindref="member">RateConverter_stage_label</ref><sp/>(<ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*s,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>i,</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*buf,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>len);</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight></codeline>
+<codeline lineno="166"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="RateConverter__core_8h_1ac399274a1b73b3cca88340d46e59889a" kindref="member">RateConverter_convert</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>compensate,</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*out,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_out);</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"></highlight></codeline>
+<codeline lineno="170"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="171"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="173"><highlight class="normal"></highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>RATE_CONVERTER_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/RateConverter/RateConverter_core.h"/>
+  </compounddef>
+</doxygen>

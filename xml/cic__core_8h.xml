@@ -1,0 +1,414 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="cic__core_8h" kind="file" language="C++">
+    <compoundname>cic_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="RateConverter__core_8c" local="yes">native/src/RateConverter/RateConverter_core.c</includedby>
+    <includedby refid="cic__core_8c" local="yes">native/src/cic/cic_core.c</includedby>
+    <includedby refid="resample__ext__cic_8c" local="yes">native/src/resample/resample_ext_cic.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/cic/cic_core.h</label>
+        <link refid="cic__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/cic/cic_core.h</label>
+        <link refid="cic__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/src/RateConverter/RateConverter_core.c</label>
+        <link refid="RateConverter__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/cic/cic_core.c</label>
+        <link refid="cic__core_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/resample/resample_ext_cic.c</label>
+        <link refid="resample__ext__cic_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structcic__state__t" prot="public">cic_state_t</innerclass>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" prot="public" static="no">
+        <name>CIC_N</name>
+        <initializer>4</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Fixed stage count. Alias rejection ~19.2 dB/stage at f_p=0.1. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="50" column="9" bodyfile="native/inc/cic/cic_core.h" bodystart="50" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="cic__core_8h_1a09b489b5a5db2098619a8a572c7c3065" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+        <definition>cic_state_t * cic_create</definition>
+        <argsstring>(uint32_t R)</argsstring>
+        <name>cic_create</name>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <briefdescription>
+<para>Create a CIC decimation filter. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>R</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Decimation ratio. Must be a power of two in <computeroutput>[2, 4096]</computeroutput>. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on invalid R or OOM. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="75" column="13" bodyfile="native/src/cic/cic_core.c" bodystart="43" bodyend="55" declfile="native/inc/cic/cic_core.h" declline="75" declcolumn="13"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8h_1aea5ce61d5479f3750108c46bd30b95bb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_destroy</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_destroy</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="78" column="6" bodyfile="native/src/cic/cic_core.c" bodystart="58" bodyend="61" declfile="native/inc/cic/cic_core.h" declline="78" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8h_1a8d815c79f0fd9c25116891d1eb328249" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_reset</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_reset</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Zero all filter state; preserve R and shift. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The first output sample after reset is produced on input sample R-1, matching post-create behaviour. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="86" column="6" bodyfile="native/src/cic/cic_core.c" bodystart="64" bodyend="71" declfile="native/inc/cic/cic_core.h" declline="86" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8h_1aeabcf67232d17b95f7f1de3142cf79c7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t cic_decimate_max_out</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_decimate_max_out</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Upper bound on decimate output — returns 0 (lazy-alloc signal). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The Python extension allocates n_in elements on the first call. Since n_in &gt;= ceil(n_in/R) = n_out for all R &gt;= 1, the buffer is always large enough as long as block size stays consistent. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="95" column="8" bodyfile="native/src/cic/cic_core.c" bodystart="76" bodyend="80" declfile="native/inc/cic/cic_core.h" declline="95" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8h_1a2bfc00017f340572df44cac202a963d7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> <ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref> size_t</type>
+        <definition>JM_FORCEINLINE JM_HOT size_t cic_decimate</definition>
+        <argsstring>(cic_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>cic_decimate</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Decimate n_in CF32 samples; write output to out. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Each sample is converted to UQ16, run through CIC_N integrators, tested against the decimation phase, then (if a decimation boundary) passed through CIC_N comb stages and converted back to CF32.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF32 input array, length n_in. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer; must hold at least ceil((state-&gt;phase + n_in) / state-&gt;R) elements. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of output samples written. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="112" column="1" bodyfile="native/inc/cic/cic_core.h" bodystart="112" bodyend="161"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8h_1a9893c4813f1db00b8480dc6a3e7d8734" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_reconfigure</definition>
+        <argsstring>(cic_state_t *state, uint32_t R)</argsstring>
+        <name>cic_reconfigure</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <briefdescription>
+<para>Change the decimation ratio in place; resets all filter state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Silently ignores invalid R (non-power-of-two, out of range).</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Filter state to reconfigure. Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>R</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New decimation ratio. Same constraints as <ref refid="cic__core_8h_1a09b489b5a5db2098619a8a572c7c3065" kindref="member">cic_create()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/cic/cic_core.h" line="171" column="6" bodyfile="native/src/cic/cic_core.c" bodystart="87" bodyend="94" declfile="native/inc/cic/cic_core.h" declline="171" declcolumn="6"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Fixed design parameters: N = 4 stages (~77 dB alias rejection at f_p = 0.1 * f_out) M = 1 (differential delay — one-sample comb) R = power-of-two decimation ratio (enforced at create time)</para>
+<para>Input/output boundary: CF32 (<computeroutput>float _Complex</computeroutput>), matching the doppler default signal type. Internally, each sample is converted to UQ16 — offset-binary: v_q15 + 32768 → <computeroutput>[0, 65535]</computeroutput> in a uint64_t — giving 48 bits of headroom for the pipeline gain of N * log2(R) bits. For R &lt;= 4096 (log2 = 12) the gain is 48 bits; max accumulation = 65535 * R^N = (2^16 - 1) * 2^48 = 2^64 - 2^48 &lt; 2^64, so no overflow occurs.</para>
+<para>All arithmetic is unsigned: inputs are non-negative <computeroutput>[0, 65535]</computeroutput>, wrapping is defined (mod 2^64), and the output decode subtracts the offset in floating-point — no signed integer casts anywhere in the hot path.</para>
+<para>The unsigned modular-arithmetic CIC property guarantees exact outputs: every intermediate overflow in the integrators cancels in the comb stages, provided the true result fits in 64 bits. No saturation, no range checks, no floating-point in the inner loop.</para>
+<para>With M=1 and N fixed, the entire comb state is four uint64_t values per channel — no heap allocation beyond the state struct itself.</para>
+<para>Alias rejection : ~77 dB at f_p = 0.1 * f_out (independent of R) Passband droop : ~0.57 dB at f_p = 0.1 * f_out (independent of R) Output precision: 16-bit Q15 (independent of R and N)</para>
+<para><programlisting><codeline><highlight class="normal"><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*cic<sp/>=<sp/><ref refid="cic__core_8h_1a09b489b5a5db2098619a8a572c7c3065" kindref="member">cic_create</ref>(16);<sp/><sp/><sp/></highlight><highlight class="comment">//<sp/>R=16,<sp/>N=4,<sp/>M=1</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="cic__core_8h_1a2bfc00017f340572df44cac202a963d7" kindref="member">cic_decimate</ref>(cic,<sp/>in,<sp/>1024,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="cic__core_8h_1aea5ce61d5479f3750108c46bd30b95bb" kindref="member">cic_destroy</ref>(cic);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>CIC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>CIC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight></codeline>
+<codeline lineno="50" refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>CIC_N<sp/>4</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight></codeline>
+<codeline lineno="58" refid="structcic__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="59" refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>[<ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref>];<sp/></highlight><highlight class="comment">/*<sp/>integrator<sp/>accumulators,<sp/>real<sp/>path<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="60" refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>[<ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref>];<sp/></highlight><highlight class="comment">/*<sp/>integrator<sp/>accumulators,<sp/>imag<sp/>path<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="61" refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[<ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref>];<sp/><sp/></highlight><highlight class="comment">/*<sp/>previous<sp/>comb<sp/>input<sp/>per<sp/>stage,<sp/>real<sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="62" refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[<ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref>];<sp/><sp/></highlight><highlight class="comment">/*<sp/>previous<sp/>comb<sp/>input<sp/>per<sp/>stage,<sp/>imag<sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="63" refid="structcic__state__t_1a94657193f23562cf2469ea4bbe8172c4" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint32_t<sp/><ref refid="structcic__state__t_1a94657193f23562cf2469ea4bbe8172c4" kindref="member">R</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>decimation<sp/>ratio<sp/>(power<sp/>of<sp/>two)<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="64" refid="structcic__state__t_1a48e6fb2a9e58ac402989f593cc8c3fcf" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint32_t<sp/><ref refid="structcic__state__t_1a48e6fb2a9e58ac402989f593cc8c3fcf" kindref="member">phase</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>input<sp/>sample<sp/>counter<sp/>0..R-1<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="65" refid="structcic__state__t_1adbb07e6bf05dfe1a626e6d79223fb99e" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint32_t<sp/><ref refid="structcic__state__t_1adbb07e6bf05dfe1a626e6d79223fb99e" kindref="member">shift</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>CIC_N<sp/>*<sp/>log2(R)<sp/>—<sp/>right-shift<sp/>to<sp/>norm<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal">}<sp/><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref>;</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"></highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*<ref refid="cic__core_8h_1a09b489b5a5db2098619a8a572c7c3065" kindref="member">cic_create</ref>(uint32_t<sp/>R);</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="cic__core_8h_1aea5ce61d5479f3750108c46bd30b95bb" kindref="member">cic_destroy</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="cic__core_8h_1a8d815c79f0fd9c25116891d1eb328249" kindref="member">cic_reset</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="cic__core_8h_1aeabcf67232d17b95f7f1de3142cf79c7" kindref="member">cic_decimate_max_out</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"></highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/><ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="112" refid="cic__core_8h_1a2bfc00017f340572df44cac202a963d7" refkind="member"><highlight class="normal"><ref refid="cic__core_8h_1a2bfc00017f340572df44cac202a963d7" kindref="member">cic_decimate</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="114"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>uint32_t<sp/>R<sp/><sp/><sp/><sp/><sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a94657193f23562cf2469ea4bbe8172c4" kindref="member">R</ref>;</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>uint32_t<sp/>shift<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1adbb07e6bf05dfe1a626e6d79223fb99e" kindref="member">shift</ref>;</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"></highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n_in;<sp/>i++)<sp/>{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>CF32<sp/>→<sp/>UQ16:<sp/>saturate<sp/>to<sp/>Q15,<sp/>shift<sp/>to<sp/>offset-binary<sp/>[0,<sp/>65535].<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>sr<sp/>=<sp/>crealf(in[i])<sp/>*<sp/>32768.0f;</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>si<sp/>=<sp/>cimagf(in[i])<sp/>*<sp/>32768.0f;</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(sr<sp/>&gt;<sp/><sp/>32767.0f)<sp/>sr<sp/>=<sp/><sp/>32767.0f;</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(sr<sp/>&lt;<sp/>-32768.0f)<sp/>sr<sp/>=<sp/>-32768.0f;</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(si<sp/>&gt;<sp/><sp/>32767.0f)<sp/>si<sp/>=<sp/><sp/>32767.0f;</highlight></codeline>
+<codeline lineno="126"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(si<sp/>&lt;<sp/>-32768.0f)<sp/>si<sp/>=<sp/>-32768.0f;</highlight></codeline>
+<codeline lineno="127"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint64_t<sp/>re<sp/>=<sp/>(uint64_t)((int32_t)(int16_t)sr<sp/>+<sp/>32768);</highlight></codeline>
+<codeline lineno="128"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint64_t<sp/>im<sp/>=<sp/>(uint64_t)((int32_t)(int16_t)si<sp/>+<sp/>32768);</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>4<sp/>integrators<sp/>—<sp/>unsigned<sp/>wrap-around<sp/>is<sp/>intentional.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>re<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>[0]<sp/>+=<sp/>re;</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>re<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>[1]<sp/>+=<sp/>re;</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>re<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>[2]<sp/>+=<sp/>re;</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>re<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>[3]<sp/>+=<sp/>re;</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>im<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>[0]<sp/>+=<sp/>im;</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>im<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>[1]<sp/>+=<sp/>im;</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>im<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>[2]<sp/>+=<sp/>im;</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>im<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>[3]<sp/>+=<sp/>im;</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"></highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(++state-&gt;<ref refid="structcic__state__t_1a48e6fb2a9e58ac402989f593cc8c3fcf" kindref="member">phase</ref><sp/>&lt;<sp/>R)</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">continue</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structcic__state__t_1a48e6fb2a9e58ac402989f593cc8c3fcf" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>4<sp/>comb<sp/>stages<sp/>—<sp/>M=1:<sp/>y<sp/>=<sp/>x<sp/>-<sp/>prev;<sp/>prev<sp/>=<sp/>x.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint64_t<sp/>t;</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[0];<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[0]<sp/>=<sp/>re;<sp/>re<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[1];<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[1]<sp/>=<sp/>re;<sp/>re<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[2];<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[2]<sp/>=<sp/>re;<sp/>re<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[3];<sp/>state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>[3]<sp/>=<sp/>re;<sp/>re<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[0];<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[0]<sp/>=<sp/>im;<sp/>im<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[1];<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[1]<sp/>=<sp/>im;<sp/>im<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[2];<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[2]<sp/>=<sp/>im;<sp/>im<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>t<sp/>=<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[3];<sp/>state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>[3]<sp/>=<sp/>im;<sp/>im<sp/>-=<sp/>t;</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight></codeline>
+<codeline lineno="155"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>UQ16<sp/>→<sp/>CF32:<sp/>right-shift<sp/>to<sp/>normalise,<sp/>remove<sp/>offset-binary<sp/>bias.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>out[n_out++]<sp/>=<sp/><ref refid="clib__common_8h_1a685813703dbdb219f657767e1c55fed9" kindref="member">CMPLXF</ref>(</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)(uint16_t)(re<sp/>&gt;&gt;<sp/>shift)<sp/>-<sp/>32768.0f)<sp/>*<sp/>(1.0f<sp/>/<sp/>32768.0f),</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)(uint16_t)(im<sp/>&gt;&gt;<sp/>shift)<sp/>-<sp/>32768.0f)<sp/>*<sp/>(1.0f<sp/>/<sp/>32768.0f));</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n_out;</highlight></codeline>
+<codeline lineno="161"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"></highlight></codeline>
+<codeline lineno="171"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="cic__core_8h_1a9893c4813f1db00b8480dc6a3e7d8734" kindref="member">cic_reconfigure</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state,<sp/>uint32_t<sp/>R);</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"></highlight></codeline>
+<codeline lineno="173"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="174"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="176"><highlight class="normal"></highlight></codeline>
+<codeline lineno="177"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>CIC_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/cic/cic_core.h"/>
+  </compounddef>
+</doxygen>

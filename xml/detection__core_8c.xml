@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="detection__core_8c" kind="file" language="C++">
+    <compoundname>detection_core.c</compoundname>
+    <includes refid="detection__core_8h" local="yes">detection/detection_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+      </node>
+      <node id="1">
+        <label>native/src/detection/detection_core.c</label>
+        <link refid="detection__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+    </incdepgraph>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>detection_core.c<sp/>—<sp/>Detection<sp/>module<sp/>core.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Implementations<sp/>live<sp/>in<sp/>per-function<sp/>.c<sp/>files<sp/>per<sp/>jm<sp/>0.14<sp/>layout.</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="6"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detection__core_8h" kindref="compound">detection/detection_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+    </programlisting>
+    <location file="native/src/detection/detection_core.c"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,653 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="spectral__ext__corr2d_8c" kind="file" language="C++">
+    <compoundname>spectral_ext_corr2d.c</compoundname>
+    <includes refid="corr2d__core_8h" local="yes">corr2d/corr2d_core.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>corr2d/corr2d_core.h</label>
+        <link refid="corr2d__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="11">
+        <label>fft2d/fft2d_core.h</label>
+        <link refid="fft2d__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/spectral/spectral_ext_corr2d.c</label>
+        <link refid="spectral__ext__corr2d_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="12">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structCorr2DObject" prot="public">Corr2DObject</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="spectral__ext__corr2d_8c_1a2619a65ecf6613a0b11d501e62a6ffc0" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef Corr2D_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>Corr2D_getset</name>
+        <initializer>                                 = {
+    { &quot;ny&quot;, (getter)Corr2D_getprop_ny, NULL, NULL, NULL },
+    { &quot;nx&quot;, (getter)Corr2D_getprop_nx, NULL, NULL, NULL },
+    { &quot;dwell&quot;, (getter)Corr2D_getprop_dwell, NULL, NULL, NULL },
+    { &quot;count&quot;, (getter)Corr2D_getprop_count, NULL, NULL, NULL },
+    { NULL }
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="153" column="20" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="153" bodyend="159"/>
+      </memberdef>
+      <memberdef kind="variable" id="spectral__ext__corr2d_8c_1a06638f06bffb99b63fef2ed5d72e3f1c" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef Corr2DObj_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>Corr2DObj_methods</name>
+        <initializer>                                     = {
+    {&quot;reset&quot;,    (PyCFunction)Corr2DObj_reset,    METH_NOARGS,
+     &quot;Reset state to post-create defaults.&quot;},
+
+    {&quot;execute&quot;, (PyCFunction)Corr2DObj_execute, METH_VARARGS,
+     &quot;execute(x) -&gt; ndarray\n&quot;
+     &quot;\n&quot;
+     &quot;Zero-copy view into pre-allocated output buffer.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; import numpy as np\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import Corr2D\n&quot;
+     &quot;    &gt;&gt;&gt; obj = Corr2D(np.zeros((1, 1), dtype=np.complex64), 1, 1)\n&quot;
+     &quot;    &gt;&gt;&gt; y = obj.execute(1.0 + 0.0j)\n&quot;
+     &quot;    &gt;&gt;&gt; y.dtype\n&quot;
+     &quot;    dtype(&apos;complex64&apos;)\n&quot;},
+    {&quot;destroy&quot;,  (PyCFunction)Corr2DObj_destroy,  METH_NOARGS,
+     &quot;Release resources.&quot;},
+    {&quot;__enter__&quot;, (PyCFunction)Corr2DObj_enter,   METH_NOARGS,  NULL},
+    {&quot;__exit__&quot;,  (PyCFunction)Corr2DObj_exit,    METH_VARARGS, NULL},
+    {NULL}
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="189" column="20" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="189" bodyend="209"/>
+      </memberdef>
+      <memberdef kind="variable" id="spectral__ext__corr2d_8c_1a5816a099b59545c28fb1241d5845a779" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject Corr2DObjType</definition>
+        <argsstring></argsstring>
+        <name>Corr2DObjType</name>
+        <initializer>                                  = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = &quot;spectral.Corr2D&quot;,
+    .tp_basicsize = sizeof(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref>),
+    .tp_dealloc   = (destructor)Corr2DObj_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = &quot;Create a 2-D FFT correlator.\n&quot;,
+    .tp_methods   = Corr2DObj_methods,
+    .tp_getset    = Corr2D_getset,
+    .tp_new       = Corr2DObj_new,
+    .tp_init      = (initproc)Corr2DObj_init,
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="211" column="21" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="211" bodyend="222"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a652e6b1b389a677f3dc231c29cd6fbce" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void Corr2DObj_dealloc</definition>
+        <argsstring>(Corr2DObject *self)</argsstring>
+        <name>Corr2DObj_dealloc</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="21" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="21" bodyend="26"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1ae2d43b9be398b45f8a4ef92bea792705" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>Corr2DObj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="29" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="29" bodyend="35"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1af091d34d6122d1d6828ae39929aaf5b0" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int Corr2DObj_init</definition>
+        <argsstring>(Corr2DObject *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>Corr2DObj_init</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="38" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="38" bodyend="67"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1af66216f5e3416c318a8ed2a53fecc113" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_reset</definition>
+        <argsstring>(Corr2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Corr2DObj_reset</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="70" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="70" bodyend="78"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a9b4076c893f62a291842d9b1a38fd83b" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_execute</definition>
+        <argsstring>(Corr2DObject *self, PyObject *args)</argsstring>
+        <name>Corr2DObj_execute</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="86" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="86" bodyend="115"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a6a4768d329d35964526ae8e07e251de2" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2D_getprop_ny</definition>
+        <argsstring>(Corr2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Corr2D_getprop_ny</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="117" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="117" bodyend="124"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1af71e49a819ee77d656006e1df13e8886" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2D_getprop_nx</definition>
+        <argsstring>(Corr2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Corr2D_getprop_nx</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="126" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="126" bodyend="133"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a39f8fb9d0a057cfd3ca19b437f0a7eb8" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2D_getprop_dwell</definition>
+        <argsstring>(Corr2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Corr2D_getprop_dwell</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="135" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="135" bodyend="142"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a8d1c3c7fa0b7e74428b07fd0f0fcfae9" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2D_getprop_count</definition>
+        <argsstring>(Corr2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Corr2D_getprop_count</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="144" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="144" bodyend="151"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a55741b6f460c179b573e5497812a4874" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_destroy</definition>
+        <argsstring>(Corr2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Corr2DObj_destroy</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="162" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="162" bodyend="169"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a52eb6cb7fc445f45e9bfddeba54696e1" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_enter</definition>
+        <argsstring>(Corr2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Corr2DObj_enter</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="172" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="172" bodyend="176"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__corr2d_8c_1a39afda84a0c7327657943adaa564f2e0" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Corr2DObj_exit</definition>
+        <argsstring>(Corr2DObject *self, PyObject *args)</argsstring>
+        <name>Corr2DObj_exit</name>
+        <param>
+          <type><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="179" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="179" bodyend="187"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>spectral_ext_corr2d.c<sp/>—<sp/>Corr2D<sp/>type<sp/>for<sp/>the<sp/>spectral<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>spectral_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>spectral_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Corr2DObject<sp/>—<sp/>wraps<sp/>corr2d_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="corr2d__core_8h" kindref="compound">corr2d/corr2d_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structCorr2DObject" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>pre-allocated<sp/>output<sp/>for<sp/>execute<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal">}<sp/><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref>;</highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal">Corr2DObj_dealloc(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="22"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" kindref="member">corr2d_destroy</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="29"><highlight class="normal">Corr2DObj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="30"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self<sp/>=<sp/>(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="35"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal">Corr2DObj_init(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="39"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;ref&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;dwell&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;nthreads&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*ref_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>dwell_raw<sp/>=<sp/>0ULL;</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;O|Ki&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;ref_obj,<sp/>&amp;dwell_raw,<sp/>&amp;nthreads))</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>dwell<sp/>=<sp/>(size_t)dwell_raw;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*ref_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>ref_obj,<sp/>NPY_COMPLEX64,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!ref_arr)<sp/>{<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;<sp/>}</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(PyArray_NDIM(ref_arr)<sp/>!=<sp/>2)<sp/>{</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_ValueError,</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;ref<sp/>must<sp/>be<sp/>a<sp/>2-D<sp/>array&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>Py_DECREF(ref_arr);<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ref_dim0<sp/>=<sp/>(size_t)PyArray_DIM(ref_arr,<sp/>0);</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ref_dim1<sp/>=<sp/>(size_t)PyArray_DIM(ref_arr,<sp/>1);</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref><sp/>=<sp/><ref refid="corr2d__core_8h_1aa0acddc8344fedb6f0858e3cc5daa0b7" kindref="member">corr2d_create</ref>((</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*)PyArray_DATA(ref_arr),<sp/>ref_dim0,<sp/>ref_dim1,<sp/>dwell,<sp/>nthreads);</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(ref_arr);</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_MemoryError,</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;corr2d_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="67"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="70"><highlight class="normal">Corr2DObj_reset(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="71"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="74"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="corr2d__core_8h_1a10b4616cd8688abf410fff4214aa4d03" kindref="member">corr2d_reset</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="78"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"></highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="86"><highlight class="normal">Corr2DObj_execute(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="87"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*in_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>&amp;in_obj))</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*in_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>in_obj,<sp/>NPY_COMPLEX64,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!in_arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_ssize_t<sp/>n<sp/>=<sp/>PyArray_SIZE(in_arr);</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="corr2d__core_8h_1af30a5f568a3674434b778c4ca08f55ad" kindref="member">corr2d_execute_max_out</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_max)<sp/>_max<sp/>=<sp/>(size_t)n;</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref><sp/>=<sp/>malloc(_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex));</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref>)<sp/>{<sp/>Py_DECREF(in_arr);<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="corr2d__core_8h_1a86978ff8882674eeb4952917b02b9df1" kindref="member">corr2d_execute</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>,<sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*)PyArray_DATA(in_arr),<sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal">)n,<sp/>self-&gt;<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!n_out)<sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)n_out;</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*arr<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_COMPLEX64,<sp/>self-&gt;<ref refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)arr,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(in_arr);</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>arr;</highlight></codeline>
+<codeline lineno="115"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="117"><highlight class="normal">Corr2D_getprop_ny(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="118"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>-&gt;<ref refid="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" kindref="member">ny</ref>);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="126"><highlight class="normal">Corr2D_getprop_nx(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="127"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="128"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>-&gt;<ref refid="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" kindref="member">nx</ref>);</highlight></codeline>
+<codeline lineno="133"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="135"><highlight class="normal">Corr2D_getprop_dwell(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="136"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>-&gt;<ref refid="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" kindref="member">dwell</ref>);</highlight></codeline>
+<codeline lineno="142"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="144"><highlight class="normal">Corr2D_getprop_count(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="145"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>-&gt;<ref refid="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" kindref="member">count</ref>);</highlight></codeline>
+<codeline lineno="151"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"></highlight></codeline>
+<codeline lineno="153"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>Corr2D_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;ny&quot;</highlight><highlight class="normal">,<sp/>(getter)Corr2D_getprop_ny,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="155"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;nx&quot;</highlight><highlight class="normal">,<sp/>(getter)Corr2D_getprop_nx,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="156"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;dwell&quot;</highlight><highlight class="normal">,<sp/>(getter)Corr2D_getprop_dwell,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;count&quot;</highlight><highlight class="normal">,<sp/>(getter)Corr2D_getprop_count,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/>NULL<sp/>}</highlight></codeline>
+<codeline lineno="159"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"></highlight></codeline>
+<codeline lineno="161"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="162"><highlight class="normal">Corr2DObj_destroy(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="163"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="164"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="165"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" kindref="member">corr2d_destroy</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="169"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"></highlight></codeline>
+<codeline lineno="171"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="172"><highlight class="normal">Corr2DObj_enter(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="173"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="176"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="177"><highlight class="normal"></highlight></codeline>
+<codeline lineno="178"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="179"><highlight class="normal">Corr2DObj_exit(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="180"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="182"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="183"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" kindref="member">corr2d_destroy</ref>(self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="187"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="188"><highlight class="normal"></highlight></codeline>
+<codeline lineno="189"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>Corr2DObj_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/><sp/>(PyCFunction)Corr2DObj_reset,<sp/><sp/><sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="191"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Reset<sp/>state<sp/>to<sp/>post-create<sp/>defaults.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="192"><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;execute&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)Corr2DObj_execute,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;execute(x)<sp/>-&gt;<sp/>ndarray\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Zero-copy<sp/>view<sp/>into<sp/>pre-allocated<sp/>output<sp/>buffer.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="199"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>Corr2D\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="200"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>Corr2D(np.zeros((1,<sp/>1),<sp/>dtype=np.complex64),<sp/>1,<sp/>1)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y<sp/>=<sp/>obj.execute(1.0<sp/>+<sp/>0.0j)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y.dtype\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>dtype(&apos;complex64&apos;)\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)Corr2DObj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)Corr2DObj_enter,<sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)Corr2DObj_exit,<sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="209"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="210"><highlight class="normal"></highlight></codeline>
+<codeline lineno="211"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>Corr2DObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;spectral.Corr2D&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="214"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structCorr2DObject" kindref="compound">Corr2DObject</ref>),</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)Corr2DObj_dealloc,</highlight></codeline>
+<codeline lineno="216"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="217"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;Create<sp/>a<sp/>2-D<sp/>FFT<sp/>correlator.\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="218"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>Corr2DObj_methods,</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>Corr2D_getset,</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>Corr2DObj_new,</highlight></codeline>
+<codeline lineno="221"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)Corr2DObj_init,</highlight></codeline>
+<codeline lineno="222"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/spectral/spectral_ext_corr2d.c"/>
+  </compounddef>
+</doxygen>

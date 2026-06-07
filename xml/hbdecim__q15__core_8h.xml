@@ -1,0 +1,352 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="hbdecim__q15__core_8h" kind="file" language="C++">
+    <compoundname>hbdecim_q15_core.h</compoundname>
+    <includes local="no">stddef.h</includes>
+    <includes local="no">stdint.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="filter__ext__hbdecim__q15_8c" local="yes">native/src/filter/filter_ext_hbdecim_q15.c</includedby>
+    <includedby refid="hbdecim__q15__core_8c" local="yes">native/src/hbdecim_q15/hbdecim_q15_core.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/hbdecim_q15/hbdecim_q15_core.h</label>
+        <link refid="hbdecim__q15__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>stddef.h</label>
+      </node>
+      <node id="3">
+        <label>stdint.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="1">
+        <label>native/inc/hbdecim_q15/hbdecim_q15_core.h</label>
+        <link refid="hbdecim__q15__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/src/filter/filter_ext_hbdecim_q15.c</label>
+        <link refid="filter__ext__hbdecim__q15_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/hbdecim_q15/hbdecim_q15_core.c</label>
+        <link refid="hbdecim__q15__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structhbdecim__q15__state__t" prot="public">hbdecim_q15_state_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1a7c133a1772791edc0ef2e3bda7ed710d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+        <definition>hbdecim_q15_state_t * hbdecim_q15_create</definition>
+        <argsstring>(size_t num_taps, const float *h)</argsstring>
+        <name>hbdecim_q15_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>h</declname>
+        </param>
+        <briefdescription>
+<para>Allocate and initialise a fixed-point halfband 2:1 decimator. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>FIR branch length (number of non-zero symmetric taps, NOT the full sparse prototype length). Must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>h</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Float FIR branch coefficients, length num_taps. Must be symmetric (h[k] = h[num_taps-1-k]). Copied and converted to Q15 with x0.5 scaling. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on invalid args or allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="95" column="21" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="192" bodyend="262" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="95" declcolumn="21"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void hbdecim_q15_destroy</definition>
+        <argsstring>(hbdecim_q15_state_t *r)</argsstring>
+        <name>hbdecim_q15_destroy</name>
+        <param>
+          <type><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="98" column="6" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="265" bodyend="279" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="98" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1a08d5eddb2230dc02db22c251ad2b8406" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void hbdecim_q15_reset</definition>
+        <argsstring>(hbdecim_q15_state_t *r)</argsstring>
+        <name>hbdecim_q15_reset</name>
+        <param>
+          <type><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero all delay rings and clear the pending-sample flag. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="101" column="6" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="282" bodyend="291" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="101" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1aef09249f50a2d6dbede81278d0397140" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t hbdecim_q15_execute</definition>
+        <argsstring>(hbdecim_q15_state_t *r, const int16_t *in, size_t n_in, int16_t *out, size_t max_out)</argsstring>
+        <name>hbdecim_q15_execute</name>
+        <param>
+          <type><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <param>
+          <type>const int16_t *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>int16_t *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_out</declname>
+        </param>
+        <briefdescription>
+<para>Decimate a block of interleaved IQ int16 samples by 2. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Input layout: I0 Q0 I1 Q1 ... (2*n_in int16_t values). Output layout: I0 Q0 I1 Q1 ... (2*n_out int16_t values), n_out &lt;= n_in/2.</para>
+<para>If n_in is odd the trailing even IQ pair is buffered and consumed on the next call. Output buffer must be allocated for at least 2 * ((n_in + 1) / 2) int16_t elements to be safe.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>r</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>State handle, must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved IQ input, 2*n_in elements. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex input samples (IQ pairs). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, capacity &gt;= 2*max_out elements. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Maximum complex output samples to write. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of complex output samples written. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="120" column="8" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="323" bodyend="366" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="120" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1a511611c27694d67a4ae077681c9085e6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t hbdecim_q15_execute_max_out</definition>
+        <argsstring>(hbdecim_q15_state_t *r)</argsstring>
+        <name>hbdecim_q15_execute_max_out</name>
+        <param>
+          <type><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for a given input length. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns 0 to trigger the lazy-alloc path in the Python glue: the output buffer is sized to n_in on first call (always sufficient for 2:1). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="130" column="8" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="298" bodyend="303" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="130" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1acc053af1be055db87779ef5fe591225e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double hbdecim_q15_get_rate</definition>
+        <argsstring>(const hbdecim_q15_state_t *r)</argsstring>
+        <name>hbdecim_q15_get_rate</name>
+        <param>
+          <type>const <ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Always returns 0.5. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="133" column="8" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="306" bodyend="310" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="133" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="hbdecim__q15__core_8h_1a5bbd4c00775ebf5da405fc47f6ced8fb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t hbdecim_q15_get_num_taps</definition>
+        <argsstring>(const hbdecim_q15_state_t *r)</argsstring>
+        <name>hbdecim_q15_get_num_taps</name>
+        <param>
+          <type>const <ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref> *</type>
+          <declname>r</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns num_taps as supplied to hbdecim_q15_create. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h" line="136" column="8" bodyfile="native/src/hbdecim_q15/hbdecim_q15_core.c" bodystart="313" bodyend="316" declfile="native/inc/hbdecim_q15/hbdecim_q15_core.h" declline="136" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Input: interleaved int16_t pairs (I₀ Q₀ I₁ Q₁ …) as produced by ADCIQ. Output: decimated 2:1 interleaved int16_t IQ pairs.</para>
+<sect1 id="hbdecim__q15__core_8h_1autotoc_md6_1s1"><sect2 id="hbdecim__q15__core_8h_1autotoc_md6">
+<title>Algorithm</title><para>The halfband filter has the polyphase property: one branch is a pure delay (every other sample passes through unchanged) and the other branch carries the FIR computation. Caller supplies the FIR branch coefficients as float; they are converted to Q15 internally with the standard x0.5 rate scaling.</para>
+<para>The symmetric-fold optimisation halves the number of multiplications: instead of computing Sum h[k]*x[n-k] for all k, the filter computes Sum h[k]*(x[n-k] + x[n-(N-1-k)]) for k = 0..N/2-1, exploiting h[k] = h[N-1-k]. The center tap is a single unconditional right-shift (x0.5, baked in as the polyphase rate identity).</para>
+<para>On AVX2 the inner loop uses _mm256_madd_epi16 to multiply 16 int16_t coefficient values against 16 int16_t folded delay-line samples in a single instruction, accumulating into 8 int32_t lanes. I and Q run as two independent madd chains on the same coefficient vector — free ILP on any superscalar core. The fold uses saturating add (_mm256_adds_epi16) which clips at +-32767; for signals at or below -1 dBFS the saturation never fires. The int32_t accumulator is reduced to int64_t before the final round-and-shift to Q15 output.</para>
+</sect2></sect1>
+<sect1 id="hbdecim__q15__core_8h_1autotoc_md7_1s1"><sect2 id="hbdecim__q15__core_8h_1autotoc_md7">
+<title>Delay-line layout</title><para>Even- and odd-indexed input samples are demultiplexed into separate I and Q rings (four int16_t dual-write rings total). The dual-write trick stores each value at position p and p+cap so the FIR inner loop reads a contiguous slice — no modulo arithmetic in the hot path.</para>
+</sect2></sect1>
+<sect1 id="hbdecim__q15__core_8h_1autotoc_md8_1s1"><sect2 id="hbdecim__q15__core_8h_1autotoc_md8">
+<title>Lifecycle</title><para><programlisting><codeline><highlight class="normal"><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r<sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1a7c133a1772791edc0ef2e3bda7ed710d" kindref="member">hbdecim_q15_create</ref>(num_taps,<sp/>h_fir);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>in:<sp/><sp/>interleaved<sp/>int16_t<sp/>IQ,<sp/>2*n_in<sp/>elements</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>out:<sp/>interleaved<sp/>int16_t<sp/>IQ,<sp/>2*n_out<sp/>elements<sp/>(n_out<sp/>&lt;=<sp/>n_in/2)</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1aef09249f50a2d6dbede81278d0397140" kindref="member">hbdecim_q15_execute</ref>(r,<sp/>in,<sp/>n_in,<sp/>out,<sp/>max_out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" kindref="member">hbdecim_q15_destroy</ref>(r);</highlight></codeline>
+</programlisting> </para>
+</sect2></sect1>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>HBDECIM_Q15_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>HBDECIM_Q15_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="49"><highlight class="normal"></highlight></codeline>
+<codeline lineno="50"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stddef.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stdint.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"></highlight></codeline>
+<codeline lineno="53"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="56"><highlight class="normal"></highlight></codeline>
+<codeline lineno="57" refid="structhbdecim__q15__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="58" refid="structhbdecim__q15__state__t_1a1b3adfd9368c5f93f9de48d4464c2051" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a1b3adfd9368c5f93f9de48d4464c2051" kindref="member">num_taps</ref>;<sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>FIR<sp/>branch<sp/>length<sp/>supplied<sp/>by<sp/>caller<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="59" refid="structhbdecim__q15__state__t_1a58df9aa8ac03f4a6124874ef1701bd81" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a58df9aa8ac03f4a6124874ef1701bd81" kindref="member">K</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>symmetric<sp/>pair<sp/>count<sp/>=<sp/>num_taps<sp/>/<sp/>2<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="60" refid="structhbdecim__q15__state__t_1a7197a26cf376c9b18efea78fae294cb7" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a7197a26cf376c9b18efea78fae294cb7" kindref="member">K_pad</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>K<sp/>rounded<sp/>up<sp/>to<sp/>multiple<sp/>of<sp/>16<sp/>(SIMD<sp/>align)<sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="61" refid="structhbdecim__q15__state__t_1aab2cf8822d2c4991153ed28524526c87" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1aab2cf8822d2c4991153ed28524526c87" kindref="member">centre</ref>;<sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>=<sp/>num_taps<sp/>/<sp/>2<sp/>(index<sp/>of<sp/>delay-branch<sp/>tap)<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="62" refid="structhbdecim__q15__state__t_1ad02a203ab49b70cf2b4e20b3921cb076" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1ad02a203ab49b70cf2b4e20b3921cb076" kindref="member">fir_on_even</ref>;<sp/></highlight><highlight class="comment">/*<sp/>1:<sp/>FIR<sp/>on<sp/>even_dl;<sp/>0:<sp/>FIR<sp/>on<sp/>odd_dl<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Q15<sp/>FIR<sp/>branch<sp/>coefficients,<sp/>zero-padded<sp/>to<sp/>K_pad<sp/>entries.</highlight></codeline>
+<codeline lineno="65"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>Scaled<sp/>by<sp/>0.5<sp/>at<sp/>create()<sp/>to<sp/>match<sp/>the<sp/>halfband<sp/>polyphase<sp/>identity.</highlight></codeline>
+<codeline lineno="66"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>Allocated<sp/>with<sp/>32-byte<sp/>alignment<sp/>for<sp/>AVX2<sp/>aligned<sp/>loads.<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="67" refid="structhbdecim__q15__state__t_1a4116fe06675899a6392082d458435a69" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structhbdecim__q15__state__t_1a4116fe06675899a6392082d458435a69" kindref="member">coeffs</ref>;</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Dual-write<sp/>delay<sp/>rings:<sp/>even-<sp/>and<sp/>odd-indexed<sp/>input<sp/>samples<sp/>split</highlight></codeline>
+<codeline lineno="70"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>into<sp/>separate<sp/>I<sp/>and<sp/>Q<sp/>arrays<sp/>for<sp/>contiguous<sp/>SIMD<sp/>access.<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="71" refid="structhbdecim__q15__state__t_1a8e2815ab220725ffcaeda54387906c3c" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structhbdecim__q15__state__t_1a8e2815ab220725ffcaeda54387906c3c" kindref="member">even_I</ref>;<sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>[2<sp/>*<sp/>cap]<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="72" refid="structhbdecim__q15__state__t_1a04a591b0569443f45a7ff9faee1c79b4" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structhbdecim__q15__state__t_1a04a591b0569443f45a7ff9faee1c79b4" kindref="member">even_Q</ref>;<sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>[2<sp/>*<sp/>cap]<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="73" refid="structhbdecim__q15__state__t_1a61f361e2bebaf512b74218143c358263" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structhbdecim__q15__state__t_1a61f361e2bebaf512b74218143c358263" kindref="member">odd_I</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>[2<sp/>*<sp/>cap]<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74" refid="structhbdecim__q15__state__t_1ad3e93dd309721197feec99709569a9c5" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structhbdecim__q15__state__t_1ad3e93dd309721197feec99709569a9c5" kindref="member">odd_Q</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>[2<sp/>*<sp/>cap]<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="75" refid="structhbdecim__q15__state__t_1a87b132a70bf27474883f3db56e0dd917" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a87b132a70bf27474883f3db56e0dd917" kindref="member">cap</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>next<sp/>power-of-2<sp/>&gt;=<sp/>num_taps<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="76" refid="structhbdecim__q15__state__t_1abd76545823a564f90cd2f934b7afa976" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1abd76545823a564f90cd2f934b7afa976" kindref="member">mask</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>=<sp/>cap<sp/>-<sp/>1<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="77" refid="structhbdecim__q15__state__t_1a8220d6eb81f06e09f2cb62a65a1c204a" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a8220d6eb81f06e09f2cb62a65a1c204a" kindref="member">even_head</ref>;</highlight></codeline>
+<codeline lineno="78" refid="structhbdecim__q15__state__t_1a517824ded23ae588d4c6d304d5552c6f" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1a517824ded23ae588d4c6d304d5552c6f" kindref="member">odd_head</ref>;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight></codeline>
+<codeline lineno="80" refid="structhbdecim__q15__state__t_1abd6a0204ef76977f1fc1da21944fbb7b" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t_1abd6a0204ef76977f1fc1da21944fbb7b" kindref="member">has_pending</ref>;<sp/></highlight><highlight class="comment">/*<sp/>1<sp/>when<sp/>a<sp/>trailing<sp/>even<sp/>IQ<sp/>pair<sp/>is<sp/>buffered<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="81" refid="structhbdecim__q15__state__t_1a9d14d4380570d17253e4f93be29080a1" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/><sp/><ref refid="structhbdecim__q15__state__t_1a9d14d4380570d17253e4f93be29080a1" kindref="member">pending_I</ref>;</highlight></codeline>
+<codeline lineno="82" refid="structhbdecim__q15__state__t_1a55eae57c54a29c73773cfb54de80230a" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/><sp/><ref refid="structhbdecim__q15__state__t_1a55eae57c54a29c73773cfb54de80230a" kindref="member">pending_Q</ref>;</highlight></codeline>
+<codeline lineno="83"><highlight class="normal">}<sp/><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref>;</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*<ref refid="hbdecim__q15__core_8h_1a7c133a1772791edc0ef2e3bda7ed710d" kindref="member">hbdecim_q15_create</ref>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*h);</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"></highlight></codeline>
+<codeline lineno="98"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" kindref="member">hbdecim_q15_destroy</ref>(<ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r);</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1a08d5eddb2230dc02db22c251ad2b8406" kindref="member">hbdecim_q15_reset</ref>(<ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r);</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"></highlight></codeline>
+<codeline lineno="120"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1aef09249f50a2d6dbede81278d0397140" kindref="member">hbdecim_q15_execute</ref>(<ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r,</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>int16_t<sp/>*out,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_out);</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"></highlight></codeline>
+<codeline lineno="130"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1a511611c27694d67a4ae077681c9085e6" kindref="member">hbdecim_q15_execute_max_out</ref>(<ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r);</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"></highlight></codeline>
+<codeline lineno="133"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1acc053af1be055db87779ef5fe591225e" kindref="member">hbdecim_q15_get_rate</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r);</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"></highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="hbdecim__q15__core_8h_1a5bbd4c00775ebf5da405fc47f6ced8fb" kindref="member">hbdecim_q15_get_num_taps</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*r);</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"></highlight></codeline>
+<codeline lineno="138"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="139"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="141"><highlight class="normal"></highlight></codeline>
+<codeline lineno="142"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>HBDECIM_Q15_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/hbdecim_q15/hbdecim_q15_core.h"/>
+  </compounddef>
+</doxygen>

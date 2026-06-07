@@ -1,0 +1,248 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="resample__core_8h" kind="file" language="C++">
+    <compoundname>resample_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includedby refid="RateConverter__core_8c" local="yes">native/src/RateConverter/RateConverter_core.c</includedby>
+    <includedby refid="ciccompmf_8c" local="yes">native/src/resample/ciccompmf.c</includedby>
+    <includedby refid="kaiser__beta_8c" local="yes">native/src/resample/kaiser_beta.c</includedby>
+    <includedby refid="kaiser__num__taps_8c" local="yes">native/src/resample/kaiser_num_taps.c</includedby>
+    <includedby refid="resample__core_8c" local="yes">native/src/resample/resample_core.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/resample/resample_core.h</label>
+        <link refid="resample__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/resample/resample_core.h</label>
+        <link refid="resample__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/src/RateConverter/RateConverter_core.c</label>
+        <link refid="RateConverter__core_8c"/>
+      </node>
+      <node id="3">
+        <label>native/src/resample/ciccompmf.c</label>
+        <link refid="ciccompmf_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/resample/kaiser_beta.c</label>
+        <link refid="kaiser__beta_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/resample/kaiser_num_taps.c</label>
+        <link refid="kaiser__num__taps_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/resample/resample_core.c</label>
+        <link refid="resample__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="resample__core_8h_1aae615835e7586ce886ba9e25221cc8bb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double kaiser_beta</definition>
+        <argsstring>(double atten)</argsstring>
+        <name>kaiser_beta</name>
+        <param>
+          <type>double</type>
+          <declname>atten</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resample/resample_core.h" line="17" column="8" bodyfile="native/src/resample/kaiser_beta.c" bodystart="8" bodyend="15" declfile="native/inc/resample/resample_core.h" declline="17" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__core_8h_1aab9932766c08f11c2a2e5f977c9e3f3e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int kaiser_num_taps</definition>
+        <argsstring>(int num_phases, double atten, double pb, double sb)</argsstring>
+        <name>kaiser_num_taps</name>
+        <param>
+          <type>int</type>
+          <declname>num_phases</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>atten</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pb</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sb</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resample/resample_core.h" line="19" column="5" bodyfile="native/src/resample/kaiser_num_taps.c" bodystart="13" bodyend="22" declfile="native/inc/resample/resample_core.h" declline="19" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__core_8h_1a33475475f72e3aeb33ea231151822268" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ciccompmf</definition>
+        <argsstring>(double *out, uint32_t N, uint32_t R, uint32_t M)</argsstring>
+        <name>ciccompmf</name>
+        <param>
+          <type>double *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>N</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>M</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Design a CIC passband-droop compensator FIR filter.</para>
+<para>Implements the closed-form Bernoulli-series (maximally-flat error) method described in:</para>
+<para>Molnar &amp; Vucic, &quot;Closed-Form Design of CIC Compensators Based on
+  Maximally Flat Error Criterion,&quot; IEEE TCAS-II, 58(12):926-930, 2011. DOI: 10.1109/TCSII.2011.2172522</para>
+<para>The compensator runs at the <emphasis>decimated</emphasis> (output) rate and should be applied after the CIC decimator.</para>
+<para>Bernoulli table has 9 entries (B_2 ... B_18). Valid tap counts: odd M: 1, 3, 5, ... 19 (half = (M-1)/2 &lt;= 9) even M: 2, 4, 6, ... 18 (half = M/2 &lt;= 9) M outside these ranges -&gt; h is left unmodified.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, caller-allocated, M elements. DC gain = 1.0. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>N</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CIC filter order (number of integrator/comb stages, &gt;= 1). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>R</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CIC decimation factor (&gt;= 2). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>M</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of compensator taps. Odd M -&gt; symmetric linear-phase; even M -&gt; half-sample-shifted linear-phase. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resample/resample_core.h" line="45" column="6" bodyfile="native/src/resample/ciccompmf.c" bodystart="47" bodyend="124" declfile="native/inc/resample/resample_core.h" declline="45" declcolumn="6"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Resample module — public C API. </para>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="5"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>RESAMPLE_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="6"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>RESAMPLE_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="7"><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Declare<sp/>module-level<sp/>functions<sp/>here.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="resample__core_8h_1aae615835e7586ce886ba9e25221cc8bb" kindref="member">kaiser_beta</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>atten);</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="resample__core_8h_1aab9932766c08f11c2a2e5f977c9e3f3e" kindref="member">kaiser_num_taps</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>num_phases,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>atten,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pb,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>sb);</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="resample__core_8h_1a33475475f72e3aeb33ea231151822268" kindref="member">ciccompmf</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>*out,<sp/>uint32_t<sp/>N,<sp/>uint32_t<sp/>R,<sp/>uint32_t<sp/>M);</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"></highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="50"><highlight class="normal"></highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>RESAMPLE_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/resample/resample_core.h"/>
+  </compounddef>
+</doxygen>

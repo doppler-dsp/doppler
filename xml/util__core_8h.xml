@@ -1,0 +1,198 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="util__core_8h" kind="file" language="C++">
+    <compoundname>util_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includes local="no">math.h</includes>
+    <includedby refid="agc__core_8h" local="yes">native/inc/agc/agc_core.h</includedby>
+    <includedby refid="detector__core_8c" local="yes">native/src/detector/detector_core.c</includedby>
+    <includedby refid="detector2d__core_8c" local="yes">native/src/detector2d/detector2d_core.c</includedby>
+    <includedby refid="util__core_8c" local="yes">native/src/util/util_core.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/util/util_core.h</label>
+        <link refid="util__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="10">
+        <label>math.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="2">
+        <label>native/inc/agc/agc_core.h</label>
+        <link refid="agc__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="1">
+        <label>native/inc/util/util_core.h</label>
+        <link refid="util__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>native/src/agc/agc_core.c</label>
+        <link refid="agc__core_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/agc/agc_ext_agc.c</label>
+        <link refid="agc__ext__agc_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/detector/detector_core.c</label>
+        <link refid="detector__core_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/detector2d/detector2d_core.c</label>
+        <link refid="detector2d__core_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/util/util_core.c</label>
+        <link refid="util__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="util__core_8h_1a15a7d5ef67d3ab5e2c5ed9b4639248bb" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> float complex</type>
+        <definition>static JM_FORCEINLINE float complex square_clip</definition>
+        <argsstring>(float complex y, float lin)</argsstring>
+        <name>square_clip</name>
+        <param>
+          <type>float complex</type>
+          <declname>y</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>lin</declname>
+        </param>
+        <briefdescription>
+<para>Square-clip a complex sample. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Clips the real and imaginary parts independently to &amp;#91;-lin, lin&amp;#93; — a square region in the IQ plane, not a circular magnitude limit.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>y</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input sample. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>lin</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-component clip threshold (linear amplitude, &gt;= 0). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Sample with each component limited to &amp;#91;-lin, lin&amp;#93;. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/util/util_core.h" line="33" column="3" bodyfile="native/inc/util/util_core.h" bodystart="33" bodyend="38"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Util module — public C API. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>The util functions are header-only and JM_FORCEINLINE: any caller that includes this header inlines them with zero call overhead, and the util Python extension module exposes the very same definitions. There is one source of truth per function, here. </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>UTIL_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>UTIL_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/>square_clip<sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>y,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>lin)</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>r<sp/>=<sp/>fminf<sp/>(fmaxf<sp/>(crealf<sp/>(y),<sp/>-lin),<sp/>lin);</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>fminf<sp/>(fmaxf<sp/>(cimagf<sp/>(y),<sp/>-lin),<sp/>lin);</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>r<sp/>+<sp/>i<sp/>*<sp/>I;</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><sp/><sp/>}</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>UTIL_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/util/util_core.h"/>
+  </compounddef>
+</doxygen>

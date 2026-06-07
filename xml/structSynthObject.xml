@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structSynthObject" kind="struct" language="C++" prot="public">
+    <compoundname>SynthObject</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structSynthObject_1a4470ba50bc2185f2408e172c57eccf47" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+        <definition>PyObject_HEAD synth_state_t* SynthObject::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>SynthObject::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfmgen_ext_synth.c" line="16" column="19" bodyfile="native/src/wfmgen/wfmgen_ext_synth.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>SynthObject</label>
+        <link refid="structSynthObject"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="4">
+        <label>awgn_state_t</label>
+        <link refid="structawgn__state__t"/>
+      </node>
+      <node id="3">
+        <label>lo_state_t</label>
+        <link refid="structlo__state__t"/>
+      </node>
+      <node id="5">
+        <label>pn_state_t</label>
+        <link refid="structpn__state__t"/>
+      </node>
+      <node id="2">
+        <label>synth_state_t</label>
+        <link refid="structsynth__state__t"/>
+        <childnode refid="3" relation="usage">
+          <edgelabel>lo</edgelabel>
+        </childnode>
+        <childnode refid="4" relation="usage">
+          <edgelabel>awgn</edgelabel>
+        </childnode>
+        <childnode refid="5" relation="usage">
+          <edgelabel>pn</edgelabel>
+        </childnode>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/wfmgen/wfmgen_ext_synth.c" line="14" column="1" bodyfile="native/src/wfmgen/wfmgen_ext_synth.c" bodystart="14" bodyend="17"/>
+    <listofallmembers>
+      <member refid="structSynthObject_1a4470ba50bc2185f2408e172c57eccf47" prot="public" virt="non-virtual"><scope>SynthObject</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

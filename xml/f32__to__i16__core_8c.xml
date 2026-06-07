@@ -1,0 +1,270 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="f32__to__i16__core_8c" kind="file" language="C++">
+    <compoundname>f32_to_i16_core.c</compoundname>
+    <includes refid="f32__to__i16__core_8h" local="yes">f32_to_i16/f32_to_i16_core.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>f32_to_i16/f32_to_i16_core.h</label>
+        <link refid="f32__to__i16__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/f32_to_i16/f32_to_i16_core.c</label>
+        <link refid="f32__to__i16__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>math.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="f32__to__i16__core_8c_1ae51d0c320f2b9d691d172f0a699ecaf0" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref> *</type>
+        <definition>f32_to_i16_state_t * f32_to_i16_create</definition>
+        <argsstring>(float scale)</argsstring>
+        <name>f32_to_i16_create</name>
+        <param>
+          <type>float</type>
+          <declname>scale</declname>
+        </param>
+        <briefdescription>
+<para>Create a f32_to_i16 instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>scale</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>scale (default: 32768.0f). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="f32__to__i16__core_8h_1aebb308b0210235a2016f24f866dc42c4" kindref="member">f32_to_i16_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/f32_to_i16/f32_to_i16_core.c" line="4" column="1" bodyfile="native/src/f32_to_i16/f32_to_i16_core.c" bodystart="4" bodyend="13"/>
+      </memberdef>
+      <memberdef kind="function" id="f32__to__i16__core_8c_1aebb308b0210235a2016f24f866dc42c4" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void f32_to_i16_destroy</definition>
+        <argsstring>(f32_to_i16_state_t *state)</argsstring>
+        <name>f32_to_i16_destroy</name>
+        <param>
+          <type><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a f32_to_i16 instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/f32_to_i16/f32_to_i16_core.c" line="16" column="1" bodyfile="native/src/f32_to_i16/f32_to_i16_core.c" bodystart="16" bodyend="19"/>
+      </memberdef>
+      <memberdef kind="function" id="f32__to__i16__core_8c_1ace59dd41079e3689143c5927871da91a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void f32_to_i16_reset</definition>
+        <argsstring>(f32_to_i16_state_t *state)</argsstring>
+        <name>f32_to_i16_reset</name>
+        <param>
+          <type><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset f32_to_i16 to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/f32_to_i16/f32_to_i16_core.c" line="22" column="1" bodyfile="native/src/f32_to_i16/f32_to_i16_core.c" bodystart="22" bodyend="25"/>
+      </memberdef>
+      <memberdef kind="function" id="f32__to__i16__core_8c_1ae09406ed987d2828b7789bb54d58bc1a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void f32_to_i16_steps</definition>
+        <argsstring>(f32_to_i16_state_t *state, const float *input, int16_t *output, size_t n)</argsstring>
+        <name>f32_to_i16_steps</name>
+        <param>
+          <type><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>input</declname>
+        </param>
+        <param>
+          <type>int16_t *</type>
+          <declname>output</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Process a block of samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Component state (mutated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>input</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>output</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (length &gt;= n; may alias input for in-place). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/f32_to_i16/f32_to_i16_core.c" line="27" column="6" bodyfile="native/src/f32_to_i16/f32_to_i16_core.c" bodystart="27" bodyend="36"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="f32__to__i16__core_8h" kindref="compound">f32_to_i16/f32_to_i16_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><ref refid="f32__to__i16__core_8c_1ae51d0c320f2b9d691d172f0a699ecaf0" kindref="member">f32_to_i16_create</ref>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>scale)</highlight></codeline>
+<codeline lineno="5"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="6"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(scale<sp/>&lt;=<sp/>0.0f)</highlight></codeline>
+<codeline lineno="7"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref><sp/>*state<sp/>=<sp/>calloc(1,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(*state));</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structf32__to__i16__state__t_1a14d06fdd11173a54997362d5de2cc72d" kindref="member">scale</ref><sp/>=<sp/>scale;</highlight></codeline>
+<codeline lineno="12"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="13"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><ref refid="f32__to__i16__core_8c_1aebb308b0210235a2016f24f866dc42c4" kindref="member">f32_to_i16_destroy</ref>(<ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="17"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/>free(state);</highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><ref refid="f32__to__i16__core_8c_1ace59dd41079e3689143c5927871da91a" kindref="member">f32_to_i16_reset</ref>(<ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structf32__to__i16__state__t_1a7e06ad072d78c1922a9594fb0a1b563d" kindref="member">clipped</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="25"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="f32__to__i16__core_8c_1ae09406ed987d2828b7789bb54d58bc1a" kindref="member">f32_to_i16_steps</ref>(</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structf32__to__i16__state__t" kindref="compound">f32_to_i16_state_t</ref><sp/>*state,</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><sp/><sp/><sp/>*input,</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*output,</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>n)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>#pragma<sp/>omp<sp/>simd<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>output[i]<sp/>=<sp/><ref refid="f32__to__i16__core_8h_1a3f8437cafcacb595ca40f5d79a366ade" kindref="member">f32_to_i16_step</ref>(state,<sp/>input[i]);</highlight></codeline>
+<codeline lineno="36"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight></codeline>
+    </programlisting>
+    <location file="native/src/f32_to_i16/f32_to_i16_core.c"/>
+  </compounddef>
+</doxygen>

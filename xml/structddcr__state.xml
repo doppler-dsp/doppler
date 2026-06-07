@@ -1,0 +1,102 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structddcr__state" kind="struct" language="C++" prot="public">
+    <compoundname>ddcr_state</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structddcr__state_1a2bd79337458eca1d8ccfa4ce4d985801" prot="public" static="no" mutable="no">
+        <type><ref refid="hbdecim__r2c__core_8h_1ae2f61225436b203a1fb8382e3f23a13c" kindref="member">hbdecim_r2c_state_t</ref> *</type>
+        <definition>hbdecim_r2c_state_t* ddcr_state::r2c</definition>
+        <argsstring></argsstring>
+        <name>r2c</name>
+        <qualifiedname>ddcr_state::r2c</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="158" column="23" bodyfile="native/src/ddc/ddc_core.c" bodystart="158" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structddcr__state_1a38e016fbb244492256a70a7a9d8fa118" prot="public" static="no" mutable="no">
+        <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+        <definition>lo_state_t* ddcr_state::lo</definition>
+        <argsstring></argsstring>
+        <name>lo</name>
+        <qualifiedname>ddcr_state::lo</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="159" column="14" bodyfile="native/src/ddc/ddc_core.c" bodystart="159" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structddcr__state_1a6cfe9faf0df2c73fce7ae7f7f044cc07" prot="public" static="no" mutable="no">
+        <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+        <definition>RateConverter_state_t* ddcr_state::rc</definition>
+        <argsstring></argsstring>
+        <name>rc</name>
+        <qualifiedname>ddcr_state::rc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="160" column="25" bodyfile="native/src/ddc/ddc_core.c" bodystart="160" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structddcr__state_1a16b8aa84a2b1a831852a1d6b82cd3680" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double ddcr_state::rate</definition>
+        <argsstring></argsstring>
+        <name>rate</name>
+        <qualifiedname>ddcr_state::rate</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="161" column="10" bodyfile="native/src/ddc/ddc_core.c" bodystart="161" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="4">
+        <label>RateConverter_state_t</label>
+        <link refid="structRateConverter__state__t"/>
+      </node>
+      <node id="1">
+        <label>ddcr_state</label>
+        <link refid="structddcr__state"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>r2c</edgelabel>
+        </childnode>
+        <childnode refid="3" relation="usage">
+          <edgelabel>lo</edgelabel>
+        </childnode>
+        <childnode refid="4" relation="usage">
+          <edgelabel>rc</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>hbdecim_r2c_state</label>
+        <link refid="structhbdecim__r2c__state"/>
+      </node>
+      <node id="3">
+        <label>lo_state_t</label>
+        <link refid="structlo__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/ddc/ddc_core.c" line="156" column="1" bodyfile="native/src/ddc/ddc_core.c" bodystart="157" bodyend="162"/>
+    <listofallmembers>
+      <member refid="structddcr__state_1a38e016fbb244492256a70a7a9d8fa118" prot="public" virt="non-virtual"><scope>ddcr_state</scope><name>lo</name></member>
+      <member refid="structddcr__state_1a2bd79337458eca1d8ccfa4ce4d985801" prot="public" virt="non-virtual"><scope>ddcr_state</scope><name>r2c</name></member>
+      <member refid="structddcr__state_1a16b8aa84a2b1a831852a1d6b82cd3680" prot="public" virt="non-virtual"><scope>ddcr_state</scope><name>rate</name></member>
+      <member refid="structddcr__state_1a6cfe9faf0df2c73fce7ae7f7f044cc07" prot="public" virt="non-virtual"><scope>ddcr_state</scope><name>rc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

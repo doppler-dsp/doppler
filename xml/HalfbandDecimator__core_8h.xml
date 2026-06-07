@@ -1,0 +1,351 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="HalfbandDecimator__core_8h" kind="file" language="C++">
+    <compoundname>HalfbandDecimator_core.h</compoundname>
+    <includes refid="hbdecim__core_8h" local="yes">hbdecim/hbdecim_core.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="HalfbandDecimator__core_8c" local="yes">native/src/HalfbandDecimator/HalfbandDecimator_core.c</includedby>
+    <includedby refid="resample__ext__HalfbandDecimator_8c" local="yes">native/src/resample/resample_ext_HalfbandDecimator.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/HalfbandDecimator/HalfbandDecimator_core.h</label>
+        <link refid="HalfbandDecimator__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>hbdecim/hbdecim_core.h</label>
+        <link refid="hbdecim__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/HalfbandDecimator/HalfbandDecimator_core.h</label>
+        <link refid="HalfbandDecimator__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/src/HalfbandDecimator/HalfbandDecimator_core.c</label>
+        <link refid="HalfbandDecimator__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/resample/resample_ext_HalfbandDecimator.c</label>
+        <link refid="resample__ext__HalfbandDecimator_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="HalfbandDecimator__core_8h_1ac537afe5fd99202c2d60b97a265a29df" prot="public" static="no">
+        <name>HBDECIM_MAX_OUT</name>
+        <initializer>32768</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="32" column="9" bodyfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" bodystart="32" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="typedef">
+      <memberdef kind="typedef" id="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" prot="public" static="no">
+        <type><ref refid="structhbdecim__state__t" kindref="compound">hbdecim_state_t</ref></type>
+        <definition>typedef hbdecim_state_t HalfbandDecimator_state_t</definition>
+        <argsstring></argsstring>
+        <name>HalfbandDecimator_state_t</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="29" column="27" bodyfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" bodystart="29" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1a5752cdea3209eeb76a44ca47f7630fd3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+        <definition>HalfbandDecimator_state_t * HalfbandDecimator_create</definition>
+        <argsstring>(size_t num_taps, const float *h)</argsstring>
+        <name>HalfbandDecimator_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>h</declname>
+        </param>
+        <briefdescription>
+<para>Create a HalfbandDecimator. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>FIR branch length. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>h</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>FIR branch coefficients, length num_taps. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on invalid args or OOM. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="45" column="29" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="4" bodyend="7" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="45" declcolumn="29"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1a712ec3cd0037e87902c28bfa3cd41b91" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void HalfbandDecimator_destroy</definition>
+        <argsstring>(HalfbandDecimator_state_t *state)</argsstring>
+        <name>HalfbandDecimator_destroy</name>
+        <param>
+          <type><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="49" column="8" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="10" bodyend="13" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="49" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1ac1793ccdc52d413b85e02af9e1731fb0" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void HalfbandDecimator_reset</definition>
+        <argsstring>(HalfbandDecimator_state_t *state)</argsstring>
+        <name>HalfbandDecimator_reset</name>
+        <param>
+          <type><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero delay lines. Coefficients preserved. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="52" column="8" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="16" bodyend="19" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="52" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1aabe221d8989aaad7f187a58e9a782d5c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t HalfbandDecimator_execute_max_out</definition>
+        <argsstring>(HalfbandDecimator_state_t *state)</argsstring>
+        <name>HalfbandDecimator_execute_max_out</name>
+        <param>
+          <type><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Always returns HBDECIM_MAX_OUT. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="59" column="10" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="22" bodyend="26" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="59" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1a09c231c8d7d0f2fca8f375739d1dfe27" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t HalfbandDecimator_execute</definition>
+        <argsstring>(HalfbandDecimator_state_t *state, const float complex *x, size_t x_len, float complex *out)</argsstring>
+        <name>HalfbandDecimator_execute</name>
+        <param>
+          <type><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>x</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>x_len</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Decimate x(0..x_len-1) by 2 into out(0..n_out-1). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>out must be at least <ref refid="HalfbandDecimator__core_8h_1aabe221d8989aaad7f187a58e9a782d5c" kindref="member">HalfbandDecimator_execute_max_out()</ref> samples. Returns actual output count (roughly x_len / 2). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="67" column="10" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="29" bodyend="34" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="67" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1aee82dd3a8d1d353a6eaeae5d47c0840b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double HalfbandDecimator_get_rate</definition>
+        <argsstring>(const HalfbandDecimator_state_t *state)</argsstring>
+        <name>HalfbandDecimator_get_rate</name>
+        <param>
+          <type>const <ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Always returns 0.5. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="76" column="10" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="37" bodyend="40" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="76" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="HalfbandDecimator__core_8h_1a2f27b52a7cbe45886c066b55526f3b6f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t HalfbandDecimator_get_num_taps</definition>
+        <argsstring>(const HalfbandDecimator_state_t *state)</argsstring>
+        <name>HalfbandDecimator_get_num_taps</name>
+        <param>
+          <type>const <ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns the FIR branch length passed to create. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" line="80" column="3" bodyfile="native/src/HalfbandDecimator/HalfbandDecimator_core.c" bodystart="43" bodyend="46" declfile="native/inc/HalfbandDecimator/HalfbandDecimator_core.h" declline="80" declcolumn="3"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim_core). </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Thin adapter over <ref refid="structhbdecim__state__t" kindref="compound">hbdecim_state_t</ref>. The caller supplies a FIR coefficient array at construction; use resample.build_bank(2, ...) from Python to generate a suitable halfband prototype.</para>
+<para>Lifecycle: <programlisting><codeline><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>h[]<sp/>=<sp/>{<sp/>...<sp/>};<sp/><sp/></highlight><highlight class="comment">//<sp/>num_taps<sp/>FIR<sp/>branch<sp/>coefficients</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*r<sp/>=</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="HalfbandDecimator__core_8h_1a5752cdea3209eeb76a44ca47f7630fd3" kindref="member">HalfbandDecimator_create</ref>(num_taps,<sp/>h);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>out[512];</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/><ref refid="HalfbandDecimator__core_8h_1a09c231c8d7d0f2fca8f375739d1dfe27" kindref="member">HalfbandDecimator_execute</ref>(r,<sp/>in,<sp/>1024,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="HalfbandDecimator__core_8h_1a712ec3cd0037e87902c28bfa3cd41b91" kindref="member">HalfbandDecimator_destroy</ref>(r);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>HALFBANDDECIMATOR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>HALFBANDDECIMATOR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="hbdecim__core_8h" kindref="compound">hbdecim/hbdecim_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"></highlight></codeline>
+<codeline lineno="24"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29" refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/><ref refid="structhbdecim__state__t" kindref="compound">hbdecim_state_t</ref><sp/><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref>;</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Maximum<sp/>output<sp/>samples<sp/>per<sp/>call<sp/>(pre-allocated<sp/>by<sp/>ext.c<sp/>at<sp/>init).<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32" refid="HalfbandDecimator__core_8h_1ac537afe5fd99202c2d60b97a265a29df" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>HBDECIM_MAX_OUT<sp/>32768</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Lifecycle<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*<ref refid="HalfbandDecimator__core_8h_1a5752cdea3209eeb76a44ca47f7630fd3" kindref="member">HalfbandDecimator_create</ref><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps,</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*h);</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1a712ec3cd0037e87902c28bfa3cd41b91" kindref="member">HalfbandDecimator_destroy</ref><sp/>(<ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1ac1793ccdc52d413b85e02af9e1731fb0" kindref="member">HalfbandDecimator_reset</ref><sp/>(<ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"></highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Execute<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1aabe221d8989aaad7f187a58e9a782d5c" kindref="member">HalfbandDecimator_execute_max_out</ref><sp/>(<ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"></highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1a09c231c8d7d0f2fca8f375739d1dfe27" kindref="member">HalfbandDecimator_execute</ref><sp/>(<ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state,</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*x,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Properties<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1aee82dd3a8d1d353a6eaeae5d47c0840b" kindref="member">HalfbandDecimator_get_rate</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><ref refid="HalfbandDecimator__core_8h_1a2f27b52a7cbe45886c066b55526f3b6f" kindref="member">HalfbandDecimator_get_num_taps</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="HalfbandDecimator__core_8h_1a3dca68e07d0dbf71c912214c162b9c1d" kindref="member">HalfbandDecimator_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>HALFBANDDECIMATOR_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/HalfbandDecimator/HalfbandDecimator_core.h"/>
+  </compounddef>
+</doxygen>

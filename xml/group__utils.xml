@@ -1,0 +1,124 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__utils" kind="group">
+    <compoundname>utils</compoundname>
+    <title>Utilities</title>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="group__utils_1gaa8d69dfb4431b309d9dedc1df34f8260" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>const char *</type>
+        <definition>const char * dp_sample_type_str</definition>
+        <argsstring>(dp_sample_type_t type)</argsstring>
+        <name>dp_sample_type_str</name>
+        <param>
+          <type><ref refid="group__types_1gad6afa986413f0be406048edae7827a4d" kindref="member">dp_sample_type_t</ref></type>
+          <declname>type</declname>
+        </param>
+        <briefdescription>
+<para>Return a short string name for <computeroutput>type</computeroutput> (&quot;CI8&quot;, &quot;CI16&quot;, &quot;CI32&quot;, &quot;CF32&quot;, &quot;CF64&quot;, &quot;CF128&quot;). </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>type</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample type enum value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Statically allocated, null-terminated string. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="632" column="14" bodyfile="native/src/stream/stream_core.c" bodystart="103" bodyend="122" declfile="native/inc/stream/stream.h" declline="632" declcolumn="14"/>
+      </memberdef>
+      <memberdef kind="function" id="group__utils_1ga502226a34b44600470bcee14543ededf" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t dp_sample_size</definition>
+        <argsstring>(dp_sample_type_t type)</argsstring>
+        <name>dp_sample_size</name>
+        <param>
+          <type><ref refid="group__types_1gad6afa986413f0be406048edae7827a4d" kindref="member">dp_sample_type_t</ref></type>
+          <declname>type</declname>
+        </param>
+        <briefdescription>
+<para>Return the byte size of one complex sample for <computeroutput>type</computeroutput>. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>type</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample type enum value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Byte count (e.g. 2 for CI8, 4 for CI16, 8 for CI32/CF32, 16 for CF64, 32 for CF128). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="640" column="10" bodyfile="native/src/stream/stream_core.c" bodystart="81" bodyend="100" declfile="native/inc/stream/stream.h" declline="640" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="group__utils_1ga012d73c81099e7e3a7b28ee8d4ee558d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint64_t</type>
+        <definition>uint64_t dp_get_timestamp_ns</definition>
+        <argsstring>(void)</argsstring>
+        <name>dp_get_timestamp_ns</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+<para>Return the current wall-clock time as nanoseconds since the UNIX epoch. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Uses CLOCK_REALTIME. Useful for timestamping samples before calling a send function, or for measuring round-trip latency.</para>
+<para><simplesect kind="return"><para>Nanoseconds since epoch. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="651" column="12" bodyfile="native/src/stream/stream_core.c" bodystart="73" bodyend="78" declfile="native/inc/stream/stream.h" declline="651" declcolumn="12"/>
+      </memberdef>
+      <memberdef kind="function" id="group__utils_1gaafafeb21470aaa9c99247de719c564b6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>const char *</type>
+        <definition>const char * dp_strerror</definition>
+        <argsstring>(int err)</argsstring>
+        <name>dp_strerror</name>
+        <param>
+          <type>int</type>
+          <declname>err</declname>
+        </param>
+        <briefdescription>
+<para>Return a human-readable description of an error code. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>err</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Negative error code returned by any dp_* function. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Statically allocated, null-terminated string. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="658" column="14" bodyfile="native/src/stream/stream_core.c" bodystart="125" bodyend="146" declfile="native/inc/stream/stream.h" declline="658" declcolumn="14"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

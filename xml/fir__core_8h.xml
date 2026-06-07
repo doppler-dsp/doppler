@@ -1,0 +1,410 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="fir__core_8h" kind="file" language="C++">
+    <compoundname>fir_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includes local="no">complex.h</includes>
+    <includes local="no">stddef.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="RateConverter__core_8c" local="yes">native/src/RateConverter/RateConverter_core.c</includedby>
+    <includedby refid="filter__ext__fir_8c" local="yes">native/src/filter/filter_ext_fir.c</includedby>
+    <includedby refid="fir__core_8c" local="yes">native/src/fir/fir_core.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/fir/fir_core.h</label>
+        <link refid="fir__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="1">
+        <label>native/inc/fir/fir_core.h</label>
+        <link refid="fir__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/src/RateConverter/RateConverter_core.c</label>
+        <link refid="RateConverter__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/filter/filter_ext_fir.c</label>
+        <link refid="filter__ext__fir_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/fir/fir_core.c</label>
+        <link refid="fir__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structfir__state__t" prot="public">fir_state_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="fir__core_8h_1abd8ef0ec239156a55974a88b91121c09" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+        <definition>fir_state_t * fir_create</definition>
+        <argsstring>(const float complex *taps, size_t num_taps)</argsstring>
+        <name>fir_create</name>
+        <param>
+          <type>const float complex *</type>
+          <declname>taps</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <briefdescription>
+<para>Create a FIR filter from complex CF32 tap coefficients. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Pointer to num_taps complex tap coefficients (copied). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Filter length (&gt;= 1). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="53" column="15" bodyfile="native/src/fir/fir_core.c" bodystart="31" bodyend="62" declfile="native/inc/fir/fir_core.h" declline="53" declcolumn="15"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1a6b9e25fd634a7e50f2792f885271a77e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+        <definition>fir_state_t * fir_create_real</definition>
+        <argsstring>(const float *taps, size_t num_taps)</argsstring>
+        <name>fir_create_real</name>
+        <param>
+          <type>const float *</type>
+          <declname>taps</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <briefdescription>
+<para>Create a FIR filter from real float tap coefficients. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Real taps cost 1 FMA/tap instead of 2 FMA + permute + mul. Use for filters designed with e.g. scipy.signal.firwin.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Pointer to num_taps real tap coefficients (copied). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Filter length (&gt;= 1). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="65" column="15" bodyfile="native/src/fir/fir_core.c" bodystart="65" bodyend="96" declfile="native/inc/fir/fir_core.h" declline="65" declcolumn="15"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1ac70a9bd860415c0463e0aff9231cc81b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fir_reset</definition>
+        <argsstring>(fir_state_t *state)</argsstring>
+        <name>fir_reset</name>
+        <param>
+          <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Zero the delay line; preserve taps and scratch capacity. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="68" column="8" bodyfile="native/src/fir/fir_core.c" bodystart="111" bodyend="115" declfile="native/inc/fir/fir_core.h" declline="68" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1a538f6e18e6d64d3bdaf51a6d6eec6a24" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fir_destroy</definition>
+        <argsstring>(fir_state_t *state)</argsstring>
+        <name>fir_destroy</name>
+        <param>
+          <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy the filter; safe to pass NULL. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="71" column="8" bodyfile="native/src/fir/fir_core.c" bodystart="99" bodyend="108" declfile="native/inc/fir/fir_core.h" declline="71" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1ac851ecd679391be8fb0423490d6aeb93" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fir_get_num_taps</definition>
+        <argsstring>(const fir_state_t *state)</argsstring>
+        <name>fir_get_num_taps</name>
+        <param>
+          <type>const <ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Number of tap coefficients. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="74" column="10" bodyfile="native/src/fir/fir_core.c" bodystart="118" bodyend="121" declfile="native/inc/fir/fir_core.h" declline="74" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1a1d552dcd19569f6f533279fcc8307ec9" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int fir_get_is_real</definition>
+        <argsstring>(const fir_state_t *state)</argsstring>
+        <name>fir_get_is_real</name>
+        <param>
+          <type>const <ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>1 if filter was created with real taps, 0 if complex. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="77" column="7" bodyfile="native/src/fir/fir_core.c" bodystart="124" bodyend="127" declfile="native/inc/fir/fir_core.h" declline="77" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1a95c67a8fdddd620b43a1577d24a0bea2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fir_execute_max_out</definition>
+        <argsstring>(fir_state_t *state)</argsstring>
+        <name>fir_execute_max_out</name>
+        <param>
+          <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Upper bound on execute output samples (always == n_in for FIR). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Used by the generated ext.c to size the output buffer. Returns 0 at creation time (n_in unknown); buffer grows on first call. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="85" column="10" bodyfile="native/src/fir/fir_core.c" bodystart="131" bodyend="135" declfile="native/inc/fir/fir_core.h" declline="85" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fir__core_8h_1a4f66044cb44e847e60d004b26b3480de" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fir_execute</definition>
+        <argsstring>(fir_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>fir_execute</name>
+        <param>
+          <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Filter n_in CF32 samples; write results to out. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input array of n_in float complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (may alias in for in-place). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n_in on success, 0 on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="95" column="10" bodyfile="native/src/fir/fir_core.c" bodystart="303" bodyend="325" declfile="native/inc/fir/fir_core.h" declline="95" declcolumn="10"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Direct-form FIR filter — real-tap and complex-tap variants. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Two constructors select the tap type at creation time:</para>
+<para><ref refid="fir__core_8h_1abd8ef0ec239156a55974a88b91121c09" kindref="member">fir_create()</ref> — complex CF32 taps (general case) <ref refid="fir__core_8h_1a6b9e25fd634a7e50f2792f885271a77e" kindref="member">fir_create_real()</ref> — real float taps (1 FMA/tap; use for real-valued designs)</para>
+<para>All execute functions accept CF32 input and write CF32 output. The internal scratch buffer (delay + input) is allocated lazily on the first execute call and grown as needed.</para>
+<para><programlisting><codeline><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>taps[63]<sp/>=<sp/>{<sp/>...<sp/>};</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*fir<sp/>=<sp/><ref refid="fir__core_8h_1a6b9e25fd634a7e50f2792f885271a77e" kindref="member">fir_create_real</ref>(taps,<sp/>63);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>out[4096];</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="fir__core_8h_1a4f66044cb44e847e60d004b26b3480de" kindref="member">fir_execute</ref>(fir,<sp/>signal,<sp/>4096,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="fir__core_8h_1a538f6e18e6d64d3bdaf51a6d6eec6a24" kindref="member">fir_destroy</ref>(fir);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>FIR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="24"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>FIR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;complex.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stddef.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight></codeline>
+<codeline lineno="37" refid="structfir__state__t" refkind="compound"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="39" refid="structfir__state__t_1af4e3852c28f4b808e1b96a4552d2c8b7" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structfir__state__t_1af4e3852c28f4b808e1b96a4552d2c8b7" kindref="member">taps</ref>;<sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>complex<sp/>taps<sp/><sp/>(NULL<sp/>for<sp/>real-tap<sp/>filter)<sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40" refid="structfir__state__t_1ab768d3e5c391ef4fc34ab0c44b0d30ab" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*<ref refid="structfir__state__t_1ab768d3e5c391ef4fc34ab0c44b0d30ab" kindref="member">rtaps</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>real<sp/>taps<sp/><sp/><sp/><sp/><sp/>(NULL<sp/>for<sp/>complex-tap<sp/>filter)<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="41" refid="structfir__state__t_1a6c2c385a96692bc660356c03a952c5c8" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structfir__state__t_1a6c2c385a96692bc660356c03a952c5c8" kindref="member">delay</ref>;<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>delay<sp/>line,<sp/>length<sp/>num_taps<sp/>-<sp/>1<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="42" refid="structfir__state__t_1aa04d3d13df26efa24209217b3a53301a" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structfir__state__t_1aa04d3d13df26efa24209217b3a53301a" kindref="member">scratch</ref>;<sp/></highlight><highlight class="comment">/*<sp/>[delay<sp/>|<sp/>input]<sp/>workspace,<sp/>grown<sp/>on<sp/>demand<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="43" refid="structfir__state__t_1ae402a0f8ab5f83af5cb11663ac90e5a3" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structfir__state__t_1ae402a0f8ab5f83af5cb11663ac90e5a3" kindref="member">scratch_cap</ref>;</highlight></codeline>
+<codeline lineno="44" refid="structfir__state__t_1a4faea933f04bddabaa60a7ae477b596f" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structfir__state__t_1a4faea933f04bddabaa60a7ae477b596f" kindref="member">num_taps</ref>;</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/>}<sp/><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref>;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"></highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*<ref refid="fir__core_8h_1abd8ef0ec239156a55974a88b91121c09" kindref="member">fir_create</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*taps,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps);</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*<ref refid="fir__core_8h_1a6b9e25fd634a7e50f2792f885271a77e" kindref="member">fir_create_real</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*taps,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps);</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"></highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1ac70a9bd860415c0463e0aff9231cc81b" kindref="member">fir_reset</ref><sp/>(<ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1a538f6e18e6d64d3bdaf51a6d6eec6a24" kindref="member">fir_destroy</ref><sp/>(<ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1ac851ecd679391be8fb0423490d6aeb93" kindref="member">fir_get_num_taps</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"></highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1a1d552dcd19569f6f533279fcc8307ec9" kindref="member">fir_get_is_real</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1a95c67a8fdddd620b43a1577d24a0bea2" kindref="member">fir_execute_max_out</ref><sp/>(<ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fir__core_8h_1a4f66044cb44e847e60d004b26b3480de" kindref="member">fir_execute</ref><sp/>(<ref refid="structfir__state__t" kindref="compound">fir_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"></highlight></codeline>
+<codeline lineno="98"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="99"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight></codeline>
+<codeline lineno="102"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>FIR_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/fir/fir_core.h"/>
+  </compounddef>
+</doxygen>

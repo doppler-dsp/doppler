@@ -1,0 +1,593 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="source__ext__awgn_8c" kind="file" language="C++">
+    <compoundname>source_ext_awgn.c</compoundname>
+    <includes refid="awgn__core_8h" local="yes">awgn/awgn_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>awgn/awgn_core.h</label>
+        <link refid="awgn__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/source/source_ext_awgn.c</label>
+        <link refid="source__ext__awgn_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structAWGNObject" prot="public">AWGNObject</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="source__ext__awgn_8c_1af674b93dad452e2a65c91e3e380c282b" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef AWGN_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>AWGN_getset</name>
+        <initializer>                               = {
+    { &quot;amplitude&quot;, (getter)AWGN_getprop_amplitude, (setter)AWGN_setprop_amplitude, &quot;Return the current amplitude (per-component std dev).\n&quot;, NULL },
+    { NULL }
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="140" column="20" bodyfile="native/src/source/source_ext_awgn.c" bodystart="140" bodyend="143"/>
+      </memberdef>
+      <memberdef kind="variable" id="source__ext__awgn_8c_1a9d6d47298d77a67e2f007def7a0a6c42" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef AWGNObj_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>AWGNObj_methods</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="173" column="20" bodyfile="native/src/source/source_ext_awgn.c" bodystart="173" bodyend="203"/>
+      </memberdef>
+      <memberdef kind="variable" id="source__ext__awgn_8c_1a40492f3f0d07786918eb840ff4840b33" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject AWGNObjType</definition>
+        <argsstring></argsstring>
+        <name>AWGNObjType</name>
+        <initializer>                                = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = &quot;source.AWGN&quot;,
+    .tp_basicsize = sizeof(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref>),
+    .tp_dealloc   = (destructor)AWGNObj_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = &quot;Create an AWGN generator.\n&quot;,
+    .tp_methods   = AWGNObj_methods,
+    .tp_getset    = AWGN_getset,
+    .tp_new       = AWGNObj_new,
+    .tp_init      = (initproc)AWGNObj_init,
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="205" column="21" bodyfile="native/src/source/source_ext_awgn.c" bodystart="205" bodyend="216"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="source__ext__awgn_8c_1a41a81139301792d2caac9dfb6a750b0a" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void AWGNObj_dealloc</definition>
+        <argsstring>(AWGNObject *self)</argsstring>
+        <name>AWGNObj_dealloc</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="22" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="22" bodyend="27"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1aca7804030c09685b2c591260460bb186" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>AWGNObj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="30" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="30" bodyend="36"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1a1762f066bec5d92def539fc3e23144ac" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int AWGNObj_init</definition>
+        <argsstring>(AWGNObject *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>AWGNObj_init</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="39" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="39" bodyend="56"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1a60fc50e05b0ccdadcfadfc0b20b2d307" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_reset</definition>
+        <argsstring>(AWGNObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>AWGNObj_reset</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="59" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="59" bodyend="67"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1a6d71c5d41de1acc0a1745c43bae43006" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_generate</definition>
+        <argsstring>(AWGNObject *self, PyObject *args)</argsstring>
+        <name>AWGNObj_generate</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="75" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="75" bodyend="101"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1aa1b6701f8a49f1a9b435c98e75cabbf2" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_reseed</definition>
+        <argsstring>(AWGNObject *self, PyObject *args)</argsstring>
+        <name>AWGNObj_reseed</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="104" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="104" bodyend="116"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1a18f93d9108456530054bf30cd65e33b6" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGN_getprop_amplitude</definition>
+        <argsstring>(AWGNObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>AWGN_getprop_amplitude</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="118" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="118" bodyend="126"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1af4ef63f4a3a0355be6068be9a7cfe6e1" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int AWGN_setprop_amplitude</definition>
+        <argsstring>(AWGNObject *self, PyObject *value, void *Py_UNUSED(closure))</argsstring>
+        <name>AWGN_setprop_amplitude</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>value</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="128" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="128" bodyend="138"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1a7be07e19e6909008dcb0b183caf493d8" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_destroy</definition>
+        <argsstring>(AWGNObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>AWGNObj_destroy</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="146" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="146" bodyend="153"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1ab19df335d50c6ff956b139dc88cf80d0" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_enter</definition>
+        <argsstring>(AWGNObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>AWGNObj_enter</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="156" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="156" bodyend="160"/>
+      </memberdef>
+      <memberdef kind="function" id="source__ext__awgn_8c_1abcaa80cd059b03ce72bb4c88e5b87a03" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * AWGNObj_exit</definition>
+        <argsstring>(AWGNObject *self, PyObject *args)</argsstring>
+        <name>AWGNObj_exit</name>
+        <param>
+          <type><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_awgn.c" line="163" column="1" bodyfile="native/src/source/source_ext_awgn.c" bodystart="163" bodyend="171"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>source_ext_awgn.c<sp/>—<sp/>AWGN<sp/>type<sp/>for<sp/>the<sp/>source<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>source_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>source_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>AWGNObject<sp/>—<sp/>wraps<sp/>awgn_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="awgn__core_8h" kindref="compound">awgn/awgn_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structAWGNObject" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>pre-allocated<sp/>output<sp/>for<sp/>generate<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structAWGNObject_1ac6de06fe83db0c512a241fe9c6dcb5c5" kindref="member">_generate_buf_cap</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>allocated<sp/>capacity<sp/>for<sp/>generate<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}<sp/><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref>;</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal">AWGNObj_dealloc(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" kindref="member">awgn_destroy</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="27"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="30"><highlight class="normal">AWGNObj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="31"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self<sp/>=<sp/>(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="36"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal">AWGNObj_init(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="40"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;seed&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;amplitude&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>seed_raw<sp/>=<sp/>0ULL;</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>amplitude<sp/>=<sp/>1.0;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;|Kf&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;seed_raw,<sp/>&amp;amplitude))</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/>seed<sp/>=<sp/>(uint64_t)seed_raw;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref><sp/>=<sp/><ref refid="awgn__core_8h_1a44e712fea4d4d3a1f7cc677ba9f85bbc" kindref="member">awgn_create</ref>(seed,<sp/>amplitude);</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_MemoryError,</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;awgn_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="59"><highlight class="normal">AWGNObj_reset(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="60"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1a7ae993aad65e5437e0f3963ba712d9fc" kindref="member">awgn_reset</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="67"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="75"><highlight class="normal">AWGNObj_generate(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="76"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_ssize_t<sp/>n<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;|n&quot;</highlight><highlight class="normal">,<sp/>&amp;n))</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_need<sp/>=<sp/>(size_t)n;</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref><sp/>||<sp/>self-&gt;<ref refid="structAWGNObject_1ac6de06fe83db0c512a241fe9c6dcb5c5" kindref="member">_generate_buf_cap</ref><sp/>&lt;<sp/>_need)<sp/>{</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="awgn__core_8h_1a3debe04709d76c67c161d003ae2edc71" kindref="member">awgn_generate_max_out</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_max<sp/>||<sp/>_max<sp/>&lt;<sp/>_need)<sp/>_max<sp/>=<sp/>_need;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*_tmp<sp/>=<sp/>realloc(self-&gt;<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref>,<sp/>_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex));</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_tmp)<sp/>{<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref><sp/>=<sp/>_tmp;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1ac6de06fe83db0c512a241fe9c6dcb5c5" kindref="member">_generate_buf_cap</ref><sp/>=<sp/>_max;</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="awgn__core_8h_1a507003634c145627b019aa27d98b9303" kindref="member">awgn_generate</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>,<sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal">)n,<sp/>self-&gt;<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref>);</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)n_out;</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*arr<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_COMPLEX64,<sp/>self-&gt;<ref refid="structAWGNObject_1a331a3963333679a1d0aa6f3ecab583ec" kindref="member">_generate_buf</ref>);</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)arr,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>arr;</highlight></codeline>
+<codeline lineno="101"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"></highlight></codeline>
+<codeline lineno="103"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="104"><highlight class="normal">AWGNObj_reseed(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="105"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>seed_raw<sp/>=<sp/>0ULL;</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;K&quot;</highlight><highlight class="normal">,<sp/>&amp;seed_raw))</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/>seed<sp/>=<sp/>(uint64_t)seed_raw;</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1ae6f971eb8d23c20cafce4a950517247e" kindref="member">awgn_reseed</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>,<sp/>seed);</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="116"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="118"><highlight class="normal">AWGN_getprop_amplitude(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="119"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>&lt;&lt;IMPLEMENT:<sp/>return<sp/>the<sp/>computed<sp/>or<sp/>stored<sp/>value&gt;&gt;<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble((</highlight><highlight class="keywordtype">double</highlight><highlight class="normal">)<ref refid="awgn__core_8h_1a2e1ab6e56eaeb35937a83355c2794009" kindref="member">awgn_get_amplitude</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="126"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="127"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="128"><highlight class="normal">AWGN_setprop_amplitude(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*value,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="129"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>v<sp/>=<sp/>0.0f;</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_Parse(value,<sp/></highlight><highlight class="stringliteral">&quot;f&quot;</highlight><highlight class="normal">,<sp/>&amp;v))<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1a44eae00f951e69219ee754c5069de801" kindref="member">awgn_set_amplitude</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>,<sp/>v);</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="138"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"></highlight></codeline>
+<codeline lineno="140"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>AWGN_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;amplitude&quot;</highlight><highlight class="normal">,<sp/>(getter)AWGN_getprop_amplitude,<sp/>(setter)AWGN_setprop_amplitude,<sp/></highlight><highlight class="stringliteral">&quot;Return<sp/>the<sp/>current<sp/>amplitude<sp/>(per-component<sp/>std<sp/>dev).\n&quot;</highlight><highlight class="normal">,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/>NULL<sp/>}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="144"><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="146"><highlight class="normal">AWGNObj_destroy(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="147"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" kindref="member">awgn_destroy</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="153"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight></codeline>
+<codeline lineno="155"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="156"><highlight class="normal">AWGNObj_enter(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="157"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="160"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="161"><highlight class="normal"></highlight></codeline>
+<codeline lineno="162"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="163"><highlight class="normal">AWGNObj_exit(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="164"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="165"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" kindref="member">awgn_destroy</ref>(self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structAWGNObject_1aec3aca8401b61551d4c8fed1150933f4" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="171"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"></highlight></codeline>
+<codeline lineno="173"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>AWGNObj_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/><sp/>(PyCFunction)AWGNObj_reset,<sp/><sp/><sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Reset<sp/>state<sp/>to<sp/>post-create<sp/>defaults.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="176"><highlight class="normal"></highlight></codeline>
+<codeline lineno="177"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;generate&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)AWGNObj_generate,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;generate(n=1)<sp/>-&gt;<sp/>ndarray\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="179"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="180"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Generate<sp/>n<sp/>complex<sp/>CF32<sp/>AWGN<sp/>samples.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="181"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="182"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="183"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>AWGN\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>AWGN(0,<sp/>1.0)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y<sp/>=<sp/>obj.generate(4)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y.dtype\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="187"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>dtype(&apos;complex64&apos;)\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="188"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reseed&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)AWGNObj_reseed,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="189"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;reseed(seed)<sp/>-&gt;<sp/>complex\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="191"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Reseed<sp/>the<sp/>RNG<sp/>and<sp/>reset<sp/>state.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="192"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="194"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>AWGN\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>AWGN(0,<sp/>1.0)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj.reseed(0)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>0j\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)AWGNObj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="199"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="200"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)AWGNObj_enter,<sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)AWGNObj_exit,<sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="203"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"></highlight></codeline>
+<codeline lineno="205"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>AWGNObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;source.AWGN&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structAWGNObject" kindref="compound">AWGNObject</ref>),</highlight></codeline>
+<codeline lineno="209"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)AWGNObj_dealloc,</highlight></codeline>
+<codeline lineno="210"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="211"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;Create<sp/>an<sp/>AWGN<sp/>generator.\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>AWGNObj_methods,</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>AWGN_getset,</highlight></codeline>
+<codeline lineno="214"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>AWGNObj_new,</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)AWGNObj_init,</highlight></codeline>
+<codeline lineno="216"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/source/source_ext_awgn.c"/>
+  </compounddef>
+</doxygen>

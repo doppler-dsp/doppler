@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structacc__f32__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>acc_f32_state_t</compoundname>
+    <includes refid="acc__f32__core_8h" local="no">acc_f32_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structacc__f32__state__t_1a6676ab109cce1e283a410125012b145d" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float acc_f32_state_t::acc</definition>
+        <argsstring></argsstring>
+        <name>acc</name>
+        <qualifiedname>acc_f32_state_t::acc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/acc_f32/acc_f32_core.h" line="32" column="11" bodyfile="native/inc/acc_f32/acc_f32_core.h" bodystart="32" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>AccF32 state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="acc__f32__core_8h_1ab688ef753e4839fb9740dd0167e3ed15" kindref="member">acc_f32_create()</ref>. </para>
+    </detaileddescription>
+    <location file="native/inc/acc_f32/acc_f32_core.h" line="30" column="3" bodyfile="native/inc/acc_f32/acc_f32_core.h" bodystart="31" bodyend="33"/>
+    <listofallmembers>
+      <member refid="structacc__f32__state__t_1a6676ab109cce1e283a410125012b145d" prot="public" virt="non-virtual"><scope>acc_f32_state_t</scope><name>acc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

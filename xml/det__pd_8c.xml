@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="det__pd_8c" kind="file" language="C++">
+    <compoundname>det_pd.c</compoundname>
+    <includes refid="detection__core_8h" local="yes">detection/detection_core.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+      </node>
+      <node id="1">
+        <label>native/src/detection/det_pd.c</label>
+        <link refid="det__pd_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>math.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="det__pd_8c_1a87dc66db0da19df72e94080aa426fd04" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_pd</definition>
+        <argsstring>(double snr, int dwell, double threshold)</argsstring>
+        <name>det_pd</name>
+        <param>
+          <type>double</type>
+          <declname>snr</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>threshold</declname>
+        </param>
+        <briefdescription>
+<para>Detection probability for given per-sample amplitude SNR and dwell. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Computes Pd = Q_1(a, eta) where a = sqrt(2 * dwell) * snr.</para>
+<para>At snr = 0, det_pd returns Pfa (the false-alarm rate, as expected for a noise-only input). As snr or dwell increase, Pd approaches 1.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample amplitude SNR (signal / noise amplitude, linear). snr = 0 gives Pd = Pfa. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Test-stat threshold eta, e.g. from <ref refid="detection__core_8h_1aea1ad6723d6546157611a21518e35e35" kindref="member">det_threshold()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Detection probability in &amp;#91;0, 1&amp;#93;.</para>
+</simplesect>
+Example: det_pd(1.0, 4, det_threshold(1e-6)) ~ 0.78 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/detection/det_pd.c" line="3" column="8" bodyfile="native/src/detection/det_pd.c" bodystart="3" bodyend="5"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detection__core_8h" kindref="compound">detection/detection_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="det__pd_8c_1a87dc66db0da19df72e94080aa426fd04" kindref="member">det_pd</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>threshold)<sp/>{</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a1fa374db52f2c10a8c28993ee4cac1da" kindref="member">marcum_q</ref>(1,<sp/>sqrt(2.0<sp/>*<sp/>dwell)<sp/>*<sp/>snr,<sp/>threshold);</highlight></codeline>
+<codeline lineno="5"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/detection/det_pd.c"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,98 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__errors" kind="group">
+    <compoundname>errors</compoundname>
+    <title>Error codes</title>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="group__errors_1ga880f2d256063e165eaa601d234909407" prot="public" static="no">
+        <name>DP_OK</name>
+        <initializer>0</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Success. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="181" column="9" bodyfile="native/inc/stream/stream.h" bodystart="181" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga8be7ebe4897a9530fda006d0048ca030" prot="public" static="no">
+        <name>DP_ERR_INIT</name>
+        <initializer>-1</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Initialisation failed (ZMQ context/socket). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="182" column="9" bodyfile="native/inc/stream/stream.h" bodystart="182" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga1c8954cf2b784544593b826247a75a03" prot="public" static="no">
+        <name>DP_ERR_SEND</name>
+        <initializer>-2</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Send failed. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="183" column="9" bodyfile="native/inc/stream/stream.h" bodystart="183" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga53deb2476fab58994e85a0d6e2d23afc" prot="public" static="no">
+        <name>DP_ERR_RECV</name>
+        <initializer>-3</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Receive failed or timed out (EAGAIN). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="184" column="9" bodyfile="native/inc/stream/stream.h" bodystart="184" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga36f9c56068fd38b5d6ce463409f7e0e3" prot="public" static="no">
+        <name>DP_ERR_INVALID</name>
+        <initializer>-4</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Invalid argument. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="185" column="9" bodyfile="native/inc/stream/stream.h" bodystart="185" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga42d121530ca4141d837871cb8e0c407b" prot="public" static="no">
+        <name>DP_ERR_TIMEOUT</name>
+        <initializer>-5</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Operation timed out. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="186" column="9" bodyfile="native/inc/stream/stream.h" bodystart="186" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="group__errors_1ga5b2d3482901302e70005cd959ae4e8b0" prot="public" static="no">
+        <name>DP_ERR_MEMORY</name>
+        <initializer>-6</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Memory allocation failure. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="187" column="9" bodyfile="native/inc/stream/stream.h" bodystart="187" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+<para>Every send/recv function returns one of these values. Use <ref refid="group__utils_1gaafafeb21470aaa9c99247de719c564b6" kindref="member">dp_strerror()</ref> to obtain a human-readable description. </para>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

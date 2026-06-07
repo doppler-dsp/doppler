@@ -1,0 +1,98 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structdet__result2d__t" kind="struct" language="C++" prot="public">
+    <compoundname>det_result2d_t</compoundname>
+    <includes refid="detector2d__core_8h" local="no">detector2d_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structdet__result2d__t_1a878b009665a9f657b41921cc302062e8" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t det_result2d_t::row</definition>
+        <argsstring></argsstring>
+        <name>row</name>
+        <qualifiedname>det_result2d_t::row</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Row of the correlation peak (0-indexed). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector2d/detector2d_core.h" line="62" column="10" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="62" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdet__result2d__t_1aa6f018a005aa3f518076aaa85518bfac" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t det_result2d_t::col</definition>
+        <argsstring></argsstring>
+        <name>col</name>
+        <qualifiedname>det_result2d_t::col</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Column of the correlation peak (0-indexed). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector2d/detector2d_core.h" line="63" column="10" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="63" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdet__result2d__t_1a6603d226b898c767f17ab2dfc8f3c6e1" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float det_result2d_t::peak_mag</definition>
+        <argsstring></argsstring>
+        <name>peak_mag</name>
+        <qualifiedname>det_result2d_t::peak_mag</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>max |R&amp;#91;i,j&amp;#93;| (linear magnitude). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector2d/detector2d_core.h" line="64" column="9" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="64" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdet__result2d__t_1a54e234763183c8f56c2462e99ee71bab" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float det_result2d_t::noise_est</definition>
+        <argsstring></argsstring>
+        <name>noise_est</name>
+        <qualifiedname>det_result2d_t::noise_est</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Noise estimate aggregated over &amp;#91;noise_lo, hi&amp;#93;. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector2d/detector2d_core.h" line="65" column="9" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="65" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdet__result2d__t_1a532e4a721ebecaac604f00b35c204fec" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float det_result2d_t::test_stat</definition>
+        <argsstring></argsstring>
+        <name>test_stat</name>
+        <qualifiedname>det_result2d_t::test_stat</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>peak_mag / noise_est; 0 if noise_est == 0. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector2d/detector2d_core.h" line="66" column="9" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="66" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Detection event returned by <ref refid="detector2d__core_8h_1a663452e43e1a69869a2faa43f003ce68" kindref="member">detector2d_push()</ref>. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>The peak index in the flat ny×nx correlation map is decomposed into (row, col) so that callers do not need to know nx. </para>
+    </detaileddescription>
+    <location file="native/inc/detector2d/detector2d_core.h" line="60" column="1" bodyfile="native/inc/detector2d/detector2d_core.h" bodystart="61" bodyend="67"/>
+    <listofallmembers>
+      <member refid="structdet__result2d__t_1aa6f018a005aa3f518076aaa85518bfac" prot="public" virt="non-virtual"><scope>det_result2d_t</scope><name>col</name></member>
+      <member refid="structdet__result2d__t_1a54e234763183c8f56c2462e99ee71bab" prot="public" virt="non-virtual"><scope>det_result2d_t</scope><name>noise_est</name></member>
+      <member refid="structdet__result2d__t_1a6603d226b898c767f17ab2dfc8f3c6e1" prot="public" virt="non-virtual"><scope>det_result2d_t</scope><name>peak_mag</name></member>
+      <member refid="structdet__result2d__t_1a878b009665a9f657b41921cc302062e8" prot="public" virt="non-virtual"><scope>det_result2d_t</scope><name>row</name></member>
+      <member refid="structdet__result2d__t_1a532e4a721ebecaac604f00b35c204fec" prot="public" virt="non-virtual"><scope>det_result2d_t</scope><name>test_stat</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

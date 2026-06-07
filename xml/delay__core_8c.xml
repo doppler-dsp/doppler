@@ -1,0 +1,457 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="delay__core_8c" kind="file" language="C++">
+    <compoundname>delay_core.c</compoundname>
+    <includes refid="delay__core_8h" local="yes">delay/delay_core.h</includes>
+    <includes local="no">string.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>delay/delay_core.h</label>
+        <link refid="delay__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/delay/delay_core.c</label>
+        <link refid="delay__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="delay__core_8c_1a74d5d6c6a4682d7ea97e4b0c58c1af38" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>static size_t next_pow2</definition>
+        <argsstring>(size_t n)</argsstring>
+        <name>next_pow2</name>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="6" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="6" bodyend="12"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1a4c8caf168aa7819d3c39a7af2d38dfad" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+        <definition>delay_state_t * delay_create</definition>
+        <argsstring>(size_t num_taps)</argsstring>
+        <name>delay_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <briefdescription>
+<para>Create a delay instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Allocates a dual-buffer circular delay line of length num_taps. The internal buffer is rounded up to the next power of two for efficient modular addressing.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Window length (&gt;= 1). Rounded up internally. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="delay__core_8h_1af86697e7770441aa91a811feb6b5e9c3" kindref="member">delay_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="15" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="15" bodyend="34"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1af86697e7770441aa91a811feb6b5e9c3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void delay_destroy</definition>
+        <argsstring>(delay_state_t *state)</argsstring>
+        <name>delay_destroy</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a delay instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="37" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="37" bodyend="43"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1acbdfb3d92b945d41a555027bc6fa1772" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void delay_reset</definition>
+        <argsstring>(delay_state_t *state)</argsstring>
+        <name>delay_reset</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset delay to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="46" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="46" bodyend="50"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1a3c242e8c945831ce88d1da9799725566" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void delay_push</definition>
+        <argsstring>(delay_state_t *state, double complex x)</argsstring>
+        <name>delay_push</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double complex</type>
+          <declname>x</declname>
+        </param>
+        <briefdescription>
+<para>push. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>x</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>double complex parameter. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="53" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="53" bodyend="60"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1a051ca619b7c7fedde0e31aca8ef4e9d6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t delay_ptr_max_out</definition>
+        <argsstring>(delay_state_t *state)</argsstring>
+        <name>delay_ptr_max_out</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>ptr. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Result (double complex). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="63" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="63" bodyend="66"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1afc3cab731cb6eb65bd747ec08a7c73b4" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t delay_ptr</definition>
+        <argsstring>(delay_state_t *state, size_t n, double complex *out)</argsstring>
+        <name>delay_ptr</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="69" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="69" bodyend="74"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1a9d61dd0da26786078cbe46ec3be70f16" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t delay_push_ptr_max_out</definition>
+        <argsstring>(delay_state_t *state)</argsstring>
+        <name>delay_push_ptr_max_out</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Maximum output samples per delay_push_ptr call. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="77" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="77" bodyend="80"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1a7331ce6cc061ca353bbe4e638200644b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t delay_push_ptr</definition>
+        <argsstring>(delay_state_t *state, double complex x, double complex *out)</argsstring>
+        <name>delay_push_ptr</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double complex</type>
+          <declname>x</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="83" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="83" bodyend="89"/>
+      </memberdef>
+      <memberdef kind="function" id="delay__core_8c_1acb46924e106f884b6f243d3aa990045f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void delay_write</definition>
+        <argsstring>(delay_state_t *state, double complex x)</argsstring>
+        <name>delay_write</name>
+        <param>
+          <type><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double complex</type>
+          <declname>x</declname>
+        </param>
+        <briefdescription>
+<para>write. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>x</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input (double complex). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/delay/delay_core.c" line="92" column="1" bodyfile="native/src/delay/delay_core.c" bodystart="92" bodyend="95"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="delay__core_8h" kindref="compound">delay/delay_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;string.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight></codeline>
+<codeline lineno="4"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Round<sp/>n<sp/>up<sp/>to<sp/>the<sp/>next<sp/>power<sp/>of<sp/>two<sp/>(returns<sp/>1<sp/>for<sp/>n==0).<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="5"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="6"><highlight class="normal">next_pow2<sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n)</highlight></codeline>
+<codeline lineno="7"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>c<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(c<sp/>&lt;<sp/>n)</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><sp/><sp/><sp/><sp/>c<sp/>&lt;&lt;=<sp/>1;</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>c;</highlight></codeline>
+<codeline lineno="12"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><ref refid="delay__core_8c_1a4c8caf168aa7819d3c39a7af2d38dfad" kindref="member">delay_create</ref><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps)</highlight></codeline>
+<codeline lineno="16"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state<sp/>=<sp/>calloc<sp/>(1,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*state));</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="19"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref><sp/>=<sp/>num_taps;</highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1ada8bd7dc8666aee2f97b906b509fdd52" kindref="member">capacity</ref><sp/>=<sp/>next_pow2<sp/>(num_taps<sp/>&gt;<sp/>0<sp/>?<sp/>num_taps<sp/>:<sp/>1);</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a4f17483aeba22a60822d460c29413203" kindref="member">mask</ref><sp/>=<sp/>state-&gt;<ref refid="structdelay__state__t_1ada8bd7dc8666aee2f97b906b509fdd52" kindref="member">capacity</ref><sp/>-<sp/>1;</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Two<sp/>copies<sp/>so<sp/>any<sp/>num_taps-length<sp/>window<sp/>is<sp/>always<sp/>contiguous.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref><sp/>=<sp/>calloc<sp/>(2<sp/>*<sp/>state-&gt;<ref refid="structdelay__state__t_1ada8bd7dc8666aee2f97b906b509fdd52" kindref="member">capacity</ref>,<sp/>sizeof<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>_Complex));</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>)</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="34"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><ref refid="delay__core_8c_1af86697e7770441aa91a811feb6b5e9c3" kindref="member">delay_destroy</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="38"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/>free<sp/>(state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>);</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="43"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><ref refid="delay__core_8c_1acbdfb3d92b945d41a555027bc6fa1772" kindref="member">delay_reset</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="47"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/>memset<sp/>(state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>,<sp/>0,<sp/>2<sp/>*<sp/>state-&gt;<ref refid="structdelay__state__t_1ada8bd7dc8666aee2f97b906b509fdd52" kindref="member">capacity</ref><sp/>*<sp/>sizeof<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>_Complex));</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="50"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><ref refid="delay__core_8c_1a3c242e8c945831ce88d1da9799725566" kindref="member">delay_push</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>x)</highlight></codeline>
+<codeline lineno="54"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Decrement<sp/>head<sp/>(wrapping),<sp/>then<sp/>write<sp/>to<sp/>both<sp/>halves<sp/>so<sp/>the</highlight></codeline>
+<codeline lineno="56"><highlight class="comment"><sp/><sp/><sp/>*<sp/>window<sp/>starting<sp/>at<sp/>head<sp/>is<sp/>always<sp/>a<sp/>contiguous<sp/>run.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref><sp/>=<sp/>(state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref><sp/>-<sp/>1)<sp/>&amp;<sp/>state-&gt;<ref refid="structdelay__state__t_1a4f17483aeba22a60822d460c29413203" kindref="member">mask</ref>;</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>[state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref>]<sp/>=<sp/>x;</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>[state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref><sp/>+<sp/>state-&gt;<ref refid="structdelay__state__t_1ada8bd7dc8666aee2f97b906b509fdd52" kindref="member">capacity</ref>]<sp/>=<sp/>x;</highlight></codeline>
+<codeline lineno="60"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"></highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><ref refid="delay__core_8c_1a051ca619b7c7fedde0e31aca8ef4e9d6" kindref="member">delay_ptr_max_out</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="64"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref>;</highlight></codeline>
+<codeline lineno="66"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"></highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><ref refid="delay__core_8c_1afc3cab731cb6eb65bd747ec08a7c73b4" kindref="member">delay_ptr</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="70"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>actual<sp/>=<sp/>n<sp/>&lt;<sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref><sp/>?<sp/>n<sp/>:<sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref>;</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/>memcpy<sp/>(out,<sp/>&amp;state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>[state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref>],<sp/>actual<sp/>*<sp/>sizeof<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>_Complex));</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>actual;</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><ref refid="delay__core_8c_1a9d61dd0da26786078cbe46ec3be70f16" kindref="member">delay_push_ptr_max_out</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="78"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref>;</highlight></codeline>
+<codeline lineno="80"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><ref refid="delay__core_8c_1a7331ce6cc061ca353bbe4e638200644b" kindref="member">delay_push_ptr</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>x,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="84"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><ref refid="delay__core_8c_1a3c242e8c945831ce88d1da9799725566" kindref="member">delay_push</ref><sp/>(state,<sp/>x);</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/>memcpy<sp/>(out,<sp/>&amp;state-&gt;<ref refid="structdelay__state__t_1a2979350e35474ac9a864aad02a238e67" kindref="member">buf</ref>[state-&gt;<ref refid="structdelay__state__t_1a07a4f972cd90f77af9eabb3c524f530e" kindref="member">head</ref>],</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref><sp/>*<sp/>sizeof<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>_Complex));</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structdelay__state__t_1ae696fb427cbf3b4a0e6bc6abc15a215b" kindref="member">num_taps</ref>;</highlight></codeline>
+<codeline lineno="89"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight></codeline>
+<codeline lineno="91"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><ref refid="delay__core_8c_1acb46924e106f884b6f243d3aa990045f" kindref="member">delay_write</ref><sp/>(<ref refid="structdelay__state__t" kindref="compound">delay_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>x)</highlight></codeline>
+<codeline lineno="93"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><ref refid="delay__core_8c_1a3c242e8c945831ce88d1da9799725566" kindref="member">delay_push</ref><sp/>(state,<sp/>x);</highlight></codeline>
+<codeline lineno="95"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/delay/delay_core.c"/>
+  </compounddef>
+</doxygen>

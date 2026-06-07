@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structLOObject" kind="struct" language="C++" prot="public">
+    <compoundname>LOObject</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structLOObject_1a48bee5045a9c9961df45d113805606e2" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+        <definition>PyObject_HEAD lo_state_t* LOObject::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>LOObject::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_lo.c" line="16" column="16" bodyfile="native/src/source/source_ext_lo.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structLOObject_1a0bb1ea9f68c2ffc97512435664c089cd" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* LOObject::_steps_buf</definition>
+        <argsstring></argsstring>
+        <name>_steps_buf</name>
+        <qualifiedname>LOObject::_steps_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_lo.c" line="17" column="19" bodyfile="native/src/source/source_ext_lo.c" bodystart="17" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structLOObject_1a2a57f09ee1ef66b4becb50b4358feb7e" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* LOObject::_steps_ctrl_buf</definition>
+        <argsstring></argsstring>
+        <name>_steps_ctrl_buf</name>
+        <qualifiedname>LOObject::_steps_ctrl_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/source/source_ext_lo.c" line="18" column="19" bodyfile="native/src/source/source_ext_lo.c" bodystart="18" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>LOObject</label>
+        <link refid="structLOObject"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>lo_state_t</label>
+        <link refid="structlo__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/source/source_ext_lo.c" line="14" column="1" bodyfile="native/src/source/source_ext_lo.c" bodystart="14" bodyend="19"/>
+    <listofallmembers>
+      <member refid="structLOObject_1a0bb1ea9f68c2ffc97512435664c089cd" prot="public" virt="non-virtual"><scope>LOObject</scope><name>_steps_buf</name></member>
+      <member refid="structLOObject_1a2a57f09ee1ef66b4becb50b4358feb7e" prot="public" virt="non-virtual"><scope>LOObject</scope><name>_steps_ctrl_buf</name></member>
+      <member refid="structLOObject_1a48bee5045a9c9961df45d113805606e2" prot="public" virt="non-virtual"><scope>LOObject</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

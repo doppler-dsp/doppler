@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__sampletypes" kind="group">
+    <compoundname>sampletypes</compoundname>
+    <title>Sample C types</title>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+<para>Floating-point complex types use C99 <computeroutput>&lt;complex.h&gt;</computeroutput>:</para>
+<para><table rows="4" cols="3"><row>
+<entry thead="yes"><para>Wire type  </para>
+</entry><entry thead="yes"><para>C type  </para>
+</entry><entry thead="yes"><para>bytes/sample  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CF32  </para>
+</entry><entry thead="no"><para><computeroutput>float</computeroutput> _Complex  </para>
+</entry><entry thead="no"><para>8  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CF64  </para>
+</entry><entry thead="no"><para><computeroutput>double</computeroutput> _Complex  </para>
+</entry><entry thead="no"><para>16  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CF128  </para>
+</entry><entry thead="no"><para><computeroutput>long</computeroutput> double _Complex  </para>
+</entry><entry thead="no"><para>32  </para>
+</entry></row>
+</table>
+</para>
+<para>Integer complex types have no C99 equivalent. They are represented as interleaved I/Q arrays where each complex sample occupies two consecutive elements of the underlying integer type:</para>
+<para><table rows="4" cols="4"><row>
+<entry thead="yes"><para>Wire type  </para>
+</entry><entry thead="yes"><para>C element type  </para>
+</entry><entry thead="yes"><para>bytes/sample  </para>
+</entry><entry thead="yes"><para>array length  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CI8  </para>
+</entry><entry thead="no"><para><computeroutput>int8_t</computeroutput>  </para>
+</entry><entry thead="no"><para>2  </para>
+</entry><entry thead="no"><para>2×n  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CI16  </para>
+</entry><entry thead="no"><para><computeroutput>int16_t</computeroutput>  </para>
+</entry><entry thead="no"><para>4  </para>
+</entry><entry thead="no"><para>2×n  </para>
+</entry></row>
+<row>
+<entry thead="no"><para>CI32  </para>
+</entry><entry thead="no"><para><computeroutput>int32_t</computeroutput>  </para>
+</entry><entry thead="no"><para>8  </para>
+</entry><entry thead="no"><para>2×n  </para>
+</entry></row>
+</table>
+</para>
+<para>For <computeroutput>n</computeroutput> complex samples the send functions accept a pointer to <computeroutput>2*n</computeroutput> elements of the integer type (element 2k = I, 2k+1 = Q). </para>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

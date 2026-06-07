@@ -1,0 +1,653 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="detector__core_8h" kind="file" language="C++">
+    <compoundname>detector_core.h</compoundname>
+    <includes refid="buffer_8h" local="yes">buffer/buffer.h</includes>
+    <includes refid="corr__core_8h" local="yes">corr/corr_core.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="detector__core_8c" local="yes">native/src/detector/detector_core.c</includedby>
+    <includedby refid="spectral__ext__detector_8c" local="yes">native/src/spectral/spectral_ext_detector.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>buffer/buffer.h</label>
+        <link refid="buffer_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="13">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="14" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+        <childnode refid="15" relation="include">
+        </childnode>
+      </node>
+      <node id="12">
+        <label>corr/corr_core.h</label>
+        <link refid="corr__core_8h"/>
+        <childnode refid="13" relation="include">
+        </childnode>
+        <childnode refid="17" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/detector/detector_core.h</label>
+        <link refid="detector__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+      </node>
+      <node id="17">
+        <label>fft/fft_core.h</label>
+        <link refid="fft__core_8h"/>
+        <childnode refid="13" relation="include">
+        </childnode>
+        <childnode refid="18" relation="include">
+        </childnode>
+      </node>
+      <node id="15">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="16" relation="include">
+        </childnode>
+      </node>
+      <node id="16">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="14">
+        <label>complex.h</label>
+      </node>
+      <node id="3">
+        <label>fcntl.h</label>
+      </node>
+      <node id="18">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="7">
+        <label>stdbool.h</label>
+      </node>
+      <node id="8">
+        <label>stddef.h</label>
+      </node>
+      <node id="9">
+        <label>stdint.h</label>
+      </node>
+      <node id="4">
+        <label>stdio.h</label>
+      </node>
+      <node id="10">
+        <label>stdlib.h</label>
+      </node>
+      <node id="11">
+        <label>string.h</label>
+      </node>
+      <node id="5">
+        <label>sys/mman.h</label>
+      </node>
+      <node id="6">
+        <label>unistd.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/detector/detector_core.h</label>
+        <link refid="detector__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/src/detector/detector_core.c</label>
+        <link refid="detector__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/spectral/spectral_ext_detector.c</label>
+        <link refid="spectral__ext__detector_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structdet__result__t" prot="public">det_result_t</innerclass>
+    <innerclass refid="structdetector__state__t" prot="public">detector_state_t</innerclass>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="detector__core_8h_1ac1933f99727e22b3c3167d77cfbf5c07" prot="public" static="no">
+        <name>DET_NOISE_MODE_T_DEFINED</name>
+        <briefdescription>
+<para>Selects how noise power is estimated from the correlation magnitude vector over bins &amp;#91;noise_lo, noise_hi&amp;#93;. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The test statistic is peak_mag / noise_est. A zero noise_est (e.g., when all bins in the range are zero) yields test_stat = 0. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="55" column="9" bodyfile="native/inc/detector/detector_core.h" bodystart="55" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="enum">
+      <memberdef kind="enum" id="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" prot="public" static="no" strong="no">
+        <type></type>
+        <name>det_noise_mode_t</name>
+        <enumvalue id="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa4626bdbae2e3dabd13b9a506d75578f1" prot="public">
+          <name>DET_NOISE_MEAN</name>
+          <initializer>= 0</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>Arithmetic mean of |R&amp;#91;τ&amp;#93;| over &amp;#91;lo, hi&amp;#93;. </para>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffadbd6b288d6a86531e02f30a867c7be35" prot="public">
+          <name>DET_NOISE_MEDIAN</name>
+          <initializer>= 1</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>Median of |R&amp;#91;τ&amp;#93;| over &amp;#91;lo, hi&amp;#93;. </para>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa72d3835d9f81ba08de0c566c9d853d68" prot="public">
+          <name>DET_NOISE_MIN</name>
+          <initializer>= 2</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>Minimum of |R&amp;#91;τ&amp;#93;| over &amp;#91;lo, hi&amp;#93;. </para>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa354c2e121d12730c7b0c6216da899a0d" prot="public">
+          <name>DET_NOISE_MAX</name>
+          <initializer>= 3</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+<para>Maximum of |R&amp;#91;τ&amp;#93;| over &amp;#91;lo, hi&amp;#93;. </para>
+          </detaileddescription>
+        </enumvalue>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="56" column="1" bodyfile="native/inc/detector/detector_core.h" bodystart="57" bodyend="62"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="detector__core_8h_1adfec4b09ac71c861e95a139ad5914df7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+        <definition>detector_state_t * detector_create</definition>
+        <argsstring>(const float complex *ref, size_t n, size_t dwell, size_t noise_lo, size_t noise_hi, det_noise_mode_t noise_mode, float threshold, int nthreads)</argsstring>
+        <name>detector_create</name>
+        <param>
+          <type>const float complex *</type>
+          <declname>ref</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>noise_lo</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>noise_hi</declname>
+        </param>
+        <param>
+          <type><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref></type>
+          <declname>noise_mode</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>threshold</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>nthreads</declname>
+        </param>
+        <briefdescription>
+<para>Create a 1-D signal detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Allocates a <ref refid="structcorr__state__t" kindref="compound">corr_state_t</ref>, a dp_f32_t ring buffer of capacity next_pow2(max(n, 512)), and all scratch buffers. The ring buffer satisfies the dp_f32_create() page-alignment constraint automatically.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ref</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Reference signal, CF32, length <computeroutput>n</computeroutput>. May be freed after this call returns. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Frame / FFT length in complex samples. Must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Int-dump depth. Must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>noise_lo</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Lower noise bin (inclusive, 0 &lt;= noise_lo &lt;= noise_hi). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>noise_hi</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Upper noise bin (inclusive, noise_hi &lt; n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>noise_mode</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Aggregation mode for noise estimation. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Test-stat threshold. 0.0 = always emit a detection. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nthreads</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Passed through to <ref refid="corr__core_8h_1ac227a25031ddd10b762da53b0e55fec2" kindref="member">corr_create()</ref>; currently ignored. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="128" column="18" bodyfile="native/src/detector/detector_core.c" bodystart="69" bodyend="111" declfile="native/inc/detector/detector_core.h" declline="128" declcolumn="18"/>
+      </memberdef>
+      <memberdef kind="function" id="detector__core_8h_1a6af5940772f36be915fad735751bb347" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void detector_destroy</definition>
+        <argsstring>(detector_state_t *state)</argsstring>
+        <name>detector_destroy</name>
+        <param>
+          <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy and free a detector instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="135" column="6" bodyfile="native/src/detector/detector_core.c" bodystart="114" bodyend="126" declfile="native/inc/detector/detector_core.h" declline="135" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="detector__core_8h_1a48191d135a4d5bffab615b701c110889" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void detector_reset</definition>
+        <argsstring>(detector_state_t *state)</argsstring>
+        <name>detector_reset</name>
+        <param>
+          <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset the correlator, ring buffer, and last-corr flag. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Discards any partial frame buffered in the ring. Equivalent to starting fresh from the same reference.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="145" column="6" bodyfile="native/src/detector/detector_core.c" bodystart="129" bodyend="136" declfile="native/inc/detector/detector_core.h" declline="145" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="detector__core_8h_1a8c687ce5a46dcfb3ce3805ee3875605b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void detector_set_ref</definition>
+        <argsstring>(detector_state_t *state, const float complex *ref)</argsstring>
+        <name>detector_set_ref</name>
+        <param>
+          <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>ref</declname>
+        </param>
+        <briefdescription>
+<para>Replace the reference signal and recompute conj(FFT(ref)). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Also resets (see <ref refid="detector__core_8h_1a48191d135a4d5bffab615b701c110889" kindref="member">detector_reset()</ref>). The new reference must have the same length <computeroutput>n</computeroutput> that was passed to <ref refid="detector__core_8h_1adfec4b09ac71c861e95a139ad5914df7" kindref="member">detector_create()</ref>.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>ref</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New reference, CF32, length state-&gt;n. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="156" column="6" bodyfile="native/src/detector/detector_core.c" bodystart="139" bodyend="143" declfile="native/inc/detector/detector_core.h" declline="156" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="detector__core_8h_1ac5b87e66c245f3822cdd83ac7cdae756" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void detector_set_threshold</definition>
+        <argsstring>(detector_state_t *state, float threshold)</argsstring>
+        <name>detector_set_threshold</name>
+        <param>
+          <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>threshold</declname>
+        </param>
+        <briefdescription>
+<para>Change the threshold without rebuilding the object. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New threshold; 0.0 = always fire. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="164" column="6" bodyfile="native/src/detector/detector_core.c" bodystart="146" bodyend="149" declfile="native/inc/detector/detector_core.h" declline="164" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="detector__core_8h_1a9f5e3f874de1cbb1fbebef891afbf49a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t detector_push</definition>
+        <argsstring>(detector_state_t *state, const float complex *in, size_t n_in, det_result_t *result, size_t max_results)</argsstring>
+        <name>detector_push</name>
+        <param>
+          <type><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type><ref refid="structdet__result__t" kindref="compound">det_result_t</ref> *</type>
+          <declname>result</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_results</declname>
+        </param>
+        <briefdescription>
+<para>Push an arbitrary-length CF32 chunk through the detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Writes <computeroutput>n_in</computeroutput> complex samples into the ring buffer in the minimum number of chunks that fit, then drains all complete n-sample frames through the correlator. On every int-dump a test statistic is computed; if it passes the threshold, a <ref refid="structdet__result__t" kindref="compound">det_result_t</ref> is appended to <computeroutput>result</computeroutput>[]. The function returns as soon as <computeroutput>n_in</computeroutput> samples have been consumed or <computeroutput>max_results</computeroutput> detections have been stored, whichever comes first.</para>
+<para>The <computeroutput>result</computeroutput> array must be pre-allocated by the caller. A stack array of 64 elements is sufficient for any realistic push size: <programlisting><codeline><highlight class="normal">det_result_t<sp/>buf[64];</highlight></codeline>
+<codeline><highlight class="normal">size_t<sp/>n<sp/>=<sp/>detector_push(det,<sp/>chunk,<sp/>len,<sp/>buf,<sp/>64);</highlight></codeline>
+</programlisting></para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input CF32 array of length <computeroutput>n_in</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples to push. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>result</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array; caller allocates at least <computeroutput>max_results</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_results</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Maximum detections to store; prevents unbounded output. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of detections stored in <computeroutput>result</computeroutput>[]. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/detector_core.h" line="192" column="8" bodyfile="native/src/detector/detector_core.c" bodystart="154" bodyend="220" declfile="native/inc/detector/detector_core.h" declline="192" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Wraps a <ref refid="structcorr__state__t" kindref="compound">corr_state_t</ref> (FFT correlator + coherent int-dump) behind a double-mapped ring buffer so that arbitrary-length sample streams can be fed in any chunk size. After every int-dump a test statistic is computed:</para>
+<para>test_stat = peak_mag / noise_est</para>
+<para>where peak_mag = max|R&amp;#91;τ&amp;#93;| and noise_est is an aggregate (mean, median, min, or max) of |R&amp;#91;τ&amp;#93;| over a user-supplied bin range &amp;#91;noise_lo, noise_hi&amp;#93;. A detection event is emitted when test_stat &gt; threshold (or whenever threshold == 0.0, which means &quot;always fire&quot;).</para>
+<para>The detector operates as a single-threaded object; do not call <ref refid="detector__core_8h_1a9f5e3f874de1cbb1fbebef891afbf49a" kindref="member">detector_push()</ref> concurrently from multiple threads.</para>
+<para>Lifecycle: <programlisting><codeline><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>ref[N]<sp/>=<sp/>{<sp/>...<sp/>};</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*det<sp/>=<sp/><ref refid="detector__core_8h_1adfec4b09ac71c861e95a139ad5914df7" kindref="member">detector_create</ref>(ref,<sp/>N,<sp/>1,</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/>1,<sp/>N-1,<sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa4626bdbae2e3dabd13b9a506d75578f1" kindref="member">DET_NOISE_MEAN</ref>,<sp/>0.0f,<sp/>1);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="structdet__result__t" kindref="compound">det_result_t</ref><sp/>results[64];</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>stream<sp/>loop</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(recv(chunk,<sp/>CHUNK_SZ))<sp/>{</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/><ref refid="detector__core_8h_1a9f5e3f874de1cbb1fbebef891afbf49a" kindref="member">detector_push</ref>(det,<sp/>chunk,<sp/>CHUNK_SZ,<sp/>results,<sp/>64);</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>printf(</highlight><highlight class="stringliteral">&quot;lag=%zu<sp/>stat=%.2f\n&quot;</highlight><highlight class="normal">,<sp/>results[i].lag,<sp/>results[i].test_stat);</highlight></codeline>
+<codeline><highlight class="normal">}</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="detector__core_8h_1a6af5940772f36be915fad735751bb347" kindref="member">detector_destroy</ref>(det);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DETECTOR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>DETECTOR_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="buffer_8h" kindref="compound">buffer/buffer.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="corr__core_8h" kindref="compound">corr/corr_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Noise<sp/>aggregation<sp/>mode<sp/>───────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"></highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DET_NOISE_MODE_T_DEFINED</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="55" refid="detector__core_8h_1ac1933f99727e22b3c3167d77cfbf5c07" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>DET_NOISE_MODE_T_DEFINED</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="56" refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" refkind="member"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">enum</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="58" refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa4626bdbae2e3dabd13b9a506d75578f1" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa4626bdbae2e3dabd13b9a506d75578f1" kindref="member">DET_NOISE_MEAN</ref><sp/>=<sp/>0,<sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="59" refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffadbd6b288d6a86531e02f30a867c7be35" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffadbd6b288d6a86531e02f30a867c7be35" kindref="member">DET_NOISE_MEDIAN</ref><sp/>=<sp/>1,<sp/></highlight></codeline>
+<codeline lineno="60" refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa72d3835d9f81ba08de0c566c9d853d68" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa72d3835d9f81ba08de0c566c9d853d68" kindref="member">DET_NOISE_MIN</ref><sp/>=<sp/>2,<sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="61" refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa354c2e121d12730c7b0c6216da899a0d" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa354c2e121d12730c7b0c6216da899a0d" kindref="member">DET_NOISE_MAX</ref><sp/>=<sp/>3,<sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="62"><highlight class="normal">}<sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref>;</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>DET_NOISE_MODE_T_DEFINED<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"></highlight></codeline>
+<codeline lineno="65"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Per-detection<sp/>result<sp/>─────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72" refid="structdet__result__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="74" refid="structdet__result__t_1a8b67321cef6628446cd6b59cf0ced5dc" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdet__result__t_1a8b67321cef6628446cd6b59cf0ced5dc" kindref="member">lag</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="75" refid="structdet__result__t_1ae8b16d34213d516632394238d7a84f6e" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdet__result__t_1ae8b16d34213d516632394238d7a84f6e" kindref="member">peak_mag</ref>;<sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="76" refid="structdet__result__t_1aec44671a7332d01e4e72c187ca9061d3" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdet__result__t_1aec44671a7332d01e4e72c187ca9061d3" kindref="member">noise_est</ref>;<sp/><sp/></highlight></codeline>
+<codeline lineno="77" refid="structdet__result__t_1ac76caf4de5534ff055886d8a1ab8ecd0" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdet__result__t_1ac76caf4de5534ff055886d8a1ab8ecd0" kindref="member">test_stat</ref>;<sp/><sp/></highlight></codeline>
+<codeline lineno="78"><highlight class="normal">}<sp/><ref refid="structdet__result__t" kindref="compound">det_result_t</ref>;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Detector<sp/>state<sp/>───────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="87" refid="structdetector__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="88"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="89" refid="structdetector__state__t_1a9fd8f5858b597262e1e8c3cc2b4b6e0b" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="structcorr__state__t" kindref="compound">corr_state_t</ref><sp/>*<ref refid="structdetector__state__t_1a9fd8f5858b597262e1e8c3cc2b4b6e0b" kindref="member">corr</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="90" refid="structdetector__state__t_1aa55d1de41e0f1ee55cdf5f3ba8df77d2" refkind="member"><highlight class="normal"><sp/><sp/>dp_f32_t<sp/>*<ref refid="structdetector__state__t_1aa55d1de41e0f1ee55cdf5f3ba8df77d2" kindref="member">ring</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="91" refid="structdetector__state__t_1a519f11ce0305261b863972e7a704bcee" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structdetector__state__t_1a519f11ce0305261b863972e7a704bcee" kindref="member">out_buf</ref>;<sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="92" refid="structdetector__state__t_1a17949f78561d14f6f47b19b12b9d7d87" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*<ref refid="structdetector__state__t_1a17949f78561d14f6f47b19b12b9d7d87" kindref="member">mag_buf</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="93" refid="structdetector__state__t_1ad5a05f7d21793e7ae9d6070e2288de6b" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*<ref refid="structdetector__state__t_1ad5a05f7d21793e7ae9d6070e2288de6b" kindref="member">noise_scratch</ref>;<sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="94" refid="structdetector__state__t_1ae6f205d4ae5e3dca464e67eaa3a2a7bd" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1ae6f205d4ae5e3dca464e67eaa3a2a7bd" kindref="member">n</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="95" refid="structdetector__state__t_1a09a1823ceecfc27481fd8a4e10eafba0" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a09a1823ceecfc27481fd8a4e10eafba0" kindref="member">ring_cap</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="96" refid="structdetector__state__t_1a788811fbd3365b4e27e86cb85d307165" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a788811fbd3365b4e27e86cb85d307165" kindref="member">noise_lo</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="97" refid="structdetector__state__t_1add78b953b2256693b714ebf31dcc941e" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1add78b953b2256693b714ebf31dcc941e" kindref="member">noise_hi</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="98" refid="structdetector__state__t_1a887b602f33c994c32d39f18b6f0a5815" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref><sp/><ref refid="structdetector__state__t_1a887b602f33c994c32d39f18b6f0a5815" kindref="member">noise_mode</ref>;</highlight></codeline>
+<codeline lineno="99" refid="structdetector__state__t_1a5646242dd4ecf0c260a61d4fc99f501f" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a5646242dd4ecf0c260a61d4fc99f501f" kindref="member">threshold</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Last<sp/>dump<sp/>results<sp/>—<sp/>updated<sp/>on<sp/>every<sp/>dump<sp/>regardless<sp/>of<sp/>threshold.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101" refid="structdetector__state__t_1a102b3de40939883976ba9544b4d3c1d4" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a102b3de40939883976ba9544b4d3c1d4" kindref="member">peak_lag</ref>;</highlight></codeline>
+<codeline lineno="102" refid="structdetector__state__t_1af8bca7e342186d05c6ae07e22e9b1add" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1af8bca7e342186d05c6ae07e22e9b1add" kindref="member">peak_mag</ref>;</highlight></codeline>
+<codeline lineno="103" refid="structdetector__state__t_1a7e92d15316868cd0e30ed9d621092c95" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a7e92d15316868cd0e30ed9d621092c95" kindref="member">noise_est</ref>;</highlight></codeline>
+<codeline lineno="104" refid="structdetector__state__t_1a8ec33a0aedc53d517c705ce36d147460" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1a8ec33a0aedc53d517c705ce36d147460" kindref="member">test_stat</ref>;</highlight></codeline>
+<codeline lineno="105" refid="structdetector__state__t_1af5756694581321d0fcb3c089a35b55b6" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="structdetector__state__t_1af5756694581321d0fcb3c089a35b55b6" kindref="member">_last_corr_valid</ref>;<sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="106"><highlight class="normal">}<sp/><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref>;</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"></highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Lifecycle<sp/>────────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="109"><highlight class="normal"></highlight></codeline>
+<codeline lineno="128"><highlight class="normal"><ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*<ref refid="detector__core_8h_1adfec4b09ac71c861e95a139ad5914df7" kindref="member">detector_create</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*ref,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>noise_lo,</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>noise_hi,</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref><sp/>noise_mode,</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>threshold,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads);</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"></highlight></codeline>
+<codeline lineno="135"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a6af5940772f36be915fad735751bb347" kindref="member">detector_destroy</ref><sp/>(<ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a48191d135a4d5bffab615b701c110889" kindref="member">detector_reset</ref><sp/>(<ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a8c687ce5a46dcfb3ce3805ee3875605b" kindref="member">detector_set_ref</ref><sp/>(<ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*ref);</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"></highlight></codeline>
+<codeline lineno="164"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1ac5b87e66c245f3822cdd83ac7cdae756" kindref="member">detector_set_threshold</ref><sp/>(<ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>threshold);</highlight></codeline>
+<codeline lineno="165"><highlight class="normal"></highlight></codeline>
+<codeline lineno="166"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Stream<sp/>push<sp/>──────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="167"><highlight class="normal"></highlight></codeline>
+<codeline lineno="192"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a9f5e3f874de1cbb1fbebef891afbf49a" kindref="member">detector_push</ref><sp/>(<ref refid="structdetector__state__t" kindref="compound">detector_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/><ref refid="structdet__result__t" kindref="compound">det_result_t</ref><sp/>*result,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_results);</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"></highlight></codeline>
+<codeline lineno="195"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="196"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="197"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="198"><highlight class="normal"></highlight></codeline>
+<codeline lineno="199"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>DETECTOR_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/detector/detector_core.h"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,607 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="ddc__ext__ddcr_8c" kind="file" language="C++">
+    <compoundname>ddc_ext_ddcr.c</compoundname>
+    <includes refid="ddcr__core_8h" local="yes">ddcr/ddcr_core.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>ddc/ddc_core.h</label>
+        <link refid="ddc__core_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>ddcr/ddcr_core.h</label>
+        <link refid="ddcr__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/ddc/ddc_ext_ddcr.c</label>
+        <link refid="ddc__ext__ddcr_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structDDCRObject" prot="public">DDCRObject</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="ddc__ext__ddcr_8c_1a85153f03a54d5f822c9bc060b877d462" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef DDCR_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>DDCR_getset</name>
+        <initializer>                               = {
+    { &quot;norm_freq&quot;, (getter)DDCR_getprop_norm_freq, (setter)DDCR_setprop_norm_freq, &quot;Norm freq.\n&quot;, NULL },
+    { &quot;rate&quot;, (getter)DDCR_getprop_rate, NULL, &quot;Rate.\n&quot;, NULL },
+    { NULL }
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="159" column="20" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="159" bodyend="163"/>
+      </memberdef>
+      <memberdef kind="variable" id="ddc__ext__ddcr_8c_1adc60434c07862586e072500edf7e46c8" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef DDCRObj_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>DDCRObj_methods</name>
+        <initializer>                                   = {
+
+    {&quot;execute&quot;, (PyCFunction)DDCRObj_execute, METH_VARARGS,
+     &quot;execute(x) -&gt; ndarray\n&quot;
+     &quot;\n&quot;
+     &quot;Halfband R2C decimate, LO mix, then rate-convert.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; import numpy as np\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import DDCR\n&quot;
+     &quot;    &gt;&gt;&gt; obj = DDCR(0.0, 0.25)\n&quot;
+     &quot;    &gt;&gt;&gt; y = obj.execute(np.zeros(4))\n&quot;
+     &quot;    &gt;&gt;&gt; y.dtype\n&quot;
+     &quot;    dtype(&apos;complex64&apos;)\n&quot;},
+    {&quot;reset&quot;, (PyCFunction)DDCRObj_reset, METH_NOARGS,
+     &quot;reset() -&gt; None\n&quot;
+     &quot;\n&quot;
+     &quot;Zero halfband, LO phase, and filter history.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import DDCR\n&quot;
+     &quot;    &gt;&gt;&gt; obj = DDCR(0.0, 0.25)\n&quot;
+     &quot;    &gt;&gt;&gt; obj.reset()\n&quot;},
+    {&quot;destroy&quot;,  (PyCFunction)DDCRObj_destroy,  METH_NOARGS,
+     &quot;Release resources.&quot;},
+    {&quot;__enter__&quot;, (PyCFunction)DDCRObj_enter,   METH_NOARGS,  NULL},
+    {&quot;__exit__&quot;,  (PyCFunction)DDCRObj_exit,    METH_VARARGS, NULL},
+    {NULL}
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="193" column="20" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="193" bodyend="219"/>
+      </memberdef>
+      <memberdef kind="variable" id="ddc__ext__ddcr_8c_1ad010bd997ea74602792cbe4525223ed0" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject DDCRObjType</definition>
+        <argsstring></argsstring>
+        <name>DDCRObjType</name>
+        <initializer>                                = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = &quot;ddc.DDCR&quot;,
+    .tp_basicsize = sizeof(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref>),
+    .tp_dealloc   = (destructor)DDCRObj_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = &quot;DDCR type.\n&quot;,
+    .tp_methods   = DDCRObj_methods,
+    .tp_getset    = DDCR_getset,
+    .tp_new       = DDCRObj_new,
+    .tp_init      = (initproc)DDCRObj_init,
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="221" column="21" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="221" bodyend="232"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a0d812398902309317fee52b1e7a6819d" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void DDCRObj_dealloc</definition>
+        <argsstring>(DDCRObject *self)</argsstring>
+        <name>DDCRObj_dealloc</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="22" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="22" bodyend="28"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a0e14aa6d5d8761ad63aa4e05e882d762" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>DDCRObj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="31" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="31" bodyend="37"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a737f1011b11c7009cb16315b8f72c586" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int DDCRObj_init</definition>
+        <argsstring>(DDCRObject *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>DDCRObj_init</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="40" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="40" bodyend="64"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1acf6634feedd85c5615c1b87658019d02" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_execute</definition>
+        <argsstring>(DDCRObject *self, PyObject *args)</argsstring>
+        <name>DDCRObj_execute</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="74" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="74" bodyend="114"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a7e91ac836f5e6f266026a9c04481abcc" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_reset</definition>
+        <argsstring>(DDCRObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>DDCRObj_reset</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="117" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="117" bodyend="125"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1ae3981a48b304d8818e3feb563986d74d" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCR_getprop_norm_freq</definition>
+        <argsstring>(DDCRObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>DDCR_getprop_norm_freq</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="127" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="127" bodyend="135"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1af1678d74aee0dfdd5c7aa9a1310fc2ed" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int DDCR_setprop_norm_freq</definition>
+        <argsstring>(DDCRObject *self, PyObject *value, void *Py_UNUSED(closure))</argsstring>
+        <name>DDCR_setprop_norm_freq</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>value</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="137" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="137" bodyend="147"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a352d0f8020044c3b2a4888933691c3b1" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCR_getprop_rate</definition>
+        <argsstring>(DDCRObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>DDCR_getprop_rate</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="149" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="149" bodyend="157"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a9a5da156c7b486e1adc31f2b79faf04f" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_destroy</definition>
+        <argsstring>(DDCRObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>DDCRObj_destroy</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="166" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="166" bodyend="173"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a497fc6ae458011ff1f265e7d7a942388" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_enter</definition>
+        <argsstring>(DDCRObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>DDCRObj_enter</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="176" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="176" bodyend="180"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__ext__ddcr_8c_1a9663eb146e73a79a814e9c0d03963e56" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * DDCRObj_exit</definition>
+        <argsstring>(DDCRObject *self, PyObject *args)</argsstring>
+        <name>DDCRObj_exit</name>
+        <param>
+          <type><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_ext_ddcr.c" line="183" column="1" bodyfile="native/src/ddc/ddc_ext_ddcr.c" bodystart="183" bodyend="191"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>ddc_ext_ddcr.c<sp/>—<sp/>DDCR<sp/>type<sp/>for<sp/>the<sp/>ddc<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>ddc_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>ddc_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>DDCRObject<sp/>—<sp/>wraps<sp/>ddcr_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="ddcr__core_8h" kindref="compound">ddcr/ddcr_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structDDCRObject" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>pre-allocated<sp/>output<sp/>for<sp/>execute<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structDDCRObject_1a0289fa71546ca08b0bd866511c7878f9" kindref="member">_execute_buf_cap</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>allocated<sp/>capacity<sp/>for<sp/>execute<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}<sp/><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref>;</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal">DDCRObj_dealloc(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" kindref="member">ddcr_destroy</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="28"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="31"><highlight class="normal">DDCRObj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self<sp/>=<sp/>(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="37"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal">DDCRObj_init(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="41"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;norm_freq&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;rate&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq<sp/>=<sp/>0.0;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate<sp/>=<sp/>0.25;</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;|dd&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;norm_freq,<sp/>&amp;rate))</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref><sp/>=<sp/><ref refid="ddc__core_8h_1a49906bd0310bd5237031f440a8a9b099" kindref="member">ddcr_create</ref>(norm_freq,<sp/>rate);</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_MemoryError,</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;ddcr_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="ddcr__core_8h_1af695ba8877eb6ecdae46fd4c9966e0b5" kindref="member">ddcr_execute_max_out</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(_max)<sp/>{</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref><sp/>=<sp/>malloc(_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex));</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>)<sp/>{<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;<sp/>}</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a0289fa71546ca08b0bd866511c7878f9" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>_max;</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="64"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"></highlight></codeline>
+<codeline lineno="67"><highlight class="normal"></highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">DDCRObj_execute(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="75"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*x_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*x_arr<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>&amp;x_obj))</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/><sp/><sp/>x_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>x_obj,<sp/>NPY_FLOAT,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!x_arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_need<sp/>=<sp/>(size_t)PyArray_SIZE(x_arr);</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref><sp/>||<sp/>self-&gt;<ref refid="structDDCRObject_1a0289fa71546ca08b0bd866511c7878f9" kindref="member">_execute_buf_cap</ref><sp/>&lt;<sp/>_need)<sp/>{</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="ddcr__core_8h_1af695ba8877eb6ecdae46fd4c9966e0b5" kindref="member">ddcr_execute_max_out</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_max<sp/>||<sp/>_max<sp/>&lt;<sp/>_need)<sp/>_max<sp/>=<sp/>_need;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*_tmp<sp/>=<sp/>realloc(self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>,<sp/>_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex));</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_tmp)<sp/>{<sp/>Py_DECREF(x_arr);<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref><sp/>=<sp/>_tmp;</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a0289fa71546ca08b0bd866511c7878f9" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>_max;</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>nogil:<sp/>GIL<sp/>released<sp/>across<sp/>the<sp/>pure-C<sp/>kernel<sp/>—<sp/>sound<sp/>only<sp/>when</highlight></codeline>
+<codeline lineno="97"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>this<sp/>object<sp/>is<sp/>not<sp/>shared<sp/>across<sp/>threads<sp/>concurrently<sp/>(one</highlight></codeline>
+<codeline lineno="98"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>object<sp/>per<sp/>stream);<sp/>the<sp/>kernel<sp/>touches<sp/>only<sp/>this<sp/>object&apos;s</highlight></codeline>
+<codeline lineno="99"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>state/buffers<sp/>and<sp/>the<sp/>caller&apos;s<sp/>input.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*<sp/>_ng0<sp/>=<sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)PyArray_DATA(x_arr);</highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_ng1<sp/>=<sp/>(size_t)PyArray_SIZE(x_arr);</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out;</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_BEGIN_ALLOW_THREADS</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/>n_out<sp/>=<sp/><ref refid="ddc__core_8h_1a6e8f7a512bb799769f7e749a0ce97277" kindref="member">ddcr_execute</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>,<sp/>_ng0,<sp/>_ng1,<sp/>self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>,<sp/>self-&gt;<ref refid="structDDCRObject_1a0289fa71546ca08b0bd866511c7878f9" kindref="member">_execute_buf_cap</ref>);</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_END_ALLOW_THREADS</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)n_out;</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*arr<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_COMPLEX64,<sp/>self-&gt;<ref refid="structDDCRObject_1a08dceb439e485494d3bb0f15f396447b" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)arr,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(x_arr);</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>arr;</highlight></codeline>
+<codeline lineno="114"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="117"><highlight class="normal">DDCRObj_reset(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="118"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1abe62ed3513e3ed46215f3846fd5b4c90" kindref="member">ddcr_reset</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="125"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="126"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="127"><highlight class="normal">DDCR_getprop_norm_freq(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="128"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>&lt;&lt;IMPLEMENT:<sp/>return<sp/>the<sp/>computed<sp/>or<sp/>stored<sp/>value&gt;&gt;<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble(<ref refid="ddc__core_8h_1aba2985ffcd81849656aaeef9bfaadeba" kindref="member">ddcr_get_norm_freq</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="135"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="137"><highlight class="normal">DDCR_setprop_norm_freq(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*value,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="138"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>v<sp/>=<sp/>0.0;</highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_Parse(value,<sp/></highlight><highlight class="stringliteral">&quot;d&quot;</highlight><highlight class="normal">,<sp/>&amp;v))<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="145"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1ad290aefc3f9366db1bf5eb472836ca0f" kindref="member">ddcr_set_norm_freq</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>,<sp/>v);</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="147"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="149"><highlight class="normal">DDCR_getprop_rate(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="150"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="155"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>&lt;&lt;IMPLEMENT:<sp/>return<sp/>the<sp/>computed<sp/>or<sp/>stored<sp/>value&gt;&gt;<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble(<ref refid="ddc__core_8h_1a4552a7b5944728efb3c9bd6aa916c83a" kindref="member">ddcr_get_rate</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="157"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"></highlight></codeline>
+<codeline lineno="159"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>DDCR_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;norm_freq&quot;</highlight><highlight class="normal">,<sp/>(getter)DDCR_getprop_norm_freq,<sp/>(setter)DDCR_setprop_norm_freq,<sp/></highlight><highlight class="stringliteral">&quot;Norm<sp/>freq.\n&quot;</highlight><highlight class="normal">,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="161"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;rate&quot;</highlight><highlight class="normal">,<sp/>(getter)DDCR_getprop_rate,<sp/>NULL,<sp/></highlight><highlight class="stringliteral">&quot;Rate.\n&quot;</highlight><highlight class="normal">,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/>NULL<sp/>}</highlight></codeline>
+<codeline lineno="163"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="164"><highlight class="normal"></highlight></codeline>
+<codeline lineno="165"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="166"><highlight class="normal">DDCRObj_destroy(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="167"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" kindref="member">ddcr_destroy</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="171"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="173"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight></codeline>
+<codeline lineno="175"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="176"><highlight class="normal">DDCRObj_enter(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="177"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="179"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="180"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"></highlight></codeline>
+<codeline lineno="182"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="183"><highlight class="normal">DDCRObj_exit(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="184"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="187"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" kindref="member">ddcr_destroy</ref>(self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="188"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDDCRObject_1a564a4390832ef8a702c2f7a5b8713efe" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="189"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="191"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="192"><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>DDCRObj_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"></highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;execute&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)DDCRObj_execute,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;execute(x)<sp/>-&gt;<sp/>ndarray\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Halfband<sp/>R2C<sp/>decimate,<sp/>LO<sp/>mix,<sp/>then<sp/>rate-convert.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="199"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="200"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>DDCR\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>DDCR(0.0,<sp/>0.25)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y<sp/>=<sp/>obj.execute(np.zeros(4))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y.dtype\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>dtype(&apos;complex64&apos;)\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)DDCRObj_reset,<sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;reset()<sp/>-&gt;<sp/>None\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="208"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="209"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Zero<sp/>halfband,<sp/>LO<sp/>phase,<sp/>and<sp/>filter<sp/>history.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="210"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="211"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>DDCR\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>DDCR(0.0,<sp/>0.25)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj.reset()\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="214"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)DDCRObj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="216"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)DDCRObj_enter,<sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="217"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)DDCRObj_exit,<sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="218"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="219"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"></highlight></codeline>
+<codeline lineno="221"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>DDCRObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="222"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="223"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;ddc.DDCR&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="224"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structDDCRObject" kindref="compound">DDCRObject</ref>),</highlight></codeline>
+<codeline lineno="225"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)DDCRObj_dealloc,</highlight></codeline>
+<codeline lineno="226"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="227"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;DDCR<sp/>type.\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="228"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>DDCRObj_methods,</highlight></codeline>
+<codeline lineno="229"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>DDCR_getset,</highlight></codeline>
+<codeline lineno="230"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>DDCRObj_new,</highlight></codeline>
+<codeline lineno="231"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)DDCRObj_init,</highlight></codeline>
+<codeline lineno="232"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/ddc/ddc_ext_ddcr.c"/>
+  </compounddef>
+</doxygen>

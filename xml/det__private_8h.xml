@@ -1,0 +1,281 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="det__private_8h" kind="file" language="C++">
+    <compoundname>det_private.h</compoundname>
+    <includes local="no">stdlib.h</includes>
+    <includes local="no">string.h</includes>
+    <includedby refid="detector__core_8c" local="yes">native/src/detector/detector_core.c</includedby>
+    <includedby refid="detector2d__core_8c" local="yes">native/src/detector2d/detector2d_core.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/detector/det_private.h</label>
+        <link refid="det__private_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>stdlib.h</label>
+      </node>
+      <node id="3">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/detector/det_private.h</label>
+        <link refid="det__private_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/src/detector/detector_core.c</label>
+        <link refid="detector__core_8c"/>
+      </node>
+      <node id="3">
+        <label>native/src/detector2d/detector2d_core.c</label>
+        <link refid="detector2d__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="det__private_8h_1a74d5d6c6a4682d7ea97e4b0c58c1af38" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>static size_t next_pow2</definition>
+        <argsstring>(size_t n)</argsstring>
+        <name>next_pow2</name>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/det_private.h" line="21" column="1" bodyfile="native/inc/detector/det_private.h" bodystart="21" bodyend="27"/>
+      </memberdef>
+      <memberdef kind="function" id="det__private_8h_1a6ba49c9ee28bd398eccc3bcd26890f38" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>dp_f32_t *</type>
+        <definition>static dp_f32_t * _ring_create</definition>
+        <argsstring>(size_t cap_min)</argsstring>
+        <name>_ring_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>cap_min</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/det_private.h" line="34" column="1" bodyfile="native/inc/detector/det_private.h" bodystart="34" bodyend="49"/>
+      </memberdef>
+      <memberdef kind="function" id="det__private_8h_1a8c2b410c3a65bcbeaf76139560ead758" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int _cmp_f32_asc</definition>
+        <argsstring>(const void *a, const void *b)</argsstring>
+        <name>_cmp_f32_asc</name>
+        <param>
+          <type>const void *</type>
+          <declname>a</declname>
+        </param>
+        <param>
+          <type>const void *</type>
+          <declname>b</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/det_private.h" line="52" column="1" bodyfile="native/inc/detector/det_private.h" bodystart="52" bodyend="57"/>
+      </memberdef>
+      <memberdef kind="function" id="det__private_8h_1ac41a95c660baa9d16e76a571490a68e5" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float</type>
+        <definition>static float _noise_estimate</definition>
+        <argsstring>(const float *mag, size_t lo, size_t hi, float *scratch, det_noise_mode_t mode)</argsstring>
+        <name>_noise_estimate</name>
+        <param>
+          <type>const float *</type>
+          <declname>mag</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>lo</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>hi</declname>
+        </param>
+        <param>
+          <type>float *</type>
+          <declname>scratch</declname>
+        </param>
+        <param>
+          <type><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref></type>
+          <declname>mode</declname>
+        </param>
+        <briefdescription>
+<para>Aggregate |corr| over bins &amp;#91;lo, hi&amp;#93; using the selected mode. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns 0 if lo &gt; hi (empty range) — the caller maps that to test_stat=0.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>mag</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Magnitude vector (length &gt;= hi+1). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>lo</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>First bin, inclusive. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>hi</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Last bin, inclusive. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>scratch</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Caller-allocated buffer of length &gt;= (hi-lo+1) floats; used only for DET_NOISE_MEDIAN (avoids a heap alloc per push). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>mode</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Aggregation mode. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Aggregated noise estimate, or 0 if lo &gt; hi. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detector/det_private.h" line="74" column="1" bodyfile="native/inc/detector/det_private.h" bodystart="74" bodyend="111"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Shared internals for <ref refid="detector__core_8c" kindref="compound">detector_core.c</ref> and <ref refid="detector2d__core_8c" kindref="compound">detector2d_core.c</ref>. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Not part of the public API. Include after the module&apos;s own header so that <ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref> is already defined via the DET_NOISE_MODE_T_DEFINED guard in <ref refid="detector__core_8h" kindref="compound">detector_core.h</ref> / <ref refid="detector2d__core_8h" kindref="compound">detector2d_core.h</ref>. </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DET_PRIVATE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>DET_PRIVATE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stdlib.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;string.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>det_noise_mode_t<sp/>must<sp/>be<sp/>visible<sp/>before<sp/>this<sp/>header<sp/>is<sp/>included.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DET_NOISE_MODE_T_DEFINED</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="preprocessor">#<sp/><sp/>error<sp/>&quot;Include<sp/>detector_core.h<sp/>or<sp/>detector2d_core.h<sp/>before<sp/>det_private.h&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal">next_pow2<sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n)</highlight></codeline>
+<codeline lineno="22"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>c<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(c<sp/>&lt;<sp/>n)</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/>c<sp/>&lt;&lt;=<sp/>1;</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>c;</highlight></codeline>
+<codeline lineno="27"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Create<sp/>a<sp/>dp_f32_t<sp/>ring<sp/>of<sp/>at<sp/>least<sp/>cap_min<sp/>complex<sp/>samples.</highlight></codeline>
+<codeline lineno="30"><highlight class="comment"><sp/>*<sp/>dp_f32_create<sp/>requires<sp/>the<sp/>byte<sp/>count<sp/>to<sp/>be<sp/>page-aligned,<sp/>which<sp/>varies</highlight></codeline>
+<codeline lineno="31"><highlight class="comment"><sp/>*<sp/>by<sp/>OS<sp/>(4<sp/>KiB<sp/>on<sp/>Linux/Windows,<sp/>16<sp/>KiB<sp/>on<sp/>macOS).<sp/><sp/>We<sp/>start<sp/>at<sp/>the</highlight></codeline>
+<codeline lineno="32"><highlight class="comment"><sp/>*<sp/>smallest<sp/>power-of-2<sp/>&gt;=<sp/>cap_min<sp/>and<sp/>double<sp/>until<sp/>create<sp/>succeeds.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>dp_f32_t<sp/>*</highlight></codeline>
+<codeline lineno="34"><highlight class="normal">_ring_create<sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>cap_min)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>cap<sp/>=<sp/>next_pow2<sp/>(cap_min<sp/>&gt;<sp/>1<sp/>?<sp/>cap_min<sp/>:<sp/>1);</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/>dp_f32_t<sp/>*ring<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(!ring)</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ring<sp/>=<sp/>dp_f32_create<sp/>(cap);</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!ring)</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>cap<sp/>&lt;&lt;=<sp/>1;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(cap<sp/>&gt;<sp/>((</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal">)1<sp/>&lt;&lt;<sp/>28))</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/></highlight><highlight class="comment">/*<sp/>refuse<sp/>&gt;<sp/>256<sp/>M<sp/>samples<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>ring;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"></highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal">_cmp_f32_asc<sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*a,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*b)</highlight></codeline>
+<codeline lineno="53"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>fa<sp/>=<sp/>*(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)a;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>fb<sp/>=<sp/>*(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)b;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(fa<sp/>&gt;<sp/>fb)<sp/>-<sp/>(fa<sp/>&lt;<sp/>fb);</highlight></codeline>
+<codeline lineno="57"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal">_noise_estimate<sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*mag,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>lo,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>hi,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*scratch,</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ff" kindref="member">det_noise_mode_t</ref><sp/>mode)</highlight></codeline>
+<codeline lineno="76"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(lo<sp/>&gt;<sp/>hi)</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0.0f;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>count<sp/>=<sp/>hi<sp/>-<sp/>lo<sp/>+<sp/>1;</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">switch</highlight><highlight class="normal"><sp/>(mode)</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa4626bdbae2e3dabd13b9a506d75578f1" kindref="member">DET_NOISE_MEAN</ref>:</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>s<sp/>=<sp/>0.0f;</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>lo;<sp/>i<sp/>&lt;=<sp/>hi;<sp/>i++)</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>s<sp/>+=<sp/>mag[i];</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>s<sp/>/<sp/>(float)count;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffadbd6b288d6a86531e02f30a867c7be35" kindref="member">DET_NOISE_MEDIAN</ref>:</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>memcpy<sp/>(scratch,<sp/>mag<sp/>+<sp/>lo,<sp/>count<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">));</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>qsort<sp/>(scratch,<sp/>count,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">),<sp/>_cmp_f32_asc);</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>scratch[count<sp/>/<sp/>2];</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa72d3835d9f81ba08de0c566c9d853d68" kindref="member">DET_NOISE_MIN</ref>:</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>m<sp/>=<sp/>mag[lo];</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>lo<sp/>+<sp/>1;<sp/>i<sp/>&lt;=<sp/>hi;<sp/>i++)</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(mag[i]<sp/>&lt;<sp/>m)</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>m<sp/>=<sp/>mag[i];</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>m;</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/><ref refid="detector__core_8h_1a9534ee10d07181abfc26a87d53dde2ffa354c2e121d12730c7b0c6216da899a0d" kindref="member">DET_NOISE_MAX</ref>:</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>m<sp/>=<sp/>mag[lo];</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>lo<sp/>+<sp/>1;<sp/>i<sp/>&lt;=<sp/>hi;<sp/>i++)</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(mag[i]<sp/>&gt;<sp/>m)</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>m<sp/>=<sp/>mag[i];</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>m;</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0.0f;<sp/></highlight><highlight class="comment">/*<sp/>unreachable<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="111"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight></codeline>
+<codeline lineno="113"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>DET_PRIVATE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/detector/det_private.h"/>
+  </compounddef>
+</doxygen>

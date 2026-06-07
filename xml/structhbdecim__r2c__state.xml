@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structhbdecim__r2c__state" kind="struct" language="C++" prot="public">
+    <compoundname>hbdecim_r2c_state</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1aad7ea942a3d6946affa2bf12feb05a3b" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::num_taps</definition>
+        <argsstring></argsstring>
+        <name>num_taps</name>
+        <qualifiedname>hbdecim_r2c_state::num_taps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="32" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="32" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a60d2665fcc9898aa08280cf96c9284f9" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::centre</definition>
+        <argsstring></argsstring>
+        <name>centre</name>
+        <qualifiedname>hbdecim_r2c_state::centre</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="33" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="33" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1aba5f0b5ad635beb77c84a042a8d898cc" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int hbdecim_r2c_state::fir_on_even</definition>
+        <argsstring></argsstring>
+        <name>fir_on_even</name>
+        <qualifiedname>hbdecim_r2c_state::fir_on_even</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="34" column="7" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="34" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1ae6401e8e11597ce5017980c7db3c0245" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float hbdecim_r2c_state::delay_sign</definition>
+        <argsstring></argsstring>
+        <name>delay_sign</name>
+        <qualifiedname>hbdecim_r2c_state::delay_sign</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="35" column="9" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="35" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a3acd6fe3121a2f33c2e7fea76601e909" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* hbdecim_r2c_state::h</definition>
+        <argsstring></argsstring>
+        <name>h</name>
+        <qualifiedname>hbdecim_r2c_state::h</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="36" column="9" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="36" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a6fc953a61d8714f13c1e037847b1f6bc" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* hbdecim_r2c_state::even_buf</definition>
+        <argsstring></argsstring>
+        <name>even_buf</name>
+        <qualifiedname>hbdecim_r2c_state::even_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="38" column="9" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="38" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a590026c87034251c45c54834b8d1be57" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::even_cap</definition>
+        <argsstring></argsstring>
+        <name>even_cap</name>
+        <qualifiedname>hbdecim_r2c_state::even_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="39" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="39" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1acdd9c7fbb3bd0c0b38854c61cbd70dc7" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::even_mask</definition>
+        <argsstring></argsstring>
+        <name>even_mask</name>
+        <qualifiedname>hbdecim_r2c_state::even_mask</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="40" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="40" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a1cc3894672a017e147cbe4dc701e26e6" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::even_head</definition>
+        <argsstring></argsstring>
+        <name>even_head</name>
+        <qualifiedname>hbdecim_r2c_state::even_head</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="41" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="41" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a062d04892b06966fd3e38f83098cf93c" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* hbdecim_r2c_state::odd_buf</definition>
+        <argsstring></argsstring>
+        <name>odd_buf</name>
+        <qualifiedname>hbdecim_r2c_state::odd_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="43" column="9" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="43" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a49247196c06daeeee6f769835b190420" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_r2c_state::odd_head</definition>
+        <argsstring></argsstring>
+        <name>odd_head</name>
+        <qualifiedname>hbdecim_r2c_state::odd_head</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="44" column="10" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="44" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a6bd06a928baef5cee68fb20008c9e49f" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int hbdecim_r2c_state::has_pending</definition>
+        <argsstring></argsstring>
+        <name>has_pending</name>
+        <qualifiedname>hbdecim_r2c_state::has_pending</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="46" column="7" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="46" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a9f04c144a0ec61ef77e1492090d64ded" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float hbdecim_r2c_state::pending</definition>
+        <argsstring></argsstring>
+        <name>pending</name>
+        <qualifiedname>hbdecim_r2c_state::pending</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="47" column="9" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="47" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__r2c__state_1a35fc4ff4a0bd7f46c99c709ed528f4b5" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int hbdecim_r2c_state::parity</definition>
+        <argsstring></argsstring>
+        <name>parity</name>
+        <qualifiedname>hbdecim_r2c_state::parity</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/hbdecim_r2c_core.c" line="48" column="7" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="48" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/resample/hbdecim_r2c_core.c" line="30" column="1" bodyfile="native/src/resample/hbdecim_r2c_core.c" bodystart="31" bodyend="49"/>
+    <listofallmembers>
+      <member refid="structhbdecim__r2c__state_1a60d2665fcc9898aa08280cf96c9284f9" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>centre</name></member>
+      <member refid="structhbdecim__r2c__state_1ae6401e8e11597ce5017980c7db3c0245" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>delay_sign</name></member>
+      <member refid="structhbdecim__r2c__state_1a6fc953a61d8714f13c1e037847b1f6bc" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>even_buf</name></member>
+      <member refid="structhbdecim__r2c__state_1a590026c87034251c45c54834b8d1be57" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>even_cap</name></member>
+      <member refid="structhbdecim__r2c__state_1a1cc3894672a017e147cbe4dc701e26e6" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>even_head</name></member>
+      <member refid="structhbdecim__r2c__state_1acdd9c7fbb3bd0c0b38854c61cbd70dc7" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>even_mask</name></member>
+      <member refid="structhbdecim__r2c__state_1aba5f0b5ad635beb77c84a042a8d898cc" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>fir_on_even</name></member>
+      <member refid="structhbdecim__r2c__state_1a3acd6fe3121a2f33c2e7fea76601e909" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>h</name></member>
+      <member refid="structhbdecim__r2c__state_1a6bd06a928baef5cee68fb20008c9e49f" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>has_pending</name></member>
+      <member refid="structhbdecim__r2c__state_1aad7ea942a3d6946affa2bf12feb05a3b" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>num_taps</name></member>
+      <member refid="structhbdecim__r2c__state_1a062d04892b06966fd3e38f83098cf93c" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>odd_buf</name></member>
+      <member refid="structhbdecim__r2c__state_1a49247196c06daeeee6f769835b190420" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>odd_head</name></member>
+      <member refid="structhbdecim__r2c__state_1a35fc4ff4a0bd7f46c99c709ed528f4b5" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>parity</name></member>
+      <member refid="structhbdecim__r2c__state_1a9f04c144a0ec61ef77e1492090d64ded" prot="public" virt="non-virtual"><scope>hbdecim_r2c_state</scope><name>pending</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

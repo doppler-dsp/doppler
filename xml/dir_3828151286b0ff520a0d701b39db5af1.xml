@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_3828151286b0ff520a0d701b39db5af1" kind="dir">
+    <compoundname>native/inc/hbdecim</compoundname>
+    <innerfile refid="hbdecim__core_8h">hbdecim_core.h</innerfile>
+    <innerfile refid="hbdecim__r2c__core_8h">hbdecim_r2c_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/hbdecim/"/>
+  </compounddef>
+</doxygen>

@@ -40,6 +40,7 @@ wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint, int sample_type);
 
 /**
  * @brief Convert a cf32 block to the wire type and publish it.
+ * @param sink  the sink handle.
  * @param iq  Complex-float samples; @param n complex sample count.
  * @param fs  sample rate (Hz); @param fc center frequency (Hz) — wire header.
  * @return 0 on success, non-zero on a send/allocation error.

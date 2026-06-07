@@ -1,0 +1,265 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="i16u64__to__f32__core_8c" kind="file" language="C++">
+    <compoundname>i16u64_to_f32_core.c</compoundname>
+    <includes refid="i16u64__to__f32__core_8h" local="yes">i16u64_to_f32/i16u64_to_f32_core.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>i16u64_to_f32/i16u64_to_f32_core.h</label>
+        <link refid="i16u64__to__f32__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/i16u64_to_f32/i16u64_to_f32_core.c</label>
+        <link refid="i16u64__to__f32__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="i16u64__to__f32__core_8c_1a6bb7cf205d94646cfe76f4982d1a2cd2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref> *</type>
+        <definition>i16u64_to_f32_state_t * i16u64_to_f32_create</definition>
+        <argsstring>(float scale)</argsstring>
+        <name>i16u64_to_f32_create</name>
+        <param>
+          <type>float</type>
+          <declname>scale</declname>
+        </param>
+        <briefdescription>
+<para>Create a i16u64_to_f32 instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>scale</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>scale (default: 32768.0f). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="i16u64__to__f32__core_8h_1a6f3a09b38da3a6398a42cbc280586c11" kindref="member">i16u64_to_f32_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/i16u64_to_f32/i16u64_to_f32_core.c" line="4" column="1" bodyfile="native/src/i16u64_to_f32/i16u64_to_f32_core.c" bodystart="4" bodyend="13"/>
+      </memberdef>
+      <memberdef kind="function" id="i16u64__to__f32__core_8c_1a6f3a09b38da3a6398a42cbc280586c11" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void i16u64_to_f32_destroy</definition>
+        <argsstring>(i16u64_to_f32_state_t *state)</argsstring>
+        <name>i16u64_to_f32_destroy</name>
+        <param>
+          <type><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a i16u64_to_f32 instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/i16u64_to_f32/i16u64_to_f32_core.c" line="16" column="1" bodyfile="native/src/i16u64_to_f32/i16u64_to_f32_core.c" bodystart="16" bodyend="19"/>
+      </memberdef>
+      <memberdef kind="function" id="i16u64__to__f32__core_8c_1a8476851d0db190e3455ea7ad1220cbd4" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void i16u64_to_f32_reset</definition>
+        <argsstring>(i16u64_to_f32_state_t *state)</argsstring>
+        <name>i16u64_to_f32_reset</name>
+        <param>
+          <type><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset i16u64_to_f32 to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/i16u64_to_f32/i16u64_to_f32_core.c" line="22" column="1" bodyfile="native/src/i16u64_to_f32/i16u64_to_f32_core.c" bodystart="22" bodyend="25"/>
+      </memberdef>
+      <memberdef kind="function" id="i16u64__to__f32__core_8c_1a29251001acdb1d83694e38db6e21db65" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void i16u64_to_f32_steps</definition>
+        <argsstring>(i16u64_to_f32_state_t *state, const uint64_t *input, float *output, size_t n)</argsstring>
+        <name>i16u64_to_f32_steps</name>
+        <param>
+          <type><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const uint64_t *</type>
+          <declname>input</declname>
+        </param>
+        <param>
+          <type>float *</type>
+          <declname>output</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Process a block of samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Component state (mutated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>input</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>output</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (length &gt;= n; may alias input for in-place). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/i16u64_to_f32/i16u64_to_f32_core.c" line="27" column="6" bodyfile="native/src/i16u64_to_f32/i16u64_to_f32_core.c" bodystart="27" bodyend="36"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="i16u64__to__f32__core_8h" kindref="compound">i16u64_to_f32/i16u64_to_f32_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><ref refid="i16u64__to__f32__core_8c_1a6bb7cf205d94646cfe76f4982d1a2cd2" kindref="member">i16u64_to_f32_create</ref>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>scale)</highlight></codeline>
+<codeline lineno="5"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="6"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(scale<sp/>&lt;=<sp/>0.0f)</highlight></codeline>
+<codeline lineno="7"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref><sp/>*state<sp/>=<sp/>calloc(1,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(*state));</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structi16u64__to__f32__state__t_1a441383e0a5d06fe750b71a2ea9170b13" kindref="member">iscale</ref><sp/>=<sp/>1.0f<sp/>/<sp/>scale;</highlight></codeline>
+<codeline lineno="12"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="13"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><ref refid="i16u64__to__f32__core_8c_1a6f3a09b38da3a6398a42cbc280586c11" kindref="member">i16u64_to_f32_destroy</ref>(<ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="17"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/>free(state);</highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><ref refid="i16u64__to__f32__core_8c_1a8476851d0db190e3455ea7ad1220cbd4" kindref="member">i16u64_to_f32_reset</ref>(<ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="25"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="i16u64__to__f32__core_8c_1a29251001acdb1d83694e38db6e21db65" kindref="member">i16u64_to_f32_steps</ref>(</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structi16u64__to__f32__state__t" kindref="compound">i16u64_to_f32_state_t</ref><sp/>*state,</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>uint64_t<sp/><sp/><sp/><sp/>*input,</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*output,</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>n)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>#pragma<sp/>omp<sp/>simd<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>output[i]<sp/>=<sp/><ref refid="i16u64__to__f32__core_8h_1a8f7bf4b2e1cf42fedf7733df9173a0b8" kindref="member">i16u64_to_f32_step</ref>(state,<sp/>input[i]);</highlight></codeline>
+<codeline lineno="36"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight></codeline>
+    </programlisting>
+    <location file="native/src/i16u64_to_f32/i16u64_to_f32_core.c"/>
+  </compounddef>
+</doxygen>

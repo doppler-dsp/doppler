@@ -1,0 +1,241 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structresamp__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>resamp_state_t</compoundname>
+    <includes refid="resamp__core_8h" local="no">resamp_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structresamp__state__t_1a1bc8dfd979f510f8bc6d30cff872fa88" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double resamp_state_t::rate</definition>
+        <argsstring></argsstring>
+        <name>rate</name>
+        <qualifiedname>resamp_state_t::rate</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="51" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="51" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1a6c0b36c2ee9480ce1a55af494ebba4b3" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t resamp_state_t::num_phases</definition>
+        <argsstring></argsstring>
+        <name>num_phases</name>
+        <qualifiedname>resamp_state_t::num_phases</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="52" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="52" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ab531069d32c68ab97584111e514c0336" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t resamp_state_t::num_taps</definition>
+        <argsstring></argsstring>
+        <name>num_taps</name>
+        <qualifiedname>resamp_state_t::num_taps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="53" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="53" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1a1af06952245fb064d82cb2ad9ab6d155" prot="public" static="no" mutable="no">
+        <type>unsigned</type>
+        <definition>unsigned resamp_state_t::log2_phases</definition>
+        <argsstring></argsstring>
+        <name>log2_phases</name>
+        <qualifiedname>resamp_state_t::log2_phases</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="54" column="14" bodyfile="native/inc/resamp/resamp_core.h" bodystart="54" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1adf941b4cd8e2c3a2d3252cc81e827be6" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int resamp_state_t::upsample</definition>
+        <argsstring></argsstring>
+        <name>upsample</name>
+        <qualifiedname>resamp_state_t::upsample</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="55" column="9" bodyfile="native/inc/resamp/resamp_core.h" bodystart="55" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ae10b5ee7677ce8f9270a5c55ca266eff" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* resamp_state_t::bank</definition>
+        <argsstring></argsstring>
+        <name>bank</name>
+        <qualifiedname>resamp_state_t::bank</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="57" column="11" bodyfile="native/inc/resamp/resamp_core.h" bodystart="57" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1af6b71c6e3a113af53c7aff62cedd2677" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t resamp_state_t::phase</definition>
+        <argsstring></argsstring>
+        <name>phase</name>
+        <qualifiedname>resamp_state_t::phase</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="60" column="14" bodyfile="native/inc/resamp/resamp_core.h" bodystart="60" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1a6f22d169dc9f71a602aabe03e0fea8d1" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t resamp_state_t::phase_inc</definition>
+        <argsstring></argsstring>
+        <name>phase_inc</name>
+        <qualifiedname>resamp_state_t::phase_inc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="61" column="14" bodyfile="native/inc/resamp/resamp_core.h" bodystart="61" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ad2f7e2e3cf4ad007ab6f8fbd0fc3c857" prot="public" static="no" mutable="no">
+        <type>float _Complex *</type>
+        <definition>float _Complex* resamp_state_t::delay_buf</definition>
+        <argsstring></argsstring>
+        <name>delay_buf</name>
+        <qualifiedname>resamp_state_t::delay_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="64" column="20" bodyfile="native/inc/resamp/resamp_core.h" bodystart="64" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ac453f6477d0fb42636b661c46d5b36a7" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t resamp_state_t::delay_cap</definition>
+        <argsstring></argsstring>
+        <name>delay_cap</name>
+        <qualifiedname>resamp_state_t::delay_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="65" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="65" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1a99047ebae5d27a6410c42813325118c7" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t resamp_state_t::delay_mask</definition>
+        <argsstring></argsstring>
+        <name>delay_mask</name>
+        <qualifiedname>resamp_state_t::delay_mask</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="66" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="66" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ab88557b5d4647e99002d9d3a295b69a5" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t resamp_state_t::delay_head</definition>
+        <argsstring></argsstring>
+        <name>delay_head</name>
+        <qualifiedname>resamp_state_t::delay_head</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="67" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="67" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1ac44473abf7bee249b3b2e2df3742e4d3" prot="public" static="no" mutable="no">
+        <type>float _Complex *</type>
+        <definition>float _Complex* resamp_state_t::decim_iad</definition>
+        <argsstring></argsstring>
+        <name>decim_iad</name>
+        <qualifiedname>resamp_state_t::decim_iad</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="70" column="20" bodyfile="native/inc/resamp/resamp_core.h" bodystart="70" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1a273e1bbd5a53c9fcabdbd8418341d430" prot="public" static="no" mutable="no">
+        <type>float _Complex *</type>
+        <definition>float _Complex* resamp_state_t::decim_tfd</definition>
+        <argsstring></argsstring>
+        <name>decim_tfd</name>
+        <qualifiedname>resamp_state_t::decim_tfd</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="71" column="20" bodyfile="native/inc/resamp/resamp_core.h" bodystart="71" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structresamp__state__t_1abff029a6ce439e97372db85880cf19d9" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double resamp_state_t::ctrl_acc</definition>
+        <argsstring></argsstring>
+        <name>ctrl_acc</name>
+        <qualifiedname>resamp_state_t::ctrl_acc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/resamp/resamp_core.h" line="74" column="12" bodyfile="native/inc/resamp/resamp_core.h" bodystart="74" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/resamp/resamp_core.h" line="49" column="3" bodyfile="native/inc/resamp/resamp_core.h" bodystart="50" bodyend="75"/>
+    <listofallmembers>
+      <member refid="structresamp__state__t_1ae10b5ee7677ce8f9270a5c55ca266eff" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>bank</name></member>
+      <member refid="structresamp__state__t_1abff029a6ce439e97372db85880cf19d9" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>ctrl_acc</name></member>
+      <member refid="structresamp__state__t_1ac44473abf7bee249b3b2e2df3742e4d3" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>decim_iad</name></member>
+      <member refid="structresamp__state__t_1a273e1bbd5a53c9fcabdbd8418341d430" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>decim_tfd</name></member>
+      <member refid="structresamp__state__t_1ad2f7e2e3cf4ad007ab6f8fbd0fc3c857" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>delay_buf</name></member>
+      <member refid="structresamp__state__t_1ac453f6477d0fb42636b661c46d5b36a7" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>delay_cap</name></member>
+      <member refid="structresamp__state__t_1ab88557b5d4647e99002d9d3a295b69a5" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>delay_head</name></member>
+      <member refid="structresamp__state__t_1a99047ebae5d27a6410c42813325118c7" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>delay_mask</name></member>
+      <member refid="structresamp__state__t_1a1af06952245fb064d82cb2ad9ab6d155" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>log2_phases</name></member>
+      <member refid="structresamp__state__t_1a6c0b36c2ee9480ce1a55af494ebba4b3" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>num_phases</name></member>
+      <member refid="structresamp__state__t_1ab531069d32c68ab97584111e514c0336" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>num_taps</name></member>
+      <member refid="structresamp__state__t_1af6b71c6e3a113af53c7aff62cedd2677" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>phase</name></member>
+      <member refid="structresamp__state__t_1a6f22d169dc9f71a602aabe03e0fea8d1" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>phase_inc</name></member>
+      <member refid="structresamp__state__t_1a1bc8dfd979f510f8bc6d30cff872fa88" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>rate</name></member>
+      <member refid="structresamp__state__t_1adf941b4cd8e2c3a2d3252cc81e827be6" prot="public" virt="non-virtual"><scope>resamp_state_t</scope><name>upsample</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

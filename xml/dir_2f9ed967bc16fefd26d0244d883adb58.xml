@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_2f9ed967bc16fefd26d0244d883adb58" kind="dir">
+    <compoundname>native/inc/nco</compoundname>
+    <innerfile refid="nco__core_8h">nco_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/nco/"/>
+  </compounddef>
+</doxygen>

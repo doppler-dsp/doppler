@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structrc__cic__stage__t" kind="struct" language="C++" prot="public">
+    <compoundname>rc_cic_stage_t</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structrc__cic__stage__t_1a58cf55c2860c83b311f674bdf6958006" prot="public" static="no" mutable="no">
+        <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+        <definition>cic_state_t* rc_cic_stage_t::cic</definition>
+        <argsstring></argsstring>
+        <name>cic</name>
+        <qualifiedname>rc_cic_stage_t::cic</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/RateConverter/RateConverter_core.c" line="89" column="15" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="89" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structrc__cic__stage__t_1a2ee03db90fe46486390b049d02bda39f" prot="public" static="no" mutable="no">
+        <type><ref refid="structfir__state__t" kindref="compound">fir_state_t</ref> *</type>
+        <definition>fir_state_t* rc_cic_stage_t::fir</definition>
+        <argsstring></argsstring>
+        <name>fir</name>
+        <qualifiedname>rc_cic_stage_t::fir</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/RateConverter/RateConverter_core.c" line="90" column="15" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="90" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structrc__cic__stage__t_1aae93a12bdc34b9b54af557a43cf3ed04" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int rc_cic_stage_t::R</definition>
+        <argsstring></argsstring>
+        <name>R</name>
+        <qualifiedname>rc_cic_stage_t::R</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/RateConverter/RateConverter_core.c" line="91" column="16" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="91" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structrc__cic__stage__t_1ad8ef3109b1f93236394131d608d6d80a" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int rc_cic_stage_t::compensate</definition>
+        <argsstring></argsstring>
+        <name>compensate</name>
+        <qualifiedname>rc_cic_stage_t::compensate</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/RateConverter/RateConverter_core.c" line="92" column="16" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="92" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="2">
+        <label>cic_state_t</label>
+        <link refid="structcic__state__t"/>
+      </node>
+      <node id="3">
+        <label>fir_state_t</label>
+        <link refid="structfir__state__t"/>
+      </node>
+      <node id="1">
+        <label>rc_cic_stage_t</label>
+        <link refid="structrc__cic__stage__t"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>cic</edgelabel>
+        </childnode>
+        <childnode refid="3" relation="usage">
+          <edgelabel>fir</edgelabel>
+        </childnode>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/RateConverter/RateConverter_core.c" line="87" column="1" bodyfile="native/src/RateConverter/RateConverter_core.c" bodystart="88" bodyend="93"/>
+    <listofallmembers>
+      <member refid="structrc__cic__stage__t_1a58cf55c2860c83b311f674bdf6958006" prot="public" virt="non-virtual"><scope>rc_cic_stage_t</scope><name>cic</name></member>
+      <member refid="structrc__cic__stage__t_1ad8ef3109b1f93236394131d608d6d80a" prot="public" virt="non-virtual"><scope>rc_cic_stage_t</scope><name>compensate</name></member>
+      <member refid="structrc__cic__stage__t_1a2ee03db90fe46486390b049d02bda39f" prot="public" virt="non-virtual"><scope>rc_cic_stage_t</scope><name>fir</name></member>
+      <member refid="structrc__cic__stage__t_1aae93a12bdc34b9b54af557a43cf3ed04" prot="public" virt="non-virtual"><scope>rc_cic_stage_t</scope><name>R</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

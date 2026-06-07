@@ -1,0 +1,563 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="filter__ext__hbdecim__q15_8c" kind="file" language="C++">
+    <compoundname>filter_ext_hbdecim_q15.c</compoundname>
+    <includes refid="hbdecim__q15__core_8h" local="yes">hbdecim_q15/hbdecim_q15_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>hbdecim_q15/hbdecim_q15_core.h</label>
+        <link refid="hbdecim__q15__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/filter/filter_ext_hbdecim_q15.c</label>
+        <link refid="filter__ext__hbdecim__q15_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>stddef.h</label>
+      </node>
+      <node id="4">
+        <label>stdint.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structHBDecimQ15Object" prot="public">HBDecimQ15Object</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="filter__ext__hbdecim__q15_8c_1aace3ef41ba2e3e7b5e48334525cb4670" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef HBDecimQ15_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>HBDecimQ15_getset</name>
+        <initializer>                                     = {
+    { &quot;num_taps&quot;, (getter)HBDecimQ15_getprop_num_taps, NULL, &quot;Returns num_taps as supplied to hbdecim_q15_create.\n&quot;, NULL },
+    { &quot;rate&quot;, (getter)HBDecimQ15_getprop_rate, NULL, &quot;Always returns 0.5.\n&quot;, NULL },
+    { NULL }
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="147" column="20" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="147" bodyend="151"/>
+      </memberdef>
+      <memberdef kind="variable" id="filter__ext__hbdecim__q15_8c_1a8fc0fc6012780f744556f9ca783217a4" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef HBDecimQ15Obj_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>HBDecimQ15Obj_methods</name>
+        <initializer>                                         = {
+
+    {&quot;execute&quot;, (PyCFunction)HBDecimQ15Obj_execute, METH_VARARGS,
+     &quot;execute(x) -&gt; ndarray\n&quot;
+     &quot;\n&quot;
+     &quot;Decimate a block of interleaved IQ int16 samples by 2.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; import numpy as np\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import HBDecimQ15\n&quot;
+     &quot;    &gt;&gt;&gt; obj = HBDecimQ15(np.zeros(1, dtype=np.float32))\n&quot;
+     &quot;    &gt;&gt;&gt; y = obj.execute(np.zeros(4))\n&quot;
+     &quot;    &gt;&gt;&gt; y.dtype\n&quot;
+     &quot;    dtype(&apos;int16&apos;)\n&quot;},
+    {&quot;reset&quot;, (PyCFunction)HBDecimQ15Obj_reset, METH_NOARGS,
+     &quot;reset() -&gt; None\n&quot;
+     &quot;\n&quot;
+     &quot;Zero all delay rings and clear the pending-sample flag.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import HBDecimQ15\n&quot;
+     &quot;    &gt;&gt;&gt; obj = HBDecimQ15(np.zeros(1, dtype=np.float32))\n&quot;
+     &quot;    &gt;&gt;&gt; obj.reset()\n&quot;},
+    {&quot;destroy&quot;,  (PyCFunction)HBDecimQ15Obj_destroy,  METH_NOARGS,
+     &quot;Release resources.&quot;},
+    {&quot;__enter__&quot;, (PyCFunction)HBDecimQ15Obj_enter,   METH_NOARGS,  NULL},
+    {&quot;__exit__&quot;,  (PyCFunction)HBDecimQ15Obj_exit,    METH_VARARGS, NULL},
+    {NULL}
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="181" column="20" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="181" bodyend="207"/>
+      </memberdef>
+      <memberdef kind="variable" id="filter__ext__hbdecim__q15_8c_1acf04675b619fd6a194a3445bbf8a13ba" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject HBDecimQ15ObjType</definition>
+        <argsstring></argsstring>
+        <name>HBDecimQ15ObjType</name>
+        <initializer>                                      = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = &quot;filter.HBDecimQ15&quot;,
+    .tp_basicsize = sizeof(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref>),
+    .tp_dealloc   = (destructor)HBDecimQ15Obj_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = &quot;Allocate and initialise a fixed-point halfband 2:1 decimator.\n&quot;,
+    .tp_methods   = HBDecimQ15Obj_methods,
+    .tp_getset    = HBDecimQ15_getset,
+    .tp_new       = HBDecimQ15Obj_new,
+    .tp_init      = (initproc)HBDecimQ15Obj_init,
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="209" column="21" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="209" bodyend="220"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1ad9e6e600e2575069c873d17dc3cb5eff" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void HBDecimQ15Obj_dealloc</definition>
+        <argsstring>(HBDecimQ15Object *self)</argsstring>
+        <name>HBDecimQ15Obj_dealloc</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="22" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="22" bodyend="28"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1a78594a143611643199f8d6e02ed68e1f" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>HBDecimQ15Obj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="31" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="31" bodyend="37"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1a5a11795ffd7cbf2b5d71400bee4b7709" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int HBDecimQ15Obj_init</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>HBDecimQ15Obj_init</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="40" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="40" bodyend="68"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1a194c1b5eef283672e58076c3453b5fd1" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_execute</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *args)</argsstring>
+        <name>HBDecimQ15Obj_execute</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="78" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="78" bodyend="114"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1ae27f7ca1c690b9b4199478c8c7cedf59" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_reset</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>HBDecimQ15Obj_reset</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="117" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="117" bodyend="125"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1abe23ccf730f27ca8473c654df0bd8084" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15_getprop_num_taps</definition>
+        <argsstring>(HBDecimQ15Object *self, void *Py_UNUSED(closure))</argsstring>
+        <name>HBDecimQ15_getprop_num_taps</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="127" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="127" bodyend="135"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1aef4370b055e66a8c44608e744f9e58ca" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15_getprop_rate</definition>
+        <argsstring>(HBDecimQ15Object *self, void *Py_UNUSED(closure))</argsstring>
+        <name>HBDecimQ15_getprop_rate</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="137" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="137" bodyend="145"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1ad2d9f3c57a68cd8fca83917a120d1773" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_destroy</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>HBDecimQ15Obj_destroy</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="154" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="154" bodyend="161"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1a4484dd948846e3463646dafffcba960a" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_enter</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>HBDecimQ15Obj_enter</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="164" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="164" bodyend="168"/>
+      </memberdef>
+      <memberdef kind="function" id="filter__ext__hbdecim__q15_8c_1ac7b0d1236b0674f7550b46d1095b769e" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * HBDecimQ15Obj_exit</definition>
+        <argsstring>(HBDecimQ15Object *self, PyObject *args)</argsstring>
+        <name>HBDecimQ15Obj_exit</name>
+        <param>
+          <type><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/filter/filter_ext_hbdecim_q15.c" line="171" column="1" bodyfile="native/src/filter/filter_ext_hbdecim_q15.c" bodystart="171" bodyend="179"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>filter_ext_hbdecim_q15.c<sp/>—<sp/>HBDecimQ15<sp/>type<sp/>for<sp/>the<sp/>filter<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>filter_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>filter_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>HBDecimQ15Object<sp/>—<sp/>wraps<sp/>hbdecim_q15_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="hbdecim__q15__core_8h" kindref="compound">hbdecim_q15/hbdecim_q15_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structHBDecimQ15Object" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structhbdecim__q15__state__t" kindref="compound">hbdecim_q15_state_t</ref><sp/>*<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/>int16_t<sp/>*<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>pre-allocated<sp/>output<sp/>for<sp/>execute<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structHBDecimQ15Object_1a4cde58cad79b3d18178b34c423acdd3b" kindref="member">_execute_buf_cap</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>allocated<sp/>capacity<sp/>for<sp/>execute<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}<sp/><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref>;</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal">HBDecimQ15Obj_dealloc(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" kindref="member">hbdecim_q15_destroy</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="28"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="31"><highlight class="normal">HBDecimQ15Obj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self<sp/>=<sp/>(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="37"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal">HBDecimQ15Obj_init(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="41"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;h&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*h_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;h_obj))</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*h_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>h_obj,<sp/>NPY_FLOAT,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!h_arr)<sp/>{<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;<sp/>}</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>h_len<sp/>=<sp/>(size_t)PyArray_SIZE(h_arr);</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref><sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1a7c133a1772791edc0ef2e3bda7ed710d" kindref="member">hbdecim_q15_create</ref>(h_len,<sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)PyArray_DATA(h_arr));</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(h_arr);</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_MemoryError,</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;hbdecim_q15_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1a511611c27694d67a4ae077681c9085e6" kindref="member">hbdecim_q15_execute_max_out</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(_max)<sp/>{</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref><sp/>=<sp/>malloc(_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(int16_t));</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>)<sp/>{<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;<sp/>}</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a4cde58cad79b3d18178b34c423acdd3b" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>_max;</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="68"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight></codeline>
+<codeline lineno="75"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="78"><highlight class="normal">HBDecimQ15Obj_execute(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="79"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*x_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*x_arr<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>&amp;x_obj))</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/>x_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>x_obj,<sp/>NPY_INT16,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!x_arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_need<sp/>=<sp/>(size_t)PyArray_SIZE(x_arr);</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref><sp/>||<sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a4cde58cad79b3d18178b34c423acdd3b" kindref="member">_execute_buf_cap</ref><sp/>&lt;<sp/>_need)<sp/>{</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>_max<sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1a511611c27694d67a4ae077681c9085e6" kindref="member">hbdecim_q15_execute_max_out</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_max<sp/>||<sp/>_max<sp/>&lt;<sp/>_need)<sp/>_max<sp/>=<sp/>_need;</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>int16_t<sp/>*_tmp<sp/>=<sp/>realloc(self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>,<sp/>_max<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(int16_t));</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!_tmp)<sp/>{<sp/>Py_DECREF(x_arr);<sp/>PyErr_NoMemory();<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref><sp/>=<sp/>_tmp;</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a4cde58cad79b3d18178b34c423acdd3b" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>_max;</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in<sp/><sp/>=<sp/>(size_t)PyArray_SIZE(x_arr);<sp/></highlight><highlight class="comment">/*<sp/>int16_t<sp/>count<sp/>=<sp/>2<sp/>*<sp/>complex<sp/>samples<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="hbdecim__q15__core_8h_1aef09249f50a2d6dbede81278d0397140" kindref="member">hbdecim_q15_execute</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>,</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*)PyArray_DATA(x_arr),</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>n_in<sp/>/<sp/>2,<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>complex<sp/>sample<sp/>count<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>,</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a4cde58cad79b3d18178b34c423acdd3b" kindref="member">_execute_buf_cap</ref><sp/>/<sp/>2);<sp/></highlight><highlight class="comment">/*<sp/>complex<sp/>capacity<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)(n_out<sp/>*<sp/>2);<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>back<sp/>to<sp/>int16_t<sp/>element<sp/>count<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*arr<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_INT16,<sp/>self-&gt;<ref refid="structHBDecimQ15Object_1a5fd4abcb3f5a053b76d9f12456eb85c5" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)arr,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(x_arr);</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>arr;</highlight></codeline>
+<codeline lineno="114"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="117"><highlight class="normal">HBDecimQ15Obj_reset(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="118"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="hbdecim__q15__core_8h_1a08d5eddb2230dc02db22c251ad2b8406" kindref="member">hbdecim_q15_reset</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="125"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="126"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="127"><highlight class="normal">HBDecimQ15_getprop_num_taps(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="128"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>&lt;&lt;IMPLEMENT:<sp/>return<sp/>the<sp/>computed<sp/>or<sp/>stored<sp/>value&gt;&gt;<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)<ref refid="hbdecim__q15__core_8h_1a5bbd4c00775ebf5da405fc47f6ced8fb" kindref="member">hbdecim_q15_get_num_taps</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="135"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="137"><highlight class="normal">HBDecimQ15_getprop_rate(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="138"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>&lt;&lt;IMPLEMENT:<sp/>return<sp/>the<sp/>computed<sp/>or<sp/>stored<sp/>value&gt;&gt;<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble(<ref refid="hbdecim__q15__core_8h_1acc053af1be055db87779ef5fe591225e" kindref="member">hbdecim_q15_get_rate</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="145"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"></highlight></codeline>
+<codeline lineno="147"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>HBDecimQ15_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;num_taps&quot;</highlight><highlight class="normal">,<sp/>(getter)HBDecimQ15_getprop_num_taps,<sp/>NULL,<sp/></highlight><highlight class="stringliteral">&quot;Returns<sp/>num_taps<sp/>as<sp/>supplied<sp/>to<sp/>hbdecim_q15_create.\n&quot;</highlight><highlight class="normal">,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;rate&quot;</highlight><highlight class="normal">,<sp/>(getter)HBDecimQ15_getprop_rate,<sp/>NULL,<sp/></highlight><highlight class="stringliteral">&quot;Always<sp/>returns<sp/>0.5.\n&quot;</highlight><highlight class="normal">,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/>NULL<sp/>}</highlight></codeline>
+<codeline lineno="151"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"></highlight></codeline>
+<codeline lineno="153"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="154"><highlight class="normal">HBDecimQ15Obj_destroy(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="155"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="156"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" kindref="member">hbdecim_q15_destroy</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="161"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"></highlight></codeline>
+<codeline lineno="163"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="164"><highlight class="normal">HBDecimQ15Obj_enter(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="165"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="168"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"></highlight></codeline>
+<codeline lineno="170"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="171"><highlight class="normal">HBDecimQ15Obj_exit(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="172"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="173"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="hbdecim__q15__core_8h_1a149ba2e45b3ba0b2fc2f194c183eb5df" kindref="member">hbdecim_q15_destroy</ref>(self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="176"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structHBDecimQ15Object_1aaea00fdb97b96c9e80703cbb66ab4fd7" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="177"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="179"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="180"><highlight class="normal"></highlight></codeline>
+<codeline lineno="181"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>HBDecimQ15Obj_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="182"><highlight class="normal"></highlight></codeline>
+<codeline lineno="183"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;execute&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)HBDecimQ15Obj_execute,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;execute(x)<sp/>-&gt;<sp/>ndarray\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Decimate<sp/>a<sp/>block<sp/>of<sp/>interleaved<sp/>IQ<sp/>int16<sp/>samples<sp/>by<sp/>2.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="187"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="188"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="189"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>HBDecimQ15\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>HBDecimQ15(np.zeros(1,<sp/>dtype=np.float32))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="191"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y<sp/>=<sp/>obj.execute(np.zeros(4))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="192"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y.dtype\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>dtype(&apos;int16&apos;)\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)HBDecimQ15Obj_reset,<sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;reset()<sp/>-&gt;<sp/>None\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Zero<sp/>all<sp/>delay<sp/>rings<sp/>and<sp/>clear<sp/>the<sp/>pending-sample<sp/>flag.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="199"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>HBDecimQ15\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="200"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>HBDecimQ15(np.zeros(1,<sp/>dtype=np.float32))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj.reset()\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)HBDecimQ15Obj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)HBDecimQ15Obj_enter,<sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)HBDecimQ15Obj_exit,<sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="207"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"></highlight></codeline>
+<codeline lineno="209"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>HBDecimQ15ObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="210"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="211"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;filter.HBDecimQ15&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structHBDecimQ15Object" kindref="compound">HBDecimQ15Object</ref>),</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)HBDecimQ15Obj_dealloc,</highlight></codeline>
+<codeline lineno="214"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;Allocate<sp/>and<sp/>initialise<sp/>a<sp/>fixed-point<sp/>halfband<sp/>2:1<sp/>decimator.\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="216"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>HBDecimQ15Obj_methods,</highlight></codeline>
+<codeline lineno="217"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>HBDecimQ15_getset,</highlight></codeline>
+<codeline lineno="218"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>HBDecimQ15Obj_new,</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)HBDecimQ15Obj_init,</highlight></codeline>
+<codeline lineno="220"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/filter/filter_ext_hbdecim_q15.c"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_93499f550a23db63d09661ee916a0767" kind="dir">
+    <compoundname>native/inc/hbdecim_q15</compoundname>
+    <innerfile refid="hbdecim__q15__core_8h">hbdecim_q15_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/hbdecim_q15/"/>
+  </compounddef>
+</doxygen>

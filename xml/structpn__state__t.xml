@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structpn__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>pn_state_t</compoundname>
+    <includes refid="pn__core_8h" local="no">pn_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structpn__state__t_1ab56e67e8fc0e9d9e831c2f79c6261396" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t pn_state_t::poly</definition>
+        <argsstring></argsstring>
+        <name>poly</name>
+        <qualifiedname>pn_state_t::poly</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/pn/pn_core.h" line="29" column="14" bodyfile="native/inc/pn/pn_core.h" bodystart="29" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structpn__state__t_1aaf0dadc7095ab0c1c645f922c0db387d" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t pn_state_t::seed</definition>
+        <argsstring></argsstring>
+        <name>seed</name>
+        <qualifiedname>pn_state_t::seed</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/pn/pn_core.h" line="30" column="14" bodyfile="native/inc/pn/pn_core.h" bodystart="30" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structpn__state__t_1a5d037ec6bb83a4271f935e5a905a22ed" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t pn_state_t::reg</definition>
+        <argsstring></argsstring>
+        <name>reg</name>
+        <qualifiedname>pn_state_t::reg</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/pn/pn_core.h" line="31" column="14" bodyfile="native/inc/pn/pn_core.h" bodystart="31" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structpn__state__t_1ada5b9872a2e0d3f655d58573fe15eac9" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t pn_state_t::mask</definition>
+        <argsstring></argsstring>
+        <name>mask</name>
+        <qualifiedname>pn_state_t::mask</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/pn/pn_core.h" line="32" column="14" bodyfile="native/inc/pn/pn_core.h" bodystart="32" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>PN state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="pn__core_8h_1abf5ed283a929bdc67f4ff824d7362909" kindref="member">pn_create()</ref>. </para>
+    </detaileddescription>
+    <location file="native/inc/pn/pn_core.h" line="28" column="1" bodyfile="native/inc/pn/pn_core.h" bodystart="28" bodyend="33"/>
+    <listofallmembers>
+      <member refid="structpn__state__t_1ada5b9872a2e0d3f655d58573fe15eac9" prot="public" virt="non-virtual"><scope>pn_state_t</scope><name>mask</name></member>
+      <member refid="structpn__state__t_1ab56e67e8fc0e9d9e831c2f79c6261396" prot="public" virt="non-virtual"><scope>pn_state_t</scope><name>poly</name></member>
+      <member refid="structpn__state__t_1a5d037ec6bb83a4271f935e5a905a22ed" prot="public" virt="non-virtual"><scope>pn_state_t</scope><name>reg</name></member>
+      <member refid="structpn__state__t_1aaf0dadc7095ab0c1c645f922c0db387d" prot="public" virt="non-virtual"><scope>pn_state_t</scope><name>seed</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

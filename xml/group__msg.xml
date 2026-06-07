@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__msg" kind="group">
+    <compoundname>msg</compoundname>
+    <title>Message handle</title>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="group__msg_1gadcf8ff0947617fc05ef2b6650d3a2ea2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void *</type>
+        <definition>void * dp_msg_data</definition>
+        <argsstring>(dp_msg_t *msg)</argsstring>
+        <name>dp_msg_data</name>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> *</type>
+          <declname>msg</declname>
+        </param>
+        <briefdescription>
+<para>Return a pointer to the raw sample data inside the message. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Message handle returned by a recv function. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Pointer to contiguous sample data (valid until dp_msg_free). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="204" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="36" bodyend="39" declfile="native/inc/stream/stream.h" declline="204" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="group__msg_1ga252514e085fc5e8aa544e55eb6139902" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t dp_msg_size</definition>
+        <argsstring>(dp_msg_t *msg)</argsstring>
+        <name>dp_msg_size</name>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> *</type>
+          <declname>msg</declname>
+        </param>
+        <briefdescription>
+<para>Return the byte size of the sample data. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Message handle. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Total data bytes. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="211" column="10" bodyfile="native/src/stream/stream_core.c" bodystart="42" bodyend="45" declfile="native/inc/stream/stream.h" declline="211" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="group__msg_1ga50bda9a97cd503fa4f393e874f7e0935" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t dp_msg_num_samples</definition>
+        <argsstring>(dp_msg_t *msg)</argsstring>
+        <name>dp_msg_num_samples</name>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> *</type>
+          <declname>msg</declname>
+        </param>
+        <briefdescription>
+<para>Return the number of complex samples in the message. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Message handle. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of samples (header num_samples). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="218" column="10" bodyfile="native/src/stream/stream_core.c" bodystart="48" bodyend="51" declfile="native/inc/stream/stream.h" declline="218" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="group__msg_1ga0ddbb2d54ec4a655ae644bd84cee0524" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="group__types_1gad6afa986413f0be406048edae7827a4d" kindref="member">dp_sample_type_t</ref></type>
+        <definition>dp_sample_type_t dp_msg_sample_type</definition>
+        <argsstring>(dp_msg_t *msg)</argsstring>
+        <name>dp_msg_sample_type</name>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> *</type>
+          <declname>msg</declname>
+        </param>
+        <briefdescription>
+<para>Return the sample type of the message. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Message handle. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Sample type enum value. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="225" column="20" bodyfile="native/src/stream/stream_core.c" bodystart="54" bodyend="57" declfile="native/inc/stream/stream.h" declline="225" declcolumn="20"/>
+      </memberdef>
+      <memberdef kind="function" id="group__msg_1ga7d73a179484647b4b86f6faaf349cf47" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void dp_msg_free</definition>
+        <argsstring>(dp_msg_t *msg)</argsstring>
+        <name>dp_msg_free</name>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> *</type>
+          <declname>msg</declname>
+        </param>
+        <briefdescription>
+<para>Free a message handle and release the underlying ZMQ buffer. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Message handle (may be NULL). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="231" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="60" bodyend="66" declfile="native/inc/stream/stream.h" declline="231" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

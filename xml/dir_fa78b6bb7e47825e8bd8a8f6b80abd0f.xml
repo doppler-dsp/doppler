@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_fa78b6bb7e47825e8bd8a8f6b80abd0f" kind="dir">
+    <compoundname>native/src/cic</compoundname>
+    <innerfile refid="cic__core_8c">cic_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/cic/"/>
+  </compounddef>
+</doxygen>

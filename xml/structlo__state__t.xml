@@ -1,0 +1,63 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structlo__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>lo_state_t</compoundname>
+    <includes refid="lo__core_8h" local="no">lo_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t lo_state_t::phase</definition>
+        <argsstring></argsstring>
+        <name>phase</name>
+        <qualifiedname>lo_state_t::phase</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/lo/lo_core.h" line="45" column="14" bodyfile="native/inc/lo/lo_core.h" bodystart="45" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t lo_state_t::phase_inc</definition>
+        <argsstring></argsstring>
+        <name>phase_inc</name>
+        <qualifiedname>lo_state_t::phase_inc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/lo/lo_core.h" line="46" column="14" bodyfile="native/inc/lo/lo_core.h" bodystart="46" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structlo__state__t_1aae83794e1e415ce3a13238a86bab23dc" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double lo_state_t::norm_freq</definition>
+        <argsstring></argsstring>
+        <name>norm_freq</name>
+        <qualifiedname>lo_state_t::norm_freq</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/lo/lo_core.h" line="47" column="12" bodyfile="native/inc/lo/lo_core.h" bodystart="47" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>LO state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="lo__core_8h_1a29d475585a62a2f1dd3e83217d727d80" kindref="member">lo_create()</ref>. The shared 65536-entry LUT is initialised lazily on the first <ref refid="lo__core_8h_1a29d475585a62a2f1dd3e83217d727d80" kindref="member">lo_create()</ref> call and never freed. </para>
+    </detaileddescription>
+    <location file="native/inc/lo/lo_core.h" line="43" column="3" bodyfile="native/inc/lo/lo_core.h" bodystart="44" bodyend="48"/>
+    <listofallmembers>
+      <member refid="structlo__state__t_1aae83794e1e415ce3a13238a86bab23dc" prot="public" virt="non-virtual"><scope>lo_state_t</scope><name>norm_freq</name></member>
+      <member refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" prot="public" virt="non-virtual"><scope>lo_state_t</scope><name>phase</name></member>
+      <member refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" prot="public" virt="non-virtual"><scope>lo_state_t</scope><name>phase_inc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,165 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structsynth__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>synth_state_t</compoundname>
+    <includes refid="synth__core_8h" local="no">synth_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int synth_state_t::wtype</definition>
+        <argsstring></argsstring>
+        <name>wtype</name>
+        <qualifiedname>synth_state_t::wtype</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="70" column="9" bodyfile="native/inc/synth/synth_core.h" bodystart="70" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1a790723318d96ce8ff4bcfeb59acf0689" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int synth_state_t::nsps</definition>
+        <argsstring></argsstring>
+        <name>nsps</name>
+        <qualifiedname>synth_state_t::nsps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="71" column="9" bodyfile="native/inc/synth/synth_core.h" bodystart="71" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int synth_state_t::sym_pos</definition>
+        <argsstring></argsstring>
+        <name>sym_pos</name>
+        <qualifiedname>synth_state_t::sym_pos</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="72" column="9" bodyfile="native/inc/synth/synth_core.h" bodystart="72" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float synth_state_t::cur_re</definition>
+        <argsstring></argsstring>
+        <name>cur_re</name>
+        <qualifiedname>synth_state_t::cur_re</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="73" column="11" bodyfile="native/inc/synth/synth_core.h" bodystart="73" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float synth_state_t::cur_im</definition>
+        <argsstring></argsstring>
+        <name>cur_im</name>
+        <qualifiedname>synth_state_t::cur_im</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="74" column="11" bodyfile="native/inc/synth/synth_core.h" bodystart="74" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" prot="public" static="no" mutable="no">
+        <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+        <definition>lo_state_t* synth_state_t::lo</definition>
+        <argsstring></argsstring>
+        <name>lo</name>
+        <qualifiedname>synth_state_t::lo</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="75" column="17" bodyfile="native/inc/synth/synth_core.h" bodystart="75" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" prot="public" static="no" mutable="no">
+        <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+        <definition>awgn_state_t* synth_state_t::awgn</definition>
+        <argsstring></argsstring>
+        <name>awgn</name>
+        <qualifiedname>synth_state_t::awgn</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="76" column="19" bodyfile="native/inc/synth/synth_core.h" bodystart="76" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" prot="public" static="no" mutable="no">
+        <type><ref refid="structpn__state__t" kindref="compound">pn_state_t</ref> *</type>
+        <definition>pn_state_t* synth_state_t::pn</definition>
+        <argsstring></argsstring>
+        <name>pn</name>
+        <qualifiedname>synth_state_t::pn</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="77" column="17" bodyfile="native/inc/synth/synth_core.h" bodystart="77" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Synth state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="synth__core_8h_1ab624764cabe47da500b6ddd16abe96c4" kindref="member">synth_create()</ref>. </para>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="3">
+        <label>awgn_state_t</label>
+        <link refid="structawgn__state__t"/>
+      </node>
+      <node id="2">
+        <label>lo_state_t</label>
+        <link refid="structlo__state__t"/>
+      </node>
+      <node id="4">
+        <label>pn_state_t</label>
+        <link refid="structpn__state__t"/>
+      </node>
+      <node id="1">
+        <label>synth_state_t</label>
+        <link refid="structsynth__state__t"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>lo</edgelabel>
+        </childnode>
+        <childnode refid="3" relation="usage">
+          <edgelabel>awgn</edgelabel>
+        </childnode>
+        <childnode refid="4" relation="usage">
+          <edgelabel>pn</edgelabel>
+        </childnode>
+      </node>
+    </collaborationgraph>
+    <location file="native/inc/synth/synth_core.h" line="69" column="1" bodyfile="native/inc/synth/synth_core.h" bodystart="69" bodyend="78"/>
+    <listofallmembers>
+      <member refid="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>awgn</name></member>
+      <member refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>cur_im</name></member>
+      <member refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>cur_re</name></member>
+      <member refid="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>lo</name></member>
+      <member refid="structsynth__state__t_1a790723318d96ce8ff4bcfeb59acf0689" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>nsps</name></member>
+      <member refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>pn</name></member>
+      <member refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>sym_pos</name></member>
+      <member refid="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" prot="public" virt="non-virtual"><scope>synth_state_t</scope><name>wtype</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

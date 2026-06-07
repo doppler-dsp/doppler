@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_21b83d9b64bd3294b1dce68eeff74d3d" kind="dir">
+    <compoundname>native/src/resample</compoundname>
+    <innerfile refid="ciccompmf_8c">ciccompmf.c</innerfile>
+    <innerfile refid="hbdecim__r2c__core_8c">hbdecim_r2c_core.c</innerfile>
+    <innerfile refid="kaiser__beta_8c">kaiser_beta.c</innerfile>
+    <innerfile refid="kaiser__num__taps_8c">kaiser_num_taps.c</innerfile>
+    <innerfile refid="resample__core_8c">resample_core.c</innerfile>
+    <innerfile refid="resample__ext__cic_8c">resample_ext_cic.c</innerfile>
+    <innerfile refid="resample__ext__extra_8c">resample_ext_extra.c</innerfile>
+    <innerfile refid="resample__ext__HalfbandDecimator_8c">resample_ext_HalfbandDecimator.c</innerfile>
+    <innerfile refid="resample__ext__RateConverter_8c">resample_ext_RateConverter.c</innerfile>
+    <innerfile refid="resample__ext__Resampler_8c">resample_ext_Resampler.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/resample/"/>
+  </compounddef>
+</doxygen>

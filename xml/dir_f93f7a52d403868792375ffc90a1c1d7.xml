@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_f93f7a52d403868792375ffc90a1c1d7" kind="dir">
+    <compoundname>native/inc/detector</compoundname>
+    <innerfile refid="det__private_8h">det_private.h</innerfile>
+    <innerfile refid="detector__core_8h">detector_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/detector/"/>
+  </compounddef>
+</doxygen>

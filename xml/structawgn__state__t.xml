@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structawgn__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>awgn_state_t</compoundname>
+    <includes refid="awgn__core_8h" local="no">awgn_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structawgn__state__t_1ac62c349dddfe0d5a5646f45b800c35b8" prot="public" static="no" mutable="no">
+        <type>uint64_t</type>
+        <definition>uint64_t awgn_state_t::s[4]</definition>
+        <argsstring>[4]</argsstring>
+        <name>s</name>
+        <qualifiedname>awgn_state_t::s</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="45" column="14" bodyfile="native/inc/awgn/awgn_core.h" bodystart="45" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structawgn__state__t_1a807fc90643d9f63f3ae1c6be18058a3b" prot="public" static="no" mutable="no">
+        <type>uint64_t</type>
+        <definition>uint64_t awgn_state_t::seed</definition>
+        <argsstring></argsstring>
+        <name>seed</name>
+        <qualifiedname>awgn_state_t::seed</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="46" column="14" bodyfile="native/inc/awgn/awgn_core.h" bodystart="46" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structawgn__state__t_1ab2c91579eef735ff556fd7f5a6906e8a" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float awgn_state_t::amplitude</definition>
+        <argsstring></argsstring>
+        <name>amplitude</name>
+        <qualifiedname>awgn_state_t::amplitude</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="47" column="14" bodyfile="native/inc/awgn/awgn_core.h" bodystart="47" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structawgn__state__t_1a7ab7707f4989ebd64d8f486e873fc349" prot="public" static="no" mutable="no">
+        <type>uint64_t</type>
+        <definition>uint64_t awgn_state_t::vs[4][8]</definition>
+        <argsstring>[4][8]</argsstring>
+        <name>vs</name>
+        <qualifiedname>awgn_state_t::vs</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="50" column="14" bodyfile="native/inc/awgn/awgn_core.h" bodystart="50" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/awgn/awgn_core.h" line="43" column="3" bodyfile="native/inc/awgn/awgn_core.h" bodystart="44" bodyend="51"/>
+    <listofallmembers>
+      <member refid="structawgn__state__t_1ab2c91579eef735ff556fd7f5a6906e8a" prot="public" virt="non-virtual"><scope>awgn_state_t</scope><name>amplitude</name></member>
+      <member refid="structawgn__state__t_1ac62c349dddfe0d5a5646f45b800c35b8" prot="public" virt="non-virtual"><scope>awgn_state_t</scope><name>s</name></member>
+      <member refid="structawgn__state__t_1a807fc90643d9f63f3ae1c6be18058a3b" prot="public" virt="non-virtual"><scope>awgn_state_t</scope><name>seed</name></member>
+      <member refid="structawgn__state__t_1a7ab7707f4989ebd64d8f486e873fc349" prot="public" virt="non-virtual"><scope>awgn_state_t</scope><name>vs</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

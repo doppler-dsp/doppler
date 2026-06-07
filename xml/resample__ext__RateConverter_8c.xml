@@ -1,0 +1,703 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="resample__ext__RateConverter_8c" kind="file" language="C++">
+    <compoundname>resample_ext_RateConverter.c</compoundname>
+    <includes refid="RateConverter__core_8h" local="yes">RateConverter/RateConverter_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>RateConverter/RateConverter_core.h</label>
+        <link refid="RateConverter__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/resample/resample_ext_RateConverter.c</label>
+        <link refid="resample__ext__RateConverter_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structRateConverterObject" prot="public">RateConverterObject</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="resample__ext__RateConverter_8c_1a37bb924e88063305656fb616128b1fc6" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef RateConverter_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>RateConverter_methods</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="241" column="20" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="241" bodyend="274"/>
+      </memberdef>
+      <memberdef kind="variable" id="resample__ext__RateConverter_8c_1a57aee63bfca2c0dca0277f9fbda64701" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef RateConverter_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>RateConverter_getset</name>
+        <initializer>                                        = {
+    {&quot;rate&quot;,
+     (getter)RateConverterObj_get_rate,
+     (setter)RateConverterObj_set_rate,
+     &quot;Output-to-input sample rate ratio.&quot;, NULL},
+    {&quot;stages&quot;,
+     (getter)RateConverterObj_get_stages,
+     NULL,
+     &quot;List of stage labels (e.g. [&apos;CIC(8)&apos;, &apos;Resampler(0.8)&apos;]).&quot;,
+     NULL},
+    {NULL}
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="276" column="20" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="276" bodyend="287"/>
+      </memberdef>
+      <memberdef kind="variable" id="resample__ext__RateConverter_8c_1a67ae43f3b49f54927a6bbdf1ac76002f" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject RateConverterObjType</definition>
+        <argsstring></argsstring>
+        <name>RateConverterObjType</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="289" column="21" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="289" bodyend="327"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1aa85019d95b6556435cce87124651ad89" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void RateConverterObj_dealloc</definition>
+        <argsstring>(RateConverterObject *self)</argsstring>
+        <name>RateConverterObj_dealloc</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="22" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="22" bodyend="28"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1a80f3f2cfd5afbf6ad60e10be185d3545" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>RateConverterObj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="31" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="31" bodyend="41"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1ad1e74c16273df9e149846ed4de5d3a12" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int RateConverterObj_init</definition>
+        <argsstring>(RateConverterObject *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>RateConverterObj_init</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="44" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="44" bodyend="66"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1a6676a852d2a5a840cd0af14cfb3dfdec" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_execute</definition>
+        <argsstring>(RateConverterObject *self, PyObject *args)</argsstring>
+        <name>RateConverterObj_execute</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="74" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="74" bodyend="126"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1a17623779037b7675b7e18a497c246d05" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_reset</definition>
+        <argsstring>(RateConverterObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>RateConverterObj_reset</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="132" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="132" bodyend="141"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1ab1595f009769005c69ce18f1e26cfb58" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_destroy</definition>
+        <argsstring>(RateConverterObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>RateConverterObj_destroy</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="147" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="147" bodyend="158"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1ac6129da3ea768a4cc56d70d2fbee878c" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_enter</definition>
+        <argsstring>(RateConverterObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>RateConverterObj_enter</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="161" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="161" bodyend="166"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1a065ff4c1c418265276499ccfceec223e" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_exit</definition>
+        <argsstring>(RateConverterObject *self, PyObject *args)</argsstring>
+        <name>RateConverterObj_exit</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="169" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="169" bodyend="180"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1ab1a21d545f112cb1491b904013d1ddbb" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_get_rate</definition>
+        <argsstring>(RateConverterObject *self, void *Py_UNUSED(c))</argsstring>
+        <name>RateConverterObj_get_rate</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>c</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="187" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="187" bodyend="194"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1aa28833ac28f24331eb37e49b70ea923e" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int RateConverterObj_set_rate</definition>
+        <argsstring>(RateConverterObject *self, PyObject *value, void *Py_UNUSED(c))</argsstring>
+        <name>RateConverterObj_set_rate</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>value</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>c</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="197" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="197" bodyend="214"/>
+      </memberdef>
+      <memberdef kind="function" id="resample__ext__RateConverter_8c_1a9a695a0bf7d6a3e0a2eb5751ad3b2bb6" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * RateConverterObj_get_stages</definition>
+        <argsstring>(RateConverterObject *self, void *Py_UNUSED(c))</argsstring>
+        <name>RateConverterObj_get_stages</name>
+        <param>
+          <type><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>c</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/resample/resample_ext_RateConverter.c" line="217" column="1" bodyfile="native/src/resample/resample_ext_RateConverter.c" bodystart="217" bodyend="235"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>resample_ext_RateConverter.c<sp/>—<sp/>RateConverter<sp/>type<sp/>for<sp/>the<sp/>resample<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>resample_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>resample_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>RateConverterObject<sp/>—<sp/>wraps<sp/>RateConverter_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="RateConverter__core_8h" kindref="compound">RateConverter/RateConverter_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structRateConverterObject" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref><sp/>*<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>;</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref>;</highlight></codeline>
+<codeline lineno="19"><highlight class="normal">}<sp/><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref>;</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal">RateConverterObj_dealloc(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="28"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="31"><highlight class="normal">RateConverterObj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self<sp/>=</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)<sp/>{</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="41"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal">RateConverterObj_init(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/>PyObject<sp/>*args,</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="46"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;rate&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;compensate&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>1.0;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><sp/><sp/><sp/>compensate<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"></highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;|di&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;rate,<sp/>&amp;compensate))</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref><sp/>=<sp/><ref refid="RateConverter__core_8h_1a9154eac053beb50b80ab756e6cfbc8a2" kindref="member">RateConverter_create</ref>(rate,<sp/>compensate);</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_ValueError,</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;RateConverter_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/>(rate<sp/>must<sp/>be<sp/>&gt;<sp/>0)&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="66"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"></highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>execute(x)<sp/>-&gt;<sp/>ndarray[complex64]<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Output<sp/>length<sp/>varies<sp/>with<sp/>rate;<sp/>buffer<sp/>is<sp/>grown<sp/>on<sp/>demand.<sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">RateConverterObj_execute(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="75"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*x_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>&amp;x_obj))</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*x_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>x_obj,<sp/>NPY_COMPLEX64,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!x_arr)</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"></highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in<sp/>=<sp/>(size_t)PyArray_SIZE(x_arr);</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Compute<sp/>required<sp/>output<sp/>capacity<sp/>for<sp/>this<sp/>block<sp/>size.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate<sp/><sp/>=<sp/><ref refid="RateConverter__core_8h_1ab702e069916ff841415eecee8fac5ba5" kindref="member">RateConverter_get_rate</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>ratio<sp/>=<sp/>(rate<sp/>&gt;<sp/>1.0)<sp/>?<sp/>rate<sp/>:<sp/>1.0;</highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>need<sp/><sp/>=<sp/>(size_t)(n_in<sp/>*<sp/>ratio)<sp/>+<sp/>4;</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"></highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(need<sp/>&gt;<sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref><sp/>=<sp/>malloc(need<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex));</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>Py_DECREF(x_arr);</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_NoMemory();</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>need;</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"></highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="RateConverter__core_8h_1a57d364000a284592c75b389c170908da" kindref="member">RateConverter_execute</ref>(</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>,</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*)PyArray_DATA(x_arr),</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>n_in,</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>,</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref>);</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)n_out;</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*out<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_COMPLEX64,<sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!out)<sp/>{<sp/>Py_DECREF(x_arr);<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"></highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Keep<sp/>self<sp/>alive<sp/>as<sp/>long<sp/>as<sp/>the<sp/>returned<sp/>array<sp/>holds<sp/>a<sp/>view<sp/>into</highlight></codeline>
+<codeline lineno="121"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>_execute_buf<sp/>—<sp/>prevents<sp/>use-after-free<sp/>if<sp/>the<sp/>caller<sp/>drops<sp/>self.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)out,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(x_arr);</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>out;</highlight></codeline>
+<codeline lineno="126"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="127"><highlight class="normal"></highlight></codeline>
+<codeline lineno="128"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>reset()<sp/>-&gt;<sp/>None<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="130"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="131"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="132"><highlight class="normal">RateConverterObj_reset(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="134"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1ab9cbccb3807e66b2f2644b27c53728fd" kindref="member">RateConverter_reset</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="141"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"></highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="144"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>destroy()<sp/>-&gt;<sp/>None<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="146"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="147"><highlight class="normal">RateConverterObj_destroy(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="149"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="155"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="156"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="158"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"></highlight></codeline>
+<codeline lineno="160"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="161"><highlight class="normal">RateConverterObj_enter(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="163"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="164"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="165"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="166"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"></highlight></codeline>
+<codeline lineno="168"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="169"><highlight class="normal">RateConverterObj_exit(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="170"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="171"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="173"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1adc80b72ce71f7bc83cf1252389832a14" kindref="member">RateConverter_destroy</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="176"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="177"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="179"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="180"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"></highlight></codeline>
+<codeline lineno="182"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="183"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Properties:<sp/>rate<sp/>(read/write),<sp/>stages<sp/>(read-only)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="184"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="185"><highlight class="normal"></highlight></codeline>
+<codeline lineno="186"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="187"><highlight class="normal">RateConverterObj_get_rate(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(c))</highlight></codeline>
+<codeline lineno="188"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="189"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="191"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="192"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble(<ref refid="RateConverter__core_8h_1ab702e069916ff841415eecee8fac5ba5" kindref="member">RateConverter_get_rate</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>));</highlight></codeline>
+<codeline lineno="194"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="195"><highlight class="normal"></highlight></codeline>
+<codeline lineno="196"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="197"><highlight class="normal">RateConverterObj_set_rate(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/>PyObject<sp/>*value,</highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(c))</highlight></codeline>
+<codeline lineno="199"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="200"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>v<sp/>=<sp/>PyFloat_AsDouble(value);</highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(PyErr_Occurred())</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1a1282367b67d8c070e520adbaa378e441" kindref="member">RateConverter_set_rate</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>,<sp/>v);</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"></highlight></codeline>
+<codeline lineno="209"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Invalidate<sp/>execute<sp/>buffer<sp/>—<sp/>rate<sp/>change<sp/>means<sp/>different<sp/>output<sp/>size.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="210"><highlight class="normal"><sp/><sp/><sp/><sp/>free(self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref>);</highlight></codeline>
+<codeline lineno="211"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1a9efaa75070c820eddde3299b036ef127" kindref="member">_execute_buf</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structRateConverterObject_1ac867e436156a95b2eadea7458c82dc66" kindref="member">_execute_buf_cap</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="214"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"></highlight></codeline>
+<codeline lineno="216"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="217"><highlight class="normal">RateConverterObj_get_stages(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(c))</highlight></codeline>
+<codeline lineno="218"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="221"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="222"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="223"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>n<sp/>=<sp/>self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>-&gt;<ref refid="structRateConverter__state__t_1a33d54ea8e7460b8b004898b34e7d0027" kindref="member">n_stages</ref>;</highlight></codeline>
+<codeline lineno="224"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*list<sp/>=<sp/>PyList_New(n);</highlight></codeline>
+<codeline lineno="225"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!list)</highlight></codeline>
+<codeline lineno="226"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="227"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)<sp/>{</highlight></codeline>
+<codeline lineno="228"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>buf[64];</highlight></codeline>
+<codeline lineno="229"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="RateConverter__core_8h_1a45e99e3355bed1d119d18b05e65c07f8" kindref="member">RateConverter_stage_label</ref>(self-&gt;<ref refid="structRateConverterObject_1ad5e6f24a5c8da2d576713d6d016a9a60" kindref="member">handle</ref>,<sp/>i,<sp/>buf,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(buf));</highlight></codeline>
+<codeline lineno="230"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*s<sp/>=<sp/>PyUnicode_FromString(buf);</highlight></codeline>
+<codeline lineno="231"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!s)<sp/>{<sp/>Py_DECREF(list);<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="232"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyList_SET_ITEM(list,<sp/>i,<sp/>s);</highlight></codeline>
+<codeline lineno="233"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="234"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>list;</highlight></codeline>
+<codeline lineno="235"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="236"><highlight class="normal"></highlight></codeline>
+<codeline lineno="237"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="238"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Method<sp/>and<sp/>property<sp/>tables<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="239"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>--------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="240"><highlight class="normal"></highlight></codeline>
+<codeline lineno="241"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>RateConverter_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="242"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;execute&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/>(PyCFunction)RateConverterObj_execute,<sp/><sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="243"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;execute(x)<sp/>-&gt;<sp/>ndarray\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="244"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="245"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Convert<sp/>a<sp/>block<sp/>of<sp/>complex64<sp/>samples.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="246"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="247"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Parameters\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="248"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;----------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="249"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;x<sp/>:<sp/>array_like,<sp/>complex64\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="250"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Input<sp/>samples.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="251"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="252"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Returns\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="253"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;-------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="254"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;ndarray,<sp/>complex64\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="255"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Output<sp/>samples.<sp/><sp/>Length<sp/>is<sp/>approximately<sp/>``len(x)<sp/>*<sp/>rate``.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="256"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="257"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Examples\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="258"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;--------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="259"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="260"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler.resample<sp/>import<sp/>RateConverter\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="261"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>rc<sp/>=<sp/>RateConverter(0.5)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="262"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>y<sp/>=<sp/>rc.execute(np.ones(256,<sp/>dtype=np.complex64))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="263"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>len(y)<sp/>==<sp/>128\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="264"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>True\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="265"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/><sp/><sp/>(PyCFunction)RateConverterObj_reset,<sp/><sp/><sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="266"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;reset()<sp/>-&gt;<sp/>None\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="267"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="268"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Zero<sp/>all<sp/>sub-stage<sp/>filter<sp/>memories<sp/>without<sp/>changing<sp/>the<sp/>rate.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="269"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/>(PyCFunction)RateConverterObj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="270"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources<sp/>early.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="271"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)RateConverterObj_enter,<sp/><sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="272"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)RateConverterObj_exit,<sp/><sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="273"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="274"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="275"><highlight class="normal"></highlight></codeline>
+<codeline lineno="276"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>RateConverter_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="277"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;rate&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="278"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/>(getter)RateConverterObj_get_rate,</highlight></codeline>
+<codeline lineno="279"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/>(setter)RateConverterObj_set_rate,</highlight></codeline>
+<codeline lineno="280"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Output-to-input<sp/>sample<sp/>rate<sp/>ratio.&quot;</highlight><highlight class="normal">,<sp/>NULL},</highlight></codeline>
+<codeline lineno="281"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;stages&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="282"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/>(getter)RateConverterObj_get_stages,</highlight></codeline>
+<codeline lineno="283"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/>NULL,</highlight></codeline>
+<codeline lineno="284"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;List<sp/>of<sp/>stage<sp/>labels<sp/>(e.g.<sp/>[&apos;CIC(8)&apos;,<sp/>&apos;Resampler(0.8)&apos;]).&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="285"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="286"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="287"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="288"><highlight class="normal"></highlight></codeline>
+<codeline lineno="289"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>RateConverterObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="290"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="291"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;resample.RateConverter&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="292"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structRateConverterObject" kindref="compound">RateConverterObject</ref>),</highlight></codeline>
+<codeline lineno="293"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)RateConverterObj_dealloc,</highlight></codeline>
+<codeline lineno="294"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="295"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=</highlight></codeline>
+<codeline lineno="296"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;RateConverter(rate=1.0,<sp/>compensate=0)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="297"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="298"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Optimal-speed<sp/>rate<sp/>conversion<sp/>cascade.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="299"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="300"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Selects<sp/>the<sp/>cheapest<sp/>cascade<sp/>of<sp/>CIC,<sp/>HalfbandDecimator,<sp/>and/or\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="301"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;polyphase<sp/>Resampler<sp/>stages<sp/>at<sp/>creation<sp/>time.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="302"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="303"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Parameters\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="304"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;----------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="305"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;rate<sp/>:<sp/>float\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="306"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Output-to-input<sp/>sample<sp/>rate<sp/>ratio.<sp/><sp/>Any<sp/>positive<sp/>float.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="307"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;compensate<sp/>:<sp/>int\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="308"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Non-zero<sp/>to<sp/>append<sp/>a<sp/>CIC<sp/>passband-droop<sp/>compensating<sp/>FIR.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="309"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="310"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Attributes\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="311"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;----------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="312"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;rate<sp/>:<sp/>float\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="313"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Current<sp/>rate<sp/>ratio<sp/>(writable;<sp/>rebuilds<sp/>cascade<sp/>on<sp/>set).\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="314"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;stages<sp/>:<sp/>list<sp/>of<sp/>str\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="315"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>Human-readable<sp/>stage<sp/>labels.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="316"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="317"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Examples\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="318"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;--------\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="319"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler.resample<sp/>import<sp/>RateConverter\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="320"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>rc<sp/>=<sp/>RateConverter(0.125)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="321"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>rc.stages\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="322"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>[&apos;CIC(8)&apos;]\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="323"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>RateConverter_methods,</highlight></codeline>
+<codeline lineno="324"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>RateConverter_getset,</highlight></codeline>
+<codeline lineno="325"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>RateConverterObj_new,</highlight></codeline>
+<codeline lineno="326"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)RateConverterObj_init,</highlight></codeline>
+<codeline lineno="327"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/resample/resample_ext_RateConverter.c"/>
+  </compounddef>
+</doxygen>

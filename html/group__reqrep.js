@@ -1,0 +1,27 @@
+var group__reqrep =
+[
+    [ "dp_req_create", "group__reqrep.html#gad99be310b343cab9a929996a1edecd0f", null ],
+    [ "dp_rep_create", "group__reqrep.html#gae9b6398737a78eb3f22e763404a78ba8", null ],
+    [ "dp_req_send", "group__reqrep.html#ga871145aa2484d8f301c427aa60ee3d65", null ],
+    [ "dp_req_recv", "group__reqrep.html#gaa021a7d52a132248e28978966dfe7c30", null ],
+    [ "dp_rep_recv", "group__reqrep.html#gadb2b3be1f12855718cb5b25bc73b2f9b", null ],
+    [ "dp_rep_send", "group__reqrep.html#gad4f4d2b5d592dd213ef8510d478c170d", null ],
+    [ "dp_req_send_ci32", "group__reqrep.html#gaaeba6bc7f9e94ce171314e6a850add46", null ],
+    [ "dp_req_send_cf64", "group__reqrep.html#ga681bebb52624b57b68bd29c14c097c38", null ],
+    [ "dp_req_send_cf128", "group__reqrep.html#ga1362b7eb26b965f21a558a5fa4f5ba0c", null ],
+    [ "dp_req_send_ci8", "group__reqrep.html#ga3e5bcd139a13f9b8de122628be0ad4c4", null ],
+    [ "dp_req_send_ci16", "group__reqrep.html#ga25ada47199148ba5fe267642861135c7", null ],
+    [ "dp_req_send_cf32", "group__reqrep.html#ga50b1b3571a5b1bdc0a8890c7653b923d", null ],
+    [ "dp_rep_send_ci32", "group__reqrep.html#ga607e551c57b0000ee9d6b64c3bd0a1e3", null ],
+    [ "dp_rep_send_cf64", "group__reqrep.html#gafca4c436141e4c18c2cbcb1057860c7d", null ],
+    [ "dp_rep_send_cf128", "group__reqrep.html#ga8ba328b027b7399f44384ccac5c83c63", null ],
+    [ "dp_rep_send_ci8", "group__reqrep.html#ga0cb16ea4a00e6816e9667e03a4509515", null ],
+    [ "dp_rep_send_ci16", "group__reqrep.html#ga8ef43b955da6602683dd38dcc00d073d", null ],
+    [ "dp_rep_send_cf32", "group__reqrep.html#ga9ca579f58ddb6baa584a572e276bbb46", null ],
+    [ "dp_req_recv_signal", "group__reqrep.html#ga7c2dd41702658bddf1e8c4a8ba31a708", null ],
+    [ "dp_rep_recv_signal", "group__reqrep.html#gaefe726a19173b2a1fbe4d3b6c3d5076c", null ],
+    [ "dp_req_set_timeout", "group__reqrep.html#ga281a37cdec5f376c1f47b0fb5f01c8c8", null ],
+    [ "dp_rep_set_timeout", "group__reqrep.html#gab86e945ea7a79121159f3af8161211fe", null ],
+    [ "dp_req_destroy", "group__reqrep.html#gace1552bfbe5cca9f4a342c500c99f983", null ],
+    [ "dp_rep_destroy", "group__reqrep.html#ga1801fbdb81dfa5cf38ac3b4190ff7aaf", null ]
+];

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_af45fd7415a1bcf5c13e14c3d63a83bf" kind="dir">
+    <compoundname>native/inc/acc_q8</compoundname>
+    <innerfile refid="acc__q8__core_8h">acc_q8_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/acc_q8/"/>
+  </compounddef>
+</doxygen>

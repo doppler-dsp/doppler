@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_e3bbeba8c021d4d74db794db08bafd77" kind="dir">
+    <compoundname>native/inc/lo</compoundname>
+    <innerfile refid="lo__core_8h">lo_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/lo/"/>
+  </compounddef>
+</doxygen>

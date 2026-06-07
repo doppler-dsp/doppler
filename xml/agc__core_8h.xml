@@ -1,0 +1,601 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="agc__core_8h" kind="file" language="C++">
+    <compoundname>agc_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includes refid="util__core_8h" local="yes">util/util_core.h</includes>
+    <includes local="no">math.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="agc__core_8c" local="yes">native/src/agc/agc_core.c</includedby>
+    <includedby refid="agc__ext__agc_8c" local="yes">native/src/agc/agc_ext_agc.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/agc/agc_core.h</label>
+        <link refid="agc__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>util/util_core.h</label>
+        <link refid="util__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>math.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/agc/agc_core.h</label>
+        <link refid="agc__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/src/agc/agc_core.c</label>
+        <link refid="agc__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/agc/agc_ext_agc.c</label>
+        <link refid="agc__ext__agc_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structagc__state__t" prot="public">agc_state_t</innerclass>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="agc__core_8h_1a4d35c14b79daded0c3f8ca0d1a86b3bf" prot="public" static="no">
+        <name>AGC_POWER_FLOOR</name>
+        <initializer>1e-30</initializer>
+        <briefdescription>
+<para>Power floor for the detector, in linear units. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Substituted for <computeroutput>p_avg</computeroutput> inside <computeroutput>log10()</computeroutput> so that a long run of silence yields a large-but-finite measured level (about -300 dB) instead of <computeroutput>-INF</computeroutput> / <computeroutput>NaN</computeroutput>. Also keeps the log10() argument a normal (non-denormal) double. Never reached in normal operation — <computeroutput>p_avg</computeroutput> is seeded with the reference power at create/reset. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="100" column="9" bodyfile="native/inc/agc/agc_core.h" bodystart="100" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="agc__core_8h_1a6eb43c9f6e34317efa4822557c3b2784" prot="public" static="no">
+        <name>AGC_DECIM_DEFAULT</name>
+        <initializer>8</initializer>
+        <briefdescription>
+<para>Default envelope decimation factor (<ref refid="structagc__state__t_1a177e6cc575492e1c9adc386ce47d959c" kindref="member">agc_state_t::decim</ref>). </para>
+        </briefdescription>
+        <detaileddescription>
+<para><ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps()</ref> runs the detector + loop filter once per chunk of <computeroutput>decim</computeroutput> samples. <computeroutput>decim</computeroutput> must stay small relative to the loop time constant ~1/(4*loop_bw); useful values are 8, 16 and 32. 8 keeps the gain trajectory well inside the default loop bandwidth and is one AVX-width vector for the in-chunk gain-apply. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="111" column="9" bodyfile="native/inc/agc/agc_core.h" bodystart="111" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="agc__core_8h_1ae5bd5684715d6b37b7358ee7551bdb34" prot="public" static="no">
+        <name>AGC_CLIP_DB_DEFAULT</name>
+        <initializer>120.0</initializer>
+        <briefdescription>
+<para>Default output clip level (<ref refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" kindref="member">agc_state_t::clip_db</ref>), in dB. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>120 dB is a per-component amplitude limit of 10^6 — far above any normally scaled signal, so output clipping is effectively disabled until <computeroutput>clip_db</computeroutput> is lowered. See <ref refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" kindref="member">agc_state_t::clip_db</ref>. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="120" column="9" bodyfile="native/inc/agc/agc_core.h" bodystart="120" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="agc__core_8h_1a5daa82271a19483a1e0b5f567a8dbdbf" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> double</type>
+        <definition>JM_FORCEINLINE double agc_exp10_</definition>
+        <argsstring>(double v)</argsstring>
+        <name>agc_exp10_</name>
+        <param>
+          <type>double</type>
+          <declname>v</declname>
+        </param>
+        <briefdescription>
+<para>Fast 10^v approximation (~1e-3 relative). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Routes through 2^z = 2^floor(z) * 2^frac with z = v*log2(10): the integer part becomes a raw IEEE-754 exponent and the fractional part a 4th-order Taylor series. Far cheaper than libm pow(); the AGC loop tolerates orders of magnitude more error than this. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="131" column="3" bodyfile="native/inc/agc/agc_core.h" bodystart="131" bodyend="150"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1a0f2021374a579526c3e8e38bc2c37062" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> double</type>
+        <definition>JM_FORCEINLINE double agc_log10_</definition>
+        <argsstring>(double p)</argsstring>
+        <name>agc_log10_</name>
+        <param>
+          <type>double</type>
+          <declname>p</declname>
+        </param>
+        <briefdescription>
+<para>Fast log10(p) approximation for p &gt; 0 (~1e-3 absolute). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Splits p = m * 2^e via the IEEE-754 fields, takes log2(m) from the atanh series with t = (m-1)/(m+1) in &amp;#91;0, 1/3&amp;#93; (two terms), and scales log2 by log10(2). Used only on the decimated control path, so even the divide is amortised across a decimation chunk. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="161" column="3" bodyfile="native/inc/agc/agc_core.h" bodystart="161" bodyend="173"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1a513369f303365f4d356d9eb7ae80cf3b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+        <definition>agc_state_t * agc_create</definition>
+        <argsstring>(double ref_db, double loop_bw, double alpha)</argsstring>
+        <name>agc_create</name>
+        <param>
+          <type>double</type>
+          <declname>ref_db</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>loop_bw</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>alpha</declname>
+        </param>
+        <briefdescription>
+<para>Create an AGC instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ref_db</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Target output power in dB (e.g. 0.0). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>loop_bw</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Loop noise bandwidth, normalised (cycles/sample); ~1/(4*loop_bw) samples to settle. Smaller is slower and smoother. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>alpha</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Power-detector EMA coefficient in (0, 1]. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para><computeroutput>gain_db</computeroutput> starts at 0 dB (unity gain); <computeroutput>p_avg</computeroutput> is seeded with the reference power 10^(ref_db/10) so the loop starts settled. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="agc__core_8h_1a27364c1a1ed4be8879c624ba34e7537b" kindref="member">agc_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="208" column="13" bodyfile="native/src/agc/agc_core.c" bodystart="5" bodyend="22" declfile="native/inc/agc/agc_core.h" declline="208" declcolumn="13"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1a27364c1a1ed4be8879c624ba34e7537b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void agc_destroy</definition>
+        <argsstring>(agc_state_t *state)</argsstring>
+        <name>agc_destroy</name>
+        <param>
+          <type><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy an AGC instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="214" column="6" bodyfile="native/src/agc/agc_core.c" bodystart="25" bodyend="28" declfile="native/inc/agc/agc_core.h" declline="214" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1af4c684ef712280870e95e56c79336918" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void agc_reset</definition>
+        <argsstring>(agc_state_t *state)</argsstring>
+        <name>agc_reset</name>
+        <param>
+          <type><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset the AGC to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Zeroes <computeroutput>gain_db</computeroutput> and re-seeds <computeroutput>p_avg</computeroutput> from the current <computeroutput>ref_db</computeroutput>. Configuration (<computeroutput>ref_db</computeroutput>, <computeroutput>loop_bw</computeroutput>, <computeroutput>alpha</computeroutput>, <computeroutput>decim</computeroutput>, <computeroutput>clip_db</computeroutput>) is unchanged. <parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="224" column="6" bodyfile="native/src/agc/agc_core.c" bodystart="31" bodyend="36" declfile="native/inc/agc/agc_core.h" declline="224" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> <ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref> float complex</type>
+        <definition>JM_FORCEINLINE JM_HOT float complex agc_step</definition>
+        <argsstring>(agc_state_t *state, float complex x)</argsstring>
+        <name>agc_step</name>
+        <param>
+          <type><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float complex</type>
+          <declname>x</declname>
+        </param>
+        <briefdescription>
+<para>Process one input sample (exact per-sample control loop). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Applies the current gain, updates the power detector from the gained output, advances the loop filter by one step, then square-clips the returned sample to <computeroutput>clip_db</computeroutput>. This is the exact reference path; <ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps()</ref> is the faster decimated equivalent.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL; mutated (gain_db, p_avg). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>x</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input sample (float complex). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Output sample = x * 10^(gain_db/20), square-clipped to <computeroutput>clip_db</computeroutput>. The clip does not feed the detector. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="240" column="3" bodyfile="native/inc/agc/agc_core.h" bodystart="240" bodyend="267"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1a906068923f5c66df90391261e1102905" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void agc_steps</definition>
+        <argsstring>(agc_state_t *state, const float complex *input, float complex *output, size_t n)</argsstring>
+        <name>agc_steps</name>
+        <param>
+          <type><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>input</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>output</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Process a block of samples (decimated control loop). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Processes <computeroutput>input</computeroutput> in chunks of <computeroutput>state-&gt;decim</computeroutput> samples. The gain the loop commands is linearly interpolated across each chunk (a first-order hold — no inter-chunk staircase), and the detector and loop filter run once per chunk on the chunk&apos;s mean power. Not bit-identical to a per-sample <ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step()</ref> loop — see the file header — but equivalent at convergence. Each output sample is then square-clipped to <computeroutput>clip_db</computeroutput>; the clip is applied after the power sum, so it does not feed the detector.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Component state (mutated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>input</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>output</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (length &gt;= n; may alias input in-place). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="286" column="8" bodyfile="native/src/agc/agc_core.c" bodystart="45" bodyend="119" declfile="native/inc/agc/agc_core.h" declline="286" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="agc__core_8h_1a6ab67c16e5a6006f1b08335b31c3cab5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double agc_get_applied_gain_db</definition>
+        <argsstring>(const agc_state_t *state)</argsstring>
+        <name>agc_get_applied_gain_db</name>
+        <param>
+          <type>const <ref refid="structagc__state__t" kindref="compound">agc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Gain actually applied to the most recent sample, in dB. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns <computeroutput>20*log10</computeroutput> of the internal linear gain <computeroutput>g_last</computeroutput> — the gain the signal last <emphasis>saw</emphasis>. This is distinct from <computeroutput>gain_db</computeroutput>, which is the gain the loop currently <emphasis>commands</emphasis>:</para>
+<para><itemizedlist>
+<listitem><para>after <ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step()</ref> the two differ, because the loop filter has already advanced past the gain it just applied;</para>
+</listitem><listitem><para>within an <ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps()</ref> block the applied gain is a first-order-hold ramp, and this returns the ramp&apos;s endpoint (the last sample&apos;s gain).</para>
+</listitem></itemizedlist>
+</para>
+<para>Use it for telemetry when the AGC is a stage in a larger chain and a downstream consumer needs to know what gain was used, not what the loop last asked for.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Applied gain in dB; 0.0 dB (unity) at create / reset. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="308" column="8" bodyfile="native/src/agc/agc_core.c" bodystart="39" bodyend="42" declfile="native/inc/agc/agc_core.h" declline="308" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Log-domain automatic gain control (AGC). </para>
+    </briefdescription>
+    <detaileddescription>
+<para>A feedback AGC that drives the average power of its output toward a fixed reference level. Three stages run per sample:</para>
+<para><orderedlist>
+<listitem><para>Gain y = x * 10^(gain_db / 20)</para>
+</listitem><listitem><para>Detector p_avg += alpha * (|y|^2 - p_avg)</para>
+</listitem><listitem><para>Loop filter gain_db += (4*loop_bw) * (ref_db - 10*log10(p_avg))</para>
+</listitem></orderedlist>
+</para>
+<para><simplesect kind="par"><title>Loop bandwidth</title><para>The loop filter is a single integrator whose step size is <computeroutput>4*loop_bw</computeroutput>. <computeroutput>loop_bw</computeroutput> is the loop&apos;s normalised noise-equivalent bandwidth in cycles/sample: a 1st-order loop with integrator step <computeroutput>mu</computeroutput> has a noise bandwidth of <computeroutput>mu/4</computeroutput>, so the knob is expressed as a bandwidth rather than a bare loop gain. Smaller <computeroutput>loop_bw</computeroutput> is slower and smoother.</para>
+</simplesect>
+<simplesect kind="par"><title>Linear-in-dB</title><para>The control variable <computeroutput>gain_db</computeroutput> and the detector output are both in decibels, so the closed loop is a linear 1st-order recursion in the dB domain. Because output power (dB) equals input power (dB) plus <computeroutput>gain_db</computeroutput>, the loop reduces to</para>
+</simplesect>
+<programlisting><codeline><highlight class="normal">gain_db[n+1]<sp/>=<sp/>(1<sp/>-<sp/>4*loop_bw)<sp/>*<sp/>gain_db[n]</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>+<sp/>(4*loop_bw)<sp/>*<sp/>(ref_db<sp/>-<sp/>px_db[n])</highlight></codeline>
+</programlisting></para>
+<para>which converges to <computeroutput>gain_db</computeroutput> = ref_db - px_db with a time constant of roughly <computeroutput>1/</computeroutput>(4*loop_bw) samples — independent of the absolute signal level. A 60 dB-loud signal and a 0 dB-quiet signal settle in the same number of samples; only a level-dependent loop would not.</para>
+<para><simplesect kind="par"><title>Power detector</title><para><computeroutput>p_avg</computeroutput> is an exponential moving average (1-pole leaky integrator) of the instantaneous output power <computeroutput>|y|^2</computeroutput>. <computeroutput>alpha</computeroutput> in (0, 1] sets the detector bandwidth: small <computeroutput>alpha</computeroutput> smooths hard but reacts slowly.</para>
+</simplesect>
+<simplesect kind="par"><title>Topology</title><para>Feedback — power is measured AFTER the gain. The gain applied to sample <computeroutput>n</computeroutput> is computed from samples up to <computeroutput>n-1</computeroutput>, so the per-sample loop is inherently sequential.</para>
+</simplesect>
+<simplesect kind="par"><title>Block processing</title><para><ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step()</ref> advances the control loop every sample. <ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps()</ref> decimates it: the detector + loop filter run once per chunk of <computeroutput>decim</computeroutput> samples (default <computeroutput>AGC_DECIM_DEFAULT</computeroutput>; typically 8, 16 or 32). The gain the loop commands is linearly interpolated across the chunk — a first-order hold, so the applied gain has no inter-chunk staircase — while the gain-apply and the power sum vectorise. This is sound because the detector average already band-limits the envelope, but it makes <ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps()</ref> not bit-identical to a per-sample <ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step()</ref> loop, only equivalent at convergence. The per-block detector and loop coefficients are rescaled from <computeroutput>alpha</computeroutput> / <computeroutput>loop_bw</computeroutput> internally, so those keep their per-sample meaning; keep <computeroutput>loop_bw</computeroutput> well below <computeroutput>1/</computeroutput>(4*decim) for loop stability.</para>
+</simplesect>
+<simplesect kind="par"><title>Output clipping</title><para>Each output sample is square-clipped: the real and imaginary parts are independently limited to <computeroutput>+/-10^</computeroutput>(clip_db/20) — a square region in the IQ plane, not a circular magnitude limit. The clip is the last operation applied to the output and does NOT feed the power detector: the loop always measures the true, unclipped power, so clipping never disturbs convergence. <computeroutput>clip_db</computeroutput> defaults to <computeroutput>AGC_CLIP_DB_DEFAULT</computeroutput>, which is high enough to be effectively off.</para>
+</simplesect>
+Lifecycle: <computeroutput><ref refid="agc__core_8h_1a513369f303365f4d356d9eb7ae80cf3b" kindref="member">agc_create</ref> -&gt; (step / steps / reset)* -&gt; <ref refid="agc__core_8h_1a27364c1a1ed4be8879c624ba34e7537b" kindref="member">agc_destroy</ref></computeroutput></para>
+<para><programlisting><codeline><highlight class="comment">//<sp/>Hold<sp/>output<sp/>power<sp/>at<sp/>0<sp/>dB;<sp/>slow<sp/>loop,<sp/>moderate<sp/>detector<sp/>smoothing.</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*agc<sp/>=<sp/><ref refid="agc__core_8h_1a513369f303365f4d356d9eb7ae80cf3b" kindref="member">agc_create</ref>(0.0,<sp/>0.0025,<sp/>0.05);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>y<sp/>=<sp/><ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step</ref>(agc,<sp/>4.0f<sp/>+<sp/>0.0f<sp/>*<sp/>I);<sp/><sp/></highlight><highlight class="comment">//<sp/>loud<sp/>input</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>...<sp/>feed<sp/>more<sp/>samples;<sp/>gain_db<sp/>converges<sp/>so<sp/>10*log10(|y|^2)<sp/>-&gt;<sp/>0<sp/>dB</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="agc__core_8h_1a27364c1a1ed4be8879c624ba34e7537b" kindref="member">agc_destroy</ref>(agc);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>AGC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>AGC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"></highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="util__core_8h" kindref="compound">util/util_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="87"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="88"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight></codeline>
+<codeline lineno="100" refid="agc__core_8h_1a4d35c14b79daded0c3f8ca0d1a86b3bf" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>AGC_POWER_FLOOR<sp/>1e-30</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight></codeline>
+<codeline lineno="111" refid="agc__core_8h_1a6eb43c9f6e34317efa4822557c3b2784" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>AGC_DECIM_DEFAULT<sp/>8</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight></codeline>
+<codeline lineno="120" refid="agc__core_8h_1ae5bd5684715d6b37b7358ee7551bdb34" refkind="member"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>AGC_CLIP_DB_DEFAULT<sp/>120.0</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="121"><highlight class="normal"></highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="131" refid="agc__core_8h_1a5daa82271a19483a1e0b5f567a8dbdbf" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="agc__core_8h_1a5daa82271a19483a1e0b5f567a8dbdbf" kindref="member">agc_exp10_</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>v)</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>z<sp/>=<sp/>v<sp/>*<sp/>3.321928094887362;<sp/></highlight><highlight class="comment">/*<sp/>z<sp/>=<sp/>v<sp/>*<sp/>log2(10)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>zi<sp/>=<sp/>floor<sp/>(z);</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>u<sp/>=<sp/>(z<sp/>-<sp/>zi)<sp/>*<sp/>0.6931471805599453;<sp/></highlight><highlight class="comment">/*<sp/>frac(z)<sp/>*<sp/>ln2,<sp/>[0,<sp/>ln2)<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>2^frac<sp/>=<sp/>e^u<sp/>via<sp/>4th-order<sp/>Taylor:<sp/>1<sp/>+<sp/>u<sp/>+<sp/>u^2/2<sp/>+<sp/>u^3/6<sp/>+<sp/>u^4/24.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>f<sp/>=<sp/>1.0</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>+<sp/>u</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>(1.0</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>+<sp/>u</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>(0.5</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>+<sp/>u</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>(0.16666666666666666</highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>+<sp/>u<sp/>*<sp/>0.041666666666666664)));</highlight></codeline>
+<codeline lineno="145"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>2^floor(z):<sp/>assemble<sp/>the<sp/>exponent<sp/>field<sp/>directly.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/>bits<sp/>=<sp/>(uint64_t)((int64_t)zi<sp/>+<sp/>1023)<sp/>&lt;&lt;<sp/>52;</highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pow2i;</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/>memcpy<sp/>(&amp;pow2i,<sp/>&amp;bits,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>pow2i);</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>pow2i<sp/>*<sp/>f;</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/>}</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"></highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="161" refid="agc__core_8h_1a0f2021374a579526c3e8e38bc2c37062" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="agc__core_8h_1a0f2021374a579526c3e8e38bc2c37062" kindref="member">agc_log10_</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>p)</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="163"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/>bits;</highlight></codeline>
+<codeline lineno="164"><highlight class="normal"><sp/><sp/><sp/><sp/>memcpy<sp/>(&amp;bits,<sp/>&amp;p,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>bits);</highlight></codeline>
+<codeline lineno="165"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>e<sp/>=<sp/>(int)((bits<sp/>&gt;&gt;<sp/>52)<sp/>&amp;<sp/>0x7FF)<sp/>-<sp/>1023;<sp/></highlight><highlight class="comment">/*<sp/>p<sp/>=<sp/>m<sp/>*<sp/>2^e<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/>bits<sp/>=<sp/>(bits<sp/>&amp;<sp/>0x000FFFFFFFFFFFFFULL)<sp/>|<sp/>0x3FF0000000000000ULL;</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>m;</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/>memcpy<sp/>(&amp;m,<sp/>&amp;bits,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>m);<sp/></highlight><highlight class="comment">/*<sp/>m<sp/>in<sp/>[1,<sp/>2)<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>log2(m)<sp/>=<sp/>(2/ln2)<sp/>*<sp/>(t<sp/>+<sp/>t^3/3<sp/>+<sp/>...),<sp/>t<sp/>=<sp/>(m-1)/(m+1)<sp/>in<sp/>[0,1/3].<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>t<sp/>=<sp/>(m<sp/>-<sp/>1.0)<sp/>/<sp/>(m<sp/>+<sp/>1.0);</highlight></codeline>
+<codeline lineno="171"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>log2m<sp/>=<sp/>2.885390081777927<sp/>*<sp/>t<sp/>*<sp/>(1.0<sp/>+<sp/>t<sp/>*<sp/>t<sp/>*<sp/>0.3333333333333333);</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>((</highlight><highlight class="keywordtype">double</highlight><highlight class="normal">)e<sp/>+<sp/>log2m)<sp/>*<sp/>0.30102999566398120;<sp/></highlight><highlight class="comment">/*<sp/>*<sp/>log10(2)<sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="173"><highlight class="normal"><sp/><sp/>}</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight></codeline>
+<codeline lineno="183" refid="structagc__state__t" refkind="compound"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="185" refid="structagc__state__t_1a156998f9a87cdfebb2c7970dd7c64e57" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a156998f9a87cdfebb2c7970dd7c64e57" kindref="member">ref_db</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>target<sp/>output<sp/>power,<sp/>dB<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="186" refid="structagc__state__t_1a7f263d32cf2a6c55f9169fbcf2b7cf7e" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a7f263d32cf2a6c55f9169fbcf2b7cf7e" kindref="member">loop_bw</ref>;<sp/></highlight><highlight class="comment">/*<sp/>loop<sp/>noise<sp/>bandwidth,<sp/>cycles/sample<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="187" refid="structagc__state__t_1a435b8246af38bce17de814c5fa780ac7" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a435b8246af38bce17de814c5fa780ac7" kindref="member">alpha</ref>;<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>power-detector<sp/>EMA<sp/>coefficient,<sp/>(0,<sp/>1]<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="188" refid="structagc__state__t_1a177e6cc575492e1c9adc386ce47d959c" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a177e6cc575492e1c9adc386ce47d959c" kindref="member">decim</ref>;<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>agc_steps()<sp/>chunk<sp/>length<sp/>(8<sp/>/<sp/>16<sp/>/<sp/>32)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="189" refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" kindref="member">clip_db</ref>;<sp/></highlight><highlight class="comment">/*<sp/>output<sp/>square-clip<sp/>level,<sp/>dB<sp/>(per<sp/>component)<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="190" refid="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" kindref="member">gain_db</ref>;<sp/></highlight><highlight class="comment">/*<sp/>loop-filter<sp/>integrator:<sp/>current<sp/>gain,<sp/>dB<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="191" refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" kindref="member">p_avg</ref>;<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>power-detector<sp/>EMA:<sp/>averaged<sp/>output<sp/>power,<sp/>lin<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="192" refid="structagc__state__t_1aced28677339ad12d7db0707ad5338c12" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t_1aced28677339ad12d7db0707ad5338c12" kindref="member">g_last</ref>;<sp/><sp/></highlight><highlight class="comment">/*<sp/>last<sp/>linear<sp/>gain<sp/>applied<sp/>—<sp/>ramp<sp/>continuity<sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/>}<sp/><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref>;</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"></highlight></codeline>
+<codeline lineno="208"><highlight class="normal"><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*<ref refid="agc__core_8h_1a513369f303365f4d356d9eb7ae80cf3b" kindref="member">agc_create</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>ref_db,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>loop_bw,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>alpha);</highlight></codeline>
+<codeline lineno="209"><highlight class="normal"></highlight></codeline>
+<codeline lineno="214"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="agc__core_8h_1a27364c1a1ed4be8879c624ba34e7537b" kindref="member">agc_destroy</ref>(<ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"></highlight></codeline>
+<codeline lineno="224"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="agc__core_8h_1af4c684ef712280870e95e56c79336918" kindref="member">agc_reset</ref>(<ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="225"><highlight class="normal"></highlight></codeline>
+<codeline lineno="239"><highlight class="normal"><sp/><sp/><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/><ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex</highlight></codeline>
+<codeline lineno="240" refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="agc__core_8h_1ad30aeb13a493f5b22c9e599ad8ed1b88" kindref="member">agc_step</ref><sp/>(<ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>x)</highlight></codeline>
+<codeline lineno="241"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="242"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Stage<sp/>1:<sp/>linear-in-dB<sp/>gain.<sp/><sp/>gain_db<sp/>is<sp/>voltage<sp/>dB,<sp/>so<sp/>the<sp/>linear</highlight></codeline>
+<codeline lineno="243"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>multiplier<sp/>is<sp/>10^(gain_db/20);<sp/>0.05<sp/>==<sp/>1/20.<sp/><sp/>Record<sp/>it<sp/>so<sp/>a</highlight></codeline>
+<codeline lineno="244"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>following<sp/>agc_steps()<sp/>call<sp/>ramps<sp/>continuously<sp/>from<sp/>here.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="245"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>g<sp/>=<sp/><ref refid="agc__core_8h_1a5daa82271a19483a1e0b5f567a8dbdbf" kindref="member">agc_exp10_</ref><sp/>(state-&gt;<ref refid="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" kindref="member">gain_db</ref><sp/>*<sp/>0.05);</highlight></codeline>
+<codeline lineno="246"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structagc__state__t_1aced28677339ad12d7db0707ad5338c12" kindref="member">g_last</ref><sp/>=<sp/>g;</highlight></codeline>
+<codeline lineno="247"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>y<sp/>=<sp/>x<sp/>*<sp/>(float)g;</highlight></codeline>
+<codeline lineno="248"><highlight class="normal"></highlight></codeline>
+<codeline lineno="249"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Stage<sp/>2:<sp/>power<sp/>detector.<sp/><sp/>Instantaneous<sp/>output<sp/>power<sp/>folded<sp/>into</highlight></codeline>
+<codeline lineno="250"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>the<sp/>EMA<sp/>p_avg<sp/>+=<sp/>alpha<sp/>*<sp/>(p<sp/>-<sp/>p_avg).<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="251"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>yr<sp/>=<sp/>(double)crealf<sp/>(y);</highlight></codeline>
+<codeline lineno="252"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>yi<sp/>=<sp/>(double)cimagf<sp/>(y);</highlight></codeline>
+<codeline lineno="253"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>p<sp/>=<sp/>yr<sp/>*<sp/>yr<sp/>+<sp/>yi<sp/>*<sp/>yi;</highlight></codeline>
+<codeline lineno="254"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" kindref="member">p_avg</ref><sp/>+=<sp/>state-&gt;<ref refid="structagc__state__t_1a435b8246af38bce17de814c5fa780ac7" kindref="member">alpha</ref><sp/>*<sp/>(p<sp/>-<sp/>state-&gt;<ref refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" kindref="member">p_avg</ref>);</highlight></codeline>
+<codeline lineno="255"><highlight class="normal"></highlight></codeline>
+<codeline lineno="256"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Stage<sp/>3:<sp/>1st-order<sp/>loop<sp/>filter.<sp/><sp/>Integrate<sp/>the<sp/>dB<sp/>error<sp/>with<sp/>step</highlight></codeline>
+<codeline lineno="257"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>size<sp/>4*loop_bw<sp/>(loop_bw<sp/>is<sp/>the<sp/>loop<sp/>noise<sp/>bandwidth);<sp/>the<sp/>floor</highlight></codeline>
+<codeline lineno="258"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>keeps<sp/>log10<sp/>finite<sp/>if<sp/>p_avg<sp/>has<sp/>decayed<sp/>to<sp/>~0<sp/>during<sp/>silence.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="259"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>meas_db<sp/>=<sp/>10.0<sp/>*<sp/><ref refid="agc__core_8h_1a0f2021374a579526c3e8e38bc2c37062" kindref="member">agc_log10_</ref><sp/>(state-&gt;<ref refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" kindref="member">p_avg</ref><sp/>+<sp/><ref refid="agc__core_8h_1a4d35c14b79daded0c3f8ca0d1a86b3bf" kindref="member">AGC_POWER_FLOOR</ref>);</highlight></codeline>
+<codeline lineno="260"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" kindref="member">gain_db</ref><sp/>+=<sp/>4.0<sp/>*<sp/>state-&gt;<ref refid="structagc__state__t_1a7f263d32cf2a6c55f9169fbcf2b7cf7e" kindref="member">loop_bw</ref><sp/>*<sp/>(state-&gt;<ref refid="structagc__state__t_1a156998f9a87cdfebb2c7970dd7c64e57" kindref="member">ref_db</ref><sp/>-<sp/>meas_db);</highlight></codeline>
+<codeline lineno="261"><highlight class="normal"></highlight></codeline>
+<codeline lineno="262"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Output<sp/>clip<sp/>—<sp/>square<sp/>clip<sp/>(I<sp/>and<sp/>Q<sp/>independent)<sp/>to<sp/>the</highlight></codeline>
+<codeline lineno="263"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>programmable<sp/>level,<sp/>via<sp/>the<sp/>shared<sp/>util<sp/>primitive.<sp/><sp/>Applied<sp/>to</highlight></codeline>
+<codeline lineno="264"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>the<sp/>returned<sp/>sample<sp/>only;<sp/>the<sp/>detector<sp/>above<sp/>used<sp/>the<sp/>unclipped</highlight></codeline>
+<codeline lineno="265"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>y,<sp/>so<sp/>the<sp/>loop<sp/>is<sp/>unaffected.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="266"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>square_clip<sp/>(y,<sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)<ref refid="agc__core_8h_1a5daa82271a19483a1e0b5f567a8dbdbf" kindref="member">agc_exp10_</ref><sp/>(state-&gt;<ref refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" kindref="member">clip_db</ref><sp/>*<sp/>0.05));</highlight></codeline>
+<codeline lineno="267"><highlight class="normal"><sp/><sp/>}</highlight></codeline>
+<codeline lineno="268"><highlight class="normal"></highlight></codeline>
+<codeline lineno="286"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="agc__core_8h_1a906068923f5c66df90391261e1102905" kindref="member">agc_steps</ref><sp/>(<ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*input,</highlight></codeline>
+<codeline lineno="287"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*output,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n);</highlight></codeline>
+<codeline lineno="288"><highlight class="normal"></highlight></codeline>
+<codeline lineno="308"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="agc__core_8h_1a6ab67c16e5a6006f1b08335b31c3cab5" kindref="member">agc_get_applied_gain_db</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structagc__state__t" kindref="compound">agc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="309"><highlight class="normal"></highlight></codeline>
+<codeline lineno="310"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="311"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="312"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="313"><highlight class="normal"></highlight></codeline>
+<codeline lineno="314"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>AGC_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/agc/agc_core.h"/>
+  </compounddef>
+</doxygen>

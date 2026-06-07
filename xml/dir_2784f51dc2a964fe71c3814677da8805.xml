@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_2784f51dc2a964fe71c3814677da8805" kind="dir">
+    <compoundname>native/inc/wfmgen</compoundname>
+    <innerfile refid="wfm__compose_8h">wfm_compose.h</innerfile>
+    <innerfile refid="wfm__dsp_8h">wfm_dsp.h</innerfile>
+    <innerfile refid="wfm__sink_8h">wfm_sink.h</innerfile>
+    <innerfile refid="wfm__writer_8h">wfm_writer.h</innerfile>
+    <innerfile refid="wfmgen__core_8h">wfmgen_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/wfmgen/"/>
+  </compounddef>
+</doxygen>

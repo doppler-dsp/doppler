@@ -1,0 +1,792 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="lo__core_8c" kind="file" language="C++">
+    <compoundname>lo_core.c</compoundname>
+    <includes refid="lo__core_8h" local="yes">lo/lo_core.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>lo/lo_core.h</label>
+        <link refid="lo__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/lo/lo_core.c</label>
+        <link refid="lo__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>math.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="lo__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" prot="public" static="no">
+        <name>LUT_BITS</name>
+        <initializer>16u</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="31" column="9" bodyfile="native/src/lo/lo_core.c" bodystart="31" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="lo__core_8c_1aebfcb45923a56e8581fda080243ec5bb" prot="public" static="no">
+        <name>LUT_SIZE</name>
+        <initializer>(1u &lt;&lt; <ref refid="lo__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" kindref="member">LUT_BITS</ref>) /* 65536                    */</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="32" column="9" bodyfile="native/src/lo/lo_core.c" bodystart="32" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="lo__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" prot="public" static="no">
+        <name>LUT_QTR</name>
+        <initializer>(<ref refid="lo__core_8c_1aebfcb45923a56e8581fda080243ec5bb" kindref="member">LUT_SIZE</ref> &gt;&gt; 2u)  /* 16384  (π/2 phase shift) */</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="33" column="9" bodyfile="native/src/lo/lo_core.c" bodystart="33" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="define" id="lo__core_8c_1a1eba7b8553d3439cecc3762b2e88fde9" prot="public" static="no">
+        <name>LO_MAX_OUT</name>
+        <initializer>65536u</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="134" column="9" bodyfile="native/src/lo/lo_core.c" bodystart="134" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="lo__core_8c_1aaaded63c1fb8494b91bd4a183bdebf80" prot="public" static="yes" mutable="no">
+        <type>float</type>
+        <definition>float lut[LUT_SIZE]</definition>
+        <argsstring>[LUT_SIZE]</argsstring>
+        <name>lut</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="35" column="14" bodyfile="native/src/lo/lo_core.c" bodystart="35" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="lo__core_8c_1a8756121a0b6722e230730419453d4be7" prot="public" static="yes" mutable="no">
+        <type>int</type>
+        <definition>int lut_ready</definition>
+        <argsstring></argsstring>
+        <name>lut_ready</name>
+        <initializer>= 0</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="36" column="12" bodyfile="native/src/lo/lo_core.c" bodystart="36" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="lo__core_8c_1a03a39e9f271b5081e662786dd9d61d5c" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void lut_init</definition>
+        <argsstring>(void)</argsstring>
+        <name>lut_init</name>
+        <param>
+          <type>void</type>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="39" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="39" bodyend="46"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1abfe85e233aaf1733c500885d8ae1f377" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>static uint32_t norm_to_inc</definition>
+        <argsstring>(double norm_freq)</argsstring>
+        <name>norm_to_inc</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="55" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="55" bodyend="59"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1a29d475585a62a2f1dd3e83217d727d80" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+        <definition>lo_state_t * lo_create</definition>
+        <argsstring>(double norm_freq)</argsstring>
+        <name>lo_create</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+<para>Create an LO instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Initialises the shared LUT on first call (thread-safe concern: use from a single thread or call <ref refid="lo__core_8h_1a29d475585a62a2f1dd3e83217d727d80" kindref="member">lo_create()</ref> before spawning threads).</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>norm_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Normalised frequency (cycles per sample). Any value; fractional part used internally. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="66" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="66" bodyend="76"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1ac33a2e59bd8c4bc1b18b3f982c494da5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void lo_destroy</definition>
+        <argsstring>(lo_state_t *state)</argsstring>
+        <name>lo_destroy</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. May be NULL (no-op). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="79" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="79" bodyend="82"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1ada1a07ad088a179d7912e24dc7ac41a6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void lo_reset</definition>
+        <argsstring>(lo_state_t *state)</argsstring>
+        <name>lo_reset</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero the phase accumulator. norm_freq is unchanged. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="85" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="85" bodyend="88"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1aa5f15049c4af947726cc2dd3c300395c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double lo_get_norm_freq</definition>
+        <argsstring>(const lo_state_t *state)</argsstring>
+        <name>lo_get_norm_freq</name>
+        <param>
+          <type>const <ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="95" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="95" bodyend="98"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1aec75a4b6e5d7fd0920ffbb2543726cf3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void lo_set_norm_freq</definition>
+        <argsstring>(lo_state_t *state, double norm_freq)</argsstring>
+        <name>lo_set_norm_freq</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="101" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="101" bodyend="105"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1ab1c54ae0263b40a33a0ea9cb3115eb67" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>uint32_t lo_get_phase</definition>
+        <argsstring>(const lo_state_t *state)</argsstring>
+        <name>lo_get_phase</name>
+        <param>
+          <type>const <ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="108" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="108" bodyend="111"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1a2365217fbc4f66a85a035ec9aa833624" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void lo_set_phase</definition>
+        <argsstring>(lo_state_t *state, uint32_t phase)</argsstring>
+        <name>lo_set_phase</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>phase</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="114" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="114" bodyend="117"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1a9694cf8fd4c7ed62010d352ffac19b8f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>uint32_t lo_get_phase_inc</definition>
+        <argsstring>(const lo_state_t *state)</argsstring>
+        <name>lo_get_phase_inc</name>
+        <param>
+          <type>const <ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="120" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="120" bodyend="123"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1ab595a7865c85597d6c37ec4abeeb58e3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t lo_steps_max_out</definition>
+        <argsstring>(lo_state_t *state)</argsstring>
+        <name>lo_steps_max_out</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum samples per call (determines pre-allocated buffer size). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="137" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="137" bodyend="141"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1abac8444e05189ca4e8cda632a2029404" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t lo_steps_ctrl_max_out</definition>
+        <argsstring>(lo_state_t *state)</argsstring>
+        <name>lo_steps_ctrl_max_out</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="144" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="144" bodyend="148"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1a343680be8b9bdec6c26498bc81f34269" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t lo_steps</definition>
+        <argsstring>(lo_state_t *state, size_t n, float complex *out)</argsstring>
+        <name>lo_steps</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Generate n CF32 phasors at the current norm_freq. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Output is emitted before increment: out(0) corresponds to the phase at entry, out(1) to phase + phase_inc, etc. Returns n. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="216" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="216" bodyend="228"/>
+      </memberdef>
+      <memberdef kind="function" id="lo__core_8c_1a35f0e614d4edd35263ea8c44726cebb8" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t lo_steps_ctrl</definition>
+        <argsstring>(lo_state_t *state, const float *ctrl, size_t ctrl_len, float complex *out)</argsstring>
+        <name>lo_steps_ctrl</name>
+        <param>
+          <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>ctrl</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>ctrl_len</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Generate CF32 phasors with per-sample FM deviation. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>ctrl(i) (real float, fractional part used) is converted to a per-sample phase-increment delta added on top of the base phase_inc. The base norm_freq is not modified.</para>
+<para>Output length equals ctrl_len. Returns ctrl_len. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/lo/lo_core.c" line="336" column="1" bodyfile="native/src/lo/lo_core.c" bodystart="336" bodyend="352"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Re-implemented from the doppler reference (<ref refid="lo__core_8c" kindref="compound">native/src/lo/lo_core.c</ref>). Algorithm and AVX-512 paths are identical; the state struct and API use doppler conventions (double norm_freq, jm property names). </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="lo__core_8h" kindref="compound">lo/lo_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__AVX512F__</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;immintrin.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------</highlight></codeline>
+<codeline lineno="18"><highlight class="comment"><sp/>*<sp/>Sine<sp/>LUT<sp/>—<sp/>2^16<sp/>single-precision<sp/>entries.</highlight></codeline>
+<codeline lineno="19"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="20"><highlight class="comment"><sp/>*<sp/>LUT<sp/>index<sp/>is<sp/>the<sp/>top<sp/>16<sp/>bits<sp/>of<sp/>the<sp/>32-bit<sp/>phase<sp/>accumulator:</highlight></codeline>
+<codeline lineno="21"><highlight class="comment"><sp/>*<sp/><sp/><sp/>idx<sp/><sp/><sp/><sp/>=<sp/>(uint16_t)(phase<sp/>&gt;&gt;<sp/>16)</highlight></codeline>
+<codeline lineno="22"><highlight class="comment"><sp/>*<sp/><sp/><sp/>sin(θ)<sp/>=<sp/>lut[idx]</highlight></codeline>
+<codeline lineno="23"><highlight class="comment"><sp/>*<sp/><sp/><sp/>cos(θ)<sp/>=<sp/>lut[(uint16_t)(idx<sp/>+<sp/>LUT_QTR)]</highlight></codeline>
+<codeline lineno="24"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="25"><highlight class="comment"><sp/>*<sp/>LUT_QTR<sp/>=<sp/>N/4<sp/>=<sp/>16384<sp/>shifts<sp/>by<sp/>π/2,<sp/>mapping<sp/>sin<sp/>→<sp/>cos<sp/>without</highlight></codeline>
+<codeline lineno="26"><highlight class="comment"><sp/>*<sp/>extra<sp/>storage.<sp/><sp/>The<sp/>uint16_t<sp/>cast<sp/>wraps<sp/>at<sp/>65536<sp/>branchlessly.</highlight></codeline>
+<codeline lineno="27"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="28"><highlight class="comment"><sp/>*<sp/>65536<sp/>floats<sp/>×<sp/>4<sp/>bytes<sp/>=<sp/>256<sp/>KB<sp/>—<sp/>fits<sp/>in<sp/>L2<sp/>on<sp/>all<sp/>modern<sp/>CPUs.</highlight></codeline>
+<codeline lineno="29"><highlight class="comment"><sp/>*<sp/>SFDR:<sp/>~96<sp/>dBc<sp/>from<sp/>16-bit<sp/>phase<sp/>truncation.</highlight></codeline>
+<codeline lineno="30"><highlight class="comment"><sp/>*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>LUT_BITS<sp/>16u</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>LUT_SIZE<sp/>(1u<sp/>&lt;&lt;<sp/>LUT_BITS)<sp/></highlight><highlight class="comment">/*<sp/>65536<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>LUT_QTR<sp/>(LUT_SIZE<sp/>&gt;&gt;<sp/>2u)<sp/><sp/></highlight><highlight class="comment">/*<sp/>16384<sp/><sp/>(π/2<sp/>phase<sp/>shift)<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>lut[<ref refid="awgn__core_8c_1aebfcb45923a56e8581fda080243ec5bb" kindref="member">LUT_SIZE</ref>];</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>lut_ready<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal">lut_init<sp/>(</highlight><highlight class="keywordtype">void</highlight><highlight class="normal">)</highlight></codeline>
+<codeline lineno="40"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(lut_ready)</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/><ref refid="awgn__core_8c_1aebfcb45923a56e8581fda080243ec5bb" kindref="member">LUT_SIZE</ref>;<sp/>i++)</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/><sp/><sp/>lut[i]<sp/>=<sp/>sinf<sp/>(2.0f<sp/>*<sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)<ref refid="resamp__core_8c_1ae71449b1cc6e6250b91f539153a7a0d3" kindref="member">M_PI</ref><sp/>*<sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)i<sp/>/<sp/>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal">)<ref refid="awgn__core_8c_1aebfcb45923a56e8581fda080243ec5bb" kindref="member">LUT_SIZE</ref>);</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/>lut_ready<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>------------------------------------------------------------------</highlight></codeline>
+<codeline lineno="49"><highlight class="comment"><sp/>*<sp/>Normalised<sp/>frequency<sp/>→<sp/>uint32<sp/>phase<sp/>increment.</highlight></codeline>
+<codeline lineno="50"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="51"><highlight class="comment"><sp/>*<sp/>Uses<sp/>double<sp/>arithmetic<sp/>to<sp/>avoid<sp/>rounding<sp/>at<sp/>the<sp/>float→uint32<sp/>boundary.</highlight></codeline>
+<codeline lineno="52"><highlight class="comment"><sp/>*<sp/>floor()<sp/>folds<sp/>negative<sp/>frequencies<sp/>correctly:<sp/>−0.25<sp/>→<sp/>0.75<sp/>→<sp/>3×2^30.</highlight></codeline>
+<codeline lineno="53"><highlight class="comment"><sp/>*<sp/>------------------------------------------------------------------<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>uint32_t</highlight></codeline>
+<codeline lineno="55"><highlight class="normal">norm_to_inc<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq)</highlight></codeline>
+<codeline lineno="56"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>d<sp/>=<sp/>norm_freq<sp/>-<sp/>floor<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(uint32_t)(d<sp/>*<sp/>4294967296.0);</highlight></codeline>
+<codeline lineno="59"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"></highlight></codeline>
+<codeline lineno="61"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Lifecycle<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"></highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><ref refid="lo__core_8c_1a29d475585a62a2f1dd3e83217d727d80" kindref="member">lo_create</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq)</highlight></codeline>
+<codeline lineno="67"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/>lut_init<sp/>();</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state<sp/>=<sp/>malloc<sp/>(</highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*state));</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref><sp/>=<sp/>norm_to_inc<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="74"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1aae83794e1e415ce3a13238a86bab23dc" kindref="member">norm_freq</ref><sp/>=<sp/>norm_freq;</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="76"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><ref refid="lo__core_8c_1ac33a2e59bd8c4bc1b18b3f982c494da5" kindref="member">lo_destroy</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="80"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="82"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><ref refid="lo__core_8c_1ada1a07ad088a179d7912e24dc7ac41a6" kindref="member">lo_reset</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="86"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"></highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="91"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Properties<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="92"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><ref refid="lo__core_8c_1aa5f15049c4af947726cc2dd3c300395c" kindref="member">lo_get_norm_freq</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="96"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structlo__state__t_1aae83794e1e415ce3a13238a86bab23dc" kindref="member">norm_freq</ref>;</highlight></codeline>
+<codeline lineno="98"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"></highlight></codeline>
+<codeline lineno="100"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><ref refid="lo__core_8c_1aec75a4b6e5d7fd0920ffbb2543726cf3" kindref="member">lo_set_norm_freq</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq)</highlight></codeline>
+<codeline lineno="102"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref><sp/>=<sp/>norm_to_inc<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1aae83794e1e415ce3a13238a86bab23dc" kindref="member">norm_freq</ref><sp/>=<sp/>norm_freq;</highlight></codeline>
+<codeline lineno="105"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal">uint32_t</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><ref refid="lo__core_8c_1ab1c54ae0263b40a33a0ea9cb3115eb67" kindref="member">lo_get_phase</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="109"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="111"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight></codeline>
+<codeline lineno="113"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><ref refid="lo__core_8c_1a2365217fbc4f66a85a035ec9aa833624" kindref="member">lo_set_phase</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/>uint32_t<sp/>phase)</highlight></codeline>
+<codeline lineno="115"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>phase;</highlight></codeline>
+<codeline lineno="117"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"></highlight></codeline>
+<codeline lineno="119"><highlight class="normal">uint32_t</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><ref refid="lo__core_8c_1a9694cf8fd4c7ed62010d352ffac19b8f" kindref="member">lo_get_phase_inc</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="121"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="123"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"></highlight></codeline>
+<codeline lineno="125"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="126"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Block<sp/>generators<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="127"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="128"><highlight class="normal"></highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="130"><highlight class="comment"><sp/>*<sp/>Pre-allocated<sp/>buffer<sp/>size<sp/>for<sp/>all<sp/>generator<sp/>methods.<sp/><sp/>The<sp/>Python</highlight></codeline>
+<codeline lineno="131"><highlight class="comment"><sp/>*<sp/>extension<sp/>allocates<sp/>output<sp/>buffers<sp/>of<sp/>this<sp/>size<sp/>at<sp/>create<sp/>time;<sp/>calling</highlight></codeline>
+<codeline lineno="132"><highlight class="comment"><sp/>*<sp/>with<sp/>n<sp/>&gt;<sp/>65536<sp/>overflows<sp/>the<sp/>buffer<sp/>and<sp/>is<sp/>undefined<sp/>behaviour.</highlight></codeline>
+<codeline lineno="133"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="134"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>LO_MAX_OUT<sp/>65536u</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="135"><highlight class="normal"></highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><ref refid="lo__core_8c_1ab595a7865c85597d6c37ec4abeeb58e3" kindref="member">lo_steps_max_out</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="138"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="lo__core_8c_1a1eba7b8553d3439cecc3762b2e88fde9" kindref="member">LO_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="141"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"></highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><ref refid="lo__core_8c_1abac8444e05189ca4e8cda632a2029404" kindref="member">lo_steps_ctrl_max_out</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="145"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="lo__core_8c_1a1eba7b8553d3439cecc3762b2e88fde9" kindref="member">LO_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="148"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"></highlight></codeline>
+<codeline lineno="150"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="151"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Execute<sp/>—<sp/>free-running<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="152"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="153"><highlight class="normal"></highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__AVX512F__</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="155"><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><ref refid="lo__core_8c_1a343680be8b9bdec6c26498bc81f34269" kindref="member">lo_steps</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="158"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="161"><highlight class="normal"></highlight></codeline>
+<codeline lineno="162"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="163"><highlight class="comment"><sp/><sp/><sp/>*<sp/>Permutation<sp/>vectors<sp/>interleave<sp/>unpacklo/hi<sp/>128-bit<sp/>lanes<sp/>into</highlight></codeline>
+<codeline lineno="164"><highlight class="comment"><sp/><sp/><sp/>*<sp/>contiguous<sp/>IQ<sp/>pairs.<sp/><sp/>See<sp/>the<sp/>doppler<sp/>reference<sp/>lo_core.c<sp/>for</highlight></codeline>
+<codeline lineno="165"><highlight class="comment"><sp/><sp/><sp/>*<sp/>the<sp/>full<sp/>derivation.</highlight></codeline>
+<codeline lineno="166"><highlight class="comment"><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int32_t<sp/>perm0_arr[16]</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>{<sp/>0,<sp/>1,<sp/>2,<sp/>3,<sp/>16,<sp/>17,<sp/>18,<sp/>19,<sp/>4,<sp/>5,<sp/>6,<sp/>7,<sp/>20,<sp/>21,<sp/>22,<sp/>23<sp/>};</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int32_t<sp/>perm1_arr[16]</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>{<sp/>8,<sp/>9,<sp/>10,<sp/>11,<sp/>24,<sp/>25,<sp/>26,<sp/>27,<sp/>12,<sp/>13,<sp/>14,<sp/>15,<sp/>28,<sp/>29,<sp/>30,<sp/>31<sp/>};</highlight></codeline>
+<codeline lineno="171"><highlight class="normal"><sp/><sp/>__m512i<sp/>vperm0<sp/>=<sp/>_mm512_loadu_si512<sp/>(perm0_arr);</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"><sp/><sp/>__m512i<sp/>vperm1<sp/>=<sp/>_mm512_loadu_si512<sp/>(perm1_arr);</highlight></codeline>
+<codeline lineno="173"><highlight class="normal"></highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/>__m512i<sp/>vsamp<sp/>=<sp/>_mm512_setr_epi32<sp/>(0,<sp/>1,<sp/>2,<sp/>3,<sp/>4,<sp/>5,<sp/>6,<sp/>7,<sp/>8,<sp/>9,<sp/>10,<sp/>11,<sp/>12,</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>13,<sp/>14,<sp/>15);</highlight></codeline>
+<codeline lineno="176"><highlight class="normal"><sp/><sp/>__m512i<sp/>vinc<sp/>=<sp/>_mm512_set1_epi32<sp/>((int32_t)inc);</highlight></codeline>
+<codeline lineno="177"><highlight class="normal"></highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="179"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>+<sp/>16<sp/>&lt;=<sp/>n;<sp/>i<sp/>+=<sp/>16,<sp/>ph<sp/>+=<sp/>16u<sp/>*<sp/>inc)</highlight></codeline>
+<codeline lineno="180"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vph<sp/>=<sp/>_mm512_add_epi32<sp/>(_mm512_set1_epi32<sp/>((int32_t)ph),</highlight></codeline>
+<codeline lineno="182"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_mullo_epi32<sp/>(vsamp,<sp/>vinc));</highlight></codeline>
+<codeline lineno="183"><highlight class="normal"></highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vsin_idx<sp/>=<sp/>_mm512_srli_epi32<sp/>(vph,<sp/>16);</highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vcos_idx<sp/>=<sp/>_mm512_and_epi32<sp/>(</highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_add_epi32<sp/>(vsin_idx,<sp/>_mm512_set1_epi32<sp/>(<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>)),</highlight></codeline>
+<codeline lineno="187"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_set1_epi32<sp/>(0xFFFF));</highlight></codeline>
+<codeline lineno="188"><highlight class="normal"></highlight></codeline>
+<codeline lineno="189"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vsin<sp/>=<sp/>_mm512_i32gather_ps<sp/>(vsin_idx,<sp/>lut,<sp/>4);</highlight></codeline>
+<codeline lineno="190"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vcos<sp/>=<sp/>_mm512_i32gather_ps<sp/>(vcos_idx,<sp/>lut,<sp/>4);</highlight></codeline>
+<codeline lineno="191"><highlight class="normal"></highlight></codeline>
+<codeline lineno="192"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>lo_v<sp/>=<sp/>_mm512_unpacklo_ps<sp/>(vcos,<sp/>vsin);</highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>hi_v<sp/>=<sp/>_mm512_unpackhi_ps<sp/>(vcos,<sp/>vsin);</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"></highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_storeu_ps<sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)(out<sp/>+<sp/>i),</highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_permutex2var_ps<sp/>(lo_v,<sp/>vperm0,<sp/>hi_v));</highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_storeu_ps<sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)(out<sp/>+<sp/>i<sp/>+<sp/>8),</highlight></codeline>
+<codeline lineno="198"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_permutex2var_ps<sp/>(lo_v,<sp/>vperm1,<sp/>hi_v));</highlight></codeline>
+<codeline lineno="199"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="200"><highlight class="normal"></highlight></codeline>
+<codeline lineno="201"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Scalar<sp/>tail<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint16_t<sp/>idx<sp/>=<sp/>(uint16_t)(ph<sp/>&gt;&gt;<sp/>(32u<sp/>-<sp/><ref refid="awgn__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" kindref="member">LUT_BITS</ref>));</highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/><ref refid="clib__common_8h_1a685813703dbdb219f657767e1c55fed9" kindref="member">CMPLXF</ref><sp/>(lut[(uint16_t)(idx<sp/>+<sp/>(uint16_t)<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>)],<sp/>lut[idx]);</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc;</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"></highlight></codeline>
+<codeline lineno="209"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="210"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n;</highlight></codeline>
+<codeline lineno="211"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"></highlight></codeline>
+<codeline lineno="213"><highlight class="normal"></highlight><highlight class="preprocessor">#else<sp/></highlight><highlight class="comment">/*<sp/>scalar<sp/>fallback<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="214"><highlight class="normal"></highlight></codeline>
+<codeline lineno="215"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="216"><highlight class="normal"><ref refid="lo__core_8c_1a343680be8b9bdec6c26498bc81f34269" kindref="member">lo_steps</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="217"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="218"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="221"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="222"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint16_t<sp/>idx<sp/>=<sp/>(uint16_t)(ph<sp/>&gt;&gt;<sp/>(32u<sp/>-<sp/><ref refid="awgn__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" kindref="member">LUT_BITS</ref>));</highlight></codeline>
+<codeline lineno="223"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/><ref refid="clib__common_8h_1a685813703dbdb219f657767e1c55fed9" kindref="member">CMPLXF</ref><sp/>(lut[(uint16_t)(idx<sp/>+<sp/>(uint16_t)<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>)],<sp/>lut[idx]);</highlight></codeline>
+<codeline lineno="224"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc;</highlight></codeline>
+<codeline lineno="225"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="226"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="227"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n;</highlight></codeline>
+<codeline lineno="228"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="229"><highlight class="normal"></highlight></codeline>
+<codeline lineno="230"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>__AVX512F__<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="231"><highlight class="normal"></highlight></codeline>
+<codeline lineno="232"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="233"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Execute<sp/>—<sp/>with<sp/>per-sample<sp/>FM<sp/>control<sp/>port<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="234"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="235"><highlight class="normal"></highlight></codeline>
+<codeline lineno="236"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__AVX512F__</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="237"><highlight class="normal"></highlight></codeline>
+<codeline lineno="238"><highlight class="normal"></highlight><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="239"><highlight class="comment"><sp/>*<sp/>AVX-512<sp/>path<sp/>for<sp/>lo_steps_ctrl.</highlight></codeline>
+<codeline lineno="240"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="241"><highlight class="comment"><sp/>*<sp/>Each<sp/>sample&apos;s<sp/>phase<sp/>depends<sp/>on<sp/>the<sp/>previous<sp/>sample&apos;s<sp/>ctrl<sp/>value:</highlight></codeline>
+<codeline lineno="242"><highlight class="comment"><sp/>*<sp/><sp/><sp/>ph[i]<sp/>=<sp/>ph[i-1]<sp/>+<sp/>inc<sp/>+<sp/>ctrl_inc[i-1]</highlight></codeline>
+<codeline lineno="243"><highlight class="comment"><sp/>*<sp/>This<sp/>is<sp/>a<sp/>running<sp/>sum.<sp/><sp/>Solved<sp/>with<sp/>a<sp/>4-step<sp/>log-2<sp/>exclusive<sp/>prefix</highlight></codeline>
+<codeline lineno="244"><highlight class="comment"><sp/>*<sp/>scan<sp/>over<sp/>the<sp/>16<sp/>per-sample<sp/>deltas,<sp/>then<sp/>a<sp/>single<sp/>vector<sp/>add<sp/>of<sp/>the</highlight></codeline>
+<codeline lineno="245"><highlight class="comment"><sp/>*<sp/>base<sp/>phase.<sp/><sp/>LUT<sp/>gather<sp/>and<sp/>IQ<sp/>interleave<sp/>are<sp/>identical<sp/>to<sp/>lo_steps.</highlight></codeline>
+<codeline lineno="246"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="247"><highlight class="comment"><sp/>*<sp/>Precision:<sp/>ctrl_inc<sp/>uses<sp/>float32<sp/>(multiply<sp/>by<sp/>2^32).<sp/><sp/>The<sp/>ULP<sp/>at</highlight></codeline>
+<codeline lineno="248"><highlight class="comment"><sp/>*<sp/>2^32<sp/>in<sp/>float32<sp/>is<sp/>2^8<sp/>=<sp/>256,<sp/>so<sp/>ctrl_inc<sp/>is<sp/>accurate<sp/>to<sp/>±128<sp/>in</highlight></codeline>
+<codeline lineno="249"><highlight class="comment"><sp/>*<sp/>its<sp/>lowest<sp/>8<sp/>bits<sp/>—<sp/>below<sp/>one<sp/>LUT<sp/>bin<sp/>(2^16<sp/>counts).<sp/><sp/>No<sp/>effect<sp/>on</highlight></codeline>
+<codeline lineno="250"><highlight class="comment"><sp/>*<sp/>the<sp/>top<sp/>16<sp/>bits<sp/>that<sp/>drive<sp/>the<sp/>LUT.</highlight></codeline>
+<codeline lineno="251"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="252"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="253"><highlight class="normal"><ref refid="lo__core_8c_1a35f0e614d4edd35263ea8c44726cebb8" kindref="member">lo_steps_ctrl</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*ctrl,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ctrl_len,</highlight></codeline>
+<codeline lineno="254"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="255"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="256"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="257"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="258"><highlight class="normal"></highlight></codeline>
+<codeline lineno="259"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int32_t<sp/>perm0_arr[16]</highlight></codeline>
+<codeline lineno="260"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>{<sp/>0,<sp/>1,<sp/>2,<sp/>3,<sp/>16,<sp/>17,<sp/>18,<sp/>19,<sp/>4,<sp/>5,<sp/>6,<sp/>7,<sp/>20,<sp/>21,<sp/>22,<sp/>23<sp/>};</highlight></codeline>
+<codeline lineno="261"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int32_t<sp/>perm1_arr[16]</highlight></codeline>
+<codeline lineno="262"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>{<sp/>8,<sp/>9,<sp/>10,<sp/>11,<sp/>24,<sp/>25,<sp/>26,<sp/>27,<sp/>12,<sp/>13,<sp/>14,<sp/>15,<sp/>28,<sp/>29,<sp/>30,<sp/>31<sp/>};</highlight></codeline>
+<codeline lineno="263"><highlight class="normal"><sp/><sp/>__m512i<sp/>vperm0<sp/>=<sp/>_mm512_loadu_si512<sp/>(perm0_arr);</highlight></codeline>
+<codeline lineno="264"><highlight class="normal"><sp/><sp/>__m512i<sp/>vperm1<sp/>=<sp/>_mm512_loadu_si512<sp/>(perm1_arr);</highlight></codeline>
+<codeline lineno="265"><highlight class="normal"></highlight></codeline>
+<codeline lineno="266"><highlight class="normal"><sp/><sp/>__m512i<sp/>vinc<sp/>=<sp/>_mm512_set1_epi32<sp/>((int32_t)inc);</highlight></codeline>
+<codeline lineno="267"><highlight class="normal"><sp/><sp/>__m512i<sp/>vzero<sp/>=<sp/>_mm512_setzero_si512<sp/>();</highlight></codeline>
+<codeline lineno="268"><highlight class="normal"><sp/><sp/>__m512i<sp/>vmask<sp/>=<sp/>_mm512_set1_epi32<sp/>(0xFFFF);</highlight></codeline>
+<codeline lineno="269"><highlight class="normal"><sp/><sp/>__m512i<sp/>vqtr<sp/>=<sp/>_mm512_set1_epi32<sp/>(<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>);</highlight></codeline>
+<codeline lineno="270"><highlight class="normal"><sp/><sp/>__m512<sp/>v2p32<sp/>=<sp/>_mm512_set1_ps<sp/>(4294967296.0f);</highlight></codeline>
+<codeline lineno="271"><highlight class="normal"></highlight></codeline>
+<codeline lineno="272"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="273"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>+<sp/>16<sp/>&lt;=<sp/>ctrl_len;<sp/>i<sp/>+=<sp/>16)</highlight></codeline>
+<codeline lineno="274"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="275"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Load<sp/>16<sp/>ctrl<sp/>floats;<sp/>use<sp/>fractional<sp/>part<sp/>=<sp/>ctrl<sp/>-<sp/>floor(ctrl).<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="276"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vc<sp/>=<sp/>_mm512_loadu_ps<sp/>(ctrl<sp/>+<sp/>i);</highlight></codeline>
+<codeline lineno="277"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vfrac<sp/>=<sp/>_mm512_sub_ps<sp/>(vc,<sp/>_mm512_floor_ps<sp/>(vc));</highlight></codeline>
+<codeline lineno="278"><highlight class="normal"></highlight></codeline>
+<codeline lineno="279"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>ctrl_inc[k]<sp/>=<sp/>(uint32_t)(frac[k]<sp/>*<sp/>2^32)<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="280"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vci<sp/>=<sp/>_mm512_cvttps_epu32<sp/>(_mm512_mul_ps<sp/>(vfrac,<sp/>v2p32));</highlight></codeline>
+<codeline lineno="281"><highlight class="normal"></highlight></codeline>
+<codeline lineno="282"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>delta[k]<sp/>=<sp/>inc<sp/>+<sp/>ctrl_inc[k]<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="283"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vd<sp/>=<sp/>_mm512_add_epi32<sp/>(vinc,<sp/>vci);</highlight></codeline>
+<codeline lineno="284"><highlight class="normal"></highlight></codeline>
+<codeline lineno="285"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Inclusive<sp/>prefix<sp/>scan<sp/>(Hillis-Steele,<sp/>4<sp/>passes):</highlight></codeline>
+<codeline lineno="286"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>after<sp/>pass<sp/>p,<sp/>vs[k]<sp/>=<sp/>sum(delta[max(0,<sp/>k-2^p+1)..k])<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="287"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vs<sp/>=<sp/>vd;</highlight></codeline>
+<codeline lineno="288"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>vs<sp/>=<sp/>_mm512_add_epi32<sp/>(vs,<sp/>_mm512_alignr_epi32<sp/>(vs,<sp/>vzero,<sp/>15));</highlight></codeline>
+<codeline lineno="289"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>vs<sp/>=<sp/>_mm512_add_epi32<sp/>(vs,<sp/>_mm512_alignr_epi32<sp/>(vs,<sp/>vzero,<sp/>14));</highlight></codeline>
+<codeline lineno="290"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>vs<sp/>=<sp/>_mm512_add_epi32<sp/>(vs,<sp/>_mm512_alignr_epi32<sp/>(vs,<sp/>vzero,<sp/>12));</highlight></codeline>
+<codeline lineno="291"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>vs<sp/>=<sp/>_mm512_add_epi32<sp/>(vs,<sp/>_mm512_alignr_epi32<sp/>(vs,<sp/>vzero,<sp/>8));</highlight></codeline>
+<codeline lineno="292"><highlight class="normal"></highlight></codeline>
+<codeline lineno="293"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Exclusive<sp/>scan:<sp/>shift<sp/>right<sp/>1<sp/>element,<sp/>insert<sp/>0<sp/>at<sp/>lane<sp/>0.</highlight></codeline>
+<codeline lineno="294"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>vpsum[k]<sp/>=<sp/>sum(delta[0..k-1])<sp/><sp/>(==<sp/>0<sp/>for<sp/>k=0)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="295"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vpsum<sp/>=<sp/>_mm512_alignr_epi32<sp/>(vs,<sp/>vzero,<sp/>15);</highlight></codeline>
+<codeline lineno="296"><highlight class="normal"></highlight></codeline>
+<codeline lineno="297"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Phase<sp/>for<sp/>each<sp/>sample:<sp/>ph_base<sp/>+<sp/>vpsum[k]<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="298"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vph<sp/>=<sp/>_mm512_add_epi32<sp/>(_mm512_set1_epi32<sp/>((int32_t)ph),<sp/>vpsum);</highlight></codeline>
+<codeline lineno="299"><highlight class="normal"></highlight></codeline>
+<codeline lineno="300"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vsin_idx<sp/>=<sp/>_mm512_srli_epi32<sp/>(vph,<sp/>16);</highlight></codeline>
+<codeline lineno="301"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512i<sp/>vcos_idx</highlight></codeline>
+<codeline lineno="302"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>_mm512_and_epi32<sp/>(_mm512_add_epi32<sp/>(vsin_idx,<sp/>vqtr),<sp/>vmask);</highlight></codeline>
+<codeline lineno="303"><highlight class="normal"></highlight></codeline>
+<codeline lineno="304"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vsin<sp/>=<sp/>_mm512_i32gather_ps<sp/>(vsin_idx,<sp/>lut,<sp/>4);</highlight></codeline>
+<codeline lineno="305"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>vcos<sp/>=<sp/>_mm512_i32gather_ps<sp/>(vcos_idx,<sp/>lut,<sp/>4);</highlight></codeline>
+<codeline lineno="306"><highlight class="normal"></highlight></codeline>
+<codeline lineno="307"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>lo_v<sp/>=<sp/>_mm512_unpacklo_ps<sp/>(vcos,<sp/>vsin);</highlight></codeline>
+<codeline lineno="308"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>__m512<sp/>hi_v<sp/>=<sp/>_mm512_unpackhi_ps<sp/>(vcos,<sp/>vsin);</highlight></codeline>
+<codeline lineno="309"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_storeu_ps<sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)(out<sp/>+<sp/>i),</highlight></codeline>
+<codeline lineno="310"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_permutex2var_ps<sp/>(lo_v,<sp/>vperm0,<sp/>hi_v));</highlight></codeline>
+<codeline lineno="311"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_storeu_ps<sp/>((</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*)(out<sp/>+<sp/>i<sp/>+<sp/>8),</highlight></codeline>
+<codeline lineno="312"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>_mm512_permutex2var_ps<sp/>(lo_v,<sp/>vperm1,<sp/>hi_v));</highlight></codeline>
+<codeline lineno="313"><highlight class="normal"></highlight></codeline>
+<codeline lineno="314"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Advance<sp/>base<sp/>phase<sp/>by<sp/>the<sp/>total<sp/>of<sp/>all<sp/>16<sp/>deltas.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="315"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>(uint32_t)_mm512_reduce_add_epi32<sp/>(vd);</highlight></codeline>
+<codeline lineno="316"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="317"><highlight class="normal"></highlight></codeline>
+<codeline lineno="318"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Scalar<sp/>tail<sp/>—<sp/>double<sp/>precision<sp/>for<sp/>the<sp/>ctrl_inc<sp/>conversion.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="319"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>&lt;<sp/>ctrl_len;<sp/>i++)</highlight></codeline>
+<codeline lineno="320"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="321"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>d<sp/>=<sp/>(double)ctrl[i];</highlight></codeline>
+<codeline lineno="322"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>d<sp/>-=<sp/>floor<sp/>(d);</highlight></codeline>
+<codeline lineno="323"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint32_t<sp/>ctrl_inc<sp/>=<sp/>(uint32_t)(d<sp/>*<sp/>4294967296.0);</highlight></codeline>
+<codeline lineno="324"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint16_t<sp/>idx<sp/>=<sp/>(uint16_t)(ph<sp/>&gt;&gt;<sp/>(32u<sp/>-<sp/><ref refid="awgn__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" kindref="member">LUT_BITS</ref>));</highlight></codeline>
+<codeline lineno="325"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/><ref refid="clib__common_8h_1a685813703dbdb219f657767e1c55fed9" kindref="member">CMPLXF</ref><sp/>(lut[(uint16_t)(idx<sp/>+<sp/>(uint16_t)<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>)],<sp/>lut[idx]);</highlight></codeline>
+<codeline lineno="326"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc<sp/>+<sp/>ctrl_inc;</highlight></codeline>
+<codeline lineno="327"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="328"><highlight class="normal"></highlight></codeline>
+<codeline lineno="329"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="330"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>ctrl_len;</highlight></codeline>
+<codeline lineno="331"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="332"><highlight class="normal"></highlight></codeline>
+<codeline lineno="333"><highlight class="normal"></highlight><highlight class="preprocessor">#else<sp/></highlight><highlight class="comment">/*<sp/>scalar<sp/>fallback<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="334"><highlight class="normal"></highlight></codeline>
+<codeline lineno="335"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="336"><highlight class="normal"><ref refid="lo__core_8c_1a35f0e614d4edd35263ea8c44726cebb8" kindref="member">lo_steps_ctrl</ref><sp/>(<ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*ctrl,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ctrl_len,</highlight></codeline>
+<codeline lineno="337"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="338"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="339"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="340"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structlo__state__t_1a666d535f9ce90398a4a8d2935b1b7359" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="341"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>ctrl_len;<sp/>i++)</highlight></codeline>
+<codeline lineno="342"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="343"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>d<sp/>=<sp/>(double)ctrl[i];</highlight></codeline>
+<codeline lineno="344"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>d<sp/>-=<sp/>floor<sp/>(d);</highlight></codeline>
+<codeline lineno="345"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint32_t<sp/>ctrl_inc<sp/>=<sp/>(uint32_t)(d<sp/>*<sp/>4294967296.0);</highlight></codeline>
+<codeline lineno="346"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>uint16_t<sp/>idx<sp/>=<sp/>(uint16_t)(ph<sp/>&gt;&gt;<sp/>(32u<sp/>-<sp/><ref refid="awgn__core_8c_1a6cbe93c45fdfcc3d87e8e65673c46b5d" kindref="member">LUT_BITS</ref>));</highlight></codeline>
+<codeline lineno="347"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/><ref refid="clib__common_8h_1a685813703dbdb219f657767e1c55fed9" kindref="member">CMPLXF</ref><sp/>(lut[(uint16_t)(idx<sp/>+<sp/>(uint16_t)<ref refid="awgn__core_8c_1a2b12dce67ee43432a0ecb6a77d12c6aa" kindref="member">LUT_QTR</ref>)],<sp/>lut[idx]);</highlight></codeline>
+<codeline lineno="348"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc<sp/>+<sp/>ctrl_inc;</highlight></codeline>
+<codeline lineno="349"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="350"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structlo__state__t_1abca53cf147f6d27da09ba5588673b9d9" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="351"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>ctrl_len;</highlight></codeline>
+<codeline lineno="352"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="353"><highlight class="normal"></highlight></codeline>
+<codeline lineno="354"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>__AVX512F__<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/src/lo/lo_core.c"/>
+  </compounddef>
+</doxygen>

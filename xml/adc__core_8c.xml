@@ -1,0 +1,354 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="adc__core_8c" kind="file" language="C++">
+    <compoundname>adc_core.c</compoundname>
+    <includes refid="adc__core_8h" local="yes">adc/adc_core.h</includes>
+    <includes refid="jm__simd_8h" local="yes">jm_simd.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>adc/adc_core.h</label>
+        <link refid="adc__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/adc/adc_core.c</label>
+        <link refid="adc__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>math.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="adc__core_8c_1a1cdcf9fb6e65bb3903b8273db3329f5f" prot="public" static="no">
+        <name>ADC_RNG_SEED</name>
+        <initializer>0x12345678u</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/adc/adc_core.c" line="4" column="9" bodyfile="native/src/adc/adc_core.c" bodystart="4" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="adc__core_8c_1acce11e376c889f6c3cd3e139187d1d4f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref> *</type>
+        <definition>adc_state_t * adc_create</definition>
+        <argsstring>(int bits, float dbfs, int dithering)</argsstring>
+        <name>adc_create</name>
+        <param>
+          <type>int</type>
+          <declname>bits</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>dbfs</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>dithering</declname>
+        </param>
+        <briefdescription>
+<para>Create an ADC instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>bits</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>ADC resolution in bits (1..64). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dbfs</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Full-scale reference level in dBFS (typically negative). A -10 dBFS signal at amplitude 10^(dbfs/20) fills the ADC range. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dithering</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>0 = no dither; non-zero = TPDF dither enabled. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on invalid args or allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="adc__core_8h_1a7c50f175235c64e6e67e63dc13c3b285" kindref="member">adc_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/adc/adc_core.c" line="7" column="1" bodyfile="native/src/adc/adc_core.c" bodystart="7" bodyend="29"/>
+      </memberdef>
+      <memberdef kind="function" id="adc__core_8c_1a7c50f175235c64e6e67e63dc13c3b285" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void adc_destroy</definition>
+        <argsstring>(adc_state_t *state)</argsstring>
+        <name>adc_destroy</name>
+        <param>
+          <type><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy an ADC instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/adc/adc_core.c" line="32" column="1" bodyfile="native/src/adc/adc_core.c" bodystart="32" bodyend="35"/>
+      </memberdef>
+      <memberdef kind="function" id="adc__core_8c_1a54a2a9a9522a1947397b40c25f36c620" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void adc_reset</definition>
+        <argsstring>(adc_state_t *state)</argsstring>
+        <name>adc_reset</name>
+        <param>
+          <type><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset ADC to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Clears the sticky <computeroutput>clipped</computeroutput> flag and re-seeds the PRNG. <parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/adc/adc_core.c" line="38" column="1" bodyfile="native/src/adc/adc_core.c" bodystart="38" bodyend="42"/>
+      </memberdef>
+      <memberdef kind="function" id="adc__core_8c_1aa73dc776c773708fee96e2b000a9d613" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref> void</type>
+        <definition>JM_HOT void adc_steps</definition>
+        <argsstring>(adc_state_t *state, const float *input, int64_t *output, size_t n)</argsstring>
+        <name>adc_steps</name>
+        <param>
+          <type><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>input</declname>
+        </param>
+        <param>
+          <type>int64_t *</type>
+          <declname>output</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Process a block of samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>When dithering is disabled the float-to-scale multiply is widened with SIMD (<ref refid="jm__simd_8h" kindref="compound">jm_simd.h</ref>); the int64_t conversion and clamp remain scalar. When dithering is enabled the loop is scalar to preserve sequential PRNG state.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Component state (mutated; clipped flag updated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>input</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>output</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/adc/adc_core.c" line="45" column="1" bodyfile="native/src/adc/adc_core.c" bodystart="45" bodyend="81"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="adc__core_8h" kindref="compound">adc/adc_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__simd_8h" kindref="compound">jm_simd.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight></codeline>
+<codeline lineno="4"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>ADC_RNG_SEED<sp/>0x12345678u</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="5"><highlight class="normal"></highlight></codeline>
+<codeline lineno="6"><highlight class="normal"><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="7"><highlight class="normal"><ref refid="adc__core_8c_1acce11e376c889f6c3cd3e139187d1d4f" kindref="member">adc_create</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>bits,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>dbfs,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dithering)</highlight></codeline>
+<codeline lineno="8"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(bits<sp/>&lt;<sp/>1<sp/>||<sp/>bits<sp/>&gt;<sp/>64<sp/>||<sp/>dithering<sp/>&lt;<sp/>0)</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structadc__state__t" kindref="compound">adc_state_t</ref><sp/>*obj<sp/>=<sp/>calloc(1,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(*obj));</highlight></codeline>
+<codeline lineno="12"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!obj)</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="14"><highlight class="normal"><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1a9403fb4cf2c058031b697fabd12daf13" kindref="member">bits</ref><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>bits;</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1a3d98b2e2d3255e7e828f64b8577277f8" kindref="member">dbfs</ref><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>dbfs;</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1ac60fdc94a58b04e8aba204dae9c45bd4" kindref="member">dithering</ref><sp/>=<sp/>dithering;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1af820b0a06d7af969331a0c1dbd01a292" kindref="member">rng</ref><sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/><ref refid="adc__core_8c_1a1cdcf9fb6e65bb3903b8273db3329f5f" kindref="member">ADC_RNG_SEED</ref>;</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>ldexp(1.0,<sp/>bits-1)<sp/>==<sp/>2^(bits-1)<sp/>exactly<sp/>in<sp/>double<sp/>for<sp/>bits&lt;=64.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1a8af09d23c74c1b5d0691b7f09b43702a" kindref="member">scale</ref><sp/><sp/><sp/><sp/>=<sp/>ldexp(1.0,<sp/>bits<sp/>-<sp/>1)<sp/>*<sp/>pow(10.0,<sp/>-(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal">)dbfs<sp/>/<sp/>20.0);</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>For<sp/>bits==64,<sp/>1u&lt;&lt;63<sp/>is<sp/>INT64_MIN;<sp/>handle<sp/>via<sp/>bit<sp/>pattern<sp/>directly.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(bits<sp/>&lt;<sp/>64)<sp/>{</highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1a852858b7a585fd1c73f69c363c442b48" kindref="member">clip_max</ref><sp/>=<sp/>(int64_t)((UINT64_C(1)<sp/>&lt;&lt;<sp/>(bits<sp/>-<sp/>1))<sp/>-<sp/>1);</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1aabbece9dbe14ffbf326e6ca4ef1fec18" kindref="member">clip_min</ref><sp/>=<sp/>-(int64_t)(UINT64_C(1)<sp/>&lt;&lt;<sp/>(bits<sp/>-<sp/>1));</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/>}<sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1a852858b7a585fd1c73f69c363c442b48" kindref="member">clip_max</ref><sp/>=<sp/>INT64_MAX;</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>obj-&gt;<ref refid="structadc__state__t_1aabbece9dbe14ffbf326e6ca4ef1fec18" kindref="member">clip_min</ref><sp/>=<sp/>INT64_MIN;</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>obj;</highlight></codeline>
+<codeline lineno="29"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><ref refid="adc__core_8c_1a7c50f175235c64e6e67e63dc13c3b285" kindref="member">adc_destroy</ref>(<ref refid="structadc__state__t" kindref="compound">adc_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="33"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/><sp/><sp/>free(state);</highlight></codeline>
+<codeline lineno="35"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><ref refid="adc__core_8c_1a54a2a9a9522a1947397b40c25f36c620" kindref="member">adc_reset</ref>(<ref refid="structadc__state__t" kindref="compound">adc_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="39"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structadc__state__t_1afaa1c38a97498a2840feb2a75c9e2130" kindref="member">clipped</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structadc__state__t_1af820b0a06d7af969331a0c1dbd01a292" kindref="member">rng</ref><sp/><sp/><sp/><sp/><sp/>=<sp/><ref refid="adc__core_8c_1a1cdcf9fb6e65bb3903b8273db3329f5f" kindref="member">ADC_RNG_SEED</ref>;</highlight></codeline>
+<codeline lineno="42"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><ref refid="adc__core_8c_1aa73dc776c773708fee96e2b000a9d613" kindref="member">adc_steps</ref>(<ref refid="structadc__state__t" kindref="compound">adc_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*input,</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>int64_t<sp/>*output,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n)</highlight></codeline>
+<codeline lineno="47"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state-&gt;<ref refid="structadc__state__t_1ac60fdc94a58b04e8aba204dae9c45bd4" kindref="member">dithering</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Hot<sp/>path:<sp/>SIMD-width<sp/>float<sp/>multiply,<sp/>scalar<sp/>int64<sp/>convert.</highlight></codeline>
+<codeline lineno="50"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>The<sp/>multiply<sp/>is<sp/>the<sp/>dominant<sp/>cost;<sp/>the<sp/>per-lane<sp/>scalar<sp/>round</highlight></codeline>
+<codeline lineno="51"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*<sp/>and<sp/>clamp<sp/>are<sp/>cheap<sp/>relative<sp/>to<sp/>the<sp/>float<sp/>load<sp/>+<sp/>scale.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"></highlight><highlight class="preprocessor">#if<sp/>JM_SIMD_WIDTH_F32<sp/>&gt;<sp/>1</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>scale_f<sp/>=<sp/>(float)state-&gt;<ref refid="structadc__state__t_1a8af09d23c74c1b5d0691b7f09b43702a" kindref="member">scale</ref>;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>stride<sp/>=<sp/><ref refid="jm__simd_8h_1aae649c505a3f6953682959444562fac3" kindref="member">JM_SIMD_WIDTH_F32</ref>;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="jm__simd_8h_1aa47103a8162550707bbab66b5c59340f" kindref="member">JM_VEC_F32</ref><sp/>sv<sp/>=<sp/><ref refid="jm__simd_8h_1a2ac0323f12883d788a2bc8a73fa46ede" kindref="member">JM_SPLAT_F32</ref>(scale_f);</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>tmp[<ref refid="jm__simd_8h_1aae649c505a3f6953682959444562fac3" kindref="member">JM_SIMD_WIDTH_F32</ref>];</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>+<sp/>stride<sp/>&lt;=<sp/>n;<sp/>i<sp/>+=<sp/>stride)<sp/>{</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="jm__simd_8h_1aa47103a8162550707bbab66b5c59340f" kindref="member">JM_VEC_F32</ref><sp/>v<sp/>=<sp/><ref refid="jm__simd_8h_1ad8731b5b5a00b10d93c8478f4213391f" kindref="member">JM_MUL_F32</ref>(<ref refid="jm__simd_8h_1a1de38e9cbee664161842e53ec6762df6" kindref="member">JM_LOAD_F32</ref>(input<sp/>+<sp/>i),<sp/>sv);</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="jm__simd_8h_1a5beb0cdade48761d839d9da4bc36a5f1" kindref="member">JM_STORE_F32</ref>(tmp,<sp/>v);</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>k<sp/>=<sp/>0;<sp/>k<sp/>&lt;<sp/>stride;<sp/>k++)<sp/>{</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>int64_t<sp/>q<sp/>=<sp/>llroundf(tmp[k]);</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(q<sp/>&gt;<sp/>state-&gt;<ref refid="structadc__state__t_1a852858b7a585fd1c73f69c363c442b48" kindref="member">clip_max</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>q<sp/>=<sp/>state-&gt;<ref refid="structadc__state__t_1a852858b7a585fd1c73f69c363c442b48" kindref="member">clip_max</ref>;</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structadc__state__t_1afaa1c38a97498a2840feb2a75c9e2130" kindref="member">clipped</ref><sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}<sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(q<sp/>&lt;<sp/>state-&gt;clip_min)<sp/>{</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>q<sp/>=<sp/>state-&gt;<ref refid="structadc__state__t_1aabbece9dbe14ffbf326e6ca4ef1fec18" kindref="member">clip_min</ref>;</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structadc__state__t_1afaa1c38a97498a2840feb2a75c9e2130" kindref="member">clipped</ref><sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>output[i<sp/>+<sp/>k]<sp/>=<sp/>q;</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>output[i]<sp/>=<sp/><ref refid="adc__core_8h_1a3b830a1b814e405acadf902ef3bd224a" kindref="member">adc_step</ref>(state,<sp/>input[i]);</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Dither<sp/>path:<sp/>sequential<sp/>PRNG<sp/>—<sp/>scalar<sp/>loop<sp/>preserves<sp/>state<sp/>ordering.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>output[i]<sp/>=<sp/><ref refid="adc__core_8h_1a3b830a1b814e405acadf902ef3bd224a" kindref="member">adc_step</ref>(state,<sp/>input[i]);</highlight></codeline>
+<codeline lineno="81"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/adc/adc_core.c"/>
+  </compounddef>
+</doxygen>

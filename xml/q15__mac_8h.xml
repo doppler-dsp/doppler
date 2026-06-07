@@ -1,0 +1,176 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="q15__mac_8h" kind="file" language="C++">
+    <compoundname>q15_mac.h</compoundname>
+    <includes local="no">stddef.h</includes>
+    <includes local="no">stdint.h</includes>
+    <includedby refid="acc__q15__core_8c" local="yes">native/src/acc_q15/acc_q15_core.c</includedby>
+    <includedby refid="dot__q15_8c" local="yes">native/src/arith/dot_q15.c</includedby>
+    <includedby refid="hbdecim__q15__core_8c" local="yes">native/src/hbdecim_q15/hbdecim_q15_core.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/q15_mac.h</label>
+        <link refid="q15__mac_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>stddef.h</label>
+      </node>
+      <node id="3">
+        <label>stdint.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/q15_mac.h</label>
+        <link refid="q15__mac_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/src/acc_q15/acc_q15_core.c</label>
+        <link refid="acc__q15__core_8c"/>
+      </node>
+      <node id="3">
+        <label>native/src/arith/dot_q15.c</label>
+        <link refid="dot__q15_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/hbdecim_q15/hbdecim_q15_core.c</label>
+        <link refid="hbdecim__q15__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="q15__mac_8h_1a6b432ce863c45ac45184de3bb64561bb" prot="public" static="yes" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>int64_t</type>
+        <definition>static int64_t dot_q15_scalar</definition>
+        <argsstring>(const int16_t *a, const int16_t *b, size_t n)</argsstring>
+        <name>dot_q15_scalar</name>
+        <param>
+          <type>const int16_t *</type>
+          <declname>a</declname>
+        </param>
+        <param>
+          <type>const int16_t *</type>
+          <declname>b</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Scalar Q15 dot product. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Each product is widened to int32_t before accumulation into int64_t to avoid overflow. Correct for all Q15 inputs and any n ≤ 2^33. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/q15_mac.h" line="126" column="1" bodyfile="native/inc/q15_mac.h" bodystart="126" bodyend="132"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Static inline Q15 dot-product primitives: scalar fallback and AVX2. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Provides two functions:</para>
+<para>int64_t dot_q15_scalar(a, b, n) int64_t dot_q15_avx2 (a, b, n) — only when <bold>AVX2</bold> is defined</para>
+<para>Both compute the exact integer inner product sum(a[i] * b[i]) for i in [0, n), accumulating into int64_t without saturation. The caller decides how to round and saturate the result.</para>
+<para>Result format: Q30 (each Q15 × Q15 product is Q30; n products accumulate in int64_t, which has sufficient headroom for n ≤ 2^33 before overflow).</para>
+<para>The hsum_epi32_i64 helper is also exposed so callers that maintain their own AVX2 accumulator can reduce it to a scalar at the end.</para>
+<para>Usage: <programlisting><codeline><highlight class="preprocessor">#include<sp/>&quot;<ref refid="q15__mac_8h" kindref="compound">q15_mac.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal">int64_t<sp/>acc;</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="preprocessor">#if<sp/>defined(__AVX2__)</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/>acc<sp/>=<sp/>dot_q15_avx2(a,<sp/>b,<sp/>n);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="preprocessor">#else</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/>acc<sp/>=<sp/>dot_q15_scalar(a,<sp/>b,<sp/>n);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>shift<sp/>to<sp/>Q15:<sp/>int32_t<sp/>out<sp/>=<sp/>(int32_t)((acc<sp/>+<sp/>(1<sp/>&lt;&lt;<sp/>14))<sp/>&gt;&gt;<sp/>15);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>Q15_MAC_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>Q15_MAC_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stddef.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stdint.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="preprocessor">#if<sp/>defined(__x86_64__)<sp/>||<sp/>defined(_M_X64)<sp/>||<sp/>defined(__i386__)</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight><highlight class="preprocessor">#<sp/><sp/>include<sp/>&lt;immintrin.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>AVX2<sp/>helpers<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="45"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46"><highlight class="normal"></highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight><highlight class="preprocessor">#if<sp/>defined(__AVX2__)</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">inline</highlight><highlight class="normal"><sp/>int64_t</highlight></codeline>
+<codeline lineno="58"><highlight class="normal">hsum_epi32_i64(__m256i<sp/>v)</highlight></codeline>
+<codeline lineno="59"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/>__m128i<sp/>lo128<sp/><sp/>=<sp/>_mm256_extracti128_si256(v,<sp/>0);</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/>__m128i<sp/>hi128<sp/><sp/>=<sp/>_mm256_extracti128_si256(v,<sp/>1);</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Sign-extend<sp/>all<sp/>8<sp/>int32<sp/>lanes<sp/>to<sp/>8<sp/>×<sp/>int64<sp/>(two<sp/>256-bit<sp/>vectors).<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/>__m256i<sp/>lo64<sp/><sp/><sp/>=<sp/>_mm256_cvtepi32_epi64(lo128);</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/>__m256i<sp/>hi64<sp/><sp/><sp/>=<sp/>_mm256_cvtepi32_epi64(hi128);</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/>__m256i<sp/>sum256<sp/>=<sp/>_mm256_add_epi64(lo64,<sp/>hi64);<sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>4<sp/>×<sp/>int64<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/>__m128i<sp/>slo<sp/><sp/><sp/><sp/>=<sp/>_mm256_extracti128_si256(sum256,<sp/>0);</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/>__m128i<sp/>shi<sp/><sp/><sp/><sp/>=<sp/>_mm256_extracti128_si256(sum256,<sp/>1);</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/><sp/><sp/>__m128i<sp/>r<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>_mm_add_epi64(slo,<sp/>shi);<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>2<sp/>×<sp/>int64<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(int64_t)_mm_extract_epi64(r,<sp/>0)<sp/>+<sp/>(int64_t)_mm_extract_epi64(r,<sp/>1);</highlight></codeline>
+<codeline lineno="70"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="88"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>int64_t</highlight></codeline>
+<codeline lineno="89"><highlight class="normal">dot_q15_avx2(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*a,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*b,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n)</highlight></codeline>
+<codeline lineno="90"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/>int64_t<sp/>result<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/>k<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Flush<sp/>to<sp/>int64<sp/>after<sp/>every<sp/>16-element<sp/>block.</highlight></codeline>
+<codeline lineno="95"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*</highlight></codeline>
+<codeline lineno="96"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>A<sp/>single<sp/>_mm256_madd_epi16<sp/>call<sp/>over<sp/>all-Q15_MAX<sp/>inputs<sp/>produces</highlight></codeline>
+<codeline lineno="97"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>int32<sp/>lanes<sp/>of<sp/>2<sp/>×<sp/>32767²<sp/>=<sp/>2,147,352,578<sp/>—<sp/>only<sp/>131,069<sp/>below</highlight></codeline>
+<codeline lineno="98"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>INT32_MAX.<sp/><sp/>Accumulating<sp/>two<sp/>such<sp/>calls<sp/>overflows<sp/>int32.<sp/><sp/>We<sp/>therefore</highlight></codeline>
+<codeline lineno="99"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>reduce<sp/>each<sp/>block<sp/>to<sp/>int64<sp/>before<sp/>moving<sp/>on;<sp/>the<sp/>scalar<sp/>tail<sp/>handles</highlight></codeline>
+<codeline lineno="100"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>any<sp/>remainder.<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>k<sp/>+<sp/>16<sp/>&lt;=<sp/>n;<sp/>k<sp/>+=<sp/>16)<sp/>{</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>__m256i<sp/>va<sp/><sp/><sp/>=<sp/>_mm256_loadu_si256((</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>__m256i<sp/>*)(a<sp/>+<sp/>k));</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>__m256i<sp/>vb<sp/><sp/><sp/>=<sp/>_mm256_loadu_si256((</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>__m256i<sp/>*)(b<sp/>+<sp/>k));</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>result<sp/><sp/><sp/><sp/><sp/><sp/>+=<sp/>hsum_epi32_i64(_mm256_madd_epi16(va,<sp/>vb));</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(;<sp/>k<sp/>&lt;<sp/>n;<sp/>k++)</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>result<sp/>+=<sp/>(int64_t)a[k]<sp/>*<sp/>b[k];</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"></highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>result;</highlight></codeline>
+<codeline lineno="111"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight></codeline>
+<codeline lineno="113"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>__AVX2__<sp/>*/</highlight><highlight class="preprocessor"></highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="114"><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Scalar<sp/>fallback<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="117"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="118"><highlight class="normal"></highlight></codeline>
+<codeline lineno="125"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">inline</highlight><highlight class="normal"><sp/>int64_t</highlight></codeline>
+<codeline lineno="126"><highlight class="normal">dot_q15_scalar(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*a,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/>int16_t<sp/>*b,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n)</highlight></codeline>
+<codeline lineno="127"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="128"><highlight class="normal"><sp/><sp/><sp/><sp/>int64_t<sp/>acc<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>k<sp/>=<sp/>0;<sp/>k<sp/>&lt;<sp/>n;<sp/>k++)</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>acc<sp/>+=<sp/>(int64_t)a[k]<sp/>*<sp/>b[k];</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>acc;</highlight></codeline>
+<codeline lineno="132"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"></highlight></codeline>
+<codeline lineno="134"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>Q15_MAC_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/q15_mac.h"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,78 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structnco__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>nco_state_t</compoundname>
+    <includes refid="nco__core_8h" local="no">nco_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t nco_state_t::phase</definition>
+        <argsstring></argsstring>
+        <name>phase</name>
+        <qualifiedname>nco_state_t::phase</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/nco/nco_core.h" line="71" column="14" bodyfile="native/inc/nco/nco_core.h" bodystart="71" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t nco_state_t::phase_inc</definition>
+        <argsstring></argsstring>
+        <name>phase_inc</name>
+        <qualifiedname>nco_state_t::phase_inc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/nco/nco_core.h" line="72" column="14" bodyfile="native/inc/nco/nco_core.h" bodystart="72" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structnco__state__t_1a94c1f310b5415c82e0d15c47fb04466c" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double nco_state_t::norm_freq</definition>
+        <argsstring></argsstring>
+        <name>norm_freq</name>
+        <qualifiedname>nco_state_t::norm_freq</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/nco/nco_core.h" line="73" column="12" bodyfile="native/inc/nco/nco_core.h" bodystart="73" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structnco__state__t_1a324febacd97478c09992aa1609d824fb" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t nco_state_t::nmax</definition>
+        <argsstring></argsstring>
+        <name>nmax</name>
+        <qualifiedname>nco_state_t::nmax</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/nco/nco_core.h" line="74" column="14" bodyfile="native/inc/nco/nco_core.h" bodystart="74" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>NCO state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="nco__core_8h_1ab5b4f944d9172b609a9a760bf3e2b3ff" kindref="member">nco_create()</ref>. All fields are managed by the library; read phase and phase_inc via the property accessors. </para>
+    </detaileddescription>
+    <location file="native/inc/nco/nco_core.h" line="69" column="3" bodyfile="native/inc/nco/nco_core.h" bodystart="70" bodyend="75"/>
+    <listofallmembers>
+      <member refid="structnco__state__t_1a324febacd97478c09992aa1609d824fb" prot="public" virt="non-virtual"><scope>nco_state_t</scope><name>nmax</name></member>
+      <member refid="structnco__state__t_1a94c1f310b5415c82e0d15c47fb04466c" prot="public" virt="non-virtual"><scope>nco_state_t</scope><name>norm_freq</name></member>
+      <member refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" prot="public" virt="non-virtual"><scope>nco_state_t</scope><name>phase</name></member>
+      <member refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" prot="public" virt="non-virtual"><scope>nco_state_t</scope><name>phase_inc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

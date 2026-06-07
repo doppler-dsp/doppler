@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_3216a5b42f889b501e331bced1f9acd2" kind="dir">
+    <compoundname>native/src/util</compoundname>
+    <innerfile refid="square__clip_8c">square_clip.c</innerfile>
+    <innerfile refid="util__core_8c">util_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/util/"/>
+  </compounddef>
+</doxygen>

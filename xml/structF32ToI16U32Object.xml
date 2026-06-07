@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structF32ToI16U32Object" kind="struct" language="C++" prot="public">
+    <compoundname>F32ToI16U32Object</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structF32ToI16U32Object_1aa93e77236ffb201ad23fc1bb46939d0f" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structf32__to__i16u32__state__t" kindref="compound">f32_to_i16u32_state_t</ref> *</type>
+        <definition>PyObject_HEAD f32_to_i16u32_state_t* F32ToI16U32Object::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>F32ToI16U32Object::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cvt/cvt_ext_f32_to_i16u32.c" line="16" column="27" bodyfile="native/src/cvt/cvt_ext_f32_to_i16u32.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>F32ToI16U32Object</label>
+        <link refid="structF32ToI16U32Object"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>f32_to_i16u32_state_t</label>
+        <link refid="structf32__to__i16u32__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/cvt/cvt_ext_f32_to_i16u32.c" line="14" column="1" bodyfile="native/src/cvt/cvt_ext_f32_to_i16u32.c" bodystart="14" bodyend="17"/>
+    <listofallmembers>
+      <member refid="structF32ToI16U32Object_1aa93e77236ffb201ad23fc1bb46939d0f" prot="public" virt="non-virtual"><scope>F32ToI16U32Object</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

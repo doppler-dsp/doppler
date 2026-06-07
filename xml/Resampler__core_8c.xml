@@ -1,0 +1,469 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="Resampler__core_8c" kind="file" language="C++">
+    <compoundname>Resampler_core.c</compoundname>
+    <includes refid="Resampler__core_8h" local="yes">Resampler/Resampler_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>Resampler/Resampler_core.h</label>
+        <link refid="Resampler__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="11">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="6" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>resamp/resamp_core.h</label>
+        <link refid="resamp__core_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/Resampler/Resampler_core.c</label>
+        <link refid="Resampler__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="5">
+        <label>complex.h</label>
+      </node>
+      <node id="6">
+        <label>stddef.h</label>
+      </node>
+      <node id="7">
+        <label>stdint.h</label>
+      </node>
+      <node id="8">
+        <label>stdlib.h</label>
+      </node>
+      <node id="9">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="Resampler__core_8c_1a5d2186facf840594733cb3bf809b0bcf" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+        <definition>Resampler_state_t * Resampler_create</definition>
+        <argsstring>(double rate)</argsstring>
+        <name>Resampler_create</name>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+<para>Create a Resampler with the built-in 4096×19 Kaiser bank. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Resample ratio (out/in). Values &gt;= 1.0 interpolate; values &lt; 1.0 decimate. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on OOM. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="4" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="4" bodyend="7"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1aa5aefc4072a924fa71642fcf7b81e5a7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+        <definition>Resampler_state_t * Resampler_create_custom</definition>
+        <argsstring>(size_t num_phases, size_t num_taps, const float *bank, double rate)</argsstring>
+        <name>Resampler_create_custom</name>
+        <param>
+          <type>size_t</type>
+          <declname>num_phases</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_taps</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>bank</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+<para>Create a Resampler with a user-supplied polyphase bank. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>num_phases</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of polyphase branches (must be power of two). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_taps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Taps per branch. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>bank</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Row-major float32 array, shape num_phases × num_taps. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Initial resample ratio. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on invalid args or OOM. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="10" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="10" bodyend="14"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1abb7eca8445f4084690228db8695c66a5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void Resampler_destroy</definition>
+        <argsstring>(Resampler_state_t *state)</argsstring>
+        <name>Resampler_destroy</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="17" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="17" bodyend="20"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1ac418f667483747c96866b8c34e492176" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void Resampler_reset</definition>
+        <argsstring>(Resampler_state_t *state)</argsstring>
+        <name>Resampler_reset</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero delay line and phase accumulator. Rate and bank preserved. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="23" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="23" bodyend="26"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1ac43b8a22e651a6d819b796a2f8053ba1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_execute_max_out</definition>
+        <argsstring>(Resampler_state_t *state)</argsstring>
+        <name>Resampler_execute_max_out</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Always returns RESAMPLER_MAX_OUT. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="29" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="29" bodyend="33"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1a2d91a921eaadce0f41a8dc58bdfdb23b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_execute</definition>
+        <argsstring>(Resampler_state_t *state, const float complex *x, size_t x_len, float complex *out)</argsstring>
+        <name>Resampler_execute</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>x</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>x_len</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Resample x(0..x_len-1) into out(0..n_out-1). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>out must be at least <ref refid="Resampler__core_8h_1ac43b8a22e651a6d819b796a2f8053ba1" kindref="member">Resampler_execute_max_out()</ref> samples wide. Returns the number of output samples written. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="36" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="36" bodyend="40"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1adc1a3d99625e4319ff29a6e82c6c43e6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_execute_ctrl_max_out</definition>
+        <argsstring>(Resampler_state_t *state)</argsstring>
+        <name>Resampler_execute_ctrl_max_out</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Always returns RESAMPLER_MAX_OUT. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="43" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="43" bodyend="47"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1a6cc2a14e6eb19ecbac25e59d19a2ea7f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_execute_ctrl</definition>
+        <argsstring>(Resampler_state_t *state, const float complex *x, size_t x_len, const float complex *ctrl, size_t ctrl_len, float complex *out)</argsstring>
+        <name>Resampler_execute_ctrl</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>x</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>x_len</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>ctrl</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>ctrl_len</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Resample with per-sample rate deviations. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>rate_i = base_rate + crealf(ctrl(i)). ctrl and x must be the same length. Returns number of output samples written. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="50" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="50" bodyend="56"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1a2e520f1f68957b2921de6001c7776674" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double Resampler_get_rate</definition>
+        <argsstring>(const Resampler_state_t *state)</argsstring>
+        <name>Resampler_get_rate</name>
+        <param>
+          <type>const <ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="59" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="59" bodyend="62"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1a2cac28a8d10af8b19753cf5bd16c2391" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void Resampler_set_rate</definition>
+        <argsstring>(Resampler_state_t *state, double rate)</argsstring>
+        <name>Resampler_set_rate</name>
+        <param>
+          <type><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="65" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="65" bodyend="68"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1ad40ec8270ead8ee7d14de533a698cfe0" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_get_num_phases</definition>
+        <argsstring>(const Resampler_state_t *state)</argsstring>
+        <name>Resampler_get_num_phases</name>
+        <param>
+          <type>const <ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="71" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="71" bodyend="74"/>
+      </memberdef>
+      <memberdef kind="function" id="Resampler__core_8c_1ae840e4cdfec7e742d41df96c76005a7a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t Resampler_get_num_taps</definition>
+        <argsstring>(const Resampler_state_t *state)</argsstring>
+        <name>Resampler_get_num_taps</name>
+        <param>
+          <type>const <ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/Resampler/Resampler_core.c" line="77" column="1" bodyfile="native/src/Resampler/Resampler_core.c" bodystart="77" bodyend="80"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="Resampler__core_8h" kindref="compound">Resampler/Resampler_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><ref refid="Resampler__core_8c_1a5d2186facf840594733cb3bf809b0bcf" kindref="member">Resampler_create</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate)</highlight></codeline>
+<codeline lineno="5"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="6"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1a23162dc0327df6a624dc458078b70362" kindref="member">resamp_create</ref><sp/>(rate);</highlight></codeline>
+<codeline lineno="7"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><ref refid="Resampler__core_8c_1aa5aefc4072a924fa71642fcf7b81e5a7" kindref="member">Resampler_create_custom</ref><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_phases,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>num_taps,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*bank,</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate)</highlight></codeline>
+<codeline lineno="12"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1a6f1a16accc4a3a3ed7955e199773ab85" kindref="member">resamp_create_custom</ref><sp/>(num_phases,<sp/>num_taps,<sp/>bank,<sp/>rate);</highlight></codeline>
+<codeline lineno="14"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><ref refid="Resampler__core_8c_1abb7eca8445f4084690228db8695c66a5" kindref="member">Resampler_destroy</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="18"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="19"><highlight class="normal"><sp/><sp/><ref refid="resamp__core_8h_1acce109c91bed21d081b022aed5d7bc53" kindref="member">resamp_destroy</ref><sp/>(state);</highlight></codeline>
+<codeline lineno="20"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><ref refid="Resampler__core_8c_1ac418f667483747c96866b8c34e492176" kindref="member">Resampler_reset</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="24"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"><sp/><sp/><ref refid="resamp__core_8h_1a2a71edbfc58ebbaa16c869f76b391ac0" kindref="member">resamp_reset</ref><sp/>(state);</highlight></codeline>
+<codeline lineno="26"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><ref refid="Resampler__core_8c_1ac43b8a22e651a6d819b796a2f8053ba1" kindref="member">Resampler_execute_max_out</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="30"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="Resampler__core_8h_1aae3675153930c64db904ae3578cf9ee9" kindref="member">RESAMPLER_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="33"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><ref refid="Resampler__core_8c_1a2d91a921eaadce0f41a8dc58bdfdb23b" kindref="member">Resampler_execute</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*x,</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="38"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1a1d824f4884f9c09c2de2f0aa63aba063" kindref="member">resamp_execute</ref><sp/>(state,<sp/>x,<sp/>x_len,<sp/>out,<sp/><ref refid="Resampler__core_8h_1aae3675153930c64db904ae3578cf9ee9" kindref="member">RESAMPLER_MAX_OUT</ref>);</highlight></codeline>
+<codeline lineno="40"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><ref refid="Resampler__core_8c_1adc1a3d99625e4319ff29a6e82c6c43e6" kindref="member">Resampler_execute_ctrl_max_out</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="44"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="Resampler__core_8h_1aae3675153930c64db904ae3578cf9ee9" kindref="member">RESAMPLER_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="47"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight></codeline>
+<codeline lineno="49"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><ref refid="Resampler__core_8c_1a6cc2a14e6eb19ecbac25e59d19a2ea7f" kindref="member">Resampler_execute_ctrl</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*x,</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*ctrl,</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ctrl_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="53"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/>x_len<sp/>&lt;<sp/>ctrl_len<sp/>?<sp/>x_len<sp/>:<sp/>ctrl_len;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1adfbb31a8c2f516b41d7c46359e872c54" kindref="member">resamp_execute_ctrl</ref><sp/>(state,<sp/>x,<sp/>ctrl,<sp/>n,<sp/>out,<sp/><ref refid="Resampler__core_8h_1aae3675153930c64db904ae3578cf9ee9" kindref="member">RESAMPLER_MAX_OUT</ref>);</highlight></codeline>
+<codeline lineno="56"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><ref refid="Resampler__core_8c_1a2e520f1f68957b2921de6001c7776674" kindref="member">Resampler_get_rate</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="60"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1ac3638592483b5634a8b0fbbbb1d057e7" kindref="member">resamp_get_rate</ref><sp/>(state);</highlight></codeline>
+<codeline lineno="62"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><ref refid="Resampler__core_8c_1a2cac28a8d10af8b19753cf5bd16c2391" kindref="member">Resampler_set_rate</ref><sp/>(<ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate)</highlight></codeline>
+<codeline lineno="66"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><ref refid="resamp__core_8h_1a50838486883c7fb6711c8ee9cd81a41d" kindref="member">resamp_set_rate</ref><sp/>(state,<sp/>rate);</highlight></codeline>
+<codeline lineno="68"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><ref refid="Resampler__core_8c_1ad40ec8270ead8ee7d14de533a698cfe0" kindref="member">Resampler_get_num_phases</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="72"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1ac58d42b34a7cbc9fca49387b03a152b3" kindref="member">resamp_get_num_phases</ref><sp/>(state);</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><ref refid="Resampler__core_8c_1ae840e4cdfec7e742d41df96c76005a7a" kindref="member">Resampler_get_num_taps</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="Resampler__core_8h_1af60a7fee58d377e6e1994927b71c3a13" kindref="member">Resampler_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="78"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="resamp__core_8h_1ae651c0a9e1d20244a0d1975994f305fa" kindref="member">resamp_get_num_taps</ref><sp/>(state);</highlight></codeline>
+<codeline lineno="80"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/Resampler/Resampler_core.c"/>
+  </compounddef>
+</doxygen>

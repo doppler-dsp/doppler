@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_f16365bb7e289cec0411dcf808705715" kind="dir">
+    <compoundname>native/src</compoundname>
+    <innerdir refid="dir_f19b6e0bee4bc1f91a899ec0263eb7a0">native/src/acc_cf64</innerdir>
+    <innerdir refid="dir_39e028b4656943490f5ead31528581aa">native/src/acc_f32</innerdir>
+    <innerdir refid="dir_9d7e4810033a641af2e8f3ab8f9461d2">native/src/acc_q15</innerdir>
+    <innerdir refid="dir_2c164bf83b86ded63e3474b0721f28f7">native/src/acc_q8</innerdir>
+    <innerdir refid="dir_b7d5244134c11ed89dcf61168f096b3a">native/src/accumulator</innerdir>
+    <innerdir refid="dir_0e6c3ea7b8a45c2e3379da6a2659c7fb">native/src/adc</innerdir>
+    <innerdir refid="dir_cd3f6867761836fbec22084100d1c1f3">native/src/agc</innerdir>
+    <innerdir refid="dir_a42af99b32eb0e8fdacb4e5fb9dbebad">native/src/app</innerdir>
+    <innerdir refid="dir_4053d3b7708b8320fc0d9a7f81f782b6">native/src/arith</innerdir>
+    <innerdir refid="dir_276f5cb11ff9a89524b1f01f5d30ea40">native/src/awgn</innerdir>
+    <innerdir refid="dir_fa78b6bb7e47825e8bd8a8f6b80abd0f">native/src/cic</innerdir>
+    <innerdir refid="dir_0bf3deeed44f2e8944e88eb0f6472474">native/src/corr</innerdir>
+    <innerdir refid="dir_dfe266dcddc3c096da33d890b932609d">native/src/corr2d</innerdir>
+    <innerdir refid="dir_80c602da07baa4718d6a5d34ceb8abc3">native/src/cvt</innerdir>
+    <innerdir refid="dir_769fae59421c21ae4b669406506cfb9d">native/src/ddc</innerdir>
+    <innerdir refid="dir_2f6ecde3bcf3e99968f5d98f7322798b">native/src/ddcr</innerdir>
+    <innerdir refid="dir_e29363fdadaec8e081fb58c14d8ee337">native/src/delay</innerdir>
+    <innerdir refid="dir_282f0dc854841c4667a06975ce6319a4">native/src/detection</innerdir>
+    <innerdir refid="dir_e4e7a99ae3ebe0c5f25d785f861032e5">native/src/detector</innerdir>
+    <innerdir refid="dir_7108e714ad79c7426a689792debe3642">native/src/detector2d</innerdir>
+    <innerdir refid="dir_719cf91ab548b85258efbb3d854d81c0">native/src/f32_to_i16</innerdir>
+    <innerdir refid="dir_bfd8d1531175fb637ef1a555c79a4b52">native/src/f32_to_i16u32</innerdir>
+    <innerdir refid="dir_1be4ae21d0283a26be2ea63727f0b073">native/src/f32_to_i16u64</innerdir>
+    <innerdir refid="dir_b3d0e6387962ce696262c5b04d94ac51">native/src/f32_to_uq15</innerdir>
+    <innerdir refid="dir_5f072ccab543bb92ceac2f90f61c7b31">native/src/fft</innerdir>
+    <innerdir refid="dir_fefcf5907dea2aca0b8295378b399d33">native/src/fft2d</innerdir>
+    <innerdir refid="dir_070c2c1cd02958bf82f9c6e102d96f50">native/src/filter</innerdir>
+    <innerdir refid="dir_67c26cadab392a8c4d0cc875269d42a3">native/src/fir</innerdir>
+    <innerdir refid="dir_5cce38f2650c92bd3f0181ceb3c64dc3">native/src/HalfbandDecimator</innerdir>
+    <innerdir refid="dir_ed57b8ace65e1e33df611e9e0f8a9ba1">native/src/hbdecim</innerdir>
+    <innerdir refid="dir_dd7a465ebb8c1cee29788cbec0dd8552">native/src/hbdecim_q15</innerdir>
+    <innerdir refid="dir_1d9dc3dbfa0f4133eb9f0b584e0b21f4">native/src/i16_to_f32</innerdir>
+    <innerdir refid="dir_e8e209d738dfdc0781eb210a3b727530">native/src/i16u32_to_f32</innerdir>
+    <innerdir refid="dir_4cf3d42b80d2cce86521a042b53d0eb9">native/src/i16u64_to_f32</innerdir>
+    <innerdir refid="dir_793c4b6f3314eb7af25b8b5a92b65cc9">native/src/lo</innerdir>
+    <innerdir refid="dir_57ad009e28098a67979a33ac57d851bb">native/src/nco</innerdir>
+    <innerdir refid="dir_313d19a25d949df717141d949b2b2aaa">native/src/pn</innerdir>
+    <innerdir refid="dir_8e385e14407f4ce995336d894b95b94e">native/src/RateConverter</innerdir>
+    <innerdir refid="dir_77359ce0ebf7abe8fc34a9fffc0898b4">native/src/resamp</innerdir>
+    <innerdir refid="dir_21b83d9b64bd3294b1dce68eeff74d3d">native/src/resample</innerdir>
+    <innerdir refid="dir_1b9755d6c9e0607ad87e18451b03b1d7">native/src/Resampler</innerdir>
+    <innerdir refid="dir_2ee739fd5b96cf34065d9eb2b3b3a626">native/src/source</innerdir>
+    <innerdir refid="dir_d63754e1df0087b45c33bb91a9aad07e">native/src/spectral</innerdir>
+    <innerdir refid="dir_3696d2546b493db322218dc40f270cc9">native/src/stream</innerdir>
+    <innerdir refid="dir_e6ce92a5398a73c27448a16813a87f01">native/src/synth</innerdir>
+    <innerdir refid="dir_7cde67fdab174058eaa0989a60b9bfbc">native/src/uq15_to_f32</innerdir>
+    <innerdir refid="dir_3216a5b42f889b501e331bced1f9acd2">native/src/util</innerdir>
+    <innerdir refid="dir_2a3f72e9dc65c3938b1892e9e100e070">native/src/wfmgen</innerdir>
+    <innerfile refid="doppler__lib_8c">doppler_lib.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/"/>
+  </compounddef>
+</doxygen>

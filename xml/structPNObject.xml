@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structPNObject" kind="struct" language="C++" prot="public">
+    <compoundname>PNObject</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structPNObject_1a7a9a0e6b275caa0932f3b93cd1d9faff" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structpn__state__t" kindref="compound">pn_state_t</ref> *</type>
+        <definition>PyObject_HEAD pn_state_t* PNObject::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>PNObject::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfmgen_ext_pn.c" line="16" column="16" bodyfile="native/src/wfmgen/wfmgen_ext_pn.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structPNObject_1a23a8cf942ce8144d12b24fcb013cf80e" prot="public" static="no" mutable="no">
+        <type>uint8_t *</type>
+        <definition>uint8_t* PNObject::_generate_buf</definition>
+        <argsstring></argsstring>
+        <name>_generate_buf</name>
+        <qualifiedname>PNObject::_generate_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfmgen_ext_pn.c" line="17" column="13" bodyfile="native/src/wfmgen/wfmgen_ext_pn.c" bodystart="17" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structPNObject_1acc4a2f5c0185775f0c56c3539eced864" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t PNObject::_generate_buf_cap</definition>
+        <argsstring></argsstring>
+        <name>_generate_buf_cap</name>
+        <qualifiedname>PNObject::_generate_buf_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfmgen_ext_pn.c" line="18" column="12" bodyfile="native/src/wfmgen/wfmgen_ext_pn.c" bodystart="18" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>PNObject</label>
+        <link refid="structPNObject"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>pn_state_t</label>
+        <link refid="structpn__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/wfmgen/wfmgen_ext_pn.c" line="14" column="1" bodyfile="native/src/wfmgen/wfmgen_ext_pn.c" bodystart="14" bodyend="19"/>
+    <listofallmembers>
+      <member refid="structPNObject_1a23a8cf942ce8144d12b24fcb013cf80e" prot="public" virt="non-virtual"><scope>PNObject</scope><name>_generate_buf</name></member>
+      <member refid="structPNObject_1acc4a2f5c0185775f0c56c3539eced864" prot="public" virt="non-virtual"><scope>PNObject</scope><name>_generate_buf_cap</name></member>
+      <member refid="structPNObject_1a7a9a0e6b275caa0932f3b93cd1d9faff" prot="public" virt="non-virtual"><scope>PNObject</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

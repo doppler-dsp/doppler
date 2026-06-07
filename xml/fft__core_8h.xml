@@ -1,0 +1,638 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="fft__core_8h" kind="file" language="C++">
+    <compoundname>fft_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes local="yes">pocketfft/pocketfft.h</includes>
+    <includedby refid="corr__core_8h" local="yes">native/inc/corr/corr_core.h</includedby>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="fft__core_8c" local="yes">native/src/fft/fft_core.c</includedby>
+    <includedby refid="spectral__ext__fft_8c" local="yes">native/src/spectral/spectral_ext_fft.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/fft/fft_core.h</label>
+        <link refid="fft__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="10">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="2">
+        <label>native/inc/corr/corr_core.h</label>
+        <link refid="corr__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/inc/detector/detector_core.h</label>
+        <link refid="detector__core_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="1">
+        <label>native/inc/fft/fft_core.h</label>
+        <link refid="fft__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="7">
+        <label>native/src/corr/corr_core.c</label>
+        <link refid="corr__core_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/detector/detector_core.c</label>
+        <link refid="detector__core_8c"/>
+      </node>
+      <node id="9">
+        <label>native/src/fft/fft_core.c</label>
+        <link refid="fft__core_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/spectral/spectral_ext_corr.c</label>
+        <link refid="spectral__ext__corr_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/spectral/spectral_ext_detector.c</label>
+        <link refid="spectral__ext__detector_8c"/>
+      </node>
+      <node id="10">
+        <label>native/src/spectral/spectral_ext_fft.c</label>
+        <link refid="spectral__ext__fft_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structfft__state__t" prot="public">fft_state_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="fft__core_8h_1a02f99c76214bd79137d8bd365b10655e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+        <definition>fft_state_t * fft_create</definition>
+        <argsstring>(size_t n, int sign, int nthreads)</argsstring>
+        <name>fft_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>sign</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>nthreads</declname>
+        </param>
+        <briefdescription>
+<para>Create a 1-D FFT instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Allocates one CF64 and one CF32 pocketfft plan for length <computeroutput>n</computeroutput>. nthreads is accepted for API compatibility but ignored.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Transform length in samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sign</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>-1 for forward DFT, +1 for inverse. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nthreads</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Ignored (pocketfft is single-threaded). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="47" column="15" bodyfile="native/src/fft/fft_core.c" bodystart="5" bodyend="23" declfile="native/inc/fft/fft_core.h" declline="47" declcolumn="15"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a52651f3379e80920d512e6f4d17d6c81" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fft_destroy</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_destroy</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy and free an fft instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="50" column="8" bodyfile="native/src/fft/fft_core.c" bodystart="26" bodyend="33" declfile="native/inc/fft/fft_core.h" declline="50" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a74c35d8887359da5016dd47db67e96ea" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fft_reset</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_reset</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>No-op reset (plans are immutable after creation). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="53" column="8" bodyfile="native/src/fft/fft_core.c" bodystart="36" bodyend="39" declfile="native/inc/fft/fft_core.h" declline="53" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a29ef4b41c59ac57798df141162784349" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_cf64_max_out</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_execute_cf64_max_out</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples per execute call (always == n). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="56" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="42" bodyend="45" declfile="native/inc/fft/fft_core.h" declline="56" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a706b7c4690fdfd3eaf12d1e88c046d82" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_cf64</definition>
+        <argsstring>(fft_state_t *state, const double complex *in, size_t n_in, double complex *out)</argsstring>
+        <name>fft_execute_cf64</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const double complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Out-of-place 1-D CF64 FFT. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input buffer of length n_in (must equal state-&gt;n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer of length &gt;= n. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n (samples written). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="66" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="48" bodyend="54" declfile="native/inc/fft/fft_core.h" declline="66" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a0087872c5e2600a0159edb4aec315114" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_cf32_max_out</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_execute_cf32_max_out</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for CF32 execute (always == n). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="70" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="57" bodyend="60" declfile="native/inc/fft/fft_core.h" declline="70" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a7918f50bc90cd5c4aa8d758bcf43aa63" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_cf32</definition>
+        <argsstring>(fft_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>fft_execute_cf32</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Out-of-place 1-D CF32 FFT. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input buffer of length n_in. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer of length &gt;= n. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n (samples written). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="80" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="63" bodyend="69" declfile="native/inc/fft/fft_core.h" declline="80" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a854da49f256a42706add1581b7dc5741" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_inplace_cf64_max_out</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_execute_inplace_cf64_max_out</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for inplace CF64 (always == n). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="84" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="72" bodyend="75" declfile="native/inc/fft/fft_core.h" declline="84" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a5182fdef9366256764fc91474d4e52cf" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_inplace_cf64</definition>
+        <argsstring>(fft_state_t *state, const double complex *in, size_t n_in, double complex *out)</argsstring>
+        <name>fft_execute_inplace_cf64</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const double complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>In-place 1-D CF64 FFT (copies in→out, then transforms in out). </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Source; copied into out before the transform. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Buffer of length &gt;= n; must not alias in. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n (samples written). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="94" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="78" bodyend="87" declfile="native/inc/fft/fft_core.h" declline="94" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a8994f956b916558fa0a19df2acb1c3fe" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_inplace_cf32_max_out</definition>
+        <argsstring>(fft_state_t *state)</argsstring>
+        <name>fft_execute_inplace_cf32_max_out</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for inplace CF32 (always == n). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="99" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="90" bodyend="93" declfile="native/inc/fft/fft_core.h" declline="99" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="fft__core_8h_1a3e398f6b56acd8fc5f5c430e68f3c164" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft_execute_inplace_cf32</definition>
+        <argsstring>(fft_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>fft_execute_inplace_cf32</name>
+        <param>
+          <type><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>In-place 1-D CF32 FFT (copies in→out, then transforms in out). </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Source; copied into out before the transform. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Buffer of length &gt;= n; must not alias in. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n (samples written). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fft/fft_core.h" line="109" column="10" bodyfile="native/src/fft/fft_core.c" bodystart="96" bodyend="102" declfile="native/inc/fft/fft_core.h" declline="109" declcolumn="10"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Per-instance 1-D FFT using pocketfft directly. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Holds two pocketfft plans — one for CF64, one for CF32 — allocated at create time for the requested transform length and sign. nthreads is accepted for API compatibility but ignored; pocketfft is single-threaded.</para>
+<para>Lifecycle: <programlisting><codeline><highlight class="normal"><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*fft<sp/>=<sp/><ref refid="fft__core_8h_1a02f99c76214bd79137d8bd365b10655e" kindref="member">fft_create</ref>(1024,<sp/>-1,<sp/>1);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>out[1024];</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="fft__core_8h_1a706b7c4690fdfd3eaf12d1e88c046d82" kindref="member">fft_execute_cf64</ref>(fft,<sp/>in,<sp/>1024,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="fft__core_8h_1a52651f3379e80920d512e6f4d17d6c81" kindref="member">fft_destroy</ref>(fft);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>FFT_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>FFT_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;pocketfft/pocketfft.h&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="24"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="25"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight></codeline>
+<codeline lineno="28" refid="structfft__state__t" refkind="compound"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="30" refid="structfft__state__t_1a49effa342657e8b6aeab3f0d8ef12ff1" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>pocketfft_plan<sp/>*<ref refid="structfft__state__t_1a49effa342657e8b6aeab3f0d8ef12ff1" kindref="member">plan_f64</ref>;<sp/></highlight></codeline>
+<codeline lineno="31" refid="structfft__state__t_1a8622135d9b165fcadef54506c9880e43" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>pocketfft_plan<sp/>*<ref refid="structfft__state__t_1a8622135d9b165fcadef54506c9880e43" kindref="member">plan_f32</ref>;<sp/></highlight></codeline>
+<codeline lineno="32" refid="structfft__state__t_1a551543b2ee3d1749233ec7d912ef40ce" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structfft__state__t_1a551543b2ee3d1749233ec7d912ef40ce" kindref="member">n</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="33" refid="structfft__state__t_1a0b0194f66c54b326bcab0bf143de7c96" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="structfft__state__t_1a0b0194f66c54b326bcab0bf143de7c96" kindref="member">sign</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/>}<sp/><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref>;</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*<ref refid="fft__core_8h_1a02f99c76214bd79137d8bd365b10655e" kindref="member">fft_create</ref><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>sign,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads);</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a52651f3379e80920d512e6f4d17d6c81" kindref="member">fft_destroy</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a74c35d8887359da5016dd47db67e96ea" kindref="member">fft_reset</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a29ef4b41c59ac57798df141162784349" kindref="member">fft_execute_cf64_max_out</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a706b7c4690fdfd3eaf12d1e88c046d82" kindref="member">fft_execute_cf64</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a0087872c5e2600a0159edb4aec315114" kindref="member">fft_execute_cf32_max_out</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a7918f50bc90cd5c4aa8d758bcf43aa63" kindref="member">fft_execute_cf32</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a854da49f256a42706add1581b7dc5741" kindref="member">fft_execute_inplace_cf64_max_out</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a5182fdef9366256764fc91474d4e52cf" kindref="member">fft_execute_inplace_cf64</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state,</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"></highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a8994f956b916558fa0a19df2acb1c3fe" kindref="member">fft_execute_inplace_cf32_max_out</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="100"><highlight class="normal"></highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="fft__core_8h_1a3e398f6b56acd8fc5f5c430e68f3c164" kindref="member">fft_execute_inplace_cf32</ref><sp/>(<ref refid="structfft__state__t" kindref="compound">fft_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"></highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="113"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>FFT_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/fft/fft_core.h"/>
+  </compounddef>
+</doxygen>

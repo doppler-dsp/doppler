@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_ce1f95460e483b5f4e7af3e87d9b090c" kind="dir">
+    <compoundname>native/inc/source</compoundname>
+    <innerfile refid="source__core_8h">source_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/source/"/>
+  </compounddef>
+</doxygen>

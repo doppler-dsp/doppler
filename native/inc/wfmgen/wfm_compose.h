@@ -88,6 +88,7 @@ void wfm_compose_destroy(wfm_compose_state_t *state);
 
 /**
  * @brief Borrow the composer's stored segment list (for --record / SigMF).
+ * @param state      the composer.
  * @param n_out      receives the segment count.
  * @param repeat     receives the repeat flag (may be NULL).
  * @param continuous receives the continuous flag (may be NULL).

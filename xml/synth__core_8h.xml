@@ -1,0 +1,991 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="synth__core_8h" kind="file" language="C++">
+    <compoundname>synth_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includes refid="lo__core_8h" local="yes">lo/lo_core.h</includes>
+    <includes refid="awgn__core_8h" local="yes">awgn/awgn_core.h</includes>
+    <includes refid="pn__core_8h" local="yes">pn/pn_core.h</includes>
+    <includes local="no">math.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="wfm__compose_8h" local="yes">native/inc/wfmgen/wfm_compose.h</includedby>
+    <includedby refid="wavegen_8c" local="yes">native/src/app/wavegen.c</includedby>
+    <includedby refid="synth__core_8c" local="yes">native/src/synth/synth_core.c</includedby>
+    <includedby refid="wfmgen__ext__synth_8c" local="yes">native/src/wfmgen/wfmgen_ext_synth.c</includedby>
+    <incdepgraph>
+      <node id="11">
+        <label>awgn/awgn_core.h</label>
+        <link refid="awgn__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>lo/lo_core.h</label>
+        <link refid="lo__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="12">
+        <label>pn/pn_core.h</label>
+        <link refid="pn__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/synth/synth_core.h</label>
+        <link refid="synth__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+        <childnode refid="13" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="13">
+        <label>math.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="1">
+        <label>native/inc/synth/synth_core.h</label>
+        <link refid="synth__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/inc/wfmgen/wfm_compose.h</label>
+        <link refid="wfm__compose_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>native/inc/wfmgen/wfm_writer.h</label>
+        <link refid="wfm__writer_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>native/src/app/wavegen.c</label>
+        <link refid="wavegen_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/app/wfmgen.c</label>
+        <link refid="wfmgen_8c"/>
+      </node>
+      <node id="10">
+        <label>native/src/synth/synth_core.c</label>
+        <link refid="synth__core_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/wfmgen/wfm_compose.c</label>
+        <link refid="wfm__compose_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/wfmgen/wfm_json.c</label>
+        <link refid="wfm__json_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/wfmgen/wfm_writer.c</label>
+        <link refid="wfm__writer_8c"/>
+      </node>
+      <node id="11">
+        <label>native/src/wfmgen/wfmgen_ext_synth.c</label>
+        <link refid="wfmgen__ext__synth_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structsynth__state__t" prot="public">synth_state_t</innerclass>
+    <sectiondef kind="enum">
+      <memberdef kind="enum" id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518" prot="public" static="no" strong="no">
+        <type></type>
+        <name>@013030212227253331271157327264131156300177213217</name>
+        <enumvalue id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ae4729d9616cfb2e92d9b17cf57b70d0b" prot="public">
+          <name>SYNTH_TONE</name>
+          <initializer>= 0</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a12316ecb1e89024eb15f9c62423c3f4e" prot="public">
+          <name>SYNTH_NOISE</name>
+          <initializer>= 1</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac57b713d55302d439648c02e6a9c448c" prot="public">
+          <name>SYNTH_PN</name>
+          <initializer>= 2</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a6c35432e71e31b37465a49c60abe66b6" prot="public">
+          <name>SYNTH_BPSK</name>
+          <initializer>= 3</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+          </detaileddescription>
+        </enumvalue>
+        <enumvalue id="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac54f2c70670819f5684883a709cfb7fd" prot="public">
+          <name>SYNTH_QPSK</name>
+          <initializer>= 4</initializer>
+          <briefdescription>
+          </briefdescription>
+          <detaileddescription>
+          </detaileddescription>
+        </enumvalue>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Waveform type discriminant (the <computeroutput>type</computeroutput> create argument / <ndash/>type choice). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="28" column="1" bodyfile="native/inc/synth/synth_core.h" bodystart="28" bodyend="34"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="synth__core_8h_1adcc9dec4bb9a57c3dd4cd9e14cd2332f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> uint32_t</type>
+        <definition>JM_FORCEINLINE uint32_t synth_mls_poly</definition>
+        <argsstring>(uint32_t n)</argsstring>
+        <name>synth_mls_poly</name>
+        <param>
+          <type>uint32_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the given register length, in pn_core&apos;s Galois convention. Returns 0 for lengths with no table entry (caller errors). Verified period 2^n-1 for n=2..16. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="42" column="1" bodyfile="native/inc/synth/synth_core.h" bodystart="42" bodyend="62"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1ab624764cabe47da500b6ddd16abe96c4" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+        <definition>synth_state_t * synth_create</definition>
+        <argsstring>(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint32_t pn_poly)</argsstring>
+        <name>synth_create</name>
+        <param>
+          <type>int</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>fs</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>freq</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>snr</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>snr_mode</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>seed</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>sps</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>pn_length</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>pn_poly</declname>
+        </param>
+        <briefdescription>
+<para>Create a synth instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>type</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Enum index; 0=tone…4=qpsk. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>fs</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>fs (default: 1000000.0). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>freq (default: 0.0). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>snr</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>snr (default: 100.0). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>snr_mode</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Enum index; 0=auto…3=esno. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>seed</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>seed (default: 1). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sps</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>sps (default: 8). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pn_length</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>pn_length (default: 7). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pn_poly</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>pn_poly (default: 0). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+<simplesect kind="note"><para>Caller must call <ref refid="synth__core_8h_1a18053e4e75108ed16ec3bde728dec580" kindref="member">synth_destroy()</ref> when done. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="95" column="15" bodyfile="native/src/synth/synth_core.c" bodystart="4" bodyend="70" declfile="native/inc/synth/synth_core.h" declline="95" declcolumn="15"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a18053e4e75108ed16ec3bde728dec580" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_destroy</definition>
+        <argsstring>(synth_state_t *state)</argsstring>
+        <name>synth_destroy</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a synth instance and release all memory. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="101" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="73" bodyend="82" declfile="native/inc/synth/synth_core.h" declline="101" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1af9e428fe77b8b6182846ddf0810cb204" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_reset</definition>
+        <argsstring>(synth_state_t *state)</argsstring>
+        <name>synth_reset</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Reset Synth to its post-create state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="107" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="85" bodyend="96" declfile="native/inc/synth/synth_core.h" declline="107" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1ad060e4d8b5537e2fb0c93be39bd560ce" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref> <ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref> float complex</type>
+        <definition>JM_FORCEINLINE JM_HOT float complex synth_step</definition>
+        <argsstring>(synth_state_t *state)</argsstring>
+        <name>synth_step</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Generate one output sample from internal state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Next output sample (float complex). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="115" column="1" bodyfile="native/inc/synth/synth_core.h" bodystart="115" bodyend="142"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1ab0e6dcafd95e49d0396e34167bdfafc6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_steps</definition>
+        <argsstring>(synth_state_t *state, float complex *output, size_t n)</argsstring>
+        <name>synth_steps</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>output</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <briefdescription>
+<para>Generate a block of output samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Component state (mutated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>output</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output array (length &gt;= n). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples to generate. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="151" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="98" bodyend="106" declfile="native/inc/synth/synth_core.h" declline="151" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1aa6313c771e5de281a91c392541f443d0" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int synth_get_wtype</definition>
+        <argsstring>(const synth_state_t *state)</argsstring>
+        <name>synth_get_wtype</name>
+        <param>
+          <type>const <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Get current wtype. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="160" column="5" bodyfile="native/src/synth/synth_core.c" bodystart="109" bodyend="112" declfile="native/inc/synth/synth_core.h" declline="160" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1ac49ea71f960e8f621874faf30b9db91a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_set_wtype</definition>
+        <argsstring>(synth_state_t *state, int val)</argsstring>
+        <name>synth_set_wtype</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Set wtype. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="167" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="115" bodyend="118" declfile="native/inc/synth/synth_core.h" declline="167" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a64c70df35424763f46df6fa659585fb1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int synth_get_nsps</definition>
+        <argsstring>(const synth_state_t *state)</argsstring>
+        <name>synth_get_nsps</name>
+        <param>
+          <type>const <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Get current nsps. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="173" column="5" bodyfile="native/src/synth/synth_core.c" bodystart="121" bodyend="124" declfile="native/inc/synth/synth_core.h" declline="173" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a9339de8238bd5e7a46d8d82d4597ca12" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_set_nsps</definition>
+        <argsstring>(synth_state_t *state, int val)</argsstring>
+        <name>synth_set_nsps</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Set nsps. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="180" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="127" bodyend="130" declfile="native/inc/synth/synth_core.h" declline="180" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a2f87affac22c2983bceb2415c48cdce5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int synth_get_sym_pos</definition>
+        <argsstring>(const synth_state_t *state)</argsstring>
+        <name>synth_get_sym_pos</name>
+        <param>
+          <type>const <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Get current sym_pos. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="186" column="5" bodyfile="native/src/synth/synth_core.c" bodystart="133" bodyend="136" declfile="native/inc/synth/synth_core.h" declline="186" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a6ec301781c63e79f29320ded0d310580" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_set_sym_pos</definition>
+        <argsstring>(synth_state_t *state, int val)</argsstring>
+        <name>synth_set_sym_pos</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Set sym_pos. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="193" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="139" bodyend="142" declfile="native/inc/synth/synth_core.h" declline="193" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1aea5c9781eec0034fb06359dda2b67a4a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float</type>
+        <definition>float synth_get_cur_re</definition>
+        <argsstring>(const synth_state_t *state)</argsstring>
+        <name>synth_get_cur_re</name>
+        <param>
+          <type>const <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Get current cur_re. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="199" column="7" bodyfile="native/src/synth/synth_core.c" bodystart="145" bodyend="148" declfile="native/inc/synth/synth_core.h" declline="199" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a16a3d5f2f22257ba39c3805f839e7a46" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_set_cur_re</definition>
+        <argsstring>(synth_state_t *state, float val)</argsstring>
+        <name>synth_set_cur_re</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Set cur_re. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="206" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="151" bodyend="154" declfile="native/inc/synth/synth_core.h" declline="206" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1adafa6df87228d896f3849d29d020bb05" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float</type>
+        <definition>float synth_get_cur_im</definition>
+        <argsstring>(const synth_state_t *state)</argsstring>
+        <name>synth_get_cur_im</name>
+        <param>
+          <type>const <ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Get current cur_im. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="212" column="7" bodyfile="native/src/synth/synth_core.c" bodystart="157" bodyend="160" declfile="native/inc/synth/synth_core.h" declline="212" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="synth__core_8h_1a7aa2e14472862c765217f5d6fbe6c611" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void synth_set_cur_im</definition>
+        <argsstring>(synth_state_t *state, float val)</argsstring>
+        <name>synth_set_cur_im</name>
+        <param>
+          <type><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Set cur_im. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New value. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/synth/synth_core.h" line="219" column="6" bodyfile="native/src/synth/synth_core.c" bodystart="163" bodyend="166" declfile="native/inc/synth/synth_core.h" declline="219" declcolumn="6"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Synth component API. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Lifecycle: create -&gt; [step / steps / reset]* -&gt; destroy</para>
+<para>Example: <programlisting><codeline><highlight class="normal"><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*obj<sp/>=<sp/><ref refid="synth__core_8h_1ab624764cabe47da500b6ddd16abe96c4" kindref="member">synth_create</ref>(0,<sp/>1000000.0,<sp/>0.0,<sp/>100.0,<sp/>0,<sp/>1,<sp/>8,<sp/>7,<sp/>0);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>y<sp/>=<sp/><ref refid="synth__core_8h_1ad060e4d8b5537e2fb0c93be39bd560ce" kindref="member">synth_step</ref>(obj);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="synth__core_8h_1a18053e4e75108ed16ec3bde728dec580" kindref="member">synth_destroy</ref>(obj);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>SYNTH_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>SYNTH_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="lo__core_8h" kindref="compound">lo/lo_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="awgn__core_8h" kindref="compound">awgn/awgn_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="pn__core_8h" kindref="compound">pn/pn_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"><sp/></highlight><highlight class="comment">/*<sp/>log10/powf/sqrtf<sp/>in<sp/>create_impl<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="24"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight><highlight class="keyword">enum</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="29" refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ae4729d9616cfb2e92d9b17cf57b70d0b" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ae4729d9616cfb2e92d9b17cf57b70d0b" kindref="member">SYNTH_TONE</ref><sp/>=<sp/>0,<sp/><sp/></highlight><highlight class="comment">/*<sp/>continuous-wave<sp/>complex<sp/>tone<sp/>(LO)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="30" refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a12316ecb1e89024eb15f9c62423c3f4e" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a12316ecb1e89024eb15f9c62423c3f4e" kindref="member">SYNTH_NOISE</ref><sp/>=<sp/>1,<sp/></highlight><highlight class="comment">/*<sp/>complex<sp/>AWGN<sp/>only<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="31" refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac57b713d55302d439648c02e6a9c448c" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac57b713d55302d439648c02e6a9c448c" kindref="member">SYNTH_PN</ref><sp/>=<sp/>2,<sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>BPSK-modulated<sp/>PN<sp/>m-sequence<sp/>chips<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32" refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a6c35432e71e31b37465a49c60abe66b6" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518a6c35432e71e31b37465a49c60abe66b6" kindref="member">SYNTH_BPSK</ref><sp/>=<sp/>3,<sp/><sp/></highlight><highlight class="comment">/*<sp/>BPSK<sp/>over<sp/>PN-sourced<sp/>data<sp/>bits<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33" refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac54f2c70670819f5684883a709cfb7fd" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac54f2c70670819f5684883a709cfb7fd" kindref="member">SYNTH_QPSK</ref><sp/>=<sp/>4,<sp/><sp/></highlight><highlight class="comment">/*<sp/>Gray-coded<sp/>QPSK<sp/>over<sp/>PN-sourced<sp/>data<sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/>uint32_t</highlight></codeline>
+<codeline lineno="42" refid="synth__core_8h_1adcc9dec4bb9a57c3dd4cd9e14cd2332f" refkind="member"><highlight class="normal"><ref refid="synth__core_8h_1adcc9dec4bb9a57c3dd4cd9e14cd2332f" kindref="member">synth_mls_poly</ref>(uint32_t<sp/>n)</highlight></codeline>
+<codeline lineno="43"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">switch</highlight><highlight class="normal"><sp/>(n)<sp/>{</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>2:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x3u;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>3:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x5u;</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>4:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x9u;</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>5:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x12u;</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>6:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x21u;</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>7:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x41u;</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>8:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x8Eu;</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>9:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x108u;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>10:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x204u;</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>11:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x402u;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>12:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x829u;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>13:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x100Du;</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>14:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x2015u;</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>15:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x4001u;</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">case</highlight><highlight class="normal"><sp/>16:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0x8016u;</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">default</highlight><highlight class="normal">:<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0u;</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="62"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69" refid="structsynth__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="70" refid="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" kindref="member">wtype</ref>;</highlight></codeline>
+<codeline lineno="71" refid="structsynth__state__t_1a790723318d96ce8ff4bcfeb59acf0689" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t_1a790723318d96ce8ff4bcfeb59acf0689" kindref="member">nsps</ref>;</highlight></codeline>
+<codeline lineno="72" refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" kindref="member">sym_pos</ref>;</highlight></codeline>
+<codeline lineno="73" refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" kindref="member">cur_re</ref>;</highlight></codeline>
+<codeline lineno="74" refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" kindref="member">cur_im</ref>;</highlight></codeline>
+<codeline lineno="75" refid="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref><sp/>*<sp/><ref refid="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" kindref="member">lo</ref>;</highlight></codeline>
+<codeline lineno="76" refid="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*<sp/><ref refid="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" kindref="member">awgn</ref>;</highlight></codeline>
+<codeline lineno="77" refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structpn__state__t" kindref="compound">pn_state_t</ref><sp/>*<sp/><ref refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" kindref="member">pn</ref>;</highlight></codeline>
+<codeline lineno="78"><highlight class="normal">}<sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref>;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*<ref refid="synth__core_8h_1ab624764cabe47da500b6ddd16abe96c4" kindref="member">synth_create</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>type,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>fs,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>freq,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>snr_mode,<sp/>uint32_t<sp/>seed,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>sps,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>pn_length,<sp/>uint32_t<sp/>pn_poly);</highlight></codeline>
+<codeline lineno="96"><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a18053e4e75108ed16ec3bde728dec580" kindref="member">synth_destroy</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1af9e428fe77b8b6182846ddf0810cb204" kindref="member">synth_reset</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><ref refid="jm__perf_8h_1a82a69706e9832e2662a2ed4b74d6fcd1" kindref="member">JM_FORCEINLINE</ref><sp/><ref refid="jm__perf_8h_1a121830d75c5be136ff8ff9531a58f62d" kindref="member">JM_HOT</ref><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex</highlight></codeline>
+<codeline lineno="115" refid="synth__core_8h_1ad060e4d8b5537e2fb0c93be39bd560ce" refkind="member"><highlight class="normal"><ref refid="synth__core_8h_1ad060e4d8b5537e2fb0c93be39bd560ce" kindref="member">synth_step</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="116"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(state-&gt;<ref refid="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" kindref="member">wtype</ref><sp/>&gt;=<sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac57b713d55302d439648c02e6a9c448c" kindref="member">SYNTH_PN</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(state-&gt;<ref refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" kindref="member">sym_pos</ref><sp/>==<sp/>0)<sp/>{</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(state-&gt;<ref refid="structsynth__state__t_1ae468485b03d49f06dece352d69c40180" kindref="member">wtype</ref><sp/>==<sp/><ref refid="synth__core_8h_1ae9988419d08784ed004b52c29d1d9518ac54f2c70670819f5684883a709cfb7fd" kindref="member">SYNTH_QPSK</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint8_t<sp/>b0<sp/>=<sp/><ref refid="pn__core_8h_1ae0dbe3b3504e9946c54565e00edb928f" kindref="member">pn_step</ref>(state-&gt;<ref refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" kindref="member">pn</ref>);</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint8_t<sp/>b1<sp/>=<sp/><ref refid="pn__core_8h_1ae0dbe3b3504e9946c54565e00edb928f" kindref="member">pn_step</ref>(state-&gt;<ref refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" kindref="member">pn</ref>);</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>s<sp/>=<sp/>0.70710678118654752f;</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" kindref="member">cur_re</ref><sp/>=<sp/>b0<sp/>?<sp/>-s<sp/>:<sp/>s;</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" kindref="member">cur_im</ref><sp/>=<sp/>b1<sp/>?<sp/>-s<sp/>:<sp/>s;</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}<sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/>{<sp/></highlight><highlight class="comment">/*<sp/>pn<sp/>or<sp/>bpsk:<sp/>+-1<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="126"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>uint8_t<sp/>b<sp/>=<sp/><ref refid="pn__core_8h_1ae0dbe3b3504e9946c54565e00edb928f" kindref="member">pn_step</ref>(state-&gt;<ref refid="structsynth__state__t_1aa1c86ffb6ed15ef01fa25c25bc67e008" kindref="member">pn</ref>);</highlight></codeline>
+<codeline lineno="127"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" kindref="member">cur_re</ref><sp/>=<sp/>b<sp/>?<sp/>-1.0f<sp/>:<sp/>1.0f;</highlight></codeline>
+<codeline lineno="128"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" kindref="member">cur_im</ref><sp/>=<sp/>0.0f;</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(++state-&gt;<ref refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" kindref="member">sym_pos</ref><sp/>&gt;=<sp/>state-&gt;<ref refid="structsynth__state__t_1a790723318d96ce8ff4bcfeb59acf0689" kindref="member">nsps</ref>)</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structsynth__state__t_1ab00eaff00f6e26256ba74b57b2140396" kindref="member">sym_pos</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>sym<sp/>=<sp/>state-&gt;<ref refid="structsynth__state__t_1a1d240186b362be54f0a8c7f57e480211" kindref="member">cur_re</ref><sp/>+<sp/>state-&gt;<ref refid="structsynth__state__t_1ae0f5227c88bc3671c94231c9965ae76f" kindref="member">cur_im</ref><sp/>*<sp/>I;</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>carrier<sp/>=<sp/>1.0f<sp/>+<sp/>0.0f<sp/>*<sp/>I;</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(state-&gt;<ref refid="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" kindref="member">lo</ref>)</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="lo__core_8h_1a343680be8b9bdec6c26498bc81f34269" kindref="member">lo_steps</ref>(state-&gt;<ref refid="structsynth__state__t_1a2372f8cd6e04c68899386918c2786d69" kindref="member">lo</ref>,<sp/>1,<sp/>&amp;carrier);</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>noise<sp/>=<sp/>0.0f<sp/>+<sp/>0.0f<sp/>*<sp/>I;</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(state-&gt;<ref refid="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" kindref="member">awgn</ref>)</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="awgn__core_8h_1a507003634c145627b019aa27d98b9303" kindref="member">awgn_generate</ref>(state-&gt;<ref refid="structsynth__state__t_1ab9fbd03eef814bf8f3455f9edff58ae0" kindref="member">awgn</ref>,<sp/>1,<sp/>&amp;noise);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>sym<sp/>*<sp/>carrier<sp/>+<sp/>noise;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight></codeline>
+<codeline lineno="151"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1ab0e6dcafd95e49d0396e34167bdfafc6" kindref="member">synth_steps</ref>(</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,</highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*output,</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>n);</highlight></codeline>
+<codeline lineno="155"><highlight class="normal"></highlight></codeline>
+<codeline lineno="160"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1aa6313c771e5de281a91c392541f443d0" kindref="member">synth_get_wtype</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="161"><highlight class="normal"></highlight></codeline>
+<codeline lineno="167"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1ac49ea71f960e8f621874faf30b9db91a" kindref="member">synth_set_wtype</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"></highlight></codeline>
+<codeline lineno="173"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a64c70df35424763f46df6fa659585fb1" kindref="member">synth_get_nsps</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight></codeline>
+<codeline lineno="180"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a9339de8238bd5e7a46d8d82d4597ca12" kindref="member">synth_set_nsps</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"></highlight></codeline>
+<codeline lineno="186"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a2f87affac22c2983bceb2415c48cdce5" kindref="member">synth_get_sym_pos</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="187"><highlight class="normal"></highlight></codeline>
+<codeline lineno="193"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a6ec301781c63e79f29320ded0d310580" kindref="member">synth_set_sym_pos</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"></highlight></codeline>
+<codeline lineno="199"><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1aea5c9781eec0034fb06359dda2b67a4a" kindref="member">synth_get_cur_re</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="200"><highlight class="normal"></highlight></codeline>
+<codeline lineno="206"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a16a3d5f2f22257ba39c3805f839e7a46" kindref="member">synth_set_cur_re</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="207"><highlight class="normal"></highlight></codeline>
+<codeline lineno="212"><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1adafa6df87228d896f3849d29d020bb05" kindref="member">synth_get_cur_im</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"></highlight></codeline>
+<codeline lineno="219"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="synth__core_8h_1a7aa2e14472862c765217f5d6fbe6c611" kindref="member">synth_set_cur_im</ref>(<ref refid="structsynth__state__t" kindref="compound">synth_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"></highlight></codeline>
+<codeline lineno="221"><highlight class="normal"></highlight></codeline>
+<codeline lineno="222"><highlight class="normal"></highlight></codeline>
+<codeline lineno="223"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="224"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="225"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="226"><highlight class="normal"></highlight></codeline>
+<codeline lineno="227"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>SYNTH_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/synth/synth_core.h"/>
+  </compounddef>
+</doxygen>

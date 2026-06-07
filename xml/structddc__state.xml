@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structddc__state" kind="struct" language="C++" prot="public">
+    <compoundname>ddc_state</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structddc__state_1a102846d131da5dfc3675522ada23c711" prot="public" static="no" mutable="no">
+        <type><ref refid="structlo__state__t" kindref="compound">lo_state_t</ref> *</type>
+        <definition>lo_state_t* ddc_state::lo</definition>
+        <argsstring></argsstring>
+        <name>lo</name>
+        <qualifiedname>ddc_state::lo</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="61" column="14" bodyfile="native/src/ddc/ddc_core.c" bodystart="61" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structddc__state_1af882406f935cd36d2e7614cf6cf7101a" prot="public" static="no" mutable="no">
+        <type><ref refid="structRateConverter__state__t" kindref="compound">RateConverter_state_t</ref> *</type>
+        <definition>RateConverter_state_t* ddc_state::rc</definition>
+        <argsstring></argsstring>
+        <name>rc</name>
+        <qualifiedname>ddc_state::rc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/ddc/ddc_core.c" line="62" column="25" bodyfile="native/src/ddc/ddc_core.c" bodystart="62" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="3">
+        <label>RateConverter_state_t</label>
+        <link refid="structRateConverter__state__t"/>
+      </node>
+      <node id="1">
+        <label>ddc_state</label>
+        <link refid="structddc__state"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>lo</edgelabel>
+        </childnode>
+        <childnode refid="3" relation="usage">
+          <edgelabel>rc</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>lo_state_t</label>
+        <link refid="structlo__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/ddc/ddc_core.c" line="59" column="1" bodyfile="native/src/ddc/ddc_core.c" bodystart="60" bodyend="63"/>
+    <listofallmembers>
+      <member refid="structddc__state_1a102846d131da5dfc3675522ada23c711" prot="public" virt="non-virtual"><scope>ddc_state</scope><name>lo</name></member>
+      <member refid="structddc__state_1af882406f935cd36d2e7614cf6cf7101a" prot="public" virt="non-virtual"><scope>ddc_state</scope><name>rc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

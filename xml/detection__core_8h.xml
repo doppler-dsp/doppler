@@ -1,0 +1,637 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="detection__core_8h" kind="file" language="C++">
+    <compoundname>detection_core.h</compoundname>
+    <includedby refid="det__dwell_8c" local="yes">native/src/detection/det_dwell.c</includedby>
+    <includedby refid="det__dwell__power_8c" local="yes">native/src/detection/det_dwell_power.c</includedby>
+    <includedby refid="det__pd_8c" local="yes">native/src/detection/det_pd.c</includedby>
+    <includedby refid="det__pd__power_8c" local="yes">native/src/detection/det_pd_power.c</includedby>
+    <includedby refid="det__snr_8c" local="yes">native/src/detection/det_snr.c</includedby>
+    <includedby refid="det__snr__power_8c" local="yes">native/src/detection/det_snr_power.c</includedby>
+    <includedby refid="det__threshold_8c" local="yes">native/src/detection/det_threshold.c</includedby>
+    <includedby refid="det__threshold__power_8c" local="yes">native/src/detection/det_threshold_power.c</includedby>
+    <includedby refid="detection__core_8c" local="yes">native/src/detection/detection_core.c</includedby>
+    <includedby refid="marcum__q_8c" local="yes">native/src/detection/marcum_q.c</includedby>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/src/detection/det_dwell.c</label>
+        <link refid="det__dwell_8c"/>
+      </node>
+      <node id="3">
+        <label>native/src/detection/det_dwell_power.c</label>
+        <link refid="det__dwell__power_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/detection/det_pd.c</label>
+        <link refid="det__pd_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/detection/det_pd_power.c</label>
+        <link refid="det__pd__power_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/detection/det_snr.c</label>
+        <link refid="det__snr_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/detection/det_snr_power.c</label>
+        <link refid="det__snr__power_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/detection/det_threshold.c</label>
+        <link refid="det__threshold_8c"/>
+      </node>
+      <node id="9">
+        <label>native/src/detection/det_threshold_power.c</label>
+        <link refid="det__threshold__power_8c"/>
+      </node>
+      <node id="10">
+        <label>native/src/detection/detection_core.c</label>
+        <link refid="detection__core_8c"/>
+      </node>
+      <node id="11">
+        <label>native/src/detection/marcum_q.c</label>
+        <link refid="marcum__q_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="detection__core_8h_1a1fa374db52f2c10a8c28993ee4cac1da" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double marcum_q</definition>
+        <argsstring>(int m, double a, double b)</argsstring>
+        <name>marcum_q</name>
+        <param>
+          <type>int</type>
+          <declname>m</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>a</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>b</declname>
+        </param>
+        <briefdescription>
+<para>Marcum Q function Q_M(a, b) for integer M &gt;= 1. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Probability that a Rice(a, sigma=1) random variable exceeds b. For M=1: Q_1(a, b) = P(Rice(a,1) &gt; b). General integer M relates to the noncentral chi-squared CDF with 2M degrees of freedom.</para>
+<para>Computed via the Poisson-weighted chi-squared series (exact for M=1, converges in ~60 terms for practical a, b &lt;= 15):</para>
+<para>Q_M(a, b) = sum_{k=0}^inf w_k * Q_{M+k}(0, b)</para>
+<para>where: w_k = exp(-u) * u^k/k! (u = a^2/2) Q_n(0,b) = exp(-v) * sum_{j=0}^{n-1} v^j/j! (v = b^2/2)</para>
+<para>Each iteration advances both the Poisson weight and the chi-sum in O(1) using the recurrences w_{k+1} = w_k * u/(k+1) and Q_{n+1}(0,b) = Q_n(0,b) + exp(-v)*v^n/n!. Total cost: O(K) where K ~ max(u, M) + safety margin.</para>
+<para>Special cases:<itemizedlist>
+<listitem><para>a = 0: Q_M(0, b) = exp(-b^2/2) * sum_{j=0}^{M-1} (b^2/2)^j/j!</para>
+</listitem><listitem><para>b &lt;= 0: Q_M(a, b) = 1.0</para>
+</listitem></itemizedlist>
+</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>m</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Integration order; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>a</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Non-centrality parameter (signal strength). a = 0 for H0. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>b</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Threshold (same units as test_stat). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Q_M(a, b) in &amp;#91;0, 1&amp;#93;.</para>
+</simplesect>
+Verifiable reference values (scipy.special.marcum_q): marcum_q(1, 0.0, 1.0) = exp(-0.5) ~ 0.60653 marcum_q(1, 0.0, 2.0) = exp(-2.0) ~ 0.13534 marcum_q(2, 0.0, 2.0) = 3*exp(-2) ~ 0.40601 marcum_q(1, 2.0, 1.0) ~ 0.91441 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="69" column="8" bodyfile="native/src/detection/marcum_q.c" bodystart="12" bodyend="36" declfile="native/inc/detection/detection_core.h" declline="69" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1aea1ad6723d6546157611a21518e35e35" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_threshold</definition>
+        <argsstring>(double pfa)</argsstring>
+        <name>det_threshold</name>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Threshold eta for a given false-alarm probability. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Exact closed-form inversion of Pfa = exp(-eta^2/2):</para>
+<para>eta = sqrt(-2 * ln(pfa))</para>
+<para>The threshold is independent of dwell and SNR; it depends only on the desired Pfa.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Desired false-alarm probability; must be in (0, 1). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Threshold eta &gt; 0.</para>
+</simplesect>
+Example: det_threshold(1e-6) ~ 5.2565 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="86" column="8" bodyfile="native/src/detection/det_threshold.c" bodystart="3" bodyend="3" declfile="native/inc/detection/detection_core.h" declline="86" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1a87dc66db0da19df72e94080aa426fd04" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_pd</definition>
+        <argsstring>(double snr, int dwell, double threshold)</argsstring>
+        <name>det_pd</name>
+        <param>
+          <type>double</type>
+          <declname>snr</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>threshold</declname>
+        </param>
+        <briefdescription>
+<para>Detection probability for given per-sample amplitude SNR and dwell. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Computes Pd = Q_1(a, eta) where a = sqrt(2 * dwell) * snr.</para>
+<para>At snr = 0, det_pd returns Pfa (the false-alarm rate, as expected for a noise-only input). As snr or dwell increase, Pd approaches 1.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample amplitude SNR (signal / noise amplitude, linear). snr = 0 gives Pd = Pfa. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Test-stat threshold eta, e.g. from <ref refid="detection__core_8h_1aea1ad6723d6546157611a21518e35e35" kindref="member">det_threshold()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Detection probability in &amp;#91;0, 1&amp;#93;.</para>
+</simplesect>
+Example: det_pd(1.0, 4, det_threshold(1e-6)) ~ 0.78 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="104" column="8" bodyfile="native/src/detection/det_pd.c" bodystart="3" bodyend="5" declfile="native/inc/detection/detection_core.h" declline="104" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1ac9e16f3148961fb95f788607937ee200" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int det_dwell</definition>
+        <argsstring>(double snr, double pd_min, double pfa, int max_dwell)</argsstring>
+        <name>det_dwell</name>
+        <param>
+          <type>double</type>
+          <declname>snr</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pd_min</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>max_dwell</declname>
+        </param>
+        <briefdescription>
+<para>Minimum dwell such that Pd &gt;= pd_min for the given SNR and Pfa. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Iterates dwell = 1, 2, ..., max_dwell, computing <ref refid="detection__core_8h_1a87dc66db0da19df72e94080aa426fd04" kindref="member">det_pd()</ref> at each step. Returns the first dwell that satisfies the Pd requirement, or -1 if none is found within max_dwell iterations.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample amplitude SNR (linear). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pd_min</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Required detection probability, e.g. 0.9. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>False-alarm probability; used to derive eta. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Search upper bound; prevents infinite loops for low SNR. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Minimum dwell &gt;= 1, or -1 if not achievable.</para>
+</simplesect>
+Example: det_dwell(0.5, 0.9, 1e-6, 256) returns the coherent integration depth needed to detect a 0.5 amplitude-SNR signal with Pd = 0.9 and Pfa = 1e-6. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="123" column="5" bodyfile="native/src/detection/det_dwell.c" bodystart="2" bodyend="7" declfile="native/inc/detection/detection_core.h" declline="123" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1a8afeb14284b41b19dbb24c4c400aa464" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_snr</definition>
+        <argsstring>(int dwell, double pd_min, double pfa)</argsstring>
+        <name>det_snr</name>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pd_min</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Minimum per-sample amplitude SNR achieving Pd &gt;= pd_min. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Binary search over SNR in &amp;#91;0, hi&amp;#93; where hi is doubled from 1.0 until det_pd(hi, dwell, threshold) &gt;= pd_min. 64 bisection iterations yield ~1e-19 relative precision on the final interval.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pd_min</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Required detection probability. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>False-alarm probability; used to derive eta. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Minimum amplitude SNR &gt;= 0.</para>
+</simplesect>
+Roundtrip invariant: det_pd(det_snr(M, pd, pfa), M, det_threshold(pfa)) &gt;= pd </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="140" column="8" bodyfile="native/src/detection/det_snr.c" bodystart="2" bodyend="10" declfile="native/inc/detection/detection_core.h" declline="140" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1a657e4abcb2e394489fd46ae3093a630b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_threshold_power</definition>
+        <argsstring>(double pfa)</argsstring>
+        <name>det_threshold_power</name>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Power threshold p from Pfa for the power detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Exact closed-form: P(Exponential(1) &gt; p) = exp(-p) = Pfa, so</para>
+<para>p = -ln(Pfa)</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Desired false-alarm probability; must be in (0, 1). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Threshold p &gt; 0.</para>
+</simplesect>
+Example: det_threshold_power(1e-6) = 6·ln(10) ~ 13.816 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="174" column="8" bodyfile="native/src/detection/det_threshold_power.c" bodystart="3" bodyend="3" declfile="native/inc/detection/detection_core.h" declline="174" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1a17e69f0028c5c6e6ba509bac9ef2ce15" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_pd_power</definition>
+        <argsstring>(double snr_power, int dwell, double power_threshold)</argsstring>
+        <name>det_pd_power</name>
+        <param>
+          <type>double</type>
+          <declname>snr_power</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>power_threshold</declname>
+        </param>
+        <briefdescription>
+<para>Detection probability for the power detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Pd = Q_1(sqrt(2·dwell·snr_power), sqrt(2·power_threshold))</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr_power</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample power SNR (signal power / noise power at the correlator output, linear). 0 gives Pd = Pfa. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>power_threshold</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Threshold p, e.g. from <ref refid="detection__core_8h_1a657e4abcb2e394489fd46ae3093a630b" kindref="member">det_threshold_power()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Detection probability in &amp;#91;0, 1&amp;#93;.</para>
+</simplesect>
+Example: det_pd_power(1.0, 4, det_threshold_power(1e-6)) ~ 0.78 (same result as det_pd(1.0, 4, det_threshold(1e-6)) since snr_power=1 corresponds to snr_amplitude=1 and the Q_1 arguments are identical) </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="191" column="8" bodyfile="native/src/detection/det_pd_power.c" bodystart="3" bodyend="5" declfile="native/inc/detection/detection_core.h" declline="191" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1aa460a12466632695d90d55299f3838fd" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int det_dwell_power</definition>
+        <argsstring>(double snr_power, double pd_min, double pfa, int max_dwell)</argsstring>
+        <name>det_dwell_power</name>
+        <param>
+          <type>double</type>
+          <declname>snr_power</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pd_min</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>max_dwell</declname>
+        </param>
+        <briefdescription>
+<para>Minimum dwell such that Pd &gt;= pd_min for the power detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>snr_power</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-sample power SNR (linear). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pd_min</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Required detection probability. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>False-alarm probability; used to derive p. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Search upper bound. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Minimum dwell &gt;= 1, or -1 if not achievable. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="202" column="5" bodyfile="native/src/detection/det_dwell_power.c" bodystart="2" bodyend="7" declfile="native/inc/detection/detection_core.h" declline="202" declcolumn="5"/>
+      </memberdef>
+      <memberdef kind="function" id="detection__core_8h_1a2640afeb1f1cf0c58d1cba3c14048a96" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_snr_power</definition>
+        <argsstring>(int dwell, double pd_min, double pfa)</argsstring>
+        <name>det_snr_power</name>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pd_min</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Minimum per-sample power SNR achieving Pd &gt;= pd_min. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Roundtrip invariant: det_pd_power(det_snr_power(M,pd,pfa), M, det_threshold_power(pfa)) &gt;= pd</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pd_min</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Required detection probability. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>False-alarm probability. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Minimum power SNR &gt;= 0. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/detection/detection_core.h" line="216" column="8" bodyfile="native/src/detection/det_snr_power.c" bodystart="2" bodyend="5" declfile="native/inc/detection/detection_core.h" declline="216" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Detection-theory utilities for the amplitude-ratio test statistic. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>The doppler detector forms the test statistic:</para>
+<para>test_stat = peak_mag / noise_est</para>
+<para>With M-point coherent integration (dwell = M) and per-sample amplitude SNR <computeroutput>snr</computeroutput> (signal amplitude / noise amplitude, linear):</para>
+<para>Under H0 (noise only): test_stat ~ Rayleigh(1) Under H1 (signal+noise): test_stat ~ Rice(a, 1), a = sqrt(2*M) * snr</para>
+<para>False-alarm probability (threshold-only, M-independent):</para>
+<para>Pfa = exp(-eta^2/2) =&gt; eta = sqrt(-2 ln Pfa) (exact)</para>
+<para>Detection probability:</para>
+<para>Pd = Q_1(a, eta) (Marcum Q function, order 1)</para>
+<para>All functions are stateless and thread-safe. </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DETECTION_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>DETECTION_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a1fa374db52f2c10a8c28993ee4cac1da" kindref="member">marcum_q</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>m,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>a,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>b);</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1aea1ad6723d6546157611a21518e35e35" kindref="member">det_threshold</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa);</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"></highlight></codeline>
+<codeline lineno="104"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a87dc66db0da19df72e94080aa426fd04" kindref="member">det_pd</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>threshold);</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"></highlight></codeline>
+<codeline lineno="123"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1ac9e16f3148961fb95f788607937ee200" kindref="member">det_dwell</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>max_dwell);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"></highlight></codeline>
+<codeline lineno="140"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a8afeb14284b41b19dbb24c4c400aa464" kindref="member">det_snr</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"></highlight></codeline>
+<codeline lineno="142"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>Power<sp/>detector<sp/>────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="143"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="144"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>The<sp/>power<sp/>detector<sp/>uses<sp/>power_stat<sp/>=<sp/>|R[0]|²<sp/>/<sp/>mean(|R[τ]|²)<sp/>instead<sp/>of<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>the<sp/>envelope<sp/>ratio.<sp/><sp/>Under<sp/>H0<sp/>(noise<sp/>only):<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="146"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="147"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/>power_stat<sp/>~<sp/>Exponential(1)<sp/><sp/><sp/>→<sp/><sp/><sp/>P(power_stat<sp/>&gt;<sp/>p)<sp/>=<sp/>exp(-p)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="148"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="149"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>The<sp/>threshold<sp/>is<sp/>simply<sp/>p<sp/>=<sp/>-ln(Pfa),<sp/>and<sp/>the<sp/>detection<sp/>probability<sp/>is<sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="150"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="151"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/>Pd<sp/>=<sp/>Q_1(sqrt(2·dwell·snr_power),<sp/>sqrt(2·p))<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="152"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="153"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>where<sp/>snr_power<sp/>=<sp/>snr_amplitude^2<sp/>(signal<sp/>power<sp/>/<sp/>noise<sp/>power<sp/>per<sp/>sample<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>at<sp/>the<sp/>correlator<sp/>output).<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="155"><highlight class="normal"></highlight><highlight class="comment">/*<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Since<sp/>sqrt(2·p)<sp/>=<sp/>sqrt(-2·ln(Pfa))<sp/>=<sp/>det_threshold(Pfa),<sp/>the<sp/>Pd<sp/>formula<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="157"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>is<sp/>identical<sp/>to<sp/>the<sp/>envelope<sp/>case<sp/>expressed<sp/>in<sp/>power<sp/>units.<sp/><sp/>The<sp/>two<sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="158"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>detectors<sp/>are<sp/>equivalent<sp/>in<sp/>performance<sp/>(same<sp/>Pd<sp/>at<sp/>the<sp/>same<sp/>SNR<sp/>in<sp/>dB);<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="159"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>the<sp/>power<sp/>detector<sp/>offers<sp/>a<sp/>simpler<sp/>threshold<sp/>formula<sp/>and<sp/>an<sp/>exponential<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="160"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>null<sp/>distribution.<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="161"><highlight class="normal"></highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a657e4abcb2e394489fd46ae3093a630b" kindref="member">det_threshold_power</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa);</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"></highlight></codeline>
+<codeline lineno="191"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a17e69f0028c5c6e6ba509bac9ef2ce15" kindref="member">det_pd_power</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr_power,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>power_threshold);</highlight></codeline>
+<codeline lineno="192"><highlight class="normal"></highlight></codeline>
+<codeline lineno="202"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1aa460a12466632695d90d55299f3838fd" kindref="member">det_dwell_power</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr_power,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa,</highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>max_dwell);</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"></highlight></codeline>
+<codeline lineno="216"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1a2640afeb1f1cf0c58d1cba3c14048a96" kindref="member">det_snr_power</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa);</highlight></codeline>
+<codeline lineno="217"><highlight class="normal"></highlight></codeline>
+<codeline lineno="218"><highlight class="normal"></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="detection__core_8h_1aa460a12466632695d90d55299f3838fd" kindref="member">det_dwell_power</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>snr_power,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>max_dwell);</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="220"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="221"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="222"><highlight class="normal"></highlight></codeline>
+<codeline lineno="223"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>DETECTION_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/detection/detection_core.h"/>
+  </compounddef>
+</doxygen>

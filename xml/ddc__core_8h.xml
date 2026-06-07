@@ -1,0 +1,673 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="ddc__core_8h" kind="file" language="C++">
+    <compoundname>ddc_core.h</compoundname>
+    <includes local="no">complex.h</includes>
+    <includes local="no">stddef.h</includes>
+    <includedby refid="ddcr__core_8h" local="yes">native/inc/ddcr/ddcr_core.h</includedby>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="ddc__core_8c" local="yes">native/src/ddc/ddc_core.c</includedby>
+    <includedby refid="ddc__ext__ddc_8c" local="yes">native/src/ddc/ddc_ext_ddc.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/ddc/ddc_core.h</label>
+        <link refid="ddc__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>complex.h</label>
+      </node>
+      <node id="3">
+        <label>stddef.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/ddc/ddc_core.h</label>
+        <link refid="ddc__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/ddcr/ddcr_core.h</label>
+        <link refid="ddcr__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="6">
+        <label>native/src/ddc/ddc_core.c</label>
+        <link refid="ddc__core_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/ddc/ddc_ext_ddc.c</label>
+        <link refid="ddc__ext__ddc_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/ddc/ddc_ext_ddcr.c</label>
+        <link refid="ddc__ext__ddcr_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/ddcr/ddcr_core.c</label>
+        <link refid="ddcr__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <sectiondef kind="typedef">
+      <memberdef kind="typedef" id="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" prot="public" static="no">
+        <type>struct <ref refid="structddc__state" kindref="compound">ddc_state</ref></type>
+        <definition>typedef struct ddc_state ddc_state_t</definition>
+        <argsstring></argsstring>
+        <name>ddc_state_t</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="82" column="26" bodyfile="native/inc/ddc/ddc_core.h" bodystart="82" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="typedef" id="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" prot="public" static="no">
+        <type>struct <ref refid="structddcr__state" kindref="compound">ddcr_state</ref></type>
+        <definition>typedef struct ddcr_state ddcr_state_t</definition>
+        <argsstring></argsstring>
+        <name>ddcr_state_t</name>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="128" column="27" bodyfile="native/inc/ddc/ddc_core.h" bodystart="128" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="ddc__core_8h_1af8d67c2d77b8aa853ae162f527df411f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+        <definition>ddc_state_t * ddc_create</definition>
+        <argsstring>(double norm_freq, double rate)</argsstring>
+        <name>ddc_create</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+<para>Create a complex-input DDC. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>norm_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>LO frequency in cycles/sample at the input rate. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output rate / input rate. Must be &gt; 0. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on OOM or invalid args. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="91" column="13" bodyfile="native/src/ddc/ddc_core.c" bodystart="66" bodyend="87" declfile="native/inc/ddc/ddc_core.h" declline="91" declcolumn="13"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a1a40e9494c7ef7cd2ee41276f9857143" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddc_destroy</definition>
+        <argsstring>(ddc_state_t *state)</argsstring>
+        <name>ddc_destroy</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="94" column="6" bodyfile="native/src/ddc/ddc_core.c" bodystart="90" bodyend="97" declfile="native/inc/ddc/ddc_core.h" declline="94" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a49161c6721334b6f73c36dfc0b4c07c2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddc_reset</definition>
+        <argsstring>(ddc_state_t *state)</argsstring>
+        <name>ddc_reset</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero LO phase and resampler history. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="97" column="6" bodyfile="native/src/ddc/ddc_core.c" bodystart="100" bodyend="104" declfile="native/inc/ddc/ddc_core.h" declline="97" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1afeae2bb06cc06f02701c683f743de0a3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double ddc_get_norm_freq</definition>
+        <argsstring>(const ddc_state_t *state)</argsstring>
+        <name>ddc_get_norm_freq</name>
+        <param>
+          <type>const <ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Return the current LO normalised frequency. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="100" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="107" bodyend="110" declfile="native/inc/ddc/ddc_core.h" declline="100" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a37b96cbf4c2d36804ccdf93c9ffa0948" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddc_set_norm_freq</definition>
+        <argsstring>(ddc_state_t *state, double val)</argsstring>
+        <name>ddc_set_norm_freq</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+<para>Retune the LO without resetting phase or resampler history. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>val</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New normalised frequency. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="107" column="6" bodyfile="native/src/ddc/ddc_core.c" bodystart="113" bodyend="116" declfile="native/inc/ddc/ddc_core.h" declline="107" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a0de1892f3dcdabd0d570f2d609b58522" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double ddc_get_rate</definition>
+        <argsstring>(const ddc_state_t *state)</argsstring>
+        <name>ddc_get_rate</name>
+        <param>
+          <type>const <ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Return the configured output/input rate ratio. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="110" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="119" bodyend="122" declfile="native/inc/ddc/ddc_core.h" declline="110" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1ab4ab8cf207ca2c90dbdc2232e0ccb4cd" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t ddc_execute</definition>
+        <argsstring>(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out)</argsstring>
+        <name>ddc_execute</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>x</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>x_len</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_out</declname>
+        </param>
+        <briefdescription>
+<para>Mix and resample a block of CF32 samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>x</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Input samples, complex64, length x_len. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>x_len</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, complex64, capacity max_out. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Maximum output samples to write. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of output samples written. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="122" column="8" declfile="native/inc/ddc/ddc_core.h" declline="122" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a49906bd0310bd5237031f440a8a9b099" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+        <definition>ddcr_state_t * ddcr_create</definition>
+        <argsstring>(double norm_freq, double rate)</argsstring>
+        <name>ddcr_create</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>rate</declname>
+        </param>
+        <briefdescription>
+<para>Create a real-input DDC. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>norm_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Fine NCO frequency at the intermediate rate (fs_in/2). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Total output/input rate. Must be in (0, 0.5). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL on success, NULL on OOM or invalid args. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="137" column="16" bodyfile="native/src/ddc/ddc_core.c" bodystart="165" bodyend="201" declfile="native/inc/ddc/ddc_core.h" declline="137" declcolumn="16"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddcr_destroy</definition>
+        <argsstring>(ddcr_state_t *s)</argsstring>
+        <name>ddcr_destroy</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="140" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="204" bodyend="212" declfile="native/inc/ddc/ddc_core.h" declline="140" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1abe62ed3513e3ed46215f3846fd5b4c90" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddcr_reset</definition>
+        <argsstring>(ddcr_state_t *s)</argsstring>
+        <name>ddcr_reset</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero halfband, LO phase, and resampler history. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="143" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="215" bodyend="220" declfile="native/inc/ddc/ddc_core.h" declline="143" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1aba2985ffcd81849656aaeef9bfaadeba" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double ddcr_get_norm_freq</definition>
+        <argsstring>(const ddcr_state_t *s)</argsstring>
+        <name>ddcr_get_norm_freq</name>
+        <param>
+          <type>const <ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Return the current fine NCO normalised frequency (at intermediate rate). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="147" column="10" bodyfile="native/src/ddc/ddc_core.c" bodystart="223" bodyend="226" declfile="native/inc/ddc/ddc_core.h" declline="147" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1ad290aefc3f9366db1bf5eb472836ca0f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void ddcr_set_norm_freq</definition>
+        <argsstring>(ddcr_state_t *s, double norm_freq)</argsstring>
+        <name>ddcr_set_norm_freq</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Retune the fine NCO without resetting state. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="150" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="229" bodyend="232" declfile="native/inc/ddc/ddc_core.h" declline="150" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a4552a7b5944728efb3c9bd6aa916c83a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double ddcr_get_rate</definition>
+        <argsstring>(const ddcr_state_t *s)</argsstring>
+        <name>ddcr_get_rate</name>
+        <param>
+          <type>const <ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Return the total configured rate (fs_out / fs_in). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="153" column="10" bodyfile="native/src/ddc/ddc_core.c" bodystart="235" bodyend="238" declfile="native/inc/ddc/ddc_core.h" declline="153" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a6e8f7a512bb799769f7e749a0ce97277" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t ddcr_execute</definition>
+        <argsstring>(ddcr_state_t *s, const float *in, size_t n_in, float _Complex *out, size_t max_out)</argsstring>
+        <name>ddcr_execute</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref> *</type>
+          <declname>s</declname>
+        </param>
+        <param>
+          <type>const float *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float _Complex *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>max_out</declname>
+        </param>
+        <briefdescription>
+<para>Process a block of real float32 samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>s</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Real input samples, float32, length n_in. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF32 output buffer, capacity max_out. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>max_out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Maximum output samples to write. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of output samples written. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="165" column="10" bodyfile="native/src/ddc/ddc_core.c" bodystart="241" bodyend="277" declfile="native/inc/ddc/ddc_core.h" declline="165" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="ddc__core_8h_1a36b622d65a6204642a9bc73cddbd5dd6" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t ddc_execute_max_out</definition>
+        <argsstring>(ddc_state_t *state)</argsstring>
+        <name>ddc_execute_max_out</name>
+        <param>
+          <type><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Return the maximum output samples for one execute call. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns 0, signalling the Python extension to fall back to allocating n_in samples — always sufficient for a decimating DDC. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/ddc/ddc_core.h" line="174" column="8" bodyfile="native/src/ddc/ddc_core.c" bodystart="125" bodyend="129" declfile="native/inc/ddc/ddc_core.h" declline="174" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Digital Down-Converter — composes LO + RateConverter cascade. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Two types:</para>
+<para>Ddc — complex (CF32) input. Chain: LO mix → RateConverter. DdcR — real (float32) input. Chain: halfband R2C → LO mix → RateConverter.</para>
+<para>Both are streaming (variable block size per execute call).</para>
+<para>RateConverter selects the cheapest cascade (CIC + optional halfband + polyphase resampler) for the requested rate at create time. This makes large-ratio decimation (e.g., 100:1) significantly cheaper than a single polyphase stage.</para>
+<sect1 id="ddc__core_8h_1autotoc_md2_1s1"><sect2 id="ddc__core_8h_1autotoc_md2_1s2"><sect3 id="ddc__core_8h_1autotoc_md2">
+<title>Ddc signal chain</title><para><programlisting><codeline><highlight class="normal"><ref refid="group__types_1ggad6afa986413f0be406048edae7827a4da98204c4e0677c4b52367736c05b723bc" kindref="member">CF32</ref><sp/>in<sp/>(fs_in)<sp/><sp/>→<sp/><sp/>LO<sp/>mix<sp/><sp/>→<sp/><sp/>RateConverter<sp/><sp/>→<sp/><sp/><ref refid="group__types_1ggad6afa986413f0be406048edae7827a4da98204c4e0677c4b52367736c05b723bc" kindref="member">CF32</ref><sp/>out<sp/>(fs_out)</highlight></codeline>
+</programlisting></para>
+<para>norm_freq: NCO normalised frequency (cycles/sample at fs_in). Set to -f_carrier to shift a carrier at f_carrier to DC.</para>
+</sect3></sect2></sect1>
+<sect1 id="ddc__core_8h_1autotoc_md3_1s1"><sect2 id="ddc__core_8h_1autotoc_md3_1s2"><sect3 id="ddc__core_8h_1autotoc_md3">
+<title>DdcR signal chain</title><para><programlisting><codeline><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>in<sp/>(fs_in)<sp/><sp/>→<sp/><sp/>halfband<sp/>R2C<sp/>(2:1,<sp/>embedded<sp/>fs/4<sp/>shift)</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>→<sp/><sp/>LO<sp/>mix<sp/>at<sp/>intermediate<sp/>rate<sp/>(fs_in/2)</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>→<sp/><sp/>RateConverter<sp/><sp/>→<sp/><sp/><ref refid="group__types_1ggad6afa986413f0be406048edae7827a4da98204c4e0677c4b52367736c05b723bc" kindref="member">CF32</ref><sp/>out<sp/>(fs_out)</highlight></codeline>
+</programlisting></para>
+<para>norm_freq: Fine NCO frequency at the INTERMEDIATE rate (fs_in/2). To tune a real tone at f_carrier (input normalised) to DC: set norm_freq = -(2*f_carrier + 0.5). Total output rate: fs_out = rate * fs_in (rate &lt; 0.5).</para>
+<para>DdcR is approximately 2x cheaper than Ddc at equivalent total decimation because the halfband R2C step has an fs/4 frequency shift baked in at zero extra multiplications — the +/-1/0 coefficients multiply for free.</para>
+</sect3></sect2></sect1>
+<sect1 id="ddc__core_8h_1autotoc_md4_1s1"><sect2 id="ddc__core_8h_1autotoc_md4_1s2"><sect3 id="ddc__core_8h_1autotoc_md4">
+<title>Retuning vs. rebuilding</title><para><itemizedlist>
+<listitem><para><bold>Retune</bold> (centre-frequency change): call ddc_set_norm_freq / ddcr_set_norm_freq. Cheap — updates the LO phase increment without disturbing the resampler history. Seamless across block boundaries.</para>
+</listitem><listitem><para><bold>Rate change</bold> (span / decimation change): destroy and recreate the DDC for the new rate.</para>
+</listitem></itemizedlist>
+</para>
+</sect3></sect2></sect1>
+<sect1 id="ddc__core_8h_1autotoc_md5_1s1"><sect2 id="ddc__core_8h_1autotoc_md5_1s2"><sect3 id="ddc__core_8h_1autotoc_md5">
+<title>Usage</title><para><programlisting><codeline><highlight class="comment">//<sp/>Complex<sp/>DDC:<sp/>shift<sp/>a<sp/>carrier<sp/>at<sp/>+0.1·fs<sp/>to<sp/>DC,<sp/>decimate<sp/>by<sp/>4</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*ddc<sp/>=<sp/><ref refid="ddc__core_8h_1af8d67c2d77b8aa853ae162f527df411f" kindref="member">ddc_create</ref>(-0.1,<sp/>0.25);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>out[4096];</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n<sp/>=<sp/><ref refid="ddc__core_8h_1ab4ab8cf207ca2c90dbdc2232e0ccb4cd" kindref="member">ddc_execute</ref>(ddc,<sp/>in,<sp/>1024,<sp/>out,<sp/>4096);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="ddc__core_8h_1a1a40e9494c7ef7cd2ee41276f9857143" kindref="member">ddc_destroy</ref>(ddc);</highlight></codeline>
+<codeline><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>Real<sp/>DDC:<sp/>same<sp/>carrier<sp/>and<sp/>decimation<sp/>from<sp/>a<sp/>real<sp/>ADC<sp/>stream</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>norm_freq<sp/>at<sp/>intermediate<sp/>rate:<sp/>-(2<sp/>*<sp/>0.1<sp/>+<sp/>0.5)<sp/>=<sp/>-0.7</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*ddcr<sp/>=<sp/><ref refid="ddc__core_8h_1a49906bd0310bd5237031f440a8a9b099" kindref="member">ddcr_create</ref>(-0.7,<sp/>0.25);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>m<sp/>=<sp/><ref refid="ddc__core_8h_1a6e8f7a512bb799769f7e749a0ce97277" kindref="member">ddcr_execute</ref>(ddcr,<sp/>real_in,<sp/>1024,<sp/>out,<sp/>4096);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" kindref="member">ddcr_destroy</ref>(ddcr);</highlight></codeline>
+</programlisting> </para>
+</sect3></sect2></sect1>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="67"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>DDC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>DDC_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="69"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;complex.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;stddef.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="75"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>Ddc<sp/>—<sp/>complex-input<sp/>DDC<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82" refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal"><ref refid="structddc__state" kindref="compound">ddc_state</ref><sp/><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref>;</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*<ref refid="ddc__core_8h_1af8d67c2d77b8aa853ae162f527df411f" kindref="member">ddc_create</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>rate);</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a1a40e9494c7ef7cd2ee41276f9857143" kindref="member">ddc_destroy</ref>(<ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"></highlight></codeline>
+<codeline lineno="97"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a49161c6721334b6f73c36dfc0b4c07c2" kindref="member">ddc_reset</ref>(<ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"></highlight></codeline>
+<codeline lineno="100"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1afeae2bb06cc06f02701c683f743de0a3" kindref="member">ddc_get_norm_freq</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a37b96cbf4c2d36804ccdf93c9ffa0948" kindref="member">ddc_set_norm_freq</ref>(<ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight></codeline>
+<codeline lineno="110"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a0de1892f3dcdabd0d570f2d609b58522" kindref="member">ddc_get_rate</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"></highlight></codeline>
+<codeline lineno="122" refid="ddc__core_8h_1ab4ab8cf207ca2c90dbdc2232e0ccb4cd" refkind="member"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1ab4ab8cf207ca2c90dbdc2232e0ccb4cd" kindref="member">ddc_execute</ref>(<ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*x,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_out);</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"></highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>DdcR<sp/>—<sp/>real-input<sp/>DDC<sp/>(Architecture<sp/>D2)<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="126"><highlight class="normal"><sp/><sp/></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="127"><highlight class="normal"></highlight></codeline>
+<codeline lineno="128" refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal"><ref refid="structddcr__state" kindref="compound">ddcr_state</ref><sp/><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref>;</highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*<ref refid="ddc__core_8h_1a49906bd0310bd5237031f440a8a9b099" kindref="member">ddcr_create</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="structddcr__state_1a16b8aa84a2b1a831852a1d6b82cd3680" kindref="member">rate</ref>);</highlight></codeline>
+<codeline lineno="138"><highlight class="normal"></highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a38706ec40c14fc72588bcbb2aac990d2" kindref="member">ddcr_destroy</ref><sp/>(<ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"></highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1abe62ed3513e3ed46215f3846fd5b4c90" kindref="member">ddcr_reset</ref><sp/>(<ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="144"><highlight class="normal"></highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1aba2985ffcd81849656aaeef9bfaadeba" kindref="member">ddcr_get_norm_freq</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"></highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1ad290aefc3f9366db1bf5eb472836ca0f" kindref="member">ddcr_set_norm_freq</ref><sp/>(<ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq);</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"></highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a4552a7b5944728efb3c9bd6aa916c83a" kindref="member">ddcr_get_rate</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s);</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight></codeline>
+<codeline lineno="165"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a6e8f7a512bb799769f7e749a0ce97277" kindref="member">ddcr_execute</ref><sp/>(<ref refid="ddc__core_8h_1aec244c9fe5060253d7d68356f5f03131" kindref="member">ddcr_state_t</ref><sp/>*s,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>_Complex<sp/>*out,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>max_out);</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"></highlight></codeline>
+<codeline lineno="174"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="ddc__core_8h_1a36b622d65a6204642a9bc73cddbd5dd6" kindref="member">ddc_execute_max_out</ref>(<ref refid="ddc__core_8h_1a7e5d786dd8f49cb2f48bf5b0b8e6247e" kindref="member">ddc_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"></highlight></codeline>
+<codeline lineno="176"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="177"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="179"><highlight class="normal"></highlight></codeline>
+<codeline lineno="180"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>DDC_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/ddc/ddc_core.h"/>
+  </compounddef>
+</doxygen>

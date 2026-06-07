@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structfir__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>fir_state_t</compoundname>
+    <includes refid="fir__core_8h" local="no">fir_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structfir__state__t_1af4e3852c28f4b808e1b96a4552d2c8b7" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* fir_state_t::taps</definition>
+        <argsstring></argsstring>
+        <name>taps</name>
+        <qualifiedname>fir_state_t::taps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="39" column="19" bodyfile="native/inc/fir/fir_core.h" bodystart="39" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structfir__state__t_1ab768d3e5c391ef4fc34ab0c44b0d30ab" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* fir_state_t::rtaps</definition>
+        <argsstring></argsstring>
+        <name>rtaps</name>
+        <qualifiedname>fir_state_t::rtaps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="40" column="11" bodyfile="native/inc/fir/fir_core.h" bodystart="40" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structfir__state__t_1a6c2c385a96692bc660356c03a952c5c8" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* fir_state_t::delay</definition>
+        <argsstring></argsstring>
+        <name>delay</name>
+        <qualifiedname>fir_state_t::delay</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="41" column="19" bodyfile="native/inc/fir/fir_core.h" bodystart="41" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structfir__state__t_1aa04d3d13df26efa24209217b3a53301a" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* fir_state_t::scratch</definition>
+        <argsstring></argsstring>
+        <name>scratch</name>
+        <qualifiedname>fir_state_t::scratch</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="42" column="19" bodyfile="native/inc/fir/fir_core.h" bodystart="42" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structfir__state__t_1ae402a0f8ab5f83af5cb11663ac90e5a3" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t fir_state_t::scratch_cap</definition>
+        <argsstring></argsstring>
+        <name>scratch_cap</name>
+        <qualifiedname>fir_state_t::scratch_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="43" column="12" bodyfile="native/inc/fir/fir_core.h" bodystart="43" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structfir__state__t_1a4faea933f04bddabaa60a7ae477b596f" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t fir_state_t::num_taps</definition>
+        <argsstring></argsstring>
+        <name>num_taps</name>
+        <qualifiedname>fir_state_t::num_taps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/fir/fir_core.h" line="44" column="12" bodyfile="native/inc/fir/fir_core.h" bodystart="44" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/fir/fir_core.h" line="37" column="3" bodyfile="native/inc/fir/fir_core.h" bodystart="38" bodyend="45"/>
+    <listofallmembers>
+      <member refid="structfir__state__t_1a6c2c385a96692bc660356c03a952c5c8" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>delay</name></member>
+      <member refid="structfir__state__t_1a4faea933f04bddabaa60a7ae477b596f" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>num_taps</name></member>
+      <member refid="structfir__state__t_1ab768d3e5c391ef4fc34ab0c44b0d30ab" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>rtaps</name></member>
+      <member refid="structfir__state__t_1aa04d3d13df26efa24209217b3a53301a" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>scratch</name></member>
+      <member refid="structfir__state__t_1ae402a0f8ab5f83af5cb11663ac90e5a3" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>scratch_cap</name></member>
+      <member refid="structfir__state__t_1af4e3852c28f4b808e1b96a4552d2c8b7" prot="public" virt="non-virtual"><scope>fir_state_t</scope><name>taps</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

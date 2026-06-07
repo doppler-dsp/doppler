@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_276f5cb11ff9a89524b1f01f5d30ea40" kind="dir">
+    <compoundname>native/src/awgn</compoundname>
+    <innerfile refid="awgn__core_8c">awgn_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/awgn/"/>
+  </compounddef>
+</doxygen>

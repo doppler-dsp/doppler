@@ -1,0 +1,88 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structwfm__zmq__sink" kind="struct" language="C++" prot="public">
+    <compoundname>wfm_zmq_sink</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structwfm__zmq__sink_1a47e869b5a9c47869c40aabca74bf5059" prot="public" static="no" mutable="no">
+        <type><ref refid="group__types_1ga6e6abcf4fb1a4be6f1d9c6c8cebc9207" kindref="member">dp_pub_t</ref> *</type>
+        <definition>dp_pub_t* wfm_zmq_sink::pub</definition>
+        <argsstring></argsstring>
+        <name>pub</name>
+        <qualifiedname>wfm_zmq_sink::pub</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfm_sink.c" line="19" column="14" bodyfile="native/src/wfmgen/wfm_sink.c" bodystart="19" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__zmq__sink_1a2184a6e8e1affb61245a3419b9e927a9" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int wfm_zmq_sink::wtype</definition>
+        <argsstring></argsstring>
+        <name>wtype</name>
+        <qualifiedname>wfm_zmq_sink::wtype</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfm_sink.c" line="20" column="9" bodyfile="native/src/wfmgen/wfm_sink.c" bodystart="20" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__zmq__sink_1abec88e37ff21612f64d204f1e2ec0af5" prot="public" static="no" mutable="no">
+        <type>void *</type>
+        <definition>void* wfm_zmq_sink::scratch</definition>
+        <argsstring></argsstring>
+        <name>scratch</name>
+        <qualifiedname>wfm_zmq_sink::scratch</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfm_sink.c" line="21" column="10" bodyfile="native/src/wfmgen/wfm_sink.c" bodystart="21" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__zmq__sink_1a584b4d594ded616548afab434217da2e" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t wfm_zmq_sink::cap</definition>
+        <argsstring></argsstring>
+        <name>cap</name>
+        <qualifiedname>wfm_zmq_sink::cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/wfmgen/wfm_sink.c" line="22" column="12" bodyfile="native/src/wfmgen/wfm_sink.c" bodystart="22" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="2">
+        <label>dp_ctx</label>
+        <link refid="structdp__ctx"/>
+      </node>
+      <node id="1">
+        <label>wfm_zmq_sink</label>
+        <link refid="structwfm__zmq__sink"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>pub</edgelabel>
+        </childnode>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/wfmgen/wfm_sink.c" line="18" column="1" bodyfile="native/src/wfmgen/wfm_sink.c" bodystart="18" bodyend="23"/>
+    <listofallmembers>
+      <member refid="structwfm__zmq__sink_1a584b4d594ded616548afab434217da2e" prot="public" virt="non-virtual"><scope>wfm_zmq_sink</scope><name>cap</name></member>
+      <member refid="structwfm__zmq__sink_1a47e869b5a9c47869c40aabca74bf5059" prot="public" virt="non-virtual"><scope>wfm_zmq_sink</scope><name>pub</name></member>
+      <member refid="structwfm__zmq__sink_1abec88e37ff21612f64d204f1e2ec0af5" prot="public" virt="non-virtual"><scope>wfm_zmq_sink</scope><name>scratch</name></member>
+      <member refid="structwfm__zmq__sink_1a2184a6e8e1affb61245a3419b9e927a9" prot="public" virt="non-virtual"><scope>wfm_zmq_sink</scope><name>wtype</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

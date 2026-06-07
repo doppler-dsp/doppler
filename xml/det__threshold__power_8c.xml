@@ -1,0 +1,69 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="det__threshold__power_8c" kind="file" language="C++">
+    <compoundname>det_threshold_power.c</compoundname>
+    <includes refid="detection__core_8h" local="yes">detection/detection_core.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+      </node>
+      <node id="1">
+        <label>native/src/detection/det_threshold_power.c</label>
+        <link refid="det__threshold__power_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>math.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="det__threshold__power_8c_1a657e4abcb2e394489fd46ae3093a630b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_threshold_power</definition>
+        <argsstring>(double pfa)</argsstring>
+        <name>det_threshold_power</name>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Power threshold p from Pfa for the power detector. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Exact closed-form: P(Exponential(1) &gt; p) = exp(-p) = Pfa, so</para>
+<para>p = -ln(Pfa)</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Desired false-alarm probability; must be in (0, 1). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Threshold p &gt; 0.</para>
+</simplesect>
+Example: det_threshold_power(1e-6) = 6·ln(10) ~ 13.816 </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/detection/det_threshold_power.c" line="3" column="8" bodyfile="native/src/detection/det_threshold_power.c" bodystart="3" bodyend="3"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detection__core_8h" kindref="compound">detection/detection_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="det__threshold__power_8c_1a657e4abcb2e394489fd46ae3093a630b" kindref="member">det_threshold_power</ref>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa)<sp/>{<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-log(pfa);<sp/>}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/detection/det_threshold_power.c"/>
+  </compounddef>
+</doxygen>

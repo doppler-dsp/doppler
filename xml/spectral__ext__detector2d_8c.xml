@@ -1,0 +1,914 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="spectral__ext__detector2d_8c" kind="file" language="C++">
+    <compoundname>spectral_ext_detector2d.c</compoundname>
+    <includes refid="detector2d__core_8h" local="yes">detector2d/detector2d_core.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>buffer/buffer.h</label>
+        <link refid="buffer_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+      </node>
+      <node id="14">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="15" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+        <childnode refid="16" relation="include">
+        </childnode>
+      </node>
+      <node id="13">
+        <label>corr2d/corr2d_core.h</label>
+        <link refid="corr2d__core_8h"/>
+        <childnode refid="14" relation="include">
+        </childnode>
+        <childnode refid="18" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>detector2d/detector2d_core.h</label>
+        <link refid="detector2d__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="13" relation="include">
+        </childnode>
+      </node>
+      <node id="18">
+        <label>fft2d/fft2d_core.h</label>
+        <link refid="fft2d__core_8h"/>
+        <childnode refid="14" relation="include">
+        </childnode>
+        <childnode refid="19" relation="include">
+        </childnode>
+      </node>
+      <node id="16">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="17" relation="include">
+        </childnode>
+      </node>
+      <node id="17">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/spectral/spectral_ext_detector2d.c</label>
+        <link refid="spectral__ext__detector2d_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="15">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>fcntl.h</label>
+      </node>
+      <node id="19">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="8">
+        <label>stdbool.h</label>
+      </node>
+      <node id="9">
+        <label>stddef.h</label>
+      </node>
+      <node id="10">
+        <label>stdint.h</label>
+      </node>
+      <node id="5">
+        <label>stdio.h</label>
+      </node>
+      <node id="11">
+        <label>stdlib.h</label>
+      </node>
+      <node id="12">
+        <label>string.h</label>
+      </node>
+      <node id="6">
+        <label>sys/mman.h</label>
+      </node>
+      <node id="7">
+        <label>unistd.h</label>
+      </node>
+    </incdepgraph>
+    <innerclass refid="structDetector2DObject" prot="public">Detector2DObject</innerclass>
+    <sectiondef kind="var">
+      <memberdef kind="variable" id="spectral__ext__detector2d_8c_1ab6011a2667d928dffd49427915cf7f7a" prot="public" static="yes" mutable="no">
+        <type>PyGetSetDef</type>
+        <definition>PyGetSetDef Detector2D_getset[]</definition>
+        <argsstring>[]</argsstring>
+        <name>Detector2D_getset</name>
+        <initializer>                                     = {
+    { &quot;ny&quot;, (getter)Detector2D_getprop_ny, NULL, NULL, NULL },
+    { &quot;nx&quot;, (getter)Detector2D_getprop_nx, NULL, NULL, NULL },
+    { &quot;n&quot;, (getter)Detector2D_getprop_n, NULL, NULL, NULL },
+    { &quot;dwell&quot;, (getter)Detector2D_getprop_dwell, NULL, NULL, NULL },
+    { &quot;count&quot;, (getter)Detector2D_getprop_count, NULL, NULL, NULL },
+    { &quot;ring_cap&quot;, (getter)Detector2D_getprop_ring_cap, NULL, NULL, NULL },
+    { &quot;noise_lo&quot;, (getter)Detector2D_getprop_noise_lo, NULL, NULL, NULL },
+    { &quot;noise_hi&quot;, (getter)Detector2D_getprop_noise_hi, NULL, NULL, NULL },
+    { &quot;threshold&quot;, (getter)Detector2D_getprop_threshold, NULL, NULL, NULL },
+    { &quot;last_corr&quot;, (getter)Detector2D_getprop_last_corr, NULL, NULL, NULL },
+    { NULL }
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="225" column="20" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="225" bodyend="237"/>
+      </memberdef>
+      <memberdef kind="variable" id="spectral__ext__detector2d_8c_1aa5ec6b9f7d83c1487491d991c1c07f29" prot="public" static="yes" mutable="no">
+        <type>PyMethodDef</type>
+        <definition>PyMethodDef Detector2DObj_methods[]</definition>
+        <argsstring>[]</argsstring>
+        <name>Detector2DObj_methods</name>
+        <initializer>                                         = {
+    {&quot;reset&quot;,    (PyCFunction)Detector2DObj_reset,    METH_NOARGS,
+     &quot;Reset state to post-create defaults.&quot;},
+
+    {&quot;push&quot;, (PyCFunction)Detector2DObj_push, METH_VARARGS,
+     &quot;push(x) -&gt; list[tuple]\n&quot;
+     &quot;\n&quot;
+     &quot;Returns list of (row, col, peak_mag, noise_est, test_stat,) tuples.\n&quot;
+     &quot;\n&quot;
+     &quot;    &gt;&gt;&gt; import numpy as np\n&quot;
+     &quot;    &gt;&gt;&gt; from doppler import Detector2D\n&quot;
+     &quot;    &gt;&gt;&gt; obj = Detector2D(np.zeros((1, 1), dtype=np.complex64), \&quot;mean\&quot;, 1, 0, ny*nx-1, 0.0, 1)\n&quot;
+     &quot;    &gt;&gt;&gt; results = obj.push(np.zeros(4, dtype=np.complex64))\n&quot;
+     &quot;    &gt;&gt;&gt; isinstance(results, list)\n&quot;
+     &quot;    True\n&quot;},
+    {&quot;destroy&quot;,  (PyCFunction)Detector2DObj_destroy,  METH_NOARGS,
+     &quot;Release resources.&quot;},
+    {&quot;__enter__&quot;, (PyCFunction)Detector2DObj_enter,   METH_NOARGS,  NULL},
+    {&quot;__exit__&quot;,  (PyCFunction)Detector2DObj_exit,    METH_VARARGS, NULL},
+    {NULL}
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="267" column="20" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="267" bodyend="287"/>
+      </memberdef>
+      <memberdef kind="variable" id="spectral__ext__detector2d_8c_1ace8a495de83fd026435c3e7b5873fb1f" prot="public" static="yes" mutable="no">
+        <type>PyTypeObject</type>
+        <definition>PyTypeObject Detector2DObjType</definition>
+        <argsstring></argsstring>
+        <name>Detector2DObjType</name>
+        <initializer>                                      = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = &quot;spectral.Detector2D&quot;,
+    .tp_basicsize = sizeof(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref>),
+    .tp_dealloc   = (destructor)Detector2DObj_dealloc,
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_doc       = &quot;Create a 2-D signal detector.\n&quot;,
+    .tp_methods   = Detector2DObj_methods,
+    .tp_getset    = Detector2D_getset,
+    .tp_new       = Detector2DObj_new,
+    .tp_init      = (initproc)Detector2DObj_init,
+}</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="289" column="21" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="289" bodyend="300"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1ad9962754d3a7c17bcddf3ce63be503a4" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>static void Detector2DObj_dealloc</definition>
+        <argsstring>(Detector2DObject *self)</argsstring>
+        <name>Detector2DObj_dealloc</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="20" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="20" bodyend="25"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a5d93965cd7be31e9046ee9e4392daad7" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_new</definition>
+        <argsstring>(PyTypeObject *type, PyObject *args, PyObject *kwds)</argsstring>
+        <name>Detector2DObj_new</name>
+        <param>
+          <type>PyTypeObject *</type>
+          <declname>type</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="28" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="28" bodyend="34"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1ad7c6e11e0a1618e968695f292f4047db" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int Detector2DObj_init</definition>
+        <argsstring>(Detector2DObject *self, PyObject *args, PyObject *kwds)</argsstring>
+        <name>Detector2DObj_init</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>kwds</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="37" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="37" bodyend="81"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a0f8aa32aa0ea34c6bb5e0f8cf1ec18da" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_reset</definition>
+        <argsstring>(Detector2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Detector2DObj_reset</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="84" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="84" bodyend="92"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a87ba75b33ae2f07763615f2f84870503" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_push</definition>
+        <argsstring>(Detector2DObject *self, PyObject *args)</argsstring>
+        <name>Detector2DObj_push</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="100" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="100" bodyend="126"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a28ab682aca407307f8be3a7a5e17c465" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_ny</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_ny</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="128" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="128" bodyend="135"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1abf20a4a03211cb485438504a5021107b" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_nx</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_nx</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="137" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="137" bodyend="144"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1acd7a2d86a4384edb4475e909547ccf39" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_n</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_n</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="146" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="146" bodyend="153"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a3913dbcbced3a8531ab756516fbc5706" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_dwell</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_dwell</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="155" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="155" bodyend="162"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1abb793ce0737a4383b5518b8ed0c92e95" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_count</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_count</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="164" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="164" bodyend="171"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1ab51ca36b75731d516ee38e7b07be9e7d" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_ring_cap</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_ring_cap</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="173" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="173" bodyend="180"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a8f48f87ef1c1d606d3a66d0f49b5c6be" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_noise_lo</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_noise_lo</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="182" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="182" bodyend="189"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a69c700e7ad9c2cfd1663812708c2e954" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_noise_hi</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_noise_hi</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="191" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="191" bodyend="198"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a53d45cf9c44ef8717283844ebca2038b" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_threshold</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_threshold</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="200" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="200" bodyend="207"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a0118398c429545c0fb81a49b0c6a52ba" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2D_getprop_last_corr</definition>
+        <argsstring>(Detector2DObject *self, void *Py_UNUSED(closure))</argsstring>
+        <name>Detector2D_getprop_last_corr</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>void *</type>
+          <declname>Py_UNUSED</declname>
+          <array>closure</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="209" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="209" bodyend="223"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1acaa2aabbe6a5d14b4270bc30f8a432ad" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_destroy</definition>
+        <argsstring>(Detector2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Detector2DObj_destroy</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="240" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="240" bodyend="247"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a55ef9b77324480e17a3ef776c6f17b6d" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_enter</definition>
+        <argsstring>(Detector2DObject *self, PyObject *Py_UNUSED(ignored))</argsstring>
+        <name>Detector2DObj_enter</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>Py_UNUSED</declname>
+          <array>ignored</array>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="250" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="250" bodyend="254"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__ext__detector2d_8c_1a2ad7000bfa66a69b8ef854a0eaf34f60" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>PyObject *</type>
+        <definition>static PyObject * Detector2DObj_exit</definition>
+        <argsstring>(Detector2DObject *self, PyObject *args)</argsstring>
+        <name>Detector2DObj_exit</name>
+        <param>
+          <type><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref> *</type>
+          <declname>self</declname>
+        </param>
+        <param>
+          <type>PyObject *</type>
+          <declname>args</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_detector2d.c" line="257" column="1" bodyfile="native/src/spectral/spectral_ext_detector2d.c" bodystart="257" bodyend="265"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>spectral_ext_detector2d.c<sp/>—<sp/>Detector2D<sp/>type<sp/>for<sp/>the<sp/>spectral<sp/>module.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Included<sp/>by<sp/>spectral_ext.c<sp/>(the<sp/>module<sp/>aggregator).</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>Hand-patches<sp/>to<sp/>this<sp/>file<sp/>are<sp/>preserved<sp/>across<sp/>jm<sp/>commands.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*<sp/>Do<sp/>NOT<sp/>compile<sp/>this<sp/>file<sp/>directly<sp/>—<sp/>only<sp/>spectral_ext.c<sp/>is<sp/>compiled.</highlight></codeline>
+<codeline lineno="7"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Detector2DObject<sp/>—<sp/>wraps<sp/>detector2d_state_t<sp/>*<sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>========================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detector2d__core_8h" kindref="compound">detector2d/detector2d_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight></codeline>
+<codeline lineno="14" refid="structDetector2DObject" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject_HEAD</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structdetector2d__state__t" kindref="compound">detector2d_state_t</ref><sp/>*<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>;</highlight></codeline>
+<codeline lineno="17"><highlight class="normal">}<sp/><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref>;</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal">Detector2DObj_dealloc(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self)</highlight></codeline>
+<codeline lineno="21"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="detector2d__core_8h_1a6b38deb2d7cc446f0b00e7dc14e419a4" kindref="member">detector2d_destroy</ref>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="24"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_TYPE(self)-&gt;tp_free((PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="25"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="28"><highlight class="normal">Detector2DObj_new(PyTypeObject<sp/>*type,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="29"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self<sp/>=<sp/>(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*)type-&gt;tp_alloc(type,<sp/>0);</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="34"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal">Detector2DObj_init(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args,<sp/>PyObject<sp/>*kwds)</highlight></codeline>
+<codeline lineno="38"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*kwlist[]<sp/>=<sp/>{</highlight><highlight class="stringliteral">&quot;ref&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;noise_mode&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;dwell&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;noise_lo&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;noise_hi&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;threshold&quot;</highlight><highlight class="normal">,<sp/></highlight><highlight class="stringliteral">&quot;nthreads&quot;</highlight><highlight class="normal">,<sp/>NULL};</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*ref_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">char</highlight><highlight class="normal"><sp/>*noise_mode_str<sp/>=<sp/></highlight><highlight class="stringliteral">&quot;mean&quot;</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>dwell_raw<sp/>=<sp/>0ULL;</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>noise_lo_raw<sp/>=<sp/>0ULL;</highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>noise_hi_raw<sp/>=<sp/>(</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/>long)-1ULL;</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>threshold<sp/>=<sp/>0.0f;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTupleAndKeywords(args,<sp/>kwds,<sp/></highlight><highlight class="stringliteral">&quot;O|sKKKfi&quot;</highlight><highlight class="normal">,<sp/>kwlist,</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>&amp;ref_obj,<sp/>&amp;noise_mode_str,<sp/>&amp;dwell_raw,<sp/>&amp;noise_lo_raw,<sp/>&amp;noise_hi_raw,<sp/>&amp;threshold,<sp/>&amp;nthreads))</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>noise_mode<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(strcmp(noise_mode_str,<sp/></highlight><highlight class="stringliteral">&quot;mean&quot;</highlight><highlight class="normal">)<sp/>==<sp/>0)<sp/>noise_mode<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(strcmp(noise_mode_str,<sp/></highlight><highlight class="stringliteral">&quot;median&quot;</highlight><highlight class="normal">)<sp/>==<sp/>0)<sp/>noise_mode<sp/>=<sp/>1;</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(strcmp(noise_mode_str,<sp/></highlight><highlight class="stringliteral">&quot;min&quot;</highlight><highlight class="normal">)<sp/>==<sp/>0)<sp/>noise_mode<sp/>=<sp/>2;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(strcmp(noise_mode_str,<sp/></highlight><highlight class="stringliteral">&quot;max&quot;</highlight><highlight class="normal">)<sp/>==<sp/>0)<sp/>noise_mode<sp/>=<sp/>3;</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="57"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_Format(PyExc_ValueError,<sp/></highlight><highlight class="stringliteral">&quot;noise_mode<sp/>must<sp/>be<sp/>one<sp/>of<sp/>\&quot;mean\&quot;,<sp/>\&quot;median\&quot;,<sp/>\&quot;min\&quot;,<sp/>\&quot;max\&quot;,<sp/>got<sp/>&apos;%s&apos;&quot;</highlight><highlight class="normal">,<sp/>noise_mode_str);</highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="59"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>dwell<sp/>=<sp/>(size_t)dwell_raw;</highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>noise_lo<sp/>=<sp/>(size_t)noise_lo_raw;</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>noise_hi<sp/>=<sp/>(size_t)noise_hi_raw;</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*ref_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>ref_obj,<sp/>NPY_COMPLEX64,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!ref_arr)<sp/>{<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;<sp/>}</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(PyArray_NDIM(ref_arr)<sp/>!=<sp/>2)<sp/>{</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_ValueError,</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;ref<sp/>must<sp/>be<sp/>a<sp/>2-D<sp/>array&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>Py_DECREF(ref_arr);<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ref_dim0<sp/>=<sp/>(size_t)PyArray_DIM(ref_arr,<sp/>0);</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ref_dim1<sp/>=<sp/>(size_t)PyArray_DIM(ref_arr,<sp/>1);</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref><sp/>=<sp/><ref refid="detector2d__core_8h_1ab6b3dda0cf4ac5b5d326e607206135f1" kindref="member">detector2d_create</ref>((</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*)PyArray_DATA(ref_arr),<sp/>ref_dim0,<sp/>ref_dim1,<sp/>dwell,<sp/>noise_lo,<sp/>noise_hi,<sp/>noise_mode,<sp/>threshold,<sp/>nthreads);</highlight></codeline>
+<codeline lineno="74"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(ref_arr);</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_MemoryError,</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;detector2d_create<sp/>returned<sp/>NULL&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>-1;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="81"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="84"><highlight class="normal">Detector2DObj_reset(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="85"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="detector2d__core_8h_1ad4712648216ce884264134d08c1c6152" kindref="member">detector2d_reset</ref>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="92"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"></highlight></codeline>
+<codeline lineno="95"><highlight class="normal"></highlight></codeline>
+<codeline lineno="96"><highlight class="normal"></highlight></codeline>
+<codeline lineno="97"><highlight class="normal"></highlight></codeline>
+<codeline lineno="98"><highlight class="normal"></highlight></codeline>
+<codeline lineno="99"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="100"><highlight class="normal">Detector2DObj_push(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="101"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="103"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="106"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*in_obj<sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!PyArg_ParseTuple(args,<sp/></highlight><highlight class="stringliteral">&quot;O&quot;</highlight><highlight class="normal">,<sp/>&amp;in_obj))</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArrayObject<sp/>*in_arr<sp/>=<sp/>(PyArrayObject<sp/>*)PyArray_FROM_OTF(</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>in_obj,<sp/>NPY_COMPLEX64,<sp/>NPY_ARRAY_C_CONTIGUOUS);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!in_arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in<sp/>=<sp/>(size_t)PyArray_SIZE(in_arr);</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structdet__result2d__t" kindref="compound">det_result2d_t</ref><sp/>results[64];</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="detector2d__core_8h_1a663452e43e1a69869a2faa43f003ce68" kindref="member">detector2d_push</ref>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>,</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*)PyArray_DATA(in_arr),<sp/>n_in,</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>results,<sp/>64);</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_DECREF(in_arr);</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*lst<sp/>=<sp/>PyList_New((Py_ssize_t)n_out);</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!lst)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="120"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n_out;<sp/>i++)<sp/>{</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyObject<sp/>*tup<sp/>=<sp/>Py_BuildValue(</highlight><highlight class="stringliteral">&quot;(KKfff)&quot;</highlight><highlight class="normal">,<sp/>(</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)results[i].row,<sp/>(</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)results[i].col,<sp/>results[i].peak_mag,<sp/>results[i].noise_est,<sp/>results[i].test_stat);</highlight></codeline>
+<codeline lineno="122"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!tup)<sp/>{<sp/>Py_DECREF(lst);<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;<sp/>}</highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyList_SET_ITEM(lst,<sp/>(Py_ssize_t)i,<sp/>tup);</highlight></codeline>
+<codeline lineno="124"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>lst;</highlight></codeline>
+<codeline lineno="126"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="127"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="128"><highlight class="normal">Detector2D_getprop_ny(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="129"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="131"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a740fc0ff077c2191e7384a3c59e3ae7f" kindref="member">ny</ref>);</highlight></codeline>
+<codeline lineno="135"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="137"><highlight class="normal">Detector2D_getprop_nx(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="138"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a450552fdf83f68f46c194fef992fba0c" kindref="member">nx</ref>);</highlight></codeline>
+<codeline lineno="144"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="145"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="146"><highlight class="normal">Detector2D_getprop_n(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="147"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a6c68b3eb7c2a8d839f9c1b293f8b14b6" kindref="member">n</ref>);</highlight></codeline>
+<codeline lineno="153"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="154"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="155"><highlight class="normal">Detector2D_getprop_dwell(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="156"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="158"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="161"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a51c5d1dad59ca235907c72f604c54caa" kindref="member">corr</ref>-&gt;<ref refid="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" kindref="member">dwell</ref>);</highlight></codeline>
+<codeline lineno="162"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="163"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="164"><highlight class="normal">Detector2D_getprop_count(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="165"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a51c5d1dad59ca235907c72f604c54caa" kindref="member">corr</ref>-&gt;<ref refid="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" kindref="member">count</ref>);</highlight></codeline>
+<codeline lineno="171"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="173"><highlight class="normal">Detector2D_getprop_ring_cap(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="174"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="175"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="176"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="177"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="178"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="179"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1aad39cdaad825274170a485b7c4c5facc" kindref="member">ring_cap</ref>);</highlight></codeline>
+<codeline lineno="180"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="181"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="182"><highlight class="normal">Detector2D_getprop_noise_lo(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="183"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="184"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="185"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="186"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="187"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="188"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1ac3da3ceba579bf8757a08e3a3a51188f" kindref="member">noise_lo</ref>);</highlight></codeline>
+<codeline lineno="189"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="190"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="191"><highlight class="normal">Detector2D_getprop_noise_hi(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="192"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="193"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="194"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="195"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="196"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="197"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyLong_FromUnsignedLongLong((</highlight><highlight class="keywordtype">unsigned</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">long</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1ad6314eb2dd035d051a119c70cbb0ae23" kindref="member">noise_hi</ref>);</highlight></codeline>
+<codeline lineno="198"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="199"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="200"><highlight class="normal">Detector2D_getprop_threshold(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="201"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="202"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="203"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="204"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="205"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="206"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>PyFloat_FromDouble((</highlight><highlight class="keywordtype">double</highlight><highlight class="normal">)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1aac16142305e23dbe8a8da0e020aef00b" kindref="member">threshold</ref>);</highlight></codeline>
+<codeline lineno="207"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="208"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="209"><highlight class="normal">Detector2D_getprop_last_corr(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/>*Py_UNUSED(closure))</highlight></codeline>
+<codeline lineno="210"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="211"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="212"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>PyErr_SetString(PyExc_RuntimeError,<sp/></highlight><highlight class="stringliteral">&quot;destroyed&quot;</highlight><highlight class="normal">);</highlight></codeline>
+<codeline lineno="213"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="214"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="215"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a6258fd3bc934aa6a4d5492b8aae21d50" kindref="member">_last_corr_valid</ref>)<sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="216"><highlight class="normal"><sp/><sp/><sp/><sp/>npy_intp<sp/>dim<sp/>=<sp/>(npy_intp)self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a6c68b3eb7c2a8d839f9c1b293f8b14b6" kindref="member">n</ref>;</highlight></codeline>
+<codeline lineno="217"><highlight class="normal"><sp/><sp/><sp/><sp/>PyObject<sp/>*arr<sp/>=<sp/>PyArray_SimpleNewFromData(</highlight></codeline>
+<codeline lineno="218"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>1,<sp/>&amp;dim,<sp/>NPY_COMPLEX64,<sp/>self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>-&gt;<ref refid="structdetector2d__state__t_1a42384b680ddd94fa52869b907bb99d48" kindref="member">out_buf</ref>);</highlight></codeline>
+<codeline lineno="219"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!arr)<sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="220"><highlight class="normal"><sp/><sp/><sp/><sp/>PyArray_SetBaseObject((PyArrayObject<sp/>*)arr,<sp/>(PyObject<sp/>*)self);</highlight></codeline>
+<codeline lineno="221"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="222"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>arr;</highlight></codeline>
+<codeline lineno="223"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="224"><highlight class="normal"></highlight></codeline>
+<codeline lineno="225"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyGetSetDef<sp/>Detector2D_getset[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="226"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;ny&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_ny,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="227"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;nx&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_nx,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="228"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;n&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_n,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="229"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;dwell&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_dwell,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="230"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;count&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_count,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="231"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;ring_cap&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_ring_cap,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="232"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;noise_lo&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_noise_lo,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="233"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;noise_hi&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_noise_hi,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="234"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;threshold&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_threshold,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="235"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/></highlight><highlight class="stringliteral">&quot;last_corr&quot;</highlight><highlight class="normal">,<sp/>(getter)Detector2D_getprop_last_corr,<sp/>NULL,<sp/>NULL,<sp/>NULL<sp/>},</highlight></codeline>
+<codeline lineno="236"><highlight class="normal"><sp/><sp/><sp/><sp/>{<sp/>NULL<sp/>}</highlight></codeline>
+<codeline lineno="237"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="238"><highlight class="normal"></highlight></codeline>
+<codeline lineno="239"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="240"><highlight class="normal">Detector2DObj_destroy(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="241"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="242"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="243"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="detector2d__core_8h_1a6b38deb2d7cc446f0b00e7dc14e419a4" kindref="member">detector2d_destroy</ref>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="244"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="245"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="246"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="247"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="248"><highlight class="normal"></highlight></codeline>
+<codeline lineno="249"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="250"><highlight class="normal">Detector2DObj_enter(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*Py_UNUSED(ignored))</highlight></codeline>
+<codeline lineno="251"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="252"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_INCREF(self);</highlight></codeline>
+<codeline lineno="253"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(PyObject<sp/>*)self;</highlight></codeline>
+<codeline lineno="254"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="255"><highlight class="normal"></highlight></codeline>
+<codeline lineno="256"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyObject<sp/>*</highlight></codeline>
+<codeline lineno="257"><highlight class="normal">Detector2DObj_exit(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref><sp/>*self,<sp/>PyObject<sp/>*args)</highlight></codeline>
+<codeline lineno="258"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="259"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)args;</highlight></codeline>
+<codeline lineno="260"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>)<sp/>{</highlight></codeline>
+<codeline lineno="261"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><ref refid="detector2d__core_8h_1a6b38deb2d7cc446f0b00e7dc14e419a4" kindref="member">detector2d_destroy</ref>(self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref>);</highlight></codeline>
+<codeline lineno="262"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>self-&gt;<ref refid="structDetector2DObject_1a4cf67b1516730db748b954240d031153" kindref="member">handle</ref><sp/>=<sp/>NULL;</highlight></codeline>
+<codeline lineno="263"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="264"><highlight class="normal"><sp/><sp/><sp/><sp/>Py_RETURN_NONE;</highlight></codeline>
+<codeline lineno="265"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="266"><highlight class="normal"></highlight></codeline>
+<codeline lineno="267"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyMethodDef<sp/>Detector2DObj_methods[]<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="268"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;reset&quot;</highlight><highlight class="normal">,<sp/><sp/><sp/><sp/>(PyCFunction)Detector2DObj_reset,<sp/><sp/><sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="269"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Reset<sp/>state<sp/>to<sp/>post-create<sp/>defaults.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="270"><highlight class="normal"></highlight></codeline>
+<codeline lineno="271"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;push&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)Detector2DObj_push,<sp/>METH_VARARGS,</highlight></codeline>
+<codeline lineno="272"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;push(x)<sp/>-&gt;<sp/>list[tuple]\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="273"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="274"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Returns<sp/>list<sp/>of<sp/>(row,<sp/>col,<sp/>peak_mag,<sp/>noise_est,<sp/>test_stat,)<sp/>tuples.\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="275"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="276"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>import<sp/>numpy<sp/>as<sp/>np\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="277"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>from<sp/>doppler<sp/>import<sp/>Detector2D\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="278"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>obj<sp/>=<sp/>Detector2D(np.zeros((1,<sp/>1),<sp/>dtype=np.complex64),<sp/>\&quot;mean\&quot;,<sp/>1,<sp/>0,<sp/>ny*nx-1,<sp/>0.0,<sp/>1)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="279"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>results<sp/>=<sp/>obj.push(np.zeros(4,<sp/>dtype=np.complex64))\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="280"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>&gt;&gt;&gt;<sp/>isinstance(results,<sp/>list)\n&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="281"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;<sp/><sp/><sp/><sp/>True\n&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="282"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;destroy&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)Detector2DObj_destroy,<sp/><sp/>METH_NOARGS,</highlight></codeline>
+<codeline lineno="283"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="stringliteral">&quot;Release<sp/>resources.&quot;</highlight><highlight class="normal">},</highlight></codeline>
+<codeline lineno="284"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__enter__&quot;</highlight><highlight class="normal">,<sp/>(PyCFunction)Detector2DObj_enter,<sp/><sp/><sp/>METH_NOARGS,<sp/><sp/>NULL},</highlight></codeline>
+<codeline lineno="285"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight><highlight class="stringliteral">&quot;__exit__&quot;</highlight><highlight class="normal">,<sp/><sp/>(PyCFunction)Detector2DObj_exit,<sp/><sp/><sp/><sp/>METH_VARARGS,<sp/>NULL},</highlight></codeline>
+<codeline lineno="286"><highlight class="normal"><sp/><sp/><sp/><sp/>{NULL}</highlight></codeline>
+<codeline lineno="287"><highlight class="normal">};</highlight></codeline>
+<codeline lineno="288"><highlight class="normal"></highlight></codeline>
+<codeline lineno="289"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>PyTypeObject<sp/>Detector2DObjType<sp/>=<sp/>{</highlight></codeline>
+<codeline lineno="290"><highlight class="normal"><sp/><sp/><sp/><sp/>PyVarObject_HEAD_INIT(NULL,<sp/>0)</highlight></codeline>
+<codeline lineno="291"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_name<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;spectral.Detector2D&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="292"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_basicsize<sp/>=<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(<ref refid="structDetector2DObject" kindref="compound">Detector2DObject</ref>),</highlight></codeline>
+<codeline lineno="293"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_dealloc<sp/><sp/><sp/>=<sp/>(destructor)Detector2DObj_dealloc,</highlight></codeline>
+<codeline lineno="294"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_flags<sp/><sp/><sp/><sp/><sp/>=<sp/>Py_TPFLAGS_DEFAULT,</highlight></codeline>
+<codeline lineno="295"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_doc<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/></highlight><highlight class="stringliteral">&quot;Create<sp/>a<sp/>2-D<sp/>signal<sp/>detector.\n&quot;</highlight><highlight class="normal">,</highlight></codeline>
+<codeline lineno="296"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_methods<sp/><sp/><sp/>=<sp/>Detector2DObj_methods,</highlight></codeline>
+<codeline lineno="297"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_getset<sp/><sp/><sp/><sp/>=<sp/>Detector2D_getset,</highlight></codeline>
+<codeline lineno="298"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_new<sp/><sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>Detector2DObj_new,</highlight></codeline>
+<codeline lineno="299"><highlight class="normal"><sp/><sp/><sp/><sp/>.tp_init<sp/><sp/><sp/><sp/><sp/><sp/>=<sp/>(initproc)Detector2DObj_init,</highlight></codeline>
+<codeline lineno="300"><highlight class="normal">};</highlight></codeline>
+    </programlisting>
+    <location file="native/src/spectral/spectral_ext_detector2d.c"/>
+  </compounddef>
+</doxygen>

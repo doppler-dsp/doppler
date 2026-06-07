@@ -1,0 +1,183 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structwfm__segment__t" kind="struct" language="C++" prot="public">
+    <compoundname>wfm_segment_t</compoundname>
+    <includes refid="wfm__compose_8h" local="no">wfm_compose.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structwfm__segment__t_1a0e428f1e67dbba15c63216267edf7343" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int wfm_segment_t::type</definition>
+        <argsstring></argsstring>
+        <name>type</name>
+        <qualifiedname>wfm_segment_t::type</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="48" column="9" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="48" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a93c832575ffda93b4270fb4d8b941303" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double wfm_segment_t::fs</definition>
+        <argsstring></argsstring>
+        <name>fs</name>
+        <qualifiedname>wfm_segment_t::fs</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="49" column="12" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="49" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a8e142bf6ffec3643a0ae04f70e6a50e5" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double wfm_segment_t::freq</definition>
+        <argsstring></argsstring>
+        <name>freq</name>
+        <qualifiedname>wfm_segment_t::freq</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="50" column="12" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="50" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1aca4ed676fb833a9e29f5a00500c38b4d" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double wfm_segment_t::snr</definition>
+        <argsstring></argsstring>
+        <name>snr</name>
+        <qualifiedname>wfm_segment_t::snr</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="51" column="12" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="51" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1aac1a1e60411fe8a008f7b57d15922b3f" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int wfm_segment_t::snr_mode</definition>
+        <argsstring></argsstring>
+        <name>snr_mode</name>
+        <qualifiedname>wfm_segment_t::snr_mode</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="52" column="9" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="52" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1aa56fe839bd91cf8d0b5fd874ac7dc848" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t wfm_segment_t::seed</definition>
+        <argsstring></argsstring>
+        <name>seed</name>
+        <qualifiedname>wfm_segment_t::seed</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="53" column="14" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="53" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a186c902d489fc70a7d22ab9d0fd2be24" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int wfm_segment_t::sps</definition>
+        <argsstring></argsstring>
+        <name>sps</name>
+        <qualifiedname>wfm_segment_t::sps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="54" column="9" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="54" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a9a9e850ca8ce21be301e48b817332638" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int wfm_segment_t::pn_length</definition>
+        <argsstring></argsstring>
+        <name>pn_length</name>
+        <qualifiedname>wfm_segment_t::pn_length</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="55" column="9" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="55" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a644ae837e3c680453b23ead25beb3354" prot="public" static="no" mutable="no">
+        <type>uint32_t</type>
+        <definition>uint32_t wfm_segment_t::pn_poly</definition>
+        <argsstring></argsstring>
+        <name>pn_poly</name>
+        <qualifiedname>wfm_segment_t::pn_poly</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="56" column="14" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="56" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a0257700d526e5e887e192ddcbdd8a53b" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t wfm_segment_t::num_samples</definition>
+        <argsstring></argsstring>
+        <name>num_samples</name>
+        <qualifiedname>wfm_segment_t::num_samples</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="57" column="12" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="57" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structwfm__segment__t_1a67aaefb7026f996e70af85051eef365f" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t wfm_segment_t::off_samples</definition>
+        <argsstring></argsstring>
+        <name>off_samples</name>
+        <qualifiedname>wfm_segment_t::off_samples</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/wfmgen/wfm_compose.h" line="58" column="12" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="58" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>One composer segment: a <computeroutput>synth</computeroutput> config + on/off sample counts. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>The nine synth fields mirror <computeroutput><ref refid="synth__core_8h_1ab624764cabe47da500b6ddd16abe96c4" kindref="member">synth_create()</ref></computeroutput> exactly. <computeroutput><ref refid="structwfm__segment__t_1a0257700d526e5e887e192ddcbdd8a53b" kindref="member">num_samples</ref></computeroutput> is the on-time (samples emitted from the synth); <computeroutput><ref refid="structwfm__segment__t_1a67aaefb7026f996e70af85051eef365f" kindref="member">off_samples</ref></computeroutput> is a trailing gap of zeros inserted after the segment (off-time). Durations in seconds are <computeroutput>round(duration * fs)</computeroutput> — the caller resolves them. </para>
+    </detaileddescription>
+    <location file="native/inc/wfmgen/wfm_compose.h" line="47" column="1" bodyfile="native/inc/wfmgen/wfm_compose.h" bodystart="47" bodyend="59"/>
+    <listofallmembers>
+      <member refid="structwfm__segment__t_1a8e142bf6ffec3643a0ae04f70e6a50e5" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>freq</name></member>
+      <member refid="structwfm__segment__t_1a93c832575ffda93b4270fb4d8b941303" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>fs</name></member>
+      <member refid="structwfm__segment__t_1a0257700d526e5e887e192ddcbdd8a53b" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>num_samples</name></member>
+      <member refid="structwfm__segment__t_1a67aaefb7026f996e70af85051eef365f" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>off_samples</name></member>
+      <member refid="structwfm__segment__t_1a9a9e850ca8ce21be301e48b817332638" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>pn_length</name></member>
+      <member refid="structwfm__segment__t_1a644ae837e3c680453b23ead25beb3354" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>pn_poly</name></member>
+      <member refid="structwfm__segment__t_1aa56fe839bd91cf8d0b5fd874ac7dc848" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>seed</name></member>
+      <member refid="structwfm__segment__t_1aca4ed676fb833a9e29f5a00500c38b4d" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>snr</name></member>
+      <member refid="structwfm__segment__t_1aac1a1e60411fe8a008f7b57d15922b3f" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>snr_mode</name></member>
+      <member refid="structwfm__segment__t_1a186c902d489fc70a7d22ab9d0fd2be24" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>sps</name></member>
+      <member refid="structwfm__segment__t_1a0e428f1e67dbba15c63216267edf7343" prot="public" virt="non-virtual"><scope>wfm_segment_t</scope><name>type</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

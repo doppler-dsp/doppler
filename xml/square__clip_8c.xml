@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="square__clip_8c" kind="file" language="C++">
+    <compoundname>square_clip.c</compoundname>
+    <includes local="no">complex.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="1">
+        <label>native/src/util/square_clip.c</label>
+        <link refid="square__clip_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>complex.h</label>
+      </node>
+      <node id="3">
+        <label>math.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="square__clip_8c_1aacd6ac9a717e308fb8d3745cd7ae8b27" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float complex</type>
+        <definition>float complex square_clip</definition>
+        <argsstring>(float complex y, float lin)</argsstring>
+        <name>square_clip</name>
+        <param>
+          <type>float complex</type>
+          <declname>y</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>lin</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/util/square_clip.c" line="11" column="1" bodyfile="native/src/util/square_clip.c" bodystart="11" bodyend="16"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="2"><highlight class="comment"><sp/>*<sp/>square_clip.c<sp/>—<sp/>util<sp/>module-level<sp/>function.</highlight></codeline>
+<codeline lineno="3"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="4"><highlight class="comment"><sp/>*<sp/>Provides<sp/>the<sp/>external<sp/>linkage<sp/>definition<sp/>of<sp/>square_clip;<sp/>the</highlight></codeline>
+<codeline lineno="5"><highlight class="comment"><sp/>*<sp/>header-only<sp/>static<sp/>inline<sp/>copy<sp/>is<sp/>used<sp/>by<sp/>all<sp/>other<sp/>callers.</highlight></codeline>
+<codeline lineno="6"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="7"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;complex.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><ref refid="square__clip_8c_1aacd6ac9a717e308fb8d3745cd7ae8b27" kindref="member">square_clip</ref>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>y,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>lin)</highlight></codeline>
+<codeline lineno="12"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>r<sp/>=<sp/>fminf(fmaxf(crealf(y),<sp/>-lin),<sp/>lin);</highlight></codeline>
+<codeline lineno="14"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>fminf(fmaxf(cimagf(y),<sp/>-lin),<sp/>lin);</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>r<sp/>+<sp/>i<sp/>*<sp/>I;</highlight></codeline>
+<codeline lineno="16"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/util/square_clip.c"/>
+  </compounddef>
+</doxygen>

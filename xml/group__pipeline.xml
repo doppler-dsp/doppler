@@ -1,0 +1,705 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="group__pipeline" kind="group">
+    <compoundname>pipeline</compoundname>
+    <title>PUSH/PULL — pipeline</title>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="group__pipeline_1gaf7776c876ee786baf4d1cf78209da93d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+        <definition>dp_push_t * dp_push_create</definition>
+        <argsstring>(const char *endpoint, dp_sample_type_t sample_type)</argsstring>
+        <name>dp_push_create</name>
+        <param>
+          <type>const char *</type>
+          <declname>endpoint</declname>
+        </param>
+        <param>
+          <type><ref refid="group__types_1gad6afa986413f0be406048edae7827a4d" kindref="member">dp_sample_type_t</ref></type>
+          <declname>sample_type</declname>
+        </param>
+        <briefdescription>
+<para>Create a Push socket and bind to <computeroutput>endpoint</computeroutput>. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>endpoint</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>ZMQ endpoint to bind, e.g. <computeroutput>"tcp://\*:5556"</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_type</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample format that will be sent. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL context on success, NULL on failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="378" column="13" bodyfile="native/src/stream/stream_core.c" bodystart="447" bodyend="450" declfile="native/inc/stream/stream.h" declline="378" declcolumn="13"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1gaf2457fe676b3fcfbc17d12b51bfa7885" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="group__types_1ga4427a5b9a633d2678537f3d0fe07238e" kindref="member">dp_pull_t</ref> *</type>
+        <definition>dp_pull_t * dp_pull_create</definition>
+        <argsstring>(const char *endpoint)</argsstring>
+        <name>dp_pull_create</name>
+        <param>
+          <type>const char *</type>
+          <declname>endpoint</declname>
+        </param>
+        <briefdescription>
+<para>Create a Pull socket and connect to <computeroutput>endpoint</computeroutput>. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>endpoint</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>ZMQ endpoint to connect to, e.g. <computeroutput>"tcp://localhost:5556"</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Non-NULL context on success, NULL on failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="385" column="13" bodyfile="native/src/stream/stream_core.c" bodystart="501" bodyend="504" declfile="native/inc/stream/stream.h" declline="385" declcolumn="13"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga0cb06593c6c85a48b60959ba7168d32a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_ci32</definition>
+        <argsstring>(dp_push_t *ctx, const int32_t *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_ci32</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const int32_t *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CI32 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="391" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="453" bodyend="458" declfile="native/inc/stream/stream.h" declline="391" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1gac8cdaec566af3c7252a7b794d204df5c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_cf64</definition>
+        <argsstring>(dp_push_t *ctx, const double _Complex *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_cf64</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const double _Complex *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CF64 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="399" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="461" bodyend="466" declfile="native/inc/stream/stream.h" declline="399" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga1d9e761e0ad9986650b6bd2853bdd120" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_cf128</definition>
+        <argsstring>(dp_push_t *ctx, const long double _Complex *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_cf128</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const long double _Complex *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CF128 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="407" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="469" bodyend="474" declfile="native/inc/stream/stream.h" declline="407" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1gaa7cfec3acac32a7e7f5431c30bf82c1b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_ci8</definition>
+        <argsstring>(dp_push_t *ctx, const int8_t *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_ci8</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const int8_t *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CI8 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="413" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="477" bodyend="482" declfile="native/inc/stream/stream.h" declline="413" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1gaf8fbd9e2abc2efcd084e1baef7d62f0b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_ci16</definition>
+        <argsstring>(dp_push_t *ctx, const int16_t *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_ci16</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const int16_t *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CI16 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="419" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="485" bodyend="490" declfile="native/inc/stream/stream.h" declline="419" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1gafbf58158c44484d4a5a1a16a9919b31a" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_push_send_cf32</definition>
+        <argsstring>(dp_push_t *ctx, const float _Complex *samples, size_t num_samples, double sample_rate, double center_freq)</argsstring>
+        <name>dp_push_send_cf32</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>const float _Complex *</type>
+          <declname>samples</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num_samples</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>sample_rate</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>center_freq</declname>
+        </param>
+        <briefdescription>
+<para>Send CF32 samples via a Push socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Publisher context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Interleaved int32_t I/Q pairs; length 2×num_samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>num_samples</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of complex samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sample_rate</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Sample rate in Hz. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>center_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Centre frequency in Hz. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK (0) on success, negative error code on failure.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="425" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="493" bodyend="498" declfile="native/inc/stream/stream.h" declline="425" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga73c71b5b4808ca40e02b5ed5034963c1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int dp_pull_recv</definition>
+        <argsstring>(dp_pull_t *ctx, dp_msg_t **msg, dp_header_t *header)</argsstring>
+        <name>dp_pull_recv</name>
+        <param>
+          <type><ref refid="group__types_1ga4427a5b9a633d2678537f3d0fe07238e" kindref="member">dp_pull_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type><ref refid="group__types_1gad595c6d0c358b099d36f9187dc0660f6" kindref="member">dp_msg_t</ref> **</type>
+          <declname>msg</declname>
+        </param>
+        <param>
+          <type><ref refid="structdp__header__t" kindref="compound">dp_header_t</ref> *</type>
+          <declname>header</declname>
+        </param>
+        <briefdescription>
+<para>Receive one frame from a Pull socket (zero-copy). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>On success, <computeroutput>*msg</computeroutput> is set to a message handle whose data buffer is valid until <ref refid="group__msg_1ga7d73a179484647b4b86f6faaf349cf47" kindref="member">dp_msg_free()</ref> is called. Use <ref refid="group__msg_1gadcf8ff0947617fc05ef2b6650d3a2ea2" kindref="member">dp_msg_data()</ref> to access the sample pointer.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Subscriber context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername direction="out"><ref refid="group__msg" kindref="compound">Message handle</ref></parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Set to a zero-copy message handle. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername direction="out">header</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Set to the frame metadata. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK on success, DP_ERR_TIMEOUT on timeout, negative on error.    </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="433" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="507" bodyend="510" declfile="native/inc/stream/stream.h" declline="433" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga4c08f9bcaee8337af262462c91df9d5c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void dp_pull_set_timeout</definition>
+        <argsstring>(dp_pull_t *ctx, int timeout_ms)</argsstring>
+        <name>dp_pull_set_timeout</name>
+        <param>
+          <type><ref refid="group__types_1ga4427a5b9a633d2678537f3d0fe07238e" kindref="member">dp_pull_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>timeout_ms</declname>
+        </param>
+        <briefdescription>
+<para>Set receive timeout for a Pull socket. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Pull context. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>timeout_ms</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Timeout in milliseconds (-1 = infinite, 0 = non-blocking). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="441" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="513" bodyend="516" declfile="native/inc/stream/stream.h" declline="441" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga107bcef41550f974a17500f085cc1107" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void dp_push_destroy</definition>
+        <argsstring>(dp_push_t *ctx)</argsstring>
+        <name>dp_push_destroy</name>
+        <param>
+          <type><ref refid="group__types_1ga404adb01bf68f4d3c045a40dc06502f7" kindref="member">dp_push_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a Push context and release all resources. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Push context (may be NULL). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="447" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="519" bodyend="522" declfile="native/inc/stream/stream.h" declline="447" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="group__pipeline_1ga744bc6ffde7e3454df88a64ea1c86dbf" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void dp_pull_destroy</definition>
+        <argsstring>(dp_pull_t *ctx)</argsstring>
+        <name>dp_pull_destroy</name>
+        <param>
+          <type><ref refid="group__types_1ga4427a5b9a633d2678537f3d0fe07238e" kindref="member">dp_pull_t</ref> *</type>
+          <declname>ctx</declname>
+        </param>
+        <briefdescription>
+<para>Destroy a Pull context and release all resources. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ctx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Pull context (may be NULL). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/stream/stream.h" line="453" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="525" bodyend="528" declfile="native/inc/stream/stream.h" declline="453" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+<para>Push sockets distribute work across all connected Pull workers in a round-robin fashion. Unlike PUB/SUB, each frame is delivered to exactly one Pull consumer. </para>
+    </detaileddescription>
+  </compounddef>
+</doxygen>

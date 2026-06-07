@@ -1,0 +1,455 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="corr2d__core_8h" kind="file" language="C++">
+    <compoundname>corr2d_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="fft2d__core_8h" local="yes">fft2d/fft2d_core.h</includes>
+    <includedby refid="detector2d__core_8h" local="yes">native/inc/detector2d/detector2d_core.h</includedby>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="corr2d__core_8c" local="yes">native/src/corr2d/corr2d_core.c</includedby>
+    <includedby refid="spectral__ext__corr2d_8c" local="yes">native/src/spectral/spectral_ext_corr2d.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/corr2d/corr2d_core.h</label>
+        <link refid="corr2d__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>fft2d/fft2d_core.h</label>
+        <link refid="fft2d__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/corr2d/corr2d_core.h</label>
+        <link refid="corr2d__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/detector2d/detector2d_core.h</label>
+        <link refid="detector2d__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="6">
+        <label>native/src/corr2d/corr2d_core.c</label>
+        <link refid="corr2d__core_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/detector2d/detector2d_core.c</label>
+        <link refid="detector2d__core_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/spectral/spectral_ext_corr2d.c</label>
+        <link refid="spectral__ext__corr2d_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/spectral/spectral_ext_detector2d.c</label>
+        <link refid="spectral__ext__detector2d_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structcorr2d__state__t" prot="public">corr2d_state_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="corr2d__core_8h_1aa0acddc8344fedb6f0858e3cc5daa0b7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+        <definition>corr2d_state_t * corr2d_create</definition>
+        <argsstring>(const float complex *ref, size_t ny, size_t nx, size_t dwell, int nthreads)</argsstring>
+        <name>corr2d_create</name>
+        <param>
+          <type>const float complex *</type>
+          <declname>ref</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>ny</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>nx</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>nthreads</declname>
+        </param>
+        <briefdescription>
+<para>Create a 2-D FFT correlator. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ref</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Reference image, flat row-major CF32, length ny*nx. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>ny</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of rows. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of columns. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nthreads</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Ignored (pocketfft is single-threaded). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="66" column="16" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="4" bodyend="47" declfile="native/inc/corr2d/corr2d_core.h" declline="66" declcolumn="16"/>
+      </memberdef>
+      <memberdef kind="function" id="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void corr2d_destroy</definition>
+        <argsstring>(corr2d_state_t *state)</argsstring>
+        <name>corr2d_destroy</name>
+        <param>
+          <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy and free a corr2d instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="70" column="6" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="49" bodyend="59" declfile="native/inc/corr2d/corr2d_core.h" declline="70" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="corr2d__core_8h_1a10b4616cd8688abf410fff4214aa4d03" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void corr2d_reset</definition>
+        <argsstring>(corr2d_state_t *state)</argsstring>
+        <name>corr2d_reset</name>
+        <param>
+          <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Zero the accumulator and reset the integration counter to 0. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="76" column="6" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="61" bodyend="64" declfile="native/inc/corr2d/corr2d_core.h" declline="76" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="corr2d__core_8h_1ae9b66b18f060dabae401cf1486b860ff" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void corr2d_set_ref</definition>
+        <argsstring>(corr2d_state_t *state, const float complex *ref)</argsstring>
+        <name>corr2d_set_ref</name>
+        <param>
+          <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>ref</declname>
+        </param>
+        <briefdescription>
+<para>Replace the reference and recompute conj(FFT2(ref)). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Also resets accumulator and counter.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>ref</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New reference, flat row-major CF32, length ny*nx. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="86" column="6" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="66" bodyend="71" declfile="native/inc/corr2d/corr2d_core.h" declline="86" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="corr2d__core_8h_1af30a5f568a3674434b778c4ca08f55ad" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t corr2d_execute_max_out</definition>
+        <argsstring>(corr2d_state_t *state)</argsstring>
+        <name>corr2d_execute_max_out</name>
+        <param>
+          <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples per execute call (always == ny*nx). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="89" column="8" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="73" bodyend="73" declfile="native/inc/corr2d/corr2d_core.h" declline="89" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="corr2d__core_8h_1a86978ff8882674eeb4952917b02b9df1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t corr2d_execute</definition>
+        <argsstring>(corr2d_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>corr2d_execute</name>
+        <param>
+          <type><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Correlate one 2-D frame and optionally dump the accumulator. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Steps:<orderedlist>
+<listitem><para>FFT2(in) → work_fft</para>
+</listitem><listitem><para><computeroutput>work_fft[k] *= ref_spec[k]</computeroutput></para>
+</listitem><listitem><para>IFFT2(work_fft) → work_ifft (divide by ny*nx)</para>
+</listitem><listitem><para><computeroutput>accum[k] += work_ifft[k] / (ny*nx)</computeroutput></para>
+</listitem><listitem><para>If count == dwell: copy accum → out, zero, reset, return ny*nx.</para>
+</listitem><listitem><para>Otherwise: return 0.</para>
+</listitem></orderedlist>
+</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Flat row-major CF32 frame, length n_in (must equal ny*nx). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Total number of input samples. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer of length &gt;= ny*nx. Only written on dump. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>ny*nx on a dump, 0 otherwise. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="108" column="8" bodyfile="native/src/corr2d/corr2d_core.c" bodystart="75" bodyend="97" declfile="native/inc/corr2d/corr2d_core.h" declline="108" declcolumn="8"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>2-D FFT-based cross-correlator with coherent integrate-and-dump. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Two-dimensional extension of corr_core: all buffers are ny×nx row-major flat arrays of length ny*nx. The correlation theorem extends naturally:</para>
+<para><computeroutput>R_xh[i,j] = IFFT2( FFT2(x) · conj(FFT2(h)) ) / (ny*nx)</computeroutput></para>
+<para>The reference spectrum is pre-computed at create time. The int-dump semantics are identical to the 1-D case: coherently sum <computeroutput>dwell</computeroutput> frames, then dump.</para>
+<para>Lifecycle: <programlisting><codeline><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>ref[NY<sp/>*<sp/>NX]<sp/>=<sp/>{<sp/>...<sp/>};<sp/><sp/><sp/><sp/></highlight><highlight class="comment">//<sp/>row-major<sp/>2-D<sp/>reference</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*c<sp/>=<sp/><ref refid="corr2d__core_8h_1aa0acddc8344fedb6f0858e3cc5daa0b7" kindref="member">corr2d_create</ref>(ref,<sp/>NY,<sp/>NX,<sp/>4,<sp/>1);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>out[NY<sp/>*<sp/>NX];</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>4;<sp/>i++)<sp/>{</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_out<sp/>=<sp/><ref refid="corr2d__core_8h_1a86978ff8882674eeb4952917b02b9df1" kindref="member">corr2d_execute</ref>(c,<sp/>frame[i],<sp/>NY*NX,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(n_out)<sp/>process_2d(out,<sp/>NY,<sp/>NX);<sp/><sp/><sp/></highlight><highlight class="comment">//<sp/>fires<sp/>once,<sp/>on<sp/>i<sp/>==<sp/>3</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal">}</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" kindref="member">corr2d_destroy</ref>(c);</highlight></codeline>
+</programlisting> </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>CORR2D_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>CORR2D_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="fft2d__core_8h" kindref="compound">fft2d/fft2d_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="31"><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"><sp/>{</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42" refid="structcorr2d__state__t" refkind="compound"><highlight class="normal"></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct<sp/></highlight><highlight class="normal">{</highlight></codeline>
+<codeline lineno="43" refid="structcorr2d__state__t_1a2880ecfa2fdf153e4961cdb272bdc2b5" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*<ref refid="structcorr2d__state__t_1a2880ecfa2fdf153e4961cdb272bdc2b5" kindref="member">fwd</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="44" refid="structcorr2d__state__t_1a80ba6d010d7f219d3e398689d5ec0ab4" refkind="member"><highlight class="normal"><sp/><sp/><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*<ref refid="structcorr2d__state__t_1a80ba6d010d7f219d3e398689d5ec0ab4" kindref="member">inv</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="45" refid="structcorr2d__state__t_1adb3ebd4abc4e6cc9aaf49e614e4d176b" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structcorr2d__state__t_1adb3ebd4abc4e6cc9aaf49e614e4d176b" kindref="member">ref_spec</ref>;<sp/><sp/></highlight></codeline>
+<codeline lineno="46" refid="structcorr2d__state__t_1ae23d3dd0c50b0fdc1127a70172ec63bc" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structcorr2d__state__t_1ae23d3dd0c50b0fdc1127a70172ec63bc" kindref="member">work_fft</ref>;<sp/><sp/></highlight></codeline>
+<codeline lineno="47" refid="structcorr2d__state__t_1a67a401069f7998ec13dd76daf46fa6f7" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structcorr2d__state__t_1a67a401069f7998ec13dd76daf46fa6f7" kindref="member">work_ifft</ref>;<sp/></highlight></codeline>
+<codeline lineno="48" refid="structcorr2d__state__t_1a6f2188d64399c82daed662916005578c" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*<ref refid="structcorr2d__state__t_1a6f2188d64399c82daed662916005578c" kindref="member">accum</ref>;<sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="49" refid="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" kindref="member">ny</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="50" refid="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" kindref="member">nx</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="51" refid="structcorr2d__state__t_1abbcb5fccdc0d7c2c2b29c04e42a250f9" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structcorr2d__state__t_1abbcb5fccdc0d7c2c2b29c04e42a250f9" kindref="member">n</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="52" refid="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" kindref="member">dwell</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="53" refid="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" refkind="member"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" kindref="member">count</ref>;<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="54"><highlight class="normal">}<sp/><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref>;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*<ref refid="corr2d__core_8h_1aa0acddc8344fedb6f0858e3cc5daa0b7" kindref="member">corr2d_create</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*ref,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ny,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>nx,</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads);</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="corr2d__core_8h_1a21acb73d237b1c8b95f7f81a30759210" kindref="member">corr2d_destroy</ref>(<ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="corr2d__core_8h_1a10b4616cd8688abf410fff4214aa4d03" kindref="member">corr2d_reset</ref>(<ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="corr2d__core_8h_1ae9b66b18f060dabae401cf1486b860ff" kindref="member">corr2d_set_ref</ref>(<ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*ref);</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"></highlight></codeline>
+<codeline lineno="89"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="corr2d__core_8h_1af30a5f568a3674434b778c4ca08f55ad" kindref="member">corr2d_execute_max_out</ref>(<ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="corr2d__core_8h_1a86978ff8882674eeb4952917b02b9df1" kindref="member">corr2d_execute</ref>(<ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="110"><highlight class="normal"></highlight></codeline>
+<codeline lineno="111"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="112"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="114"><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>CORR2D_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/corr2d/corr2d_core.h"/>
+  </compounddef>
+</doxygen>

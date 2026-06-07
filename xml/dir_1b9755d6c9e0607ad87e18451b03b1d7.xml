@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_1b9755d6c9e0607ad87e18451b03b1d7" kind="dir">
+    <compoundname>native/src/Resampler</compoundname>
+    <innerfile refid="Resampler__core_8c">Resampler_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/Resampler/"/>
+  </compounddef>
+</doxygen>

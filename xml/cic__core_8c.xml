@@ -1,0 +1,322 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="cic__core_8c" kind="file" language="C++">
+    <compoundname>cic_core.c</compoundname>
+    <includes refid="cic__core_8h" local="yes">cic/cic_core.h</includes>
+    <includes local="no">string.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>cic/cic_core.h</label>
+        <link refid="cic__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/cic/cic_core.c</label>
+        <link refid="cic__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="cic__core_8c_1af7fd69c1fe03715fbb19e3599bfdbd21" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>static uint32_t log2_pow2</definition>
+        <argsstring>(uint32_t x)</argsstring>
+        <name>log2_pow2</name>
+        <param>
+          <type>uint32_t</type>
+          <declname>x</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="26" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="26" bodyend="31"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1a1ffc708bb9706a0a3be55d9a30fd06b1" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>static int valid_R</definition>
+        <argsstring>(uint32_t R)</argsstring>
+        <name>valid_R</name>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="34" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="34" bodyend="38"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1a09b489b5a5db2098619a8a572c7c3065" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+        <definition>cic_state_t * cic_create</definition>
+        <argsstring>(uint32_t R)</argsstring>
+        <name>cic_create</name>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <briefdescription>
+<para>Create a CIC decimation filter. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>R</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Decimation ratio. Must be a power of two in <computeroutput>[2, 4096]</computeroutput>. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on invalid R or OOM. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="43" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="43" bodyend="55"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1aea5ce61d5479f3750108c46bd30b95bb" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_destroy</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_destroy</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="58" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="58" bodyend="61"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1a8d815c79f0fd9c25116891d1eb328249" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_reset</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_reset</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Zero all filter state; preserve R and shift. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The first output sample after reset is produced on input sample R-1, matching post-create behaviour. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="64" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="64" bodyend="71"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1aeabcf67232d17b95f7f1de3142cf79c7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t cic_decimate_max_out</definition>
+        <argsstring>(cic_state_t *state)</argsstring>
+        <name>cic_decimate_max_out</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Upper bound on decimate output — returns 0 (lazy-alloc signal). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The Python extension allocates n_in elements on the first call. Since n_in &gt;= ceil(n_in/R) = n_out for all R &gt;= 1, the buffer is always large enough as long as block size stays consistent. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="76" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="76" bodyend="80"/>
+      </memberdef>
+      <memberdef kind="function" id="cic__core_8c_1a9893c4813f1db00b8480dc6a3e7d8734" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void cic_reconfigure</definition>
+        <argsstring>(cic_state_t *state, uint32_t R)</argsstring>
+        <name>cic_reconfigure</name>
+        <param>
+          <type><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>R</declname>
+        </param>
+        <briefdescription>
+<para>Change the decimation ratio in place; resets all filter state. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Silently ignores invalid R (non-power-of-two, out of range).</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Filter state to reconfigure. Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>R</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>New decimation ratio. Same constraints as <ref refid="cic__core_8h_1a09b489b5a5db2098619a8a572c7c3065" kindref="member">cic_create()</ref>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/cic/cic_core.c" line="87" column="1" bodyfile="native/src/cic/cic_core.c" bodystart="87" bodyend="94"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Input samples (CF32) are converted to UQ16: the Q15 bit pattern of the int16_t representation, zero-extended into the lower 16 bits of a uint64_t. The upper 48 bits provide accumulation headroom for the pipeline gain of CIC_N * log2(R) bits.</para>
+<para>The unsigned modular-arithmetic CIC property holds unconditionally for uint64_t: every overflow in the integrators cancels exactly in the comb subtractions. No saturation logic, no range checks, no floating-point in the inner loop.</para>
+<para>The hot path is fully unrolled (CIC_N=4 stages, M=1 comb). </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight></codeline>
+<codeline lineno="18"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="cic__core_8h" kindref="compound">cic/cic_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight></codeline>
+<codeline lineno="20"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;string.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="21"><highlight class="normal"></highlight></codeline>
+<codeline lineno="22"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>internal<sp/>helpers<sp/>────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="23"><highlight class="normal"></highlight></codeline>
+<codeline lineno="24"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>log2<sp/>of<sp/>a<sp/>known<sp/>power-of-two<sp/>value<sp/>via<sp/>bit<sp/>scan.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>uint32_t</highlight></codeline>
+<codeline lineno="26"><highlight class="normal">log2_pow2(uint32_t<sp/>x)</highlight></codeline>
+<codeline lineno="27"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="28"><highlight class="normal"><sp/><sp/><sp/><sp/>uint32_t<sp/>k<sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(x<sp/>&gt;<sp/>1)<sp/>{<sp/>k++;<sp/>x<sp/>&gt;&gt;=<sp/>1;<sp/>}</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>k;</highlight></codeline>
+<codeline lineno="31"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal">valid_R(uint32_t<sp/>R)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>Power<sp/>of<sp/>two<sp/>in<sp/>[2,<sp/>4096]:<sp/>CIC_N<sp/>*<sp/>log2(R)<sp/>&lt;=<sp/>48.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>R<sp/>&gt;=<sp/>2<sp/>&amp;&amp;<sp/>R<sp/>&lt;=<sp/>4096<sp/>&amp;&amp;<sp/>(R<sp/>&amp;<sp/>(R<sp/>-<sp/>1))<sp/>==<sp/>0;</highlight></codeline>
+<codeline lineno="38"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>lifecycle<sp/>───────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><ref refid="cic__core_8c_1a09b489b5a5db2098619a8a572c7c3065" kindref="member">cic_create</ref>(uint32_t<sp/>R)</highlight></codeline>
+<codeline lineno="44"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!valid_R(R))</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*s<sp/>=<sp/>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*)calloc(1,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(*s));</highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!s)</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/><sp/><sp/>s-&gt;<ref refid="structcic__state__t_1a94657193f23562cf2469ea4bbe8172c4" kindref="member">R</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>R;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/><sp/><sp/>s-&gt;<ref refid="structcic__state__t_1adbb07e6bf05dfe1a626e6d79223fb99e" kindref="member">shift</ref><sp/>=<sp/><ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref><sp/>*<sp/>log2_pow2(R);</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>s;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><ref refid="cic__core_8c_1aea5ce61d5479f3750108c46bd30b95bb" kindref="member">cic_destroy</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="59"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/><sp/><sp/>free(state);</highlight></codeline>
+<codeline lineno="61"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><ref refid="cic__core_8c_1a8d815c79f0fd9c25116891d1eb328249" kindref="member">cic_reset</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="65"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><sp/><sp/><sp/><sp/>memset(state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>,<sp/>0,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(state-&gt;<ref refid="structcic__state__t_1a52ff4975ffe59ea581bd323e6f278c37" kindref="member">integ_re</ref>));</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/><sp/><sp/>memset(state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>,<sp/>0,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(state-&gt;<ref refid="structcic__state__t_1ab1624c7d33761218d305f34c18674cd4" kindref="member">integ_im</ref>));</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/><sp/><sp/>memset(state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>,<sp/><sp/>0,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(state-&gt;<ref refid="structcic__state__t_1adcd91411299a5121aa169151840c11fd" kindref="member">comb_re</ref>));</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/><sp/><sp/>memset(state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>,<sp/><sp/>0,<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal">(state-&gt;<ref refid="structcic__state__t_1a736232178b4fa404f2bf17cd60a69bdd" kindref="member">comb_im</ref>));</highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structcic__state__t_1a48e6fb2a9e58ac402989f593cc8c3fcf" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="71"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>decimate<sp/>────────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight></codeline>
+<codeline lineno="75"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><ref refid="cic__core_8c_1aeabcf67232d17b95f7f1de3142cf79c7" kindref="member">cic_decimate_max_out</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="77"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="78"><highlight class="normal"><sp/><sp/><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0;</highlight></codeline>
+<codeline lineno="80"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"></highlight></codeline>
+<codeline lineno="82"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>cic_decimate<sp/>is<sp/>a<sp/>static<sp/>inline<sp/>defined<sp/>in<sp/>cic_core.h.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>──<sp/>reconfigure<sp/>─────────────────────────────────────────────────────────<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><ref refid="cic__core_8c_1a9893c4813f1db00b8480dc6a3e7d8734" kindref="member">cic_reconfigure</ref>(<ref refid="structcic__state__t" kindref="compound">cic_state_t</ref><sp/>*state,<sp/>uint32_t<sp/>R)</highlight></codeline>
+<codeline lineno="88"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!valid_R(R))</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structcic__state__t_1a94657193f23562cf2469ea4bbe8172c4" kindref="member">R</ref><sp/><sp/><sp/><sp/><sp/>=<sp/>R;</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"><sp/><sp/><sp/><sp/>state-&gt;<ref refid="structcic__state__t_1adbb07e6bf05dfe1a626e6d79223fb99e" kindref="member">shift</ref><sp/>=<sp/><ref refid="cic__core_8h_1acf5622a2938d28d3391c1a24d8bad7cc" kindref="member">CIC_N</ref><sp/>*<sp/>log2_pow2(R);</highlight></codeline>
+<codeline lineno="93"><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="cic__core_8c_1a8d815c79f0fd9c25116891d1eb328249" kindref="member">cic_reset</ref>(state);</highlight></codeline>
+<codeline lineno="94"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/cic/cic_core.c"/>
+  </compounddef>
+</doxygen>

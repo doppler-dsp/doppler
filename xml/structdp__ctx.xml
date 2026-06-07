@@ -1,0 +1,90 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structdp__ctx" kind="struct" language="C++" prot="public">
+    <compoundname>dp_ctx</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structdp__ctx_1a244dced81fa0ae34201be884afbd9bf8" prot="public" static="no" mutable="no">
+        <type>void *</type>
+        <definition>void* dp_ctx::zmq_context</definition>
+        <argsstring></argsstring>
+        <name>zmq_context</name>
+        <qualifiedname>dp_ctx::zmq_context</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/stream/stream_core.c" line="17" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="17" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdp__ctx_1ae0a10e29ce6bc6033bff9df973631e27" prot="public" static="no" mutable="no">
+        <type>void *</type>
+        <definition>void* dp_ctx::zmq_socket</definition>
+        <argsstring></argsstring>
+        <name>zmq_socket</name>
+        <qualifiedname>dp_ctx::zmq_socket</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/stream/stream_core.c" line="18" column="8" bodyfile="native/src/stream/stream_core.c" bodystart="18" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdp__ctx_1a577d1331e955ea68bda5a3c67c381937" prot="public" static="no" mutable="no">
+        <type><ref refid="group__types_1gad6afa986413f0be406048edae7827a4d" kindref="member">dp_sample_type_t</ref></type>
+        <definition>dp_sample_type_t dp_ctx::sample_type</definition>
+        <argsstring></argsstring>
+        <name>sample_type</name>
+        <qualifiedname>dp_ctx::sample_type</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/stream/stream_core.c" line="19" column="20" bodyfile="native/src/stream/stream_core.c" bodystart="19" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdp__ctx_1ae186ae82cb0e92988593b8b27105566b" prot="public" static="no" mutable="no">
+        <type>uint64_t</type>
+        <definition>uint64_t dp_ctx::sequence</definition>
+        <argsstring></argsstring>
+        <name>sequence</name>
+        <qualifiedname>dp_ctx::sequence</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/stream/stream_core.c" line="20" column="12" bodyfile="native/src/stream/stream_core.c" bodystart="20" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structdp__ctx_1a2cf9b2f63fd0ae9a61a5f3a5b28a1014" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int dp_ctx::socket_type</definition>
+        <argsstring></argsstring>
+        <name>socket_type</name>
+        <qualifiedname>dp_ctx::socket_type</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/stream/stream_core.c" line="21" column="7" bodyfile="native/src/stream/stream_core.c" bodystart="21" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/stream/stream_core.c" line="15" column="1" bodyfile="native/src/stream/stream_core.c" bodystart="16" bodyend="22"/>
+    <listofallmembers>
+      <member refid="structdp__ctx_1a577d1331e955ea68bda5a3c67c381937" prot="public" virt="non-virtual"><scope>dp_ctx</scope><name>sample_type</name></member>
+      <member refid="structdp__ctx_1ae186ae82cb0e92988593b8b27105566b" prot="public" virt="non-virtual"><scope>dp_ctx</scope><name>sequence</name></member>
+      <member refid="structdp__ctx_1a2cf9b2f63fd0ae9a61a5f3a5b28a1014" prot="public" virt="non-virtual"><scope>dp_ctx</scope><name>socket_type</name></member>
+      <member refid="structdp__ctx_1a244dced81fa0ae34201be884afbd9bf8" prot="public" virt="non-virtual"><scope>dp_ctx</scope><name>zmq_context</name></member>
+      <member refid="structdp__ctx_1ae0a10e29ce6bc6033bff9df973631e27" prot="public" virt="non-virtual"><scope>dp_ctx</scope><name>zmq_socket</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_e8e209d738dfdc0781eb210a3b727530" kind="dir">
+    <compoundname>native/src/i16u32_to_f32</compoundname>
+    <innerfile refid="i16u32__to__f32__core_8c">i16u32_to_f32_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/i16u32_to_f32/"/>
+  </compounddef>
+</doxygen>

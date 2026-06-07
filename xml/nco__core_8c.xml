@@ -1,0 +1,590 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="nco__core_8c" kind="file" language="C++">
+    <compoundname>nco_core.c</compoundname>
+    <includes refid="nco__core_8h" local="yes">nco/nco_core.h</includes>
+    <includes local="no">math.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>nco/nco_core.h</label>
+        <link refid="nco__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/nco/nco_core.c</label>
+        <link refid="nco__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>math.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="define">
+      <memberdef kind="define" id="nco__core_8c_1a95fcede17a573a76dffdd9db655e53ee" prot="public" static="no">
+        <name>NCO_MAX_OUT</name>
+        <initializer>65536u</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="99" column="9" bodyfile="native/src/nco/nco_core.c" bodystart="99" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="nco__core_8c_1abfe85e233aaf1733c500885d8ae1f377" prot="public" static="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>static uint32_t norm_to_inc</definition>
+        <argsstring>(double norm_freq)</argsstring>
+        <name>norm_to_inc</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="20" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="20" bodyend="24"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1ab5b4f944d9172b609a9a760bf3e2b3ff" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+        <definition>nco_state_t * nco_create</definition>
+        <argsstring>(double norm_freq, uint32_t nmax)</argsstring>
+        <name>nco_create</name>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>nmax</declname>
+        </param>
+        <briefdescription>
+<para>Create an NCO instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>norm_freq</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Normalised frequency (cycles per sample). Any value; fractional part used internally. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nmax</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw 32-bit accumulator. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="31" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="31" bodyend="41"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a8293f7d46603f532b22299c23dba016e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void nco_destroy</definition>
+        <argsstring>(nco_state_t *state)</argsstring>
+        <name>nco_destroy</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. May be NULL (no-op). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="44" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="44" bodyend="47"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a9e5c30684279670c2ef1ec0247ecda01" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void nco_reset</definition>
+        <argsstring>(nco_state_t *state)</argsstring>
+        <name>nco_reset</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Zero the phase accumulator. norm_freq and nmax are unchanged. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="50" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="50" bodyend="53"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a5c6f3c7c7a6925657450cdcb7734f6c5" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double nco_get_norm_freq</definition>
+        <argsstring>(const nco_state_t *state)</argsstring>
+        <name>nco_get_norm_freq</name>
+        <param>
+          <type>const <ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="60" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="60" bodyend="63"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a06538ae275e8266c164d59fef90b1041" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void nco_set_norm_freq</definition>
+        <argsstring>(nco_state_t *state, double norm_freq)</argsstring>
+        <name>nco_set_norm_freq</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>norm_freq</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="66" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="66" bodyend="70"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a1f0823fb85576a2f0a1773cba46f5db7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>uint32_t nco_get_phase</definition>
+        <argsstring>(const nco_state_t *state)</argsstring>
+        <name>nco_get_phase</name>
+        <param>
+          <type>const <ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="73" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="73" bodyend="76"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1ac1864a0b6a0c9ee675231c2ef6276a54" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void nco_set_phase</definition>
+        <argsstring>(nco_state_t *state, uint32_t phase)</argsstring>
+        <name>nco_set_phase</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>uint32_t</type>
+          <declname>phase</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="79" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="79" bodyend="82"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a8a9c531866d93f2b1676d491d91e540c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>uint32_t</type>
+        <definition>uint32_t nco_get_phase_inc</definition>
+        <argsstring>(const nco_state_t *state)</argsstring>
+        <name>nco_get_phase_inc</name>
+        <param>
+          <type>const <ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="85" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="85" bodyend="88"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a126acdd78ef6b86d66e1e1031a7ec785" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32_max_out</definition>
+        <argsstring>(nco_state_t *state)</argsstring>
+        <name>nco_steps_u32_max_out</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum samples per call (determines pre-allocated buffer size). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>The Python extension pre-allocates output buffers of this size at create time. Requesting more samples per call is undefined behaviour. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="102" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="102" bodyend="106"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1ac607087b293e53c4218337bcaa0f4eee" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32</definition>
+        <argsstring>(nco_state_t *state, size_t n, uint32_t *out)</argsstring>
+        <name>nco_steps_u32</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>uint32_t *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Advance n samples; write raw uint32 accumulator values. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Output is emitted before increment: out(0) = current phase, out(1) = phase + phase_inc, etc. Returns n. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="109" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="109" bodyend="120"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a942075215a14c65666d6197d4524a4b9" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32_scaled_max_out</definition>
+        <argsstring>(nco_state_t *state)</argsstring>
+        <name>nco_steps_u32_scaled_max_out</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="123" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="123" bodyend="127"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a80093cb18d4c974ecee96948d7b8bb9f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32_scaled</definition>
+        <argsstring>(nco_state_t *state, size_t n, uint32_t *out)</argsstring>
+        <name>nco_steps_u32_scaled</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>uint32_t *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Advance n samples; values scaled to [0, nmax). </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Uses the branchless fixed-point identity: out(i) = (uint64_t)phase * nmax &gt;&gt; 32 When nmax == 0 falls back to the raw accumulator. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="130" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="130" bodyend="154"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a190c6bffecc4f20267d582d250eeaf48" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32_ovf_max_out</definition>
+        <argsstring>(nco_state_t *state)</argsstring>
+        <name>nco_steps_u32_ovf_max_out</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="157" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="157" bodyend="161"/>
+      </memberdef>
+      <memberdef kind="function" id="nco__core_8c_1a08ae74de7545c46265d7d4dc80214eea" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t nco_steps_u32_ovf</definition>
+        <argsstring>(nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1)</argsstring>
+        <name>nco_steps_u32_ovf</name>
+        <param>
+          <type><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>uint32_t *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>uint8_t *</type>
+          <declname>out1</declname>
+        </param>
+        <briefdescription>
+<para>Advance n samples; write raw phase values and per-sample carry. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>out(i) — raw 32-bit phase value (same as nco_steps_u32). out1(i) — 1 when the accumulator wrapped on sample i, 0 otherwise. The carry marks the boundary of one input period; useful for polyphase sample-clock generation. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/nco/nco_core.c" line="164" column="1" bodyfile="native/src/nco/nco_core.c" bodystart="164" bodyend="175"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Pure 32-bit phase-accumulator NCO implementation. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>The three execute bodies (steps_u32, steps_u32_scaled, steps_u32_ovf) were lifted from the doppler reference (<ref refid="nco__core_8c" kindref="compound">native/src/nco/nco_core.c</ref>) via just-makeit <ndash/>impl. Only create/reset/max_out/properties are hand-written. </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="nco__core_8h" kindref="compound">nco/nco_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;math.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="14"><highlight class="comment"><sp/>*<sp/>Normalised<sp/>frequency<sp/>→<sp/>uint32<sp/>phase<sp/>increment.</highlight></codeline>
+<codeline lineno="15"><highlight class="comment"><sp/>*</highlight></codeline>
+<codeline lineno="16"><highlight class="comment"><sp/>*<sp/>Uses<sp/>double<sp/>arithmetic<sp/>to<sp/>avoid<sp/>rounding<sp/>at<sp/>the<sp/>float→uint32<sp/>boundary.</highlight></codeline>
+<codeline lineno="17"><highlight class="comment"><sp/>*<sp/>floor()<sp/>folds<sp/>negative<sp/>frequencies<sp/>correctly:<sp/>−0.25<sp/>→<sp/>0.75<sp/>→<sp/>3×2^30.</highlight></codeline>
+<codeline lineno="18"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="19"><highlight class="normal"></highlight><highlight class="keyword">static</highlight><highlight class="normal"><sp/>uint32_t</highlight></codeline>
+<codeline lineno="20"><highlight class="normal">norm_to_inc<sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq)</highlight></codeline>
+<codeline lineno="21"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>d<sp/>=<sp/>norm_freq<sp/>-<sp/>floor<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>(uint32_t)(d<sp/>*<sp/>4294967296.0);</highlight></codeline>
+<codeline lineno="24"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Lifecycle<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="28"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"></highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><ref refid="nco__core_8c_1ab5b4f944d9172b609a9a760bf3e2b3ff" kindref="member">nco_create</ref><sp/>(</highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq,<sp/>uint32_t<sp/>nmax)</highlight></codeline>
+<codeline lineno="32"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state<sp/>=<sp/>malloc<sp/>(</highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*state));</highlight></codeline>
+<codeline lineno="34"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="36"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref><sp/>=<sp/>norm_to_inc<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="38"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1a94c1f310b5415c82e0d15c47fb04466c" kindref="member">norm_freq</ref><sp/>=<sp/>norm_freq;</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1a324febacd97478c09992aa1609d824fb" kindref="member">nmax</ref><sp/>=<sp/>nmax;</highlight></codeline>
+<codeline lineno="40"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="41"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><ref refid="nco__core_8c_1a8293f7d46603f532b22299c23dba016e" kindref="member">nco_destroy</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="45"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="46"><highlight class="normal"><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="47"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight></codeline>
+<codeline lineno="49"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><ref refid="nco__core_8c_1a9e5c30684279670c2ef1ec0247ecda01" kindref="member">nco_reset</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="51"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>0;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"></highlight></codeline>
+<codeline lineno="55"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="56"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Properties<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal"></highlight></codeline>
+<codeline lineno="59"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><ref refid="nco__core_8c_1a5c6f3c7c7a6925657450cdcb7734f6c5" kindref="member">nco_get_norm_freq</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="61"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structnco__state__t_1a94c1f310b5415c82e0d15c47fb04466c" kindref="member">norm_freq</ref>;</highlight></codeline>
+<codeline lineno="63"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="64"><highlight class="normal"></highlight></codeline>
+<codeline lineno="65"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="66"><highlight class="normal"><ref refid="nco__core_8c_1a06538ae275e8266c164d59fef90b1041" kindref="member">nco_set_norm_freq</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>norm_freq)</highlight></codeline>
+<codeline lineno="67"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref><sp/>=<sp/>norm_to_inc<sp/>(norm_freq);</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1a94c1f310b5415c82e0d15c47fb04466c" kindref="member">norm_freq</ref><sp/>=<sp/>norm_freq;</highlight></codeline>
+<codeline lineno="70"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal">uint32_t</highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><ref refid="nco__core_8c_1a1f0823fb85576a2f0a1773cba46f5db7" kindref="member">nco_get_phase</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="76"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><ref refid="nco__core_8c_1ac1864a0b6a0c9ee675231c2ef6276a54" kindref="member">nco_set_phase</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state,<sp/>uint32_t<sp/>phase)</highlight></codeline>
+<codeline lineno="80"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="81"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>phase;</highlight></codeline>
+<codeline lineno="82"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal">uint32_t</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"><ref refid="nco__core_8c_1a8a9c531866d93f2b1676d491d91e540c" kindref="member">nco_get_phase_inc</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="86"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="87"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="88"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="89"><highlight class="normal"></highlight></codeline>
+<codeline lineno="90"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="91"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>Block<sp/>generators<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="92"><highlight class="normal"></highlight><highlight class="comment">/*<sp/>==================================================================<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"></highlight><highlight class="comment">/*</highlight></codeline>
+<codeline lineno="95"><highlight class="comment"><sp/>*<sp/>Pre-allocated<sp/>buffer<sp/>size<sp/>for<sp/>all<sp/>generator<sp/>methods.<sp/><sp/>The<sp/>Python</highlight></codeline>
+<codeline lineno="96"><highlight class="comment"><sp/>*<sp/>extension<sp/>allocates<sp/>output<sp/>buffers<sp/>of<sp/>this<sp/>size<sp/>at<sp/>create<sp/>time;<sp/>calling</highlight></codeline>
+<codeline lineno="97"><highlight class="comment"><sp/>*<sp/>with<sp/>n<sp/>&gt;<sp/>65536<sp/>overflows<sp/>the<sp/>buffer<sp/>and<sp/>is<sp/>undefined<sp/>behaviour.</highlight></codeline>
+<codeline lineno="98"><highlight class="comment"><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="99"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>NCO_MAX_OUT<sp/>65536u</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="100"><highlight class="normal"></highlight></codeline>
+<codeline lineno="101"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="102"><highlight class="normal"><ref refid="nco__core_8c_1a126acdd78ef6b86d66e1e1031a7ec785" kindref="member">nco_steps_u32_max_out</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="103"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="104"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="105"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="nco__core_8c_1a95fcede17a573a76dffdd9db655e53ee" kindref="member">NCO_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="106"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="107"><highlight class="normal"></highlight></codeline>
+<codeline lineno="108"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="109"><highlight class="normal"><ref refid="nco__core_8c_1ac607087b293e53c4218337bcaa0f4eee" kindref="member">nco_steps_u32</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/>uint32_t<sp/>*out)</highlight></codeline>
+<codeline lineno="110"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="116"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc;</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="118"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="119"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n;</highlight></codeline>
+<codeline lineno="120"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="121"><highlight class="normal"></highlight></codeline>
+<codeline lineno="122"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="123"><highlight class="normal"><ref refid="nco__core_8c_1a942075215a14c65666d6197d4524a4b9" kindref="member">nco_steps_u32_scaled_max_out</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="124"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="125"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="126"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="nco__core_8c_1a95fcede17a573a76dffdd9db655e53ee" kindref="member">NCO_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="127"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="128"><highlight class="normal"></highlight></codeline>
+<codeline lineno="129"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="130"><highlight class="normal"><ref refid="nco__core_8c_1a80093cb18d4c974ecee96948d7b8bb9f" kindref="member">nco_steps_u32_scaled</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/>uint32_t<sp/>*out)</highlight></codeline>
+<codeline lineno="131"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="132"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="133"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="134"><highlight class="normal"><sp/><sp/>uint32_t<sp/>nmax<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1a324febacd97478c09992aa1609d824fb" kindref="member">nmax</ref>;</highlight></codeline>
+<codeline lineno="135"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(nmax<sp/>==<sp/>0)</highlight></codeline>
+<codeline lineno="136"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="137"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>nmax=0<sp/>→<sp/>raw<sp/>accumulator,<sp/>identical<sp/>to<sp/>nco_steps_u32<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="138"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="139"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="140"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="141"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc;</highlight></codeline>
+<codeline lineno="142"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="143"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="144"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="145"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="146"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="147"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="148"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/>(uint32_t)(((uint64_t)ph<sp/>*<sp/>nmax)<sp/>&gt;&gt;<sp/>32);</highlight></codeline>
+<codeline lineno="149"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>ph<sp/>+=<sp/>inc;</highlight></codeline>
+<codeline lineno="150"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="151"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="152"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="153"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n;</highlight></codeline>
+<codeline lineno="154"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="155"><highlight class="normal"></highlight></codeline>
+<codeline lineno="156"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="157"><highlight class="normal"><ref refid="nco__core_8c_1a190c6bffecc4f20267d582d250eeaf48" kindref="member">nco_steps_u32_ovf_max_out</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="158"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="159"><highlight class="normal"><sp/><sp/>(void)state;</highlight></codeline>
+<codeline lineno="160"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/><ref refid="nco__core_8c_1a95fcede17a573a76dffdd9db655e53ee" kindref="member">NCO_MAX_OUT</ref>;</highlight></codeline>
+<codeline lineno="161"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="162"><highlight class="normal"></highlight></codeline>
+<codeline lineno="163"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="164"><highlight class="normal"><ref refid="nco__core_8c_1a08ae74de7545c46265d7d4dc80214eea" kindref="member">nco_steps_u32_ovf</ref><sp/>(<ref refid="structnco__state__t" kindref="compound">nco_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/>uint32_t<sp/>*out,<sp/>uint8_t<sp/>*out1)</highlight></codeline>
+<codeline lineno="165"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="166"><highlight class="normal"><sp/><sp/>uint32_t<sp/>ph<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref>;</highlight></codeline>
+<codeline lineno="167"><highlight class="normal"><sp/><sp/>uint32_t<sp/>inc<sp/>=<sp/>state-&gt;<ref refid="structnco__state__t_1a52d7649f2aa445f8aedc34ae7d91228a" kindref="member">phase_inc</ref>;</highlight></codeline>
+<codeline lineno="168"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>n;<sp/>i++)</highlight></codeline>
+<codeline lineno="169"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="170"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out[i]<sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="171"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>out1[i]<sp/>=<sp/><ref refid="nco__core_8h_1a4d7cdc0ed744d8f0e114baab0aa16aa2" kindref="member">NCO_ADD_OVF</ref><sp/>(ph,<sp/>inc,<sp/>&amp;ph);</highlight></codeline>
+<codeline lineno="172"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="173"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structnco__state__t_1ad01363bdc61578b4f143a78f2b492b4a" kindref="member">phase</ref><sp/>=<sp/>ph;</highlight></codeline>
+<codeline lineno="174"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>n;</highlight></codeline>
+<codeline lineno="175"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/nco/nco_core.c"/>
+  </compounddef>
+</doxygen>

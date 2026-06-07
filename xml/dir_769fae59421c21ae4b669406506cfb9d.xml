@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_769fae59421c21ae4b669406506cfb9d" kind="dir">
+    <compoundname>native/src/ddc</compoundname>
+    <innerfile refid="ddc__core_8c">ddc_core.c</innerfile>
+    <innerfile refid="ddc__ext__ddc_8c">ddc_ext_ddc.c</innerfile>
+    <innerfile refid="ddc__ext__ddcr_8c">ddc_ext_ddcr.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/ddc/"/>
+  </compounddef>
+</doxygen>

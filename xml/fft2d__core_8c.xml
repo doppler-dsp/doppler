@@ -1,0 +1,485 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="fft2d__core_8c" kind="file" language="C++">
+    <compoundname>fft2d_core.c</compoundname>
+    <includes refid="fft2d__core_8h" local="yes">fft2d/fft2d_core.h</includes>
+    <includes local="no">string.h</includes>
+    <incdepgraph>
+      <node id="3">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>fft2d/fft2d_core.h</label>
+        <link refid="fft2d__core_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="10" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/src/fft2d/fft2d_core.c</label>
+        <link refid="fft2d__core_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>complex.h</label>
+      </node>
+      <node id="11">
+        <label>pocketfft/pocketfft.h</label>
+      </node>
+      <node id="5">
+        <label>stddef.h</label>
+      </node>
+      <node id="6">
+        <label>stdint.h</label>
+      </node>
+      <node id="7">
+        <label>stdlib.h</label>
+      </node>
+      <node id="8">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="fft2d__core_8c_1a2dac65c670a248d1887f986089473093" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+        <definition>fft2d_state_t * fft2d_create</definition>
+        <argsstring>(size_t ny, size_t nx, int sign, int nthreads)</argsstring>
+        <name>fft2d_create</name>
+        <param>
+          <type>size_t</type>
+          <declname>ny</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>nx</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>sign</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>nthreads</declname>
+        </param>
+        <briefdescription>
+<para>Create a 2-D FFT instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>ny</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of rows. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nx</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of columns. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>sign</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>-1 for forward DFT, +1 for inverse. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>nthreads</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Ignored (pocketfft is single-threaded). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="5" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="5" bodyend="24"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a3633a917210c789457efe60dee36b678" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fft2d_destroy</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_destroy</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Destroy and free an fft2d instance. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>May be NULL. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="27" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="27" bodyend="34"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a71a50d7ccb142bc86dcc2e611913352c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void fft2d_reset</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_reset</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>No-op reset (plans are immutable after creation). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="37" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="37" bodyend="40"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a4f6768ff46f90127a9b923b58625ff50" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_cf64_max_out</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_execute_cf64_max_out</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples per execute call (ny * nx). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="43" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="43" bodyend="46"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a25035c044183010205fac112fa37e4fd" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_cf64</definition>
+        <argsstring>(fft2d_state_t *state, const double complex *in, size_t n_in, double complex *out)</argsstring>
+        <name>fft2d_execute_cf64</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const double complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Out-of-place 2-D CF64 FFT. Returns ny*nx. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="49" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="49" bodyend="55"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a42c66a16a3c9232f0c3df97459084e36" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_cf32_max_out</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_execute_cf32_max_out</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for CF32 execute (ny * nx). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="58" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="58" bodyend="61"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a921aa5eb943dde40cdd05f942317f6f1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_cf32</definition>
+        <argsstring>(fft2d_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>fft2d_execute_cf32</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Out-of-place 2-D CF32 FFT. Returns ny*nx. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="64" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="64" bodyend="70"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a2d608791cecd43c3c96a60a36cb386f3" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_inplace_cf64_max_out</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_execute_inplace_cf64_max_out</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for inplace CF64 execute (ny * nx). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="73" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="73" bodyend="76"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a6869ba481dfbc5fa24d0e28b79e3671d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_inplace_cf64</definition>
+        <argsstring>(fft2d_state_t *state, const double complex *in, size_t n_in, double complex *out)</argsstring>
+        <name>fft2d_execute_inplace_cf64</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const double complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>double complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>In-place 2-D CF64 FFT (copies in→out, then transforms). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="79" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="79" bodyend="85"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1a40cc7ee7c3e4a7221705dc7c8251150b" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_inplace_cf32_max_out</definition>
+        <argsstring>(fft2d_state_t *state)</argsstring>
+        <name>fft2d_execute_inplace_cf32_max_out</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Maximum output samples for inplace CF32 execute (ny * nx). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="88" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="88" bodyend="91"/>
+      </memberdef>
+      <memberdef kind="function" id="fft2d__core_8c_1ac99803b4c5b711782bb5c351acfa6b95" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t fft2d_execute_inplace_cf32</definition>
+        <argsstring>(fft2d_state_t *state, const float complex *in, size_t n_in, float complex *out)</argsstring>
+        <name>fft2d_execute_inplace_cf32</name>
+        <param>
+          <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_in</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>In-place 2-D CF32 FFT (copies in→out, then transforms). </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/fft2d/fft2d_core.c" line="94" column="1" bodyfile="native/src/fft2d/fft2d_core.c" bodystart="94" bodyend="100"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="fft2d__core_8h" kindref="compound">fft2d/fft2d_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&lt;string.h&gt;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="3"><highlight class="normal"></highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*</highlight></codeline>
+<codeline lineno="5"><highlight class="normal"><ref refid="fft2d__core_8c_1a2dac65c670a248d1887f986089473093" kindref="member">fft2d_create</ref><sp/>(</highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>ny,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>nx,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>sign,<sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>nthreads)</highlight></codeline>
+<codeline lineno="6"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="7"><highlight class="normal"><sp/><sp/>(void)nthreads;</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"><sp/><sp/><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state<sp/>=<sp/>malloc<sp/>(</highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*state));</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="10"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="11"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref><sp/>=<sp/>pocketfft_plan_2d<sp/>(ny,<sp/>nx,<sp/>sign);</highlight></codeline>
+<codeline lineno="12"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref><sp/>=<sp/>pocketfft_plan_2d<sp/>(ny,<sp/>nx,<sp/>sign);</highlight></codeline>
+<codeline lineno="13"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref><sp/>||<sp/>!state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref>)</highlight></codeline>
+<codeline lineno="14"><highlight class="normal"><sp/><sp/><sp/><sp/>{</highlight></codeline>
+<codeline lineno="15"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>pocketfft_destroy_plan<sp/>(state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref>);</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>pocketfft_destroy_plan<sp/>(state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref>);</highlight></codeline>
+<codeline lineno="17"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="18"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>NULL;</highlight></codeline>
+<codeline lineno="19"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="20"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>=<sp/>ny;</highlight></codeline>
+<codeline lineno="21"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref><sp/>=<sp/>nx;</highlight></codeline>
+<codeline lineno="22"><highlight class="normal"><sp/><sp/>state-&gt;<ref refid="structfft2d__state__t_1af28a55c8ed1708aa29783db901396f69" kindref="member">sign</ref><sp/>=<sp/>sign;</highlight></codeline>
+<codeline lineno="23"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state;</highlight></codeline>
+<codeline lineno="24"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="25"><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="27"><highlight class="normal"><ref refid="fft2d__core_8c_1a3633a917210c789457efe60dee36b678" kindref="member">fft2d_destroy</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="28"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(!state)</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal">;</highlight></codeline>
+<codeline lineno="31"><highlight class="normal"><sp/><sp/>pocketfft_destroy_plan<sp/>(state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref>);</highlight></codeline>
+<codeline lineno="32"><highlight class="normal"><sp/><sp/>pocketfft_destroy_plan<sp/>(state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref>);</highlight></codeline>
+<codeline lineno="33"><highlight class="normal"><sp/><sp/>free<sp/>(state);</highlight></codeline>
+<codeline lineno="34"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"><ref refid="fft2d__core_8c_1a71a50d7ccb142bc86dcc2e611913352c" kindref="member">fft2d_reset</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="38"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="39"><highlight class="normal"><sp/><sp/>(void)state;<sp/></highlight><highlight class="comment">/*<sp/>plans<sp/>are<sp/>immutable<sp/>after<sp/>creation<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="43"><highlight class="normal"><ref refid="fft2d__core_8c_1a4f6768ff46f90127a9b923b58625ff50" kindref="member">fft2d_execute_cf64_max_out</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="44"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="45"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="46"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="47"><highlight class="normal"></highlight></codeline>
+<codeline lineno="48"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="49"><highlight class="normal"><ref refid="fft2d__core_8c_1a25035c044183010205fac112fa37e4fd" kindref="member">fft2d_execute_cf64</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="50"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="51"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"><sp/><sp/>(void)n_in;</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"><sp/><sp/>pocketfft_execute_2d<sp/>(state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref>,<sp/>in,<sp/>out);</highlight></codeline>
+<codeline lineno="54"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="55"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="56"><highlight class="normal"></highlight></codeline>
+<codeline lineno="57"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="58"><highlight class="normal"><ref refid="fft2d__core_8c_1a42c66a16a3c9232f0c3df97459084e36" kindref="member">fft2d_execute_cf32_max_out</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="59"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="60"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="61"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><ref refid="fft2d__core_8c_1a921aa5eb943dde40cdd05f942317f6f1" kindref="member">fft2d_execute_cf32</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="66"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/>(void)n_in;</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"><sp/><sp/>pocketfft_execute_2d_cf32<sp/>(state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref>,<sp/>in,<sp/>out);</highlight></codeline>
+<codeline lineno="69"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="70"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="72"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><ref refid="fft2d__core_8c_1a2d608791cecd43c3c96a60a36cb386f3" kindref="member">fft2d_execute_inplace_cf64_max_out</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="74"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="76"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="78"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="79"><highlight class="normal"><ref refid="fft2d__core_8c_1a6869ba481dfbc5fa24d0e28b79e3671d" kindref="member">fft2d_execute_inplace_cf64</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="80"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="81"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="82"><highlight class="normal"><sp/><sp/>memcpy<sp/>(out,<sp/>in,<sp/>n_in<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*out));</highlight></codeline>
+<codeline lineno="83"><highlight class="normal"><sp/><sp/>pocketfft_execute_2d<sp/>(state-&gt;<ref refid="structfft2d__state__t_1a62726d82cc43902378cec4b3961ae579" kindref="member">plan_f64</ref>,<sp/>out,<sp/>out);</highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="85"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="86"><highlight class="normal"></highlight></codeline>
+<codeline lineno="87"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="88"><highlight class="normal"><ref refid="fft2d__core_8c_1a40cc7ee7c3e4a7221705dc7c8251150b" kindref="member">fft2d_execute_inplace_cf32_max_out</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state)</highlight></codeline>
+<codeline lineno="89"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="91"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="92"><highlight class="normal"></highlight></codeline>
+<codeline lineno="93"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><ref refid="fft2d__core_8c_1ac99803b4c5b711782bb5c351acfa6b95" kindref="member">fft2d_execute_inplace_cf32</ref><sp/>(<ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_in,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out)</highlight></codeline>
+<codeline lineno="96"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="97"><highlight class="normal"><sp/><sp/>memcpy<sp/>(out,<sp/>in,<sp/>n_in<sp/>*<sp/></highlight><highlight class="keyword">sizeof</highlight><highlight class="normal"><sp/>(*out));</highlight></codeline>
+<codeline lineno="98"><highlight class="normal"><sp/><sp/>pocketfft_execute_2d_cf32<sp/>(state-&gt;<ref refid="structfft2d__state__t_1ab29c160e3da26407ffb1c83da7c1c68a" kindref="member">plan_f32</ref>,<sp/>out,<sp/>out);</highlight></codeline>
+<codeline lineno="99"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>state-&gt;<ref refid="structfft2d__state__t_1ae50a26e2a9b36cb091124bdc1572f1f2" kindref="member">ny</ref><sp/>*<sp/>state-&gt;<ref refid="structfft2d__state__t_1a6391324fa72503c54bb732017250aedb" kindref="member">nx</ref>;</highlight></codeline>
+<codeline lineno="100"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/fft2d/fft2d_core.c"/>
+  </compounddef>
+</doxygen>

@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_a42af99b32eb0e8fdacb4e5fb9dbebad" kind="dir">
+    <compoundname>native/src/app</compoundname>
+    <innerfile refid="wavegen_8c">wavegen.c</innerfile>
+    <innerfile refid="wfmgen_8c">wfmgen.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/app/"/>
+  </compounddef>
+</doxygen>

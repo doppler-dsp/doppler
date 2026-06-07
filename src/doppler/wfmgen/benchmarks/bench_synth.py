@@ -13,7 +13,7 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return Synth(0, 1000000.0, 0.0, 100.0, 1)
+    return Synth(type="tone", fs=1000000.0, freq=0.0, snr=100.0, seed=1)
 
 def test_bench_step(benchmark, obj):
     benchmark(obj.step)

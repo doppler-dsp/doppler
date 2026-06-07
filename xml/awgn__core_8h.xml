@@ -1,0 +1,505 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="awgn__core_8h" kind="file" language="C++">
+    <compoundname>awgn_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includes refid="jm__perf_8h" local="yes">jm_perf.h</includes>
+    <includedby refid="doppler_8h" local="yes">native/inc/doppler.h</includedby>
+    <includedby refid="synth__core_8h" local="yes">native/inc/synth/synth_core.h</includedby>
+    <includedby refid="awgn__core_8c" local="yes">native/src/awgn/awgn_core.c</includedby>
+    <includedby refid="source__ext__awgn_8c" local="yes">native/src/source/source_ext_awgn.c</includedby>
+    <incdepgraph>
+      <node id="1">
+        <label>native/inc/awgn/awgn_core.h</label>
+        <link refid="awgn__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/awgn/awgn_core.h</label>
+        <link refid="awgn__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="13" relation="include">
+        </childnode>
+        <childnode refid="14" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/inc/doppler.h</label>
+        <link refid="doppler_8h"/>
+      </node>
+      <node id="3">
+        <label>native/inc/synth/synth_core.h</label>
+        <link refid="synth__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="10" relation="include">
+        </childnode>
+        <childnode refid="11" relation="include">
+        </childnode>
+        <childnode refid="12" relation="include">
+        </childnode>
+      </node>
+      <node id="4">
+        <label>native/inc/wfmgen/wfm_compose.h</label>
+        <link refid="wfm__compose_8h"/>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="5">
+        <label>native/inc/wfmgen/wfm_writer.h</label>
+        <link refid="wfm__writer_8h"/>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+      </node>
+      <node id="10">
+        <label>native/src/app/wavegen.c</label>
+        <link refid="wavegen_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/app/wfmgen.c</label>
+        <link refid="wfmgen_8c"/>
+      </node>
+      <node id="13">
+        <label>native/src/awgn/awgn_core.c</label>
+        <link refid="awgn__core_8c"/>
+      </node>
+      <node id="14">
+        <label>native/src/source/source_ext_awgn.c</label>
+        <link refid="source__ext__awgn_8c"/>
+      </node>
+      <node id="11">
+        <label>native/src/synth/synth_core.c</label>
+        <link refid="synth__core_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/wfmgen/wfm_compose.c</label>
+        <link refid="wfm__compose_8c"/>
+      </node>
+      <node id="9">
+        <label>native/src/wfmgen/wfm_json.c</label>
+        <link refid="wfm__json_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/wfmgen/wfm_writer.c</label>
+        <link refid="wfm__writer_8c"/>
+      </node>
+      <node id="12">
+        <label>native/src/wfmgen/wfmgen_ext_synth.c</label>
+        <link refid="wfmgen__ext__synth_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structawgn__state__t" prot="public">awgn_state_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="awgn__core_8h_1a44e712fea4d4d3a1f7cc677ba9f85bbc" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+        <definition>awgn_state_t * awgn_create</definition>
+        <argsstring>(uint64_t seed, float amplitude)</argsstring>
+        <name>awgn_create</name>
+        <param>
+          <type>uint64_t</type>
+          <declname>seed</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>amplitude</declname>
+        </param>
+        <briefdescription>
+<para>Create an AWGN generator. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>seed</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>RNG seed. Two generators with different seeds produce uncorrelated noise streams. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>amplitude</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-component (Re, Im) standard deviation. Must be ≥ 0. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Heap-allocated state, or NULL on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="61" column="16" bodyfile="native/src/awgn/awgn_core.c" bodystart="126" bodyend="148" declfile="native/inc/awgn/awgn_core.h" declline="61" declcolumn="16"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void awgn_destroy</definition>
+        <argsstring>(awgn_state_t *state)</argsstring>
+        <name>awgn_destroy</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Free all resources. NULL is a no-op. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="64" column="8" bodyfile="native/src/awgn/awgn_core.c" bodystart="151" bodyend="154" declfile="native/inc/awgn/awgn_core.h" declline="64" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1a7ae993aad65e5437e0f3963ba712d9fc" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void awgn_reset</definition>
+        <argsstring>(awgn_state_t *state)</argsstring>
+        <name>awgn_reset</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Reset RNG to the seed supplied at create time. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="67" column="8" bodyfile="native/src/awgn/awgn_core.c" bodystart="157" bodyend="170" declfile="native/inc/awgn/awgn_core.h" declline="67" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1a2e1ab6e56eaeb35937a83355c2794009" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float</type>
+        <definition>float awgn_get_amplitude</definition>
+        <argsstring>(const awgn_state_t *state)</argsstring>
+        <name>awgn_get_amplitude</name>
+        <param>
+          <type>const <ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Return the current amplitude (per-component std dev). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="70" column="9" bodyfile="native/src/awgn/awgn_core.c" bodystart="177" bodyend="180" declfile="native/inc/awgn/awgn_core.h" declline="70" declcolumn="9"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1a44eae00f951e69219ee754c5069de801" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void awgn_set_amplitude</definition>
+        <argsstring>(awgn_state_t *state, float val)</argsstring>
+        <name>awgn_set_amplitude</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>val</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Set amplitude without disturbing RNG state. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="73" column="8" bodyfile="native/src/awgn/awgn_core.c" bodystart="183" bodyend="186" declfile="native/inc/awgn/awgn_core.h" declline="73" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1ae6f971eb8d23c20cafce4a950517247e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void awgn_reseed</definition>
+        <argsstring>(awgn_state_t *state, uint64_t seed)</argsstring>
+        <name>awgn_reseed</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>uint64_t</type>
+          <declname>seed</declname>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Reseed the RNG and reset state. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="76" column="8" bodyfile="native/src/awgn/awgn_core.c" bodystart="189" bodyend="193" declfile="native/inc/awgn/awgn_core.h" declline="76" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1a3debe04709d76c67c161d003ae2edc71" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t awgn_generate_max_out</definition>
+        <argsstring>(awgn_state_t *state)</argsstring>
+        <name>awgn_generate_max_out</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <briefdescription>
+<para>Conservative upper bound on generate() output size. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Returns 65536. The Python extension uses this for the initial buffer allocation; the buffer grows on demand if n &gt; 65536. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="84" column="10" bodyfile="native/src/awgn/awgn_core.c" bodystart="196" bodyend="200" declfile="native/inc/awgn/awgn_core.h" declline="84" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1a507003634c145627b019aa27d98b9303" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t awgn_generate</definition>
+        <argsstring>(awgn_state_t *state, size_t n, float complex *out)</argsstring>
+        <name>awgn_generate</name>
+        <param>
+          <type><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref> *</type>
+          <declname>state</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Generate n complex CF32 AWGN samples. </para>
+        </briefdescription>
+        <detaileddescription>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>state</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Must be non-NULL. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples to generate. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, capacity ≥ n. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>n (always; generate produces exactly n samples). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="94" column="10" bodyfile="native/src/awgn/awgn_core.c" bodystart="337" bodyend="345" declfile="native/inc/awgn/awgn_core.h" declline="94" declcolumn="10"/>
+      </memberdef>
+      <memberdef kind="function" id="awgn__core_8h_1ab687417abbee7eeb0b4496260cecc324" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>int</type>
+        <definition>int awgn</definition>
+        <argsstring>(uint64_t seed, float amplitude, size_t n, float complex *out)</argsstring>
+        <name>awgn</name>
+        <param>
+          <type>uint64_t</type>
+          <declname>seed</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>amplitude</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>float complex *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>One-shot AWGN generation — no persistent state required. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Creates a temporary generator, fills <computeroutput>out</computeroutput>, then frees it. Equivalent to: <programlisting><codeline><highlight class="normal">awgn_state_t<sp/>*g<sp/>=<sp/>awgn_create(seed,<sp/>amplitude);</highlight></codeline>
+<codeline><highlight class="normal">awgn_generate(g,<sp/>n,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal">awgn_destroy(g);</highlight></codeline>
+</programlisting></para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>seed</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>RNG seed. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>amplitude</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Per-component (Re, Im) standard deviation. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of samples to generate. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, capacity ≥ n. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>DP_OK on success, DP_ERR_MEMORY on allocation failure. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/awgn/awgn_core.h" line="113" column="7" bodyfile="native/src/awgn/awgn_core.c" bodystart="348" bodyend="356" declfile="native/inc/awgn/awgn_core.h" declline="113" declcolumn="7"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Additive White Gaussian Noise generator. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Generates complex CF32 samples where real and imaginary parts are independent zero-mean Gaussians, each with standard deviation <computeroutput>amplitude</computeroutput>. Total complex power = 2 * amplitude².</para>
+<sect1 id="awgn__core_8h_1autotoc_md0_1s1"><sect2 id="awgn__core_8h_1autotoc_md0_1s2"><sect3 id="awgn__core_8h_1autotoc_md0">
+<title>Algorithm</title><para>RNG: xoshiro256++ — four 64-bit state words, seeded via SplitMix64 from the user-supplied uint64 seed. Period 2^256 − 1.</para>
+<para>Transform: Box-Muller. Each call to <ref refid="awgn__core_8h_1a507003634c145627b019aa27d98b9303" kindref="member">awgn_generate()</ref> consumes two 64-bit RNG outputs per complex output sample:</para>
+<para>u1 ∈ (0, 1] (top 24 bits of first 64-bit word, +1 offset, /2^24) u2 ∈ [0, 1) (top 24 bits of second 64-bit word, /2^24) r = amplitude * sqrt(−2 · ln u1) θ = 2π · u2 out = r·cos θ + j·r·sin θ</para>
+</sect3></sect2></sect1>
+<sect1 id="awgn__core_8h_1autotoc_md1_1s1"><sect2 id="awgn__core_8h_1autotoc_md1_1s2"><sect3 id="awgn__core_8h_1autotoc_md1">
+<title>Usage</title><para><programlisting><codeline><highlight class="normal"><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*g<sp/>=<sp/><ref refid="awgn__core_8h_1a44e712fea4d4d3a1f7cc677ba9f85bbc" kindref="member">awgn_create</ref>(42,<sp/>1.0f);</highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>out[1024];</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="awgn__core_8h_1a507003634c145627b019aa27d98b9303" kindref="member">awgn_generate</ref>(g,<sp/>1024,<sp/>out);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" kindref="member">awgn_destroy</ref>(g);</highlight></codeline>
+</programlisting> </para>
+</sect3></sect2></sect1>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="32"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>AWGN_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="33"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>AWGN_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="34"><highlight class="normal"></highlight></codeline>
+<codeline lineno="35"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="36"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="jm__perf_8h" kindref="compound">jm_perf.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="37"><highlight class="normal"></highlight></codeline>
+<codeline lineno="38"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="39"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="42"><highlight class="normal"></highlight></codeline>
+<codeline lineno="43" refid="structawgn__state__t" refkind="compound"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="44"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="45" refid="structawgn__state__t_1ac62c349dddfe0d5a5646f45b800c35b8" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structawgn__state__t_1ac62c349dddfe0d5a5646f45b800c35b8" kindref="member">s</ref>[4];<sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>xoshiro256++<sp/>scalar<sp/>state<sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="46" refid="structawgn__state__t_1a807fc90643d9f63f3ae1c6be18058a3b" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structawgn__state__t_1a807fc90643d9f63f3ae1c6be18058a3b" kindref="member">seed</ref>;<sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>initial<sp/>seed<sp/>stored<sp/>for<sp/>awgn_reset()<sp/><sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="47" refid="structawgn__state__t_1ab2c91579eef735ff556fd7f5a6906e8a" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><sp/><sp/><sp/><ref refid="structawgn__state__t_1ab2c91579eef735ff556fd7f5a6906e8a" kindref="member">amplitude</ref>;</highlight></codeline>
+<codeline lineno="48"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="comment">/*<sp/>8<sp/>independent<sp/>xoshiro256++<sp/>streams<sp/>for<sp/>the<sp/>AVX2<sp/>path.</highlight></codeline>
+<codeline lineno="49"><highlight class="comment"><sp/><sp/><sp/><sp/><sp/>*<sp/>vs[word][stream]:<sp/>word<sp/>∈<sp/>{0,1,2,3},<sp/>stream<sp/>∈<sp/>{0..7}.<sp/>*/</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="50" refid="structawgn__state__t_1a7ab7707f4989ebd64d8f486e873fc349" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/>uint64_t<sp/><ref refid="structawgn__state__t_1a7ab7707f4989ebd64d8f486e873fc349" kindref="member">vs</ref>[4][8];</highlight></codeline>
+<codeline lineno="51"><highlight class="normal"><sp/><sp/>}<sp/><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref>;</highlight></codeline>
+<codeline lineno="52"><highlight class="normal"></highlight></codeline>
+<codeline lineno="61"><highlight class="normal"><sp/><sp/><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*<ref refid="awgn__core_8h_1a44e712fea4d4d3a1f7cc677ba9f85bbc" kindref="member">awgn_create</ref><sp/>(uint64_t<sp/>seed,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>amplitude);</highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight></codeline>
+<codeline lineno="64"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1ac9b875533ec16bb6731207b366843f40" kindref="member">awgn_destroy</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="65"><highlight class="normal"></highlight></codeline>
+<codeline lineno="67"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1a7ae993aad65e5437e0f3963ba712d9fc" kindref="member">awgn_reset</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="68"><highlight class="normal"></highlight></codeline>
+<codeline lineno="70"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1a2e1ab6e56eaeb35937a83355c2794009" kindref="member">awgn_get_amplitude</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/><ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="71"><highlight class="normal"></highlight></codeline>
+<codeline lineno="73"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1a44eae00f951e69219ee754c5069de801" kindref="member">awgn_set_amplitude</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>val);</highlight></codeline>
+<codeline lineno="74"><highlight class="normal"></highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1ae6f971eb8d23c20cafce4a950517247e" kindref="member">awgn_reseed</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state,<sp/>uint64_t<sp/>seed);</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="84"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1a3debe04709d76c67c161d003ae2edc71" kindref="member">awgn_generate_max_out</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state);</highlight></codeline>
+<codeline lineno="85"><highlight class="normal"></highlight></codeline>
+<codeline lineno="94"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1a507003634c145627b019aa27d98b9303" kindref="member">awgn_generate</ref><sp/>(<ref refid="structawgn__state__t" kindref="compound">awgn_state_t</ref><sp/>*state,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="95"><highlight class="normal"></highlight></codeline>
+<codeline lineno="113"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/><ref refid="awgn__core_8h_1ab687417abbee7eeb0b4496260cecc324" kindref="member">awgn</ref><sp/>(uint64_t<sp/>seed,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>amplitude,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*out);</highlight></codeline>
+<codeline lineno="114"><highlight class="normal"></highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="117"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="118"><highlight class="normal"></highlight></codeline>
+<codeline lineno="119"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>AWGN_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/awgn/awgn_core.h"/>
+  </compounddef>
+</doxygen>

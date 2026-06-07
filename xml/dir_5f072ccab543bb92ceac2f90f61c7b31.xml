@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_5f072ccab543bb92ceac2f90f61c7b31" kind="dir">
+    <compoundname>native/src/fft</compoundname>
+    <innerfile refid="fft__core_8c">fft_core.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/fft/"/>
+  </compounddef>
+</doxygen>

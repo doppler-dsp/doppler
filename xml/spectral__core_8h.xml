@@ -1,0 +1,540 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="spectral__core_8h" kind="file" language="C++">
+    <compoundname>spectral_core.h</compoundname>
+    <includes refid="clib__common_8h" local="yes">clib_common.h</includes>
+    <includedby refid="find__peaks__f32_8c" local="yes">native/src/spectral/find_peaks_f32.c</includedby>
+    <includedby refid="hann__window_8c" local="yes">native/src/spectral/hann_window.c</includedby>
+    <includedby refid="kaiser__enbw_8c" local="yes">native/src/spectral/kaiser_enbw.c</includedby>
+    <includedby refid="kaiser__window_8c" local="yes">native/src/spectral/kaiser_window.c</includedby>
+    <includedby refid="magnitude__db__cf32_8c" local="yes">native/src/spectral/magnitude_db_cf32.c</includedby>
+    <includedby refid="magnitude__db__cf64_8c" local="yes">native/src/spectral/magnitude_db_cf64.c</includedby>
+    <includedby refid="spectral__core_8c" local="yes">native/src/spectral/spectral_core.c</includedby>
+    <incdepgraph>
+      <node id="2">
+        <label>clib_common.h</label>
+        <link refid="clib__common_8h"/>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="8">
+        <label>jm_perf.h</label>
+        <link refid="jm__perf_8h"/>
+        <childnode refid="9" relation="include">
+        </childnode>
+      </node>
+      <node id="9">
+        <label>jm_simd.h</label>
+        <link refid="jm__simd_8h"/>
+        <childnode refid="4" relation="include">
+        </childnode>
+      </node>
+      <node id="1">
+        <label>native/inc/spectral/spectral_core.h</label>
+        <link refid="spectral__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+      <node id="3">
+        <label>complex.h</label>
+      </node>
+      <node id="4">
+        <label>stddef.h</label>
+      </node>
+      <node id="5">
+        <label>stdint.h</label>
+      </node>
+      <node id="6">
+        <label>stdlib.h</label>
+      </node>
+      <node id="7">
+        <label>string.h</label>
+      </node>
+    </incdepgraph>
+    <invincdepgraph>
+      <node id="1">
+        <label>native/inc/spectral/spectral_core.h</label>
+        <link refid="spectral__core_8h"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+        <childnode refid="3" relation="include">
+        </childnode>
+        <childnode refid="4" relation="include">
+        </childnode>
+        <childnode refid="5" relation="include">
+        </childnode>
+        <childnode refid="6" relation="include">
+        </childnode>
+        <childnode refid="7" relation="include">
+        </childnode>
+        <childnode refid="8" relation="include">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>native/src/spectral/find_peaks_f32.c</label>
+        <link refid="find__peaks__f32_8c"/>
+      </node>
+      <node id="3">
+        <label>native/src/spectral/hann_window.c</label>
+        <link refid="hann__window_8c"/>
+      </node>
+      <node id="4">
+        <label>native/src/spectral/kaiser_enbw.c</label>
+        <link refid="kaiser__enbw_8c"/>
+      </node>
+      <node id="5">
+        <label>native/src/spectral/kaiser_window.c</label>
+        <link refid="kaiser__window_8c"/>
+      </node>
+      <node id="6">
+        <label>native/src/spectral/magnitude_db_cf32.c</label>
+        <link refid="magnitude__db__cf32_8c"/>
+      </node>
+      <node id="7">
+        <label>native/src/spectral/magnitude_db_cf64.c</label>
+        <link refid="magnitude__db__cf64_8c"/>
+      </node>
+      <node id="8">
+        <label>native/src/spectral/spectral_core.c</label>
+        <link refid="spectral__core_8c"/>
+      </node>
+    </invincdepgraph>
+    <innerclass refid="structdp__peak__t" prot="public">dp_peak_t</innerclass>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="spectral__core_8h_1aeed76dcd1efa7822581c317ca892984c" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>float</type>
+        <definition>float kaiser_enbw</definition>
+        <argsstring>(const float *w, size_t w_len)</argsstring>
+        <name>kaiser_enbw</name>
+        <param>
+          <type>const float *</type>
+          <declname>w</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>w_len</declname>
+        </param>
+        <briefdescription>
+<para>Equivalent noise bandwidth of window <computeroutput>w</computeroutput>. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>ENBW = N * sum(w^2) / sum(w)^2</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>w</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Float32 window coefficients, length <computeroutput>w_len</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>w_len</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of window samples. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>ENBW in bins. </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="40" column="7" bodyfile="native/src/spectral/kaiser_enbw.c" bodystart="7" bodyend="17" declfile="native/inc/spectral/spectral_core.h" declline="40" declcolumn="7"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__core_8h_1a8d0abc77d2fec823fd38f3a49d61d76f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void kaiser_window</definition>
+        <argsstring>(float *w, size_t w_len, float beta)</argsstring>
+        <name>kaiser_window</name>
+        <param>
+          <type>float *</type>
+          <declname>w</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>w_len</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>beta</declname>
+        </param>
+        <briefdescription>
+<para>Fill <computeroutput>w</computeroutput> with a Kaiser window of shape parameter <computeroutput>beta</computeroutput>. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Uses the Bessel function I0 via a converging power series.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>w</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, length <computeroutput>w_len</computeroutput> (modified in-place). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>w_len</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Window length &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>beta</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Shape parameter (higher = more attenuation, wider main lobe). </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="52" column="6" bodyfile="native/src/spectral/kaiser_window.c" bodystart="24" bodyend="40" declfile="native/inc/spectral/spectral_core.h" declline="52" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__core_8h_1aaa32dc58066bf93f42f57c3a94b7de54" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void hann_window</definition>
+        <argsstring>(float *w, size_t w_len)</argsstring>
+        <name>hann_window</name>
+        <param>
+          <type>float *</type>
+          <declname>w</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>w_len</declname>
+        </param>
+        <briefdescription>
+<para>Fill <computeroutput>w</computeroutput> with a Hann window. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>w(k) = 0.5 * (1 - cos(2π k / (N-1))), k = 0..N-1.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>w</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Output buffer, length <computeroutput>w_len</computeroutput> (modified in-place). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>w_len</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Window length &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="62" column="6" bodyfile="native/src/spectral/hann_window.c" bodystart="8" bodyend="18" declfile="native/inc/spectral/spectral_core.h" declline="62" declcolumn="6"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__core_8h_1a2502340656997105ddccb8d832be3af7" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void magnitude_db_cf32</definition>
+        <argsstring>(const float complex *in, size_t n, float *out, float lin_floor, float offset_db)</argsstring>
+        <name>magnitude_db_cf32</name>
+        <param>
+          <type>const float complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>float *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>lin_floor</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>offset_db</declname>
+        </param>
+        <briefdescription>
+<para>Convert CF32 spectrum to F32 dB. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>out(k) = 20*log10(max(|in(k)|, lin_floor)) + offset_db</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF32 spectrum, length <computeroutput>n</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of bins. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>F32 output, length <computeroutput>n</computeroutput> (caller-allocated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>lin_floor</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Amplitude floor before log10 (e.g. 1e-12f). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>offset_db</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Calibration offset added to every bin. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="75" column="8" bodyfile="native/src/spectral/magnitude_db_cf32.c" bodystart="9" bodyend="19" declfile="native/inc/spectral/spectral_core.h" declline="75" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__core_8h_1a6b7f4722a647977bea2851af2a4d490d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>void</type>
+        <definition>void magnitude_db_cf64</definition>
+        <argsstring>(const double complex *in, size_t n, float *out, double lin_floor, float offset_db)</argsstring>
+        <name>magnitude_db_cf64</name>
+        <param>
+          <type>const double complex *</type>
+          <declname>in</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>float *</type>
+          <declname>out</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>lin_floor</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>offset_db</declname>
+        </param>
+        <briefdescription>
+<para>Convert CF64 spectrum to F32 dB. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Same as <ref refid="spectral__core_8h_1a2502340656997105ddccb8d832be3af7" kindref="member">magnitude_db_cf32()</ref> but accepts double-precision input.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>in</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>CF64 spectrum, length <computeroutput>n</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of bins. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>F32 output, length <computeroutput>n</computeroutput> (caller-allocated). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>lin_floor</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Amplitude floor (double precision). </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>offset_db</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Calibration offset added to every bin. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="89" column="8" bodyfile="native/src/spectral/magnitude_db_cf64.c" bodystart="9" bodyend="19" declfile="native/inc/spectral/spectral_core.h" declline="89" declcolumn="8"/>
+      </memberdef>
+      <memberdef kind="function" id="spectral__core_8h_1a8a6270a421811a026163bf4578028980" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t find_peaks_f32</definition>
+        <argsstring>(const float *db, size_t n, size_t n_peaks, float min_db, dp_peak_t *out)</argsstring>
+        <name>find_peaks_f32</name>
+        <param>
+          <type>const float *</type>
+          <declname>db</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>n_peaks</declname>
+        </param>
+        <param>
+          <type>float</type>
+          <declname>min_db</declname>
+        </param>
+        <param>
+          <type><ref refid="structdp__peak__t" kindref="compound">dp_peak_t</ref> *</type>
+          <declname>out</declname>
+        </param>
+        <briefdescription>
+<para>Find up to <computeroutput>n_peaks</computeroutput> local maxima in a DC-centred F32 dB spectrum. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Algorithm:<orderedlist>
+<listitem><para>Local-max scan: db(k) &gt; db(k-1) &amp;&amp; db(k) &gt;= db(k+1), above min_db.</para>
+</listitem><listitem><para>Parabolic interpolation for sub-bin frequency accuracy.</para>
+</listitem><listitem><para>Sort descending by amplitude; return top n_peaks.</para>
+</listitem></orderedlist>
+</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>db</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>F32 dB spectrum, DC-centred, length <computeroutput>n</computeroutput>. Must be &gt;= 3. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Number of bins. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>n_peaks</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Maximum number of peaks to return. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>min_db</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Amplitude threshold; bins below this are ignored. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>out</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Caller-allocated output array, length &gt;= <computeroutput>n_peaks</computeroutput>. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Number of peaks written (&lt;= n_peaks). </para>
+</simplesect>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/spectral/spectral_core.h" line="107" column="10" bodyfile="native/src/spectral/find_peaks_f32.c" bodystart="17" bodyend="62" declfile="native/inc/spectral/spectral_core.h" declline="107" declcolumn="10"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>Spectral module — public C API. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Provides windowing (Kaiser, Hann), ENBW computation, magnitude conversion, and peak finding. These are pure functions with no persistent state. </para>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="normal"></highlight></codeline>
+<codeline lineno="8"><highlight class="normal"></highlight><highlight class="preprocessor">#ifndef<sp/>SPECTRAL_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="9"><highlight class="normal"></highlight><highlight class="preprocessor">#define<sp/>SPECTRAL_CORE_H</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="10"><highlight class="normal"></highlight></codeline>
+<codeline lineno="11"><highlight class="normal"></highlight><highlight class="preprocessor">#include<sp/>&quot;<ref refid="clib__common_8h" kindref="compound">clib_common.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="12"><highlight class="normal"></highlight></codeline>
+<codeline lineno="13"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="14"><highlight class="normal"></highlight><highlight class="keyword">extern</highlight><highlight class="normal"><sp/></highlight><highlight class="stringliteral">&quot;C&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="15"><highlight class="normal">{</highlight></codeline>
+<codeline lineno="16"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="17"><highlight class="normal"></highlight></codeline>
+<codeline lineno="25" refid="structdp__peak__t" refkind="compound"><highlight class="normal"><sp/><sp/></highlight><highlight class="keyword">typedef</highlight><highlight class="normal"><sp/></highlight><highlight class="keyword">struct</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="26"><highlight class="normal"><sp/><sp/>{</highlight></codeline>
+<codeline lineno="27" refid="structdp__peak__t_1a8dfa72275b9d82c83cddd6101a85d217" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdp__peak__t_1a8dfa72275b9d82c83cddd6101a85d217" kindref="member">freq_norm</ref>;<sp/><sp/><sp/><sp/></highlight></codeline>
+<codeline lineno="28" refid="structdp__peak__t_1a5faa15d8d12f336770a713e6c58113e9" refkind="member"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="structdp__peak__t_1a5faa15d8d12f336770a713e6c58113e9" kindref="member">amplitude_db</ref>;<sp/></highlight></codeline>
+<codeline lineno="29"><highlight class="normal"><sp/><sp/>}<sp/><ref refid="structdp__peak__t" kindref="compound">dp_peak_t</ref>;</highlight></codeline>
+<codeline lineno="30"><highlight class="normal"></highlight></codeline>
+<codeline lineno="40"><highlight class="normal"></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1aeed76dcd1efa7822581c317ca892984c" kindref="member">kaiser_enbw</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*w,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>w_len);</highlight></codeline>
+<codeline lineno="41"><highlight class="normal"></highlight></codeline>
+<codeline lineno="52"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a8d0abc77d2fec823fd38f3a49d61d76f" kindref="member">kaiser_window</ref>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*w,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>w_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>beta);</highlight></codeline>
+<codeline lineno="53"><highlight class="normal"></highlight></codeline>
+<codeline lineno="62"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1aaa32dc58066bf93f42f57c3a94b7de54" kindref="member">hann_window</ref>(</highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*w,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>w_len);</highlight></codeline>
+<codeline lineno="63"><highlight class="normal"></highlight></codeline>
+<codeline lineno="75"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a2502340656997105ddccb8d832be3af7" kindref="member">magnitude_db_cf32</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*out,</highlight></codeline>
+<codeline lineno="76"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>lin_floor,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>offset_db);</highlight></codeline>
+<codeline lineno="77"><highlight class="normal"></highlight></codeline>
+<codeline lineno="89"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a6b7f4722a647977bea2851af2a4d490d" kindref="member">magnitude_db_cf64</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*in,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*out,</highlight></codeline>
+<codeline lineno="90"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>lin_floor,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>offset_db);</highlight></codeline>
+<codeline lineno="91"><highlight class="normal"></highlight></codeline>
+<codeline lineno="107"><highlight class="normal"><sp/><sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a8a6270a421811a026163bf4578028980" kindref="member">find_peaks_f32</ref><sp/>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*db,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_peaks,</highlight></codeline>
+<codeline lineno="108"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>min_db,<sp/><ref refid="structdp__peak__t" kindref="compound">dp_peak_t</ref><sp/>*out);</highlight></codeline>
+<codeline lineno="109"><highlight class="normal"></highlight></codeline>
+<codeline lineno="110"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a2502340656997105ddccb8d832be3af7" kindref="member">magnitude_db_cf32</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>complex<sp/>*x,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*out,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>lin_floor,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>offset_db);</highlight></codeline>
+<codeline lineno="111"><highlight class="normal"></highlight><highlight class="keywordtype">void</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a6b7f4722a647977bea2851af2a4d490d" kindref="member">magnitude_db_cf64</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>complex<sp/>*x,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>x_len,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*out,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>lin_floor,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>offset_db);</highlight></codeline>
+<codeline lineno="112"><highlight class="normal"></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/><ref refid="spectral__core_8h_1a8a6270a421811a026163bf4578028980" kindref="member">find_peaks_f32</ref>(</highlight><highlight class="keyword">const</highlight><highlight class="normal"><sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>*db,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>db_len,<sp/></highlight><highlight class="keywordtype">size_t</highlight><highlight class="normal"><sp/>n_peaks,<sp/></highlight><highlight class="keywordtype">float</highlight><highlight class="normal"><sp/>min_db,<sp/><ref refid="structdp__peak__t" kindref="compound">dp_peak_t</ref><sp/>*result);</highlight></codeline>
+<codeline lineno="113"><highlight class="normal"></highlight><highlight class="preprocessor">#ifdef<sp/>__cplusplus</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="114"><highlight class="normal">}</highlight></codeline>
+<codeline lineno="115"><highlight class="normal"></highlight><highlight class="preprocessor">#endif</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="116"><highlight class="normal"></highlight></codeline>
+<codeline lineno="117"><highlight class="normal"></highlight><highlight class="preprocessor">#endif<sp/></highlight><highlight class="comment">/*<sp/>SPECTRAL_CORE_H<sp/>*/</highlight><highlight class="preprocessor"></highlight></codeline>
+    </programlisting>
+    <location file="native/inc/spectral/spectral_core.h"/>
+  </compounddef>
+</doxygen>

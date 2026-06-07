@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_282f0dc854841c4667a06975ce6319a4" kind="dir">
+    <compoundname>native/src/detection</compoundname>
+    <innerfile refid="det__dwell_8c">det_dwell.c</innerfile>
+    <innerfile refid="det__dwell__power_8c">det_dwell_power.c</innerfile>
+    <innerfile refid="det__pd_8c">det_pd.c</innerfile>
+    <innerfile refid="det__pd__power_8c">det_pd_power.c</innerfile>
+    <innerfile refid="det__snr_8c">det_snr.c</innerfile>
+    <innerfile refid="det__snr__power_8c">det_snr_power.c</innerfile>
+    <innerfile refid="det__threshold_8c">det_threshold.c</innerfile>
+    <innerfile refid="det__threshold__power_8c">det_threshold_power.c</innerfile>
+    <innerfile refid="detection__core_8c">detection_core.c</innerfile>
+    <innerfile refid="marcum__q_8c">marcum_q.c</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/src/detection/"/>
+  </compounddef>
+</doxygen>

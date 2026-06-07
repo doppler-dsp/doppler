@@ -1,0 +1,28 @@
+var jm__simd_8h =
+[
+    [ "JM_RESTRICT", "jm__simd_8h.html#a48122a96a11a9cb52e585a8b4193d641", null ],
+    [ "JM_SIMD_WIDTH_F32", "jm__simd_8h.html#aae649c505a3f6953682959444562fac3", null ],
+    [ "JM_SIMD_WIDTH_F64", "jm__simd_8h.html#aa72bb7520c0b055851dc0789d0fc2bf7", null ],
+    [ "JM_SIMD_WIDTH", "jm__simd_8h.html#a8e4389b7d8762a2a7192e7fc1b7ea38f", null ],
+    [ "JM_ZERO_F32", "jm__simd_8h.html#a2a698bc46a8632a19f9a03542c67908e", null ],
+    [ "JM_ZERO_F64", "jm__simd_8h.html#a45f3a47adbc683955395c14f546927ac", null ],
+    [ "JM_SPLAT_F32", "jm__simd_8h.html#a2ac0323f12883d788a2bc8a73fa46ede", null ],
+    [ "JM_SPLAT_F64", "jm__simd_8h.html#a25a9a041091ccda2a3a904711b26165d", null ],
+    [ "JM_LOAD_F32", "jm__simd_8h.html#a1de38e9cbee664161842e53ec6762df6", null ],
+    [ "JM_LOAD_F64", "jm__simd_8h.html#a80b5caef7608ed329a56588d1d958117", null ],
+    [ "JM_STORE_F32", "jm__simd_8h.html#a5beb0cdade48761d839d9da4bc36a5f1", null ],
+    [ "JM_STORE_F64", "jm__simd_8h.html#a41b98d0ca3d66d80f3b844421bb5f2ff", null ],
+    [ "JM_ADD_F32", "jm__simd_8h.html#a8331d50e0e4edb5f96efe9daf0032769", null ],
+    [ "JM_ADD_F64", "jm__simd_8h.html#a9ca2f41f7bf90b3e1e2ea344b32722c7", null ],
+    [ "JM_MUL_F32", "jm__simd_8h.html#ad8731b5b5a00b10d93c8478f4213391f", null ],
+    [ "JM_MUL_F64", "jm__simd_8h.html#a1007b93399d34ba7de3cd0bf08c1a281", null ],
+    [ "JM_FMA_F32", "jm__simd_8h.html#a06434e76c9760f5ff47645e025ddb897", null ],
+    [ "JM_FMA_F64", "jm__simd_8h.html#a478a6d8b6dce52a7ae636602728987ce", null ],
+    [ "JM_MAC_F32", "jm__simd_8h.html#a6133748a674ff4d8dd656c8483e5d68d", null ],
+    [ "JM_MAC_F64", "jm__simd_8h.html#a9007e7f3f07336ca3a0c2d9a875b21a4", null ],
+    [ "JM_HSUM_F32", "jm__simd_8h.html#acfa9548b6ba72bd31784121164f8a7fd", null ],
+    [ "JM_HSUM_F64", "jm__simd_8h.html#a95479f23bc5aff8674e80a8afcebc4d6", null ],
+    [ "JM_SUMSQ_F32", "jm__simd_8h.html#ae11a7abec9dedbf8322eafd1e48a72f6", null ],
+    [ "JM_VEC_F32", "jm__simd_8h.html#aa47103a8162550707bbab66b5c59340f", null ],
+    [ "JM_VEC_F64", "jm__simd_8h.html#ae564076ffd5fe568c8f666bb6fd99f68", null ]
+];

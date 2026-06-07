@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structacc__cf64__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>acc_cf64_state_t</compoundname>
+    <includes refid="acc__cf64__core_8h" local="no">acc_cf64_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structacc__cf64__state__t_1ac2fa45691eaf1c67d2e031a5075ef1fe" prot="public" static="no" mutable="no">
+        <type>double _Complex</type>
+        <definition>double _Complex acc_cf64_state_t::acc</definition>
+        <argsstring></argsstring>
+        <name>acc</name>
+        <qualifiedname>acc_cf64_state_t::acc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/acc_cf64/acc_cf64_core.h" line="32" column="21" bodyfile="native/inc/acc_cf64/acc_cf64_core.h" bodystart="32" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>AccCf64 state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="acc__cf64__core_8h_1acb96c817bde724d701c1e7acc5952c0b" kindref="member">acc_cf64_create()</ref>. </para>
+    </detaileddescription>
+    <location file="native/inc/acc_cf64/acc_cf64_core.h" line="30" column="3" bodyfile="native/inc/acc_cf64/acc_cf64_core.h" bodystart="31" bodyend="33"/>
+    <listofallmembers>
+      <member refid="structacc__cf64__state__t_1ac2fa45691eaf1c67d2e031a5075ef1fe" prot="public" virt="non-virtual"><scope>acc_cf64_state_t</scope><name>acc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

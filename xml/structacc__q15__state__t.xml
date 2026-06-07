@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structacc__q15__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>acc_q15_state_t</compoundname>
+    <includes refid="acc__q15__core_8h" local="no">acc_q15_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structacc__q15__state__t_1a30b079352daff0aaca38476fa75fa7cc" prot="public" static="no" mutable="no">
+        <type>int64_t</type>
+        <definition>int64_t acc_q15_state_t::acc</definition>
+        <argsstring></argsstring>
+        <name>acc</name>
+        <qualifiedname>acc_q15_state_t::acc</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/acc_q15/acc_q15_core.h" line="29" column="13" bodyfile="native/inc/acc_q15/acc_q15_core.h" bodystart="29" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>AccQ15 state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="acc__q15__core_8h_1a43d2e159bafde2e4526e8fb28db87171" kindref="member">acc_q15_create()</ref>. </para>
+    </detaileddescription>
+    <location file="native/inc/acc_q15/acc_q15_core.h" line="28" column="1" bodyfile="native/inc/acc_q15/acc_q15_core.h" bodystart="28" bodyend="30"/>
+    <listofallmembers>
+      <member refid="structacc__q15__state__t_1a30b079352daff0aaca38476fa75fa7cc" prot="public" virt="non-virtual"><scope>acc_q15_state_t</scope><name>acc</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

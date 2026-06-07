@@ -1,0 +1,208 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structcorr2d__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>corr2d_state_t</compoundname>
+    <includes refid="corr2d__core_8h" local="no">corr2d_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structcorr2d__state__t_1a2880ecfa2fdf153e4961cdb272bdc2b5" prot="public" static="no" mutable="no">
+        <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+        <definition>fft2d_state_t* corr2d_state_t::fwd</definition>
+        <argsstring></argsstring>
+        <name>fwd</name>
+        <qualifiedname>corr2d_state_t::fwd</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Forward 2-D plan (sign = -1). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="43" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="43" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a80ba6d010d7f219d3e398689d5ec0ab4" prot="public" static="no" mutable="no">
+        <type><ref refid="structfft2d__state__t" kindref="compound">fft2d_state_t</ref> *</type>
+        <definition>fft2d_state_t* corr2d_state_t::inv</definition>
+        <argsstring></argsstring>
+        <name>inv</name>
+        <qualifiedname>corr2d_state_t::inv</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Inverse 2-D plan (sign = +1). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="44" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="44" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1adb3ebd4abc4e6cc9aaf49e614e4d176b" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* corr2d_state_t::ref_spec</definition>
+        <argsstring></argsstring>
+        <name>ref_spec</name>
+        <qualifiedname>corr2d_state_t::ref_spec</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>conj(FFT2(ref)), pre-computed. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="45" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="45" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1ae23d3dd0c50b0fdc1127a70172ec63bc" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* corr2d_state_t::work_fft</definition>
+        <argsstring></argsstring>
+        <name>work_fft</name>
+        <qualifiedname>corr2d_state_t::work_fft</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Scratch: FFT2(in) output. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="46" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="46" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a67a401069f7998ec13dd76daf46fa6f7" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* corr2d_state_t::work_ifft</definition>
+        <argsstring></argsstring>
+        <name>work_ifft</name>
+        <qualifiedname>corr2d_state_t::work_ifft</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Scratch: IFFT2 output before accumulate. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="47" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="47" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a6f2188d64399c82daed662916005578c" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* corr2d_state_t::accum</definition>
+        <argsstring></argsstring>
+        <name>accum</name>
+        <qualifiedname>corr2d_state_t::accum</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Coherent integration accumulator. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="48" column="17" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="48" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t corr2d_state_t::ny</definition>
+        <argsstring></argsstring>
+        <name>ny</name>
+        <qualifiedname>corr2d_state_t::ny</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Row count. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="49" column="10" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="49" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t corr2d_state_t::nx</definition>
+        <argsstring></argsstring>
+        <name>nx</name>
+        <qualifiedname>corr2d_state_t::nx</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Column count. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="50" column="10" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="50" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1abbcb5fccdc0d7c2c2b29c04e42a250f9" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t corr2d_state_t::n</definition>
+        <argsstring></argsstring>
+        <name>n</name>
+        <qualifiedname>corr2d_state_t::n</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>ny * nx — total element count. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="51" column="10" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="51" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t corr2d_state_t::dwell</definition>
+        <argsstring></argsstring>
+        <name>dwell</name>
+        <qualifiedname>corr2d_state_t::dwell</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Integration depth. </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="52" column="10" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="52" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t corr2d_state_t::count</definition>
+        <argsstring></argsstring>
+        <name>count</name>
+        <qualifiedname>corr2d_state_t::count</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+<para>Frames accumulated (0 … dwell-1). </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/corr2d/corr2d_core.h" line="53" column="10" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="53" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>2-D FFT correlator state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="corr2d__core_8h_1aa0acddc8344fedb6f0858e3cc5daa0b7" kindref="member">corr2d_create()</ref>; never stack-allocate. All heap buffers are <computeroutput><ref refid="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" kindref="member">ny</ref> * <ref refid="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" kindref="member">nx</ref></computeroutput> complex floats stored in row-major order. </para>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>corr2d_state_t</label>
+        <link refid="structcorr2d__state__t"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>fwd</edgelabel>
+          <edgelabel>inv</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>fft2d_state_t</label>
+        <link refid="structfft2d__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/inc/corr2d/corr2d_core.h" line="42" column="1" bodyfile="native/inc/corr2d/corr2d_core.h" bodystart="42" bodyend="54"/>
+    <listofallmembers>
+      <member refid="structcorr2d__state__t_1a6f2188d64399c82daed662916005578c" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>accum</name></member>
+      <member refid="structcorr2d__state__t_1a9a678879b99e119339b2082a41c73328" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>count</name></member>
+      <member refid="structcorr2d__state__t_1a0cd5bbc88fde7ea085214df7d739e6c7" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>dwell</name></member>
+      <member refid="structcorr2d__state__t_1a2880ecfa2fdf153e4961cdb272bdc2b5" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>fwd</name></member>
+      <member refid="structcorr2d__state__t_1a80ba6d010d7f219d3e398689d5ec0ab4" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>inv</name></member>
+      <member refid="structcorr2d__state__t_1abbcb5fccdc0d7c2c2b29c04e42a250f9" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>n</name></member>
+      <member refid="structcorr2d__state__t_1a74dbb25191b77e04e49816f733357d7c" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>nx</name></member>
+      <member refid="structcorr2d__state__t_1a12652147900e6c1624e0d286e10987b4" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>ny</name></member>
+      <member refid="structcorr2d__state__t_1adb3ebd4abc4e6cc9aaf49e614e4d176b" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>ref_spec</name></member>
+      <member refid="structcorr2d__state__t_1ae23d3dd0c50b0fdc1127a70172ec63bc" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>work_fft</name></member>
+      <member refid="structcorr2d__state__t_1a67a401069f7998ec13dd76daf46fa6f7" prot="public" virt="non-virtual"><scope>corr2d_state_t</scope><name>work_ifft</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

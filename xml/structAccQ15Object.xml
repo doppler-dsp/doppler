@@ -1,0 +1,43 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structAccQ15Object" kind="struct" language="C++" prot="public">
+    <compoundname>AccQ15Object</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structAccQ15Object_1a63d3dc9faef4e29a45f2a3abf98b4e4b" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structacc__q15__state__t" kindref="compound">acc_q15_state_t</ref> *</type>
+        <definition>PyObject_HEAD acc_q15_state_t* AccQ15Object::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>AccQ15Object::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/arith/arith_ext_acc_q15.c" line="16" column="21" bodyfile="native/src/arith/arith_ext_acc_q15.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>AccQ15Object</label>
+        <link refid="structAccQ15Object"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>acc_q15_state_t</label>
+        <link refid="structacc__q15__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/arith/arith_ext_acc_q15.c" line="14" column="1" bodyfile="native/src/arith/arith_ext_acc_q15.c" bodystart="14" bodyend="17"/>
+    <listofallmembers>
+      <member refid="structAccQ15Object_1a63d3dc9faef4e29a45f2a3abf98b4e4b" prot="public" virt="non-virtual"><scope>AccQ15Object</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

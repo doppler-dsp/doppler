@@ -1,0 +1,93 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="det__snr_8c" kind="file" language="C++">
+    <compoundname>det_snr.c</compoundname>
+    <includes refid="detection__core_8h" local="yes">detection/detection_core.h</includes>
+    <incdepgraph>
+      <node id="2">
+        <label>detection/detection_core.h</label>
+        <link refid="detection__core_8h"/>
+      </node>
+      <node id="1">
+        <label>native/src/detection/det_snr.c</label>
+        <link refid="det__snr_8c"/>
+        <childnode refid="2" relation="include">
+        </childnode>
+      </node>
+    </incdepgraph>
+    <sectiondef kind="func">
+      <memberdef kind="function" id="det__snr_8c_1a8afeb14284b41b19dbb24c4c400aa464" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>double</type>
+        <definition>double det_snr</definition>
+        <argsstring>(int dwell, double pd_min, double pfa)</argsstring>
+        <name>det_snr</name>
+        <param>
+          <type>int</type>
+          <declname>dwell</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pd_min</declname>
+        </param>
+        <param>
+          <type>double</type>
+          <declname>pfa</declname>
+        </param>
+        <briefdescription>
+<para>Minimum per-sample amplitude SNR achieving Pd &gt;= pd_min. </para>
+        </briefdescription>
+        <detaileddescription>
+<para>Binary search over SNR in &amp;#91;0, hi&amp;#93; where hi is doubled from 1.0 until det_pd(hi, dwell, threshold) &gt;= pd_min. 64 bisection iterations yield ~1e-19 relative precision on the final interval.</para>
+<para><parameterlist kind="param"><parameteritem>
+<parameternamelist>
+<parametername>dwell</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Coherent integration depth; must be &gt;= 1. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pd_min</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>Required detection probability. </para>
+</parameterdescription>
+</parameteritem>
+<parameteritem>
+<parameternamelist>
+<parametername>pfa</parametername>
+</parameternamelist>
+<parameterdescription>
+<para>False-alarm probability; used to derive eta. </para>
+</parameterdescription>
+</parameteritem>
+</parameterlist>
+<simplesect kind="return"><para>Minimum amplitude SNR &gt;= 0.</para>
+</simplesect>
+Roundtrip invariant: det_pd(det_snr(M, pd, pfa), M, det_threshold(pfa)) &gt;= pd </para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/detection/det_snr.c" line="2" column="8" bodyfile="native/src/detection/det_snr.c" bodystart="2" bodyend="10"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <programlisting>
+<codeline lineno="1"><highlight class="preprocessor">#include<sp/>&quot;<ref refid="detection__core_8h" kindref="compound">detection/detection_core.h</ref>&quot;</highlight><highlight class="normal"></highlight></codeline>
+<codeline lineno="2"><highlight class="normal"></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/><ref refid="det__snr_8c_1a8afeb14284b41b19dbb24c4c400aa464" kindref="member">det_snr</ref>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>dwell,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pd_min,<sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>pfa)<sp/>{</highlight></codeline>
+<codeline lineno="3"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>eta<sp/>=<sp/><ref refid="detection__core_8h_1aea1ad6723d6546157611a21518e35e35" kindref="member">det_threshold</ref>(pfa),<sp/>lo<sp/>=<sp/>0.0,<sp/>hi<sp/>=<sp/>1.0;</highlight></codeline>
+<codeline lineno="4"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">while</highlight><highlight class="normal"><sp/>(<ref refid="detection__core_8h_1a87dc66db0da19df72e94080aa426fd04" kindref="member">det_pd</ref>(hi,<sp/>dwell,<sp/>eta)<sp/>&lt;<sp/>pd_min)<sp/>hi<sp/>*=<sp/>2.0;</highlight></codeline>
+<codeline lineno="5"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">for</highlight><highlight class="normal"><sp/>(</highlight><highlight class="keywordtype">int</highlight><highlight class="normal"><sp/>i<sp/>=<sp/>0;<sp/>i<sp/>&lt;<sp/>64;<sp/>i++)<sp/>{</highlight></codeline>
+<codeline lineno="6"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordtype">double</highlight><highlight class="normal"><sp/>mid<sp/>=<sp/>0.5*(lo+hi);</highlight></codeline>
+<codeline lineno="7"><highlight class="normal"><sp/><sp/><sp/><sp/><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">if</highlight><highlight class="normal"><sp/>(<ref refid="detection__core_8h_1a87dc66db0da19df72e94080aa426fd04" kindref="member">det_pd</ref>(mid,<sp/>dwell,<sp/>eta)<sp/>&gt;=<sp/>pd_min)<sp/>hi<sp/>=<sp/>mid;<sp/></highlight><highlight class="keywordflow">else</highlight><highlight class="normal"><sp/>lo<sp/>=<sp/>mid;</highlight></codeline>
+<codeline lineno="8"><highlight class="normal"><sp/><sp/><sp/><sp/>}</highlight></codeline>
+<codeline lineno="9"><highlight class="normal"><sp/><sp/><sp/><sp/></highlight><highlight class="keywordflow">return</highlight><highlight class="normal"><sp/>0.5*(lo+hi);</highlight></codeline>
+<codeline lineno="10"><highlight class="normal">}</highlight></codeline>
+    </programlisting>
+    <location file="native/src/detection/det_snr.c"/>
+  </compounddef>
+</doxygen>

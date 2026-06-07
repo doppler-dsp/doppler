@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structf32__to__i16u64__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>f32_to_i16u64_state_t</compoundname>
+    <includes refid="f32__to__i16u64__core_8h" local="no">f32_to_i16u64_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structf32__to__i16u64__state__t_1a9c3398ccee7ce4a9146ea2e9d086febf" prot="public" static="no" mutable="no">
+        <type>float</type>
+        <definition>float f32_to_i16u64_state_t::scale</definition>
+        <argsstring></argsstring>
+        <name>scale</name>
+        <qualifiedname>f32_to_i16u64_state_t::scale</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" line="43" column="13" bodyfile="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" bodystart="43" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structf32__to__i16u64__state__t_1a969d55db651b3393da645163c0e2b816" prot="public" static="no" mutable="no">
+        <type>uint8_t</type>
+        <definition>uint8_t f32_to_i16u64_state_t::clipped</definition>
+        <argsstring></argsstring>
+        <name>clipped</name>
+        <qualifiedname>f32_to_i16u64_state_t::clipped</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" line="44" column="13" bodyfile="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" bodystart="44" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>F32ToI16U64 state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="f32__to__i16u64__core_8h_1a2f52c6c27a832acb7164b94121759417" kindref="member">f32_to_i16u64_create()</ref>.</para>
+<para><computeroutput>clipped</computeroutput> is sticky: set to 1 by the first sample whose pre-saturation scaled value falls outside <computeroutput>[-32768, 32767]</computeroutput>; cleared only by reset(). </para>
+    </detaileddescription>
+    <location file="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" line="42" column="1" bodyfile="native/inc/f32_to_i16u64/f32_to_i16u64_core.h" bodystart="42" bodyend="45"/>
+    <listofallmembers>
+      <member refid="structf32__to__i16u64__state__t_1a969d55db651b3393da645163c0e2b816" prot="public" virt="non-virtual"><scope>f32_to_i16u64_state_t</scope><name>clipped</name></member>
+      <member refid="structf32__to__i16u64__state__t_1a9c3398ccee7ce4a9146ea2e9d086febf" prot="public" virt="non-virtual"><scope>f32_to_i16u64_state_t</scope><name>scale</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

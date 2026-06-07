@@ -1,0 +1,138 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structagc__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>agc_state_t</compoundname>
+    <includes refid="agc__core_8h" local="no">agc_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structagc__state__t_1a156998f9a87cdfebb2c7970dd7c64e57" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::ref_db</definition>
+        <argsstring></argsstring>
+        <name>ref_db</name>
+        <qualifiedname>agc_state_t::ref_db</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="185" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="185" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1a7f263d32cf2a6c55f9169fbcf2b7cf7e" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::loop_bw</definition>
+        <argsstring></argsstring>
+        <name>loop_bw</name>
+        <qualifiedname>agc_state_t::loop_bw</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="186" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="186" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1a435b8246af38bce17de814c5fa780ac7" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::alpha</definition>
+        <argsstring></argsstring>
+        <name>alpha</name>
+        <qualifiedname>agc_state_t::alpha</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="187" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="187" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1a177e6cc575492e1c9adc386ce47d959c" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t agc_state_t::decim</definition>
+        <argsstring></argsstring>
+        <name>decim</name>
+        <qualifiedname>agc_state_t::decim</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="188" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="188" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::clip_db</definition>
+        <argsstring></argsstring>
+        <name>clip_db</name>
+        <qualifiedname>agc_state_t::clip_db</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="189" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="189" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::gain_db</definition>
+        <argsstring></argsstring>
+        <name>gain_db</name>
+        <qualifiedname>agc_state_t::gain_db</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="190" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="190" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::p_avg</definition>
+        <argsstring></argsstring>
+        <name>p_avg</name>
+        <qualifiedname>agc_state_t::p_avg</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="191" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="191" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structagc__state__t_1aced28677339ad12d7db0707ad5338c12" prot="public" static="no" mutable="no">
+        <type>double</type>
+        <definition>double agc_state_t::g_last</definition>
+        <argsstring></argsstring>
+        <name>g_last</name>
+        <qualifiedname>agc_state_t::g_last</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/agc/agc_core.h" line="192" column="12" bodyfile="native/inc/agc/agc_core.h" bodystart="192" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>AGC state. </para>
+    </briefdescription>
+    <detaileddescription>
+<para>Allocate with <ref refid="agc__core_8h_1a513369f303365f4d356d9eb7ae80cf3b" kindref="member">agc_create()</ref>. <computeroutput>ref_db</computeroutput>, <computeroutput>loop_bw</computeroutput>, <computeroutput>alpha</computeroutput>, <computeroutput>decim</computeroutput> and <computeroutput>clip_db</computeroutput> are configuration (readable and writable at runtime); <computeroutput>gain_db</computeroutput>, <computeroutput>p_avg</computeroutput> and <computeroutput>g_last</computeroutput> are the loop&apos;s internal memory. </para>
+    </detaileddescription>
+    <location file="native/inc/agc/agc_core.h" line="183" column="3" bodyfile="native/inc/agc/agc_core.h" bodystart="184" bodyend="193"/>
+    <listofallmembers>
+      <member refid="structagc__state__t_1a435b8246af38bce17de814c5fa780ac7" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>alpha</name></member>
+      <member refid="structagc__state__t_1a0e42ee59b28024d0db558a9ff414d83d" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>clip_db</name></member>
+      <member refid="structagc__state__t_1a177e6cc575492e1c9adc386ce47d959c" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>decim</name></member>
+      <member refid="structagc__state__t_1aced28677339ad12d7db0707ad5338c12" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>g_last</name></member>
+      <member refid="structagc__state__t_1ae304fb259caecf92fa8982492bac280e" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>gain_db</name></member>
+      <member refid="structagc__state__t_1a7f263d32cf2a6c55f9169fbcf2b7cf7e" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>loop_bw</name></member>
+      <member refid="structagc__state__t_1a57989847a3bd8715ee7961de26027a33" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>p_avg</name></member>
+      <member refid="structagc__state__t_1a156998f9a87cdfebb2c7970dd7c64e57" prot="public" virt="non-virtual"><scope>agc_state_t</scope><name>ref_db</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

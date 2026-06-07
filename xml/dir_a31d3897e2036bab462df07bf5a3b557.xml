@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="dir_a31d3897e2036bab462df07bf5a3b557" kind="dir">
+    <compoundname>native/inc/acc_cf64</compoundname>
+    <innerfile refid="acc__cf64__core_8h">acc_cf64_core.h</innerfile>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/acc_cf64/"/>
+  </compounddef>
+</doxygen>

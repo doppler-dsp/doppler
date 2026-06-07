@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structCorr2DObject" kind="struct" language="C++" prot="public">
+    <compoundname>Corr2DObject</compoundname>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" prot="public" static="no" mutable="no">
+        <type>PyObject_HEAD <ref refid="structcorr2d__state__t" kindref="compound">corr2d_state_t</ref> *</type>
+        <definition>PyObject_HEAD corr2d_state_t* Corr2DObject::handle</definition>
+        <argsstring></argsstring>
+        <name>handle</name>
+        <qualifiedname>Corr2DObject::handle</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="16" column="20" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="16" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" prot="public" static="no" mutable="no">
+        <type>float complex *</type>
+        <definition>float complex* Corr2DObject::_execute_buf</definition>
+        <argsstring></argsstring>
+        <name>_execute_buf</name>
+        <qualifiedname>Corr2DObject::_execute_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/src/spectral/spectral_ext_corr2d.c" line="17" column="19" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="17" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <collaborationgraph>
+      <node id="1">
+        <label>Corr2DObject</label>
+        <link refid="structCorr2DObject"/>
+        <childnode refid="2" relation="usage">
+          <edgelabel>handle</edgelabel>
+        </childnode>
+      </node>
+      <node id="2">
+        <label>corr2d_state_t</label>
+        <link refid="structcorr2d__state__t"/>
+        <childnode refid="3" relation="usage">
+          <edgelabel>fwd</edgelabel>
+          <edgelabel>inv</edgelabel>
+        </childnode>
+      </node>
+      <node id="3">
+        <label>fft2d_state_t</label>
+        <link refid="structfft2d__state__t"/>
+      </node>
+    </collaborationgraph>
+    <location file="native/src/spectral/spectral_ext_corr2d.c" line="14" column="1" bodyfile="native/src/spectral/spectral_ext_corr2d.c" bodystart="14" bodyend="18"/>
+    <listofallmembers>
+      <member refid="structCorr2DObject_1af9ed3b25aa314c4150d55ca58aea9f4a" prot="public" virt="non-virtual"><scope>Corr2DObject</scope><name>_execute_buf</name></member>
+      <member refid="structCorr2DObject_1a0e29da5219f70f4cda667edb29228526" prot="public" virt="non-virtual"><scope>Corr2DObject</scope><name>handle</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

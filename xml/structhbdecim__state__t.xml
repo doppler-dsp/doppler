@@ -1,0 +1,196 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.16.1" xml:lang="en-US">
+  <compounddef id="structhbdecim__state__t" kind="struct" language="C++" prot="public">
+    <compoundname>hbdecim_state_t</compoundname>
+    <includes refid="hbdecim__core_8h" local="no">hbdecim_core.h</includes>
+    <sectiondef kind="public-attrib">
+      <memberdef kind="variable" id="structhbdecim__state__t_1a7b4e2fdc3d5031bddba2b305ce3ebe2a" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::num_taps</definition>
+        <argsstring></argsstring>
+        <name>num_taps</name>
+        <qualifiedname>hbdecim_state_t::num_taps</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="42" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="42" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1aa7cbfe8ceb9916b80dc866639e9a8848" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::centre</definition>
+        <argsstring></argsstring>
+        <name>centre</name>
+        <qualifiedname>hbdecim_state_t::centre</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="43" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="43" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1af26eb862f5fe16073191eeebe52ef6b9" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int hbdecim_state_t::fir_on_even</definition>
+        <argsstring></argsstring>
+        <name>fir_on_even</name>
+        <qualifiedname>hbdecim_state_t::fir_on_even</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="44" column="9" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="44" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1af76399ccbad5e69ead61220251a156e2" prot="public" static="no" mutable="no">
+        <type>float *</type>
+        <definition>float* hbdecim_state_t::h</definition>
+        <argsstring></argsstring>
+        <name>h</name>
+        <qualifiedname>hbdecim_state_t::h</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="45" column="11" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="45" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1a412f4a53d2d033cbd2c2fe1287e955f2" prot="public" static="no" mutable="no">
+        <type>float _Complex *</type>
+        <definition>float _Complex* hbdecim_state_t::even_buf</definition>
+        <argsstring></argsstring>
+        <name>even_buf</name>
+        <qualifiedname>hbdecim_state_t::even_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="49" column="20" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="49" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1af7bf55ca38fed0cb497a1e88a2267425" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::even_cap</definition>
+        <argsstring></argsstring>
+        <name>even_cap</name>
+        <qualifiedname>hbdecim_state_t::even_cap</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="50" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="50" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1a3fd90aa6d72a79d8c82ce71ff49cd170" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::even_mask</definition>
+        <argsstring></argsstring>
+        <name>even_mask</name>
+        <qualifiedname>hbdecim_state_t::even_mask</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="51" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="51" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1acd710d96eea2a505f5eb3f79e15959e6" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::even_head</definition>
+        <argsstring></argsstring>
+        <name>even_head</name>
+        <qualifiedname>hbdecim_state_t::even_head</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="52" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="52" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1aad4983e0d4ceb3ce0daa90d2878d00c1" prot="public" static="no" mutable="no">
+        <type>float _Complex *</type>
+        <definition>float _Complex* hbdecim_state_t::odd_buf</definition>
+        <argsstring></argsstring>
+        <name>odd_buf</name>
+        <qualifiedname>hbdecim_state_t::odd_buf</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="56" column="20" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="56" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1a38cef5f61f248f445659627c0b37529c" prot="public" static="no" mutable="no">
+        <type>size_t</type>
+        <definition>size_t hbdecim_state_t::odd_head</definition>
+        <argsstring></argsstring>
+        <name>odd_head</name>
+        <qualifiedname>hbdecim_state_t::odd_head</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="57" column="12" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="57" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1a2b5f7df6a360a4c8f12fa0f4535fabbb" prot="public" static="no" mutable="no">
+        <type>int</type>
+        <definition>int hbdecim_state_t::has_pending</definition>
+        <argsstring></argsstring>
+        <name>has_pending</name>
+        <qualifiedname>hbdecim_state_t::has_pending</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="59" column="9" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="59" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="structhbdecim__state__t_1ac54e799521ae22aee4ac797ce3b5dac6" prot="public" static="no" mutable="no">
+        <type>float _Complex</type>
+        <definition>float _Complex hbdecim_state_t::pending</definition>
+        <argsstring></argsstring>
+        <name>pending</name>
+        <qualifiedname>hbdecim_state_t::pending</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="native/inc/hbdecim/hbdecim_core.h" line="60" column="20" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="60" bodyend="-1"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="native/inc/hbdecim/hbdecim_core.h" line="40" column="3" bodyfile="native/inc/hbdecim/hbdecim_core.h" bodystart="41" bodyend="61"/>
+    <listofallmembers>
+      <member refid="structhbdecim__state__t_1aa7cbfe8ceb9916b80dc866639e9a8848" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>centre</name></member>
+      <member refid="structhbdecim__state__t_1a412f4a53d2d033cbd2c2fe1287e955f2" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>even_buf</name></member>
+      <member refid="structhbdecim__state__t_1af7bf55ca38fed0cb497a1e88a2267425" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>even_cap</name></member>
+      <member refid="structhbdecim__state__t_1acd710d96eea2a505f5eb3f79e15959e6" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>even_head</name></member>
+      <member refid="structhbdecim__state__t_1a3fd90aa6d72a79d8c82ce71ff49cd170" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>even_mask</name></member>
+      <member refid="structhbdecim__state__t_1af26eb862f5fe16073191eeebe52ef6b9" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>fir_on_even</name></member>
+      <member refid="structhbdecim__state__t_1af76399ccbad5e69ead61220251a156e2" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>h</name></member>
+      <member refid="structhbdecim__state__t_1a2b5f7df6a360a4c8f12fa0f4535fabbb" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>has_pending</name></member>
+      <member refid="structhbdecim__state__t_1a7b4e2fdc3d5031bddba2b305ce3ebe2a" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>num_taps</name></member>
+      <member refid="structhbdecim__state__t_1aad4983e0d4ceb3ce0daa90d2878d00c1" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>odd_buf</name></member>
+      <member refid="structhbdecim__state__t_1a38cef5f61f248f445659627c0b37529c" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>odd_head</name></member>
+      <member refid="structhbdecim__state__t_1ac54e799521ae22aee4ac797ce3b5dac6" prot="public" virt="non-virtual"><scope>hbdecim_state_t</scope><name>pending</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

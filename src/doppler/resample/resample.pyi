@@ -15,7 +15,7 @@ class Resampler:
     Create with defaults:
 
     >>> from doppler.resample import Resampler
-    >>> obj = Resampler(0.0)
+    >>> obj = Resampler(rate=0.0)
 
     """
     def __init__(self, rate: float = ...) -> None: ...
@@ -144,7 +144,7 @@ class CIC:
     Create with defaults:
 
     >>> from doppler.resample import CIC
-    >>> obj = CIC(16)
+    >>> obj = CIC(R=16)
 
     """
     def __init__(self, R: int = ...) -> None: ...
@@ -196,7 +196,7 @@ class RateConverter:
     Create with defaults:
 
     >>> from doppler.resample import RateConverter
-    >>> obj = RateConverter(1.0, 0)
+    >>> obj = RateConverter(rate=1.0, compensate=0)
 
     """
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...

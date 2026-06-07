@@ -15,7 +15,7 @@ class F32ToI16:
     Create with defaults:
 
     >>> from doppler.cvt import F32ToI16
-    >>> obj = F32ToI16(32768.0)
+    >>> obj = F32ToI16(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -49,7 +49,7 @@ class I16ToF32:
     Create with defaults:
 
     >>> from doppler.cvt import I16ToF32
-    >>> obj = I16ToF32(32768.0)
+    >>> obj = I16ToF32(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -83,7 +83,7 @@ class F32ToI16U32:
     Create with defaults:
 
     >>> from doppler.cvt import F32ToI16U32
-    >>> obj = F32ToI16U32(32768.0)
+    >>> obj = F32ToI16U32(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -117,7 +117,7 @@ class F32ToI16U64:
     Create with defaults:
 
     >>> from doppler.cvt import F32ToI16U64
-    >>> obj = F32ToI16U64(32768.0)
+    >>> obj = F32ToI16U64(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -151,7 +151,7 @@ class I16U32ToF32:
     Create with defaults:
 
     >>> from doppler.cvt import I16U32ToF32
-    >>> obj = I16U32ToF32(32768.0)
+    >>> obj = I16U32ToF32(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -185,7 +185,7 @@ class I16U64ToF32:
     Create with defaults:
 
     >>> from doppler.cvt import I16U64ToF32
-    >>> obj = I16U64ToF32(32768.0)
+    >>> obj = I16U64ToF32(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -219,7 +219,7 @@ class F32ToUQ15:
     Create with defaults:
 
     >>> from doppler.cvt import F32ToUQ15
-    >>> obj = F32ToUQ15(32768.0)
+    >>> obj = F32ToUQ15(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -253,7 +253,7 @@ class UQ15ToF32:
     Create with defaults:
 
     >>> from doppler.cvt import UQ15ToF32
-    >>> obj = UQ15ToF32(32768.0)
+    >>> obj = UQ15ToF32(scale=32768.0)
 
     """
     def __init__(self, scale: float = ...) -> None: ...
@@ -291,7 +291,7 @@ class ADC:
     Create with defaults:
 
     >>> from doppler.cvt import ADC
-    >>> obj = ADC(16, -10.0, 0)
+    >>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)
 
     """
     def __init__(self, bits: int = ..., dbfs: float = ..., dithering: int = ...) -> None: ...

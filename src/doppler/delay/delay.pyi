@@ -15,7 +15,7 @@ class DelayCf64:
     Create with defaults:
 
     >>> from doppler.delay import DelayCf64
-    >>> obj = DelayCf64(1)
+    >>> obj = DelayCf64(num_taps=1)
 
     """
     def __init__(self, num_taps: int = ...) -> None: ...

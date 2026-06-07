@@ -20,7 +20,7 @@ class FFT:
     Create with defaults:
 
     >>> from doppler.spectral import FFT
-    >>> obj = FFT(1024, -1, 1)
+    >>> obj = FFT(n=1024, sign=-1, nthreads=1)
 
     """
     def __init__(self, n: int = ..., sign: int = ..., nthreads: int = ...) -> None: ...
@@ -118,7 +118,7 @@ class FFT2D:
     Create with defaults:
 
     >>> from doppler.spectral import FFT2D
-    >>> obj = FFT2D(64, 64, -1, 1)
+    >>> obj = FFT2D(ny=64, nx=64, sign=-1, nthreads=1)
 
     """
     def __init__(self, ny: int = ..., nx: int = ..., sign: int = ..., nthreads: int = ...) -> None: ...

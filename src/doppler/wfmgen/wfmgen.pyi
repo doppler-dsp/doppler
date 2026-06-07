@@ -20,7 +20,7 @@ class PN:
     Create with defaults:
 
     >>> from doppler.wfmgen import PN
-    >>> obj = PN(96, 1, 7)
+    >>> obj = PN(poly=96, seed=1, length=7)
 
     """
     def __init__(self, poly: int = ..., seed: int = ..., length: int = ...) -> None: ...
@@ -43,35 +43,36 @@ class Synth:
 
     Parameters
     ----------
-    wtype : int, default 0
-        wtype state variable.
-    nsps : int, default 8
-        nsps state variable.
-    sym_pos : int, default 0
-        sym_pos state variable.
-    cur_re : float, default 1.0
-        cur_re state variable.
-    cur_im : float, default 0.0
-        cur_im state variable.
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk"], default "tone"
+        type constructor parameter.
+    fs : float, default 1000000.0
+        fs constructor parameter.
+    freq : float, default 0.0
+        freq constructor parameter.
+    snr : float, default 100.0
+        snr constructor parameter.
+    snr_mode : Literal["auto", "fs", "ebno", "esno"], default "auto"
+        snr_mode constructor parameter.
+    seed : int, default 1
+        seed constructor parameter.
+    sps : int, default 8
+        sps constructor parameter.
+    pn_length : int, default 7
+        pn_length constructor parameter.
+    pn_poly : int, default 0
+        pn_poly constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.wfmgen import Synth
-    >>> obj = Synth(0, 8, 0, 1.0, 0.0)
+    >>> obj = Synth(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0)
     >>> obj.get_wtype()
     0
     >>> obj.get_nsps()
     8
     >>> obj.get_sym_pos()
-    0
-
-    Reset restores defaults:
-
-    >>> obj.set_wtype(42)
-    >>> obj.reset()
-    >>> obj.get_wtype()
     0
 
     """

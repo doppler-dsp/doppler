@@ -199,10 +199,10 @@ the `wfmgen`/`wavegen` tool is being built on (see `~/.claude/plans`). The
 string-enum binding parses a Python string and maps it to the C enum index, so
 `Obj(kind="tone")` works directly.
 
-### 0.17.0 adoptions — `jm app` output axes (pin: 0.17.0)
+### 0.17.0 adoptions — `jm app` output axes (pin: 0.17.1)
 
 The CI drift gate now pins **0.17.0** (`ci.yml`); `jm_version` is stamped 0.17.0.
-**Always drive doppler with `uvx --from 'just-makeit==0.17.0' just-makeit …`.**
+**Always drive doppler with `uvx --from 'just-makeit==0.17.1' just-makeit …`.**
 
 `jm app` (gh-193) adds three output axes to any cf32 generator/blockwise app
 (the same stream that gets `--sample_type`), byte-identical across all three

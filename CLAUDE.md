@@ -199,6 +199,22 @@ the `wfmgen`/`wavegen` tool is being built on (see `~/.claude/plans`). The
 string-enum binding parses a Python string and maps it to the C enum index, so
 `Obj(kind="tone")` works directly.
 
+### 0.17.0 adoptions — `jm app` output axes (pin: 0.17.0)
+
+The CI drift gate now pins **0.17.0** (`ci.yml`); `jm_version` is stamped 0.17.0.
+**Always drive doppler with `uvx --from 'just-makeit==0.17.0' just-makeit …`.**
+
+`jm app` (gh-193) adds three output axes to any cf32 generator/blockwise app
+(the same stream that gets `--sample_type`), byte-identical across all three
+faces: **`--file-type raw|csv`** (raw interleaved I/Q, or text `I,Q` lines),
+**`--endian le|be`** (big-endian reverses each element), and **`--record FILE`**
+(a JSON record of the fully-resolved run — every flag after defaulting, choice
+flags as their chosen string — for reproducible captures). `wavegen` gets all
+three for free on regeneration. Richer containers (**BLUE type-1000**, **SigMF**,
+**zmq**) deliberately stay application-side in the `wfmcompose` c_dep
+(`wfm_writer.c`, `wfm_sink.c`) — they need sample-rate / segment / transport
+context a generic generator can't know.
+
 ### `ddc_fn` — the functional DDCR API (`no_generate`)
 
 `[module.ddc_fn]` is `no_generate`: a fully hand-written CPython extension

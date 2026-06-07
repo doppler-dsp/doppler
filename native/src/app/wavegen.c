@@ -40,6 +40,28 @@ jm_parse_sample_type(const char *s)
     return -1;
 }
 
+static int
+jm_parse_file_type(const char *s)
+{
+    if (!strcmp(s, "raw")) return 0;
+    if (!strcmp(s, "csv")) return 1;
+    return -1;
+}
+
+static int
+jm_parse_endian(const char *s)
+{
+    if (!strcmp(s, "le")) return 0;
+    if (!strcmp(s, "be")) return 1;
+    return -1;
+}
+
+static const char *const jm_choices_type[] = {"tone", "noise", "pn", "bpsk", "qpsk"};
+static const char *const jm_choices_snr_mode[] = {"auto", "fs", "ebno", "esno"};
+static const char *const jm_choices_sample_type[] = {"cf32", "cf64", "ci32", "ci16", "ci8"};
+static const char *const jm_choices_file_type[] = {"raw", "csv"};
+static const char *const jm_choices_endian[] = {"le", "be"};
+
 #include <complex.h>
 
 /* Clamp v to [-1, 1] and scale to a signed integer of full-scale fs_val. */
@@ -93,6 +115,54 @@ jm_convert_block(const float _Complex *in, size_t n, int st,
         return n * sizeof(float _Complex);
     }
 }
+/* Bytes per I or Q element for sample type st (for big-endian swapping). */
+static size_t
+jm_elem_size(int st)
+{
+    switch (st) {
+    case 1: return sizeof(double);
+    case 2: return sizeof(int32_t);
+    case 3: return sizeof(int16_t);
+    case 4: return sizeof(int8_t);
+    default: return sizeof(float);
+    }
+}
+
+/* Write n cf32 samples in the chosen sample_type/endian/file_type.
+   ftype: 0=raw 1=csv.  endian: 0=little 1=big (raw only). */
+static void
+jm_write_block(FILE *out, const float _Complex *in, size_t n, int st,
+               int endian, int ftype, unsigned char *bytes)
+{
+    if (ftype == 1) { /* csv: one I,Q line per sample */
+        for (size_t i = 0; i < n; i++) {
+            float re = crealf(in[i]), im = cimagf(in[i]);
+            if (st == 0)
+                fprintf(out, "%0.9f,%0.9f\n", (double)re, (double)im);
+            else if (st == 1)
+                fprintf(out, "%0.17g,%0.17g\n", (double)re, (double)im);
+            else {
+                double sc = (st == 2) ? 2147483647.0
+                            : (st == 3) ? 32767.0
+                                        : 127.0;
+                fprintf(out, "%ld,%ld\n", jm_q(re, sc), jm_q(im, sc));
+            }
+        }
+        return;
+    }
+    size_t nb = jm_convert_block(in, n, st, bytes);
+    if (endian == 1) { /* big-endian: reverse each element's bytes */
+        size_t es = jm_elem_size(st);
+        if (es > 1)
+            for (size_t off = 0; off + es <= nb; off += es)
+                for (size_t a = 0, b = es - 1; a < b; a++, b--) {
+                    unsigned char t = bytes[off + a];
+                    bytes[off + a] = bytes[off + b];
+                    bytes[off + b] = t;
+                }
+    }
+    fwrite(bytes, 1, nb, out);
+}
 
 int
 main(int argc, char *argv[])
@@ -109,11 +179,14 @@ main(int argc, char *argv[])
     uint32_t pn_poly = 0;
     size_t count = 1024;
     int sample_type = 0;
+    int file_type = 0;
+    int endian = 0;
     const char *out_path = NULL;
+    const char *record_path = NULL;
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
-            fputs("usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--output FILE]\n  --type tone|noise|pn|bpsk|qpsk\n  --fs V\n  --freq V\n  --snr V\n  --snr_mode auto|fs|ebno|esno\n  --seed V\n  --sps V\n  --pn_length V\n  --pn_poly V\n  --count V                 number of samples to generate\n  --sample_type cf32|cf64|ci32|ci16|ci8  output wire sample type\n  --output, -o FILE         output file (default: stdout)\n", stdout);
+            fputs("usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n  --type tone|noise|pn|bpsk|qpsk\n  --fs V\n  --freq V\n  --snr V\n  --snr_mode auto|fs|ebno|esno\n  --seed V\n  --sps V\n  --pn_length V\n  --pn_poly V\n  --count V                 number of samples to generate\n  --sample_type cf32|cf64|ci32|ci16|ci8  output wire sample type\n  --file_type raw|csv       output container\n  --endian le|be            byte order (raw only)\n  --output, -o FILE         output file (default: stdout)\n  --record FILE             write a JSON record of the resolved run\n", stdout);
             return 0;
         } else if (!strcmp(argv[i], "--type") && i + 1 < argc) {
             type = jm_parse_type(argv[++i]);
@@ -149,11 +222,25 @@ main(int argc, char *argv[])
                 fprintf(stderr, "error: --sample_type must be one of: cf32 cf64 ci32 ci16 ci8\n");
                 return 2;
             }
+        } else if (!strcmp(argv[i], "--file_type") && i + 1 < argc) {
+            file_type = jm_parse_file_type(argv[++i]);
+            if (file_type < 0) {
+                fprintf(stderr, "error: --file_type must be one of: raw csv\n");
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--endian") && i + 1 < argc) {
+            endian = jm_parse_endian(argv[++i]);
+            if (endian < 0) {
+                fprintf(stderr, "error: --endian must be one of: le be\n");
+                return 2;
+            }
         } else if ((!strcmp(argv[i], "--output") || !strcmp(argv[i], "-o"))
                    && i + 1 < argc) {
             out_path = argv[++i];
+        } else if (!strcmp(argv[i], "--record") && i + 1 < argc) {
+            record_path = argv[++i];
         } else {
-            fprintf(stderr, "usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--output FILE]\n");
+            fprintf(stderr, "usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n");
             return 2;
         }
     }
@@ -172,6 +259,28 @@ main(int argc, char *argv[])
     }
 
     /* --- process --------------------------------------------------------- */
+    if (record_path) {
+        FILE *rec = fopen(record_path, "w");
+        if (rec) {
+            fprintf(rec, "{\"tool\":\"wavegen\",\"version\":\"0.1.0\"");
+            fprintf(rec, ",\"type\":\"%s\"", jm_choices_type[type]);
+            fprintf(rec, ",\"fs\":%g", (double)fs);
+            fprintf(rec, ",\"freq\":%g", (double)freq);
+            fprintf(rec, ",\"snr\":%g", (double)snr);
+            fprintf(rec, ",\"snr_mode\":\"%s\"", jm_choices_snr_mode[snr_mode]);
+            fprintf(rec, ",\"seed\":%lu", (unsigned long)seed);
+            fprintf(rec, ",\"sps\":%d", (int)sps);
+            fprintf(rec, ",\"pn_length\":%d", (int)pn_length);
+            fprintf(rec, ",\"pn_poly\":%lu", (unsigned long)pn_poly);
+            fprintf(rec, ",\"count\":%zu", count);
+            fprintf(rec, ",\"sample_type\":\"%s\"", jm_choices_sample_type[sample_type]);
+            fprintf(rec, ",\"file_type\":\"%s\"", jm_choices_file_type[file_type]);
+            fprintf(rec, ",\"endian\":\"%s\"", jm_choices_endian[endian]);
+            fprintf(rec, "}\n");
+            fclose(rec);
+        }
+    }
+
     float _Complex outbuf[4096];
     unsigned char jm_bytes[4096 * sizeof(double _Complex)];
     size_t produced = 0;
@@ -179,8 +288,7 @@ main(int argc, char *argv[])
         size_t k = (count - produced) < 4096
                        ? (count - produced) : (size_t)4096;
         synth_steps(state, outbuf, k);
-        size_t nb = jm_convert_block(outbuf, k, sample_type, jm_bytes);
-        fwrite(jm_bytes, 1, nb, out);
+        jm_write_block(out, outbuf, k, sample_type, endian, file_type, jm_bytes);
         produced += k;
     }
 

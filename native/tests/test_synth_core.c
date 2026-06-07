@@ -34,6 +34,33 @@ int main(void)
     /* reset */
     synth_reset(obj);
 
+    /* ── clean (snr >= SYNTH_SNR_CLEAN) generates no AWGN; baseband no LO ── */
+    {
+        /* clean tone with a freq offset: LO present, no AWGN */
+        synth_state_t *c = synth_create(SYNTH_TONE, 1e6, 1e5, 100.0, 0, 1, 8,
+                                        7, 0, 0);
+        CHECK(c && c->awgn == NULL && c->lo != NULL);
+        if (c) synth_destroy(c);
+
+        /* noisy tone: AWGN present */
+        synth_state_t *nz = synth_create(SYNTH_TONE, 1e6, 1e5, 10.0, 0, 1, 8,
+                                         7, 0, 0);
+        CHECK(nz && nz->awgn != NULL);
+        if (nz) synth_destroy(nz);
+
+        /* baseband (freq 0): no LO */
+        synth_state_t *bb = synth_create(SYNTH_TONE, 1e6, 0.0, 100.0, 0, 1, 8,
+                                         7, 0, 0);
+        CHECK(bb && bb->lo == NULL && bb->awgn == NULL);
+        if (bb) synth_destroy(bb);
+
+        /* noise type always has AWGN, even at high snr */
+        synth_state_t *ns = synth_create(SYNTH_NOISE, 1e6, 0.0, 100.0, 0, 1, 8,
+                                         7, 0, 0);
+        CHECK(ns && ns->awgn != NULL);
+        if (ns) synth_destroy(ns);
+    }
+
     synth_destroy(obj);
     if (_fails) {
         fprintf(stderr, "test_synth_core FAILED (%d)\n", _fails);

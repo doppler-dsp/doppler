@@ -111,10 +111,13 @@ The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 | `ebno` | **Eb/No** — energy per *bit* over noise PSD | link-budget work |
 | `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk` | the sensible default |
 
-The default `--snr 100` is effectively clean — lower it to add noise. The noise
-amplitude is derived as `amp = sqrt(1 / (2·10^(snr_fs/10)))`, where Es/No and
-Eb/No are first converted to an over-`fs` SNR using `10·log10(sps)` (and, for
-Eb/No, the bits/symbol: 1 for BPSK/PN, 2 for QPSK).
+**`--snr 100` (the default) is *clean*** — `snr ≥ 100 dB` generates **no AWGN at
+all**, so a clean waveform pays no noise cost. Lower `--snr` to add noise; then
+the amplitude is `amp = sqrt(1 / (2·10^(snr_fs/10)))`, where Es/No and Eb/No are
+first converted to an over-`fs` SNR using `10·log10(sps)` (and, for Eb/No, the
+bits/symbol: 1 for BPSK/PN, 2 for QPSK). (`--type noise` always generates AWGN.)
+Likewise **`--freq 0` skips the LO** — the carrier is a constant 1 — so a clean
+baseband waveform is pure signal generation.
 
 !!! example "Same QPSK at three references"
     ```sh

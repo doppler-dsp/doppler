@@ -33,6 +33,12 @@ enum {
     SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
 };
 
+/* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
+ * — a clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
+ * and is numerically clean anyway. Lower --snr to add noise. (type=noise always
+ * generates AWGN regardless.) */
+#define SYNTH_SNR_CLEAN 100.0
+
 /**
  * @brief Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the
  * given register length n, in pn_core's right-shift Galois convention. Returns

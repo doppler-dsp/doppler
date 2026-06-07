@@ -100,9 +100,54 @@ void synth_steps(
     float complex          *output,
     size_t               n)
 {
-    /* #pragma omp simd */
-    for (size_t i = 0; i < n; i++)
-        output[i] = synth_step(state);
+    /* Batched generation: the LO carrier (NCO) and AWGN are produced a block at
+     * a time so their vectorized (libmvec / AVX-512) paths run, instead of one
+     * sample per call. Only the symbol timing (PN/PSK) stays sequential — it is
+     * cheap integer work — and the final multiply/add is data-parallel. Output
+     * is identical to a per-sample synth_step() loop. */
+    enum { CH = 2048 }; /* <= LO_MAX_OUT; stack carrier+noise = 32 KiB */
+    float complex carrier[CH];
+    float complex noise[CH];
+    const int has_lo = state->lo != NULL;
+    const int has_awgn = state->awgn != NULL;
+    const int modulated = state->wtype >= SYNTH_PN;
+    const int qpsk = state->wtype == SYNTH_QPSK;
+    const int nsps = state->nsps;
+    int sym_pos = state->sym_pos;
+    float cre = state->cur_re, cim = state->cur_im;
+
+    for (size_t done = 0; done < n;) {
+        size_t m = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
+        if (has_lo)
+            lo_steps(state->lo, m, carrier);
+        if (has_awgn)
+            awgn_generate(state->awgn, m, noise);
+        float complex *out = output + done;
+        for (size_t i = 0; i < m; i++) {
+            if (modulated && sym_pos == 0) {
+                if (qpsk) {
+                    uint8_t b0 = pn_step(state->pn);
+                    uint8_t b1 = pn_step(state->pn);
+                    const float s = 0.70710678118654752f;
+                    cre = b0 ? -s : s;
+                    cim = b1 ? -s : s;
+                } else {
+                    uint8_t b = pn_step(state->pn);
+                    cre = b ? -1.0f : 1.0f;
+                    cim = 0.0f;
+                }
+            }
+            if (modulated && ++sym_pos >= nsps)
+                sym_pos = 0;
+            float complex sym = cre + cim * I;
+            float complex v = has_lo ? sym * carrier[i] : sym;
+            out[i] = has_awgn ? v + noise[i] : v;
+        }
+        done += m;
+    }
+    state->sym_pos = sym_pos;
+    state->cur_re = cre;
+    state->cur_im = cim;
 }
 
 int

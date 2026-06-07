@@ -72,31 +72,51 @@ grow(wfm_writer_t *w, size_t need)
     return 0;
 }
 
-/* Write the 512-byte BLUE type-1000 header. */
-static int
-write_blue_header(wfm_writer_t *w, double fs, size_t total_samples)
+/* Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
+   data_start = 512 for an attached file (data follows the header), 0 for a
+   detached file (data is a separate .det starting at byte 0). detached sets the
+   HCB `detached` field. All other standard fields are written (zero by default).
+   The header is laid out in head_rep byte order (LE "EEEI" / BE "IEEE"). */
+int
+wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs, double fc,
+                   double data_start, size_t total_samples, int detached)
 {
-    uint8_t h[512] = {0};
-    int be = w->be;
-    memcpy(h + 0, "BLUE", 4);
+    (void)fc; /* no standard centre-frequency field in a type-1000 HCB */
+    if (!fp || sample_type < 0 || sample_type > 4)
+        return -1;
+    int be = endian ? 1 : 0;
+    uint8_t h[512] = {0}; /* every standard field defaults to 0 */
+    int32_t i32;
+    double f64;
+
+    /* ── main header (bytes 0..255) ─────────────────────────────────────── */
+    memcpy(h + 0, "BLUE", 4);               /* version_control */
     memcpy(h + 4, be ? "IEEE" : "EEEI", 4); /* head_rep */
     memcpy(h + 8, be ? "IEEE" : "EEEI", 4); /* data_rep */
-    double data_start = 512.0;
-    put_at(h, 32, &data_start, 8, be);
-    double data_size = (double)(total_samples * BPS[w->stype]);
-    put_at(h, 40, &data_size, 8, be);
-    int32_t type = 1000;
-    put_at(h, 48, &type, 4, be);
-    h[52] = 'C'; /* complex mode */
-    h[53] = FMTCH[w->stype];
-    /* type-1000 adjunct at offset 256 */
-    double xstart = 0.0;
-    put_at(h, 256, &xstart, 8, be);
-    double xdelta = (fs != 0.0) ? 1.0 / fs : 0.0;
-    put_at(h, 264, &xdelta, 8, be);
-    int32_t xunits = 1; /* seconds (time) */
-    put_at(h, 272, &xunits, 4, be);
-    return fwrite(h, 1, 512, w->fp) == 512 ? 0 : -1;
+    i32 = detached ? 1 : 0;
+    put_at(h, 12, &i32, 4, be);             /* detached */
+    /* protected (16), pipe (20), ext_start (24), ext_size (28) = 0 */
+    put_at(h, 32, &data_start, 8, be);      /* data_start (bytes) */
+    f64 = (double)(total_samples * BPS[sample_type]);
+    put_at(h, 40, &f64, 8, be);             /* data_size (bytes) */
+    i32 = 1000;
+    put_at(h, 48, &i32, 4, be);             /* type = 1000 (1-D vector) */
+    h[52] = 'C';                            /* format mode: complex */
+    h[53] = FMTCH[sample_type];             /* format type: B/I/L/F/D */
+    /* flagmask (54), timecode (56), inlet (64), outlets (66), outmask (68),
+       pipeloc (72), pipesize (76), in_byte (80), out_byte (88),
+       outbytes[8] (96), keylength (160), keywords (164) = 0 */
+
+    /* ── type-1000 adjunct (bytes 256..511) ─────────────────────────────── */
+    f64 = 0.0;
+    put_at(h, 256, &f64, 8, be);            /* xstart */
+    f64 = (fs != 0.0) ? 1.0 / fs : 0.0;
+    put_at(h, 264, &f64, 8, be);            /* xdelta = 1/fs */
+    i32 = 1;
+    put_at(h, 272, &i32, 4, be);            /* xunits = 1 (seconds/time) */
+    /* subsize (276) = 0 (type-2000 only) */
+
+    return fwrite(h, 1, 512, fp) == 512 ? 0 : -1;
 }
 
 wfm_writer_t *
@@ -113,7 +133,9 @@ wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
     w->ft = ft;
     w->stype = sample_type;
     w->be = endian ? 1 : 0;
-    if (ft == WFM_FT_BLUE && write_blue_header(w, fs, total_samples)) {
+    if (ft == WFM_FT_BLUE
+        && wfm_blue_write_hcb(fp, sample_type, w->be, fs, fc, 512.0,
+                              total_samples, 0)) {
         free(w);
         return NULL;
     }

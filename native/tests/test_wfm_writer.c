@@ -106,6 +106,33 @@ main(void)
         double data_size;
         memcpy(&data_size, bytes + 40, 8);
         CHECK(data_size == 16.0, "blue data_size patched (2*cf32=16)");
+        int32_t det;
+        memcpy(&det, bytes + 12, 4);
+        CHECK(det == 0, "blue attached: detached = 0");
+        double dstart;
+        memcpy(&dstart, bytes + 32, 8);
+        CHECK(dstart == 512.0, "blue attached: data_start = 512");
+        fclose(fp);
+    }
+
+    /* ── BLUE detached HCB: 512-byte header only, detached=1, data_start=0 ── */
+    {
+        FILE *fp = tmpfile();
+        /* ci16, 100 samples, detached */
+        CHECK(wfm_blue_write_hcb(fp, 3, 0, 1e6, 0, 0.0, 100, 1) == 0,
+              "detached hcb write");
+        size_t nb = slurp(fp, bytes, sizeof bytes);
+        CHECK(nb == 512, "detached hcb is header-only (no data)");
+        CHECK(memcmp(bytes, "BLUE", 4) == 0, "detached magic");
+        int32_t det;
+        memcpy(&det, bytes + 12, 4);
+        CHECK(det == 1, "detached flag set");
+        double dstart, dsize;
+        memcpy(&dstart, bytes + 32, 8);
+        memcpy(&dsize, bytes + 40, 8);
+        CHECK(dstart == 0.0, "detached data_start = 0");
+        CHECK(dsize == 400.0, "detached data_size (100 * ci16 = 400)");
+        CHECK(bytes[52] == 'C' && bytes[53] == 'I', "detached format CI");
         fclose(fp);
     }
 

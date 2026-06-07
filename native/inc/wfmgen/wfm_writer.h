@@ -73,6 +73,29 @@ size_t wfm_writer_write(wfm_writer_t *w, const float _Complex *iq, size_t n);
 int wfm_writer_close(wfm_writer_t *w);
 
 /**
+ * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
+ *
+ * Used for the `blue` container — both attached (the writer calls this with
+ * `data_start = 512`, `detached = 0`, then streams the data after it) and
+ * detached (the caller writes the data to a separate `.det` file and this HCB to
+ * a `.hdr` file with `data_start = 0`, `detached = 1`). Every standard field is
+ * written; the header byte order follows `endian`.
+ *
+ * @param fp            destination (binary).
+ * @param sample_type   wire type (wavegen order) → BLUE format char C{B,I,L,F,D}.
+ * @param endian        0 little (`EEEI`) / 1 big (`IEEE`).
+ * @param fs            sample rate (Hz) → `xdelta = 1/fs`.
+ * @param fc            reserved (no standard type-1000 field).
+ * @param data_start    `data_start` field: 512 attached, 0 detached.
+ * @param total_samples complex-sample count → `data_size`.
+ * @param detached      non-zero sets the HCB `detached` flag.
+ * @return 0 on success, non-zero on a write error.
+ */
+int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
+                       double fc, double data_start, size_t total_samples,
+                       int detached);
+
+/**
  * @brief Build a SigMF `.sigmf-meta` JSON document for a generated capture.
  *
  * `global` carries core:datatype (from sample_type+endian, e.g. "ci16_le"),

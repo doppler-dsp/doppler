@@ -96,6 +96,7 @@ The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 | `--off N` | trailing off-time (zeros) after the segment |
 | `--repeat` | loop the whole sequence |
 | `--continuous` | never stop (implies repeat) — for streaming |
+| `--detached` | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data) |
 
 ---
 
@@ -160,9 +161,13 @@ and `--endian` (byte order).
 | `blue`  | **X-Midas / REDHAWK BLUE type-1000** | *(`wfmgen` only)* self-describing 512-byte header |
 | `sigmf` | `<base>.sigmf-data` + `<base>.sigmf-meta` | *(`wfmgen` only)* one annotation per segment |
 
-**BLUE type-1000** packs everything into a 512-byte header so one file is fully
-self-describing: `data_rep`←`--endian`, `format` (`CB`/`CI`/`CL`/`CF`/`CD`)←
-`--sample_type`, and `xdelta = 1/fs`.
+**BLUE type-1000** writes a complete 512-byte X-Midas/REDHAWK Header Control
+Block so one file is fully self-describing: `data_rep`←`--endian`, `format`
+(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample_type`, and `xdelta = 1/fs`. Add
+**`--detached`** to split it into a header + data pair — `<out>.hdr` (the HCB,
+with `detached=1` and `data_start=0`) and `<out>.det` (the raw samples). Detached
+output requires `--output` and a finite (non-`--continuous`) run; attached mode
+keeps whatever extension you give `-o` (`.blue`/`.prm`/`.tmp`).
 
 **SigMF** writes the samples as `raw` into `<base>.sigmf-data` and a JSON sidecar
 `<base>.sigmf-meta` with `core:datatype`/`core:sample_rate`, a capture at `--fc`,

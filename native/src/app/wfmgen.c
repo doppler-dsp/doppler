@@ -50,7 +50,7 @@ static const char USAGE[] =
     "[--lfsr galois|fibonacci]\n"
     "  [--count N] [--off N] [--repeat] [--continuous]\n"
     "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv|blue|sigmf]\n"
-    "  [--endian le|be] [--output FILE|zmq://EP] [--record FILE]\n";
+    "  [--endian le|be] [--detached] [--output FILE|zmq://EP] [--record FILE]\n";
 
 int
 main(int argc, char *argv[])
@@ -59,7 +59,7 @@ main(int argc, char *argv[])
     wfm_segment_t seg = {.type = 0, .fs = 1e6, .freq = 0.0, .snr = 100.0,
                          .snr_mode = 0, .seed = 1, .sps = 8, .pn_length = 7,
                          .pn_poly = 0, .num_samples = 1024, .off_samples = 0};
-    int repeat = 0, continuous = 0;
+    int repeat = 0, continuous = 0, detached = 0;
     int sample_type = 0, file_type = 0, endian = 0;
     double fc = 0.0;
     const char *from_file = NULL, *out_path = NULL, *record_path = NULL;
@@ -120,6 +120,8 @@ main(int argc, char *argv[])
             repeat = 1;
         } else if (!strcmp(a, "--continuous")) {
             continuous = 1;
+        } else if (!strcmp(a, "--detached")) {
+            detached = 1;
         } else if (!strcmp(a, "--output") || !strcmp(a, "-o")) {
             out_path = NEXT();
         } else if (!strcmp(a, "--record")) {
@@ -175,6 +177,50 @@ main(int argc, char *argv[])
                     break;
             }
             wfm_zmq_sink_close(sink);
+        }
+    } else if (file_type == 2 && detached) {
+        /* BLUE detached: raw data → <out>.det, full HCB → <out>.hdr. */
+        if (!out_path) {
+            fprintf(stderr, "error: --detached needs --output\n");
+            wfm_compose_destroy(comp);
+            return 2;
+        }
+        if (c) {
+            fprintf(stderr, "error: --detached requires finite output "
+                            "(not --continuous)\n");
+            wfm_compose_destroy(comp);
+            return 2;
+        }
+        char det_path[1024];
+        snprintf(det_path, sizeof det_path, "%s.det", out_path);
+        FILE *df = fopen(det_path, "wb");
+        if (!df) {
+            fprintf(stderr, "error: cannot open %s\n", det_path);
+            rc = 1;
+        } else {
+            wfm_writer_t *w =
+                wfm_writer_open(df, WFM_FT_RAW, sample_type, endian, fs, fc, 0);
+            size_t total = 0;
+            if (w) {
+                while ((n = wfm_compose_execute(comp, buf, BLK)) > 0) {
+                    wfm_writer_write(w, buf, n);
+                    total += n;
+                    if (n < BLK)
+                        break;
+                }
+                wfm_writer_close(w);
+            }
+            fclose(df);
+            char hdr_path[1024];
+            snprintf(hdr_path, sizeof hdr_path, "%s.hdr", out_path);
+            FILE *hf = fopen(hdr_path, "wb");
+            if (hf) {
+                wfm_blue_write_hcb(hf, sample_type, endian, fs, fc, 0.0, total,
+                                   1);
+                fclose(hf);
+            } else {
+                rc = 1;
+            }
         }
     } else {
         /* file / stdout container. SigMF writes <base>.sigmf-data + -meta. */

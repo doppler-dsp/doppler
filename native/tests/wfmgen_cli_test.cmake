@@ -70,4 +70,19 @@ expect_size(wg_cap.sigmf-data 32)  # 8 samples * ci16 (4 bytes/sample)
 expect_contains(wg_cap.sigmf-meta "ci16_le")
 expect_contains(wg_cap.sigmf-meta "qpsk")
 
+# 8. Fibonacci LFSR differs from Galois
+run(--type pn --pn_length 7 --sps 1 --count 127 --lfsr galois    -o wg_g.bin)
+run(--type pn --pn_length 7 --sps 1 --count 127 --lfsr fibonacci -o wg_f.bin)
+file(MD5 wg_g.bin h_g)
+file(MD5 wg_f.bin h_f)
+if(h_g STREQUAL h_f)
+    message(FATAL_ERROR "galois and fibonacci produced identical output")
+endif()
+
+# 9. BLUE detached: <base>.hdr (512-byte HCB) + <base>.det (raw data)
+run(--type tone --count 8 --sample_type cf32 --file_type blue --detached -o wg_det)
+expect_size(wg_det.hdr 512)         # header only
+expect_size(wg_det.det 64)          # 8 * cf32 (8 bytes/sample), no header
+expect_contains(wg_det.hdr "BLUE")
+
 message(STATUS "wfmgen_cli: OK")

@@ -65,11 +65,11 @@ The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 
 | Flag | Type | Default | Meaning |
 |---|---|---|---|
-| `--type` | `tone\|noise\|pn\|bpsk\|qpsk` | `tone` | waveform |
+| `--type` | `tone noise pn bpsk qpsk` | `tone` | waveform |
 | `--fs` | float (Hz) | `1e6` | sample rate |
 | `--freq` | float (Hz) | `0` | frequency offset from baseband (mixed by the LO) |
 | `--snr` | float (dB) | `100` | SNR; metric chosen by `--snr_mode` (≈clean at 100) |
-| `--snr_mode` | `auto\|fs\|ebno\|esno` | `auto` | how `--snr` is interpreted (see below) |
+| `--snr_mode` | `auto fs ebno esno` | `auto` | how `--snr` is interpreted (see below) |
 | `--seed` | uint32 | `1` | PRNG / LFSR seed (deterministic) |
 | `--sps` | int | `8` | samples per symbol (`*psk`) / per chip (`pn`) |
 | `--pn_length` | int | `7` | LFSR register length → period `2ⁿ−1` |

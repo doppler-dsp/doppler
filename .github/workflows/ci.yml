@@ -279,7 +279,7 @@ jobs:
         echo "OK (specan_changes=$SPECAN frames_changes=$FRAMES)"
 
   # ------------------------------------------------------------------
-  # Zensical documentation build
+  # Documentation build (mkdocs-material)
   # ------------------------------------------------------------------
   docs:
     name: Docs
@@ -297,7 +297,7 @@ jobs:
       run: uv sync --group dev
 
     - name: Build docs
-      run: uv run zensical build --clean
+      run: uv run mkdocs build
 
   # ------------------------------------------------------------------
   # Docker image build + container tests

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+<!--
+  Inject the brand kit's head tags Material doesn't emit by default: a static
+  Open Graph / Twitter card image (docs/assets/og-image.png), the apple-touch
+  icon, the web manifest, and the theme colour. (We use the pre-rendered
+  og-image instead of Material's `social` plugin to avoid its cairo/Pango
+  system dependencies.)
+-->
+{% block extrahead %}
+  {% set og_image = config.site_url ~ "assets/og-image.png" %}
+  {% set title = page.title ~ " — " ~ config.site_name if page and page.title and not page.is_homepage else config.site_name %}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ config.site_description }}">
+  <meta property="og:image" content="{{ og_image }}">
+  {% if page and page.canonical_url %}<meta property="og:url" content="{{ page.canonical_url }}">{% endif %}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ config.site_description }}">
+  <meta name="twitter:image" content="{{ og_image }}">
+  <link rel="apple-touch-icon" href="{{ 'assets/apple-touch-icon.png' | url }}">
+  <link rel="manifest" href="{{ 'assets/site.webmanifest' | url }}">
+  <meta name="theme-color" content="#673AB7">
+{% endblock %}

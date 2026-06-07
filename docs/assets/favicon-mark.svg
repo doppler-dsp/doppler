@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="shift" x1="0" y1="0" x2="512" y2="0"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#2979FF"/>
+      <stop offset="0.52" stop-color="#7C4DFF"/>
+      <stop offset="1"    stop-color="#FF3D6E"/>
+    </linearGradient>
+    <clipPath id="b"><circle cx="256" cy="256" r="256"/></clipPath>
+  </defs>
+  <!-- Simplified mark for tiny sizes: bold, full-opacity rings + a large
+       emitter so the "radiating source" reads at 16 px. Disc carries the
+       shift gradient; rings keep the left-shifted centers (compression). -->
+  <circle cx="256" cy="256" r="256" fill="url(#shift)"/>
+  <g clip-path="url(#b)">
+    <circle cx="206" cy="256" r="156" fill="none" stroke="#fff" stroke-width="46"/>
+    <circle cx="238" cy="256" r="82"  fill="none" stroke="#fff" stroke-width="46"/>
+  </g>
+  <circle cx="276" cy="256" r="60" fill="#fff"/>
+</svg>

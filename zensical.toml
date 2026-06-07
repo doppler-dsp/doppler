@@ -93,7 +93,7 @@ nav = [
 # ----------------------------------------------------------------------------
 [project.theme]
 logo     = "assets/logo.svg"
-favicon  = "assets/logo.svg"
+favicon  = "assets/favicon.ico"
 language = "en"
 features = [
   "content.code.annotate",

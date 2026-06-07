@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/assets/wordmark.png" alt="doppler — signal, shifted" width="540">
+  <img src="https://raw.githubusercontent.com/doppler-dsp/doppler/main/docs/assets/wordmark.png" alt="doppler — signal, shifted" width="560">
 </p>
-
-<h1 align="center">doppler</h1>
 
 <p align="center"><strong>Dead-simple, ultra-fast digital signal processing.</strong></p>
 

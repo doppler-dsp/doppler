@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 380" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1010 360" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
   <defs>
     <!-- The Doppler shift itself: approaching (blue) → brand purple →
          receding (red), left to right across the wordmark. -->
@@ -14,7 +14,6 @@
       <stop offset="1"   stop-color="#1657D6"/>
     </radialGradient>
     <clipPath id="badge"><circle cx="256" cy="256" r="254"/></clipPath>
-    <!-- soft glow for the emitter -->
     <radialGradient id="spark" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0"   stop-color="#ffffff"/>
       <stop offset="0.6" stop-color="#ffffff"/>
@@ -22,10 +21,9 @@
     </radialGradient>
   </defs>
 
-  <!-- ── Mark: the moving emitter + compressed wavefronts ───────────────── -->
-  <g transform="translate(26,62) scale(0.56)">
+  <!-- ── Mark (75% of the previous size) ────────────────────────────────── -->
+  <g transform="translate(22,72) scale(0.42)">
     <circle cx="256" cy="256" r="256" fill="url(#disc)"/>
-    <!-- subtle top highlight rim -->
     <circle cx="256" cy="256" r="248" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.18"/>
     <g clip-path="url(#badge)">
       <circle cx="200" cy="256" r="190" fill="none" stroke="#fff" stroke-width="17" opacity="0.30"/>
@@ -38,11 +36,11 @@
   </g>
 
   <!-- ── Wordmark ───────────────────────────────────────────────────────── -->
-  <text x="338" y="240" font-size="208" font-weight="800"
+  <text x="262" y="236" font-size="208" font-weight="800"
         letter-spacing="-8" fill="url(#shift)">doppler</text>
-  <!-- stretched to span "doppler" exactly, so the tagline gradient (signal=blue
-       → shifted=red) aligns edge-to-edge under the wordmark gradient. -->
-  <text x="346" y="332" font-size="43" font-weight="600"
+  <!-- "signal → shifted" stretched to span "doppler" exactly, so the tagline
+       gradient (signal=blue → shifted=red) aligns under the wordmark. -->
+  <text x="270" y="322" font-size="43" font-weight="600"
         textLength="704" lengthAdjust="spacing"
         fill="url(#shift)">signal &#8594; shifted</text>
 </svg>

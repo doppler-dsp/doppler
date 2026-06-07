@@ -49,8 +49,16 @@
 #include <math.h>
 #include <stdlib.h>
 
-#ifdef __AVX512F__
+/* Runtime-dispatched AVX-512 path. Compiled on any x86-64 GCC/Clang build —
+ * including the distribution-safe (x86-64-v2) wheel — by giving the SIMD
+ * functions a per-function `target` attribute, then selecting them at run time
+ * via __builtin_cpu_supports(). The AVX-512 code is present in the binary but
+ * only *executed* on CPUs that support it, so there is no SIGILL risk on older
+ * hardware (which takes the scalar path). */
+#if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
+#define AWGN_X86_DISPATCH 1
 #include <immintrin.h>
+#define AWGN_AVX512_TARGET __attribute__((target("avx512f,avx512dq,avx2,fma")))
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -225,7 +233,7 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
 /* Generate — AVX-512 path                                            */
 /* ================================================================== */
 
-#ifdef __AVX512F__
+#ifdef AWGN_X86_DISPATCH
 
 /*
  * _ZGVdN8v_logf: glibc libmvec 8-wide float32 log (AVX2).
@@ -233,9 +241,13 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
  * so the AVX-512 fast path still compiles on macOS and Windows.
  */
 #ifdef __linux__
-extern __m256 _ZGVdN8v_logf (__m256);
+/* Weak: the distribution-safe wheel does not hard-link libmvec, so on an old
+ * glibc with no vector-math provider this stays unresolved (== NULL) and the
+ * dispatcher falls back to scalar — the .so still loads. On modern glibc the
+ * symbol resolves (libmvec / merged libm) and the AVX-512 path runs. */
+extern __m256 _ZGVdN8v_logf (__m256) __attribute__ ((weak));
 #else
-static inline __m256
+AWGN_AVX512_TARGET static inline __m256
 _ZGVdN8v_logf (__m256 x)
 {
   float v[8];
@@ -250,7 +262,7 @@ _ZGVdN8v_logf (__m256 x)
  * vs[word][stream] is transposed into __m512i s[4] before the loop and
  * written back after.
  */
-static inline __m512i
+AWGN_AVX512_TARGET static inline __m512i
 xoshiro8_next (__m512i s[4])
 {
   __m512i sum = _mm512_add_epi64 (s[0], s[3]);
@@ -269,7 +281,7 @@ xoshiro8_next (__m512i s[4])
   return r;
 }
 
-static void
+AWGN_AVX512_TARGET static void
 generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
 {
   const float amp = state->amplitude;
@@ -327,7 +339,7 @@ generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
     generate_scalar (state, n - i, out + i);
 }
 
-#endif /* __AVX512F__ */
+#endif /* AWGN_X86_DISPATCH */
 
 /* ================================================================== */
 /* Public dispatcher                                                   */
@@ -336,11 +348,21 @@ generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
 size_t
 awgn_generate (awgn_state_t *state, size_t n, float complex *out)
 {
-#ifdef __AVX512F__
-  generate_avx512 (state, n, out);
-#else
-  generate_scalar (state, n, out);
+#ifdef AWGN_X86_DISPATCH
+  /* Cache the one-time probe: need both AVX-512 *and* a resolved vector-log
+   * (weak symbol) — features don't change at run time. */
+  static int use_avx512 = -1;
+  if (use_avx512 < 0)
+    use_avx512 = (__builtin_cpu_supports ("avx512f") && _ZGVdN8v_logf != NULL)
+                     ? 1
+                     : 0;
+  if (use_avx512)
+    {
+      generate_avx512 (state, n, out);
+      return n;
+    }
 #endif
+  generate_scalar (state, n, out);
   return n;
 }
 

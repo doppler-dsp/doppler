@@ -79,4 +79,26 @@ if(NOT WIN32)
     target_include_directories(test_wfm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
+
+    # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / zmq / record).
+    #    Hand-written (a composer is not a single-object jm-app generator); thin
+    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (zmq). Target
+    #    is wfmgen_cli (the module target already owns the name `wfmgen`); the
+    #    binary output is `wfmgen`. ───────────────────────────────────────────
+    add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
+    set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
+    target_link_libraries(wfmgen_cli PRIVATE
+        wfm_compose_core wfm_writer_core wfm_sink_core wfm_cjson
+        synth_core lo_core awgn_core pn_core
+        $<TARGET_OBJECTS:stream_core_obj>
+        zmq_vendor_static
+        Threads::Threads stdc++ m)
+    target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+    install(TARGETS wfmgen_cli DESTINATION bin)
+
+    # CLI integration test (drives the built binary, checks byte output).
+    add_test(NAME wfmgen_cli COMMAND ${CMAKE_COMMAND}
+        -DEXE=$<TARGET_FILE:wfmgen_cli>
+        -DWAVEGEN=$<TARGET_FILE:wavegen>
+        -P ${CMAKE_SOURCE_DIR}/native/tests/wfmgen_cli_test.cmake)
 endif()

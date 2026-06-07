@@ -117,6 +117,19 @@ wfm_compose_execute(wfm_compose_state_t *state, float complex *out, size_t max)
     return i;
 }
 
+const wfm_segment_t *
+wfm_compose_segments(const wfm_compose_state_t *state, size_t *n_out,
+                     int *repeat, int *continuous)
+{
+    if (n_out)
+        *n_out = state->n_segs;
+    if (repeat)
+        *repeat = state->repeat;
+    if (continuous)
+        *continuous = state->continuous;
+    return state->segs;
+}
+
 void
 wfm_compose_destroy(wfm_compose_state_t *state)
 {

@@ -86,6 +86,18 @@ size_t wfm_compose_execute(
 /** @brief Destroy a composer and its active synth. @param state May be NULL. */
 void wfm_compose_destroy(wfm_compose_state_t *state);
 
+/**
+ * @brief Borrow the composer's stored segment list (for --record / SigMF).
+ * @param n_out      receives the segment count.
+ * @param repeat     receives the repeat flag (may be NULL).
+ * @param continuous receives the continuous flag (may be NULL).
+ * @return Pointer to the internal segments (owned by the composer; valid until
+ *         wfm_compose_destroy).
+ */
+const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
+                                          size_t *n_out, int *repeat,
+                                          int *continuous);
+
 /* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
 /*
  * One canonical schema, sample-exact so a recorded run reproduces byte-for-byte

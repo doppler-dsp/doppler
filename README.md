@@ -1,6 +1,10 @@
-# doppler
+<p align="center">
+  <img src="docs/assets/wordmark.png" alt="doppler — signal, shifted" width="540">
+</p>
 
-**Dead-simple, ultra-fast digital signal processing.**
+<h1 align="center">doppler</h1>
+
+<p align="center"><strong>Dead-simple, ultra-fast digital signal processing.</strong></p>
 
 [![CI](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg)](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-doppler--dsp.github.io-blue)](https://doppler-dsp.github.io/doppler/)

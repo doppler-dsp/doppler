@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <!-- The Doppler shift itself: approaching (blue) → brand purple →
+         receding (red), left to right across the wordmark. -->
+    <linearGradient id="shift" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"    stop-color="#2979FF"/>
+      <stop offset="0.52" stop-color="#7C4DFF"/>
+      <stop offset="1"    stop-color="#FF3D6E"/>
+    </linearGradient>
+    <clipPath id="badge">
+      <circle cx="256" cy="256" r="254"/>
+    </clipPath>
+  </defs>
+
+  <!-- ── Mark: the moving emitter + compressed wavefronts ───────────────── -->
+  <g transform="translate(20,44) scale(0.53)">
+    <circle cx="256" cy="256" r="256" fill="#673AB7"/>
+    <circle cx="200" cy="256" r="190" fill="none" stroke="#fff" stroke-width="16" opacity="0.25" clip-path="url(#badge)"/>
+    <circle cx="220" cy="256" r="140" fill="none" stroke="#fff" stroke-width="16" opacity="0.45" clip-path="url(#badge)"/>
+    <circle cx="240" cy="256" r="90"  fill="none" stroke="#fff" stroke-width="16" opacity="0.65" clip-path="url(#badge)"/>
+    <circle cx="257" cy="256" r="43"  fill="none" stroke="#fff" stroke-width="16" opacity="0.85" clip-path="url(#badge)"/>
+    <circle cx="268" cy="256" r="24" fill="#fff"/>
+  </g>
+
+  <!-- ── Wordmark ───────────────────────────────────────────────────────── -->
+  <text x="332" y="244" font-size="210" font-weight="800"
+        letter-spacing="-8" fill="url(#shift)">doppler</text>
+  <text x="340" y="312" font-size="46" font-weight="500"
+        letter-spacing="14" fill="#8b90a6">signal, shifted</text>
+</svg>

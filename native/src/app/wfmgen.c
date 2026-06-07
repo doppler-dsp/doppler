@@ -30,6 +30,7 @@ static const char *const MODES[] = {"auto", "fs", "ebno", "esno"};
 static const char *const STYPES[] = {"cf32", "cf64", "ci32", "ci16", "ci8"};
 static const char *const FTYPES[] = {"raw", "csv", "blue", "sigmf"};
 static const char *const ENDIANS[] = {"le", "be"};
+static const char *const LFSRS[] = {"galois", "fibonacci"};
 
 /* Look name up in a NULL-free table of n entries; -1 if absent. */
 static int
@@ -45,7 +46,8 @@ static const char USAGE[] =
     "usage: wfmgen [--from-file SPEC.json] [--type tone|noise|pn|bpsk|qpsk]\n"
     "  [--fs HZ] [--freq HZ] [--fc HZ] [--snr DB] [--snr_mode "
     "auto|fs|ebno|esno]\n"
-    "  [--seed N] [--sps N] [--pn_length N] [--pn_poly N]\n"
+    "  [--seed N] [--sps N] [--pn_length N] [--pn_poly N] "
+    "[--lfsr galois|fibonacci]\n"
     "  [--count N] [--off N] [--repeat] [--continuous]\n"
     "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv|blue|sigmf]\n"
     "  [--endian le|be] [--output FILE|zmq://EP] [--record FILE]\n";
@@ -92,6 +94,8 @@ main(int argc, char *argv[])
             CHOICE(file_type, FTYPES);
         } else if (!strcmp(a, "--endian")) {
             CHOICE(endian, ENDIANS);
+        } else if (!strcmp(a, "--lfsr")) {
+            CHOICE(seg.lfsr, LFSRS);
         } else if (!strcmp(a, "--fs")) {
             seg.fs = strtod(NEXT(), NULL);
         } else if (!strcmp(a, "--freq")) {

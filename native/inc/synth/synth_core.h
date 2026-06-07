@@ -141,7 +141,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call synth_destroy() when done.
  */
-synth_state_t *synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly);
+synth_state_t *synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr);
 
 /**
  * @brief Destroy a synth instance and release all memory.

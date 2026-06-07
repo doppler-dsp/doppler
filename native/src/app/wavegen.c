@@ -30,6 +30,14 @@ jm_parse_snr_mode(const char *s)
 }
 
 static int
+jm_parse_lfsr(const char *s)
+{
+    if (!strcmp(s, "galois")) return 0;
+    if (!strcmp(s, "fibonacci")) return 1;
+    return -1;
+}
+
+static int
 jm_parse_sample_type(const char *s)
 {
     if (!strcmp(s, "cf32")) return 0;
@@ -58,6 +66,7 @@ jm_parse_endian(const char *s)
 
 static const char *const jm_choices_type[] = {"tone", "noise", "pn", "bpsk", "qpsk"};
 static const char *const jm_choices_snr_mode[] = {"auto", "fs", "ebno", "esno"};
+static const char *const jm_choices_lfsr[] = {"galois", "fibonacci"};
 static const char *const jm_choices_sample_type[] = {"cf32", "cf64", "ci32", "ci16", "ci8"};
 static const char *const jm_choices_file_type[] = {"raw", "csv"};
 static const char *const jm_choices_endian[] = {"le", "be"};
@@ -177,6 +186,7 @@ main(int argc, char *argv[])
     int sps = 8;
     int pn_length = 7;
     uint64_t pn_poly = 0;
+    int lfsr = 0;
     size_t count = 1024;
     int sample_type = 0;
     int file_type = 0;
@@ -186,7 +196,7 @@ main(int argc, char *argv[])
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
-            fputs("usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n  --type tone|noise|pn|bpsk|qpsk\n  --fs V\n  --freq V\n  --snr V\n  --snr_mode auto|fs|ebno|esno\n  --seed V\n  --sps V\n  --pn_length V\n  --pn_poly V\n  --count V                 number of samples to generate\n  --sample_type cf32|cf64|ci32|ci16|ci8  output wire sample type\n  --file_type raw|csv       output container\n  --endian le|be            byte order (raw only)\n  --output, -o FILE         output file (default: stdout)\n  --record FILE             write a JSON record of the resolved run\n", stdout);
+            fputs("usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--lfsr galois|fibonacci] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n  --type tone|noise|pn|bpsk|qpsk\n  --fs V\n  --freq V\n  --snr V\n  --snr_mode auto|fs|ebno|esno\n  --seed V\n  --sps V\n  --pn_length V\n  --pn_poly V\n  --lfsr galois|fibonacci\n  --count V                 number of samples to generate\n  --sample_type cf32|cf64|ci32|ci16|ci8  output wire sample type\n  --file_type raw|csv       output container\n  --endian le|be            byte order (raw only)\n  --output, -o FILE         output file (default: stdout)\n  --record FILE             write a JSON record of the resolved run\n", stdout);
             return 0;
         } else if (!strcmp(argv[i], "--type") && i + 1 < argc) {
             type = jm_parse_type(argv[++i]);
@@ -214,6 +224,12 @@ main(int argc, char *argv[])
             pn_length = (int)strtol(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--pn_poly") && i + 1 < argc) {
             pn_poly = (uint64_t)strtoull(argv[++i], NULL, 10);
+        } else if (!strcmp(argv[i], "--lfsr") && i + 1 < argc) {
+            lfsr = jm_parse_lfsr(argv[++i]);
+            if (lfsr < 0) {
+                fprintf(stderr, "error: --lfsr must be one of: galois fibonacci\n");
+                return 2;
+            }
         } else if (!strcmp(argv[i], "--count") && i + 1 < argc) {
             count = (size_t)strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--sample_type") && i + 1 < argc) {
@@ -240,7 +256,7 @@ main(int argc, char *argv[])
         } else if (!strcmp(argv[i], "--record") && i + 1 < argc) {
             record_path = argv[++i];
         } else {
-            fprintf(stderr, "usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n");
+            fprintf(stderr, "usage: wavegen [--type tone|noise|pn|bpsk|qpsk] [--fs V] [--freq V] [--snr V] [--snr_mode auto|fs|ebno|esno] [--seed V] [--sps V] [--pn_length V] [--pn_poly V] [--lfsr galois|fibonacci] [--count V] [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type raw|csv] [--endian le|be] [--output FILE] [--record FILE]\n");
             return 2;
         }
     }
@@ -252,7 +268,7 @@ main(int argc, char *argv[])
     }
 
     /* --- create ---------------------------------------------------------- */
-    synth_state_t *state = synth_create(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly);
+    synth_state_t *state = synth_create(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr);
     if (!state) {
         fprintf(stderr, "error: synth_create() failed\n");
         return 1;
@@ -272,6 +288,7 @@ main(int argc, char *argv[])
             fprintf(rec, ",\"sps\":%d", (int)sps);
             fprintf(rec, ",\"pn_length\":%d", (int)pn_length);
             fprintf(rec, ",\"pn_poly\":%llu", (unsigned long long)pn_poly);
+            fprintf(rec, ",\"lfsr\":\"%s\"", jm_choices_lfsr[lfsr]);
             fprintf(rec, ",\"count\":%zu", count);
             fprintf(rec, ",\"sample_type\":\"%s\"", jm_choices_sample_type[sample_type]);
             fprintf(rec, ",\"file_type\":\"%s\"", jm_choices_file_type[file_type]);

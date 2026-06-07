@@ -14,16 +14,18 @@ class PN:
         seed constructor parameter.
     length : int, default 7
         length constructor parameter.
+    lfsr : Literal["galois", "fibonacci"], default "galois"
+        lfsr constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.wfmgen import PN
-    >>> obj = PN(poly=96, seed=1, length=7)
+    >>> obj = PN(poly=96, seed=1, length=7, lfsr="galois")
 
     """
-    def __init__(self, poly: int = ..., seed: int = ..., length: int = ...) -> None: ...
+    def __init__(self, poly: int = ..., seed: int = ..., length: int = ..., lfsr: Literal["galois", "fibonacci"] = "galois") -> None: ...
 
     def reset(self) -> None:
         """Reset state to post-create defaults."""
@@ -61,13 +63,15 @@ class Synth:
         pn_length constructor parameter.
     pn_poly : int, default 0
         pn_poly constructor parameter.
+    lfsr : Literal["galois", "fibonacci"], default "galois"
+        lfsr constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.wfmgen import Synth
-    >>> obj = Synth(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0)
+    >>> obj = Synth(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois")
     >>> obj.get_wtype()
     0
     >>> obj.get_nsps()

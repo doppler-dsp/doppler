@@ -21,6 +21,11 @@ name = "length"
 type = "uint32_t"
 default = "7"
 
+[[pn.init_params]]
+name = "lfsr"
+type = "string_enum:galois,fibonacci"
+default = "galois"
+
 [[pn.methods]]
 name = "generate"
 arg_type = "void"

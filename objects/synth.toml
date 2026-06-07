@@ -56,7 +56,7 @@ if (type >= SYNTH_PN) {
         free(obj);
         return NULL;
     }
-    obj->pn = pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length);
+    obj->pn = pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
     if (!obj->pn) {
         if (obj->lo)
             lo_destroy(obj->lo);
@@ -197,3 +197,8 @@ default = "7"
 name = "pn_poly"
 type = "uint64_t"
 default = "0"
+
+[[synth.init_params]]
+name = "lfsr"
+type = "string_enum:galois,fibonacci"
+default = "galois"

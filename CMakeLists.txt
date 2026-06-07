@@ -93,6 +93,7 @@ enable_testing()
 # ── Components (add_subdirectory lines appended here by just-makeit) ──────────
 add_subdirectory(native/src/hbdecim)
 add_subdirectory(native/src/resamp)
+add_subdirectory(native/src/wfmcompose)
 add_subdirectory(native/src/acc_q8)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:acc_q8_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_q8_core>)

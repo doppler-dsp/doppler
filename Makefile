@@ -76,7 +76,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo gallery \
-        bench \
+        bench bench-msas \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -191,6 +191,20 @@ python-test:
 # `uvx just-makeit bench --tag v1.2.3` or `just-makeit bench --c-only`.
 bench: pyext
 	uvx just-makeit bench
+
+# ── bench-msas ────────────────────────────────────────────────────────────────
+# Standalone synth-engine throughput benchmark (MSa/s), per waveform type.
+# MSAS_MARCH overrides -march (default x86-64-v2 = the shipped-wheel baseline;
+# use `make bench-msas MSAS_MARCH=native` for host-tuned max).
+MSAS_MARCH ?= x86-64-v2
+bench-msas:
+	@mkdir -p $(BUILD_DIR)
+	@$(CC) -O3 -march=$(MSAS_MARCH) -DNDEBUG -I native/inc \
+	    native/benchmarks/bench_msas.c \
+	    native/src/synth/synth_core.c native/src/pn/pn_core.c \
+	    native/src/lo/lo_core.c native/src/awgn/awgn_core.c -lm \
+	    -o $(BUILD_DIR)/bench_msas
+	@$(BUILD_DIR)/bench_msas
 
 
 # ── rust-test ─────────────────────────────────────────────────────────────────

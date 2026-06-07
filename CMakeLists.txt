@@ -295,4 +295,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
 # ── App ───────────────────────────────────────────────────────────
+add_executable(wavegen native/src/app/wavegen.c)
+target_link_libraries(wavegen PRIVATE synth_core lo_core awgn_core pn_core $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
+install(TARGETS wavegen DESTINATION bin)
 # ── App end ───────────────────────────────────────────────────────────

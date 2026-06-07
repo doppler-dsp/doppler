@@ -23,12 +23,6 @@ impl = """
     if (v > state->clip_max) v = state->clip_max;
     if (v < state->clip_min) v = state->clip_min;
     return (int64_t)v;
-
-
-
-
-
-
 """
 
 [[adc.init_params]]

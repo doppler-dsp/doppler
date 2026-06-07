@@ -117,12 +117,6 @@ adc_step(adc_state_t *state, float x)
         if (v > state->clip_max) v = state->clip_max;
         if (v < state->clip_min) v = state->clip_min;
         return (int64_t)v;
-
-
-
-
-
-
 }
 
 /**

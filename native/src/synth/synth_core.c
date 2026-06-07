@@ -12,8 +12,10 @@ synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_
     obj->cur_re = (type == SYNTH_TONE) ? 1.0f : 0.0f;
     obj->cur_im = 0.0f;
 
-    /* LO carrier for everything but pure noise (freq is Hz → cycles/sample) */
-    if (type != SYNTH_NOISE) {
+    /* LO carrier only when there is a frequency offset: at freq 0 the carrier
+     * is the constant 1, so mixing is a no-op and is skipped entirely (a
+     * baseband waveform pays no NCO cost). Pure noise never has an LO. */
+    if (type != SYNTH_NOISE && freq != 0.0) {
         obj->lo = lo_create(fs != 0.0 ? freq / fs : 0.0);
         if (!obj->lo) {
             free(obj);
@@ -39,10 +41,13 @@ synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_
         }
     }
 
-    /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno. */
+    /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.
+     * Noise is generated only when requested: type=noise always; otherwise only
+     * when snr < SYNTH_SNR_CLEAN (so a clean waveform skips AWGN entirely). */
+    int want_noise = (type == SYNTH_NOISE) || (snr < SYNTH_SNR_CLEAN);
     if (type == SYNTH_NOISE) {
         obj->awgn = awgn_create((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
-    } else {
+    } else if (snr < SYNTH_SNR_CLEAN) {
         int mode = snr_mode;
         if (mode == 0)
             mode = (type >= SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
@@ -58,7 +63,7 @@ synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_
         float amp = sqrtf(1.0f / (2.0f * powf(10.0f, (float)snr_fs / 10.0f)));
         obj->awgn = awgn_create((uint64_t)seed, amp);
     }
-    if (!obj->awgn) {
+    if (want_noise && !obj->awgn) {
         if (obj->pn)
             pn_destroy(obj->pn);
         if (obj->lo)

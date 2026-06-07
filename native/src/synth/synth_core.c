@@ -1,7 +1,7 @@
 #include "synth/synth_core.h"
 
 synth_state_t *
-synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint32_t pn_poly)
+synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly)
 {
     synth_state_t *obj = calloc(1, sizeof(*obj));
     if (!obj)
@@ -23,7 +23,7 @@ synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_
 
     /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
     if (type >= SYNTH_PN) {
-        uint32_t poly = pn_poly ? pn_poly : synth_mls_poly((uint32_t)pn_length);
+        uint64_t poly = pn_poly ? pn_poly : synth_mls_poly((uint32_t)pn_length);
         if (poly == 0) { /* no MLS table entry for this length */
             if (obj->lo)
                 lo_destroy(obj->lo);

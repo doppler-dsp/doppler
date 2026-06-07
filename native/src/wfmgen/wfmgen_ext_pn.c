@@ -40,15 +40,15 @@ static int
 PNObj_init(PNObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"poly", "seed", "length", NULL};
-    unsigned long poly_raw = 0UL;
-    unsigned long seed_raw = 0UL;
+    unsigned long long poly_raw = 0ULL;
+    unsigned long long seed_raw = 0ULL;
     unsigned long length_raw = 0UL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|kkk", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|KKk", kwlist,
                                      &poly_raw, &seed_raw, &length_raw))
         return -1;
-    uint32_t poly = (uint32_t)poly_raw;
-    uint32_t seed = (uint32_t)seed_raw;
+    uint64_t poly = (uint64_t)poly_raw;
+    uint64_t seed = (uint64_t)seed_raw;
     uint32_t length = (uint32_t)length_raw;
     self->handle = pn_create(poly, seed, length);
     if (!self->handle) {

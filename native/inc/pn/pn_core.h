@@ -26,10 +26,10 @@ extern "C" {
  * Allocate with pn_create().
  */
 typedef struct {
-    uint32_t poly; /* Galois feedback polynomial (taps) */
-    uint32_t seed; /* initial register state (for reset) */
-    uint32_t reg;  /* current LFSR register */
-    uint32_t mask; /* (1u << length) - 1 */
+    uint64_t poly; /* Galois feedback polynomial (taps) */
+    uint64_t seed; /* initial register state (for reset) */
+    uint64_t reg;  /* current LFSR register */
+    uint64_t mask; /* (1 << length) - 1; all ones when length == 64 */
 } pn_state_t;
 
 /**
@@ -41,7 +41,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call pn_destroy() when done.
  */
-pn_state_t *pn_create(uint32_t poly, uint32_t seed, uint32_t length);
+pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length);
 
 /**
  * @brief Destroy a pn instance and release all memory.

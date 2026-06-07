@@ -107,7 +107,7 @@ main(int argc, char *argv[])
         } else if (!strcmp(a, "--pn_length")) {
             seg.pn_length = (int)strtol(NEXT(), NULL, 10);
         } else if (!strcmp(a, "--pn_poly")) {
-            seg.pn_poly = (uint32_t)strtoul(NEXT(), NULL, 10);
+            seg.pn_poly = (uint64_t)strtoull(NEXT(), NULL, 10);
         } else if (!strcmp(a, "--count")) {
             seg.num_samples = (size_t)strtoull(NEXT(), NULL, 10);
         } else if (!strcmp(a, "--off")) {

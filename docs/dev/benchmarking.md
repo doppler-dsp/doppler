@@ -234,11 +234,30 @@ the policy is deliberately strict about *which* snapshots are kept.
 
 **CI owns the committed history.** The
 [`benchmark.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/benchmark.yml) workflow runs
-`just-makeit bench` on a pinned runner (fixed OS and Python version) on
-every push to `main` and on every release tag, then commits the trimmed
-snapshot to the dedicated `benchmarks` branch. Because the hardware and
-toolchain are constant, those snapshots are directly comparable over
-time — that is the canonical record.
+the full `just-makeit bench` (C **and** Python) on a pinned runner (fixed
+OS and Python version) on **every release tag (`v*`)** and on **manual
+`workflow_dispatch`**, then commits **both** trimmed snapshots —
+`<tag>.json` (Python) and `<tag>-c.json` (C) — to the dedicated
+`benchmarks` branch. Because the hardware and toolchain are constant,
+those snapshots are directly comparable over time — that is the canonical
+record.
+
+It does **not** run on ordinary pushes to `main`: a full benchmark on
+every merge would add cost and per-commit noise without a comparable
+anchor. To snapshot a specific non-release commit, trigger it manually:
+
+```sh
+gh workflow run benchmark.yml -f tag=<label>
+```
+
+**Per-PR regression gate.** A second workflow,
+[`perf-regression.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/workflows/perf-regression.yml),
+benchmarks the PR base (`main`) and the PR head on the *same* runner and
+flags any entry that regresses past its threshold (30%) via
+`just-makeit bench --check`. It is **advisory** (`continue-on-error`):
+microbenchmark wall-times are too noisy in shared CI to block a merge, so
+it surfaces regressions for a human to judge rather than failing the
+build.
 
 **Local runs are throwaway.** Run `just-makeit bench` locally to
 spot-check a change before you push, but **do not commit the result**.
@@ -248,8 +267,9 @@ pollute the history. Local snapshots are written into
 `benchmarks/history/` and are git-ignored — only `.gitkeep` is tracked
 on `main`. Delete them freely.
 
-**Tagging.** CI tags `main`-branch snapshots `<date>-<sha>` and release
-snapshots with the version (`v1.2.3`). Locally the default tag is a UTC
+**Tagging.** CI tags release snapshots with the version (`v1.2.3`); a
+manual `workflow_dispatch` uses its `tag` input, or defaults to
+`<date>-<sha>` when none is given. Locally the default tag is a UTC
 timestamp; pass `--tag` only when you want a labelled local comparison
 between two of your own runs.
 

@@ -70,8 +70,11 @@ jobs:
         fi
 
     - name: Run benchmarks
+      # Full suite (C + Python) so both snapshots are captured: <tag>.json
+      # (pytest-benchmark) and <tag>-c.json (jm_bench). Pinned to the project's
+      # jm version for reproducibility across runs.
       run: >-
-        uvx just-makeit bench --python-only
+        uvx --from 'just-makeit==0.17.1' just-makeit bench
         --tag ${{ steps.tag.outputs.bench_tag }}
 
     - name: Commit benchmark snapshot
@@ -81,16 +84,24 @@ jobs:
         # Push snapshots to the unprotected `benchmarks` branch so branch
         # protection rules on `main` don't block the commit.
         SNAP="${{ steps.tag.outputs.bench_tag }}"
-        SRC="$GITHUB_WORKSPACE/benchmarks/history/${SNAP}.json"
-        # Refuse to commit a snapshot that wasn't trimmed properly — raw
-        # pytest-benchmark JSON with stats.data arrays can exceed 100 MB.
-        MAX_BYTES=524288  # 512 KB
-        ACTUAL=$(stat -c%s "$SRC")
-        if [ "$ACTUAL" -gt "$MAX_BYTES" ]; then
-          echo "ERROR: snapshot is ${ACTUAL} bytes (limit ${MAX_BYTES})." >&2
-          echo "       stats.data arrays were not trimmed — check just-makeit bench." >&2
-          exit 1
-        fi
+        HIST="$GITHUB_WORKSPACE/benchmarks/history"
+        # Both snapshots: Python (<tag>.json) and C (<tag>-c.json). Each must
+        # exist and be trimmed — raw pytest-benchmark JSON with stats.data
+        # arrays can exceed 100 MB, so refuse anything over 512 KB.
+        MAX_BYTES=524288
+        SNAPS="${HIST}/${SNAP}.json ${HIST}/${SNAP}-c.json"
+        for SRC in $SNAPS; do
+          if [ ! -f "$SRC" ]; then
+            echo "ERROR: expected snapshot $SRC was not written." >&2
+            exit 1
+          fi
+          ACTUAL=$(stat -c%s "$SRC")
+          if [ "$ACTUAL" -gt "$MAX_BYTES" ]; then
+            echo "ERROR: $(basename "$SRC") is ${ACTUAL} bytes (limit ${MAX_BYTES})." >&2
+            echo "       stats.data arrays were not trimmed — check just-makeit bench." >&2
+            exit 1
+          fi
+        done
         git fetch origin benchmarks 2>/dev/null || true
         if git ls-remote --exit-code origin benchmarks > /dev/null 2>&1; then
           git worktree add /tmp/bench-branch origin/benchmarks
@@ -98,7 +109,7 @@ jobs:
           git worktree add --orphan -b benchmarks /tmp/bench-branch
         fi
         mkdir -p /tmp/bench-branch/history
-        cp "$SRC" /tmp/bench-branch/history/
+        cp $SNAPS /tmp/bench-branch/history/
         cd /tmp/bench-branch
         git add history/
         git diff --cached --quiet || \

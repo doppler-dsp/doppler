@@ -46,8 +46,8 @@ jobs:
           # mkdoxy doesn't generate index.md; restore the committed landing page
           git checkout -- docs/c-api/index.md
 
-      - name: Build Zensical site
-        run: uv run zensical build --clean
+      - name: Build site
+        run: uv run mkdocs build
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main'

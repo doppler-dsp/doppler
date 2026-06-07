@@ -1,0 +1,174 @@
+# =============================================================================
+# doppler — mkdocs-material documentation configuration
+# (migrated from Zensical; the C API docs are still pre-generated separately via
+#  `mkdocs build -f mkdocs-capi.yml` into docs/c-api/ — see the Makefile.)
+# =============================================================================
+site_name: doppler
+site_description: Dead-simple, ultra-fast digital signal processing
+site_url: https://doppler-dsp.github.io/doppler/
+repo_url: https://github.com/doppler-dsp/doppler
+repo_name: doppler-dsp/doppler
+copyright: Copyright &copy; 2026 doppler contributors — MIT License
+docs_dir: docs
+site_dir: site
+
+extra_css:
+  - stylesheets/extra.css
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/logo.svg
+  favicon: assets/favicon.ico
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - content.code.select
+    - content.footnote.tooltips
+    - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.path
+    - navigation.prune
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    # Dark mode first — preferred for a DSP / embedded dev audience.
+    - scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/doppler-dsp/doppler
+
+plugins:
+  - search
+  - glightbox
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            allow_inspection: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Quick Start: quickstart.md
+  - Architecture: architecture.md
+  - Install:
+      - Python: install/python.md
+      - C Library: install/c.md
+      - Build from Source: install/source.md
+      - Rust: install/rust.md
+      - Docker: install/docker.md
+  - Gallery:
+      - Gallery: gallery/index.md
+      - AGC: gallery/agc.md
+      - CIC Decimation: gallery/cic.md
+      - Q15 vs UQ15: gallery/q15-uq15.md
+      - cvt Quantization: gallery/cvt-quantization.md
+      - Correlation: gallery/corr.md
+      - Detection Curves: gallery/detection-curves.md
+      - Monte Carlo: gallery/detection-sim.md
+      - 2-D Acquisition: gallery/detection2d.md
+      - RateConverter: gallery/rate-converter.md
+      - Functional DDCR: gallery/ddc-fn.md
+      - AWGN: gallery/awgn.md
+  - Examples:
+      - C: examples/c.md
+      - Python:
+          - Overview: examples/python.md
+          - RateConverter: examples/python-rate-converter.md
+          - LO: examples/python-lo.md
+          - NCO: examples/python-nco.md
+          - AWGN: examples/python-awgn.md
+          - FFT: examples/python-fft.md
+          - Ring Buffers: examples/python-buffers.md
+          - AGC: examples/python-agc.md
+          - Corr & Detector: examples/python-corr.md
+          - Detection Theory: examples/python-detection.md
+          - 2-D Acquisition: examples/python-detection2d.md
+      - Streaming: examples/streaming.md
+  - API Reference:
+      - C API: c-api/files.md
+      - "Python: FFT": api/python-fft.md
+      - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
+      - "Python: FIR Filter": api/python-filter.md
+      - "Python: DDC": api/python-ddc.md
+      - "Python: Resample": api/python-resample.md
+      - "Python: Streaming": api/python-streaming.md
+      - "Python: Buffer": api/python-buffer.md
+      - "Python: Delay": api/python-delay.md
+      - "Python: Accumulator": api/python-accumulator.md
+      - "Polyphase → Resample": api/python-polyphase.md
+  - Type System: types.md
+  - Guides:
+      - Fixed-Point Arithmetic: guide/fixed-point.md
+  - Design:
+      - Quantization: design/QUANTIZATION.md
+  - Spectrum Analyzer: specan/index.md
+  - CLI & Pipelines:
+      - Dopplerfile: cli/dopplerfile.md
+  - Contributing:
+      - Module Layout: dev/module-layout.md
+      - Adding a Module: dev/adding-a-module.md
+      - Error Convention: dev/error-convention.md
+      - Benchmarking: dev/benchmarking.md
+      - Release: dev/release.md

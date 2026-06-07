@@ -1,12 +1,15 @@
 # wfmcompose — hand-owned c_dep: the multi-segment waveform composer (Phase B).
-# Pure-C OBJECT library over the synth engine + a CTest. jm apply only emits the
-# add_subdirectory for this dir (listed in [project].c_deps); this file is
-# hand-maintained.
+# Pure-C OBJECT library over the synth engine + JSON spec (vendored cJSON) + a
+# CTest. jm apply only emits the add_subdirectory for this dir (listed in
+# [project].c_deps); this file is hand-maintained.
 add_library(wfm_compose_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_compose.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_compose.c
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_json.c
+    ${CMAKE_SOURCE_DIR}/vendor/cjson/cJSON.c)
 target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen)
+    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
 target_link_libraries(wfm_compose_core PUBLIC m)
 
 add_executable(test_wfm_compose
@@ -14,6 +17,6 @@ add_executable(test_wfm_compose
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
     wfm_compose_core synth_core lo_core awgn_core pn_core m)
-target_include_directories(test_wfm_compose
-    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_include_directories(test_wfm_compose PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)

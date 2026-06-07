@@ -86,6 +86,40 @@ size_t wfm_compose_execute(
 /** @brief Destroy a composer and its active synth. @param state May be NULL. */
 void wfm_compose_destroy(wfm_compose_state_t *state);
 
+/* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
+/*
+ * One canonical schema, sample-exact so a recorded run reproduces byte-for-byte
+ * when fed back via --from-file:
+ *
+ *   { "version": "wfmgen-1", "repeat": false, "continuous": false,
+ *     "segments": [
+ *       { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
+ *         "snr_mode": "auto", "seed": 1, "sps": 8, "pn_length": 7,
+ *         "pn_poly": 0, "num_samples": 1000, "off_samples": 500 }, … ] }
+ *
+ * `type` and `snr_mode` are strings; everything else is numeric. Missing fields
+ * fall back to the synth defaults.
+ */
+
+/**
+ * @brief Serialise a spec to a JSON string (for --record).
+ * @return malloc'd JSON (caller frees), or NULL on allocation failure.
+ */
+char *wfm_spec_to_json(
+    const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+/**
+ * @brief Build a composer from a JSON spec string (for --from-file).
+ * @return Composer state, or NULL on parse error / bad type / no segments.
+ */
+wfm_compose_state_t *wfm_compose_from_json(const char *json);
+
+/**
+ * @brief Build a composer from a JSON spec file.
+ * @return Composer state, or NULL on read/parse error.
+ */
+wfm_compose_state_t *wfm_compose_from_file(const char *path);
+
 #ifdef __cplusplus
 }
 #endif

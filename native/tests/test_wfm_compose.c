@@ -10,6 +10,8 @@
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond, msg)                                                   \
     do {                                                                   \
@@ -71,6 +73,40 @@ main(void)
         CHECK(wfm_compose_execute(r, all, 8192) == 8192, "repeat loops full");
     wfm_compose_destroy(r);
 
-    printf("test_wfm_compose: OK (total=%zu)\n", total);
+    /* ── JSON round-trip: spec → JSON → spec produces identical output ── */
+    char *json = wfm_spec_to_json(segs, 2, 0, 0);
+    CHECK(json, "to_json");
+    CHECK(strstr(json, "\"tone\"") && strstr(json, "\"qpsk\""), "type names");
+    CHECK(strstr(json, "wfmgen-1"), "version tag");
+    wfm_compose_state_t *jc = wfm_compose_from_json(json);
+    CHECK(jc, "from_json");
+    static float complex jall[8192];
+    size_t jtotal = 0;
+    while ((n = wfm_compose_execute(jc, buf, 777)) > 0) {
+        for (size_t i = 0; i < n; i++)
+            jall[jtotal + i] = buf[i];
+        jtotal += n;
+    }
+    CHECK(jtotal == total, "round-trip sample count");
+    /* re-collect the direct stream for a byte comparison */
+    wfm_compose_state_t *d = wfm_compose_create(segs, 2, 0, 0);
+    size_t dtotal = 0;
+    while ((n = wfm_compose_execute(d, buf, 777)) > 0) {
+        for (size_t i = 0; i < n; i++)
+            all[dtotal + i] = buf[i];
+        dtotal += n;
+    }
+    for (size_t i = 0; i < total; i++)
+        CHECK(jall[i] == all[i], "JSON round-trip must be sample-identical");
+    wfm_compose_destroy(jc);
+    wfm_compose_destroy(d);
+
+    /* bad spec → NULL (unknown type, empty segments) */
+    CHECK(!wfm_compose_from_json("{\"segments\":[{\"type\":\"bogus\"}]}"),
+          "unknown type rejected");
+    CHECK(!wfm_compose_from_json("{\"segments\":[]}"), "empty rejected");
+
+    free(json);
+    printf("test_wfm_compose: OK (total=%zu, json round-trip ok)\n", total);
     return 0;
 }

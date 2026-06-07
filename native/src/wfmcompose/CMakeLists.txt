@@ -24,6 +24,21 @@ target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 
+# ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
+add_library(wfm_dsp_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_dsp.c)
+target_include_directories(wfm_dsp_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen)
+target_link_libraries(wfm_dsp_core PUBLIC m)
+
+add_executable(test_wfm_dsp
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_dsp.c)
+target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core m)
+target_include_directories(test_wfm_dsp
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_wfm_dsp COMMAND test_wfm_dsp)
+
 # ── ZMQ PUB sink — POSIX only (vendored zmq + pthreads don't build on MinGW;
 #    mirrors examples/c's streaming guard). The sink is independent of the
 #    composer, so it links the stream layer, not synth. ──────────────────────

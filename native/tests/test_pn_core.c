@@ -23,9 +23,9 @@ static inline int _almost_eq_c(float complex a, float complex b, float tol)
 /* Steps the LFSR until the register returns to its seed; returns the period,
  * or -1 if it exceeds 2^n (non-maximal / degenerate). */
 static long
-pn_period(uint64_t poly, uint32_t n)
+pn_period(uint64_t poly, uint32_t n, int lfsr)
 {
-    pn_state_t *p = pn_create(poly, 1, n);
+    pn_state_t *p = pn_create(poly, 1, n, lfsr);
     if (!p)
         return -1;
     long per = 0;
@@ -45,13 +45,13 @@ pn_period(uint64_t poly, uint32_t n)
 int main(void)
 {
     int _fails = 0;
-    pn_state_t *obj = pn_create(96, 1, 7);
+    pn_state_t *obj = pn_create(96, 1, 7, PN_GALOIS);
     CHECK(obj != NULL);
     if (!obj) return 1;
 
     /* ── 64-bit register: length up to 64, mask + no truncation ── */
-    CHECK(pn_create(0, 1, 65) == NULL);        /* length > 64 rejected */
-    pn_state_t *p64 = pn_create(synth_mls_poly(64), 1, 64);
+    CHECK(pn_create(0, 1, 65, PN_GALOIS) == NULL);  /* length > 64 rejected */
+    pn_state_t *p64 = pn_create(synth_mls_poly(64), 1, 64, PN_GALOIS);
     CHECK(p64 != NULL);
     if (p64) {
         CHECK(p64->mask == ~(uint64_t)0);       /* full 64-bit mask */
@@ -66,10 +66,27 @@ int main(void)
         pn_destroy(p64);
     }
 
-    /* ── MLS table: maximal period for several lengths (incl. n > 32 path) ── */
-    CHECK(pn_period(synth_mls_poly(7), 7) == (1L << 7) - 1);
-    CHECK(pn_period(synth_mls_poly(17), 17) == (1L << 17) - 1);
-    CHECK(pn_period(synth_mls_poly(20), 20) == (1L << 20) - 1);
+    /* ── MLS table: maximal period (Galois), incl. the n > 32 path ── */
+    CHECK(pn_period(synth_mls_poly(7), 7, PN_GALOIS) == (1L << 7) - 1);
+    CHECK(pn_period(synth_mls_poly(17), 17, PN_GALOIS) == (1L << 17) - 1);
+    CHECK(pn_period(synth_mls_poly(20), 20, PN_GALOIS) == (1L << 20) - 1);
+
+    /* ── Fibonacci: same primitive poly → same maximal period ── */
+    CHECK(pn_period(synth_mls_poly(7), 7, PN_FIBONACCI) == (1L << 7) - 1);
+    CHECK(pn_period(synth_mls_poly(17), 17, PN_FIBONACCI) == (1L << 17) - 1);
+    CHECK(pn_period(synth_mls_poly(20), 20, PN_FIBONACCI) == (1L << 20) - 1);
+
+    /* ── Galois and Fibonacci are distinct realizations (different chips) ── */
+    {
+        pn_state_t *g = pn_create(synth_mls_poly(9), 1, 9, PN_GALOIS);
+        pn_state_t *f = pn_create(synth_mls_poly(9), 1, 9, PN_FIBONACCI);
+        int diff = 0;
+        for (int i = 0; i < 511; i++)
+            if (pn_step(g) != pn_step(f)) diff = 1;
+        CHECK(diff); /* same period, different sequence/phase */
+        pn_destroy(g);
+        pn_destroy(f);
+    }
 
     /* ── table coverage: nonzero for 2..64, zero outside ── */
     CHECK(synth_mls_poly(1) == 0);

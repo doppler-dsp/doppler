@@ -27,3 +27,6 @@ benchmarks/history/*
 # doxygen local output (CI generates these; never commit)
 html/
 xml/
+
+# jm re-materializes this Zensical scaffold file, but the site uses mkdocs.yml.
+zensical.toml

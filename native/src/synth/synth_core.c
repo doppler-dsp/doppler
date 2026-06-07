@@ -1,7 +1,7 @@
 #include "synth/synth_core.h"
 
 synth_state_t *
-synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly)
+synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr)
 {
     synth_state_t *obj = calloc(1, sizeof(*obj));
     if (!obj)
@@ -30,7 +30,7 @@ synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_
             free(obj);
             return NULL;
         }
-        obj->pn = pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length);
+        obj->pn = pn_create(poly, seed ? seed : 1u, (uint32_t)pn_length, lfsr);
         if (!obj->pn) {
             if (obj->lo)
                 lo_destroy(obj->lo);

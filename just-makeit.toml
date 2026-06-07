@@ -574,7 +574,7 @@ name = "n"
 type = "int"
 
 [app]
-target = "console"
+target = "pep723"
 name = "wavegen"
 object = "synth"
 module = "wfmgen"

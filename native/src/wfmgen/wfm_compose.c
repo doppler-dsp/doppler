@@ -31,7 +31,7 @@ start_segment(wfm_compose_state_t *s)
 {
     const wfm_segment_t *g = &s->segs[s->cur];
     s->syn = synth_create(g->type, g->fs, g->freq, g->snr, g->snr_mode,
-                          g->seed, g->sps, g->pn_length, g->pn_poly);
+                          g->seed, g->sps, g->pn_length, g->pn_poly, g->lfsr);
     if (s->syn && g->num_samples > 0) {
         s->phase = PHASE_ON;
         s->left = g->num_samples;

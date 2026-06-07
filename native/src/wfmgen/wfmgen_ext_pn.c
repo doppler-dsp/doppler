@@ -39,18 +39,26 @@ PNObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 PNObj_init(PNObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"poly", "seed", "length", NULL};
+    static char *kwlist[] = {"poly", "seed", "length", "lfsr", NULL};
     unsigned long long poly_raw = 0ULL;
     unsigned long long seed_raw = 0ULL;
     unsigned long length_raw = 0UL;
+    const char *lfsr_str = "galois";
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|KKk", kwlist,
-                                     &poly_raw, &seed_raw, &length_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|KKks", kwlist,
+                                     &poly_raw, &seed_raw, &length_raw, &lfsr_str))
         return -1;
+    int lfsr = 0;
+    if (strcmp(lfsr_str, "galois") == 0) lfsr = 0;
+    else if (strcmp(lfsr_str, "fibonacci") == 0) lfsr = 1;
+    else {
+        PyErr_Format(PyExc_ValueError, "lfsr must be \"galois\" or \"fibonacci\", got '%s'", lfsr_str);
+        return -1;
+    }
     uint64_t poly = (uint64_t)poly_raw;
     uint64_t seed = (uint64_t)seed_raw;
     uint32_t length = (uint32_t)length_raw;
-    self->handle = pn_create(poly, seed, length);
+    self->handle = pn_create(poly, seed, length, lfsr);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,
                         "pn_create returned NULL");

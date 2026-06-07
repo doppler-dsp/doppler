@@ -36,7 +36,7 @@ Synth_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "snr_mode", "fs", "freq", "snr", "seed", "sps", "pn_length", "pn_poly", NULL};
+    static char *kwlist[] = {"type", "snr_mode", "fs", "freq", "snr", "seed", "sps", "pn_length", "pn_poly", "lfsr", NULL};
     const char *type_str = "tone";
     const char *snr_mode_str = "auto";
     double fs = 1000000.0;
@@ -46,9 +46,10 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     int sps = 8;
     int pn_length = 7;
     unsigned long long pn_poly_raw = 0ULL;
+    const char *lfsr_str = "galois";
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdddkiiK", kwlist,
-                                     &type_str, &snr_mode_str, &fs, &freq, &snr, &seed_raw, &sps, &pn_length, &pn_poly_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdddkiiKs", kwlist,
+                                     &type_str, &snr_mode_str, &fs, &freq, &snr, &seed_raw, &sps, &pn_length, &pn_poly_raw, &lfsr_str))
         return -1;
     int type = 0;
     if (strcmp(type_str, "tone") == 0) type = 0;
@@ -69,9 +70,16 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
         PyErr_Format(PyExc_ValueError, "snr_mode must be one of \"auto\", \"fs\", \"ebno\", \"esno\", got '%s'", snr_mode_str);
         return -1;
     }
+    int lfsr = 0;
+    if (strcmp(lfsr_str, "galois") == 0) lfsr = 0;
+    else if (strcmp(lfsr_str, "fibonacci") == 0) lfsr = 1;
+    else {
+        PyErr_Format(PyExc_ValueError, "lfsr must be \"galois\" or \"fibonacci\", got '%s'", lfsr_str);
+        return -1;
+    }
     uint32_t seed = (uint32_t)seed_raw;
     uint64_t pn_poly = (uint64_t)pn_poly_raw;
-    self->handle = synth_create(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly);
+    self->handle = synth_create(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,
                         "synth_create returned NULL");

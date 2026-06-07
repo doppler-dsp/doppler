@@ -65,6 +65,10 @@ def _make_parser() -> argparse.ArgumentParser:
         help="pn_poly (default: 0)",
     )
     p.add_argument(
+        "--lfsr", choices=['galois', 'fibonacci'], default='galois',
+        help="lfsr (default: galois)",
+    )
+    p.add_argument(
         "--count", type=int, default=1024,
         help="number of samples to generate",
     )
@@ -92,8 +96,8 @@ def main() -> None:
     if args.record:
         import json
         with open(args.record, "w") as _rf:
-            json.dump({"tool": "wavegen", "version": "0.1.0", "type": args.type, "fs": args.fs, "freq": args.freq, "snr": args.snr, "snr_mode": args.snr_mode, "seed": args.seed, "sps": args.sps, "pn_length": args.pn_length, "pn_poly": args.pn_poly, "count": args.count, "sample_type": args.sample_type, "file_type": args.file_type, "endian": args.endian}, _rf, indent=2)
-    obj = Synth(type=args.type, fs=args.fs, freq=args.freq, snr=args.snr, snr_mode=args.snr_mode, seed=args.seed, sps=args.sps, pn_length=args.pn_length, pn_poly=args.pn_poly)
+            json.dump({"tool": "wavegen", "version": "0.1.0", "type": args.type, "fs": args.fs, "freq": args.freq, "snr": args.snr, "snr_mode": args.snr_mode, "seed": args.seed, "sps": args.sps, "pn_length": args.pn_length, "pn_poly": args.pn_poly, "lfsr": args.lfsr, "count": args.count, "sample_type": args.sample_type, "file_type": args.file_type, "endian": args.endian}, _rf, indent=2)
+    obj = Synth(type=args.type, fs=args.fs, freq=args.freq, snr=args.snr, snr_mode=args.snr_mode, seed=args.seed, sps=args.sps, pn_length=args.pn_length, pn_poly=args.pn_poly, lfsr=args.lfsr)
     out = np.asarray(
         obj.steps(args.count), dtype=np.complex64
     )

@@ -54,6 +54,7 @@ typedef struct {
     int sps;           /* samples per symbol / chip */
     int pn_length;     /* LFSR register length */
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
+    int lfsr;          /* 0 galois, 1 fibonacci */
     size_t num_samples; /* on-time (samples) */
     size_t off_samples; /* off-time gap after the segment (samples) */
 } wfm_segment_t;

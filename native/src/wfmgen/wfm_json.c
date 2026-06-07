@@ -16,6 +16,7 @@
 static const char *const TYPE_NAMES[] = {"tone", "noise", "pn", "bpsk",
                                          "qpsk"};
 static const char *const MODE_NAMES[] = {"auto", "fs", "ebno", "esno"};
+static const char *const LFSR_NAMES[] = {"galois", "fibonacci"};
 
 static int
 name_index(const char *s, const char *const *names, int n)
@@ -60,6 +61,8 @@ wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
         cJSON_AddNumberToObject(s, "sps", g->sps);
         cJSON_AddNumberToObject(s, "pn_length", g->pn_length);
         cJSON_AddNumberToObject(s, "pn_poly", (double)g->pn_poly);
+        cJSON_AddStringToObject(s, "lfsr",
+                                LFSR_NAMES[(g->lfsr == 1) ? 1 : 0]);
         cJSON_AddNumberToObject(s, "num_samples", (double)g->num_samples);
         cJSON_AddNumberToObject(s, "off_samples", (double)g->off_samples);
         cJSON_AddItemToArray(arr, s);
@@ -112,6 +115,11 @@ wfm_compose_from_json(const char *json)
             .sps = (int)num(s, "sps", 8),
             .pn_length = (int)num(s, "pn_length", 7),
             .pn_poly = (uint64_t)num(s, "pn_poly", 0),
+            .lfsr = (name_index(cJSON_GetStringValue(
+                         cJSON_GetObjectItemCaseSensitive(s, "lfsr")),
+                     LFSR_NAMES, 2) == 1)
+                        ? 1
+                        : 0,
             .num_samples = (size_t)num(s, "num_samples", 0),
             .off_samples = (size_t)num(s, "off_samples", 0),
         };

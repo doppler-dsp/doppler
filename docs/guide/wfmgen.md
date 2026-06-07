@@ -74,6 +74,7 @@ The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 | `--sps` | int | `8` | samples per symbol (`*psk`) / per chip (`pn`) |
 | `--pn_length` | int (2..64) | `7` | LFSR register length → period `2ⁿ−1` |
 | `--pn_poly` | uint64 | `0` | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial |
+| `--lfsr` | `galois fibonacci` | `galois` | LFSR realization (same polynomial/period, different sequence) |
 | `--count` | int | `1024` | number of complex samples to generate |
 
 ### Output
@@ -136,7 +137,14 @@ force a specific tap set.
 ```sh
 wavegen --type pn --pn_length 7   --sps 1 --count 127   # one full period (2⁷−1)
 wavegen --type pn --pn_length 11  --sps 4               # length-11 MLS, 4× oversampled
+wavegen --type pn --pn_length 7   --lfsr fibonacci      # Fibonacci realization
 ```
+
+`--lfsr` selects the LFSR realization: **`galois`** (default, internal XOR
+feedback) or **`fibonacci`** (external XOR of the tapped bits). Both use the same
+primitive polynomial and have the same period `2ⁿ−1`; they differ only in the
+chip sequence/phase. The Fibonacci taps are derived from the same polynomial, so
+`--pn_poly 0` still auto-selects the MLS for either mode.
 
 ---
 

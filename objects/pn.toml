@@ -1,0 +1,28 @@
+[pn]
+arg_type = "void"
+return_type = "uint8_t"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "PN"
+
+[[pn.init_params]]
+name = "poly"
+type = "uint32_t"
+default = "96"
+
+[[pn.init_params]]
+name = "seed"
+type = "uint32_t"
+default = "1"
+
+[[pn.init_params]]
+name = "length"
+type = "uint32_t"
+default = "7"
+
+[[pn.methods]]
+name = "generate"
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true

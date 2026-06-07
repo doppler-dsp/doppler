@@ -11,19 +11,19 @@ default = "0"
 
 [[acc_q8.methods]]
 name = "get"
+doc = "Return the current accumulated value without resetting."
 arg_type = "void"
 return_type = "int32_t"
-doc = "Return the current accumulated value without resetting."
 
 [[acc_q8.methods]]
 name = "dump"
+doc = "Return the accumulated value and reset to zero."
 arg_type = "void"
 return_type = "int32_t"
-doc = "Return the accumulated value and reset to zero."
 
 [[acc_q8.methods]]
 name = "madd"
+doc = "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a))."
 arg_type = "void"
 return_type = "void"
 params = [{name = "a", type = "int8_t[]"}, {name = "b", type = "int8_t[]"}]
-doc = "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a))."

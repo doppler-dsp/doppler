@@ -56,6 +56,7 @@ specan-web = [
 doppler        = "doppler.cli.__main__:main"
 doppler-source = "doppler.cli.source:main"
 doppler-specan = "doppler.specan.__main__:main"
+wavegen        = "doppler.wfmgen.cli:main"
 
 [tool.just-buildit]
 command = "make just-build"

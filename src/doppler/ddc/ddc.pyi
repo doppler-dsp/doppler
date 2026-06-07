@@ -17,7 +17,7 @@ class DDC:
     Create with defaults:
 
     >>> from doppler.ddc import DDC
-    >>> obj = DDC(0.0, 0.25)
+    >>> obj = DDC(norm_freq=0.0, rate=0.25)
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
@@ -72,7 +72,7 @@ class DDCR:
     Create with defaults:
 
     >>> from doppler.ddc import DDCR
-    >>> obj = DDCR(0.0, 0.25)
+    >>> obj = DDCR(norm_freq=0.0, rate=0.25)
 
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...

@@ -19,7 +19,7 @@ class AGC:
     Create with defaults:
 
     >>> from doppler.agc import AGC
-    >>> obj = AGC(0.0, 0.0025, 0.05)
+    >>> obj = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
 
     """
     def __init__(self, ref_db: float = ..., loop_bw: float = ..., alpha: float = ...) -> None: ...

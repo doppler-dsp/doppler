@@ -17,7 +17,7 @@ class NCO:
     Create with defaults:
 
     >>> from doppler.source import NCO
-    >>> obj = NCO(0.0, 0)
+    >>> obj = NCO(norm_freq=0.0, nmax=0)
 
     """
     def __init__(self, norm_freq: float = ..., nmax: int = ...) -> None: ...
@@ -106,7 +106,7 @@ class LO:
     Create with defaults:
 
     >>> from doppler.source import LO
-    >>> obj = LO(0.0)
+    >>> obj = LO(norm_freq=0.0)
 
     """
     def __init__(self, norm_freq: float = ...) -> None: ...
@@ -188,7 +188,7 @@ class AWGN:
     Create with defaults:
 
     >>> from doppler.source import AWGN
-    >>> obj = AWGN(0, 1.0)
+    >>> obj = AWGN(seed=0, amplitude=1.0)
 
     """
     def __init__(self, seed: int = ..., amplitude: float = ...) -> None: ...

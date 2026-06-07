@@ -1,0 +1,17 @@
+"""Benchmark for PN.
+
+Run: pytest src/doppler/wfmgen/benchmarks/bench_pn.py --benchmark-only
+"""
+import pytest
+import numpy as np
+
+from doppler.wfmgen import PN
+
+BLOCK_1K  = 1_024
+BLOCK_64K = 65_536
+
+
+@pytest.fixture
+def obj():
+    return PN(96, 1, 7)
+

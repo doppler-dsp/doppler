@@ -11,19 +11,19 @@ default = "0"
 
 [[acc_q15.methods]]
 name = "get"
+doc = "Return the current accumulated value without resetting."
 arg_type = "void"
 return_type = "int64_t"
-doc = "Return the current accumulated value without resetting."
 
 [[acc_q15.methods]]
 name = "dump"
+doc = "Return the accumulated value and reset to zero."
 arg_type = "void"
 return_type = "int64_t"
-doc = "Return the accumulated value and reset to zero."
 
 [[acc_q15.methods]]
 name = "madd"
+doc = "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available."
 arg_type = "void"
 return_type = "void"
 params = [{name = "a", type = "int16_t[]"}, {name = "b", type = "int16_t[]"}]
-doc = "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses AVX2 when available."

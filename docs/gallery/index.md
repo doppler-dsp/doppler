@@ -5,6 +5,17 @@ Run `make gallery` to regenerate all images.
 
 <div class="grid cards" markdown>
 
+-   **[wfmgen — One Engine, Every Waveform](wfmgen.md)**
+
+    ---
+
+    [![wfmgen engine demo](../assets/wfmgen_demo.png)](wfmgen.md)
+
+    Tone, PN (MLS thumbtack), QPSK and BPSK constellations from one
+    declarative `Synth` — the engine behind the `wavegen`/`wfmgen` tools.
+
+    [:octicons-arrow-right-24: Walkthrough](wfmgen.md)
+
 -   **[AGC — Step Response](agc.md)**
 
     ---

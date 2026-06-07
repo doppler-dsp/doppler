@@ -23,3 +23,7 @@ site/
 # benchmarking.md). Only the .gitkeep placeholder is tracked here.
 benchmarks/history/*
 !benchmarks/history/.gitkeep
+
+# doxygen local output (CI generates these; never commit)
+html/
+xml/

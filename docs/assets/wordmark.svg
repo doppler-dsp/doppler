@@ -40,6 +40,9 @@
   <!-- ── Wordmark ───────────────────────────────────────────────────────── -->
   <text x="338" y="240" font-size="208" font-weight="800"
         letter-spacing="-8" fill="url(#shift)">doppler</text>
-  <text x="344" y="332" font-size="43" font-weight="600"
-        letter-spacing="10" fill="url(#shift)">signal &#8594; shifted</text>
+  <!-- stretched to span "doppler" exactly, so the tagline gradient (signal=blue
+       → shifted=red) aligns edge-to-edge under the wordmark gradient. -->
+  <text x="346" y="332" font-size="43" font-weight="600"
+        textLength="704" lengthAdjust="spacing"
+        fill="url(#shift)">signal &#8594; shifted</text>
 </svg>

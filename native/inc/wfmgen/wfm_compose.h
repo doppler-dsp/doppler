@@ -53,7 +53,7 @@ typedef struct {
     uint32_t seed;     /* PRNG / LFSR seed */
     int sps;           /* samples per symbol / chip */
     int pn_length;     /* LFSR register length */
-    uint32_t pn_poly;  /* 0 → MLS poly for the length */
+    uint64_t pn_poly;  /* 0 → MLS poly for the length */
     size_t num_samples; /* on-time (samples) */
     size_t off_samples; /* off-time gap after the segment (samples) */
 } wfm_segment_t;

@@ -72,8 +72,8 @@ The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 | `--snr_mode` | `auto fs ebno esno` | `auto` | how `--snr` is interpreted (see below) |
 | `--seed` | uint32 | `1` | PRNG / LFSR seed (deterministic) |
 | `--sps` | int | `8` | samples per symbol (`*psk`) / per chip (`pn`) |
-| `--pn_length` | int | `7` | LFSR register length → period `2ⁿ−1` |
-| `--pn_poly` | uint32 | `0` | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial |
+| `--pn_length` | int (2..64) | `7` | LFSR register length → period `2ⁿ−1` |
+| `--pn_poly` | uint64 | `0` | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial |
 | `--count` | int | `1024` | number of complex samples to generate |
 
 ### Output
@@ -126,8 +126,10 @@ Eb/No, the bits/symbol: 1 for BPSK/PN, 2 for QPSK).
 ## PN sequences & MLS
 
 `--type pn` emits a maximum-length sequence; `--pn_length n` sets the LFSR
-register length (period `2ⁿ−1`). Leave **`--pn_poly 0`** and the engine selects
-a primitive polynomial that yields a true MLS for that length — verified by
+register length (**2 to 64**, period `2ⁿ−1`). The register, polynomial, and
+`--pn_poly` are full 64-bit. Leave **`--pn_poly 0`** and the engine selects a
+primitive polynomial that yields a true MLS for that length (a built-in table of
+verified primitive polynomials for every length 2..64) — verified by
 period, balance, and the thumbtack autocorrelation. Supply `--pn_poly` only to
 force a specific tap set.
 

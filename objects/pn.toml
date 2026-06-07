@@ -8,12 +8,12 @@ class_name = "PN"
 
 [[pn.init_params]]
 name = "poly"
-type = "uint32_t"
+type = "uint64_t"
 default = "96"
 
 [[pn.init_params]]
 name = "seed"
-type = "uint32_t"
+type = "uint64_t"
 default = "1"
 
 [[pn.init_params]]

@@ -111,7 +111,7 @@ wfm_compose_from_json(const char *json)
             .seed = (uint32_t)num(s, "seed", 1),
             .sps = (int)num(s, "sps", 8),
             .pn_length = (int)num(s, "pn_length", 7),
-            .pn_poly = (uint32_t)num(s, "pn_poly", 0),
+            .pn_poly = (uint64_t)num(s, "pn_poly", 0),
             .num_samples = (size_t)num(s, "num_samples", 0),
             .off_samples = (size_t)num(s, "off_samples", 0),
         };

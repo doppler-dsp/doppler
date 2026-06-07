@@ -176,7 +176,7 @@ main(int argc, char *argv[])
     uint32_t seed = 1;
     int sps = 8;
     int pn_length = 7;
-    uint32_t pn_poly = 0;
+    uint64_t pn_poly = 0;
     size_t count = 1024;
     int sample_type = 0;
     int file_type = 0;
@@ -213,7 +213,7 @@ main(int argc, char *argv[])
         } else if (!strcmp(argv[i], "--pn_length") && i + 1 < argc) {
             pn_length = (int)strtol(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--pn_poly") && i + 1 < argc) {
-            pn_poly = (uint32_t)strtoul(argv[++i], NULL, 10);
+            pn_poly = (uint64_t)strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--count") && i + 1 < argc) {
             count = (size_t)strtoull(argv[++i], NULL, 10);
         } else if (!strcmp(argv[i], "--sample_type") && i + 1 < argc) {
@@ -271,7 +271,7 @@ main(int argc, char *argv[])
             fprintf(rec, ",\"seed\":%lu", (unsigned long)seed);
             fprintf(rec, ",\"sps\":%d", (int)sps);
             fprintf(rec, ",\"pn_length\":%d", (int)pn_length);
-            fprintf(rec, ",\"pn_poly\":%lu", (unsigned long)pn_poly);
+            fprintf(rec, ",\"pn_poly\":%llu", (unsigned long long)pn_poly);
             fprintf(rec, ",\"count\":%zu", count);
             fprintf(rec, ",\"sample_type\":\"%s\"", jm_choices_sample_type[sample_type]);
             fprintf(rec, ",\"file_type\":\"%s\"", jm_choices_file_type[file_type]);

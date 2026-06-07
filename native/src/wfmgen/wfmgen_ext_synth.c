@@ -45,9 +45,9 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     unsigned long seed_raw = 0UL;
     int sps = 8;
     int pn_length = 7;
-    unsigned long pn_poly_raw = 0UL;
+    unsigned long long pn_poly_raw = 0ULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdddkiik", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdddkiiK", kwlist,
                                      &type_str, &snr_mode_str, &fs, &freq, &snr, &seed_raw, &sps, &pn_length, &pn_poly_raw))
         return -1;
     int type = 0;
@@ -70,7 +70,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
     uint32_t seed = (uint32_t)seed_raw;
-    uint32_t pn_poly = (uint32_t)pn_poly_raw;
+    uint64_t pn_poly = (uint64_t)pn_poly_raw;
     self->handle = synth_create(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly);
     if (!self->handle) {
         PyErr_SetString(PyExc_MemoryError,

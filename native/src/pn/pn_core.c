@@ -10,15 +10,15 @@
  */
 
 pn_state_t *
-pn_create(uint32_t poly, uint32_t seed, uint32_t length)
+pn_create(uint64_t poly, uint64_t seed, uint32_t length)
 {
-    /* all-zero register is a fixed point; length must fit a uint32 register */
-    if (seed == 0 || length == 0 || length > 32)
+    /* all-zero register is a fixed point; register holds up to 64 bits */
+    if (seed == 0 || length == 0 || length > 64)
         return NULL;
     pn_state_t *obj = calloc(1, sizeof(*obj));
     if (!obj)
         return NULL;
-    obj->mask = (length >= 32) ? 0xFFFFFFFFu : ((1u << length) - 1u);
+    obj->mask = (length >= 64) ? ~(uint64_t)0 : (((uint64_t)1 << length) - 1u);
     obj->poly = poly & obj->mask;
     obj->seed = seed & obj->mask;
     obj->reg = obj->seed;
@@ -47,9 +47,9 @@ pn_generate_max_out(pn_state_t *state)
 size_t
 pn_generate(pn_state_t *state, size_t n, uint8_t *out)
 {
-    uint32_t reg = state->reg;
-    const uint32_t poly = state->poly;
-    const uint32_t mask = state->mask;
+    uint64_t reg = state->reg;
+    const uint64_t poly = state->poly;
+    const uint64_t mask = state->mask;
     for (size_t i = 0; i < n; i++) {
         uint8_t bit = (uint8_t)(reg & 1u);
         reg >>= 1;

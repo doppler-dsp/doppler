@@ -105,48 +105,99 @@ void synth_steps(
     float complex          *output,
     size_t               n)
 {
-    /* Batched generation: the LO carrier (NCO) and AWGN are produced a block at
-     * a time so their vectorized (libmvec / AVX-512) paths run, instead of one
-     * sample per call. Only the symbol timing (PN/PSK) stays sequential — it is
-     * cheap integer work — and the final multiply/add is data-parallel. Output
-     * is identical to a per-sample synth_step() loop. */
-    enum { CH = 2048 }; /* <= LO_MAX_OUT; stack carrier+noise = 32 KiB */
-    float complex carrier[CH];
-    float complex noise[CH];
+    /* Fully batched, no per-sample library calls. Per chunk: the LO carrier
+     * (NCO) and AWGN are generated a block at a time (their vectorized paths);
+     * PN chips come from the block pn_generate() (kind-hoisted, ~1 GSa/s),
+     * never per-sample pn_step(); the symbol map and the LO-mix / noise-add are
+     * separate, data-parallel passes. Output is byte-identical to a per-sample
+     * synth_step() loop. */
+    enum { CH = 2048 };          /* <= LO_MAX_OUT */
+    float complex carrier[CH];   /* 16 KiB */
+    float complex noise[CH];     /* 16 KiB */
+    uint8_t chips[2 * CH];       /* up to 2 chips/sample (qpsk at sps 1) */
     const int has_lo = state->lo != NULL;
     const int has_awgn = state->awgn != NULL;
     const int modulated = state->wtype >= SYNTH_PN;
     const int qpsk = state->wtype == SYNTH_QPSK;
     const int nsps = state->nsps;
+    const float s = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
     int sym_pos = state->sym_pos;
     float cre = state->cur_re, cim = state->cur_im;
 
     for (size_t done = 0; done < n;) {
         size_t m = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
+        float complex *out = output + done;
         if (has_lo)
             lo_steps(state->lo, m, carrier);
         if (has_awgn)
             awgn_generate(state->awgn, m, noise);
-        float complex *out = output + done;
-        for (size_t i = 0; i < m; i++) {
-            if (modulated && sym_pos == 0) {
-                if (qpsk) {
-                    uint8_t b0 = pn_step(state->pn);
-                    uint8_t b1 = pn_step(state->pn);
-                    const float s = 0.70710678118654752f;
-                    cre = b0 ? -s : s;
-                    cim = b1 ? -s : s;
-                } else {
-                    uint8_t b = pn_step(state->pn);
-                    cre = b ? -1.0f : 1.0f;
-                    cim = 0.0f;
-                }
-            }
-            if (modulated && ++sym_pos >= nsps)
-                sym_pos = 0;
+
+        if (!modulated) {
+            /* Constant symbol → one fused, fully data-parallel pass. */
             float complex sym = cre + cim * I;
-            float complex v = has_lo ? sym * carrier[i] : sym;
-            out[i] = has_awgn ? v + noise[i] : v;
+            if (has_lo && has_awgn)
+                for (size_t i = 0; i < m; i++)
+                    out[i] = sym * carrier[i] + noise[i];
+            else if (has_lo)
+                for (size_t i = 0; i < m; i++)
+                    out[i] = sym * carrier[i];
+            else if (has_awgn)
+                for (size_t i = 0; i < m; i++)
+                    out[i] = sym + noise[i];
+            else
+                for (size_t i = 0; i < m; i++)
+                    out[i] = sym;
+            done += m;
+            continue;
+        }
+
+        /* Modulated: pre-generate exactly the chips this block consumes, in
+         * order — one (pn/bpsk) or two (qpsk) per symbol boundary. */
+        const int bps = qpsk ? 2 : 1;
+        size_t first = (sym_pos == 0) ? 0 : (size_t)(nsps - sym_pos);
+        size_t nb = (first < m) ? 1 + (m - 1 - first) / (size_t)nsps : 0;
+        if (nb)
+            pn_generate(state->pn, nb * (size_t)bps, chips);
+
+        if (nsps == 1) {
+            /* Every sample is a fresh chip — branch-free, vectorizable map. */
+            if (qpsk)
+                for (size_t i = 0; i < m; i++)
+                    out[i] = (chips[2 * i] ? -s : s)
+                             + (chips[2 * i + 1] ? -s : s) * I;
+            else
+                for (size_t i = 0; i < m; i++)
+                    out[i] = chips[i] ? -1.0f : 1.0f;
+            cre = crealf(out[m - 1]); /* carry last symbol (pre LO/noise) */
+            cim = cimagf(out[m - 1]);
+            /* sym_pos remains 0 when nsps == 1 */
+            if (has_lo)
+                for (size_t i = 0; i < m; i++)
+                    out[i] *= carrier[i];
+            if (has_awgn)
+                for (size_t i = 0; i < m; i++)
+                    out[i] += noise[i];
+        } else {
+            /* sps-hold: sequential symbol timing, but LO/noise fused so the
+             * chunk is touched once. */
+            size_t ci = 0;
+            for (size_t i = 0; i < m; i++) {
+                if (sym_pos == 0) {
+                    if (qpsk) {
+                        uint8_t b0 = chips[ci++], b1 = chips[ci++];
+                        cre = b0 ? -s : s;
+                        cim = b1 ? -s : s;
+                    } else {
+                        cre = chips[ci++] ? -1.0f : 1.0f;
+                        cim = 0.0f;
+                    }
+                }
+                if (++sym_pos >= nsps)
+                    sym_pos = 0;
+                float complex sym = cre + cim * I;
+                float complex v = has_lo ? sym * carrier[i] : sym;
+                out[i] = has_awgn ? v + noise[i] : v;
+            }
         }
         done += m;
     }

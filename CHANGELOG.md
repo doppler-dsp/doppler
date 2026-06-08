@@ -13,6 +13,35 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-06-08
+
+### Added
+
+- **`I32ToF32` / `I8ToF32` converters** (`doppler.cvt`) — int32→float32 and
+    int8→float32 with configurable full-scale, round-trip tested against the
+    F32→int writers.
+- **`read_iq()`** (`doppler.wfmgen.readback`) — read an interleaved-I/Q capture
+    back into a complex NumPy array: cf32/cf64 as a zero-copy complex view,
+    ci8/16/32 rescaled through the fast int→f32 converters, `raw=True` for the
+    raw `(N, 2)` view. Documented alongside the interleaved-I/Q view-vs-copy
+    table in `docs/types.md`.
+- **Comprehensive docstrings + doctests across all 16 modules** — every public
+    class, method, function, and property now carries a full numpy-style docstring
+    with a verified, runnable `Examples` doctest (884 doctest lines, CI-gated via
+    `pytest --doctest-glob`), synthesized from the C-header Doxygen by
+    just-makeit 0.18.0 (`@code` → `Examples`).
+
+### Changed
+
+- just-makeit pin → **0.18.0** (header-derived docstrings, `@code` doctests,
+    built-in `step`/`steps`/`reset` deriving from the header `@brief`).
+
+### Tooling
+
+- **pre-commit** — ruff (lint + format), clang-format (pinned v19), mdformat,
+    and hygiene hooks, enforced by a CI `pre-commit` job. jm-generated glue is
+    excluded (owned by the `jm status --check` manifest-drift gate).
+
 ______________________________________________________________________
 
 ## [0.6.0] — 2026-06-07

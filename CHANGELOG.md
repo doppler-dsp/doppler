@@ -15,6 +15,62 @@ and this project adheres to
 
 ---
 
+## [0.6.0] — 2026-06-07
+
+The headline is a new **waveform generator** — a C-first synthesis engine with
+two command-line tools and a Python API — plus a substantial throughput pass on
+the signal-source primitives and a refreshed brand and docs site.
+
+### Added
+
+- **Waveform generator (`doppler.wfmgen`)** — five waveform types (tone, noise,
+  PN, BPSK, QPSK) from one declarative C engine, exposed three ways:
+  - **`wavegen`** — single-shot generator with three byte-identical faces
+    (C binary, console script, PEP 723), `--sample_type cf32|cf64|ci32|ci16|ci8`,
+    `--file_type raw|csv|blue|sigmf`, `--endian le|be`, and `--record`.
+  - **`wfmgen`** — multi-segment composer: JSON specs via `--from-file` /
+    `--record` (byte-exact round-trip), off-time gaps, repeat / continuous, and
+    a ZMQ PUB sink (`--output zmq://…`).
+  - Python API: `Synth` (the engine) and `PN` (raw LFSR m-sequence).
+- **64-bit PN/LFSR** with a verified primitive-polynomial table for **every
+  length 2..64** (`--pn_length`, `--pn_poly`); auto-MLS when `--pn_poly 0`.
+- **Fibonacci LFSR** alongside Galois — `--lfsr galois|fibonacci`
+  (`lfsr=` on `Synth`/`PN`); same polynomial and period, different realization.
+- **BLUE type-1000** output: a complete 512-byte Header Control Block, **attached
+  or detached** (`--detached` → `<out>.hdr` + `<out>.det`).
+- **SigMF** output (`--file_type sigmf`): `.sigmf-data` + `.sigmf-meta` with one
+  annotation per composer segment.
+- **`ddc_fn`** — the functional down-converter API promoted to first-class
+  (re-exported from `doppler.ddc`, with a gallery walkthrough).
+- Brand kit (wordmark, favicon, social / app icons) and a Python API-reference
+  page for `wfmgen`, plus a runnable `examples/python/pn_codes.py`.
+
+### Changed
+
+- **AWGN AVX-512 is now runtime-dispatched.** The 8-wide generator is selected
+  at run time via `__builtin_cpu_supports`, so the distribution-safe wheel uses
+  it on capable CPUs and falls back to scalar on older hardware — no new runtime
+  dependency (libmvec is referenced through a weak symbol). ~2.6× noise
+  throughput on AVX-512 machines.
+- **The synth engine is fully batched.** The LO carrier and AWGN are generated a
+  block at a time (vectorized), PN chips come from the block generator, clean
+  waveforms (`snr ≥ 100`) skip AWGN entirely, and baseband (`freq 0`) skips the
+  LO — byte-identical output, with the PN/LFSR path reaching ~1 GSa/s.
+- Documentation site migrated from Zensical to **mkdocs-material**.
+
+### Fixed
+
+- Benchmark CI now captures the **C (`jm_bench`) suite** to the `benchmarks`
+  branch (previously Python-only); the benchmarking docs were corrected to match,
+  and the advisory perf-regression gate's just-makeit pin was aligned to 0.17.1.
+- `zensical.toml` is no longer re-committed by `jm apply` (gitignored).
+
+### Tests & docs
+
+- Comprehensive waveform-generator **user guide** and **gallery**; the
+  benchmarking guide now matches the workflows. PN/Fibonacci/64-bit coverage at
+  the C, CLI, and Python layers (1046 Python tests, 41 C tests).
+
 ## [0.5.5] — 2026-06-04
 
 ### Fixed

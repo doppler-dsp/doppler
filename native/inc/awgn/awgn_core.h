@@ -52,27 +52,82 @@ extern "C"
 
   /**
    * @brief Create an AWGN generator.
+   * Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and
+   * sets up both the scalar and the AVX2 parallel streams.  The initial
+   * seed is stored so awgn_reset() can reproduce the exact same stream.
    *
-   * @param seed       RNG seed.  Two generators with different seeds produce
-   *                   uncorrelated noise streams.
-   * @param amplitude  Per-component (Re, Im) standard deviation.  Must be ≥ 0.
+   * @param seed       64-bit RNG seed.  Two generators with different seeds
+   *                   produce statistically independent noise streams.
+   * @param amplitude  Per-component (Re, Im) standard deviation.  Must be
+   *                   ≥ 0; total complex power = 2 × amplitude².
    * @return Heap-allocated state, or NULL on allocation failure.
+   * @code
+   * >>> from doppler.source import AWGN
+   * >>> gen = AWGN(seed=0, amplitude=1.0)
+   * >>> gen.amplitude
+   * 1.0
+   * @endcode
    */
   awgn_state_t *awgn_create (uint64_t seed, float amplitude);
 
   /** Free all resources.  NULL is a no-op. */
   void awgn_destroy (awgn_state_t *state);
 
-  /** Reset RNG to the seed supplied at create time. */
+  /**
+   * @brief Reset RNG to the seed supplied at create time.
+   * Re-runs the SplitMix64 seeding procedure with the original seed so
+   * the next awgn_generate() call produces exactly the same samples as
+   * the first call after awgn_create().  amplitude is not changed.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.source import AWGN
+   * >>> gen = AWGN(seed=0, amplitude=1.0)
+   * >>> first = gen.generate(4)
+   * >>> gen.reset()
+   * >>> second = gen.generate(4)
+   * >>> bool(np.all(first == second))
+   * True
+   * @endcode
+   */
   void awgn_reset (awgn_state_t *state);
 
-  /** Return the current amplitude (per-component std dev). */
+  /**
+   * @brief Return the current amplitude (per-component std dev).
+   * @code
+   * >>> from doppler.source import AWGN
+   * >>> gen = AWGN(seed=0, amplitude=1.0)
+   * >>> gen.amplitude
+   * 1.0
+   * >>> gen.amplitude = 2.0
+   * >>> gen.amplitude
+   * 2.0
+   * @endcode
+   */
   float awgn_get_amplitude (const awgn_state_t *state);
 
   /** Set amplitude without disturbing RNG state. */
   void awgn_set_amplitude (awgn_state_t *state, float val);
 
-  /** Reseed the RNG and reset state. */
+  /**
+   * @brief Reseed the RNG and reset all xoshiro256++ state.
+   * Equivalent to calling awgn_destroy() and awgn_create(seed, amplitude)
+   * but reuses the existing allocation.  amplitude is unchanged.
+   *
+   * @param state  Generator state returned by awgn_create().
+   * @param seed   New 64-bit RNG seed.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.source import AWGN
+   * >>> gen = AWGN(seed=0, amplitude=1.0)
+   * >>> gen.reseed(42)
+   * >>> out1 = gen.generate(4)
+   * >>> gen2 = AWGN(seed=42, amplitude=1.0)
+   * >>> out2 = gen2.generate(4)
+   * >>> bool(np.all(out1 == out2))
+   * True
+   * @endcode
+   */
   void awgn_reseed (awgn_state_t *state, uint64_t seed);
 
   /**
@@ -85,11 +140,29 @@ extern "C"
 
   /**
    * @brief Generate n complex CF32 AWGN samples.
+   * Uses Box-Muller with xoshiro256++ to fill `out` with independent
+   * complex Gaussians: Re and Im each have zero mean and standard
+   * deviation `amplitude`.  Total complex power = 2 × amplitude².
+   * The AVX2 path processes 8 samples in parallel when available.
    *
-   * @param state  Must be non-NULL.
+   * @param state  Generator state returned by awgn_create().
    * @param n      Number of samples to generate.
-   * @param out    Output buffer, capacity ≥ n.
-   * @return n (always; generate produces exactly n samples).
+   * @param out    Output buffer; must hold at least n float complex values.
+   * @return n (always).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.source import AWGN
+   * >>> gen = AWGN(seed=0, amplitude=1.0)
+   * >>> out = gen.generate(1024)
+   * >>> out.dtype
+   * dtype('complex64')
+   * >>> out.shape
+   * (1024,)
+   * >>> round(float(np.var(out.real)), 1)
+   * 1.0
+   * >>> round(float(np.var(out.imag)), 1)
+   * 1.0
+   * @endcode
    */
   size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out);
 

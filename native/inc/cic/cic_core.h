@@ -66,11 +66,22 @@ typedef struct {
 } cic_state_t;
 
 /**
- * @brief Create a CIC decimation filter.
+ * @brief Create a 4-stage, M=1 CIC decimation filter.
+ * Allocates the state struct on the heap and pre-computes the
+ * normalisation right-shift (CIC_N * log2(R) bits). All integrator
+ * and comb accumulators are zeroed; the first output arrives after
+ * R input samples. Returns NULL for invalid R or OOM.
  *
- * @param R  Decimation ratio.  Must be a power of two in `[2, 4096]`.
+ * @param R  Decimation ratio.  Must be a power of two in [2, 4096].
  *           Returns NULL for R=0, non-power-of-two, or R > 4096.
  * @return   Heap-allocated state, or NULL on invalid R or OOM.
+ *
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> cic = CIC(R=16)
+ * >>> cic.R, cic.shift
+ * (16, 16)
+ * @endcode
  */
 cic_state_t *cic_create(uint32_t R);
 
@@ -78,10 +89,18 @@ cic_state_t *cic_create(uint32_t R);
 void cic_destroy(cic_state_t *state);
 
 /**
- * @brief Zero all filter state; preserve R and shift.
+ * @brief Zero all integrator and comb accumulators; preserve R and shift.
+ * The first output sample after reset arrives after R more input samples,
+ * matching post-create behaviour. Use between signal bursts to eliminate
+ * transient artefacts caused by residual pipeline state.
  *
- * The first output sample after reset is produced on input sample R-1,
- * matching post-create behaviour.
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> cic = CIC(R=16)
+ * >>> cic.reset()
+ * >>> cic.R
+ * 16
+ * @endcode
  */
 void cic_reset(cic_state_t *state);
 
@@ -95,18 +114,30 @@ void cic_reset(cic_state_t *state);
 size_t cic_decimate_max_out(cic_state_t *state);
 
 /**
- * @brief Decimate n_in CF32 samples; write output to out.
+ * @brief Decimate a block of CF32 samples through the CIC pipeline.
+ * Each sample is converted to offset-binary UQ16, pushed through
+ * CIC_N integrators (unsigned wrapping), and when the phase counter
+ * reaches R the integrated value is passed through CIC_N M=1 comb
+ * stages and converted back to CF32.  State persists between calls.
+ * Feeding blocks that are multiples of R gives predictable output
+ * counts (exactly n_in/R samples per block).
  *
- * Each sample is converted to UQ16, run through CIC_N integrators,
- * tested against the decimation phase, then (if a decimation boundary)
- * passed through CIC_N comb stages and converted back to CF32.
- *
- * @param state  Must be non-NULL.
- * @param in     CF32 input array, length n_in.
+ * @param state  Pointer to a valid cic_state_t.
+ * @param in     CF32 input block.
  * @param n_in   Number of input samples.
- * @param out    Output buffer; must hold at least
- *               ceil((state->phase + n_in) / state->R) elements.
- * @return       Number of output samples written.
+ * @param out    Output buffer; must hold at least n_in elements.
+ * @return       CF32 output array; length is floor((phase + n_in) / R).
+ *
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> import numpy as np
+ * >>> cic = CIC(R=16)
+ * >>> for _ in range(4):
+ * ...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
+ * >>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
+ * >>> y.tolist(), y.dtype
+ * ([0j], dtype('complex64'))
+ * @endcode
  */
 JM_FORCEINLINE JM_HOT size_t
 cic_decimate(cic_state_t *state, const float complex *in,
@@ -161,12 +192,22 @@ cic_decimate(cic_state_t *state, const float complex *in,
 }
 
 /**
- * @brief Change the decimation ratio in place; resets all filter state.
+ * @brief Change the decimation ratio in place and reset all filter state.
+ * Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all
+ * accumulators so the filter behaves exactly like a freshly created
+ * one with the new R. Silently ignores R values that are not a
+ * power-of-two in [2, 4096] — the state is left unchanged in that case.
  *
- * Silently ignores invalid R (non-power-of-two, out of range).
- *
- * @param state  Filter state to reconfigure.  Must be non-NULL.
+ * @param state  Pointer to a valid cic_state_t.
  * @param R      New decimation ratio.  Same constraints as cic_create().
+ *
+ * @code
+ * >>> from doppler.resample import CIC
+ * >>> cic = CIC(R=4)
+ * >>> cic.reconfigure(8)
+ * >>> cic.R, cic.shift
+ * (8, 12)
+ * @endcode
  */
 void cic_reconfigure(cic_state_t *state, uint32_t R);
 

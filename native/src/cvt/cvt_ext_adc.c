@@ -216,7 +216,7 @@ static PyMethodDef ADCObj_methods[] = {
     {"steps",    (PyCFunction)ADC_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Process a block of float samples to int64.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import ADC\n"

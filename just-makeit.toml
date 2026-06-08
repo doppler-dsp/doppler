@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.17.1"
+jm_version = "0.18.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -10,9 +10,6 @@ pytest = "true"
 pytest_benchmark = "true"
 schema = "6"
 c_deps = ["hbdecim", "resamp", "wfmcompose"]
-# Docs migrated from jm's scaffolded Zensical config to mkdocs-material
-# (mkdocs.yml, hand-owned). The Zensical scaffold file is intentionally removed;
-# allowlist it so `jm status --check` doesn't flag the deliberate deviation.
 status_allow = ["zensical.toml"]
 
 [module.cvt]

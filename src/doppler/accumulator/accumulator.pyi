@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class AccF32:
-    """AccF32 component.
+    """Single-precision floating-point scalar accumulator. Maintains one running sum (``acc``) that persists across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. Use ``get`` to read without side-effects or ``dump`` to read and atomically zero in a single call.
 
     Parameters
     ----------
@@ -30,61 +30,145 @@ class AccF32:
     def __init__(self, acc: float = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Zero the accumulator, restoring the same state as a fresh ``AccF32(0.0)`` — regardless of the value supplied to ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return ``0.0`` until new samples are processed.
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.step(7.0)
+        >>> obj.reset()
+        >>> obj.get_acc()
+        0.0
+
+        """
 
     def step(self, x: float) -> None:
         """Process one input sample."""
 
     def steps(self, x: NDArray[np.float32]) -> None:
-        """Process a samples array."""
+        """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_f32_step`` for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM_RESTRICT so the compiler can assume no aliasing between ``state`` and ``input``.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.steps(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+        >>> obj.get()
+        6.0
+
+        """
 
     def get(self) -> float:
-        """get.
+        """Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.
 
         Returns
         -------
         float
-            Result (float).
+            Current value of ``acc`` (float).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.step(2.0)
+        >>> obj.step(3.0)
+        >>> obj.get()
+        5.0
+
         """
 
     def dump(self) -> float:
-        """dump.
+        """Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. The zero-reset is unconditional and always writes 0.0f.
 
         Returns
         -------
         float
-            Result (float).
+            Value of ``acc`` just before the reset (float).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.step(3.0)
+        >>> obj.step(4.0)
+        >>> obj.dump()
+        7.0
+        >>> obj.get()
+        0.0
+
         """
 
     def madd(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """Multiply-accumulate: acc += sum(x * h) over x_len samples.
+        """Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Input array (float), length x_len.
+            Signal samples (float32 array).
         h : NDArray[np.float32]
-            Coefficient array (float), length h_len.
+            Coefficient / weight array (float32 array).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> x = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+        >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+        >>> obj.madd(x, h)
+        >>> obj.get()
+        5.0
+
         """
 
     def add2d(self, x: NDArray[np.float32]) -> None:
-        """Accumulate a 2-D array: acc += sum of all elements in x.
+        """Sum all elements of a (logically) 2-D float array into the accumulator. The array is treated as a flat C-order buffer of ``x_len`` floats regardless of the original shape; the caller is responsible for passing the total element count.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Input array (float), x_len elements total.
+            Input array (float32, any shape — passed as flat buffer).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> grid = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+        >>> obj.add2d(grid)
+        >>> obj.get()
+        10.0
+
         """
 
     def madd2d(self, x: NDArray[np.float32], h: NDArray[np.float32]) -> None:
-        """2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
+        """Dot-product accumulate over a flat 2-D buffer: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d`` and ``madd`` semantics — a 2-D signal array is weighted element-wise by a coefficient buffer and the scalar total is folded into the running sum.
 
         Parameters
         ----------
         x : NDArray[np.float32]
-            Input array (float), length x_len.
+            Signal samples (float32, flat buffer of the 2-D array).
         h : NDArray[np.float32]
-            Coefficient array (float), length h_len.
+            Coefficient / weight array (float32).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> x = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+        >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+        >>> obj.madd2d(x, h)
+        >>> obj.get()
+        5.0
+
         """
 
     def destroy(self) -> None:
@@ -95,7 +179,7 @@ class AccF32:
     def __exit__(self, *args: object) -> None: ...
 
 class AccCf64:
-    """AccCf64 component.
+    """Double-precision complex scalar accumulator. Maintains one running complex sum (``acc``) across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. The signal path is double-precision complex (128-bit per sample); coefficient arrays for ``madd``/``madd2d`` are single-precision float to match typical FIR weight storage. Use ``get`` to read without side-effects or ``dump`` to read and zero atomically.
 
     Parameters
     ----------
@@ -122,61 +206,145 @@ class AccCf64:
     def __init__(self, acc: complex = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Zero the accumulator, restoring the same state as a fresh ``AccCf64(0j)`` — regardless of the value supplied to ``acc_cf64_create``. Both the real and imaginary parts are set to 0.0. Subsequent ``get`` / ``dump`` calls return ``0j`` until new samples are processed.
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.step(3+2j)
+        >>> obj.reset()
+        >>> obj.get_acc()
+        0j
+
+        """
 
     def step(self, x: complex) -> None:
         """Process one input sample."""
 
     def steps(self, x: NDArray[np.complex128]) -> None:
-        """Process a samples array."""
+        """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_cf64_step`` for each element; iterates element-by-element over double-precision complex samples.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex128]
+            Input.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.steps(np.array([1+0j, 2+1j, 3+2j], dtype=np.complex128))
+        >>> obj.get()
+        (6+3j)
+
+        """
 
     def get(self) -> complex:
-        """get.
+        """Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.
 
         Returns
         -------
         complex
-            Result (double complex).
+            Current value of ``acc`` (complex).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.step(2+0j)
+        >>> obj.step(0+3j)
+        >>> obj.get()
+        (2+3j)
+
         """
 
     def dump(self) -> complex:
-        """dump.
+        """Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. Both real and imaginary parts are zeroed unconditionally.
 
         Returns
         -------
         complex
-            Result (double complex).
+            Value of ``acc`` just before the reset (complex).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.step(3+2j)
+        >>> obj.step(1+1j)
+        >>> obj.dump()
+        (4+3j)
+        >>> obj.get()
+        0j
+
         """
 
     def madd(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """Multiply-accumulate: acc += sum(x * h) over x_len samples.
+        """Dot-product accumulate with complex signal and float weights: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. The signal array ``x`` is double-precision complex; the coefficient array ``h`` is single-precision float (widened to double before multiplication). The shorter of the two arrays limits iteration.
 
         Parameters
         ----------
         x : NDArray[np.complex128]
-            Input array (double complex), length x_len.
+            Complex signal samples (complex128 array).
         h : NDArray[np.float32]
-            Coefficient array (float), length h_len.
+            Real coefficient / weight array (float32 array).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> x = np.array([1+0j, 2+0j, 3+0j, 4+0j], dtype=np.complex128)
+        >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+        >>> obj.madd(x, h)
+        >>> obj.get()
+        (5+0j)
+
         """
 
     def add2d(self, x: NDArray[np.complex128]) -> None:
-        """Accumulate a 2-D array: acc += sum of all elements in x.
+        """Sum all elements of a (logically) 2-D complex array into the accumulator. The array is treated as a flat C-order buffer of ``x_len`` complex128 samples regardless of the original shape; the caller is responsible for passing the total element count.
 
         Parameters
         ----------
         x : NDArray[np.complex128]
-            Input array (double complex), x_len elements total.
+            Input array (complex128, any shape — passed as flat buffer).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> grid = np.array([[1+0j, 2+0j], [3+0j, 4+0j]], dtype=np.complex128)
+        >>> obj.add2d(grid)
+        >>> obj.get()
+        (10+0j)
+
         """
 
     def madd2d(self, x: NDArray[np.complex128], h: NDArray[np.float32]) -> None:
-        """2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
+        """Dot-product accumulate over a flat 2-D complex buffer: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0 .. min(x_len, h_len) - 1``. Combines ``add2d`` and ``madd`` semantics for 2-D data — a complex signal grid is weighted element-wise by a real coefficient buffer and folded into the running sum.
 
         Parameters
         ----------
         x : NDArray[np.complex128]
-            Input array (double complex), length x_len.
+            Complex signal samples (complex128, flat buffer).
         h : NDArray[np.float32]
-            Coefficient array (float), length h_len.
+            Real coefficient / weight array (float32).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> x = np.array([1+0j, 2+0j, 3+0j, 4+0j], dtype=np.complex128)
+        >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+        >>> obj.madd2d(x, h)
+        >>> obj.get()
+        (5+0j)
+
         """
 
     def destroy(self) -> None:

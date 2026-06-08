@@ -39,40 +39,80 @@ typedef struct {
 } pn_state_t;
 
 /**
- * @brief Create a pn instance.
+ * @brief Allocate and initialise a maximal-length-sequence LFSR.
+ * The register is seeded from ``seed`` and will produce a pseudo-random
+ * binary sequence with period 2^length - 1 for any primitive ``poly``.
+ * Both Galois and Fibonacci realizations share the same primitive polynomial
+ * and therefore the same period; they differ only in chip ordering/phase.
  *
- * @param poly  Galois tap polynomial (default: 96). The Fibonacci taps are
- *              derived from it, so both realizations share the same primitive
- *              polynomial (and period).
- * @param seed  seed (default: 1).
- * @param length  register length, 1..64 (default: 7).
- * @param lfsr  PN_GALOIS (0, default) or PN_FIBONACCI (1).
+ * @param poly  Galois feedback tap polynomial (right-shift convention).
+ *              The LSB is the tap at position 0 (always 1 for a primitive
+ *              poly); bit k=1 means tap at position k. Default 96 (0x60)
+ *              is primitive for length=7, giving period 127. The Fibonacci
+ *              taps are derived automatically so you only supply one value.
+ * @param seed  Initial LFSR register state; must be non-zero (the all-zero
+ *              state is a fixed point). Default 1.
+ * @param length  Register width in bits, 1..64. The sequence period is
+ *              2^length - 1 for a primitive polynomial. Default 7.
+ * @param lfsr  Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call pn_destroy() when done.
+ * @code
+ * >>> from doppler.wfmgen import PN
+ * >>> import numpy as np
+ * >>> p = PN(poly=96, seed=1, length=7)
+ * >>> chips = p.generate(127)
+ * >>> chips.dtype
+ * dtype('uint8')
+ * >>> int(chips.sum())   # 64 ones per MLS period (2^(n-1))
+ * 64
+ * @endcode
  */
 pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 
 /**
  * @brief Destroy a pn instance and release all memory.
- * @param state  May be NULL.
+ * Idempotent when ``state`` is NULL; safe to call at any point in the
+ * lifecycle.  After return the pointer is dangling — do not dereference it.
+ *
+ * @param state  Pointer to heap-allocated state; may be NULL (no-op).
+ * @code
+ * >>> from doppler.wfmgen import PN
+ * >>> p = PN(poly=96, seed=1, length=7)
+ * >>> p.destroy()   # explicit teardown; no exception
+ * @endcode
  */
 void pn_destroy(pn_state_t *state);
 
 /**
  * @brief Reset PN to its post-create state.
+ * Reloads the LFSR register from the original seed so the sequence restarts
+ * from chip 0.  Useful for reproducible captures without re-allocating.
+ *
  * @param state  Must be non-NULL.
+ * @code
+ * >>> from doppler.wfmgen import PN
+ * >>> import numpy as np
+ * >>> p = PN(poly=96, seed=1, length=7)
+ * >>> a = p.generate(8).copy()
+ * >>> p.reset()
+ * >>> np.array_equal(a, p.generate(8))
+ * True
+ * @endcode
  */
 void pn_reset(pn_state_t *state);
 
 /**
- * @brief Advance the LFSR one step; return the output chip (0 or 1).
+ * @brief Advance the LFSR one step and return the output chip (0 or 1).
+ * Both realizations output the register LSB and then shift right. Galois
+ * XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci
+ * computes the parity of all tapped positions and inserts it at the top
+ * (external feedback). Same primitive polynomial, same period. Inlined so
+ * per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips
+ * in a tight hot loop without call overhead.
  *
- * Both realizations output the register LSB and shift right. Galois XORs the
- * tap polynomial on a 1 (internal feedback); Fibonacci feeds the parity of the
- * tapped bits into the top (external feedback). Same primitive polynomial, same
- * period. Inline so per-sample modulators (e.g. synth's bpsk/qpsk data source)
- * can pull chips in a hot loop without a block call.
  * @param state  Must be non-NULL.
+ * @return Output chip: 0 or 1 (register LSB before the shift).
  */
 JM_FORCEINLINE uint8_t
 pn_step(pn_state_t *state)
@@ -98,6 +138,30 @@ pn_step(pn_state_t *state)
 
 
 size_t pn_generate_max_out(pn_state_t *state);
+
+/**
+ * @brief Generate ``n`` chips into ``out`` and advance the LFSR by ``n``
+ * positions.  Each element of ``out`` is 0 or 1.  Requesting more than one
+ * MLS period is valid — the sequence simply wraps around.  The Python
+ * binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer;
+ * copy the result before calling generate again if you need a snapshot.
+ *
+ * @param state  Initialised PN state returned by ``pn_create``.
+ * @param n      Number of chips to produce.
+ * @param out    Output buffer of at least ``n`` uint8 elements; each element
+ *               receives 0 or 1.
+ * @return ``n`` (the number of chips written; always equal to the request).
+ * @code
+ * >>> from doppler.wfmgen import PN
+ * >>> import numpy as np
+ * >>> p = PN(poly=96, seed=1, length=7)
+ * >>> chips = p.generate(127)
+ * >>> chips[:8].tolist()
+ * [1, 0, 0, 0, 0, 0, 1, 1]
+ * >>> int(chips.sum())   # 64 ones per MLS period
+ * 64
+ * @endcode
+ */
 size_t pn_generate(pn_state_t *state, size_t n, uint8_t *out);
 #ifdef __cplusplus
 }

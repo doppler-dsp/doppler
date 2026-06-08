@@ -63,19 +63,26 @@ typedef struct {
 } corr_state_t;
 
 /**
- * @brief Create a 1-D FFT correlator.
+ * @brief Allocate a 1-D FFT correlator with coherent integrate-and-dump.
+ * Pre-computes conj(FFT(ref)) once at construction so each execute()
+ * call costs only two FFTs and n complex multiplies.  @p ref may be freed
+ * after this returns.  With @p dwell == 1 every call produces output; with
+ * larger values the accumulator absorbs @p dwell frames before dumping.
  *
- * Allocates two FFT plans, computes ``conj(FFT(ref))`` once, and
- * zeroes the accumulator.  The caller may free or reuse ``ref`` after
- * this call returns.
- *
- * @param ref       Reference signal of length @p n (CF32, row-major).
- * @param n         Transform / reference length in samples.
- * @param dwell     Integration depth.  Must be >= 1.  Pass 1 for pure
- *                  correlation (no accumulation).
- * @param nthreads  Accepted for API compatibility; ignored (pocketfft is
- *                  single-threaded).
+ * @param ref       Reference signal, CF32, length @p n.
+ * @param n         Reference / FFT length in samples.
+ * @param dwell     Integration depth; must be >= 1.  Pass 1 for immediate
+ *                  output on every call.
+ * @param nthreads  Accepted for API compatibility; ignored.
  * @return Heap-allocated state, or NULL on allocation failure.
+ * @code
+ * >>> from doppler.spectral import Corr
+ * >>> import numpy as np
+ * >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+ * >>> corr = Corr(ref=ref, dwell=1, nthreads=1)
+ * >>> corr.n, corr.dwell, corr.count
+ * (4, 1, 0)
+ * @endcode
  */
 corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
                           int nthreads);
@@ -85,11 +92,22 @@ void corr_destroy(corr_state_t *state);
 
 /**
  * @brief Zero the accumulator and reset the integration counter to 0.
+ * Equivalent to starting a fresh dwell cycle without tearing down the FFT
+ * plans.  Does NOT recompute ref_spec; use corr_set_ref() to replace the
+ * reference.
  *
- * Equivalent to starting a fresh dwell cycle.  Does NOT recompute
- * ref_spec; use corr_set_ref() for that.
- *
- * @param state Must be non-NULL.
+ * @code
+ * >>> from doppler.spectral import Corr
+ * >>> import numpy as np
+ * >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+ * >>> corr = Corr(ref=ref, dwell=3)
+ * >>> _ = corr.execute(np.ones(4, dtype=np.complex64))
+ * >>> corr.count
+ * 1
+ * >>> corr.reset()
+ * >>> corr.count
+ * 0
+ * @endcode
  */
 void corr_reset(corr_state_t *state);
 
@@ -109,24 +127,31 @@ void corr_set_ref(corr_state_t *state, const float complex *ref);
 size_t corr_execute_max_out(corr_state_t *state);
 
 /**
- * @brief Correlate one frame and optionally dump the accumulator.
+ * @brief Correlate one frame and optionally dump the coherent accumulator.
+ * Runs the six-step pipeline: forward FFT → pointwise multiply with
+ * ref_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump.
+ * On the @p dwell-th call the accumulator is copied to @p out, zeroed, and
+ * the counter resets; the function returns n.  All other calls return 0 and
+ * leave @p out unmodified.  In Python, a dump returns an ndarray and a
+ * no-dump returns None.
  *
- * Steps:
- *   1. FFT(in) → work_fft
- *   2. `work_fft[k] *= ref_spec[k]`  (frequency-domain multiplication)
- *   3. IFFT(work_fft) → work_ifft  (unnormalized; divide by n)
- *   4. `accum[k] += work_ifft[k] / n`
- *   5. count++
- *   6. If count == dwell: copy accum → out, zero accum, reset count,
- *      return n.
- *   7. Otherwise: return 0 (no output this call).
- *
- * @param state Must be non-NULL.
- * @param in    Input frame of length n_in (must equal state->n).
- * @param n_in  Number of input samples; ignored beyond state->n.
- * @param out   Output buffer of length >= state->n.  Only written when
- *              the function returns n (dump).
- * @return n on a dump, 0 otherwise.
+ * @param state  Allocated correlator (non-NULL).
+ * @param in     Input frame, CF32, length state->n.
+ * @param n_in   Number of input samples; must equal state->n.
+ * @param out    Output buffer for the correlation map (CF32, length state->n);
+ *               written only on a dump call.
+ * @return n on a dump call, 0 otherwise (None in Python).
+ * @code
+ * >>> from doppler.spectral import Corr
+ * >>> import numpy as np
+ * >>> ref = np.zeros(4, dtype=np.complex64); ref[0] = 1.0
+ * >>> corr = Corr(ref=ref, dwell=2)
+ * >>> x = np.ones(4, dtype=np.complex64)
+ * >>> corr.execute(x) is None   # frame 1 — no dump yet
+ * True
+ * >>> corr.execute(x).tolist()  # frame 2 — dump
+ * [(2+0j), (2+0j), (2+0j), (2+0j)]
+ * @endcode
  */
 size_t corr_execute(corr_state_t *state, const float complex *in, size_t n_in,
                     float complex *out);

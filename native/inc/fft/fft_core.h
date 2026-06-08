@@ -34,15 +34,27 @@ extern "C"
   } fft_state_t;
 
   /**
-   * @brief Create a 1-D FFT instance.
+   * @brief Allocate a reusable 1-D FFT engine for a fixed length and sign.
+   * Two pocketfft plans are created at construction time — one for CF64 and
+   * one for CF32 — so execute calls carry no plan-setup overhead.  The same
+   * instance may be called repeatedly for independent input vectors of the
+   * same length.  @p nthreads is accepted for API parity but is ignored;
+   * pocketfft plans are single-threaded.
    *
-   * Allocates one CF64 and one CF32 pocketfft plan for length @p n.
-   * nthreads is accepted for API compatibility but ignored.
-   *
-   * @param n         Transform length in samples.
-   * @param sign      -1 for forward DFT, +1 for inverse.
-   * @param nthreads  Ignored (pocketfft is single-threaded).
+   * @param n         Transform length in samples (power of two recommended).
+   * @param sign      -1 for the forward DFT, +1 for the inverse DFT.
+   * @param nthreads  Accepted for API compatibility; ignored.
    * @return Heap-allocated state, or NULL on allocation failure.
+   * @code
+   * >>> from doppler.spectral import FFT
+   * >>> import numpy as np
+   * >>> fft = FFT(n=4, sign=-1, nthreads=1)
+   * >>> fft.n, fft.sign
+   * (4, -1)
+   * >>> x = np.array([1, 0, 0, 0], dtype=np.complex64)
+   * >>> fft.execute_cf32(x).tolist()
+   * [(1+0j), (1+0j), (1+0j), (1+0j)]
+   * @endcode
    */
   fft_state_t *fft_create (size_t n, int sign, int nthreads);
 
@@ -56,12 +68,24 @@ extern "C"
   size_t fft_execute_cf64_max_out (fft_state_t *state);
 
   /**
-   * @brief Out-of-place 1-D CF64 FFT.
-   * @param state  Must be non-NULL.
-   * @param in     Input buffer of length n_in (must equal state->n).
-   * @param n_in   Number of input samples.
-   * @param out    Output buffer of length >= n.
-   * @return n (samples written).
+   * @brief Compute an out-of-place 1-D DFT on a double-precision complex input.
+   * The output is written to a fresh caller-supplied buffer; @p in and @p out
+   * must not alias.  The transform is unnormalised: the inverse DFT (sign=+1)
+   * does NOT divide by n.  Both buffers must be exactly state->n elements long.
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Input buffer of length state->n (CF64, row-major).
+   * @param n_in   Number of input samples; must equal state->n.
+   * @param out    Output buffer of length >= state->n (CF64, caller-allocated).
+   * @return n (number of samples written).
+   * @code
+   * >>> from doppler.spectral import FFT
+   * >>> import numpy as np
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> x = np.array([1, 0, 0, 0], dtype=np.complex128)
+   * >>> fft.execute_cf64(x).tolist()
+   * [(1+0j), (1+0j), (1+0j), (1+0j)]
+   * @endcode
    */
   size_t fft_execute_cf64 (fft_state_t *state, const double complex *in,
                            size_t n_in, double complex *out);
@@ -70,12 +94,24 @@ extern "C"
   size_t fft_execute_cf32_max_out (fft_state_t *state);
 
   /**
-   * @brief Out-of-place 1-D CF32 FFT.
-   * @param state  Must be non-NULL.
-   * @param in     Input buffer of length n_in.
-   * @param n_in   Number of input samples.
-   * @param out    Output buffer of length >= n.
-   * @return n (samples written).
+   * @brief Compute an out-of-place 1-D DFT on a single-precision complex input.
+   * Identical to fft_execute_cf64() but operates on float complex (CF32)
+   * buffers, halving memory bandwidth relative to the double-precision variant.
+   * Output is unnormalised; @p in and @p out must not alias.
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Input buffer of length state->n (CF32, row-major).
+   * @param n_in   Number of input samples; must equal state->n.
+   * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
+   * @return n (number of samples written).
+   * @code
+   * >>> from doppler.spectral import FFT
+   * >>> import numpy as np
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> x = np.ones(4, dtype=np.complex64)
+   * >>> fft.execute_cf32(x).tolist()
+   * [(4+0j), 0j, 0j, 0j]
+   * @endcode
    */
   size_t fft_execute_cf32 (fft_state_t *state, const float complex *in,
                            size_t n_in, float complex *out);
@@ -84,12 +120,25 @@ extern "C"
   size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
 
   /**
-   * @brief In-place 1-D CF64 FFT (copies in→out, then transforms in out).
-   * @param state  Must be non-NULL.
-   * @param in     Source; copied into out before the transform.
-   * @param n_in   Number of input samples.
-   * @param out    Buffer of length >= n; must not alias in.
-   * @return n (samples written).
+   * @brief Copy @p in into @p out, then transform @p out in-place (CF64).
+   * The copy step lets callers preserve their input while keeping the output
+   * buffer hot in cache.  Semantically identical to fft_execute_cf64() for
+   * separate @p in / @p out pointers; use this variant when the caller already
+   * owns @p out and wants the result there without a second allocation.
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Source buffer, state->n CF64 samples; not modified.
+   * @param n_in   Number of input samples; must equal state->n.
+   * @param out    Destination buffer, length >= state->n; must not alias in.
+   * @return n (number of samples written).
+   * @code
+   * >>> from doppler.spectral import FFT
+   * >>> import numpy as np
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> x = np.array([1, 0, 0, 0], dtype=np.complex128)
+   * >>> fft.execute_inplace_cf64(x).tolist()
+   * [(1+0j), (1+0j), (1+0j), (1+0j)]
+   * @endcode
    */
   size_t fft_execute_inplace_cf64 (fft_state_t *state,
                                    const double complex *in, size_t n_in,
@@ -99,12 +148,24 @@ extern "C"
   size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
 
   /**
-   * @brief In-place 1-D CF32 FFT (copies in→out, then transforms in out).
-   * @param state  Must be non-NULL.
-   * @param in     Source; copied into out before the transform.
-   * @param n_in   Number of input samples.
-   * @param out    Buffer of length >= n; must not alias in.
-   * @return n (samples written).
+   * @brief Copy @p in into @p out, then transform @p out in-place (CF32).
+   * Single-precision variant of fft_execute_inplace_cf64().  Copies
+   * state->n CF32 samples from @p in to @p out, then transforms @p out
+   * with the CF32 pocketfft plan.  @p in is left unmodified.
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Source buffer, state->n CF32 samples; not modified.
+   * @param n_in   Number of input samples; must equal state->n.
+   * @param out    Destination buffer, length >= state->n; must not alias in.
+   * @return n (number of samples written).
+   * @code
+   * >>> from doppler.spectral import FFT
+   * >>> import numpy as np
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> x = np.array([1, 0, 0, 0], dtype=np.complex64)
+   * >>> fft.execute_inplace_cf32(x).tolist()
+   * [(1+0j), (1+0j), (1+0j), (1+0j)]
+   * @endcode
    */
   size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
                                    size_t n_in, float complex *out);

@@ -84,38 +84,98 @@ typedef struct {
 
 /**
  * @brief Allocate and initialise a fixed-point halfband 2:1 decimator.
- *
- * @param num_taps  FIR branch length (number of non-zero symmetric taps,
- *                  NOT the full sparse prototype length).  Must be >= 1.
- * @param h         Float FIR branch coefficients, length num_taps.
- *                  Must be symmetric (h[k] = h[num_taps-1-k]).
- *                  Copied and converted to Q15 with x0.5 scaling.
- * @return Non-NULL on success, NULL on invalid args or allocation failure.
+ * The FIR branch coefficients are supplied as float and converted
+ * internally to Q15 with a x0.5 polyphase rate scaling.  The full
+ * halfband prototype is sparse (every other tap is zero); supply only
+ * the non-zero FIR branch taps, not the full sparse prototype.
+ * @param num_taps Number of FIR branch coefficients in h (>= 1).
+ * @param h        Float FIR branch coefficients of length num_taps.
+ *                 Must be symmetric (h[k] == h[num_taps-1-k]).
+ * @return HBDecimQ15 instance.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> dec = HBDecimQ15(h)
+ * >>> dec.num_taps
+ * 3
+ * >>> dec.rate
+ * 0.5
+ * @endcode
  */
 hbdecim_q15_state_t *hbdecim_q15_create(size_t num_taps, const float *h);
 
-/** Free all resources.  NULL is a no-op. */
+/**
+ * @brief Free all heap resources owned by the decimator state.
+ * Releases the Q15 coefficient buffer, all four delay rings, and the
+ * state struct itself.  Passing NULL is a no-op.  The Python wrapper
+ * calls this in __del__ and __exit__; call it explicitly only for
+ * deterministic release before GC reclaims the object.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> with HBDecimQ15(h) as dec:
+ * ...     y = dec.execute(
+ * ...         np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0],
+ * ...                  dtype=np.int16))
+ * ...     y.dtype
+ * dtype('int16')
+ * @endcode
+ */
 void hbdecim_q15_destroy(hbdecim_q15_state_t *r);
 
-/** Zero all delay rings and clear the pending-sample flag. */
+/**
+ * @brief Zero all delay rings and clear the pending-sample flag.
+ * After a reset the decimator behaves identically to a freshly
+ * constructed instance: the four dual-write delay rings are zeroed and
+ * has_pending is cleared, so no partial IQ pair carries over.  Call
+ * this between unrelated signal segments to prevent inter-segment
+ * leakage.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> dec = HBDecimQ15(h)
+ * >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
+ * >>> _ = dec.execute(x)
+ * >>> dec.reset()
+ * >>> y = dec.execute(x)
+ * >>> y.tolist()
+ * [0, 0, 625, 0]
+ * @endcode
+ */
 void hbdecim_q15_reset(hbdecim_q15_state_t *r);
 
 /**
  * @brief Decimate a block of interleaved IQ int16 samples by 2.
- *
- * Input layout:  I0 Q0 I1 Q1 ... (2*n_in  int16_t values).
- * Output layout: I0 Q0 I1 Q1 ... (2*n_out int16_t values), n_out <= n_in/2.
- *
- * If n_in is odd the trailing even IQ pair is buffered and consumed on
- * the next call.  Output buffer must be allocated for at least
- * 2 * ((n_in + 1) / 2) int16_t elements to be safe.
- *
- * @param r       State handle, must be non-NULL.
- * @param in      Interleaved IQ input, 2*n_in elements.
- * @param n_in    Number of complex input samples (IQ pairs).
- * @param out     Output buffer, capacity >= 2*max_out elements.
- * @param max_out Maximum complex output samples to write.
- * @return Number of complex output samples written.
+ * Input must be interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass
+ * a 1-D array of 2*n_complex elements.  Each pair of complex input
+ * samples produces one complex output sample, so an array of length 2N
+ * yields at most N output pairs (2N int16 output values).  If n_in is
+ * odd the trailing IQ pair is buffered and consumed on the next call.
+ * @param r       Decimator state.
+ * @param in      Interleaved int16_t IQ input array of 2*n_in elements
+ *                (I₀ Q₀ I₁ Q₁ …).
+ * @param n_in    Number of complex input pairs (half the int16 element count).
+ * @param out     Output buffer; caller must provide space for max_out int16_t
+ *                values.
+ * @param max_out Capacity of out in int16_t elements (>= n_in).
+ * @return        Number of int16_t values written to out.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> dec = HBDecimQ15(h)
+ * >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
+ * >>> y = dec.execute(x)
+ * >>> y.dtype
+ * dtype('int16')
+ * >>> y.shape
+ * (4,)
+ * >>> y.tolist()
+ * [0, 0, 625, 0]
+ * @endcode
  */
 size_t hbdecim_q15_execute(hbdecim_q15_state_t *r,
                            const int16_t *in, size_t n_in,
@@ -129,10 +189,33 @@ size_t hbdecim_q15_execute(hbdecim_q15_state_t *r,
  */
 size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
 
-/** Always returns 0.5. */
+/**
+ * @brief The sample-rate reduction factor; always 0.5 for 2:1 decimation.
+ * Exposed as a read-only property so pipelines can query the rate of
+ * each stage programmatically without hard-coding the 2:1 assumption.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> HBDecimQ15(h).rate
+ * 0.5
+ * @endcode
+ */
 double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
 
-/** Returns num_taps as supplied to hbdecim_q15_create. */
+/**
+ * @brief FIR branch length as supplied to the constructor.
+ * This is the count of non-zero symmetric taps in the FIR branch,
+ * not the full sparse halfband prototype length.  Useful for introspection
+ * when chaining multiple stages with programmatically computed filter banks.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.filter import HBDecimQ15
+ * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
+ * >>> HBDecimQ15(h).num_taps
+ * 3
+ * @endcode
+ */
 size_t hbdecim_q15_get_num_taps(const hbdecim_q15_state_t *r);
 
 #ifdef __cplusplus

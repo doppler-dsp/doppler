@@ -208,9 +208,9 @@ Resampler_getprop_num_taps(ResamplerObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef Resampler_getset[] = {
-    { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate, NULL, NULL },
-    { "num_phases", (getter)Resampler_getprop_num_phases, NULL, NULL, NULL },
-    { "num_taps", (getter)Resampler_getprop_num_taps, NULL, NULL, NULL },
+    { "rate", (getter)Resampler_getprop_rate, (setter)Resampler_setprop_rate, "Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create().\n", NULL },
+    { "num_phases", (getter)Resampler_getprop_num_phases, NULL, "Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period.\n", NULL },
+    { "num_taps", (getter)Resampler_getprop_num_taps, NULL, "Taps per polyphase branch. Total prototype filter length is num_phases * num_taps - 1. The built-in bank uses 19 taps per branch.\n", NULL },
     { NULL }
 };
 

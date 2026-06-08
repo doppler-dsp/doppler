@@ -21,7 +21,36 @@ from .cic_design import (  # noqa: E402
 
 
 def kaiser_beta(atten: float) -> float:
-    """Kaiser window beta from stopband attenuation in dB."""
+    """Compute the Kaiser window beta parameter from stopband attenuation.
+
+    Uses the standard Kaiser-Hamming piecewise formulae:
+
+    - atten > 50 dB:  beta = 0.1102 * (atten - 8.7)
+    - 21 <= atten <= 50 dB:
+      beta = 0.5842 * (atten - 21)^0.4 + 0.07886 * (atten - 21)
+    - atten < 21 dB:  beta = 0.0 (rectangular window)
+
+    Pass the result to ``np.kaiser(N, beta)`` or to
+    ``Resampler_create_custom`` via the bank builder.
+
+    Parameters
+    ----------
+    atten : float
+        Desired stopband attenuation in dB (positive number).
+
+    Returns
+    -------
+    float
+        Kaiser beta parameter (>= 0.0).
+
+    Examples
+    --------
+    >>> from doppler.resample import kaiser_beta
+    >>> round(kaiser_beta(60.0), 4)
+    5.6533
+    >>> kaiser_beta(20.0)
+    0.0
+    """
     if atten > 50.0:
         return 0.1102 * (atten - 8.7)
     if atten >= 21.0:
@@ -30,7 +59,41 @@ def kaiser_beta(atten: float) -> float:
 
 
 def kaiser_num_taps(num_phases: int, atten: float, pb: float, sb: float) -> int:
-    """Taps-per-phase from Kaiser design spec."""
+    """Estimate the taps-per-phase count for a polyphase Kaiser FIR bank.
+
+    Applies the Kaiser length formula to the per-phase normalised prototype
+    (pb / num_phases, sb / num_phases), rounds up to the next odd symmetric
+    length, then divides by num_phases to give taps per branch.  The result
+    is the ``num_taps`` argument for ``Resampler_create_custom`` and the
+    row count for the bank builder.
+
+    The approximation is::
+
+        proto_len = 1 + (atten - 8) / (2.285 * 2*pi * delta_f_per_phase)
+        num_taps  = ceil(proto_len / num_phases) + 1
+
+    Parameters
+    ----------
+    num_phases : int
+        Number of polyphase branches (power of two, e.g. 4096).
+    atten : float
+        Desired stopband attenuation in dB.
+    pb : float
+        Normalised passband edge (0 < pb < sb < 1).
+    sb : float
+        Normalised stopband edge.
+
+    Returns
+    -------
+    int
+        Taps per polyphase branch (>= 1).
+
+    Examples
+    --------
+    >>> from doppler.resample import kaiser_num_taps
+    >>> kaiser_num_taps(4096, 60.0, 0.4, 0.6)
+    19
+    """
     pb_ph = pb / num_phases
     sb_ph = sb / num_phases
     proto = int(1 + (atten - 8.0) / 2.285 / (2.0 * math.pi * (sb_ph - pb_ph)))

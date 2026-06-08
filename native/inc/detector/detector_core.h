@@ -108,22 +108,31 @@ typedef struct
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 /**
- * @brief Create a 1-D signal detector.
+ * @brief Allocate a 1-D streaming signal detector backed by an FFT correlator.
+ * Combines a corr_state_t with a double-mapped ring buffer so that arbitrary
+ * chunk sizes can be pushed.  After every int-dump the peak-to-noise test
+ * statistic is compared against @p threshold; a det_result_t is emitted when
+ * it passes.  Setting @p threshold to 0.0 unconditionally fires on every dump.
+ * The ring capacity is next_pow2(max(n, 512)) complex samples.
  *
- * Allocates a corr_state_t, a dp_f32_t ring buffer of capacity
- * next_pow2(max(n, 512)), and all scratch buffers.  The ring buffer
- * satisfies the dp_f32_create() page-alignment constraint automatically.
- *
- * @param ref        Reference signal, CF32, length @p n.  May be freed after
- *                   this call returns.
- * @param n          Frame / FFT length in complex samples.  Must be >= 1.
- * @param dwell      Int-dump depth.  Must be >= 1.
- * @param noise_lo   Lower noise bin (inclusive, 0 <= noise_lo <= noise_hi).
- * @param noise_hi   Upper noise bin (inclusive, noise_hi < n).
- * @param noise_mode Aggregation mode for noise estimation.
- * @param threshold  Test-stat threshold.  0.0 = always emit a detection.
- * @param nthreads   Passed through to corr_create(); currently ignored.
+ * @param ref        Reference signal, CF32 ndarray of length n.
+ * @param n          Reference / FFT length in complex samples.
+ * @param dwell      Int-dump depth; must be >= 1.
+ * @param noise_lo   Lower noise bin index (inclusive, 0-based).
+ * @param noise_hi   Upper noise bin index (inclusive, < n).
+ * @param noise_mode Noise aggregation: "mean", "median", "min", or "max".
+ * @param threshold  Test-stat gate; 0.0 = always emit.
+ * @param nthreads   Accepted for API compatibility; ignored.
  * @return Heap-allocated state, or NULL on allocation failure.
+ * @code
+ * >>> from doppler.spectral import Detector
+ * >>> import numpy as np
+ * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+ * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * ...                noise_mode="mean", threshold=0.0)
+ * >>> det.n, det.dwell, det.ring_cap
+ * (8, 1, 512)
+ * @endcode
  */
 detector_state_t *detector_create (const float complex *ref, size_t n,
                                    size_t dwell, size_t noise_lo,
@@ -136,11 +145,21 @@ void detector_destroy (detector_state_t *state);
 
 /**
  * @brief Reset the correlator, ring buffer, and last-corr flag.
+ * Discards any partial frame buffered in the ring and zeroes the coherent
+ * accumulator.  Equivalent to starting fresh from the same reference without
+ * rebuilding any internal object.
  *
- * Discards any partial frame buffered in the ring.  Equivalent to starting
- * fresh from the same reference.
- *
- * @param state Must be non-NULL.
+ * @code
+ * >>> from doppler.spectral import Detector
+ * >>> import numpy as np
+ * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+ * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * ...                noise_mode="mean", threshold=0.0)
+ * >>> _ = det.push(np.ones(8, dtype=np.complex64))
+ * >>> det.reset()
+ * >>> det.count
+ * 0
+ * @endcode
  */
 void detector_reset (detector_state_t *state);
 
@@ -166,28 +185,33 @@ void detector_set_threshold (detector_state_t *state, float threshold);
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 /**
- * @brief Push an arbitrary-length CF32 chunk through the detector.
+ * @brief Stream an arbitrary-length CF32 chunk through the detector pipeline.
+ * Writes samples into the ring buffer, drains complete n-sample frames
+ * through the correlator, and on every int-dump computes the test statistic
+ * peak_mag / noise_est.  Detections that pass the threshold are appended to
+ * the Python return list as (lag, peak_mag, noise_est, test_stat) tuples.
+ * In Python the result is always a list, even when empty.
  *
- * Writes @p n_in complex samples into the ring buffer in the minimum number
- * of chunks that fit, then drains all complete n-sample frames through the
- * correlator.  On every int-dump a test statistic is computed; if it passes
- * the threshold, a det_result_t is appended to @p result[].  The function
- * returns as soon as @p n_in samples have been consumed or @p max_results
- * detections have been stored, whichever comes first.
- *
- * The @p result array must be pre-allocated by the caller.  A stack array of
- * 64 elements is sufficient for any realistic push size:
+ * @param state        Allocated detector (non-NULL).
+ * @param in           CF32 input chunk of arbitrary length.
+ * @param n_in         Number of input samples in @p in.
+ * @param result       Caller-supplied array of at least @p max_results
+ *                     det_result_t structs; filled on return.
+ * @param max_results  Capacity of @p result (maximum detections to emit).
+ * @return Number of det_result_t entries written to @p result.
  * @code
- * det_result_t buf[64];
- * size_t n = detector_push(det, chunk, len, buf, 64);
+ * >>> from doppler.spectral import Detector
+ * >>> import numpy as np
+ * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+ * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * ...                noise_mode="mean", threshold=0.0)
+ * >>> results = det.push(np.ones(8, dtype=np.complex64))
+ * >>> len(results)
+ * 1
+ * >>> lag, peak, noise, stat = results[0]
+ * >>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
+ * (0, 1.0, 1.0, 1.0)
  * @endcode
- *
- * @param state       Must be non-NULL.
- * @param in          Input CF32 array of length @p n_in.
- * @param n_in        Number of complex samples to push.
- * @param result      Output array; caller allocates at least @p max_results.
- * @param max_results Maximum detections to store; prevents unbounded output.
- * @return Number of detections stored in @p result[].
  */
 size_t detector_push (detector_state_t *state, const float complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);

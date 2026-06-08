@@ -1,14 +1,29 @@
 /**
  * @file i32_to_f32_core.h
- * @brief I32ToF32 component API.
+ * @brief int32-to-float converter with configurable inverse scale.
+ *
+ * Multiplies each int32 sample by @c 1/scale and returns a float32 result.
+ * The default scale of 2147483648.0 (2^31) maps the full int32 range
+ * [-2147483648, 2147483647] to [-1.0, ~+1.0), recovering the normalised
+ * float representation from a 32-bit fixed-point stream.
+ * Note: float32 has 23 mantissa bits, so int32 values beyond ±16777217
+ * will be rounded to the nearest representable float.  Use I32ToF32 when
+ * only the magnitude matters or the source is genuinely 32-bit fixed-point.
+ * The inverse scale is pre-computed at construction time.
  *
  * Lifecycle: create -> [step / steps / reset]* -> destroy
  *
- * Example:
  * @code
- * i32_to_f32_state_t *obj = i32_to_f32_create(2147483648.0f);
- * float y = i32_to_f32_step(obj, 0);
- * i32_to_f32_destroy(obj);
+ * >>> from doppler.cvt import I32ToF32
+ * >>> import numpy as np
+ * >>> obj = I32ToF32(scale=2147483648.0)
+ * >>> float(obj.step(-2147483648))
+ * -1.0
+ * >>> float(obj.step(0))
+ * 0.0
+ * >>> x = np.array([-2147483648, 0, 2147483647], dtype=np.int32)
+ * >>> obj.steps(x).tolist()
+ * [-1.0, 0.0, 1.0]
  * @endcode
  */
 #ifndef I32_TO_F32_CORE_H
@@ -32,7 +47,12 @@ typedef struct {
 /**
  * @brief Create a i32_to_f32 instance.
  *
- * @param scale  scale (default: 2147483648.0f).
+ * Pre-computes @c iscale = 1.0f / @p scale.  Any non-zero finite float is a
+ * valid scale.
+ *
+ * @param scale  Denominator scale; 1/scale is applied to each sample
+ *               (default: 2147483648.0f).  Use 2^31 to recover normalised
+ *               floats from a full-range int32 stream.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call i32_to_f32_destroy() when done.
  */
@@ -46,15 +66,22 @@ void i32_to_f32_destroy(i32_to_f32_state_t *state);
 
 /**
  * @brief Reset I32ToF32 to its post-create state.
+ *
+ * No mutable state exists beyond the immutable @c iscale; reset is a no-op
+ * provided for lifecycle symmetry with other converters.
+ *
  * @param state  Must be non-NULL.
  */
 void i32_to_f32_reset(i32_to_f32_state_t *state);
 
 /**
  * @brief Process one input sample.
+ *
+ * Returns @c (float)x * iscale.
+ *
  * @param state  Must be non-NULL.
- * @param x      Input sample (int32_t).
- * @return Output sample (float).
+ * @param x      Signed int32 input sample.
+ * @return Scaled float32 output.
  */
 JM_FORCEINLINE JM_HOT float
 i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
@@ -63,12 +90,15 @@ i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of int32 samples to float32.
  *
- * @param state   Component state (mutated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n; may alias input for in-place).
- * @param n       Number of samples.
+ * Applies step() to every element.  Accepts an optional pre-allocated output
+ * array; allocates a fresh one when @p output is NULL.
+ *
+ * @param state   Must be non-NULL.
+ * @param input   Input int32 array; must contain at least @p n elements.
+ * @param output  Output float32 array; must contain at least @p n elements.
+ * @param n       Number of samples to process.
  */
 void i32_to_f32_steps(
     i32_to_f32_state_t *state,

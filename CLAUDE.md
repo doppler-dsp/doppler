@@ -199,10 +199,24 @@ the `wfmgen`/`wavegen` tool is being built on (see `~/.claude/plans`). The
 string-enum binding parses a Python string and maps it to the C enum index, so
 `Obj(kind="tone")` works directly.
 
+### 0.18.0 adoptions — header-derived docstrings + @code doctests (pin: 0.18.0)
+
+The CI drift gate now pins **0.18.0** (`ci.yml`); `jm_version` is stamped 0.18.0.
+**Always drive doppler with `uvx --from 'just-makeit==0.18.0' just-makeit …`.**
+
+jm 0.18.0 synthesizes comprehensive `.pyi` docstrings from the sacred header
+Doxygen: a `@code … @endcode` block becomes a runnable numpy **`Examples`**
+doctest, multi-line `@brief` prose renders as flowing paragraphs (continuation
+lines, no blank `*` between them — a blank line double-spaces), and built-in
+`reset`/`step`/`steps` derive their docstring from the header `@brief` (scaffold
+briefs are filtered for idempotency). doppler's headers carry verified `@code`
+doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
+runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
+blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
+
 ### 0.17.0 adoptions — `jm app` output axes (pin: 0.17.1)
 
-The CI drift gate now pins **0.17.0** (`ci.yml`); `jm_version` is stamped 0.17.0.
-**Always drive doppler with `uvx --from 'just-makeit==0.17.1' just-makeit …`.**
+The CI drift gate previously pinned **0.17.0** (`ci.yml`); `jm_version` stamped 0.17.0.
 
 `jm app` (gh-193) adds three output axes to any cf32 generator/blockwise app
 (the same stream that gets `--sample_type`), byte-identical across all three

@@ -68,15 +68,22 @@ typedef struct
 
 /**
  * @brief Create a rate converter for the given output/input rate ratio.
+ * Selects the cheapest cascade of CIC, HalfbandDecimator, and/or
+ * polyphase Resampler stages at construction time (see file header for
+ * the selection table). Setting compensate=1 appends a closed-form
+ * Molnar-Vucic CIC droop-compensating FIR after any CIC stage, which
+ * improves passband flatness at the cost of one extra FIR stage.
  *
- * @param rate       Output-to-input sample rate ratio.  Any positive float.
- * @param compensate Non-zero to append a CIC passband-droop compensating FIR
- *                   after any CIC stage.
+ * @param rate       Output-to-input sample rate ratio. Any positive float.
+ * @param compensate Non-zero to append a CIC passband-droop compensating
+ *                   FIR after any CIC stage.
  * @return Non-NULL on success; NULL if rate <= 0 or OOM.
  *
  * @code
- * RateConverter_state_t *rc = RateConverter_create(0.125, 0); // CIC(8)
- * assert(rc->n_stages == 1);
+ * >>> from doppler.resample import RateConverter
+ * >>> rc = RateConverter(rate=0.5, compensate=0)
+ * >>> rc.rate
+ * 0.5
  * @endcode
  */
 RateConverter_state_t *RateConverter_create (double rate, int compensate);
@@ -86,21 +93,43 @@ void RateConverter_destroy (RateConverter_state_t *s);
 
 /**
  * @brief Zero all sub-stage filter memories.
+ * Rate, stage count, and stage types are preserved. Processing from a
+ * reset state produces the same output as a freshly created converter
+ * fed the same input. Use between signal bursts to suppress transient
+ * artefacts from prior filter memory.
  *
- * Rate and stage structure are preserved.  Processing from a reset state
- * produces the same output as a freshly created converter.
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> rc = RateConverter(rate=0.5, compensate=0)
+ * >>> rc.reset()
+ * >>> rc.rate
+ * 0.5
+ * @endcode
  */
 void RateConverter_reset (RateConverter_state_t *s);
 
 /**
- * @brief Convert n_in samples and write results to out.
+ * @brief Convert a block of CF32 samples through the cascade.
+ * Passes input through each stage in order, ping-ponging between two
+ * intermediate buffers. State persists between calls, so contiguous
+ * calls on sequential blocks give the same result as one large call.
+ * Output length is approximately n_in * rate.
  *
- * @param s        Must be non-NULL.
- * @param in       CF32 input samples.
+ * @param s        Pointer to a valid RateConverter_state_t.
+ * @param in       CF32 input block.
  * @param n_in     Number of input samples.
- * @param out      Output buffer.
- * @param max_out  Output buffer capacity in samples.
- * @return Number of output samples written.
+ * @param out      Output buffer; must hold at least max_out samples.
+ * @param max_out  Capacity of out in samples.
+ * @return         CF32 output array; length is approximately n_in * rate.
+ *
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> import numpy as np
+ * >>> rc = RateConverter(rate=0.5, compensate=0)
+ * >>> y = rc.execute(np.zeros(1024, dtype=np.complex64))
+ * >>> y.shape, y.dtype
+ * ((512,), dtype('complex64'))
+ * @endcode
  */
 size_t RateConverter_execute (RateConverter_state_t *s,
                               const float _Complex *in, size_t n_in,
@@ -114,15 +143,30 @@ size_t RateConverter_execute (RateConverter_state_t *s,
  */
 size_t RateConverter_execute_max_out (RateConverter_state_t *s);
 
-/** @brief Return the current rate ratio. */
+/**
+ * @brief Get / set the output-to-input sample rate ratio.
+ * The setter rebuilds the entire cascade (new stage selection, new
+ * sub-objects) and resets all filter memories — equivalent to
+ * destroying and recreating with the new rate. Setting rate <= 0 is
+ * silently ignored.
+ *
+ * @code
+ * >>> from doppler.resample import RateConverter
+ * >>> rc = RateConverter(rate=0.5, compensate=0)
+ * >>> rc.rate
+ * 0.5
+ * >>> rc.rate = 2.0
+ * >>> rc.rate
+ * 2.0
+ * @endcode
+ */
 double RateConverter_get_rate (const RateConverter_state_t *s);
 
 /**
  * @brief Change the rate; rebuilds the cascade and resets all filter state.
- *
  * Silently ignores rate <= 0.
  *
- * @param s     Must be non-NULL.
+ * @param s     Pointer to a valid RateConverter_state_t.
  * @param rate  New output/input rate ratio.
  */
 void RateConverter_set_rate (RateConverter_state_t *s, double rate);

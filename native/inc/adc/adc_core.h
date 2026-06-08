@@ -3,32 +3,52 @@
  * @brief Signed two's-complement ADC model.
  *
  * Models an N-bit ADC with configurable full-scale reference (dBFS) and
- * optional TPDF dither.  A normalised float input is scaled, optionally
- * dithered, rounded, and clamped to the signed integer range
- * [-(2^(bits-1)), 2^(bits-1)-1], then returned as int64_t.
+ * optional TPDF dither.  A normalised float input is scaled by the
+ * pre-computed double-precision factor, optionally dithered with a
+ * triangular-PDF noise source, rounded, clamped to the signed integer range
+ * [-(2^(bits-1)), 2^(bits-1)-1], and returned as int64_t.
  *
  * Scale derivation:
  * @code
  *   scale = 2^(bits-1) * 10^(-dbfs / 20)
  * @endcode
- * An input of amplitude 10^(dbfs/20) uses the full ADC range.  With the
- * default dbfs=-10.0, a -10 dBFS signal fills the converter exactly.
  *
- * double precision is used for the intermediate computation so that
- * converters beyond 23 bits (float mantissa limit) are modelled correctly.
+ * An input of amplitude 10^(dbfs/20) uses the full ADC code range.  With the
+ * default dbfs=-10.0 a signal at -10 dBFS fills the converter exactly.
+ * double precision is used throughout so converters wider than 23 bits
+ * (float32 mantissa limit) are modelled without rounding artefacts.
  *
  * TPDF dither (dithering != 0): two xorshift32 uniform draws are summed to
- * produce a triangular PDF over [-1, +1] LSB before rounding.  The dither
- * eliminates correlated quantisation noise at the cost of a slight noise
- * floor increase.
+ * produce a triangular PDF over [-1, +1] LSB before rounding.  This breaks
+ * correlated quantisation noise patterns at the cost of a slight noise-floor
+ * increase.  The PRNG state is part of the object; reset() re-seeds it.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
- * Example:
  * @code
- * adc_state_t *adc = adc_create(16, -10.0f, 0);
- * int64_t y = adc_step(adc, 0.0f);   // y == 0
- * adc_destroy(adc);
+ * >>> from doppler.cvt import ADC
+ * >>> import numpy as np
+ * >>> obj = ADC(bits=8, dbfs=0.0, dithering=0)
+ * >>> obj.scale
+ * 128.0
+ * >>> obj.bits
+ * 8
+ * >>> obj.step(0.0)
+ * 0
+ * >>> obj.step(-1.0)
+ * -128
+ * >>> obj.clipped
+ * False
+ * >>> obj.step(1.0)
+ * 127
+ * >>> obj.clipped
+ * True
+ * >>> obj.reset()
+ * >>> obj.clipped
+ * False
+ * >>> x = np.array([-1.0, -0.5, 0.0, 0.5, 1.0], dtype=np.float32)
+ * >>> obj.steps(x).tolist()
+ * [-128, -64, 0, 64, 127]
  * @endcode
  */
 #ifndef ADC_CORE_H
@@ -63,11 +83,15 @@ typedef struct {
 /**
  * @brief Create an ADC instance.
  *
- * @param bits       ADC resolution in bits (1..64).
- * @param dbfs       Full-scale reference level in dBFS (typically negative).
- *                   A -10 dBFS signal at amplitude 10^(dbfs/20) fills the
- *                   ADC range.
- * @param dithering  0 = no dither; non-zero = TPDF dither enabled.
+ * Computes @c scale = 2^(bits-1) * 10^(-dbfs/20), sets the clip bounds, and
+ * seeds the xorshift32 PRNG to a fixed constant.  Returns NULL if @p bits is
+ * outside [1, 64] or on allocation failure.
+ *
+ * @param bits      ADC resolution in bits (1..64).
+ * @param dbfs      Full-scale reference level in dBFS (typically negative,
+ *                  e.g. -10.0).  A signal with amplitude 10^(dbfs/20) fills
+ *                  the converter's integer range exactly.
+ * @param dithering 0 = no dither; non-zero = TPDF dither before rounding.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call adc_destroy() when done.
  */
@@ -82,7 +106,9 @@ void adc_destroy(adc_state_t *state);
 /**
  * @brief Reset ADC to its post-create state.
  *
- * Clears the sticky @c clipped flag and re-seeds the PRNG.
+ * Clears the sticky @c clipped flag and re-seeds the xorshift32 PRNG to its
+ * initial value so dithered runs are reproducible after reset.
+ *
  * @param state  Must be non-NULL.
  */
 void adc_reset(adc_state_t *state);
@@ -90,11 +116,12 @@ void adc_reset(adc_state_t *state);
 /**
  * @brief Process one input sample.
  *
- * Scales @p x by the precomputed factor, adds TPDF dither when enabled,
- * clamps to [clip_min, clip_max], and returns the quantised int64_t.
+ * Multiplies @p x by the pre-computed double-precision @c scale, optionally
+ * adds TPDF dither, rounds with @c llround, and clamps to [clip_min,
+ * clip_max].  Sets the sticky @c clipped flag if clamping occurred.
  *
  * @param state  Must be non-NULL.
- * @param x      Normalised float input sample.
+ * @param x      Normalised float input sample (typically in [-1, +1]).
  * @return Quantised signed integer in [-(2^(bits-1)), 2^(bits-1)-1].
  */
 JM_FORCEINLINE JM_HOT int64_t
@@ -120,17 +147,18 @@ adc_step(adc_state_t *state, float x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of float samples to int64.
  *
- * When dithering is disabled the float-to-scale multiply is widened with
- * SIMD (jm_simd.h); the int64_t conversion and clamp remain scalar.
+ * When dithering is disabled the float-to-double multiply can use SIMD
+ * widening (jm_simd.h); the int64_t conversion and clamp remain scalar.
  * When dithering is enabled the loop is scalar to preserve sequential PRNG
- * state.
+ * state.  Accepts an optional pre-allocated output array; allocates a fresh
+ * one when @p output is NULL.
  *
- * @param state   Component state (mutated; clipped flag updated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n).
- * @param n       Number of samples.
+ * @param state   Must be non-NULL.
+ * @param input   Input float32 array; must contain at least @p n elements.
+ * @param output  Output int64 array; must contain at least @p n elements.
+ * @param n       Number of samples to process.
  */
 void adc_steps(
     adc_state_t       *state,

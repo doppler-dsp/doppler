@@ -219,7 +219,7 @@ static PyMethodDef AccQ15_methods[] = {
     {"steps",    (PyCFunction)AccQ15_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccQ15\n"
@@ -272,7 +272,7 @@ static PyTypeObject AccQ15Type = {
     .tp_basicsize = sizeof(AccQ15Object),
     .tp_dealloc   = (destructor)AccQ15_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccQ15 type.",
+    .tp_doc       = "Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload.\n",
     .tp_methods   = AccQ15_methods,
     .tp_new       = AccQ15_new,
     .tp_init      = (initproc)AccQ15_init,

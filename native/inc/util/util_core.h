@@ -20,14 +20,30 @@ extern "C"
 #endif
 
   /**
-   * @brief Square-clip a complex sample.
+   * @brief Square-clip a complex sample: clip the real and imaginary
+   * parts independently to [-lin, lin] (a square region in the IQ
+   * plane, not a circular magnitude limit).  Each component is passed
+   * through unchanged when its magnitude is within the threshold and
+   * clamped to the nearest boundary otherwise.
    *
-   * Clips the real and imaginary parts independently to &#91;-lin, lin&#93; —
-   * a square region in the IQ plane, not a circular magnitude limit.
-   *
-   * @param y    Input sample.
+   * @param y    Complex CF32 input sample.
    * @param lin  Per-component clip threshold (linear amplitude, >= 0).
-   * @return Sample with each component limited to &#91;-lin, lin&#93;.
+   *             Values outside [-lin, lin] are clamped; values on the
+   *             boundary are preserved exactly.
+   * @return Sample with each component limited to [-lin, lin].
+   * @code
+   * >>> from doppler.util import square_clip
+   * >>> square_clip(0.5+0.25j, 1.0)   # within bounds, passed through
+   * (0.5+0.25j)
+   * >>> square_clip(2.0+0.5j, 1.0)    # real clipped, imag unchanged
+   * (1+0.5j)
+   * >>> square_clip(3.0-4.0j, 1.0)    # both components clipped
+   * (1-1j)
+   * >>> square_clip(0.5+0.5j, 0.25)   # smaller threshold clips both
+   * (0.25+0.25j)
+   * >>> square_clip(-2.0+0.0j, 1.0)   # negative real clipped
+   * (-1+0j)
+   * @endcode
    */
   static JM_FORCEINLINE float complex
   square_clip (float complex y, float lin)

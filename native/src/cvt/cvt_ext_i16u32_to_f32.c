@@ -181,7 +181,7 @@ static PyMethodDef I16U32ToF32Obj_methods[] = {
     {"steps",    (PyCFunction)I16U32ToF32_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Process a block of Q15-in-uint32 samples to float32.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import I16U32ToF32\n"

@@ -3,23 +3,32 @@
  * @brief Scale-and-saturate float to Q15-in-uint32 converter.
  *
  * Converts a float to a saturated int16, then zero-extends the 16-bit two's
- * complement representation into the lower 16 bits of a uint32 (upper 16
- * bits are always zero).  This is the format expected by the CIC filter's
- * integer input path, which uses the upper bits as headroom for bit-growth
- * through the integrator cascade.
+ * complement bit pattern into the lower 16 bits of a uint32 (upper 16 bits
+ * are always zero).  This is the wire format expected by the CIC filter's
+ * integer input path, which exploits the upper bits as headroom for the
+ * bit-growth that naturally occurs through an integrator cascade.
  *
  *   input  +1.0 → int16  32767 → uint32 0x00007FFF
  *   input  -1.0 → int16 -32768 → uint32 0x00008000
  *
- * The default scale of 32768.0 maps `[-1, +1]` float to Q15 range.
+ * The default scale of 32768.0 maps [-1, +1] float to Q15 range.  A sticky
+ * @c clipped flag is raised on saturation and cleared only by reset().
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
- * Example:
  * @code
- * f32_to_i16u32_state_t *obj = f32_to_i16u32_create(32768.0f);
- * uint32_t y = f32_to_i16u32_step(obj, -1.0f);  // y == 0x00008000
- * f32_to_i16u32_destroy(obj);
+ * >>> from doppler.cvt import F32ToI16U32
+ * >>> import numpy as np
+ * >>> obj = F32ToI16U32(scale=32768.0)
+ * >>> hex(obj.step(-1.0))
+ * '0x8000'
+ * >>> hex(obj.step(1.0))
+ * '0x7fff'
+ * >>> obj.step(0.0)
+ * 0
+ * >>> x = np.array([-1.0, 0.0, 1.0], dtype=np.float32)
+ * >>> obj.steps(x).tolist()
+ * [32768, 0, 32767]
  * @endcode
  */
 #ifndef F32_TO_I16U32_CORE_H
@@ -48,7 +57,11 @@ typedef struct {
 /**
  * @brief Create a f32_to_i16u32 instance.
  *
- * @param scale  scale (default: 32768.0f).
+ * Stores @p scale and initialises the sticky @c clipped flag to 0.
+ *
+ * @param scale  Multiply factor applied before quantisation and saturation
+ *               (default: 32768.0f).  Use 32768.0 to convert normalised
+ *               [-1, +1] samples to Q15 packed into a uint32.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call f32_to_i16u32_destroy() when done.
  */
@@ -62,15 +75,23 @@ void f32_to_i16u32_destroy(f32_to_i16u32_state_t *state);
 
 /**
  * @brief Reset f32_to_i16u32 to its post-create state.
+ *
+ * Clears the sticky @c clipped flag.  The @c scale is preserved.
+ *
  * @param state  Must be non-NULL.
  */
 void f32_to_i16u32_reset(f32_to_i16u32_state_t *state);
 
 /**
  * @brief Process one input sample.
+ *
+ * Computes @c round(x * scale), saturates to [-32768, 32767], then
+ * zero-extends the int16 bit pattern into the lower 16 bits of a uint32.
+ * The @c clipped flag is set if saturation occurred.
+ *
  * @param state  Must be non-NULL.
- * @param x      Input sample (float).
- * @return Output sample (uint32_t).
+ * @param x      Normalised float input sample.
+ * @return Q15 value packed into the lower 16 bits of a uint32.
  */
 JM_FORCEINLINE JM_HOT uint32_t
 f32_to_i16u32_step(f32_to_i16u32_state_t *state, float x)
@@ -85,12 +106,16 @@ f32_to_i16u32_step(f32_to_i16u32_state_t *state, float x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of float samples to Q15-in-uint32.
  *
- * @param state   Component state (mutated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n; may alias input for in-place).
- * @param n       Number of samples.
+ * Applies step() to every element.  The @c clipped flag is updated
+ * cumulatively across the block.  Accepts an optional pre-allocated output
+ * array; allocates a fresh one when @p output is NULL.
+ *
+ * @param state   Must be non-NULL.
+ * @param input   Input float32 array; must contain at least @p n elements.
+ * @param output  Output uint32 array; must contain at least @p n elements.
+ * @param n       Number of samples to process.
  */
 void f32_to_i16u32_steps(
     f32_to_i16u32_state_t *state,

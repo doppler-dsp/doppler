@@ -182,9 +182,9 @@ LO_getprop_phase_inc(LOObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef LO_getset[] = {
-    { "norm_freq", (getter)LO_getprop_norm_freq, (setter)LO_setprop_norm_freq, NULL, NULL },
-    { "phase", (getter)LO_getprop_phase, (setter)LO_setprop_phase, NULL, NULL },
-    { "phase_inc", (getter)LO_getprop_phase_inc, NULL, NULL, NULL },
+    { "norm_freq", (getter)LO_getprop_norm_freq, (setter)LO_setprop_norm_freq, "Normalised frequency (read/write). Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and takes effect on the next lo_steps call; phase is NOT reset.\n", NULL },
+    { "phase", (getter)LO_getprop_phase, (setter)LO_setprop_phase, "Current phase accumulator value (read/write). Returns the current integer phase in [0, 2^32).  Writing overrides the accumulator directly for phase-coherent frequency switching.\n", NULL },
+    { "phase_inc", (getter)LO_getprop_phase_inc, NULL, "Per-sample phase increment (read-only). Derived from norm_freq as floor(frac(norm_freq) × 2^32).  A freq of 0.25 gives phase_inc = 1073741824 (0x40000000).\n", NULL },
     { NULL }
 };
 

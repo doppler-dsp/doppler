@@ -154,3 +154,21 @@ wfmgen --type qpsk --sps 8 --count 50000 \
 python examples/python/wfmgen_demo.py    # the four-waveform figure (writes .png)
 python examples/python/pn_codes.py       # PN MLS / Galois vs Fibonacci / 64-bit
 ```
+
+## From Python — the composer API
+
+The same composer is available in Python (`doppler.wfmgen.compose`), producing
+byte-identical output to the CLI:
+
+```python
+from doppler.wfmgen.compose import Composer, Segment, Writer
+
+spec = [Segment("pn", num_samples=127), Segment("qpsk", num_samples=4096,
+                                                off_samples=512)]
+with Writer("frame.cf32", sample_type="cf32") as w:
+    w.write(Composer(spec).compose())
+```
+
+See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink)
+for `Writer` containers (raw / CSV / BLUE / SigMF), the `ZmqSink`, JSON
+round-tripping, and the `rrc_taps` / `dsss_spread` / `mls_poly` helpers.

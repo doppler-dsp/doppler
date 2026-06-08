@@ -225,6 +225,7 @@ add_subdirectory(native/src/cvt)
 add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/stream)
 add_subdirectory(native/src/ddc_fn)
+add_subdirectory(native/src/wfmcompose_py)
 
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
 

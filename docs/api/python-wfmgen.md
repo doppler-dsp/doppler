@@ -123,3 +123,57 @@ the LO, and AWGN.
 ______________________________________________________________________
 
 ::: doppler.wfmgen.PN
+
+______________________________________________________________________
+
+## `compose` — multi-segment composition, writers, and a ZMQ sink
+
+`doppler.wfmgen.compose` is the Python face of the C `wfmgen` composer
+subsystem — the same engine behind the `wfmgen` CLI. A `Composer` strings
+`Segment` specs into one stream (with per-segment on-time and trailing gaps),
+optionally looping (`repeat`) or running forever (`continuous`); `Writer`
+serialises to the same containers as the CLI (raw / CSV / BLUE type-1000 /
+SigMF), and `ZmqSink` publishes over ZeroMQ. The resolved spec round-trips
+through JSON, so a capture is fully reproducible. Output is byte-identical to the
+`wfmgen`/`wavegen` CLIs for the same parameters.
+
+```python
+import numpy as np
+from doppler.wfmgen.compose import Composer, Segment, Writer, mls_poly
+from doppler.wfmgen.readback import read_iq
+
+# A frame: a PN preamble, a QPSK payload, then a guard gap.
+spec = [
+    Segment("pn", num_samples=127, pn_length=7),
+    Segment("qpsk", sps=8, num_samples=4096, seed=42, off_samples=512),
+]
+iq = Composer(spec).compose()            # one complex64 array
+
+# Or stream block-by-block (an empty block marks the end):
+c = Composer(spec)
+with Writer("frame.cf32", sample_type="cf32") as w:
+    while len(blk := c.execute(4096)):
+        w.write(blk)
+back = read_iq("frame.cf32", "cf32")     # zero-copy complex64 view
+
+# Reproducible: the resolved spec serialises to JSON and back.
+j = Composer(spec).to_json()
+assert np.array_equal(Composer.from_json(j).compose(), iq)
+
+# Utilities
+mls_poly(7)                              # 0x41 — the length-7 MLS polynomial
+```
+
+`Writer` pairs with [`read_iq`](#read_iq); for SigMF, pair a
+`Writer(..., file_type="sigmf")` data file with `sigmf_meta(...)`, and for
+detached BLUE use `write_blue_header(...)`. The `ZmqSink` is POSIX-only. DSP
+helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
+pulse-shaping and spreading primitives.
+
+::: doppler.wfmgen.compose.Composer
+
+::: doppler.wfmgen.compose.Segment
+
+::: doppler.wfmgen.compose.Writer
+
+::: doppler.wfmgen.compose.ZmqSink

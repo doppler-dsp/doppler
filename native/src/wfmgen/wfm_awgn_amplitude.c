@@ -11,8 +11,8 @@
  *   amplitude = sqrt(signal_power / (2 * 10^(snr_db/10)))
  */
 float
-wfm_awgn_amplitude(float snr_db, float signal_power)
+wfm_awgn_amplitude (float snr_db, float signal_power)
 {
-    float snr_lin = powf(10.0f, snr_db / 10.0f);
-    return sqrtf(signal_power / (2.0f * snr_lin));
+  float snr_lin = powf (10.0f, snr_db / 10.0f);
+  return sqrtf (signal_power / (2.0f * snr_lin));
 }

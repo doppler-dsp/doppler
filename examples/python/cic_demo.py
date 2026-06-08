@@ -21,9 +21,9 @@ from __future__ import annotations
 import math
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 
 from doppler.resample import CIC
@@ -32,6 +32,7 @@ from doppler.resample import CIC
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _tone(freq_norm: float, n: int) -> np.ndarray:
     """Complex exponential at freq_norm (cycles/sample)."""
@@ -71,8 +72,9 @@ def _settled(y: np.ndarray, R: int) -> np.ndarray:
     return y[n_drop:]
 
 
-def _spectrum_db(x: np.ndarray, fs: float, pad: int = 8,
-                 full: bool = False) -> tuple[np.ndarray, np.ndarray]:
+def _spectrum_db(
+    x: np.ndarray, fs: float, pad: int = 8, full: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
     """Windowed FFT spectrum.
 
     Returns (freq_hz, amplitude_db) using a Blackman-Harris window and
@@ -88,7 +90,7 @@ def _spectrum_db(x: np.ndarray, fs: float, pad: int = 8,
     n = len(x)
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
     cg = w.mean()
     S = np.fft.fft(x * w, n * pad)
     amp_db = 20.0 * np.log10(np.abs(S) / (n * cg) + 1e-300)
@@ -100,8 +102,9 @@ def _spectrum_db(x: np.ndarray, fs: float, pad: int = 8,
     return freq_hz[pos], amp_db[pos]
 
 
-def _cic_response_db(freq_hz: np.ndarray, fs: float,
-                     R: int, N: int, M: int = 1) -> np.ndarray:
+def _cic_response_db(
+    freq_hz: np.ndarray, fs: float, R: int, N: int, M: int = 1
+) -> np.ndarray:
     """CIC magnitude response in dB at the given frequencies.
 
     |H(f)| = (1/R) × |sin(π f M R / fs) / sin(π f M / fs)|^N
@@ -123,6 +126,7 @@ def _cic_response_db(freq_hz: np.ndarray, fs: float,
 # 1. Basic decimation
 # ---------------------------------------------------------------------------
 
+
 def demo_basic():
     print("--- 1. Basic decimation (R=8, N=4, M=1) ---")
     R = 8
@@ -143,28 +147,33 @@ def demo_basic():
 # 2. Alias rejection
 # ---------------------------------------------------------------------------
 
+
 def demo_alias_rejection():
     print("--- 2. Alias rejection (R=8, N=4, M=1) ---")
     R = 8
 
-    f_pass  = 0.1 / (2 * R)
+    f_pass = 0.1 / (2 * R)
     f_alias = 0.95 / R
 
     n_in = 32 * R * CIC_N
-    x_pass  = _tone(f_pass,  n_in)
+    x_pass = _tone(f_pass, n_in)
     x_alias = _tone(f_alias, n_in)
 
     cic = CIC(R)
-    y_pass  = _settled(_decimate(cic, x_pass),  R)
+    y_pass = _settled(_decimate(cic, x_pass), R)
     cic.reset()
     y_alias = _settled(_decimate(cic, x_alias), R)
 
-    pass_db  = _rms_db(y_pass)
+    pass_db = _rms_db(y_pass)
     alias_db = _rms_db(y_alias)
     rejection = pass_db - alias_db
 
-    sinc_atten = 20.0 * CIC_N * math.log10(
-        math.pi * f_alias * R / math.sin(math.pi * f_alias * R) + 1e-300
+    sinc_atten = (
+        20.0
+        * CIC_N
+        * math.log10(
+            math.pi * f_alias * R / math.sin(math.pi * f_alias * R) + 1e-300
+        )
     )
     print(f"  passband tone   f={f_pass:.4f}*fs  → {pass_db:+.1f} dBFS")
     print(f"  alias-zone tone f={f_alias:.4f}*fs  → {alias_db:+.1f} dBFS")
@@ -175,6 +184,7 @@ def demo_alias_rejection():
 # ---------------------------------------------------------------------------
 # 3. Reconfigure at runtime
 # ---------------------------------------------------------------------------
+
 
 def demo_reconfigure():
     print("--- 3. Runtime reconfigure ---")
@@ -197,16 +207,17 @@ def demo_reconfigure():
 # 4. SDR front-end pipeline
 # ---------------------------------------------------------------------------
 
+
 def demo_sdr_pipeline():
     """Simulate a wideband IQ signal and decimate it to a narrowband slice."""
     print("--- 4. SDR front-end pipeline ---")
 
-    fs_in  = 2.048e6
-    R      = 16
+    fs_in = 2.048e6
+    R = 16
     fs_out = fs_in / R
 
     f_wanted = 15e3
-    f_jammer = 208e3   # first alias zone [fs_out, 2*fs_out); aliases to -48 kHz
+    f_jammer = 208e3  # first alias zone [fs_out, 2*fs_out); aliases to -48 kHz
 
     fn_wanted = f_wanted / fs_in
     fn_jammer = f_jammer / fs_in
@@ -216,12 +227,14 @@ def demo_sdr_pipeline():
     A_wanted = 0.6
     A_jammer = 0.3
 
-    N_IN  = 8 * R * 48
+    N_IN = 8 * R * 48
     x = A_wanted * _tone(fn_wanted, N_IN) + A_jammer * _tone(fn_jammer, N_IN)
 
-    print(f"  Input fs = {fs_in/1e6:.3f} Msps, R={R} → output {fs_out/1e3:.0f} ksps")
-    print(f"  Wanted:  {f_wanted/1e3:.0f} kHz  (fn={fn_wanted:.5f})")
-    print(f"  Jammer:  {f_jammer/1e3:.0f} kHz  (fn={fn_jammer:.5f})")
+    print(
+        f"  Input fs = {fs_in / 1e6:.3f} Msps, R={R} → output {fs_out / 1e3:.0f} ksps"
+    )
+    print(f"  Wanted:  {f_wanted / 1e3:.0f} kHz  (fn={fn_wanted:.5f})")
+    print(f"  Jammer:  {f_jammer / 1e3:.0f} kHz  (fn={fn_jammer:.5f})")
 
     cic = CIC(R)
     y = _decimate(cic, x)
@@ -230,7 +243,7 @@ def demo_sdr_pipeline():
     cic.reset()
     y_ref = _settled(_decimate(cic, A_wanted * _tone(fn_wanted, N_IN)), R)
 
-    wanted_db  = _rms_db(y_ref)
+    wanted_db = _rms_db(y_ref)
     combined_db = _rms_db(settled)
 
     print(f"  Wanted-only output RMS:   {wanted_db:+.1f} dBFS")
@@ -250,8 +263,17 @@ def demo_sdr_pipeline():
 # 5. Spectral plot
 # ---------------------------------------------------------------------------
 
-def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
-                       f_wanted, f_jammer, out_path="cic_demo_spectrum.png"):
+
+def demo_spectral_plot(
+    x,
+    y_settled,
+    fs_in,
+    fs_out,
+    R,
+    f_wanted,
+    f_jammer,
+    out_path="cic_demo_spectrum.png",
+):
     """Save a two-panel spectral plot: input (wideband) and output (decimated).
 
     Top panel — input spectrum with:
@@ -268,7 +290,7 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
     )
     fig.suptitle(
         f"CIC Decimation  R={R}, N={CIC_N}, M=1\n"
-        f"Input {fs_in/1e6:.3f} Msps → Output {fs_out/1e3:.0f} ksps",
+        f"Input {fs_in / 1e6:.3f} Msps → Output {fs_out / 1e3:.0f} ksps",
         fontsize=12,
         color="#f1f5f9",
     )
@@ -280,33 +302,60 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
 
     # CIC response overlay (symmetric for real coefficients)
     h_db = _cic_response_db(freq_in, fs_in, R, CIC_N)
-    ax_in.plot(freq_in_khz, h_db, color="#f97316", lw=1.5,
-               linestyle="--", label=f"|H(f)| CIC N={CIC_N}", zorder=3)
+    ax_in.plot(
+        freq_in_khz,
+        h_db,
+        color="#f97316",
+        lw=1.5,
+        linestyle="--",
+        label=f"|H(f)| CIC N={CIC_N}",
+        zorder=3,
+    )
 
     # Output Nyquist boundaries (±)
     nyq_out = fs_out / 2 / 1e3
-    ax_in.axvline( nyq_out, color="#ffffff", lw=1.2, linestyle=":",
-                   label=f"Output Nyquist (±{nyq_out:.0f} kHz)", zorder=4)
+    ax_in.axvline(
+        nyq_out,
+        color="#ffffff",
+        lw=1.2,
+        linestyle=":",
+        label=f"Output Nyquist (±{nyq_out:.0f} kHz)",
+        zorder=4,
+    )
     ax_in.axvline(-nyq_out, color="#ffffff", lw=1.2, linestyle=":", zorder=4)
 
     # Tone annotations (complex exponentials: single-sided at +f)
     f_wanted_khz = f_wanted / 1e3
     f_jammer_khz = f_jammer / 1e3
-    wanted_peak_in = float(amp_in[int(np.argmin(np.abs(freq_in_khz - f_wanted_khz)))])
-    jammer_peak_in = float(amp_in[int(np.argmin(np.abs(freq_in_khz - f_jammer_khz)))])
+    wanted_peak_in = float(
+        amp_in[int(np.argmin(np.abs(freq_in_khz - f_wanted_khz)))]
+    )
+    jammer_peak_in = float(
+        amp_in[int(np.argmin(np.abs(freq_in_khz - f_jammer_khz)))]
+    )
 
-    ax_in.axvline(f_wanted_khz, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8)
+    ax_in.axvline(
+        f_wanted_khz, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8
+    )
     ax_in.annotate(
         f"Wanted\n{f_wanted_khz:.0f} kHz",
-        xy=(f_wanted_khz, wanted_peak_in), xytext=(-500, -15),
-        color="#4ade80", fontsize=11, va="top",
+        xy=(f_wanted_khz, wanted_peak_in),
+        xytext=(-500, -15),
+        color="#4ade80",
+        fontsize=11,
+        va="top",
         arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.2),
     )
-    ax_in.axvline(f_jammer_khz, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8)
+    ax_in.axvline(
+        f_jammer_khz, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8
+    )
     ax_in.annotate(
         f"Jammer\n{f_jammer_khz:.0f} kHz",
-        xy=(f_jammer_khz, jammer_peak_in), xytext=(600, -45),
-        color="#f87171", fontsize=11, va="top",
+        xy=(f_jammer_khz, jammer_peak_in),
+        xytext=(600, -45),
+        color="#f87171",
+        fontsize=11,
+        va="top",
         arrowprops=dict(arrowstyle="->", color="#f87171", lw=1.2),
     )
 
@@ -315,9 +364,13 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
     ax_in.set_xlabel("Frequency (kHz)")
     ax_in.set_ylabel("Amplitude (dBFS)")
     ax_in.set_title("Input spectrum", loc="right", color="#f1f5f9")
-    ax_in.legend(loc="upper right", fontsize=11,
-                 facecolor="#1f2937", edgecolor="#4b5563",
-                 labelcolor="#d1d5db")
+    ax_in.legend(
+        loc="upper right",
+        fontsize=11,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
+        labelcolor="#d1d5db",
+    )
     ax_in.grid(True, color="#374151", lw=0.4)
     ax_in.set_facecolor("#111827")
     ax_in.tick_params(colors="#d1d5db")
@@ -330,17 +383,24 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
     freq_q15_khz = freq_q15 / 1e3
     ax_q15.plot(freq_q15_khz, amp_q15, color="#60a5fa", lw=0.8, zorder=2)
 
-    ax_q15.axvline( f_wanted / 1e3, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8)
-    ax_q15.axvline( f_jammer / 1e3, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8)
-    ax_q15.axvline( nyq_out,        color="#ffffff",  lw=1.2, linestyle=":", zorder=4)
-    ax_q15.axvline(-nyq_out,        color="#ffffff",  lw=1.2, linestyle=":", zorder=4)
+    ax_q15.axvline(
+        f_wanted / 1e3, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8
+    )
+    ax_q15.axvline(
+        f_jammer / 1e3, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8
+    )
+    ax_q15.axvline(nyq_out, color="#ffffff", lw=1.2, linestyle=":", zorder=4)
+    ax_q15.axvline(-nyq_out, color="#ffffff", lw=1.2, linestyle=":", zorder=4)
 
     ax_q15.set_xlim(-fs_in / 2 / 1e3, fs_in / 2 / 1e3)
     ax_q15.set_ylim(-120, 10)
     ax_q15.set_xlabel("Frequency (kHz)")
     ax_q15.set_ylabel("Amplitude (dBFS)")
-    ax_q15.set_title("Q15 quantized input (UQ16 → CF32 roundtrip)",
-                     loc="right", color="#f1f5f9")
+    ax_q15.set_title(
+        "Q15 quantized input (UQ16 → CF32 roundtrip)",
+        loc="right",
+        color="#f1f5f9",
+    )
     ax_q15.grid(True, color="#374151", lw=0.4)
     ax_q15.set_facecolor("#111827")
     ax_q15.tick_params(colors="#d1d5db")
@@ -354,13 +414,19 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
 
     # Wanted tone in output coordinates
     f_wanted_out_khz = f_wanted / 1e3
-    wanted_peak = float(amp_out[int(np.argmin(np.abs(freq_out_khz - f_wanted_out_khz)))])
-    ax_out.axvline(f_wanted_out_khz, color="#4ade80",
-                   lw=1.0, linestyle="-.", alpha=0.8)
+    wanted_peak = float(
+        amp_out[int(np.argmin(np.abs(freq_out_khz - f_wanted_out_khz)))]
+    )
+    ax_out.axvline(
+        f_wanted_out_khz, color="#4ade80", lw=1.0, linestyle="-.", alpha=0.8
+    )
     ax_out.annotate(
         f"Wanted\n{f_wanted_out_khz:.0f} kHz",
-        xy=(f_wanted_out_khz, wanted_peak), xytext=(250, -20),
-        color="#4ade80", fontsize=11, va="top",
+        xy=(f_wanted_out_khz, wanted_peak),
+        xytext=(250, -20),
+        color="#4ade80",
+        fontsize=11,
+        va="top",
         arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.2),
     )
 
@@ -370,13 +436,19 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
     if f_alias > fs_out / 2:
         f_alias -= fs_out
     f_alias_khz = f_alias / 1e3
-    alias_peak = float(amp_out[int(np.argmin(np.abs(freq_out_khz - f_alias_khz)))])
-    ax_out.axvline(f_alias_khz, color="#f87171",
-                   lw=1.0, linestyle="-.", alpha=0.8)
+    alias_peak = float(
+        amp_out[int(np.argmin(np.abs(freq_out_khz - f_alias_khz)))]
+    )
+    ax_out.axvline(
+        f_alias_khz, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8
+    )
     ax_out.annotate(
         f"Jammer alias\n{f_alias_khz:.0f} kHz\n(attenuated)",
-        xy=(f_alias_khz, alias_peak), xytext=(-500, -45),
-        color="#f87171", fontsize=11, va="top",
+        xy=(f_alias_khz, alias_peak),
+        xytext=(-500, -45),
+        color="#f87171",
+        fontsize=11,
+        va="top",
         arrowprops=dict(arrowstyle="->", color="#f87171", lw=1.2),
     )
 
@@ -384,7 +456,9 @@ def demo_spectral_plot(x, y_settled, fs_in, fs_out, R,
     ax_out.set_ylim(-120, 10)
     ax_out.set_xlabel("Frequency (kHz)")
     ax_out.set_ylabel("Amplitude (dBFS)")
-    ax_out.set_title("Output spectrum  (decimated)", loc="right", color="#f1f5f9")
+    ax_out.set_title(
+        "Output spectrum  (decimated)", loc="right", color="#f1f5f9"
+    )
     ax_out.grid(True, color="#374151", lw=0.4)
     ax_out.set_facecolor("#111827")
     ax_out.tick_params(colors="#d1d5db")
@@ -414,8 +488,12 @@ if __name__ == "__main__":
     demo_reconfigure()
     x, y_settled, fs_in, fs_out, R, f_wanted, f_jammer = demo_sdr_pipeline()
     demo_spectral_plot(
-        x, y_settled,
-        fs_in=fs_in, fs_out=fs_out, R=R,
-        f_wanted=f_wanted, f_jammer=f_jammer,
+        x,
+        y_settled,
+        fs_in=fs_in,
+        fs_out=fs_out,
+        R=R,
+        f_wanted=f_wanted,
+        f_jammer=f_jammer,
     )
     print("Done.")

@@ -1,7 +1,7 @@
 # LO — Complex Phasor Generator
 
 `LO` chains a 32-bit NCO with a 2¹⁶-entry sin/cos LUT to produce CF32 IQ
-phasors.  `freq` is a normalised frequency in cycles/sample (0.25 = fs/4).
+phasors. `freq` is a normalised frequency in cycles/sample (0.25 = fs/4).
 
 ## Free-running tone
 
@@ -19,8 +19,9 @@ print(iq)
 ```
 
 !!! note "CF32 precision"
+
     The LUT is 16-bit, so values like `0+1j` appear as
-    `-8.7e-08+1.000000e+00j` in `repr()`.  The absolute error is
+    `-8.7e-08+1.000000e+00j` in `repr()`. The absolute error is
     < 1.6 × 10⁻⁵ radians, well below −96 dBc.
 
 ## FM via control port

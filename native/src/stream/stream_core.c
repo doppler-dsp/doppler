@@ -14,11 +14,11 @@
 
 struct dp_ctx
 {
-  void *zmq_context;
-  void *zmq_socket;
+  void            *zmq_context;
+  void            *zmq_socket;
   dp_sample_type_t sample_type;
-  uint64_t sequence;
-  int socket_type;
+  uint64_t         sequence;
+  int              socket_type;
 };
 
 /* =========================================================================
@@ -27,9 +27,9 @@ struct dp_ctx
 
 struct dp_msg
 {
-  zmq_msg_t zmq_msg;
+  zmq_msg_t        zmq_msg;
   dp_sample_type_t sample_type;
-  size_t num_samples;
+  size_t           num_samples;
 };
 
 void *
@@ -197,7 +197,7 @@ ctx_create (int zmq_type, const char *endpoint, int do_bind,
     }
 
   ctx->sample_type = sample_type;
-  ctx->sequence = 0;
+  ctx->sequence    = 0;
   ctx->socket_type = zmq_type;
 
   return ctx;
@@ -226,18 +226,18 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
   if (!ctx || !samples || num_samples == 0)
     return DP_ERR_INVALID;
 
-  dp_header_t header = { 0 };
-  header.magic = DP_MAGIC;
-  header.version = DP_VERSION;
-  header.protocol = DP_PROTO_SIGS;
-  header.stream_id = 0;
-  header.sample_type = type;
-  header.flags = 0;
-  header.sequence = ctx->sequence++;
+  dp_header_t header  = { 0 };
+  header.magic        = DP_MAGIC;
+  header.version      = DP_VERSION;
+  header.protocol     = DP_PROTO_SIGS;
+  header.stream_id    = 0;
+  header.sample_type  = type;
+  header.flags        = 0;
+  header.sequence     = ctx->sequence++;
   header.timestamp_ns = dp_get_timestamp_ns ();
-  header.sample_rate = sample_rate;
-  header.center_freq = center_freq;
-  header.num_samples = num_samples;
+  header.sample_rate  = sample_rate;
+  header.center_freq  = center_freq;
+  header.num_samples  = num_samples;
 
   size_t data_size = num_samples * dp_sample_size (type);
 
@@ -260,7 +260,7 @@ recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 
   /* Receive header frame */
   dp_header_t hdr;
-  int rc = zmq_recv (ctx->zmq_socket, &hdr, sizeof (hdr), 0);
+  int         rc = zmq_recv (ctx->zmq_socket, &hdr, sizeof (hdr), 0);
   if (rc == -1)
     {
       if (zmq_errno () == EAGAIN)
@@ -275,7 +275,7 @@ recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
     return DP_ERR_INVALID;
 
   /* Check for data frame */
-  int more;
+  int    more;
   size_t more_size = sizeof (more);
   zmq_getsockopt (ctx->zmq_socket, ZMQ_RCVMORE, &more, &more_size);
   if (!more)
@@ -337,7 +337,7 @@ recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
   msg->sample_type = CF64; /* not meaningful for raw recv */
   msg->num_samples = 0;
 
-  *out_msg = msg;
+  *out_msg  = msg;
   *out_size = zmq_msg_size (&msg->zmq_msg);
 
   return DP_OK;

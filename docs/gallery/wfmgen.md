@@ -13,7 +13,7 @@ at 30 dB SNR over the sample rate. Because the signal is complex, the spectrum
 has a single line at +0.10 with no mirror image; the red marker labels the peak.
 
 **Top-right — PN.** A maximum-length sequence (LFSR register length 7 → period
-127) at one chip per sample. Its periodic autocorrelation is the MLS
+127\) at one chip per sample. Its periodic autocorrelation is the MLS
 "thumbtack": 1.0 at zero lag and a flat −1/127 floor at every other lag — the
 property that makes an MLS a good spreading and ranging code. `--pn_poly 0`
 selects the primitive polynomial for the chosen length automatically.
@@ -31,14 +31,14 @@ Every type, SNR mode, and the MLS auto-polynomial live once in C
 (`native/src/wfmgen/synth_core.c`, generated from `objects/synth.toml`). Two
 command-line tools expose it:
 
-| | `wavegen` | `wfmgen` |
-|---|---|---|
-| Built by | `jm app` (3 faces: C / console / pep723) | hand-written C |
-| Scope | one waveform, quick | multi-segment composer |
-| Spec | flags only | flags **or** `--from-file spec.json` |
-| Containers | `raw`, `csv` | `raw`, `csv`, **BLUE-1000**, **SigMF** |
-| Output | file / stdout | file / stdout / **`zmq://`** |
-| Provenance | `--record run.json` | `--record run.json` |
+|            | `wavegen`                                | `wfmgen`                               |
+| ---------- | ---------------------------------------- | -------------------------------------- |
+| Built by   | `jm app` (3 faces: C / console / pep723) | hand-written C                         |
+| Scope      | one waveform, quick                      | multi-segment composer                 |
+| Spec       | flags only                               | flags **or** `--from-file spec.json`   |
+| Containers | `raw`, `csv`                             | `raw`, `csv`, **BLUE-1000**, **SigMF** |
+| Output     | file / stdout                            | file / stdout / **`zmq://`**           |
+| Provenance | `--record run.json`                      | `--record run.json`                    |
 
 A single-segment `wfmgen` run is byte-identical to the same `wavegen` invocation
 — same engine, same flags.
@@ -54,9 +54,9 @@ wavegen --type pn --pn_length 9      # length-9 MLS, primitive poly chosen for y
 ```
 
 - `--snr_mode auto` resolves per type: **over-fs** for tone/noise/pn,
-  **Es/No** for bpsk/qpsk. Override with `--snr_mode fs|ebno|esno`.
+    **Es/No** for bpsk/qpsk. Override with `--snr_mode fs|ebno|esno`.
 - `--snr 100` (the default) is effectively clean — raise the noise by lowering
-  it.
+    it.
 - `--pn_poly 0` picks the maximum-length polynomial for `--pn_length`.
 
 ## Containers, sample types, byte order

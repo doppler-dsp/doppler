@@ -9,14 +9,16 @@ pip install doppler-dsp
 The wheel bundles all native dependencies — no system libraries required.
 
 !!! tip "Optional extras"
+
     ```bash
     pip install "doppler-dsp[specan]"      # terminal spectrum analyzer
     pip install "doppler-dsp[specan-web]"  # live spectrum analyzer web UI
     pip install "doppler-dsp[cli]"         # compose / Dopplerfile pipeline CLI
     ```
+
     See [Install → Python](install/python.md) for the full extras table.
 
----
+______________________________________________________________________
 
 ## Signal processing
 
@@ -63,7 +65,7 @@ decim = HalfbandDecimator()
 y = decim.execute(x.astype(np.complex64))  # 2:1 decimation
 ```
 
----
+______________________________________________________________________
 
 ## Streaming
 
@@ -113,13 +115,14 @@ while True:
 EOF
 ```
 
----
+______________________________________________________________________
 
 ## Spectrum analyzer
 
 `doppler-specan` opens a live FFT display in your terminal or browser.
 
 !!! note "Requires the `specan` or `specan-web` extra"
+
     ```bash
     pip install "doppler-dsp[specan]"      # terminal
     pip install "doppler-dsp[specan-web]"  # browser
@@ -140,11 +143,12 @@ doppler-specan --source demo --web
 The web UI is served at `http://127.0.0.1:8765` by default.
 See [Spectrum Analyzer](specan/index.md) for configuration options.
 
----
+______________________________________________________________________
 
 ## Pipeline CLI
 
 !!! note "Requires the `cli` extra"
+
     ```bash
     pip install "doppler-dsp[cli]"
     ```
@@ -162,7 +166,7 @@ doppler logs
 See [CLI & Pipelines](cli/index.md) and [Dopplerfile](cli/dopplerfile.md)
 for writing custom blocks.
 
----
+______________________________________________________________________
 
 ## Build from source
 
@@ -201,7 +205,7 @@ make test-all  # C + Python + Rust test suites
 See [Build from Source](install/source.md) for CMake options, Docker, and
 platform-specific notes.
 
----
+______________________________________________________________________
 
 ## Next steps
 

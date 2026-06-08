@@ -2,12 +2,13 @@
 
 Run: pytest src/doppler/resample/benchmarks/bench_cic.py --benchmark-only
 """
+
 import pytest
 import numpy as np
 
 from doppler.resample import CIC
 
-BLOCK_1K  = 1_024
+BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 

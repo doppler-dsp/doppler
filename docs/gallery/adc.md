@@ -5,16 +5,16 @@
 ## What you're seeing
 
 A real sinusoid at **-10 dBFS** is passed through `doppler.cvt.ADC` at five
-bit depths (6–10 bits) with no dithering.  The decoded output is shown in
+bit depths (6–10 bits) with no dithering. The decoded output is shown in
 both time and frequency domains.
 
-**Top — Time domain (3 cycles).**  The float32 reference (grey) overlays the
-decoded signal at each bit depth.  The quantisation staircase is coarse and
+**Top — Time domain (3 cycles).** The float32 reference (grey) overlays the
+decoded signal at each bit depth. The quantisation staircase is coarse and
 clearly stepped at 6 bits; it becomes nearly indistinguishable from the
-reference at 10 bits.  Each additional bit halves the step size.
+reference at 10 bits. Each additional bit halves the step size.
 
-**Bottom — One-sided spectrum (Blackman-Harris, N = 8192).**  The tone stays
-fixed at −10 dBFS across all bit depths.  The wideband quantisation noise
+**Bottom — One-sided spectrum (Blackman-Harris, N = 8192).** The tone stays
+fixed at −10 dBFS across all bit depths. The wideband quantisation noise
 floor descends by ≈ 6 dB with each additional bit, following the theoretical
 relationship:
 
@@ -23,15 +23,15 @@ noise floor ≈ −(6.02 × bits + 1.76) dBFS
 ```
 
 | Bits | Theoretical noise floor | Theoretical SNR |
-|------|------------------------|-----------------|
-| 6 | −37.9 dBFS | 37.9 dB |
-| 7 | −43.9 dBFS | 43.9 dB |
-| 8 | −50.0 dBFS | 50.0 dB |
-| 9 | −55.9 dBFS | 55.9 dB |
-| 10 | −61.9 dBFS | 61.9 dB |
+| ---- | ----------------------- | --------------- |
+| 6    | −37.9 dBFS              | 37.9 dB         |
+| 7    | −43.9 dBFS              | 43.9 dB         |
+| 8    | −50.0 dBFS              | 50.0 dB         |
+| 9    | −55.9 dBFS              | 55.9 dB         |
+| 10   | −61.9 dBFS              | 61.9 dB         |
 
 The dashed horizontal lines mark the theoretical noise floor for each bit
-depth.  At low bit depths (6–7 bits) harmonic spurs from deterministic
+depth. At low bit depths (6–7 bits) harmonic spurs from deterministic
 quantisation distortion are visible above the noise floor; they disappear
 into the noise at 9–10 bits.
 
@@ -71,19 +71,19 @@ q_d   = adc_d.steps(x)
 
 ### Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `bits` | `16` | ADC resolution, 1–64 bits |
-| `dbfs` | `-10.0` | Full-scale input level in dBFS.  A signal at this amplitude fills the converter — `scale = 2^(bits-1) × 10^(-dbfs/20)` |
-| `dithering` | `0` | `0` = off; non-zero = TPDF dither added before rounding |
+| Parameter   | Default | Description                                                                                                           |
+| ----------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| `bits`      | `16`    | ADC resolution, 1–64 bits                                                                                             |
+| `dbfs`      | `-10.0` | Full-scale input level in dBFS. A signal at this amplitude fills the converter — `scale = 2^(bits-1) × 10^(-dbfs/20)` |
+| `dithering` | `0`     | `0` = off; non-zero = TPDF dither added before rounding                                                               |
 
 ### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `.scale` | `float` | Precomputed scale factor — divide `int64` output by this to reconstruct float |
-| `.bits` | `int` | ADC resolution |
-| `.clipped` | `bool` | Sticky flag — set if any sample saturated since last `reset()` |
+| Property   | Type    | Description                                                                   |
+| ---------- | ------- | ----------------------------------------------------------------------------- |
+| `.scale`   | `float` | Precomputed scale factor — divide `int64` output by this to reconstruct float |
+| `.bits`    | `int`   | ADC resolution                                                                |
+| `.clipped` | `bool`  | Sticky flag — set if any sample saturated since last `reset()`                |
 
 ```bash
 python examples/python/adc_demo.py   # → adc_demo.png

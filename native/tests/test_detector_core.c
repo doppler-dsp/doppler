@@ -3,13 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);        \
-      _fails++;                                                                \
-    }                                                                          \
-  } while (0)
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
 
 #define N 64
 
@@ -21,10 +24,10 @@ main (void)
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 1, 1, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     CHECK (det != NULL);
     CHECK (det->n == N);
     CHECK (det->ring_cap >= N);
@@ -42,12 +45,12 @@ main (void)
    * noise_est = 1/N > 0 and test_stat = N (well above 1).               */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 1, 0, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
-    size_t ndet = detector_push (det, ref, N, results, 16);
+    size_t       ndet = detector_push (det, ref, N, results, 16);
 
     CHECK (ndet == 1);
     CHECK (results[0].lag == 0);
@@ -61,10 +64,10 @@ main (void)
   /* ── sub-frame push: two halves should produce one detection ─────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 1, 1, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
 
     size_t n1 = detector_push (det, ref, N / 2, results, 16);
@@ -81,12 +84,12 @@ main (void)
    * Push δ vs δ → stat >> 1.  With threshold=1000 nothing fires.       */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 1, 1, N - 1,
-                                             DET_NOISE_MEAN, 1000.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 1000.0f, 1);
     det_result_t results[16];
-    size_t ndet = detector_push (det, ref, N, results, 16);
+    size_t       ndet = detector_push (det, ref, N, results, 16);
     CHECK (ndet == 0);
 
     /* Lower threshold — now fires. */
@@ -100,10 +103,10 @@ main (void)
   /* ── dwell=2: needs two frames before a detection ────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 2, 1, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
 
     /* Push 1 frame: corr accumulates, no dump. */
@@ -122,14 +125,14 @@ main (void)
    * ref = δ[0], in = δ[1].  corr(δ[n-1], δ[n])[τ] → peak at τ=1.    */
   {
     float complex ref[N] = { 0 };
-    float complex in[N] = { 0 };
-    ref[0] = 1.0f;
-    in[1] = 1.0f;
+    float complex in[N]  = { 0 };
+    ref[0]               = 1.0f;
+    in[1]                = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 1, 0, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 0, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
-    size_t ndet = detector_push (det, in, N, results, 16);
+    size_t       ndet = detector_push (det, in, N, results, 16);
     CHECK (ndet == 1);
     CHECK (results[0].lag == 1);
 
@@ -139,10 +142,10 @@ main (void)
   /* ── detector_reset clears state ────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
-    detector_state_t *det = detector_create (ref, N, 2, 1, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 2, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
 
     /* Push 1 frame (partial dwell). */
@@ -163,15 +166,15 @@ main (void)
    * N>2; use MIN so any nonzero entry makes noise_est > 0).             */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     /* DET_NOISE_MIN: noise_est = min(mag) over full spectrum.
      * For impulse self-corr, mag = [1, 0, 0, ...], min = 0.
      * Use noise_lo=0, noise_hi=0 (only the peak bin) so noise_est=1. */
-    detector_state_t *det = detector_create (ref, N, 1, 0, 0,
-                                             DET_NOISE_MEDIAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 0, 0, DET_NOISE_MEDIAN, 0.0f, 1);
     det_result_t results[16];
-    size_t ndet = detector_push (det, ref, N, results, 16);
+    size_t       ndet = detector_push (det, ref, N, results, 16);
     CHECK (ndet == 1);
     CHECK (results[0].test_stat > 0.0f);
 
@@ -181,15 +184,15 @@ main (void)
   /* ── multi-frame push: push 3 frames at once ─────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
     float complex big[3 * N];
     for (size_t i = 0; i < 3 * N; i++)
       big[i] = ref[i % N];
 
-    detector_state_t *det = detector_create (ref, N, 1, 1, N - 1,
-                                             DET_NOISE_MEAN, 0.0f, 1);
+    detector_state_t *det
+        = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
     det_result_t results[16];
-    size_t ndet = detector_push (det, big, 3 * N, results, 16);
+    size_t       ndet = detector_push (det, big, 3 * N, results, 16);
     CHECK (ndet == 3);
 
     detector_destroy (det);

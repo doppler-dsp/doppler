@@ -5,16 +5,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define N_STAT  65536   /* samples for statistical checks */
+#define N_STAT 65536 /* samples for statistical checks */
 #define N_SMALL 256
 
-#define CHECK(cond) \
-    do { if (!(cond)) { \
-        fprintf(stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond); \
-        _fails++; \
-    } else { \
-        printf("  PASS  %s\n", #cond); \
-    } } while (0)
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);  \
+          _fails++;                                                           \
+        }                                                                     \
+      else                                                                    \
+        {                                                                     \
+          printf ("  PASS  %s\n", #cond);                                     \
+        }                                                                     \
+    }                                                                         \
+  while (0)
 
 static int _fails = 0;
 
@@ -117,8 +124,8 @@ static void
 test_statistics (void)
 {
   printf ("\n-- Statistics (N=%d) --\n", N_STAT);
-  const float amp = 2.0f;
-  awgn_state_t *g = awgn_create (7, amp);
+  const float   amp = 2.0f;
+  awgn_state_t *g   = awgn_create (7, amp);
 
   float complex *buf = malloc (N_STAT * sizeof *buf);
   awgn_generate (g, N_STAT, buf);
@@ -129,8 +136,8 @@ test_statistics (void)
     {
       double re = (double)crealf (buf[i]);
       double im = (double)cimagf (buf[i]);
-      sum_re  += re;
-      sum_im  += im;
+      sum_re += re;
+      sum_im += im;
       sum_re2 += re * re;
       sum_im2 += im * im;
     }
@@ -168,7 +175,7 @@ test_split_block (void)
   awgn_destroy (g);
 
   /* Two halves */
-  g = awgn_create (99, 1.0f);
+  g           = awgn_create (99, 1.0f);
   size_t half = N_SMALL / 2;
   awgn_generate (g, half, part);
   awgn_generate (g, half, part + half);

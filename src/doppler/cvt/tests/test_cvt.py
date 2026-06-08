@@ -46,6 +46,7 @@ Q15_MIN = -32768
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _ramp(n: int = 128) -> np.ndarray:
     """Float ramp from -1.5 to +1.5, covering saturation boundaries."""
     return np.linspace(-1.5, 1.5, n, dtype=np.float32)
@@ -59,6 +60,7 @@ def _q15_ramp(n: int = 64) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # F32ToI16
 # ---------------------------------------------------------------------------
+
 
 class TestF32ToI16:
     def test_positive_unity(self):
@@ -147,6 +149,7 @@ class TestF32ToI16:
 # I16ToF32
 # ---------------------------------------------------------------------------
 
+
 class TestI16ToF32:
     def test_positive_max(self):
         obj = I16ToF32()
@@ -177,7 +180,9 @@ class TestI16ToF32:
         x = _q15_ramp()
         expected = np.array([obj.step(int(v)) for v in x], dtype=np.float32)
         obj2 = I16ToF32()
-        np.testing.assert_array_almost_equal(obj2.steps(x), expected, decimal=6)
+        np.testing.assert_array_almost_equal(
+            obj2.steps(x), expected, decimal=6
+        )
 
     def test_invalid_scale(self):
         with pytest.raises((MemoryError, ValueError)):
@@ -187,6 +192,7 @@ class TestI16ToF32:
 # ---------------------------------------------------------------------------
 # Roundtrip: F32ToI16 ↔ I16ToF32
 # ---------------------------------------------------------------------------
+
 
 class TestRoundtrip:
     """F32 → int16 → F32 roundtrip within Q15 quantisation error."""
@@ -199,13 +205,14 @@ class TestRoundtrip:
         y = dec.steps(enc.steps(x))
         error = np.max(np.abs(x - y))
         assert error <= 1.0 / SCALE + 1e-7, (
-            f"Roundtrip error {error:.2e} exceeds 0.5 LSB = {1/SCALE:.2e}"
+            f"Roundtrip error {error:.2e} exceeds 0.5 LSB = {1 / SCALE:.2e}"
         )
 
 
 # ---------------------------------------------------------------------------
 # F32ToI16U32
 # ---------------------------------------------------------------------------
+
 
 class TestF32ToI16U32:
     def test_positive_unity(self):
@@ -260,6 +267,7 @@ class TestF32ToI16U32:
 # F32ToI16U64
 # ---------------------------------------------------------------------------
 
+
 class TestF32ToI16U64:
     def test_positive_unity(self):
         obj = F32ToI16U64()
@@ -302,6 +310,7 @@ class TestF32ToI16U64:
 # I16U32ToF32
 # ---------------------------------------------------------------------------
 
+
 class TestI16U32ToF32:
     def test_positive_q15max(self):
         """0x00007FFF (32767 as int16) → 32767/32768 ≈ 0.9999..."""
@@ -343,6 +352,7 @@ class TestI16U32ToF32:
 # I16U64ToF32
 # ---------------------------------------------------------------------------
 
+
 class TestI16U64ToF32:
     def test_positive_q15max(self):
         obj = I16U64ToF32()
@@ -370,6 +380,7 @@ class TestI16U64ToF32:
 # F32ToUQ15
 # ---------------------------------------------------------------------------
 
+
 class TestF32ToUQ15:
     """Offset-binary encoding: 0.0 → 32768, -1.0 → 0, +32767/32768 → 65535."""
 
@@ -395,11 +406,11 @@ class TestF32ToUQ15:
 
     def test_clipped_flag_sticky(self):
         obj = F32ToUQ15()
-        obj.step(0.5)          # in-range
+        obj.step(0.5)  # in-range
         assert not obj.clipped
-        obj.step(2.0)          # clips
+        obj.step(2.0)  # clips
         assert obj.clipped
-        obj.step(0.1)          # back in range — but flag stays set
+        obj.step(0.1)  # back in range — but flag stays set
         assert obj.clipped
 
     def test_clipped_cleared_by_reset(self):
@@ -463,6 +474,7 @@ class TestF32ToUQ15:
 # UQ15ToF32
 # ---------------------------------------------------------------------------
 
+
 class TestUQ15ToF32:
     """Offset-binary decode: 0 → -1.0, 32768 → 0.0, 65535 → +32767/32768."""
 
@@ -504,6 +516,7 @@ class TestUQ15ToF32:
 # Roundtrip: F32ToUQ15 ↔ UQ15ToF32
 # ---------------------------------------------------------------------------
 
+
 class TestUQ15Roundtrip:
     """UQ15 offset-binary roundtrip error must be ≤ 0.5 LSB."""
 
@@ -514,7 +527,7 @@ class TestUQ15Roundtrip:
         y = dec.steps(enc.steps(x))
         error = float(np.max(np.abs(x - y)))
         assert error <= 1.0 / SCALE + 1e-7, (
-            f"Roundtrip error {error:.2e} exceeds 0.5 LSB = {1/SCALE:.2e}"
+            f"Roundtrip error {error:.2e} exceeds 0.5 LSB = {1 / SCALE:.2e}"
         )
 
     def test_roundtrip_matches_q15_roundtrip(self):

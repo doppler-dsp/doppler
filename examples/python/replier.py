@@ -55,7 +55,9 @@ def main() -> None:
 
     print("doppler Replier (Python)")
     print(f"  Endpoint : {args.endpoint}")
-    print(f"  Gain     : {args.gain:.3f} ({20 * np.log10(abs(args.gain)):.1f} dB)")
+    print(
+        f"  Gain     : {args.gain:.3f} ({20 * np.log10(abs(args.gain)):.1f} dB)"
+    )
     print("\nListening — start requester.py to connect")
     sys.stdout.flush()
 

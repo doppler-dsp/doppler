@@ -30,38 +30,41 @@
 
 #define N 4096
 
-int main(void)
+int
+main (void)
 {
-    float complex out[N];
+  float complex out[N];
 
-    /* One-shot: no persistent state needed. */
-    if (awgn(/*seed=*/42, /*amplitude=*/1.0f, N, out) != DP_OK) {
-        fprintf(stderr, "awgn: allocation failed\n");
-        return 1;
+  /* One-shot: no persistent state needed. */
+  if (awgn (/*seed=*/42, /*amplitude=*/1.0f, N, out) != DP_OK)
+    {
+      fprintf (stderr, "awgn: allocation failed\n");
+      return 1;
     }
 
-    /* Compute mean and per-component standard deviation. */
-    double sum_re = 0, sum_im = 0;
-    for (int i = 0; i < N; i++) {
-        sum_re += crealf(out[i]);
-        sum_im += cimagf(out[i]);
+  /* Compute mean and per-component standard deviation. */
+  double sum_re = 0, sum_im = 0;
+  for (int i = 0; i < N; i++)
+    {
+      sum_re += crealf (out[i]);
+      sum_im += cimagf (out[i]);
     }
-    double mean_re = sum_re / N;
-    double mean_im = sum_im / N;
+  double mean_re = sum_re / N;
+  double mean_im = sum_im / N;
 
-    double var_re = 0, var_im = 0;
-    for (int i = 0; i < N; i++) {
-        double dr = crealf(out[i]) - mean_re;
-        double di = cimagf(out[i]) - mean_im;
-        var_re += dr * dr;
-        var_im += di * di;
+  double var_re = 0, var_im = 0;
+  for (int i = 0; i < N; i++)
+    {
+      double dr = crealf (out[i]) - mean_re;
+      double di = cimagf (out[i]) - mean_im;
+      var_re += dr * dr;
+      var_im += di * di;
     }
-    double std_re = sqrt(var_re / N);
-    double std_im = sqrt(var_im / N);
+  double std_re = sqrt (var_re / N);
+  double std_im = sqrt (var_im / N);
 
-    printf("samples : %d\n", N);
-    printf("mean    : %.4f + %.4fi  (expect ≈ 0)\n", mean_re, mean_im);
-    printf("std dev : %.4f (Re)  %.4f (Im)  (expect ≈ 1.0)\n",
-           std_re, std_im);
-    return 0;
+  printf ("samples : %d\n", N);
+  printf ("mean    : %.4f + %.4fi  (expect ≈ 0)\n", mean_re, mean_im);
+  printf ("std dev : %.4f (Re)  %.4f (Im)  (expect ≈ 1.0)\n", std_re, std_im);
+  return 0;
 }

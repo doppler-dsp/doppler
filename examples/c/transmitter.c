@@ -28,21 +28,21 @@
 #include <time.h>
 
 #ifdef _WIN32
-#  include <windows.h>
-#  define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
+#include <windows.h>
+#define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
 #else
-#  include <unistd.h>
-#  define dp_usleep(us) usleep ((useconds_t)(us))
+#include <unistd.h>
+#define dp_usleep(us) usleep ((useconds_t)(us))
 #endif
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
-#define SAMPLE_RATE  1e6     /* 1 MHz          */
-#define CENTER_FREQ  2.4e9  /* 2.4 GHz        */
-#define BUFFER_SIZE  8192
-#define SIGNAL_FREQ  10000.0 /* 10 kHz tone    */
+#define SAMPLE_RATE 1e6   /* 1 MHz          */
+#define CENTER_FREQ 2.4e9 /* 2.4 GHz        */
+#define BUFFER_SIZE 8192
+#define SIGNAL_FREQ 10000.0 /* 10 kHz tone    */
 
 static volatile int keep_running = 1;
 
@@ -56,16 +56,16 @@ signal_handler (int signum)
 static void
 format_timestamp (uint64_t ts_ns, char *buf, size_t buf_size)
 {
-  time_t secs = (time_t)(ts_ns / 1000000000ULL);
-  unsigned int ms = (unsigned int)((ts_ns % 1000000000ULL) / 1000000ULL);
-  struct tm tm;
+  time_t       secs = (time_t)(ts_ns / 1000000000ULL);
+  unsigned int ms   = (unsigned int)((ts_ns % 1000000000ULL) / 1000000ULL);
+  struct tm    tm;
 #ifdef _WIN32
   localtime_s (&tm, &secs);
 #else
   localtime_r (&secs, &tm);
 #endif
-  snprintf (buf, buf_size, "%02d:%02d:%02d.%03u",
-            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
+  snprintf (buf, buf_size, "%02d:%02d:%02d.%03u", tm.tm_hour, tm.tm_min,
+            tm.tm_sec, ms);
 }
 
 static void
@@ -75,7 +75,7 @@ generate_tone_cf64 (double _Complex *samples, size_t n, double freq,
   for (size_t i = 0; i < n; i++)
     {
       double angle = 2.0 * M_PI * freq * (double)i / sample_rate + phase;
-      samples[i] = (cos (angle)) + (sin (angle)) * _Complex_I;
+      samples[i]   = (cos (angle)) + (sin (angle))*_Complex_I;
     }
 }
 
@@ -86,7 +86,7 @@ generate_tone_ci32 (int32_t *samples, size_t n, double freq,
   const int32_t max_val = 2147483647;
   for (size_t i = 0; i < n; i++)
     {
-      double angle = 2.0 * M_PI * freq * (double)i / sample_rate + phase;
+      double angle       = 2.0 * M_PI * freq * (double)i / sample_rate + phase;
       samples[2 * i]     = (int32_t)(cos (angle) * max_val * 0.9);
       samples[2 * i + 1] = (int32_t)(sin (angle) * max_val * 0.9);
     }
@@ -108,17 +108,23 @@ print_usage (const char *prog)
 int
 main (int argc, char *argv[])
 {
-  const char *endpoint = "tcp://*:5555";
+  const char      *endpoint    = "tcp://*:5555";
   dp_sample_type_t sample_type = CF64;
 
-  if (argc > 1 && (strcmp (argv[1], "--help") == 0
-                   || strcmp (argv[1], "-h") == 0))
-    { print_usage (argv[0]); return 0; }
-  if (argc > 1) endpoint = argv[1];
+  if (argc > 1
+      && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
+    {
+      print_usage (argv[0]);
+      return 0;
+    }
+  if (argc > 1)
+    endpoint = argv[1];
   if (argc > 2)
     {
-      if      (strcmp (argv[2], "ci32") == 0) sample_type = CI32;
-      else if (strcmp (argv[2], "cf64") == 0) sample_type = CF64;
+      if (strcmp (argv[2], "ci32") == 0)
+        sample_type = CI32;
+      else if (strcmp (argv[2], "cf64") == 0)
+        sample_type = CF64;
       else
         {
           fprintf (stderr, "Unknown type '%s'. Use: ci32, cf64\n", argv[2]);
@@ -126,7 +132,7 @@ main (int argc, char *argv[])
         }
     }
 
-  signal (SIGINT,  signal_handler);
+  signal (SIGINT, signal_handler);
   signal (SIGTERM, signal_handler);
 
   dp_pub_t *ctx = dp_pub_create (endpoint, sample_type);
@@ -170,8 +176,8 @@ main (int argc, char *argv[])
       int rc;
       if (sample_type == CI32)
         {
-          generate_tone_ci32 ((int32_t *)samples, BUFFER_SIZE,
-                              SIGNAL_FREQ, SAMPLE_RATE, phase);
+          generate_tone_ci32 ((int32_t *)samples, BUFFER_SIZE, SIGNAL_FREQ,
+                              SAMPLE_RATE, phase);
           rc = dp_pub_send_ci32 (ctx, (int32_t *)samples, BUFFER_SIZE,
                                  SAMPLE_RATE, CENTER_FREQ);
         }
@@ -189,8 +195,9 @@ main (int argc, char *argv[])
           break;
         }
 
-      phase = fmod (phase + 2.0 * M_PI * SIGNAL_FREQ * BUFFER_SIZE
-                                / SAMPLE_RATE, 2.0 * M_PI);
+      phase
+          = fmod (phase + 2.0 * M_PI * SIGNAL_FREQ * BUFFER_SIZE / SAMPLE_RATE,
+                  2.0 * M_PI);
       total_samples += BUFFER_SIZE;
       packet_count++;
 

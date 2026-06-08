@@ -336,6 +336,23 @@ jobs:
   # `*_execute(..., out, max_out)` is now declared `pass_capacity = true`
   # (just-makeit#138) so apply generates it exactly and there is zero drift.
   # ------------------------------------------------------------------
+  # Lint + format gate for hand-written code and docs (ruff, clang-format v19,
+  # mdformat, hygiene hooks). jm-generated glue (.pyi, *_ext.c aggregators,
+  # native/inc headers, generated CMakeLists, re-export __init__.py, wavegen.py)
+  # is excluded in .pre-commit-config.yaml and guarded instead by manifest-drift.
+  pre-commit:
+    name: pre-commit (lint + format)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - uses: pre-commit/action@v3.0.1
+
   manifest-drift:
     name: jm manifest drift gate
     runs-on: ubuntu-latest

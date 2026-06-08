@@ -17,7 +17,7 @@ running multi-process signal pipeline in a handful of commands.
   </div>
 </div>
 
----
+______________________________________________________________________
 
 ## Layer 1 — DSP Library (C99 core)
 
@@ -34,7 +34,7 @@ translation, memory lifetime.
 
 See the [API reference](c-api/files.md) for the full C API.
 
----
+______________________________________________________________________
 
 ## Layer 2 — Transport (ZMQ streaming)
 
@@ -42,11 +42,11 @@ See the [API reference](c-api/files.md) for the full C API.
 library. It defines one header struct (`dp_header_t`), one magic
 value (`SIGS`), and three messaging patterns:
 
-| Pattern | Use |
-|---------|-----|
+| Pattern       | Use                                             |
+| ------------- | ----------------------------------------------- |
 | **PUSH/PULL** | Unidirectional pipeline — source → block → sink |
-| **PUB/SUB** | Fan-out — one source, many subscribers |
-| **REQ/REP** | Request/response — configuration, queries |
+| **PUB/SUB**   | Fan-out — one source, many subscribers          |
+| **REQ/REP**   | Request/response — configuration, queries       |
 
 Every block speaks the same framing format. A C transmitter can
 push to a Python subscriber and vice versa. The transport is
@@ -54,7 +54,7 @@ optional — if you only need the DSP primitives, skip it entirely.
 
 See [API: Streaming](api/python-streaming.md).
 
----
+______________________________________________________________________
 
 ## Layer 3 — Pipeline CLI (`doppler compose`)
 
@@ -78,7 +78,7 @@ socket and writes to a PUSH socket qualifies as a block.
 
 See [CLI & Pipelines](cli/index.md) and [Dopplerfile](cli/dopplerfile.md).
 
----
+______________________________________________________________________
 
 ## Layer 4 — Apps & Tools
 
@@ -99,7 +99,7 @@ doppler specan --port 5600
 
 See [Spectrum Analyzer](specan/index.md).
 
----
+______________________________________________________________________
 
 ## A complete flow
 

@@ -99,7 +99,7 @@ main (void)
   float _Complex ctrl[64];
   for (size_t i = 0; i < N; i++)
     {
-      in[i] = CMPLXF (1.0f, 0.0f);
+      in[i]   = CMPLXF (1.0f, 0.0f);
       ctrl[i] = CMPLXF (0.0f, 0.0f);
     }
   n = resamp_execute_ctrl (r, in, ctrl, N, out, N);

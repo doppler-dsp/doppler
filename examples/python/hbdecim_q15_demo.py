@@ -19,6 +19,7 @@ Run:
 """
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,24 +32,25 @@ from doppler.filter import HBDecimQ15
 # theme constants
 # ---------------------------------------------------------------------------
 
-BG_FIG   = "#0f172a"
-BG_AXES  = "#111827"
-C_GRID   = "#374151"
-C_TEXT   = "#d1d5db"
-C_SPINE  = "#374151"
+BG_FIG = "#0f172a"
+BG_AXES = "#111827"
+C_GRID = "#374151"
+C_TEXT = "#d1d5db"
+C_SPINE = "#374151"
 
-C_Q15    = "#60a5fa"   # blue — Q15 implementation
-C_FLOAT  = "#94a3b8"   # gray — float32 reference
-C_PASS   = "#14532d"   # dark green — passband region
-C_TRANS  = "#713f12"   # dark amber — transition region
-C_STOP   = "#450a0a"   # dark red  — stopband region
-C_TONE_P = "#4ade80"   # green — passband tone
-C_TONE_S = "#f87171"   # red   — stopband tone
+C_Q15 = "#60a5fa"  # blue — Q15 implementation
+C_FLOAT = "#94a3b8"  # gray — float32 reference
+C_PASS = "#14532d"  # dark green — passband region
+C_TRANS = "#713f12"  # dark amber — transition region
+C_STOP = "#450a0a"  # dark red  — stopband region
+C_TONE_P = "#4ade80"  # green — passband tone
+C_TONE_S = "#f87171"  # red   — stopband tone
 
 
 # ---------------------------------------------------------------------------
 # coefficients
 # ---------------------------------------------------------------------------
+
 
 def _get_coeffs() -> np.ndarray:
     """Return the non-trivial FIR polyphase branch of the halfband bank.
@@ -69,6 +71,7 @@ def _get_coeffs() -> np.ndarray:
 # ---------------------------------------------------------------------------
 # frequency-response measurement (impulse method)
 # ---------------------------------------------------------------------------
+
 
 def _measure_freq_response_q15(
     h: np.ndarray,
@@ -106,7 +109,7 @@ def _measure_freq_response_q15(
 
     # Build interleaved int16 IQ impulse: I=amplitude at t=0, Q=0 throughout
     x_iq = np.zeros(2 * n_impulse, dtype=np.int16)
-    x_iq[0] = amplitude      # I channel impulse
+    x_iq[0] = amplitude  # I channel impulse
 
     dec = HBDecimQ15(h)
     y_iq = dec.execute(x_iq)
@@ -118,7 +121,7 @@ def _measure_freq_response_q15(
     n_out = len(y_c)
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n_out) / n_out
-    w = a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
     cg = float(w.mean())
 
     S = np.fft.fft(y_c * w, n_out * pad)
@@ -171,7 +174,7 @@ def _measure_freq_response_float(
     n_out = len(y)
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n_out) / n_out
-    w = a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
     cg = float(w.mean())
 
     S = np.fft.fft(y * w, n_out * pad)
@@ -186,6 +189,7 @@ def _measure_freq_response_float(
 # ---------------------------------------------------------------------------
 # input/output signal spectra
 # ---------------------------------------------------------------------------
+
 
 def _bh_spectrum_db(
     x_c: np.ndarray,
@@ -213,7 +217,7 @@ def _bh_spectrum_db(
     n = len(x_c)
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
     cg = float(w.mean())
 
     S = np.fft.fft(x_c * w, n * pad)
@@ -278,6 +282,7 @@ def _build_input_signal(
 # axes styling helper
 # ---------------------------------------------------------------------------
 
+
 def _style(ax: plt.Axes) -> None:
     ax.set_facecolor(BG_AXES)
     ax.grid(True, color=C_GRID, lw=0.4)
@@ -292,6 +297,7 @@ def _style(ax: plt.Axes) -> None:
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+
 
 def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     """Produce the three-panel gallery figure and save to *out_path*.
@@ -328,52 +334,107 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
 
     # ── figure layout ─────────────────────────────────────────────────────────
     fig = plt.figure(figsize=(14, 12), facecolor=BG_FIG)
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.1, 1.0], hspace=0.38,
-                          wspace=0.28, left=0.07, right=0.97,
-                          top=0.93, bottom=0.06)
+    gs = fig.add_gridspec(
+        2,
+        2,
+        height_ratios=[1.1, 1.0],
+        hspace=0.38,
+        wspace=0.28,
+        left=0.07,
+        right=0.97,
+        top=0.93,
+        bottom=0.06,
+    )
 
-    ax_resp = fig.add_subplot(gs[0, :])   # full-width top panel
-    ax_in   = fig.add_subplot(gs[1, 0])   # bottom-left
-    ax_out  = fig.add_subplot(gs[1, 1])   # bottom-right
+    ax_resp = fig.add_subplot(gs[0, :])  # full-width top panel
+    ax_in = fig.add_subplot(gs[1, 0])  # bottom-left
+    ax_out = fig.add_subplot(gs[1, 1])  # bottom-right
 
     # ── Panel 1: frequency response ───────────────────────────────────────────
 
     # Background region shading
-    ax_resp.axvspan(0.00, 0.20, color=C_PASS,  alpha=0.35, label="_pass bg")
+    ax_resp.axvspan(0.00, 0.20, color=C_PASS, alpha=0.35, label="_pass bg")
     ax_resp.axvspan(0.20, 0.30, color=C_TRANS, alpha=0.35, label="_trans bg")
-    ax_resp.axvspan(0.30, 0.50, color=C_STOP,  alpha=0.35, label="_stop bg")
+    ax_resp.axvspan(0.30, 0.50, color=C_STOP, alpha=0.35, label="_stop bg")
 
     # Region labels (text near top)
-    ax_resp.text(0.10, 1.5, "Passband", ha="center", va="bottom",
-                 color="#86efac", fontsize=9)
-    ax_resp.text(0.25, 1.5, "Transition", ha="center", va="bottom",
-                 color="#fde68a", fontsize=9)
-    ax_resp.text(0.40, 1.5, "Stopband", ha="center", va="bottom",
-                 color="#fca5a5", fontsize=9)
+    ax_resp.text(
+        0.10,
+        1.5,
+        "Passband",
+        ha="center",
+        va="bottom",
+        color="#86efac",
+        fontsize=9,
+    )
+    ax_resp.text(
+        0.25,
+        1.5,
+        "Transition",
+        ha="center",
+        va="bottom",
+        color="#fde68a",
+        fontsize=9,
+    )
+    ax_resp.text(
+        0.40,
+        1.5,
+        "Stopband",
+        ha="center",
+        va="bottom",
+        color="#fca5a5",
+        fontsize=9,
+    )
 
-    ax_resp.plot(freq_f32, mag_f32, color=C_FLOAT, lw=1.0, ls="--",
-                 label="Float32 reference (HalfbandDecimator)")
-    ax_resp.plot(freq_q15, mag_q15, color=C_Q15, lw=1.2,
-                 label="Q15 (HBDecimQ15)")
+    ax_resp.plot(
+        freq_f32,
+        mag_f32,
+        color=C_FLOAT,
+        lw=1.0,
+        ls="--",
+        label="Float32 reference (HalfbandDecimator)",
+    )
+    ax_resp.plot(
+        freq_q15, mag_q15, color=C_Q15, lw=1.2, label="Q15 (HBDecimQ15)"
+    )
 
     # Passband / stopband edge annotations
     ax_resp.axvline(0.20, color="#86efac", lw=0.8, ls=":", alpha=0.8)
     ax_resp.axvline(0.30, color="#fca5a5", lw=0.8, ls=":", alpha=0.8)
-    ax_resp.text(0.20, -84, "0.20", ha="center", va="bottom",
-                 color="#86efac", fontsize=8)
-    ax_resp.text(0.30, -84, "0.30", ha="center", va="bottom",
-                 color="#fca5a5", fontsize=8)
+    ax_resp.text(
+        0.20,
+        -84,
+        "0.20",
+        ha="center",
+        va="bottom",
+        color="#86efac",
+        fontsize=8,
+    )
+    ax_resp.text(
+        0.30,
+        -84,
+        "0.30",
+        ha="center",
+        va="bottom",
+        color="#fca5a5",
+        fontsize=8,
+    )
 
     ax_resp.set_xlim(0.0, 0.5)
     ax_resp.set_ylim(-90, 3)
-    ax_resp.set_xlabel("Normalised input frequency (cycles/sample)", fontsize=9)
+    ax_resp.set_xlabel(
+        "Normalised input frequency (cycles/sample)", fontsize=9
+    )
     ax_resp.set_ylabel("Magnitude (dBFS)", fontsize=9)
     ax_resp.set_title(
         "Halfband frequency response — Q15 vs float32", fontsize=11
     )
     ax_resp.legend(
-        fontsize=9, facecolor="#1f2937", edgecolor="#4b5563",
-        labelcolor=C_TEXT, loc="lower left",
+        fontsize=9,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
+        labelcolor=C_TEXT,
+        loc="lower left",
     )
     _style(ax_resp)
 
@@ -386,10 +447,11 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     idx_p = int(np.argmin(np.abs(freq_in - f_pass_norm)))
     tone_p_db = float(mag_in[idx_p])
     ax_in.annotate(
-        f"Passband tone\nf=0.08",
+        "Passband tone\nf=0.08",
         xy=(f_pass_norm, tone_p_db),
         xytext=(f_pass_norm + 0.06, tone_p_db - 12),
-        color=C_TONE_P, fontsize=8,
+        color=C_TONE_P,
+        fontsize=8,
         arrowprops=dict(arrowstyle="->", color=C_TONE_P, lw=0.9),
     )
 
@@ -398,10 +460,11 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     idx_s = int(np.argmin(np.abs(freq_in - f_stop_norm)))
     tone_s_db = float(mag_in[idx_s])
     ax_in.annotate(
-        f"Stopband tone\nf=0.35",
+        "Stopband tone\nf=0.35",
         xy=(f_stop_norm, tone_s_db),
         xytext=(f_stop_norm - 0.13, tone_s_db - 14),
-        color=C_TONE_S, fontsize=8,
+        color=C_TONE_S,
+        fontsize=8,
         arrowprops=dict(arrowstyle="->", color=C_TONE_S, lw=0.9),
     )
 
@@ -421,10 +484,11 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     idx_po = int(np.argmin(np.abs(freq_out - f_pass_out)))
     tone_po_db = float(mag_out[idx_po])
     ax_out.annotate(
-        f"Passband tone\nf=0.16 (output rate)",
+        "Passband tone\nf=0.16 (output rate)",
         xy=(f_pass_out, tone_po_db),
         xytext=(f_pass_out + 0.05, tone_po_db - 12),
-        color=C_TONE_P, fontsize=8,
+        color=C_TONE_P,
+        fontsize=8,
         arrowprops=dict(arrowstyle="->", color=C_TONE_P, lw=0.9),
     )
 
@@ -437,23 +501,28 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         "~-60 dB stopband\nsuppression",
         xy=(f_stop_out, tone_so_db),
         xytext=(f_stop_out - 0.14, tone_so_db + 18),
-        color=C_TONE_S, fontsize=8,
+        color=C_TONE_S,
+        fontsize=8,
         arrowprops=dict(arrowstyle="->", color=C_TONE_S, lw=0.9),
     )
 
     ax_out.set_xlim(0.0, 0.5)
     ax_out.set_ylim(-90, 3)
-    ax_out.set_xlabel("Normalised frequency (cycles/sample, output rate)",
-                      fontsize=9)
+    ax_out.set_xlabel(
+        "Normalised frequency (cycles/sample, output rate)", fontsize=9
+    )
     ax_out.set_ylabel("Magnitude (dBFS)", fontsize=9)
-    ax_out.set_title("Output spectrum (after HBDecimQ15, 2:1 decimation)",
-                     fontsize=10)
+    ax_out.set_title(
+        "Output spectrum (after HBDecimQ15, 2:1 decimation)", fontsize=10
+    )
     _style(ax_out)
 
     # ── save ─────────────────────────────────────────────────────────────────
     fig.suptitle(
         "HBDecimQ15 — Q15 halfband 2:1 decimator",
-        fontsize=13, color=C_TEXT, y=0.97,
+        fontsize=13,
+        color=C_TEXT,
+        y=0.97,
     )
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)

@@ -6,37 +6,37 @@ and return `complex64` NumPy arrays with state preserved across calls.
 Source:
 [`src/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/__init__.py)
 
----
+______________________________________________________________________
 
 ## Which class to use
 
-| Class | Algorithm | Rate | Best for |
-|-------|-----------|------|----------|
-| `RateConverter` | Auto-selected cascade | any | Single-class interface for all rates |
-| `Resampler` | Polyphase (4096 phases × 19 taps) | any | Custom Kaiser spec or `execute_ctrl` |
-| `HalfbandDecimator` | Halfband 2:1 CF32 | 0.5 (fixed) | First stage in a hand-tuned DDC chain |
-| `HalfbandDecimatorDp` | Halfband 2:1 CF64 | 0.5 (fixed) | Double-precision DDC chain |
-| `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32 | 0.5 (fixed) | Real ADC input → complex baseband |
-| `CIC` | Cascaded integrator-comb | 1/R (fixed) | High-rate first decimation stage |
+| Class                  | Algorithm                         | Rate        | Best for                              |
+| ---------------------- | --------------------------------- | ----------- | ------------------------------------- |
+| `RateConverter`        | Auto-selected cascade             | any         | Single-class interface for all rates  |
+| `Resampler`            | Polyphase (4096 phases × 19 taps) | any         | Custom Kaiser spec or `execute_ctrl`  |
+| `HalfbandDecimator`    | Halfband 2:1 CF32                 | 0.5 (fixed) | First stage in a hand-tuned DDC chain |
+| `HalfbandDecimatorDp`  | Halfband 2:1 CF64                 | 0.5 (fixed) | Double-precision DDC chain            |
+| `HalfbandDecimatorR2C` | Halfband 2:1 F32→CF32             | 0.5 (fixed) | Real ADC input → complex baseband     |
+| `CIC`                  | Cascaded integrator-comb          | 1/R (fixed) | High-rate first decimation stage      |
 
----
+______________________________________________________________________
 
 ## `RateConverter` — automatic cascade
 
 Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase
-Resampler stages for the requested rate ratio at construction time.  The
+Resampler stages for the requested rate ratio at construction time. The
 cascade is rebuilt transparently whenever `rate` is changed.
 
 ### Stage selection
 
-| Condition (D = 1/rate) | Cascade |
-|---|---|
-| rate ≥ 1.0 or D < 2 | `Resampler(rate)` |
-| D ≈ 2 | `HalfbandDecimator` |
-| D ≈ 4 | `HalfbandDecimator → HalfbandDecimator` |
-| D = 2ⁿ, n ≥ 3, D ≤ 4096 | `CIC(D)` |
-| D ≥ 8, non-power-of-2 | `CIC(R*) → Resampler(R*/D)` |
-| 2 ≤ D < 8, non-integer | `Resampler(rate)` |
+| Condition (D = 1/rate)  | Cascade                                 |
+| ----------------------- | --------------------------------------- |
+| rate ≥ 1.0 or D < 2     | `Resampler(rate)`                       |
+| D ≈ 2                   | `HalfbandDecimator`                     |
+| D ≈ 4                   | `HalfbandDecimator → HalfbandDecimator` |
+| D = 2ⁿ, n ≥ 3, D ≤ 4096 | `CIC(D)`                                |
+| D ≥ 8, non-power-of-2   | `CIC(R*) → Resampler(R*/D)`             |
+| 2 ≤ D < 8, non-integer  | `Resampler(rate)`                       |
 
 where R\* = nearest power-of-two to D.
 
@@ -87,7 +87,7 @@ y2, rc = rate_convert(x, 0.5, rc=rc)   # same converter, state preserved
 ### CIC droop compensation
 
 Pass `compensate=1` to append a passband-droop compensating FIR after any
-CIC stage.  The FIR is designed with `ciccompmf(N=4, R=R, M=7)`:
+CIC stage. The FIR is designed with `ciccompmf(N=4, R=R, M=7)`:
 
 ```python
 rc = RateConverter(0.125, compensate=1)
@@ -95,11 +95,11 @@ rc = RateConverter(0.125, compensate=1)
 print(rc.stages)   # ['CIC(8)+FIR']
 ```
 
----
+______________________________________________________________________
 
 ## `Resampler` — general polyphase
 
-Built-in Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop).  Works for
+Built-in Kaiser bank (60 dB rejection, 0.4/0.6 pass/stop). Works for
 any rate — integer, fractional, and irrational.
 
 ```python
@@ -134,7 +134,7 @@ ctrl.real = 1e-4 * doppler_correction
 y = r.execute_ctrl(x, ctrl)
 ```
 
----
+______________________________________________________________________
 
 ## `HalfbandDecimator` — fixed 2:1 decimation
 
@@ -159,15 +159,15 @@ for block in iq_stream:              # 4096-sample CF32 arrays
     next_stage(y)
 ```
 
----
+______________________________________________________________________
 
----
+______________________________________________________________________
 
 ## `CIC` — cascaded integrator-comb decimator
 
-Fixed-rate integer decimation by a power-of-two factor R.  Fixed at N=4
-stages, M=1.  Runs directly on the input stream at full rate — no
-multipliers, just integrators and combs.  Pair with `ciccompmf` to correct
+Fixed-rate integer decimation by a power-of-two factor R. Fixed at N=4
+stages, M=1. Runs directly on the input stream at full rate — no
+multipliers, just integrators and combs. Pair with `ciccompmf` to correct
 passband droop.
 
 ```python
@@ -182,12 +182,12 @@ y = cic.decimate(x)             # len(y) = 256
 h = ciccompmf(N=4, R=16, M=7)  # NDArray[float64], length 7
 ```
 
----
+______________________________________________________________________
 
 ## `ciccompmf` — CIC droop-compensator design
 
 Closed-form maximally-flat FIR compensator (Molnar & Vucic, IEEE TCAS-II
-58(12):926–930, 2011).  Returns a symmetric FIR kernel that corrects CIC
+58(12):926–930, 2011). Returns a symmetric FIR kernel that corrects CIC
 passband droop; apply it at the decimated output rate.
 
 ```python
@@ -197,18 +197,18 @@ h = ciccompmf(N=4, R=16, M=7)
 # h is NDArray[float64] of length M=7, DC gain ≈ 1.0
 ```
 
-Valid M: odd 1–19, even 2–18.  Out-of-range M returns all-zeros.
+Valid M: odd 1–19, even 2–18. Out-of-range M returns all-zeros.
 
----
+______________________________________________________________________
 
 ::: doppler.resample
-    options:
-      members:
-        - RateConverter
-        - rate_convert
-        - Resampler
-        - HalfbandDecimator
-        - HalfbandDecimatorDp
-        - HalfbandDecimatorR2C
-        - CIC
-        - ciccompmf
+options:
+members:
+\- RateConverter
+\- rate_convert
+\- Resampler
+\- HalfbandDecimator
+\- HalfbandDecimatorDp
+\- HalfbandDecimatorR2C
+\- CIC
+\- ciccompmf

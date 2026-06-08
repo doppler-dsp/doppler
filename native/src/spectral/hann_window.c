@@ -5,7 +5,7 @@
 #include <math.h>
 
 void
-hann_window(float *w, size_t w_len)
+hann_window (float *w, size_t w_len)
 {
   if (w_len == 1)
     {

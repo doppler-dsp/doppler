@@ -9,42 +9,50 @@
 **Decision: Build a Python C extension that statically links libzmq**
 
 This eliminates both the ctypes wrapper AND the dynamic libzmq dependency, resulting in:
+
 - **One self-contained `.so` file** (~580 KB) - zero runtime dependencies
 - **10x faster** for small messages (< 1KB)
 - **Zero-copy recv** (50% memory reduction)
 - **pip install → just works** (no `apt-get install libzmq-dev` nonsense)
 
----
+______________________________________________________________________
 
 ## Updated Architecture
 
 ### Before (Current)
+
 ```
 Python → client.py (ctypes) → libdoppler.so → libzmq.so
 ```
+
 **Problems:**
+
 - 3 layers of indirection
 - ctypes overhead (~500ns/call)
 - Dynamic libzmq dependency (portability nightmare)
 - Struct hacking for timeouts
 
 ### After (Proposed)
+
 ```
 Python → dp_stream.cpython-312-x86_64-linux-gnu.so
          └── Contains: Extension code + static libzmq.a
 ```
+
 **Benefits:**
+
 - Direct Python → C (no ctypes)
 - Static libzmq (~580 KB total)
 - Zero-copy NumPy integration
 - Clean ZMQ API (no struct hacking)
 - pip install → works everywhere
 
----
+______________________________________________________________________
 
 ## Build System Update
 
 ### Directory Structure
+
 ```
 python/
 ├── vendor/
@@ -145,7 +153,7 @@ add_custom_target(pyext
 )
 ```
 
----
+______________________________________________________________________
 
 ## Vendoring libzmq
 
@@ -208,7 +216,7 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 # ✅ All zmq symbols hidden!
 ```
 
----
+______________________________________________________________________
 
 ## Testing in Isolation
 
@@ -256,7 +264,7 @@ $ ls -lh build/python/dsp/doppler/dp_stream*.so
 # Trade-off: +530 KB per environment, but ZERO dependency issues
 ```
 
----
+______________________________________________________________________
 
 ## Python Package Updates
 
@@ -312,7 +320,7 @@ rm python/dsp/doppler/client.py
 pytest python/dsp/doppler/tests/ -v
 ```
 
----
+______________________________________________________________________
 
 ## C Extension Stub (Minimal Starting Point)
 
@@ -399,7 +407,7 @@ print("✅ Stub works!")
 EOF
 ```
 
----
+______________________________________________________________________
 
 ## Symbol Hiding Verification
 
@@ -421,11 +429,12 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 # -Wl,--exclude-libs,ALL
 ```
 
----
+______________________________________________________________________
 
 ## Implementation Checklist
 
 ### Phase 0: Setup
+
 - [ ] Download libzmq 4.3.5 source to `python/vendor/libzmq/`
 - [ ] Update `python/CMakeLists.txt` to build static libzmq
 - [ ] Add `-fvisibility=hidden` and `-Wl,--exclude-libs,ALL`
@@ -433,6 +442,7 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 - [ ] Verify symbol hiding with `nm -D` (only PyInit_dp_stream exported)
 
 ### Phase 1: Core Types
+
 - [ ] Implement Publisher type (tp_new, tp_dealloc, send method)
 - [ ] Implement Subscriber type (tp_new, tp_dealloc, recv method)
 - [ ] Context manager support (`__enter__`, `__exit__`)
@@ -441,6 +451,7 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 - [ ] Test with existing `test_pubsub.py`
 
 ### Phase 2: Complete API
+
 - [ ] Push / Pull types
 - [ ] Requester / Replier types
 - [ ] All sample types (CI32, CF64, CF128)
@@ -448,6 +459,7 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 - [ ] GIL release (Py_BEGIN_ALLOW_THREADS)
 
 ### Phase 3: Cleanup
+
 - [ ] Delete `client.py`
 - [ ] Update `__init__.py`
 - [ ] Verify all tests pass
@@ -455,50 +467,53 @@ nm -D build/python/dsp/doppler/dp_stream*.so | grep zmq
 - [ ] Update documentation
 
 ### Phase 4: Packaging
+
 - [ ] manylinux wheel build (GitHub Actions)
 - [ ] Test in clean Docker containers
 - [ ] Verify zero external dependencies
 
----
+______________________________________________________________________
 
 ## Benefits Summary
 
-| Aspect | ctypes + dynamic | C extension + static |
-|--------|------------------|----------------------|
-| **Dependencies** | libdoppler.so + libzmq.so | None |
-| **Installation** | `apt install libzmq-dev` required | `pip install` → works |
-| **Call overhead** | ~500 ns | ~50 ns |
-| **Memory (recv)** | 2x (copy) | 1x (zero-copy) |
-| **Binary size** | 50 KB (+ system libs) | 580 KB (self-contained) |
-| **Portability** | Fragile | Rock solid |
-| **User experience** | Dependency hell | Just works |
+| Aspect              | ctypes + dynamic                  | C extension + static    |
+| ------------------- | --------------------------------- | ----------------------- |
+| **Dependencies**    | libdoppler.so + libzmq.so         | None                    |
+| **Installation**    | `apt install libzmq-dev` required | `pip install` → works   |
+| **Call overhead**   | ~500 ns                           | ~50 ns                  |
+| **Memory (recv)**   | 2x (copy)                         | 1x (zero-copy)          |
+| **Binary size**     | 50 KB (+ system libs)             | 580 KB (self-contained) |
+| **Portability**     | Fragile                           | Rock solid              |
+| **User experience** | Dependency hell                   | Just works              |
 
 **Verdict:** Static linking is the clear winner for a pip package! 🎯
 
----
+______________________________________________________________________
 
 ## Next Steps
 
 1. **Vendor libzmq:**
-   ```bash
-   cd python/vendor
-   curl -L https://github.com/zeromq/libzmq/releases/download/v4.3.5/zeromq-4.3.5.tar.gz | tar xz
-   mv zeromq-4.3.5 libzmq
-   ```
 
-2. **Update CMakeLists.txt** (use template above)
+    ```bash
+    cd python/vendor
+    curl -L https://github.com/zeromq/libzmq/releases/download/v4.3.5/zeromq-4.3.5.tar.gz | tar xz
+    mv zeromq-4.3.5 libzmq
+    ```
 
-3. **Build and verify:**
-   ```bash
-   cmake -B build -S . -DBUILD_PYTHON=ON
-   cmake --build build --target dp_stream
-   ldd build/python/dsp/doppler/dp_stream*.so  # No libzmq!
-   ```
+1. **Update CMakeLists.txt** (use template above)
 
-4. **Implement stub** (start with minimal module)
+1. **Build and verify:**
 
-5. **Test in isolation** (Docker, no system libzmq)
+    ```bash
+    cmake -B build -S . -DBUILD_PYTHON=ON
+    cmake --build build --target dp_stream
+    ldd build/python/dsp/doppler/dp_stream*.so  # No libzmq!
+    ```
 
-6. **Iterate on full implementation** (Publisher, Subscriber, etc.)
+1. **Implement stub** (start with minimal module)
+
+1. **Test in isolation** (Docker, no system libzmq)
+
+1. **Iterate on full implementation** (Publisher, Subscriber, etc.)
 
 Ready to proceed! 🚀

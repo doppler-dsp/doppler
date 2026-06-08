@@ -11,9 +11,9 @@ extern "C"
 
   struct pocketfft_plan
   {
-    int sign;
+    int    sign;
     size_t n, ny, nx;
-    bool is2d;
+    bool   is2d;
   };
 
   /* -------------------------
@@ -23,10 +23,10 @@ extern "C"
   pocketfft_plan_1d (size_t n, int sign)
   {
     pocketfft_plan *p = new pocketfft_plan;
-    p->n = n;
+    p->n              = n;
     p->ny = p->nx = 0;
-    p->sign = sign;
-    p->is2d = false;
+    p->sign       = sign;
+    p->is2d       = false;
     return p;
   }
 
@@ -37,11 +37,11 @@ extern "C"
   pocketfft_plan_2d (size_t ny, size_t nx, int sign)
   {
     pocketfft_plan *p = new pocketfft_plan;
-    p->ny = ny;
-    p->nx = nx;
-    p->n = 0;
-    p->sign = sign;
-    p->is2d = true;
+    p->ny             = ny;
+    p->nx             = nx;
+    p->n              = 0;
+    p->sign           = sign;
+    p->is2d           = true;
     return p;
   }
 
@@ -53,9 +53,9 @@ extern "C"
   {
     using namespace pocketfft;
 
-    shape_t shape = { p->n };
+    shape_t  shape  = { p->n };
     stride_t stride = { sizeof (std::complex<double>) };
-    shape_t axes = { 0 };
+    shape_t  axes   = { 0 };
 
     c2c (shape, stride, stride, axes, p->sign < 0,
          reinterpret_cast<const std::complex<double> *> (in),
@@ -70,7 +70,7 @@ extern "C"
   {
     using namespace pocketfft;
 
-    shape_t shape = { p->ny, p->nx };
+    shape_t  shape = { p->ny, p->nx };
     stride_t stride
         = { (std::ptrdiff_t)(sizeof (std::complex<double>) * p->nx),
             (std::ptrdiff_t)sizeof (std::complex<double>) };
@@ -89,9 +89,9 @@ extern "C"
   {
     using namespace pocketfft;
 
-    shape_t shape = { p->n };
+    shape_t  shape  = { p->n };
     stride_t stride = { sizeof (std::complex<float>) };
-    shape_t axes = { 0 };
+    shape_t  axes   = { 0 };
 
     c2c (shape, stride, stride, axes, p->sign < 0,
          reinterpret_cast<const std::complex<float> *> (in),
@@ -106,10 +106,10 @@ extern "C"
   {
     using namespace pocketfft;
 
-    shape_t shape = { p->ny, p->nx };
+    shape_t  shape  = { p->ny, p->nx };
     stride_t stride = { (std::ptrdiff_t)(sizeof (std::complex<float>) * p->nx),
                         (std::ptrdiff_t)sizeof (std::complex<float>) };
-    shape_t axes = { 0, 1 };
+    shape_t  axes   = { 0, 1 };
 
     c2c (shape, stride, stride, axes, p->sign < 0,
          reinterpret_cast<const std::complex<float> *> (in),

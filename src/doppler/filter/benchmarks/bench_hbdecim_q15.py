@@ -2,12 +2,13 @@
 
 Run: pytest src/doppler/filter/benchmarks/bench_hbdecim_q15.py --benchmark-only
 """
+
 import pytest
 import numpy as np
 from doppler.resample import _halfband_bank
 from doppler.filter import HBDecimQ15
 
-BLOCK_1K  = 1_024
+BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 

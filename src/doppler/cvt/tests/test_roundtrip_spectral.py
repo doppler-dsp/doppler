@@ -18,28 +18,34 @@ import numpy as np
 import pytest
 
 from doppler.cvt import (
-    F32ToI16,    I16ToF32,
-    F32ToI16U32, I16U32ToF32,
-    F32ToI16U64, I16U64ToF32,
+    F32ToI16,
+    I16ToF32,
+    F32ToI16U32,
+    I16U32ToF32,
+    F32ToI16U64,
+    I16U64ToF32,
 )
 
 # ---------------------------------------------------------------------------
 # constants
 # ---------------------------------------------------------------------------
 
-N             = 65536
-FREQ_NORM     = 0.07       # cycles/sample — non-bin-aligned
-SPUR_DBC_MAX  = -80.0      # dBc threshold; Q15 theory gives ~92 dB
-GUARD_BINS    = 8          # half-width of main-lobe exclusion zone
+N = 65536
+FREQ_NORM = 0.07  # cycles/sample — non-bin-aligned
+SPUR_DBC_MAX = -80.0  # dBc threshold; Q15 theory gives ~92 dB
+GUARD_BINS = 8  # half-width of main-lobe exclusion zone
 
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 
+
 def _blackman_harris(n: int) -> np.ndarray:
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    return (
+        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    )
 
 
 def _spectral_purity_dbc(x: np.ndarray) -> float:
@@ -86,7 +92,7 @@ def _cf32_roundtrip(x: np.ndarray, enc_cls, dec_cls) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 ROUNDTRIPS = [
-    pytest.param(F32ToI16,    I16ToF32,    id="I16"),
+    pytest.param(F32ToI16, I16ToF32, id="I16"),
     pytest.param(F32ToI16U32, I16U32ToF32, id="I16U32"),
     pytest.param(F32ToI16U64, I16U64ToF32, id="I16U64"),
 ]
@@ -95,7 +101,7 @@ ROUNDTRIPS = [
 @pytest.mark.parametrize("enc_cls,dec_cls", ROUNDTRIPS)
 def test_spectral_purity(enc_cls, dec_cls):
     """Spurious content after roundtrip must be <= -80 dBc."""
-    x  = _tone()
+    x = _tone()
     xq = _cf32_roundtrip(x, enc_cls, dec_cls)
     dbc = _spectral_purity_dbc(xq)
     assert dbc <= SPUR_DBC_MAX, (

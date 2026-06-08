@@ -17,9 +17,9 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 static void
 bench_n (int n, int iters, jm_bench_t *bench)
 {
-  awgn_state_t *g    = awgn_create (0, 1.0f);
+  awgn_state_t  *g   = awgn_create (0, 1.0f);
   float complex *buf = malloc ((size_t)n * sizeof *buf);
-  double times[ITERATIONS];
+  double         times[ITERATIONS];
 
   awgn_generate (g, (size_t)n, buf); /* warm up */
 
@@ -37,8 +37,8 @@ bench_n (int n, int iters, jm_bench_t *bench)
     mean += times[i];
   mean /= iters;
 
-  printf ("  AWGN(n=%-7d)   %6.1f MSa/s   (%5.1f µs/call)\n",
-          n, (double)n / mean / 1e6, mean * 1e6);
+  printf ("  AWGN(n=%-7d)   %6.1f MSa/s   (%5.1f µs/call)\n", n,
+          (double)n / mean / 1e6, mean * 1e6);
 
   char label[64];
   snprintf (label, sizeof label, "generate(n=%d)", n);
@@ -55,8 +55,8 @@ main (void)
   printf ("=== awgn benchmark ===\n");
   printf ("block sizes, %d iterations\n\n", ITERATIONS);
 
-  bench_n (1024,  ITERATIONS, &bench);
-  bench_n (4096,  ITERATIONS, &bench);
+  bench_n (1024, ITERATIONS, &bench);
+  bench_n (4096, ITERATIONS, &bench);
   bench_n (65536, ITERATIONS, &bench);
 
   jm_bench_write_json (&bench, "bench_awgn_core");

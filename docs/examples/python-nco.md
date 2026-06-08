@@ -1,7 +1,7 @@
 # NCO — Raw Phase Accumulator
 
 `NCO` exposes the bare uint32 phase accumulator — useful when you need the
-raw phase word rather than a sin/cos lookup.  `freq` is a normalised
+raw phase word rather than a sin/cos lookup. `freq` is a normalised
 frequency in cycles/sample.
 
 ## Raw uint32 phase

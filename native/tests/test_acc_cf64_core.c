@@ -34,8 +34,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int _fails = 0;
-  acc_cf64_state_t *obj = acc_cf64_create (0.0 + 0.0 * I);
+  int               _fails = 0;
+  acc_cf64_state_t *obj    = acc_cf64_create (0.0 + 0.0 * I);
   CHECK (obj != NULL);
   if (!obj)
     return 1;

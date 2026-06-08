@@ -33,10 +33,10 @@ nco_create (double norm_freq, uint32_t nmax)
   nco_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
-  state->phase = 0;
+  state->phase     = 0;
   state->phase_inc = norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
-  state->nmax = nmax;
+  state->nmax      = nmax;
   return state;
 }
 
@@ -108,7 +108,7 @@ nco_steps_u32_max_out (nco_state_t *state)
 size_t
 nco_steps_u32 (nco_state_t *state, size_t n, uint32_t *out)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
     {
@@ -129,8 +129,8 @@ nco_steps_u32_scaled_max_out (nco_state_t *state)
 size_t
 nco_steps_u32_scaled (nco_state_t *state, size_t n, uint32_t *out)
 {
-  uint32_t ph = state->phase;
-  uint32_t inc = state->phase_inc;
+  uint32_t ph   = state->phase;
+  uint32_t inc  = state->phase_inc;
   uint32_t nmax = state->nmax;
   if (nmax == 0)
     {
@@ -163,11 +163,11 @@ nco_steps_u32_ovf_max_out (nco_state_t *state)
 size_t
 nco_steps_u32_ovf (nco_state_t *state, size_t n, uint32_t *out, uint8_t *out1)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
     {
-      out[i] = ph;
+      out[i]  = ph;
       out1[i] = NCO_ADD_OVF (ph, inc, &ph);
     }
   state->phase = ph;

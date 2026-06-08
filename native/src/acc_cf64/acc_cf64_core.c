@@ -28,7 +28,7 @@ acc_cf64_reset (acc_cf64_state_t *state)
  * (Explicit JM_VEC_F64 for interleaved complex requires deinterleaving that
  * is not in the JM macro set; auto-vec gets us the same result cleanly.) */
 JM_HOT void
-acc_cf64_steps (acc_cf64_state_t *JM_RESTRICT state,
+acc_cf64_steps (acc_cf64_state_t *JM_RESTRICT     state,
                 const double complex *JM_RESTRICT input, size_t n)
 {
   double re = 0.0, im = 0.0;
@@ -61,7 +61,7 @@ double complex
 acc_cf64_dump (acc_cf64_state_t *state)
 {
   double complex v = state->acc;
-  state->acc = 0.0 + 0.0 * I;
+  state->acc       = 0.0 + 0.0 * I;
   return v;
 }
 

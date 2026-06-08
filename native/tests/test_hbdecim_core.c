@@ -63,7 +63,7 @@ tone (float _Complex *out, size_t n, double freq)
   for (size_t k = 0; k < n; k++)
     {
       double ph = 2.0 * M_PI * freq * (double)k;
-      out[k] = CMPLXF ((float)cos (ph), (float)sin (ph));
+      out[k]    = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
 }
 
@@ -130,7 +130,7 @@ test_output_length (void)
 
   /* Next: 1 in → 1 out (consumes pending) */
   float _Complex one = CMPLXF (0.0f, 0.0f);
-  n = hbdecim_execute (r, &one, 1, out, 300);
+  n                  = hbdecim_execute (r, &one, 1, out, 300);
   CHECK (n == 1, "1 in -> 1 out after pending");
 
   hbdecim_destroy (r);
@@ -154,7 +154,7 @@ test_stateful (void)
 
   CHECK (nf == na + nb, "two half-blocks == one full block (count)");
 
-  int match = 1;
+  int    match = 1;
   size_t check = (nf < 10) ? nf : 10;
   for (size_t k = 0; k < check; k++)
     {
@@ -189,7 +189,7 @@ test_reset (void)
 
   CHECK (n1 == n2, "reset: same output count");
 
-  int match = 1;
+  int    match = 1;
   size_t check = (n1 < 5) ? n1 : 5;
   for (size_t k = 0; k < check; k++)
     {
@@ -246,7 +246,7 @@ test_alias_rejection (void)
   hbdecim_reset (r);
   size_t ns = hbdecim_execute (r, stop_in, 2048, out_s, 1040);
 
-  size_t skip = N_TAPS;
+  size_t skip  = N_TAPS;
   size_t use_p = (np > skip) ? np - skip : 1;
   size_t use_s = (ns > skip) ? ns - skip : 1;
   double pwr_p = rms_db (out_p + skip, use_p);

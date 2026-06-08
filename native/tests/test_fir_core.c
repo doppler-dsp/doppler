@@ -32,8 +32,8 @@ main (void)
   int _fails = 0;
 
   /* ── create / destroy ─────────────────────────────────────────────── */
-  float rtaps[3] = { 0.5f, 0.25f, 0.125f };
-  fir_state_t *f = fir_create_real (rtaps, 3);
+  float        rtaps[3] = { 0.5f, 0.25f, 0.125f };
+  fir_state_t *f        = fir_create_real (rtaps, 3);
   CHECK (f != NULL);
   if (!f)
     return 1;
@@ -43,7 +43,7 @@ main (void)
   /* ── impulse response ─────────────────────────────────────────────── */
   float complex in[6] = { 1.0f + 0.0f * I, 0, 0, 0, 0, 0 };
   float complex out[6];
-  size_t n = fir_execute (f, in, 6, out);
+  size_t        n = fir_execute (f, in, 6, out);
   CHECK (n == 6);
   CHECK (_feq (crealf (out[0]), 0.5f, 1e-6f));
   CHECK (_feq (crealf (out[1]), 0.25f, 1e-6f));
@@ -58,7 +58,7 @@ main (void)
 
   /* ── complex taps ─────────────────────────────────────────────────── */
   float complex ctaps[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
-  fir_state_t *cf = fir_create (ctaps, 2);
+  fir_state_t  *cf       = fir_create (ctaps, 2);
   CHECK (cf != NULL);
   CHECK (fir_get_is_real (cf) == 0);
   float complex cin[4] = { 1.0f + 0.0f * I, 0, 0, 0 };

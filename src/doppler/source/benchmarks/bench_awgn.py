@@ -2,11 +2,12 @@
 
 Run: pytest src/doppler/source/benchmarks/bench_awgn.py --benchmark-only
 """
+
 import pytest
 
 from doppler.source import AWGN
 
-BLOCK_1K  = 1_024
+BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 

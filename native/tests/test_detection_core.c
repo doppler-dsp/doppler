@@ -2,13 +2,16 @@
 #include <math.h>
 #include <stdio.h>
 
-#define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);        \
-      _fails++;                                                                \
-    }                                                                          \
-  } while (0)
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
 
 #define CLOSE(a, b, tol) (fabs ((a) - (b)) < (tol))
 
@@ -27,12 +30,12 @@ main (void)
   /* ── marcum_q: Q_M(0, b) = exp(-v) * sum_{j=0}^{M-1} v^j/j! ──── */
 
   /* M=1: Q_1(0, b) = exp(-b^2/2) */
-  CHECK (CLOSE (marcum_q (1, 0.0, 1.0), exp (-0.5),         1e-12));
-  CHECK (CLOSE (marcum_q (1, 0.0, 2.0), exp (-2.0),         1e-12));
+  CHECK (CLOSE (marcum_q (1, 0.0, 1.0), exp (-0.5), 1e-12));
+  CHECK (CLOSE (marcum_q (1, 0.0, 2.0), exp (-2.0), 1e-12));
 
   /* M=2: Q_2(0, b) = exp(-v)*(1 + v),  v = b^2/2 */
   /* v = 2: Q_2(0, 2) = exp(-2)*(1+2) = 3*exp(-2) */
-  CHECK (CLOSE (marcum_q (2, 0.0, 2.0), 3.0 * exp (-2.0),   1e-12));
+  CHECK (CLOSE (marcum_q (2, 0.0, 2.0), 3.0 * exp (-2.0), 1e-12));
 
   /* ── marcum_q: values with nonzero a (reference: Python series) ── */
   CHECK (CLOSE (marcum_q (1, 2.0, 1.0), 0.9181076963694063, 1e-10));
@@ -54,8 +57,8 @@ main (void)
     double eta4  = det_threshold (1e-4);
     double eta6  = det_threshold (1e-6);
     double eta10 = det_threshold (1e-10);
-    CHECK (CLOSE (exp (-0.5 * eta4 * eta4),   1e-4,  1e-14));
-    CHECK (CLOSE (exp (-0.5 * eta6 * eta6),   1e-6,  1e-14));
+    CHECK (CLOSE (exp (-0.5 * eta4 * eta4), 1e-4, 1e-14));
+    CHECK (CLOSE (exp (-0.5 * eta6 * eta6), 1e-6, 1e-14));
     CHECK (CLOSE (exp (-0.5 * eta10 * eta10), 1e-10, 1e-14));
     /* Known value. */
     CHECK (CLOSE (eta6, 5.256521769756932, 1e-10));
@@ -77,7 +80,7 @@ main (void)
 
     /* Pd is bounded in [0, 1]. */
     CHECK (det_pd (10.0, 64, eta) <= 1.0);
-    CHECK (det_pd (0.0,   1, eta) >= 0.0);
+    CHECK (det_pd (0.0, 1, eta) >= 0.0);
   }
 
   /* ── det_dwell ───────────────────────────────────────────────────── */
@@ -104,18 +107,18 @@ main (void)
   /* ── det_snr ─────────────────────────────────────────────────────── */
   {
     /* Roundtrip: det_pd at returned SNR must meet pd_min. */
-    double snr4  = det_snr (4,  0.9, 1e-6);
-    double snr8  = det_snr (8,  0.9, 1e-6);
+    double snr4  = det_snr (4, 0.9, 1e-6);
+    double snr8  = det_snr (8, 0.9, 1e-6);
     double snr16 = det_snr (16, 0.9, 1e-6);
     double eta   = det_threshold (1e-6);
 
-    CHECK (det_pd (snr4,  4,  eta) >= 0.9 - 1e-12);
-    CHECK (det_pd (snr8,  8,  eta) >= 0.9 - 1e-12);
+    CHECK (det_pd (snr4, 4, eta) >= 0.9 - 1e-12);
+    CHECK (det_pd (snr8, 8, eta) >= 0.9 - 1e-12);
     CHECK (det_pd (snr16, 16, eta) >= 0.9 - 1e-12);
 
     /* More dwell requires less SNR (coherent gain). */
     CHECK (snr16 < snr8);
-    CHECK (snr8  < snr4);
+    CHECK (snr8 < snr4);
 
     /* Result is non-negative. */
     CHECK (snr4 >= 0.0);
@@ -127,8 +130,8 @@ main (void)
     double p4  = det_threshold_power (1e-4);
     double p6  = det_threshold_power (1e-6);
     double p10 = det_threshold_power (1e-10);
-    CHECK (CLOSE (exp (-p4),  1e-4,  1e-14));
-    CHECK (CLOSE (exp (-p6),  1e-6,  1e-14));
+    CHECK (CLOSE (exp (-p4), 1e-4, 1e-14));
+    CHECK (CLOSE (exp (-p6), 1e-6, 1e-14));
     CHECK (CLOSE (exp (-p10), 1e-10, 1e-14));
     /* Known value: -ln(1e-6) = 6·ln(10). */
     CHECK (CLOSE (p6, 6.0 * log (10.0), 1e-12));
@@ -139,7 +142,7 @@ main (void)
 
   /* ── det_pd_power ────────────────────────────────────────────────── */
   {
-    double p = det_threshold_power (1e-6);
+    double p   = det_threshold_power (1e-6);
     double eta = det_threshold (1e-6);
 
     /* At snr_power=0, Pd must equal Pfa. */
@@ -179,9 +182,9 @@ main (void)
   /* ── det_snr_power ───────────────────────────────────────────────── */
   {
     /* Roundtrip: det_pd_power at returned snr_power must meet pd_min. */
-    double sp4  = det_snr_power (4,  0.9, 1e-6);
-    double sp8  = det_snr_power (8,  0.9, 1e-6);
-    double p    = det_threshold_power (1e-6);
+    double sp4 = det_snr_power (4, 0.9, 1e-6);
+    double sp8 = det_snr_power (8, 0.9, 1e-6);
+    double p   = det_threshold_power (1e-6);
 
     CHECK (det_pd_power (sp4, 4, p) >= 0.9 - 1e-12);
     CHECK (det_pd_power (sp8, 8, p) >= 0.9 - 1e-12);

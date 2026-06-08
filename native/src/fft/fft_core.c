@@ -17,7 +17,7 @@ fft_create (size_t n, int sign, int nthreads)
       free (state);
       return NULL;
     }
-  state->n = n;
+  state->n    = n;
   state->sign = sign;
   return state;
 }

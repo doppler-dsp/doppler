@@ -24,7 +24,7 @@ def test_steps_shape_dtype():
 
 
 def test_steps_out_param():
-    x   = np.ones(64, dtype=np.float32)
+    x = np.ones(64, dtype=np.float32)
     buf = np.zeros(64, dtype=np.int64)
     obj1 = ADC(16, -10.0, 0)
     ret = obj1.steps(x, buf)
@@ -57,14 +57,14 @@ def test_saturation_clips_and_sets_flag():
     """An absurdly large input must clamp to clip_max and set clipped."""
     obj = ADC(bits=8, dbfs=-10.0, dithering=0)
     y = obj.step(1e9)
-    assert y == 127            # clip_max for 8-bit
+    assert y == 127  # clip_max for 8-bit
     assert obj.clipped is True
 
 
 def test_negative_saturation():
     obj = ADC(bits=8, dbfs=-10.0, dithering=0)
     y = obj.step(-1e9)
-    assert y == -128           # clip_min for 8-bit
+    assert y == -128  # clip_min for 8-bit
     assert obj.clipped is True
 
 

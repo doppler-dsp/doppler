@@ -6,16 +6,16 @@ Used as the integrate-and-dump register in polyphase resamplers.
 Source:
 [`src/doppler/accumulator/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/accumulator/__init__.py)
 
----
+______________________________________________________________________
 
 ## Classes
 
-| Class | Accumulator type | Coefficient type | Use when |
-|-------|-----------------|-----------------|----------|
-| `AccF32` | float32 | float32 | real-valued sums, power estimation |
-| `AccCf64` | complex128 | float32 | polyphase resampler I&D path |
+| Class     | Accumulator type | Coefficient type | Use when                           |
+| --------- | ---------------- | ---------------- | ---------------------------------- |
+| `AccF32`  | float32          | float32          | real-valued sums, power estimation |
+| `AccCf64` | complex128       | float32          | polyphase resampler I&D path       |
 
----
+______________________________________________________________________
 
 ## Examples
 
@@ -74,10 +74,10 @@ acc.push(1.0)           # acc = 1.0
 acc.add(np.array([2.0, 3.0], dtype=np.float32))  # acc = 6.0
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.accumulator.AccF32
 
----
+______________________________________________________________________
 
 ::: doppler.accumulator.AccCf64

@@ -11,7 +11,7 @@ Install:
 pip install "doppler-dsp[cli]"
 ```
 
----
+______________________________________________________________________
 
 ## Quick start
 
@@ -31,7 +31,7 @@ doppler ps
 doppler stop my-chain
 ```
 
----
+______________________________________________________________________
 
 ## Architecture
 
@@ -69,7 +69,7 @@ fir      →  connects PULL :5600,  binds PUSH :5601
 specan   →  connects PULL :5601
 ```
 
----
+______________________________________________________________________
 
 ## Compose file
 
@@ -106,31 +106,31 @@ sink:
 Ports default to auto-assigned from the range `5600–5700`. Specify
 them explicitly to pin a chain to fixed addresses.
 
----
+______________________________________________________________________
 
 ## Commands
 
 ### Chain lifecycle
 
-| Command | Description |
-|---------|-------------|
-| `doppler ps` | List all running chains with status and uptime |
-| `doppler stop <ID>` | Graceful shutdown (SIGTERM all block processes) |
-| `doppler kill <ID>` | Immediate shutdown (SIGKILL all block processes) |
-| `doppler inspect <ID>` | Print resolved config, PIDs, and port assignments |
-| `doppler logs <ID> [--block NAME]` | Stream stdout/stderr from a chain or block |
+| Command                            | Description                                       |
+| ---------------------------------- | ------------------------------------------------- |
+| `doppler ps`                       | List all running chains with status and uptime    |
+| `doppler stop <ID>`                | Graceful shutdown (SIGTERM all block processes)   |
+| `doppler kill <ID>`                | Immediate shutdown (SIGKILL all block processes)  |
+| `doppler inspect <ID>`             | Print resolved config, PIDs, and port assignments |
+| `doppler logs <ID> [--block NAME]` | Stream stdout/stderr from a chain or block        |
 
 ### Compose
 
-| Command | Description |
-|---------|-------------|
-| `doppler compose init <BLOCKS...>` | Scaffold a compose file with defaults |
-| `doppler compose init <BLOCKS...> --name NAME` | Give the chain a human-readable name |
-| `doppler compose init <BLOCKS...> --out FILE` | Write to a specific path |
-| `doppler compose up [FILE\|NAME]` | Spawn all blocks described in FILE (defaults to latest) |
-| `doppler compose down <ID\|NAME>` | Stop a running chain (alias for `stop`) |
+| Command                                        | Description                                             |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| `doppler compose init <BLOCKS...>`             | Scaffold a compose file with defaults                   |
+| `doppler compose init <BLOCKS...> --name NAME` | Give the chain a human-readable name                    |
+| `doppler compose init <BLOCKS...> --out FILE`  | Write to a specific path                                |
+| `doppler compose up [FILE\|NAME]`              | Spawn all blocks described in FILE (defaults to latest) |
+| `doppler compose down <ID\|NAME>`              | Stop a running chain (alias for `stop`)                 |
 
----
+______________________________________________________________________
 
 ## Block catalog
 
@@ -143,24 +143,24 @@ these in `doppler compose init`.
 Generates a calibrated complex tone plus AWGN. Good for validating
 filter frequency response before connecting a real IQ source.
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `sample_rate` | `2048000.0` | Output sample rate (Hz) |
-| `center_freq` | `0.0` | Nominal center frequency (Hz, metadata) |
-| `tone_freq` | `100000.0` | Tone offset from DC (Hz) |
-| `tone_power` | `-20.0` | Tone power (dBm) |
-| `noise_floor` | `-90.0` | AWGN floor (dBm) |
+| Field         | Default     | Description                             |
+| ------------- | ----------- | --------------------------------------- |
+| `sample_rate` | `2048000.0` | Output sample rate (Hz)                 |
+| `center_freq` | `0.0`       | Nominal center frequency (Hz, metadata) |
+| `tone_freq`   | `100000.0`  | Tone offset from DC (Hz)                |
+| `tone_power`  | `-20.0`     | Tone power (dBm)                        |
+| `noise_floor` | `-90.0`     | AWGN floor (dBm)                        |
 
----
+______________________________________________________________________
 
 ### `fir` — FIR filter
 
 Applies a real FIR filter to the IQ stream. Design taps with any
 standard tool (e.g. `scipy.signal.firwin`).
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `taps` | `[]` | Filter coefficients (passthrough if empty) |
+| Field  | Default | Description                                |
+| ------ | ------- | ------------------------------------------ |
+| `taps` | `[]`    | Filter coefficients (passthrough if empty) |
 
 Example — design a 101-tap lowpass and use it in a chain:
 
@@ -177,23 +177,23 @@ doppler compose init tone fir specan --out chain.yml
 doppler compose up chain.yml
 ```
 
----
+______________________________________________________________________
 
 ### `specan` — spectrum analyzer sink
 
 Displays the spectrum of the incoming IQ stream. Connects to the
 `doppler-specan` terminal or web UI.
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `mode` | `"terminal"` | `"terminal"` or `"web"` |
-| `center` | `0.0` | Center frequency (Hz) |
-| `span` | `null` | Display span (Hz); defaults to full bandwidth |
-| `rbw` | `null` | Resolution bandwidth (Hz) |
-| `level` | `null` | Reference level, top of display (dBm) |
-| `web_port` | `8080` | HTTP port for web mode |
+| Field      | Default      | Description                                   |
+| ---------- | ------------ | --------------------------------------------- |
+| `mode`     | `"terminal"` | `"terminal"` or `"web"`                       |
+| `center`   | `0.0`        | Center frequency (Hz)                         |
+| `span`     | `null`       | Display span (Hz); defaults to full bandwidth |
+| `rbw`      | `null`       | Resolution bandwidth (Hz)                     |
+| `level`    | `null`       | Reference level, top of display (dBm)         |
+| `web_port` | `8080`       | HTTP port for web mode                        |
 
----
+______________________________________________________________________
 
 ## Typical workflows
 
@@ -226,11 +226,12 @@ source:
 ```
 
 !!! note
+
     A `socket` source block is planned for a future release. In the
     meantime, run `doppler-specan --source socket --address <addr>`
     directly to attach the spectrum analyzer to an existing publisher.
 
----
+______________________________________________________________________
 
 ## State files
 
@@ -246,16 +247,17 @@ Running chain state is persisted in `~/.doppler/chains/`:
 completion. Orphaned `.json` files from crashed chains can be removed
 manually or with `doppler stop <ID>` (gracefully handles dead PIDs).
 
----
+______________________________________________________________________
 
 ## Creating a new block
 
 !!! tip "No Python required"
+
     The fastest way to add a custom block is a **dopplerfile** — a
     small YAML file that registers any script as a pipeline block with
-    zero Python.  See the [Dopplerfile guide](dopplerfile.md).
+    zero Python. See the [Dopplerfile guide](dopplerfile.md).
 
-The following shows how to add a built-in block in Python.  Use this
+The following shows how to add a built-in block in Python. Use this
 path when you need full control over config validation, complex arg
 building, or want to ship the block as part of `doppler-cli` itself.
 
@@ -326,7 +328,7 @@ doppler logs noise-test
 # [2026-04-01T10:00:00Z] doppler-specan started — mode=web source=pull address=tcp://127.0.0.1:5600
 ```
 
----
+______________________________________________________________________
 
 ## Port allocation
 

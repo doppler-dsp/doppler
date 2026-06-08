@@ -28,29 +28,25 @@ from doppler.detection import det_dwell, det_pd, det_threshold
 
 # ── Parameters ────────────────────────────────────────────────────────────────
 
-PFA       = 1e-5
+PFA = 1e-5
 PD_TARGET = 0.9
-SNR_DB    = [0, 3, 6, 10]          # curves for left panel
+SNR_DB = [0, 3, 6, 10]  # curves for left panel
 MAX_DWELL = 64
-DWELL_X   = np.arange(1, MAX_DWELL + 1)
+DWELL_X = np.arange(1, MAX_DWELL + 1)
 
-ETA = det_threshold(PFA)           # threshold is Pfa-only; computed once
+ETA = det_threshold(PFA)  # threshold is Pfa-only; computed once
 
 # ── Compute curves ─────────────────────────────────────────────────────────────
 
 # Left panel: Pd vs dwell for each SNR.
 snr_amps = [10 ** (db / 20) for db in SNR_DB]
-pd_curves = [
-    [det_pd(snr, int(d), ETA) for d in DWELL_X]
-    for snr in snr_amps
-]
+pd_curves = [[det_pd(snr, int(d), ETA) for d in DWELL_X] for snr in snr_amps]
 
 # Right panel: minimum dwell achieving Pd = 0.9 vs SNR from -3 to 15 dB.
 snr_db_sweep = np.linspace(-3, 15, 300)
 snr_amp_sweep = 10 ** (snr_db_sweep / 20)
 min_dwell = [
-    det_dwell(float(s), PD_TARGET, PFA, MAX_DWELL)
-    for s in snr_amp_sweep
+    det_dwell(float(s), PD_TARGET, PFA, MAX_DWELL) for s in snr_amp_sweep
 ]
 
 # ── Plot ──────────────────────────────────────────────────────────────────────
@@ -67,9 +63,13 @@ fig.suptitle(
 
 ax1.axhline(PD_TARGET, color="0.5", linestyle="--", linewidth=0.9, zorder=1)
 ax1.text(
-    MAX_DWELL * 0.98, PD_TARGET + 0.02,
+    MAX_DWELL * 0.98,
+    PD_TARGET + 0.02,
     rf"$P_d = {PD_TARGET}$",
-    ha="right", va="bottom", color="0.4", fontsize=9,
+    ha="right",
+    va="bottom",
+    color="0.4",
+    fontsize=9,
 )
 
 for i, (snr_db, pds) in enumerate(zip(SNR_DB, pd_curves)):
@@ -82,7 +82,9 @@ for i, (snr_db, pds) in enumerate(zip(SNR_DB, pd_curves)):
     )
     if crossing is not None:
         pd_cross = det_pd(10 ** (snr_db / 20), crossing, ETA)
-        ax1.plot(crossing, pd_cross, "o", color=COLORS[i], markersize=6, zorder=5)
+        ax1.plot(
+            crossing, pd_cross, "o", color=COLORS[i], markersize=6, zorder=5
+        )
         # Stagger annotations vertically so high-SNR labels don't collide.
         y_offset = -0.06 - i * 0.07
         ax1.annotate(
@@ -96,8 +98,9 @@ for i, (snr_db, pds) in enumerate(zip(SNR_DB, pd_curves)):
 ax1.set_xlim(1, MAX_DWELL)
 ax1.set_ylim(-0.02, 1.05)
 ax1.set_xlabel("Dwell M (coherent integrations)", fontsize=10)
-ax1.set_ylabel(r"$P_d = Q_1\!\left(\sqrt{2M}\cdot\mathrm{SNR},\;\eta\right)$",
-               fontsize=10)
+ax1.set_ylabel(
+    r"$P_d = Q_1\!\left(\sqrt{2M}\cdot\mathrm{SNR},\;\eta\right)$", fontsize=10
+)
 ax1.set_title(r"$P_d$ vs dwell", fontsize=11)
 ax1.legend(fontsize=9, loc="lower right")
 ax1.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
@@ -106,19 +109,28 @@ ax1.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
 
 # Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
 valid = np.array(min_dwell)
-mask  = valid > 0
+mask = valid > 0
 
 ax2.semilogy(
-    snr_db_sweep[mask], valid[mask],
-    color="#1f77b4", linewidth=1.8,
+    snr_db_sweep[mask],
+    valid[mask],
+    color="#1f77b4",
+    linewidth=1.8,
 )
 
 # Annotate the four SNR values from the left panel.
 for snr_db, snr_amp, color in zip(SNR_DB, snr_amps, COLORS):
     m = det_dwell(snr_amp, PD_TARGET, PFA, MAX_DWELL)
     if m > 0:
-        ax2.plot(snr_db, m, "o", color=color, markersize=7, zorder=5,
-                 label=rf"SNR = {snr_db:+d} dB → M={m}")
+        ax2.plot(
+            snr_db,
+            m,
+            "o",
+            color=color,
+            markersize=7,
+            zorder=5,
+            label=rf"SNR = {snr_db:+d} dB → M={m}",
+        )
         ax2.annotate(
             f"M={m}",
             xy=(snr_db, m),

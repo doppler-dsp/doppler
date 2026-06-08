@@ -5,22 +5,25 @@
 For the proposed C extension approach, we have options:
 
 ### Option 1: Current Design (Dynamic)
+
 ```
 dp_stream.so → libzmq.so (dynamic link)
 ```
 
 ### Option 2: Static Linking
+
 ```
 dp_stream.so (contains embedded libzmq code statically linked)
 ```
 
 ### Option 3: Hybrid
+
 ```
 dp_stream.so ← libzmq.a (static)
              ← libc.so (dynamic - unavoidable)
 ```
 
----
+______________________________________________________________________
 
 ## Analysis
 
@@ -29,6 +32,7 @@ dp_stream.so ← libzmq.a (static)
 #### Advantages
 
 **1. Single-File Deployment** ✅
+
 ```bash
 # User installs wheel:
 pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
@@ -38,6 +42,7 @@ pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
 ```
 
 **2. Version Control** ✅
+
 ```c
 // Build with known-good libzmq version
 // No runtime version conflicts with system libzmq
@@ -45,6 +50,7 @@ pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
 ```
 
 **3. Portability** ✅
+
 ```bash
 # manylinux wheel works on any Linux with glibc ≥ 2.38
 # No "libzmq.so.5 not found" errors
@@ -52,6 +58,7 @@ pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
 ```
 
 **4. Performance (Minor)** ✅
+
 ```
 - No PLT/GOT indirection for libzmq calls
 - Compiler can inline/optimize across module boundary
@@ -59,6 +66,7 @@ pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
 ```
 
 **5. Simpler Dependency Management** ✅
+
 ```python
 # User doesn't need:
 # apt-get install libzmq5-dev  # ❌ Not needed!
@@ -71,6 +79,7 @@ pip install doppler  # ✅ Works everywhere
 #### Disadvantages
 
 **1. Larger Binary** ⚠️
+
 ```bash
 # Dynamic linking:
 dp_stream.so:     ~50 KB
@@ -86,6 +95,7 @@ Total per-install: ~550 KB
 ```
 
 **2. Symbol Conflicts (Rare)** ⚠️
+
 ```
 If another Python extension also statically links libzmq:
   - Both dp_stream.so and other_extension.so contain zmq symbols
@@ -98,6 +108,7 @@ Mitigation:
 ```
 
 **3. Security Updates** ⚠️
+
 ```
 System libzmq gets patched → dynamic linking benefits automatically
 Static linking → must rebuild and release new wheel
@@ -109,6 +120,7 @@ Mitigation:
 ```
 
 **4. Multiple Copies in Memory** ⚠️
+
 ```
 If user has:
   - doppler (with static libzmq)
@@ -122,19 +134,21 @@ Reality check:
   - Negligible cost
 ```
 
----
+______________________________________________________________________
 
 ## Option 1: Dynamic Linking
 
 #### Advantages
 
 **1. Shared Code** ✅
+
 ```
 Multiple programs using libzmq.so share one copy in memory
 System updates propagate automatically
 ```
 
 **2. Smaller Binary** ✅
+
 ```
 dp_stream.so is tiny (~50 KB)
 ```
@@ -142,6 +156,7 @@ dp_stream.so is tiny (~50 KB)
 #### Disadvantages
 
 **1. Dependency Hell** ❌
+
 ```bash
 # User experience:
 $ pip install doppler
@@ -159,6 +174,7 @@ $ export LD_LIBRARY_PATH=/some/path
 ```
 
 **2. Version Conflicts** ❌
+
 ```
 System has libzmq 4.2.0
 Extension built against libzmq 4.3.5
@@ -166,6 +182,7 @@ Runtime: May work, may crash, may have subtle bugs
 ```
 
 **3. Portability Nightmare** ❌
+
 ```
 Binary wheel built on Ubuntu 22.04 (libzmq 4.3.4)
 User runs on:
@@ -175,6 +192,7 @@ User runs on:
 ```
 
 **4. Installation Friction** ❌
+
 ```python
 # Documentation becomes:
 
@@ -191,13 +209,14 @@ Installation
 # Users hate this!
 ```
 
----
+______________________________________________________________________
 
 ## Real-World Examples
 
 ### Projects Using Static Linking
 
 **NumPy**
+
 ```
 - Statically links OpenBLAS/MKL
 - Binary wheel is ~20 MB
@@ -205,6 +224,7 @@ Installation
 ```
 
 **Pillow (PIL)**
+
 ```
 - Statically links libjpeg, libpng, libwebp, etc.
 - Binary wheel is ~3 MB
@@ -212,6 +232,7 @@ Installation
 ```
 
 **cryptography**
+
 ```
 - Statically links OpenSSL
 - Binary wheel is ~3 MB
@@ -221,6 +242,7 @@ Installation
 ### Projects Using Dynamic Linking
 
 **pyzmq** (ironically!)
+
 ```bash
 # Their experience:
 $ pip install pyzmq
@@ -235,7 +257,7 @@ $ pip install pyzmq
 # (Effectively static linking)
 ```
 
----
+______________________________________________________________________
 
 ## Recommended Approach: Static Linking
 
@@ -331,7 +353,7 @@ nm -D build/python/dp_stream*.so | grep PyInit
 # Only the Python init function is exported
 ```
 
----
+______________________________________________________________________
 
 ## Size Comparison
 
@@ -356,7 +378,7 @@ $ ls -lh dp_stream.so
 # Benefit: Zero dependency issues, guaranteed to work
 ```
 
----
+______________________________________________________________________
 
 ## Performance Impact
 
@@ -373,6 +395,7 @@ $ ls -lh dp_stream.so
 ```
 
 **Benchmark:**
+
 ```
 Dynamic: 10,000 msg/sec @ 1KB
 Static:  10,100 msg/sec @ 1KB
@@ -396,11 +419,12 @@ Multiple processes sharing libzmq.so: +528 KB each
 
 **Reality check:** With 8 GB RAM, even 1000 Python processes = 580 MB (trivial)
 
----
+______________________________________________________________________
 
 ## Security Considerations
 
 ### Dynamic Linking
+
 ```
 ✅ System admin patches libzmq → all apps benefit
 ❌ User must wait for system update
@@ -408,6 +432,7 @@ Multiple processes sharing libzmq.so: +528 KB each
 ```
 
 ### Static Linking
+
 ```
 ❌ Developer must rebuild extension with patched libzmq
 ✅ User gets fix via normal pip upgrade
@@ -422,7 +447,7 @@ Multiple processes sharing libzmq.so: +528 KB each
 # Static linking: Release new wheel same day, users: pip install -U doppler
 ```
 
----
+______________________________________________________________________
 
 ## Symbol Hiding (Critical!)
 
@@ -439,6 +464,7 @@ $ nm -D dp_stream.so | grep zmq_send
 ```
 
 **Solution:**
+
 ```cmake
 # CMakeLists.txt
 target_compile_options(dp_stream PRIVATE
@@ -468,6 +494,7 @@ PyInit_dp_stream(void)  // Only this is visible
 ```
 
 **Verification:**
+
 ```bash
 $ nm -D dp_stream.so | grep ' T '
 000000000001a2b0 T PyInit_dp_stream  # ✅ Only this exported
@@ -476,17 +503,17 @@ $ nm -D dp_stream.so | grep zmq
 # (empty)  # ✅ All zmq symbols hidden
 ```
 
----
+______________________________________________________________________
 
 ## Recommendation: **Static Linking with Symbol Hiding**
 
 ### Why?
 
 1. **User Experience:** `pip install doppler` → just works (no dependency hell)
-2. **Portability:** manylinux wheels work everywhere
-3. **Reliability:** No version conflicts or missing .so errors
-4. **Size:** +500 KB is trivial on modern systems
-5. **Standard Practice:** NumPy, Pillow, cryptography all do this
+1. **Portability:** manylinux wheels work everywhere
+1. **Reliability:** No version conflicts or missing .so errors
+1. **Size:** +500 KB is trivial on modern systems
+1. **Standard Practice:** NumPy, Pillow, cryptography all do this
 
 ### Implementation Checklist
 
@@ -494,7 +521,7 @@ $ nm -D dp_stream.so | grep zmq
 - [ ] Build static `libzmq.a` with `-DCMAKE_POSITION_INDEPENDENT_CODE=ON`
 - [ ] Link `dp_stream.so` against `libzmq.a`
 - [ ] Use `-fvisibility=hidden` and `-Wl,--exclude-libs,ALL`
-- [ ] Verify with `ldd` and `nm` (no libzmq.so, no zmq_* exports)
+- [ ] Verify with `ldd` and `nm` (no libzmq.so, no zmq\_\* exports)
 - [ ] Test in clean Docker container (no system libzmq installed)
 - [ ] Build manylinux wheels via `auditwheel`
 
@@ -514,7 +541,7 @@ ldd build/python/dp_stream*.so  # No libzmq!
 python -c "import dp_stream; print('Success!')"
 ```
 
----
+______________________________________________________________________
 
 ## Appendix: Hybrid Approach (Not Recommended)
 
@@ -536,19 +563,21 @@ endif()
 
 **Better:** Pick one (static) and commit to it. Simplicity wins.
 
----
+______________________________________________________________________
 
 ## Conclusion
 
 **Use static linking for Python extensions.**
 
 It's the industry standard for a reason:
+
 - Users get a working package out of the box
 - No dependency hell or version conflicts
 - +500 KB binary size is irrelevant today
 - Security updates via normal pip workflow
 
 The only time to use dynamic linking:
+
 - System integration where libzmq is tightly controlled (e.g. embedded systems)
 - Extremely size-constrained environments (IoT devices)
 

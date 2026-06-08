@@ -7,7 +7,7 @@ where each cell tests one (Doppler bin, code-phase offset) hypothesis.
 FFT2 call.
 
 Because `Detector2D` reports the peak over all N cells, the system
-false-alarm rate is Pfa_sys = 1 − (1 − pfa_cell)^N.  The demo applies
+false-alarm rate is Pfa_sys = 1 − (1 − pfa_cell)^N. The demo applies
 a Bonferroni correction to derive the per-cell gate:
 
 ```
@@ -24,11 +24,11 @@ coherent sidelobe contamination of the CFAR noise reference.
 
 Three panels:
 
-- **Left** — acquisition surface |R\[i,j\]| after M coherent dwells.
-  White cross = injected (Doppler bin, code-phase); red circle = peak.
+- **Left** — acquisition surface |R[i,j]| after M coherent dwells.
+    White cross = injected (Doppler bin, code-phase); red circle = peak.
 - **Centre** — Pd vs dwell M: Marcum Q theory + MC operating point.
 - **Right** — ROC at operating SNR and dwell: theory, empirical swept
-  threshold, and the MC operating point.
+    threshold, and the MC operating point.
 
 ```python
 from doppler.detection import det_dwell, det_pd, det_threshold

@@ -22,9 +22,23 @@ def _gen(tmp_path, sample_type, endian="le", n=2000):
     out = tmp_path / f"cap_{sample_type}_{endian}.iq"
     subprocess.run(
         [
-            _WAVEGEN, "--type", "tone", "--fs", "1e6", "--freq", "1e5",
-            "--count", str(n), "--snr", "100",
-            "--sample_type", sample_type, "--endian", endian, "-o", str(out),
+            _WAVEGEN,
+            "--type",
+            "tone",
+            "--fs",
+            "1e6",
+            "--freq",
+            "1e5",
+            "--count",
+            str(n),
+            "--snr",
+            "100",
+            "--sample_type",
+            sample_type,
+            "--endian",
+            endian,
+            "-o",
+            str(out),
         ],
         check=True,
     )

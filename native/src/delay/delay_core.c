@@ -20,8 +20,8 @@ delay_create (size_t num_taps)
 
   state->num_taps = num_taps;
   state->capacity = next_pow2 (num_taps > 0 ? num_taps : 1);
-  state->mask = state->capacity - 1;
-  state->head = 0;
+  state->mask     = state->capacity - 1;
+  state->head     = 0;
 
   /* Two copies so any num_taps-length window is always contiguous. */
   state->buf = calloc (2 * state->capacity, sizeof (double _Complex));
@@ -54,8 +54,8 @@ delay_push (delay_state_t *state, double complex x)
 {
   /* Decrement head (wrapping), then write to both halves so the
    * window starting at head is always a contiguous run. */
-  state->head = (state->head - 1) & state->mask;
-  state->buf[state->head] = x;
+  state->head                               = (state->head - 1) & state->mask;
+  state->buf[state->head]                   = x;
   state->buf[state->head + state->capacity] = x;
 }
 

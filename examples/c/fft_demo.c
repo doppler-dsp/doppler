@@ -44,8 +44,8 @@ print_spectrum (const double _Complex *Y, size_t N, size_t show)
     {
       printf ("     ...\n");
       for (size_t k = N - show; k < N; k++)
-        printf ("    [%3zu]  %+12.4f  %+12.4f\n", k,
-                creal (Y[k]), cimag (Y[k]));
+        printf ("    [%3zu]  %+12.4f  %+12.4f\n", k, creal (Y[k]),
+                cimag (Y[k]));
     }
 }
 
@@ -65,7 +65,11 @@ main (void)
 
     double _Complex *x = malloc (N * sizeof (double _Complex));
     double _Complex *y = malloc (N * sizeof (double _Complex));
-    if (!x || !y) { fputs ("malloc failed\n", stderr); return 1; }
+    if (!x || !y)
+      {
+        fputs ("malloc failed\n", stderr);
+        return 1;
+      }
 
     for (size_t i = 0; i < N; i++)
       x[i] = cos (2.0 * M_PI * (double)i / (double)N);
@@ -76,7 +80,8 @@ main (void)
     print_spectrum (y, N, 3);
     fft_destroy (fft);
 
-    free (x); free (y);
+    free (x);
+    free (y);
   }
 
   /* ------------------------------------------------------------------ *
@@ -85,12 +90,16 @@ main (void)
   {
     const size_t N = 16;
     printf ("\n--- 1-D forward FFT (N=%zu, input: sin(2πk/N)) ---\n", N);
-    printf ("Expected: Y[1] ≈ -j%.1f, Y[%zu] ≈ +j%.1f\n",
-            (double)N / 2.0, N - 1, (double)N / 2.0);
+    printf ("Expected: Y[1] ≈ -j%.1f, Y[%zu] ≈ +j%.1f\n", (double)N / 2.0,
+            N - 1, (double)N / 2.0);
 
     double _Complex *x = malloc (N * sizeof (double _Complex));
     double _Complex *y = malloc (N * sizeof (double _Complex));
-    if (!x || !y) { fputs ("malloc failed\n", stderr); return 1; }
+    if (!x || !y)
+      {
+        fputs ("malloc failed\n", stderr);
+        return 1;
+      }
 
     for (size_t i = 0; i < N; i++)
       x[i] = sin (2.0 * M_PI * (double)i / (double)N);
@@ -100,7 +109,8 @@ main (void)
     print_spectrum (y, N, 3);
     fft_destroy (fft);
 
-    free (x); free (y);
+    free (x);
+    free (y);
   }
 
   /* ------------------------------------------------------------------ *
@@ -113,14 +123,19 @@ main (void)
     double _Complex *x   = malloc (N * sizeof (double _Complex));
     double _Complex *mid = malloc (N * sizeof (double _Complex));
     double _Complex *out = malloc (N * sizeof (double _Complex));
-    if (!x || !mid || !out) { fputs ("malloc failed\n", stderr); return 1; }
+    if (!x || !mid || !out)
+      {
+        fputs ("malloc failed\n", stderr);
+        return 1;
+      }
 
     /* Mixed tone input */
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++)
+      {
         double re = cos (2.0 * M_PI * 2.0 * (double)i / (double)N);
         double im = sin (2.0 * M_PI * 2.0 * (double)i / (double)N);
-        x[i] = re + im * _Complex_I;
-    }
+        x[i]      = re + im * _Complex_I;
+      }
 
     fft_state_t *fwd = fft_create (N, +1, 1);
     fft_state_t *inv = fft_create (N, -1, 1);
@@ -136,12 +151,16 @@ main (void)
     for (size_t i = 0; i < N; i++)
       {
         double err = cabs (out[i] - x[i]);
-        if (err > max_err) max_err = err;
+        if (err > max_err)
+          max_err = err;
       }
     printf ("    Max reconstruction error: %e  (should be ~0)\n", max_err);
 
-    fft_destroy (fwd); fft_destroy (inv);
-    free (x); free (mid); free (out);
+    fft_destroy (fwd);
+    fft_destroy (inv);
+    free (x);
+    free (mid);
+    free (out);
   }
 
   printf ("\nDemo complete.\n");

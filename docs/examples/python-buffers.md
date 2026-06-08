@@ -7,7 +7,7 @@ window across the wrap boundary.
 ## Producer / consumer pattern
 
 `wait(n)` blocks until `n` samples are available and returns a zero-copy
-view.  Call `consume(n)` when done to release the slots back to the producer.
+view. Call `consume(n)` when done to release the slots back to the producer.
 
 ```python
 from doppler.buffer import F64Buffer
@@ -43,16 +43,16 @@ dropped: 0
 ```
 
 Start the consumer before the producer so `wait()` is already blocking when
-data arrives.  Always `join()` both threads — the consumer holds a view into
+data arrives. Always `join()` both threads — the consumer holds a view into
 shared memory and must call `consume()` before the buffer can be reused.
 
 ## Buffer types
 
-| Type | Import | NumPy dtype | Min capacity | Notes |
-| ---- | ------ | ----------- | ------------ | ----- |
-| `F32Buffer` | `doppler.buffer` | `complex64` | 512 | CF32 IQ pairs |
-| `F64Buffer` | `doppler.buffer` | `complex128` | 256 | CF64 IQ pairs |
-| `I16Buffer` | `doppler.buffer` | `int16, shape=(n,2)` | 1024 | col 0 = I, col 1 = Q |
+| Type        | Import           | NumPy dtype          | Min capacity | Notes                |
+| ----------- | ---------------- | -------------------- | ------------ | -------------------- |
+| `F32Buffer` | `doppler.buffer` | `complex64`          | 512          | CF32 IQ pairs        |
+| `F64Buffer` | `doppler.buffer` | `complex128`         | 256          | CF64 IQ pairs        |
+| `I16Buffer` | `doppler.buffer` | `int16, shape=(n,2)` | 1024         | col 0 = I, col 1 = Q |
 
 ```python
 from doppler.buffer import F32Buffer, I16Buffer

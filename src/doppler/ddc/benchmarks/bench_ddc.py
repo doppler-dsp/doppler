@@ -2,12 +2,13 @@
 
 Run: pytest src/doppler/ddc/benchmarks/bench_ddc.py --benchmark-only
 """
+
 import pytest
 import numpy as np
 
 from doppler.ddc import DDC
 
-BLOCK_1K  = 1_024
+BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 

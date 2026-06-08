@@ -27,13 +27,13 @@ predicted, and phase-continuously (no filter-history reset).
 
 `doppler.ddc` exposes the same C down-converter two ways:
 
-| | Object API | Functional API (this demo) |
-|---|---|---|
-| Import | `from doppler.ddc import DDCR` | `from doppler.ddc import ddcr_create, …` |
-| State | wrapped in a Python type | opaque **PyCapsule**, passed explicitly |
-| Output | allocated per call | written into a **caller-owned** buffer |
-| Use when | you want a simple object | you manage your own arrays / want zero
-per-call allocation in a hot loop |
+|                                   | Object API                     | Functional API (this demo)               |
+| --------------------------------- | ------------------------------ | ---------------------------------------- |
+| Import                            | `from doppler.ddc import DDCR` | `from doppler.ddc import ddcr_create, …` |
+| State                             | wrapped in a Python type       | opaque **PyCapsule**, passed explicitly  |
+| Output                            | allocated per call             | written into a **caller-owned** buffer   |
+| Use when                          | you want a simple object       | you manage your own arrays / want zero   |
+| per-call allocation in a hot loop |                                |                                          |
 
 ## How it works
 
@@ -103,11 +103,11 @@ mutate the same capsule (no new handle is returned).
 Consequences:
 
 - **One capsule = one stream.** Don't share a capsule across threads
-  concurrently; give each stream its own.
+    concurrently; give each stream its own.
 - **Deterministic lifetime.** `ddcr_destroy` frees the C resources when *you*
-  say so, not when the GC happens to run.
+    say so, not when the GC happens to run.
 - The **only** value handed back is the output view (`out[:n_out]`);
-  everything else lives in — and mutates — the capsule.
+    everything else lives in — and mutates — the capsule.
 
 ## Performance — zero-copy, zero steady-state allocation
 
@@ -116,24 +116,24 @@ core, and on a 4096-sample block all three paths land within ~2 %
 (≈16 µs/block on this machine). The benefit is *where the output goes* and
 *what gets allocated*, not raw throughput:
 
-| Path | per-call allocation | output lands in |
-|---|---|---|
-| `ddcr_execute(state, x, out)`, `out` reused | **none** (steady state) | a buffer **you own** |
-| `ddcr_execute(state, x, np.empty(...))` | one output array | a fresh array each call |
-| `DDCR.execute(x)` (object) | none | one **internal** buffer, overwritten next call |
+| Path                                        | per-call allocation     | output lands in                                |
+| ------------------------------------------- | ----------------------- | ---------------------------------------------- |
+| `ddcr_execute(state, x, out)`, `out` reused | **none** (steady state) | a buffer **you own**                           |
+| `ddcr_execute(state, x, np.empty(...))`     | one output array        | a fresh array each call                        |
+| `DDCR.execute(x)` (object)                  | none                    | one **internal** buffer, overwritten next call |
 
 So the functional API buys you:
 
 - **Zero-copy into caller memory.** Write results straight into a slice of a
-  larger array, a memory-mapped region, or the next pipeline stage's input
-  buffer — no copy to move the result into place afterward.
+    larger array, a memory-mapped region, or the next pipeline stage's input
+    buffer — no copy to move the result into place afterward.
 - **Multiple live outputs.** The object's `execute` returns a view into one
-  internal buffer that the next call overwrites; the functional API can target
-  a different `out` per call, so several outputs stay valid at once.
+    internal buffer that the next call overwrites; the functional API can target
+    a different `out` per call, so several outputs stay valid at once.
 - **No per-call allocation** in the steady state when you reuse one `out` —
-  small here (the allocator recycles the 32 KiB block cheaply), but it removes
-  allocator traffic and GC pressure entirely, which matters under many parallel
-  streams or tight real-time budgets.
+    small here (the allocator recycles the 32 KiB block cheaply), but it removes
+    allocator traffic and GC pressure entirely, which matters under many parallel
+    streams or tight real-time budgets.
 
 ## Parallelism — `ddcr_execute` releases the GIL
 
@@ -147,13 +147,13 @@ cores instead of serialising on the GIL:
 ![Functional DDCR thread-per-shard scaling](../assets/ddc_fn_scaling.png)
 
 | threads | speedup | efficiency |
-|--------:|--------:|-----------:|
-| 1 | 1.00× | 100 % |
-| 2 | 1.73× | 86 % |
-| 4 | 3.16× | 79 % |
-| 8 | 5.41× | 68 % |
-| 12 | 7.41× | 62 % |
-| 16 | 8.08× | 51 % |
+| ------: | ------: | ---------: |
+|       1 |   1.00× |      100 % |
+|       2 |   1.73× |       86 % |
+|       4 |   3.16× |       79 % |
+|       8 |   5.41× |       68 % |
+|      12 |   7.41× |       62 % |
+|      16 |   8.08× |       51 % |
 
 (8192-sample blocks, representative run on a 20-core box; regenerate with
 `make gallery`. **Before** releasing the GIL the same test was flat at ~1×

@@ -7,27 +7,27 @@
 Three panels share the same frequency axis (0 to Nyquist of the respective
 sample rate).
 
-**Top — frequency response of the FIR branch.**  The halfband filter's
-magnitude response (dB) plotted against normalised frequency.  The passband
+**Top — frequency response of the FIR branch.** The halfband filter's
+magnitude response (dB) plotted against normalised frequency. The passband
 (0 to 0.4) is flat within ±0.5 dB; the transition band (0.4–0.6) rolls off
 sharply; the stopband (0.6 to 0.5 = alias zone) is attenuated by the design
-target (typically 60 dB).  The halfband symmetry means the response is always
+target (typically 60 dB). The halfband symmetry means the response is always
 exactly 0.5 (−6 dBFS) at the midpoint, f = 0.25.
 
-**Middle — input IQ spectrum.**  A broadband noise source plus a passband
-tone at f = 0.08 and a stopband jammer at f = 0.35.  Both land within the
+**Middle — input IQ spectrum.** A broadband noise source plus a passband
+tone at f = 0.08 and a stopband jammer at f = 0.35. Both land within the
 ±Nyquist of the input sample rate.
 
-**Bottom — output IQ spectrum after 2:1 decimation.**  The output Nyquist
+**Bottom — output IQ spectrum after 2:1 decimation.** The output Nyquist
 has halved; the passband tone at f = 0.08 survives near full amplitude; the
-stopband jammer at f = 0.35 has been suppressed by ≥ 60 dB.  The broadband
+stopband jammer at f = 0.35 has been suppressed by ≥ 60 dB. The broadband
 noise floor has risen by 3 dB because both the original band and its alias
 fold together — expected for any decimator without pre-filtering.
 
 ## The halfband structure
 
 A halfband FIR of length `2N+1` (N even) has the polyphase property: every
-other coefficient is exactly zero.  This decomposes into two branches:
+other coefficient is exactly zero. This decomposes into two branches:
 
 ```
 x[n] → [even samples x[0], x[2], x[4], …] → FIR branch  → +→ y[m]
@@ -39,7 +39,7 @@ The delay branch passes the odd-indexed input at the center lag (x[2m−N])
 scaled by 0.5 (the halfband polyphase rate identity).
 
 Only `N/2` multiplications are needed per output sample instead of `N`
-because the FIR coefficients are symmetric: `h[k] = h[N−1−k]`.  The inner
+because the FIR coefficients are symmetric: `h[k] = h[N−1−k]`. The inner
 loop folds the delay line so it computes `Σ h[k] × (x[k] + x[N−1−k])`
 with `N/4` unique multiplications.
 
@@ -52,7 +52,7 @@ branch (peak = 1.0).
 
 The AVX2 implementation avoids computing the explicit fold `a[k] + a[N-1-k]`
 as an `int16_t` because the sum of two near-full-scale samples overflows
-(e.g., 20000 + 20000 = 40000 > 32767).  Instead it performs two separate
+(e.g., 20000 + 20000 = 40000 > 32767). Instead it performs two separate
 `vpmaddwd` passes on the un-folded delay-line slices:
 
 ```
@@ -81,30 +81,30 @@ madd chains — the superscalar core executes them in parallel at no cost.
 ## Why two passes instead of fold+madd
 
 The naive approach is to fold first: `fold[k] = a[k] + a[N-1-k]` (int16),
-then `madd(fold, coeffs)`.  This fails above −6 dBFS: for a tone at amplitude
+then `madd(fold, coeffs)`. This fails above −6 dBFS: for a tone at amplitude
 20000, two in-phase samples sum to 38042, which exceeds the int16 maximum of
-32767.  Saturating addition (`_mm256_adds_epi16`) would clip the result,
+32767\. Saturating addition (`_mm256_adds_epi16`) would clip the result,
 introducing a non-linear distortion that cannot be corrected downstream.
 
-The two-pass approach keeps every operand in `[−32768, 32767]`.  Each pass
+The two-pass approach keeps every operand in `[−32768, 32767]`. Each pass
 multiplies an un-folded delay-line slice (max ≈ 32767) by a coefficient
-(max ≈ 21299 after ×0.5 polyphase scaling).  The `vpmaddwd` product fits in
+(max ≈ 21299 after ×0.5 polyphase scaling). The `vpmaddwd` product fits in
 int32 (max = 2 × 21299 × 32767 ≈ 1.4 × 10⁹ < 2³¹), so no per-lane overflow
 occurs before the horizontal reduction to int64.
 
 ## Q15 arithmetic budget
 
-| Quantity | Range | Notes |
-|---|---|---|
-| Input sample | `[−32768, 32767]` | int16, full ADC range |
-| FIR coefficient | `[−21845, 21845]` | Q15 × 0.5 polyphase scaling |
-| Center-tap multiplier | `16384` | = 0.5 in Q15 (1 << 14) |
-| Per-lane madd product | `≤ ±1.43 × 10⁹` | fits int32 |
-| Accumulator before hsum | 8 × int32 lanes | no int32 overflow for K ≤ 64 |
-| Final accumulator | int64 | Q30 fixed-point |
-| Output rounding | `+= 1 << 14` | round-to-nearest |
-| Output shift | `>> 15` | Q30 → Q15 |
-| Output saturation | `[−32768, 32767]` | clips only above 0 dBFS |
+| Quantity                | Range             | Notes                        |
+| ----------------------- | ----------------- | ---------------------------- |
+| Input sample            | `[−32768, 32767]` | int16, full ADC range        |
+| FIR coefficient         | `[−21845, 21845]` | Q15 × 0.5 polyphase scaling  |
+| Center-tap multiplier   | `16384`           | = 0.5 in Q15 (1 \<< 14)      |
+| Per-lane madd product   | `≤ ±1.43 × 10⁹`   | fits int32                   |
+| Accumulator before hsum | 8 × int32 lanes   | no int32 overflow for K ≤ 64 |
+| Final accumulator       | int64             | Q30 fixed-point              |
+| Output rounding         | `+= 1 << 14`      | round-to-nearest             |
+| Output shift            | `>> 15`           | Q30 → Q15                    |
+| Output saturation       | `[−32768, 32767]` | clips only above 0 dBFS      |
 
 The coefficient quantization to Q15 limits effective stopband attenuation to
 roughly 60–70 dB regardless of the design target; a longer filter does not
@@ -114,10 +114,10 @@ push the Q15 floor lower.
 
 `HBDecimQ15` takes the FIR polyphase branch, not the full sparse prototype.
 
-`_halfband_bank(atten, pb, sb)` returns a `(2, N)` float32 array.  One row
+`_halfband_bank(atten, pb, sb)` returns a `(2, N)` float32 array. One row
 is the FIR branch (N non-trivial coefficients, symmetric, peak ≈ 0.63 at
 the center); the other row is the delay branch (a single 1.0 flanked by
-numerical noise).  Select the FIR row by minimum peak magnitude:
+numerical noise). Select the FIR row by minimum peak magnitude:
 
 ```python
 from doppler.resample import _halfband_bank
@@ -135,11 +135,11 @@ Together they give unity DC gain through the combined FIR + delay branches.
 
 ## Parameters
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `h` | `np.ndarray` (float32) | — | FIR branch coefficients, length N.  Must be symmetric. |
-| `num_taps` | `int` (read-only) | len(h) | FIR branch length as supplied. |
-| `rate` | `float` (read-only) | 0.5 | Decimation factor — always 0.5 (2:1). |
+| Parameter  | Type                   | Default | Description                                           |
+| ---------- | ---------------------- | ------- | ----------------------------------------------------- |
+| `h`        | `np.ndarray` (float32) | —       | FIR branch coefficients, length N. Must be symmetric. |
+| `num_taps` | `int` (read-only)      | len(h)  | FIR branch length as supplied.                        |
+| `rate`     | `float` (read-only)    | 0.5     | Decimation factor — always 0.5 (2:1).                 |
 
 ## Usage example
 
@@ -206,17 +206,17 @@ dec.destroy()
 
 ## SNR vs bit depth
 
-`HBDecimQ15` targets ADC-grade input at 12–16 bits.  The Q15 arithmetic
+`HBDecimQ15` targets ADC-grade input at 12–16 bits. The Q15 arithmetic
 budget limits the in-band SNR ceiling independently of signal level:
 
-| Metric | Value | Notes |
-|---|---|---|
-| Q15 dynamic range | ≈ 90 dB | 15 bits × 6.02 dB + 1.76 dB |
-| Effective SNR (60 dB design) | 55–65 dB | measured at −4 dBFS, 60 dB filter |
-| Coefficient quantization floor | ≈ −65 dBFS | limits stopband regardless of filter length |
-| SNR vs float reference | > 30 dB | measured difference between Q15 and float64 output |
-| Saturation threshold | 0 dBFS | output clips at int16 range; input should stay ≤ −1 dBFS |
+| Metric                         | Value      | Notes                                                    |
+| ------------------------------ | ---------- | -------------------------------------------------------- |
+| Q15 dynamic range              | ≈ 90 dB    | 15 bits × 6.02 dB + 1.76 dB                              |
+| Effective SNR (60 dB design)   | 55–65 dB   | measured at −4 dBFS, 60 dB filter                        |
+| Coefficient quantization floor | ≈ −65 dBFS | limits stopband regardless of filter length              |
+| SNR vs float reference         | > 30 dB    | measured difference between Q15 and float64 output       |
+| Saturation threshold           | 0 dBFS     | output clips at int16 range; input should stay ≤ −1 dBFS |
 
 For signals below −6 dBFS the folded sums in the scalar path stay within
-int16 range.  The two-pass AVX2 path is safe at any level up to 0 dBFS
+int16 range. The two-pass AVX2 path is safe at any level up to 0 dBFS
 because it never forms the 16-bit fold.

@@ -31,8 +31,8 @@ struct hbdecim_r2c_state
 {
   size_t num_taps;
   size_t centre;
-  int fir_on_even;
-  float delay_sign;
+  int    fir_on_even;
+  float  delay_sign;
   float *h;
 
   float *even_buf;
@@ -43,34 +43,34 @@ struct hbdecim_r2c_state
   float *odd_buf;
   size_t odd_head;
 
-  int has_pending;
+  int   has_pending;
   float pending;
-  int parity;
+  int   parity;
 };
 
 static inline void
 r2_push_even (struct hbdecim_r2c_state *r, float x)
 {
-  r->even_head = (r->even_head - 1) & r->even_mask;
-  r->even_buf[r->even_head] = x;
+  r->even_head                            = (r->even_head - 1) & r->even_mask;
+  r->even_buf[r->even_head]               = x;
   r->even_buf[r->even_head + r->even_cap] = x;
 }
 
 static inline void
 r2_push_odd (struct hbdecim_r2c_state *r, float x)
 {
-  r->odd_head = (r->odd_head - 1) & r->even_mask;
-  r->odd_buf[r->odd_head] = x;
+  r->odd_head                           = (r->odd_head - 1) & r->even_mask;
+  r->odd_buf[r->odd_head]               = x;
   r->odd_buf[r->odd_head + r->even_cap] = x;
 }
 
 static inline float _Complex r2_compute_output (
     const struct hbdecim_r2c_state *r)
 {
-  const float *h = r->h;
-  size_t N = r->num_taps;
-  size_t half = N / 2;
-  float ri = 0.0f, rq = 0.0f;
+  const float *h    = r->h;
+  size_t       N    = r->num_taps;
+  size_t       half = N / 2;
+  float        ri = 0.0f, rq = 0.0f;
 
   if (r->fir_on_even)
     {
@@ -78,7 +78,7 @@ static inline float _Complex r2_compute_output (
       for (size_t k = 0; k < half; k++)
         ri += h[k] * (e[k] - e[N - 1 - k]);
       const float *o = &r->odd_buf[r->odd_head];
-      rq = r->delay_sign * 0.5f * o[r->centre];
+      rq             = r->delay_sign * 0.5f * o[r->centre];
     }
   else
     {
@@ -86,7 +86,7 @@ static inline float _Complex r2_compute_output (
       for (size_t k = 0; k < half; k++)
         rq += h[k] * (o[k + 1] - o[N - 1 - k]);
       const float *e = &r->even_buf[r->even_head];
-      ri = r->delay_sign * 0.5f * e[r->centre];
+      ri             = r->delay_sign * 0.5f * e[r->centre];
     }
 
   if (r->parity)
@@ -107,8 +107,8 @@ hbdecim_r2c_create (size_t num_taps, const float *h)
   if (!r)
     return NULL;
 
-  r->num_taps = num_taps;
-  r->centre = num_taps / 2;
+  r->num_taps    = num_taps;
+  r->centre      = num_taps / 2;
   r->fir_on_even = !(num_taps & 1);
 
   if (r->fir_on_even)
@@ -129,7 +129,7 @@ hbdecim_r2c_create (size_t num_taps, const float *h)
   r->even_mask = r->even_cap - 1;
 
   r->even_buf = calloc (2 * r->even_cap, sizeof (float));
-  r->odd_buf = calloc (2 * r->even_cap, sizeof (float));
+  r->odd_buf  = calloc (2 * r->even_cap, sizeof (float));
   if (!r->even_buf || !r->odd_buf)
     goto fail;
 
@@ -157,10 +157,10 @@ hbdecim_r2c_destroy (hbdecim_r2c_state_t *r)
 void
 hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
 {
-  r->even_head = 0;
-  r->odd_head = 0;
+  r->even_head   = 0;
+  r->odd_head    = 0;
   r->has_pending = 0;
-  r->parity = 0;
+  r->parity      = 0;
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
 }
@@ -207,7 +207,7 @@ hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in, size_t num_in,
 
   if (xi < num_in)
     {
-      r->pending = in[xi];
+      r->pending     = in[xi];
       r->has_pending = 1;
     }
 

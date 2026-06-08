@@ -16,9 +16,9 @@ from __future__ import annotations
 
 import math
 import pathlib
-import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +30,7 @@ from doppler.source import AWGN, LO
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _rms_db(x: np.ndarray) -> float:
     return 20.0 * math.log10(float(np.sqrt(np.mean(np.abs(x) ** 2))) + 1e-300)
@@ -93,8 +94,7 @@ g_flat = AWGN(seed=0, amplitude=1.0)
 x_flat = g_flat.generate(65536)
 fs_ref = 1.0
 freqs, Pxx = welch(
-    np.real(x_flat).astype(np.float64),
-    fs=fs_ref, nperseg=1024, noverlap=512
+    np.real(x_flat).astype(np.float64), fs=fs_ref, nperseg=1024, noverlap=512
 )
 Pxx_db = 10.0 * np.log10(Pxx + 1e-300)
 # Use 5th–95th percentile to ignore the few noisiest Welch bins at band edges.
@@ -108,8 +108,8 @@ assert span < 4.0, f"PSD not flat enough: {span:.1f} dB (p5→p95)"
 # ---------------------------------------------------------------------------
 
 N_PLOT = 65536
-AMP    = 1.0
-SEED   = 42
+AMP = 1.0
+SEED = 42
 
 g_plot = AWGN(seed=SEED, amplitude=AMP)
 noise_plot = g_plot.generate(N_PLOT)
@@ -125,9 +125,11 @@ y_pdf = np.exp(-0.5 * (x_pdf / sigma) ** 2) / (sigma * math.sqrt(2 * math.pi))
 # Panel 2 — Welch PSD (both components → total noise floor)
 freqs_re, Pxx_re = welch(re_plot, fs=1.0, nperseg=1024, noverlap=512)
 freqs_im, Pxx_im = welch(im_plot, fs=1.0, nperseg=1024, noverlap=512)
-Pxx_total = Pxx_re + Pxx_im          # complex power = Re²+Im²
+Pxx_total = Pxx_re + Pxx_im  # complex power = Re²+Im²
 Pxx_db_plot = 10.0 * np.log10(Pxx_total + 1e-300)
-expected_floor = 10.0 * math.log10(2.0 * AMP**2)   # total complex power ÷ bandwidth
+expected_floor = 10.0 * math.log10(
+    2.0 * AMP**2
+)  # total complex power ÷ bandwidth
 
 # Panel 3 — Noisy carrier: LO(0.1) + AWGN(0.3) — first 256 samples (real part)
 N_CARRIER = 256
@@ -147,28 +149,32 @@ fig, (ax_hist, ax_psd, ax_sig) = plt.subplots(
 )
 fig.patch.set_facecolor("#0f172a")
 
-PANEL_BG   = "#111827"
-GRID_COL   = "#374151"
-LABEL_COL  = "#d1d5db"
-TITLE_COL  = "#f1f5f9"
-RE_COL     = "#60a5fa"    # blue — Re
-IM_COL     = "#a78bfa"    # violet — Im
-PDF_COL    = "#f59e0b"    # amber — theoretical PDF
-PSD_COL    = "#34d399"    # green — PSD trace
-FLOOR_COL  = "#f87171"    # red — expected floor
-SIG_COL    = "#818cf8"    # indigo — noisy signal
-TON_COL    = "#4ade80"    # green — clean carrier
+PANEL_BG = "#111827"
+GRID_COL = "#374151"
+LABEL_COL = "#d1d5db"
+TITLE_COL = "#f1f5f9"
+RE_COL = "#60a5fa"  # blue — Re
+IM_COL = "#a78bfa"  # violet — Im
+PDF_COL = "#f59e0b"  # amber — theoretical PDF
+PSD_COL = "#34d399"  # green — PSD trace
+FLOOR_COL = "#f87171"  # red — expected floor
+SIG_COL = "#818cf8"  # indigo — noisy signal
+TON_COL = "#4ade80"  # green — clean carrier
 
 # --- Histogram ---
 ax_hist.set_facecolor(PANEL_BG)
-ax_hist.set_title("Amplitude distribution — Re / Im vs. theoretical Gaussian",
-                  color=TITLE_COL, fontsize=11)
-ax_hist.hist(re_plot, bins=bins, density=True, alpha=0.6,
-             color=RE_COL,  label="Re")
-ax_hist.hist(im_plot, bins=bins, density=True, alpha=0.6,
-             color=IM_COL,  label="Im")
-ax_hist.plot(x_pdf, y_pdf, color=PDF_COL, lw=2.0,
-             label=f"N(0, σ²={AMP}²)")
+ax_hist.set_title(
+    "Amplitude distribution — Re / Im vs. theoretical Gaussian",
+    color=TITLE_COL,
+    fontsize=11,
+)
+ax_hist.hist(
+    re_plot, bins=bins, density=True, alpha=0.6, color=RE_COL, label="Re"
+)
+ax_hist.hist(
+    im_plot, bins=bins, density=True, alpha=0.6, color=IM_COL, label="Im"
+)
+ax_hist.plot(x_pdf, y_pdf, color=PDF_COL, lw=2.0, label=f"N(0, σ²={AMP}²)")
 ax_hist.set_xlabel("Amplitude", color=LABEL_COL)
 ax_hist.set_ylabel("Probability density", color=LABEL_COL)
 ax_hist.legend(framealpha=0.3, labelcolor="white")
@@ -179,10 +185,17 @@ ax_hist.tick_params(colors=LABEL_COL)
 ax_psd.set_facecolor(PANEL_BG)
 ax_psd.set_title(
     "Power spectral density — Welch (Re²+Im²), N=65536, nperseg=1024",
-    color=TITLE_COL, fontsize=11)
+    color=TITLE_COL,
+    fontsize=11,
+)
 ax_psd.plot(freqs_re, Pxx_db_plot, color=PSD_COL, lw=1.0, label="Measured PSD")
-ax_psd.axhline(expected_floor, color=FLOOR_COL, lw=1.5, linestyle="--",
-               label=f"Expected floor = 2σ²/BW ≈ {expected_floor:.1f} dB")
+ax_psd.axhline(
+    expected_floor,
+    color=FLOOR_COL,
+    lw=1.5,
+    linestyle="--",
+    label=f"Expected floor = 2σ²/BW ≈ {expected_floor:.1f} dB",
+)
 ax_psd.set_xlabel("Normalised frequency (cycles/sample)", color=LABEL_COL)
 ax_psd.set_ylabel("Power (dB)", color=LABEL_COL)
 ax_psd.legend(framealpha=0.3, labelcolor="white")
@@ -191,18 +204,35 @@ ax_psd.tick_params(colors=LABEL_COL)
 p2p = float(Pxx_db_plot.max() - Pxx_db_plot.min())
 ax_psd.set_title(
     f"Power spectral density — Welch (Re²+Im²)  p-p={p2p:.1f} dB",
-    color=TITLE_COL, fontsize=11)
+    color=TITLE_COL,
+    fontsize=11,
+)
 
 # --- Noisy carrier ---
 ax_sig.set_facecolor(PANEL_BG)
 ax_sig.set_title(
     "Noisy carrier — LO(0.1) + AWGN(σ=0.3), real part, SNR ≈ "
     f"{_rms_db(carrier) - _rms_db(noise_carrier[:N_CARRIER]):.1f} dB",
-    color=TITLE_COL, fontsize=11)
-ax_sig.plot(t_axis, np.real(noisy).astype(np.float32),
-            color=SIG_COL, lw=0.8, alpha=0.9, label="Re{LO + AWGN}")
-ax_sig.plot(t_axis, np.real(carrier).astype(np.float32),
-            color=TON_COL, lw=1.2, linestyle="--", alpha=0.7, label="Re{LO} (clean)")
+    color=TITLE_COL,
+    fontsize=11,
+)
+ax_sig.plot(
+    t_axis,
+    np.real(noisy).astype(np.float32),
+    color=SIG_COL,
+    lw=0.8,
+    alpha=0.9,
+    label="Re{LO + AWGN}",
+)
+ax_sig.plot(
+    t_axis,
+    np.real(carrier).astype(np.float32),
+    color=TON_COL,
+    lw=1.2,
+    linestyle="--",
+    alpha=0.7,
+    label="Re{LO} (clean)",
+)
 ax_sig.set_xlabel("Sample index", color=LABEL_COL)
 ax_sig.set_ylabel("Amplitude", color=LABEL_COL)
 ax_sig.legend(framealpha=0.3, labelcolor="white")

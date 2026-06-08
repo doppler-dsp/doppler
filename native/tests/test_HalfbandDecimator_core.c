@@ -36,7 +36,7 @@ main (void)
 {
   int _fails = 0;
   /* Minimal 3-tap halfband prototype: [0.25, 0.5, 0.25] */
-  static const float h[] = { 0.25f, 0.5f, 0.25f };
+  static const float         h[] = { 0.25f, 0.5f, 0.25f };
   HalfbandDecimator_state_t *obj = HalfbandDecimator_create (3, h);
   CHECK (obj != NULL);
   if (!obj)

@@ -77,15 +77,18 @@ for d in DECIMS:
     settle = int(np.argmax(post)) if post.any() else -1
     # applied_gain_db is the queryable telemetry: the gain the last sample
     # actually saw, as opposed to gain_db (what the loop now commands).
-    print(f"decim {d:2d}: settles within 1 dB of {REF_DB:.0f} dB "
-          f"{settle} samples after the step; "
-          f"applied_gain_db={agc.applied_gain_db:+.2f} "
-          f"(commanded gain_db={agc.gain_db:+.2f})")
+    print(
+        f"decim {d:2d}: settles within 1 dB of {REF_DB:.0f} dB "
+        f"{settle} samples after the step; "
+        f"applied_gain_db={agc.applied_gain_db:+.2f} "
+        f"(commanded gain_db={agc.gain_db:+.2f})"
+    )
 
 fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(9, 6))
 
-ax1.axhline(REF_DB, color="0.6", ls="--", lw=1,
-            label=f"reference ({REF_DB:.0f} dB)")
+ax1.axhline(
+    REF_DB, color="0.6", ls="--", lw=1, label=f"reference ({REF_DB:.0f} dB)"
+)
 ax1.plot(n, in_db, color="tab:orange", label="input power")
 colors = ("tab:blue", "tab:green", "tab:red")
 for d, color in zip(DECIMS, colors):
@@ -97,8 +100,9 @@ ax1.legend(loc="center right", fontsize=8)
 ax1.grid(alpha=0.3)
 
 for d, color in zip(DECIMS, colors):
-    ax2.plot(n, runs[d][1], color=color, lw=1,
-             label=f"applied gain (decim {d})")
+    ax2.plot(
+        n, runs[d][1], color=color, lw=1, label=f"applied gain (decim {d})"
+    )
 ax2.axvline(N_STEP, color="0.6", ls=":", lw=1)
 ax2.set_xlabel("sample")
 ax2.set_ylabel("applied gain (dB)")

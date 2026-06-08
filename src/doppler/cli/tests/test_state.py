@@ -204,7 +204,9 @@ class TestStopChain:
         monkeypatch.setattr(state_mod, "pid_alive", lambda pid: False)
 
         signals_sent: list = []
-        monkeypatch.setattr(os, "kill", lambda pid, sig: signals_sent.append(pid))
+        monkeypatch.setattr(
+            os, "kill", lambda pid, sig: signals_sent.append(pid)
+        )
 
         chain = _make_chain()
         chain.save()

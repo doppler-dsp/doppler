@@ -33,7 +33,7 @@
 #define LUT_QTR (LUT_SIZE >> 2u)  /* 16384  (π/2 phase shift) */
 
 static float lut[LUT_SIZE];
-static int lut_ready = 0;
+static int   lut_ready = 0;
 
 static void
 lut_init (void)
@@ -69,7 +69,7 @@ lo_create (double norm_freq)
   lo_state_t *state = malloc (sizeof (*state));
   if (!state)
     return NULL;
-  state->phase = 0;
+  state->phase     = 0;
   state->phase_inc = norm_to_inc (norm_freq);
   state->norm_freq = norm_freq;
   return state;
@@ -156,7 +156,7 @@ lo_steps_ctrl_max_out (lo_state_t *state)
 size_t
 lo_steps (lo_state_t *state, size_t n, float complex *out)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
 
   /*
@@ -173,7 +173,7 @@ lo_steps (lo_state_t *state, size_t n, float complex *out)
 
   __m512i vsamp = _mm512_setr_epi32 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                                      13, 14, 15);
-  __m512i vinc = _mm512_set1_epi32 ((int32_t)inc);
+  __m512i vinc  = _mm512_set1_epi32 ((int32_t)inc);
 
   size_t i = 0;
   for (; i + 16 <= n; i += 16, ph += 16u * inc)
@@ -215,7 +215,7 @@ lo_steps (lo_state_t *state, size_t n, float complex *out)
 size_t
 lo_steps (lo_state_t *state, size_t n, float complex *out)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < n; i++)
     {
@@ -253,7 +253,7 @@ size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
                float complex *out)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
 
   static const int32_t perm0_arr[16]
@@ -263,17 +263,17 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
   __m512i vperm0 = _mm512_loadu_si512 (perm0_arr);
   __m512i vperm1 = _mm512_loadu_si512 (perm1_arr);
 
-  __m512i vinc = _mm512_set1_epi32 ((int32_t)inc);
+  __m512i vinc  = _mm512_set1_epi32 ((int32_t)inc);
   __m512i vzero = _mm512_setzero_si512 ();
   __m512i vmask = _mm512_set1_epi32 (0xFFFF);
-  __m512i vqtr = _mm512_set1_epi32 (LUT_QTR);
-  __m512 v2p32 = _mm512_set1_ps (4294967296.0f);
+  __m512i vqtr  = _mm512_set1_epi32 (LUT_QTR);
+  __m512  v2p32 = _mm512_set1_ps (4294967296.0f);
 
   size_t i = 0;
   for (; i + 16 <= ctrl_len; i += 16)
     {
       /* Load 16 ctrl floats; use fractional part = ctrl - floor(ctrl). */
-      __m512 vc = _mm512_loadu_ps (ctrl + i);
+      __m512 vc    = _mm512_loadu_ps (ctrl + i);
       __m512 vfrac = _mm512_sub_ps (vc, _mm512_floor_ps (vc));
 
       /* ctrl_inc[k] = (uint32_t)(frac[k] * 2^32) */
@@ -285,10 +285,10 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       /* Inclusive prefix scan (Hillis-Steele, 4 passes):
        * after pass p, vs[k] = sum(delta[max(0, k-2^p+1)..k])    */
       __m512i vs = vd;
-      vs = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 15));
-      vs = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 14));
-      vs = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 12));
-      vs = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 8));
+      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 15));
+      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 14));
+      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 12));
+      vs         = _mm512_add_epi32 (vs, _mm512_alignr_epi32 (vs, vzero, 8));
 
       /* Exclusive scan: shift right 1 element, insert 0 at lane 0.
        * vpsum[k] = sum(delta[0..k-1])  (== 0 for k=0)           */
@@ -321,7 +321,7 @@ lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
       double d = (double)ctrl[i];
       d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
-      uint16_t idx = (uint16_t)(ph >> (32u - LUT_BITS));
+      uint16_t idx      = (uint16_t)(ph >> (32u - LUT_BITS));
       out[i] = CMPLXF (lut[(uint16_t)(idx + (uint16_t)LUT_QTR)], lut[idx]);
       ph += inc + ctrl_inc;
     }
@@ -336,14 +336,14 @@ size_t
 lo_steps_ctrl (lo_state_t *state, const float *ctrl, size_t ctrl_len,
                float complex *out)
 {
-  uint32_t ph = state->phase;
+  uint32_t ph  = state->phase;
   uint32_t inc = state->phase_inc;
   for (size_t i = 0; i < ctrl_len; i++)
     {
       double d = (double)ctrl[i];
       d -= floor (d);
       uint32_t ctrl_inc = (uint32_t)(d * 4294967296.0);
-      uint16_t idx = (uint16_t)(ph >> (32u - LUT_BITS));
+      uint16_t idx      = (uint16_t)(ph >> (32u - LUT_BITS));
       out[i] = CMPLXF (lut[(uint16_t)(idx + (uint16_t)LUT_QTR)], lut[idx]);
       ph += inc + ctrl_inc;
     }

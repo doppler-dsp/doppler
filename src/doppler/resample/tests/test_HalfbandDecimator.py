@@ -20,7 +20,9 @@ def hb_bank():
 def hb_fir(hb_bank):
     centre = hb_bank.shape[1] // 2
     fir_row = (
-        0 if abs(float(hb_bank[0, centre])) < abs(float(hb_bank[1, centre])) else 1
+        0
+        if abs(float(hb_bank[0, centre])) < abs(float(hb_bank[1, centre]))
+        else 1
     )
     return np.ascontiguousarray(hb_bank[fir_row])
 
@@ -28,7 +30,9 @@ def hb_fir(hb_bank):
 def _blackman_harris(n: int) -> np.ndarray:
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    return (
+        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    )
 
 
 def _spectrum(signal: np.ndarray):
@@ -141,7 +145,9 @@ class TestHalfbandDecimatorSpectral:
         y = self._run(hb_fir, PASSBAND_FREQ_IN)
         bins, db = _spectrum(y)
         f_meas = float(bins[np.argmax(db)])
-        assert abs(f_meas - 0.2) < 0.01, f"expected f_out=0.2, got {f_meas:.4f}"
+        assert abs(f_meas - 0.2) < 0.01, (
+            f"expected f_out=0.2, got {f_meas:.4f}"
+        )
 
     def test_stopband_alias_rejected(self, hb_fir):
         y_pass = self._run(hb_fir, PASSBAND_FREQ_IN)
@@ -160,6 +166,8 @@ class TestHalfbandDecimatorSpectral:
         r_even = HalfbandDecimator(hb_fir)
         x = _tone(PASSBAND_FREQ_IN, 512)
         y_even = r_even.execute(x)
-        y_odd = np.concatenate([r_odd.execute(x[:255]), r_odd.execute(x[255:])])
+        y_odd = np.concatenate(
+            [r_odd.execute(x[:255]), r_odd.execute(x[255:])]
+        )
         n = min(len(y_even), len(y_odd))
         np.testing.assert_allclose(y_even[:n], y_odd[:n], atol=1e-5)

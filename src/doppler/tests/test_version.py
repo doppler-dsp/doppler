@@ -1,4 +1,5 @@
 """Tests for doppler.__version__."""
+
 import doppler
 
 
@@ -15,5 +16,9 @@ def test_version_not_unknown():
 
 def test_version_format():
     parts = doppler.__version__.split(".")
-    assert len(parts) >= 2, f"Expected X.Y[.Z] version, got {doppler.__version__!r}"
-    assert parts[0].isdigit(), f"Major version not numeric: {doppler.__version__!r}"
+    assert len(parts) >= 2, (
+        f"Expected X.Y[.Z] version, got {doppler.__version__!r}"
+    )
+    assert parts[0].isdigit(), (
+        f"Major version not numeric: {doppler.__version__!r}"
+    )

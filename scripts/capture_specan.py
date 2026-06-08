@@ -107,10 +107,15 @@ def main() -> None:
         help="Enable chirp sweep before capturing",
     )
     p.add_argument(
-        "--warmup", type=int, default=15, help="Frames to discard before recording"
+        "--warmup",
+        type=int,
+        default=15,
+        help="Frames to discard before recording",
     )
     p.add_argument(
-        "--out", default="docs/specan/chirp_frames.json", help="Output JSON path"
+        "--out",
+        default="docs/specan/chirp_frames.json",
+        help="Output JSON path",
     )
     p.add_argument(
         "--tune", default=None, help="JSON tune command to send before capture"

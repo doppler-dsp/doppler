@@ -2,7 +2,7 @@
 
 **Super fast and intuitive, out-of-the-box ready to rock!**
 
----
+______________________________________________________________________
 
 ## User Experience
 
@@ -13,16 +13,16 @@
 
 ### CLI flags
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--level` | `0` dBm | Reference level — top of display |
-| `--center` | `0` Hz | Center frequency |
-| `--span` | auto | Alias-free bandwidth; set by resampler = `Fs_out / 1.28` |
-| `--rbw` | `span / 401` | Resolution bandwidth (ENBW of Kaiser window) |
-| `--source` | `demo` | `demo`, `file <PATH>`, `socket <ADDRESS>` |
-| `--web` | off | Launch browser UI instead of terminal display |
-| `--no-browser` | off | Start web server without opening a browser |
-| `--port` | `8765` | Web server port |
+| Flag           | Default      | Description                                              |
+| -------------- | ------------ | -------------------------------------------------------- |
+| `--level`      | `0` dBm      | Reference level — top of display                         |
+| `--center`     | `0` Hz       | Center frequency                                         |
+| `--span`       | auto         | Alias-free bandwidth; set by resampler = `Fs_out / 1.28` |
+| `--rbw`        | `span / 401` | Resolution bandwidth (ENBW of Kaiser window)             |
+| `--source`     | `demo`       | `demo`, `file <PATH>`, `socket <ADDRESS>`                |
+| `--web`        | off          | Launch browser UI instead of terminal display            |
+| `--no-browser` | off          | Start web server without opening a browser               |
+| `--port`       | `8765`       | Web server port                                          |
 
 ### `doppler-specan.yml`
 
@@ -48,7 +48,7 @@ demo:
   noise_floor: -90    # dBm
 ```
 
----
+______________________________________________________________________
 
 ## Architecture
 
@@ -92,12 +92,12 @@ keeps the terminal mode dependency-free beyond `rich`/`blessed` — no
 fastapi, no uvicorn, no websockets imported. This matters for SSH sessions,
 embedded deployments, and scripted automation.
 
-| Mode | Launch | Extra deps | Use case |
-|------|--------|------------|----------|
-| Terminal | `doppler-specan` | `rich` or `blessed` | SSH, headless, scripted |
-| Web | `doppler-specan --web` | `fastapi`, `uvicorn`, `websockets` | Interactive spur hunting |
+| Mode     | Launch                 | Extra deps                         | Use case                 |
+| -------- | ---------------------- | ---------------------------------- | ------------------------ |
+| Terminal | `doppler-specan`       | `rich` or `blessed`                | SSH, headless, scripted  |
+| Web      | `doppler-specan --web` | `fastapi`, `uvicorn`, `websockets` | Interactive spur hunting |
 
----
+______________________________________________________________________
 
 ## Signal Processing Chain
 
@@ -118,8 +118,7 @@ IQ in (cf32, Fs_in)
 are equally supported. No cascaded halfband stages are needed as a special
 case; the resampler covers it all.
 
-The alias-free output bandwidth of the resampler is approximately `0.8 ×
-Fs_out`, so:
+The alias-free output bandwidth of the resampler is approximately `0.8 × Fs_out`, so:
 
 ```
 Fs_out = span / 0.8 = span × 1.25
@@ -156,7 +155,7 @@ The Kaiser window belongs in the C library (`dp/window.h` or `dp/util.h`),
 not Python. The β → ENBW LUT lives there too. The specan Python layer calls
 the C function for window generation — it does not reimplement it.
 
----
+______________________________________________________________________
 
 ## Input Sources
 
@@ -193,7 +192,7 @@ before connecting real hardware.
 doppler-specan  # demo: -20 dBm tone at 100 kHz, -90 dBm noise floor
 ```
 
----
+______________________________________________________________________
 
 ## Display Modes
 
@@ -214,7 +213,7 @@ doppler-specan  # demo: -20 dBm tone at 100 kHz, -90 dBm noise floor
 - Live controls: reference level, RBW, source selection
 - Save current state to `doppler-specan.yml`
 
----
+______________________________________________________________________
 
 ## Package Structure
 
@@ -236,18 +235,18 @@ python/specan/
         └── index.html   # web UI
 ```
 
----
+______________________________________________________________________
 
 ## What Remains in the C Library
 
 Before implementing the specan, the following C primitives are needed:
 
-| Primitive | Header | Status |
-|-----------|--------|--------|
-| `dp_kaiser_window` | `dp/window.h` | **TODO** |
-| β → ENBW LUT / function | `dp/window.h` | **TODO** |
-| `dp_nco` | `dp/nco.h` | done |
-| `dp_resamp_dpmfs` | `dp/resamp_dpmfs.h` | done |
-| `dp_fft` | `dp/fft.h` | done |
+| Primitive               | Header              | Status   |
+| ----------------------- | ------------------- | -------- |
+| `dp_kaiser_window`      | `dp/window.h`       | **TODO** |
+| β → ENBW LUT / function | `dp/window.h`       | **TODO** |
+| `dp_nco`                | `dp/nco.h`          | done     |
+| `dp_resamp_dpmfs`       | `dp/resamp_dpmfs.h` | done     |
+| `dp_fft`                | `dp/fft.h`          | done     |
 
 Everything else is Python orchestration.

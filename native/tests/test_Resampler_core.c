@@ -34,8 +34,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int _fails = 0;
-  Resampler_state_t *obj = Resampler_create (0.0);
+  int                _fails = 0;
+  Resampler_state_t *obj    = Resampler_create (0.0);
   CHECK (obj != NULL);
   if (!obj)
     return 1;

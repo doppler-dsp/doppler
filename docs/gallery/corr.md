@@ -4,19 +4,19 @@
 
 ## What you're seeing
 
-**Left — `Corr` coherent integration.**  BPSK PN reference, lag=17,
-SNR ≈ −6 dB.  With a single frame the peak/mean ratio is ~4.0 —
-barely distinguishable from noise.  After 8 coherent dwells
+**Left — `Corr` coherent integration.** BPSK PN reference, lag=17,
+SNR ≈ −6 dB. With a single frame the peak/mean ratio is ~4.0 —
+barely distinguishable from noise. After 8 coherent dwells
 (`dwell=8`) it rises to ~7.0, pulling the lag-17 peak cleanly above
-the noise floor.  Coherent integration improves SNR by `10 log₁₀(M)`
+the noise floor. Coherent integration improves SNR by `10 log₁₀(M)`
 dB.
 
-**Centre — `Corr2D` 2-D template match.**  An 8×8 complex template
-shifted by (row=3, col=5) is recovered in a single FFT2 call.  The
+**Centre — `Corr2D` 2-D template match.** An 8×8 complex template
+shifted by (row=3, col=5) is recovered in a single FFT2 call. The
 surface peak lands exactly on the injected shift.
 
-**Right — `Detector.push()` stream.**  Four signal dwells fire above
-`threshold=5`; noise-only dwells stay below it.  Each dot is one
+**Right — `Detector.push()` stream.** Four signal dwells fire above
+`threshold=5`; noise-only dwells stay below it. Each dot is one
 dwell's test statistic: peak magnitude divided by local noise
 estimate.
 

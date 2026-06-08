@@ -4,9 +4,9 @@ doppler ships a C-first **waveform generator**: one declarative synth engine
 (every algorithm in C, exactly once) exposed three ways —
 
 - **`wavegen`** — a quick, single-waveform CLI (generated in three byte-identical
-  faces: a C binary, a Python console script, and a PEP 723 script).
+    faces: a C binary, a Python console script, and a PEP 723 script).
 - **`wfmgen`** — a hand-written C composer for **multi-segment** scenarios, the
-  **BLUE** / **SigMF** containers, and streaming to **ZMQ**.
+    **BLUE** / **SigMF** containers, and streaming to **ZMQ**.
 - **`doppler.wfmgen`** — the same engine as a Python API.
 
 ![wfmgen engine](../assets/wfmgen_demo.png)
@@ -16,13 +16,14 @@ they share the engine. Start with `wavegen`; reach for `wfmgen` when you need
 multiple segments, BLUE/SigMF, or a ZMQ stream.
 
 !!! tip "The 30-second version"
+
     ```sh
     wavegen --type qpsk --snr 12 --count 100000 -o capture.cf32   # 100k QPSK samples @ 12 dB Es/No
     wavegen --type tone --freq 1e5 --count 4096                    # a tone → stdout (cf32)
     wavegen --type pn --pn_length 9 --file_type csv -o pn.csv      # length-9 MLS as text
     ```
 
----
+______________________________________________________________________
 
 ## Installation
 
@@ -40,76 +41,76 @@ cmake -B build -DBUILD_PYTHON=ON && cmake --build build --target wfmgen_cli wave
 # binaries: build/native/src/wfmcompose/wfmgen   and   build/wavegen
 ```
 
----
+______________________________________________________________________
 
 ## Waveform types
 
 `--type` selects the waveform; every type shares the same parameter set.
 
-| `--type` | What it is | Key parameters |
-|---|---|---|
-| `tone`  | a complex sinusoid at `--freq` | `--freq` |
-| `noise` | complex AWGN (unit power) | `--snr` (ignored — it *is* noise) |
-| `pn`    | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn_length`, `--pn_poly`, `--sps` |
-| `bpsk`  | BPSK symbols (PN-sourced data), `--sps` samples/symbol | `--sps`, `--snr` |
-| `qpsk`  | Gray-coded QPSK symbols (PN-sourced data) | `--sps`, `--snr` |
+| `--type` | What it is                                                 | Key parameters                      |
+| -------- | ---------------------------------------------------------- | ----------------------------------- |
+| `tone`   | a complex sinusoid at `--freq`                             | `--freq`                            |
+| `noise`  | complex AWGN (unit power)                                  | `--snr` (ignored — it *is* noise)   |
+| `pn`     | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn_length`, `--pn_poly`, `--sps` |
+| `bpsk`   | BPSK symbols (PN-sourced data), `--sps` samples/symbol     | `--sps`, `--snr`                    |
+| `qpsk`   | Gray-coded QPSK symbols (PN-sourced data)                  | `--sps`, `--snr`                    |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 `--seed`), so output is reproducible and receiver-correlatable.
 
----
+______________________________________________________________________
 
 ## Parameter reference
 
 ### Engine (shared by `wavegen` and `wfmgen`)
 
-| Flag | Type | Default | Meaning |
-|---|---|---|---|
-| `--type` | `tone noise pn bpsk qpsk` | `tone` | waveform |
-| `--fs` | float (Hz) | `1e6` | sample rate |
-| `--freq` | float (Hz) | `0` | frequency offset from baseband (mixed by the LO) |
-| `--snr` | float (dB) | `100` | SNR; metric chosen by `--snr_mode` (≈clean at 100) |
-| `--snr_mode` | `auto fs ebno esno` | `auto` | how `--snr` is interpreted (see below) |
-| `--seed` | uint32 | `1` | PRNG / LFSR seed (deterministic) |
-| `--sps` | int | `8` | samples per symbol (`*psk`) / per chip (`pn`) |
-| `--pn_length` | int (2..64) | `7` | LFSR register length → period `2ⁿ−1` |
-| `--pn_poly` | uint64 | `0` | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial |
-| `--lfsr` | `galois fibonacci` | `galois` | LFSR realization (same polynomial/period, different sequence) |
-| `--count` | int | `1024` | number of complex samples to generate |
+| Flag          | Type                      | Default  | Meaning                                                       |
+| ------------- | ------------------------- | -------- | ------------------------------------------------------------- |
+| `--type`      | `tone noise pn bpsk qpsk` | `tone`   | waveform                                                      |
+| `--fs`        | float (Hz)                | `1e6`    | sample rate                                                   |
+| `--freq`      | float (Hz)                | `0`      | frequency offset from baseband (mixed by the LO)              |
+| `--snr`       | float (dB)                | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)            |
+| `--snr_mode`  | `auto fs ebno esno`       | `auto`   | how `--snr` is interpreted (see below)                        |
+| `--seed`      | uint32                    | `1`      | PRNG / LFSR seed (deterministic)                              |
+| `--sps`       | int                       | `8`      | samples per symbol (`*psk`) / per chip (`pn`)                 |
+| `--pn_length` | int (2..64)               | `7`      | LFSR register length → period `2ⁿ−1`                          |
+| `--pn_poly`   | uint64                    | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial           |
+| `--lfsr`      | `galois fibonacci`        | `galois` | LFSR realization (same polynomial/period, different sequence) |
+| `--count`     | int                       | `1024`   | number of complex samples to generate                         |
 
 ### Output
 
-| Flag | Values | Default | Meaning |
-|---|---|---|---|
-| `--sample_type` | `cf32 cf64 ci32 ci16 ci8` | `cf32` | wire type; integers are full-scale ±1.0 |
-| `--file_type` | `raw csv` *(+ `blue sigmf` in `wfmgen`)* | `raw` | container (see [Containers](#containers)) |
-| `--endian` | `le be` | `le` | byte order (raw/BLUE only; csv is text) |
-| `--output` / `-o` | path *(or `zmq://…` in `wfmgen`)* | stdout | sink |
-| `--record` | path | — | write a JSON record of the resolved run |
+| Flag              | Values                                   | Default | Meaning                                   |
+| ----------------- | ---------------------------------------- | ------- | ----------------------------------------- |
+| `--sample_type`   | `cf32 cf64 ci32 ci16 ci8`                | `cf32`  | wire type; integers are full-scale ±1.0   |
+| `--file_type`     | `raw csv` *(+ `blue sigmf` in `wfmgen`)* | `raw`   | container (see [Containers](#containers)) |
+| `--endian`        | `le be`                                  | `le`    | byte order (raw/BLUE only; csv is text)   |
+| `--output` / `-o` | path *(or `zmq://…` in `wfmgen`)*        | stdout  | sink                                      |
+| `--record`        | path                                     | —       | write a JSON record of the resolved run   |
 
 ### `wfmgen`-only (the composer)
 
-| Flag | Meaning |
-|---|---|
+| Flag                    | Meaning                                                              |
+| ----------------------- | -------------------------------------------------------------------- |
 | `--from-file SPEC.json` | run a multi-segment spec (see [Multi-segment](#multi-segment-specs)) |
-| `--fc HZ` | capture center frequency, written into BLUE/SigMF metadata |
-| `--off N` | trailing off-time (zeros) after the segment |
-| `--repeat` | loop the whole sequence |
-| `--continuous` | never stop (implies repeat) — for streaming |
-| `--detached` | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data) |
+| `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata           |
+| `--off N`               | trailing off-time (zeros) after the segment                          |
+| `--repeat`              | loop the whole sequence                                              |
+| `--continuous`          | never stop (implies repeat) — for streaming                          |
+| `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data)              |
 
----
+______________________________________________________________________
 
 ## SNR & noise
 
 `--snr` is applied as AWGN; `--snr_mode` chooses the reference:
 
-| Mode | `--snr` means | Use for |
-|---|---|---|
-| `fs`   | SNR over the full sample rate (in-band power / noise power) | tones, wideband |
-| `esno` | **Es/No** — energy per *symbol* over noise PSD | modulated (`*psk`) |
-| `ebno` | **Eb/No** — energy per *bit* over noise PSD | link-budget work |
-| `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk` | the sensible default |
+| Mode   | `--snr` means                                               | Use for              |
+| ------ | ----------------------------------------------------------- | -------------------- |
+| `fs`   | SNR over the full sample rate (in-band power / noise power) | tones, wideband      |
+| `esno` | **Es/No** — energy per *symbol* over noise PSD              | modulated (`*psk`)   |
+| `ebno` | **Eb/No** — energy per *bit* over noise PSD                 | link-budget work     |
+| `auto` | `fs` for `tone`/`noise`/`pn`, `esno` for `bpsk`/`qpsk`      | the sensible default |
 
 **`--snr 100` (the default) is *clean*** — `snr ≥ 100 dB` generates **no AWGN at
 all**, so a clean waveform pays no noise cost. Lower `--snr` to add noise; then
@@ -120,13 +121,14 @@ Likewise **`--freq 0` skips the LO** — the carrier is a constant 1 — so a cl
 baseband waveform is pure signal generation.
 
 !!! example "Same QPSK at three references"
+
     ```sh
     wavegen --type qpsk --snr 10 --snr_mode esno     # 10 dB Es/No (the auto default)
     wavegen --type qpsk --snr 7  --snr_mode ebno     # 7 dB Eb/No  (= 10 dB Es/No)
     wavegen --type qpsk --snr 1  --snr_mode fs        # 1 dB over fs (per-sample)
     ```
 
----
+______________________________________________________________________
 
 ## PN sequences & MLS
 
@@ -150,19 +152,19 @@ primitive polynomial and have the same period `2ⁿ−1`; they differ only in th
 chip sequence/phase. The Fibonacci taps are derived from the same polynomial, so
 `--pn_poly 0` still auto-selects the MLS for either mode.
 
----
+______________________________________________________________________
 
 ## Containers
 
 `--sample_type` (the *datatype*) is orthogonal to `--file_type` (the *container*)
 and `--endian` (byte order).
 
-| `--file_type` | Output | Notes |
-|---|---|---|
-| `raw`   | interleaved I/Q in the chosen `--sample_type` | the SDR default; honors `--endian` |
-| `csv`   | one `I,Q` line per sample | `%0.9f` cf32, `%0.17g` cf64, `%d` integer; text, no endian |
-| `blue`  | **X-Midas / REDHAWK BLUE type-1000** | *(`wfmgen` only)* self-describing 512-byte header |
-| `sigmf` | `<base>.sigmf-data` + `<base>.sigmf-meta` | *(`wfmgen` only)* one annotation per segment |
+| `--file_type` | Output                                        | Notes                                                      |
+| ------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| `raw`         | interleaved I/Q in the chosen `--sample_type` | the SDR default; honors `--endian`                         |
+| `csv`         | one `I,Q` line per sample                     | `%0.9f` cf32, `%0.17g` cf64, `%d` integer; text, no endian |
+| `blue`        | **X-Midas / REDHAWK BLUE type-1000**          | *(`wfmgen` only)* self-describing 512-byte header          |
+| `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | *(`wfmgen` only)* one annotation per segment               |
 
 **BLUE type-1000** writes a complete 512-byte X-Midas/REDHAWK Header Control
 Block so one file is fully self-describing: `data_rep`←`--endian`, `format`
@@ -186,14 +188,14 @@ wfmgen --type qpsk --count 200000 --sample_type ci16 --endian be \
 wfmgen --from-file scenario.json --sample_type ci16 --file_type sigmf -o capture
 ```
 
----
+______________________________________________________________________
 
 ## Sinks
 
-| `--output` | Result |
-|---|---|
-| *(omitted)* | binary stream to **stdout** (pipe it) |
-| `file.iq` | write to a file |
+| `--output`           | Result                                                                 |
+| -------------------- | ---------------------------------------------------------------------- |
+| *(omitted)*          | binary stream to **stdout** (pipe it)                                  |
+| `file.iq`            | write to a file                                                        |
 | `zmq://tcp://*:5555` | *(`wfmgen` only)* publish to a **ZMQ PUB** endpoint (SIGS wire format) |
 
 ```sh
@@ -204,7 +206,7 @@ wfmgen  --type tone --continuous --output zmq://tcp://*:5555   # stream forever 
 A `dp_sub_*` subscriber (e.g. `examples/c/spectrum_analyzer`) reads the ZMQ
 stream.
 
----
+______________________________________________________________________
 
 ## Multi-segment specs
 
@@ -235,7 +237,7 @@ to the engine default** if omitted. `num_samples` is the on-time;
 wfmgen --from-file scenario.json -o scenario.cf32
 ```
 
----
+______________________________________________________________________
 
 ## Reproducible runs (`--record`)
 
@@ -251,7 +253,7 @@ wfmgen --from-file run.json -o b.iq      # a.iq and b.iq are identical
 Use it to document a capture next to its data, or to pin an exact scenario in a
 test.
 
----
+______________________________________________________________________
 
 ## The three faces of `wavegen`
 
@@ -265,7 +267,7 @@ python wavegen.py --type qpsk --count 4096            # 2. PEP 723 script (uv ru
 ./build/wavegen --type qpsk --count 4096              # 3. standalone C binary
 ```
 
----
+______________________________________________________________________
 
 ## Python API
 
@@ -285,13 +287,13 @@ synth.reset()                            # restart the sequence (keeps config)
 
 Also exported from `doppler.wfmgen`:
 
-| Symbol | Use |
-|---|---|
-| `Synth(type=…, …)` | the waveform engine (above) |
-| `PN(poly, seed, length)` | a raw LFSR / PN sequence object |
-| `bpsk_map(bits)` / `qpsk_map(syms)` | map bits/symbol-indices → cf32 constellation points |
-| `wfm_awgn_amplitude(snr_db, signal_power)` | AWGN amplitude for a target SNR over fs |
-| `wfm_ebno_to_snr_db(ebno_db, bits_per_symbol, samples_per_symbol)` | Eb/No → over-fs SNR |
+| Symbol                                                             | Use                                                 |
+| ------------------------------------------------------------------ | --------------------------------------------------- |
+| `Synth(type=…, …)`                                                 | the waveform engine (above)                         |
+| `PN(poly, seed, length)`                                           | a raw LFSR / PN sequence object                     |
+| `bpsk_map(bits)` / `qpsk_map(syms)`                                | map bits/symbol-indices → cf32 constellation points |
+| `wfm_awgn_amplitude(snr_db, signal_power)`                         | AWGN amplitude for a target SNR over fs             |
+| `wfm_ebno_to_snr_db(ebno_db, bits_per_symbol, samples_per_symbol)` | Eb/No → over-fs SNR                                 |
 
 ```python
 # A matched-filter QPSK constellation (the receiver view):
@@ -317,7 +319,7 @@ iq = read_iq("capture.iq", sample_type="cf32")   # → complex64, zero-copy
 `generate → read_iq` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../types.md#reading-interleaved-iq-in-python).
 
----
+______________________________________________________________________
 
 ## Recipes
 
@@ -335,11 +337,11 @@ wfmgen --from-file scenario.json --record run.json --file_type blue -o scene.blu
 wfmgen --type qpsk --snr 10 --continuous --output zmq://tcp://*:5555
 ```
 
----
+______________________________________________________________________
 
 ## See also
 
 - [Gallery: wfmgen — one engine, every waveform](../gallery/wfmgen.md) — the
-  spectra/constellations behind each type, with the demo script.
+    spectra/constellations behind each type, with the demo script.
 - [Python: Source (NCO / LO / AWGN)](../api/python-nco.md) — the building-block
-  primitives the engine composes.
+    primitives the engine composes.

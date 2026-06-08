@@ -1,7 +1,7 @@
 # API Reference
 
 ::: doppler
-    options:
-      show_source: true
-      members: true
-      inherited_members: false
+options:
+show_source: true
+members: true
+inherited_members: false

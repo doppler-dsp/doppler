@@ -2,16 +2,16 @@
 
 Three signal-source classes in the `doppler.source` module:
 
-| Class | Output | Use when |
-|-------|--------|----------|
-| `LO` | CF32 complex phasors via 2¹⁶-entry sin/cos LUT | Generate IQ tones, FM signals |
-| `NCO` | uint32 raw phase accumulator | Drive polyphase clock, generate carries |
-| `AWGN` | CF32 complex Gaussian noise | Noise injection, SNR testing, Monte Carlo |
+| Class  | Output                                         | Use when                                  |
+| ------ | ---------------------------------------------- | ----------------------------------------- |
+| `LO`   | CF32 complex phasors via 2¹⁶-entry sin/cos LUT | Generate IQ tones, FM signals             |
+| `NCO`  | uint32 raw phase accumulator                   | Drive polyphase clock, generate carries   |
+| `AWGN` | CF32 complex Gaussian noise                    | Noise injection, SNR testing, Monte Carlo |
 
 Source:
 [`src/doppler/source/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/__init__.py)
 
----
+______________________________________________________________________
 
 ## `LO` — complex phasor generator
 
@@ -47,7 +47,7 @@ a = lo.steps(512)
 b = lo.steps(512)   # seamlessly continues from sample 512
 ```
 
----
+______________________________________________________________________
 
 ## `NCO` — raw phase accumulator
 
@@ -72,19 +72,19 @@ nco2 = NCO(0.25, nmax=1000)
 scaled = nco2.steps_u32_scaled(16)   # values in [0, 1000)
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.source.LO
 
----
+______________________________________________________________________
 
 ::: doppler.source.NCO
 
----
+______________________________________________________________________
 
 ## `AWGN` — Additive White Gaussian Noise
 
-xoshiro256++ RNG + Box-Muller transform.  Per-component std dev = `amplitude`.
+xoshiro256++ RNG + Box-Muller transform. Per-component std dev = `amplitude`.
 AVX-512 path runs 8 independent streams in parallel (~525 MSa/s).
 
 ```python
@@ -105,6 +105,6 @@ same_noise = g.generate(1024)
 g.reseed(999)
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.source.AWGN

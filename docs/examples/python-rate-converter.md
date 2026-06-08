@@ -1,13 +1,13 @@
 # RateConverter
 
 `RateConverter` is a single-class interface to all of doppler's decimation and
-interpolation primitives.  It inspects the requested rate ratio at construction
+interpolation primitives. It inspects the requested rate ratio at construction
 time and builds the cheapest cascade — halfband, CIC, or polyphase Resampler —
 without any configuration from the caller.
 
 Source: [`examples/python/rate_converter_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/examples/python/rate_converter_demo.py)
 
----
+______________________________________________________________________
 
 ## Stage selection
 
@@ -31,11 +31,11 @@ for rate in rates:
 
 The halfband and CIC paths are the fastest for power-of-two decimation ratios
 because they require far fewer multiplications per output sample than a
-general polyphase filter.  A non-integer ratio like 0.1 (= 1/10) is handled
+general polyphase filter. A non-integer ratio like 0.1 (= 1/10) is handled
 by rounding to the nearest power-of-two CIC (R=8) and then correcting the
 residual 0.8× with the polyphase Resampler.
 
----
+______________________________________________________________________
 
 ## Frequency preservation
 
@@ -65,11 +65,11 @@ rate=0.1250  expected fn_out=0.3200  measured=0.3200
 rate=0.3333  expected fn_out=0.1200  measured=0.1200
 ```
 
----
+______________________________________________________________________
 
 ## Rate change at runtime
 
-Assign to `.rate` to rebuild the cascade in place.  Filter state is reset and
+Assign to `.rate` to rebuild the cascade in place. Filter state is reset and
 the output buffer is reallocated if the new rate requires a larger buffer:
 
 ```python
@@ -88,7 +88,7 @@ rc.rate = 2.0
 y3 = rc.execute(x); print(len(y3))   # 2048
 ```
 
----
+______________________________________________________________________
 
 ## Streaming — phase-continuous across blocks
 
@@ -114,7 +114,7 @@ y_split = np.concatenate([
 assert np.array_equal(y_full, y_split)   # byte-identical ✓
 ```
 
----
+______________________________________________________________________
 
 ## CIC droop compensation
 
@@ -133,7 +133,7 @@ print(rc_comp.stages)    # ['CIC(8)+FIR']
 The compensating FIR corrects the `|sin(x)/x|⁴` roll-off over the CIC
 passband at negligible extra cost (7 taps running at the decimated rate).
 
----
+______________________________________________________________________
 
 ## Functional interface
 
@@ -150,7 +150,7 @@ y1, rc = rate_convert(x, 0.5)          # creates RateConverter(0.5)
 y2, rc = rate_convert(x, 0.5, rc=rc)   # reuses it — state preserved
 ```
 
----
+______________________________________________________________________
 
 Run the full demo:
 

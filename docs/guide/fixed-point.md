@@ -1,17 +1,17 @@
 # Getting Started with Fixed-Point Arithmetic
 
 Fixed-point arithmetic is floating-point with the decimal point nailed to one
-place.  You trade dynamic range for speed, determinism, and hardware
-compatibility.  This guide builds intuition from first principles, then shows
+place. You trade dynamic range for speed, determinism, and hardware
+compatibility. This guide builds intuition from first principles, then shows
 every concept applied with `doppler.arith`.
 
----
+______________________________________________________________________
 
 ## 1. The implied binary point
 
-A binary integer has bits with place values 2⁰, 2¹, 2², ….  Fixed-point
+A binary integer has bits with place values 2⁰, 2¹, 2², …. Fixed-point
 shifts those place values left or right by agreeing — in software — that a
-certain bit position is "the one's place."  The agreement is implicit: the
+certain bit position is "the one's place." The agreement is implicit: the
 hardware stores plain integers; your code knows the scale.
 
 ```
@@ -27,7 +27,7 @@ Place value:  1  ½  ¼  ⅛  1/16 …              ← if the point sits ABOVE 
 
 The **Q-format notation** makes the agreement explicit.
 
----
+______________________________________________________________________
 
 ## 2. Q notation — Qm.n
 
@@ -35,10 +35,10 @@ The **Q-format notation** makes the agreement explicit.
 `n` bits for the fractional part, stored in an (m+n)-bit two's complement
 integer.
 
-| Format | Stored type | Integer bits | Fraction bits | Range | Resolution (LSB) |
-|--------|-------------|:---:|:---:|---|---|
-| Q8  (Q1.7)  | `int8_t`  | 1 | 7 | [−1, +1 − 2⁻⁷] | 2⁻⁷ ≈ 0.0078 |
-| Q15 (Q1.15) | `int16_t` | 1 | 15 | [−1, +1 − 2⁻¹⁵] | 2⁻¹⁵ ≈ 3.05 × 10⁻⁵ |
+| Format      | Stored type | Integer bits | Fraction bits | Range           | Resolution (LSB)   |
+| ----------- | ----------- | :----------: | :-----------: | --------------- | ------------------ |
+| Q8 (Q1.7)   | `int8_t`    |      1       |       7       | [−1, +1 − 2⁻⁷]  | 2⁻⁷ ≈ 0.0078       |
+| Q15 (Q1.15) | `int16_t`   |      1       |      15       | [−1, +1 − 2⁻¹⁵] | 2⁻¹⁵ ≈ 3.05 × 10⁻⁵ |
 
 The real value of a raw integer `k` stored in Qm.n is:
 
@@ -60,12 +60,13 @@ print(half_q15 / 32768)        # 0.5
 ```
 
 !!! note "Why not reach +1?"
+
     Two's complement gives 2ⁿ negative values but only 2ⁿ − 1 non-negative
-    values.  `int16_t` covers −32768 to +32767, so Q15 spans [−1, +32767/32768].
+    values. `int16_t` covers −32768 to +32767, so Q15 spans [−1, +32767/32768].
     The missing upper bound is a fundamental property of the representation, not
     a bug.
 
----
+______________________________________________________________________
 
 ## 3. Scaling — converting float to fixed-point
 
@@ -98,21 +99,21 @@ recovered8 = k8 / scale8           # 0.7109...  (larger error — 7 fraction bit
 The difference between `x` and `recovered` is the **quantisation error**,
 bounded by ½ LSB when rounding (one full LSB when truncating).
 
----
+______________________________________________________________________
 
 ## 4. Range and representable values
 
 The representable range of a Qm.n integer type is determined entirely by the
 integer range of the storage type.
 
-| Format | Storage | Integer range | Real range |
-|--------|---------|:---:|:---:|
-| Q8     | `int8_t`  | [−128, 127] | [−1.0, +127/128] |
+| Format | Storage   |  Integer range  |      Real range      |
+| ------ | --------- | :-------------: | :------------------: |
+| Q8     | `int8_t`  |   [−128, 127]   |   [−1.0, +127/128]   |
 | Q15    | `int16_t` | [−32768, 32767] | [−1.0, +32767/32768] |
 
 Any real value outside this range cannot be represented — it overflows.
 
----
+______________________________________________________________________
 
 ## 5. Overflow vs saturation
 
@@ -150,13 +151,14 @@ print(add_q15(a, b)[0])   # 32767 — clamped, not wrapped
 ```
 
 !!! tip "When NOT to saturate"
+
     Integrating accumulators in CIC filters intentionally rely on two's
     complement wrap-around: the overflow at each integrator cancels in the
-    subsequent comb section.  `AccQ15` and `AccQ8` use a wider integer
+    subsequent comb section. `AccQ15` and `AccQ8` use a wider integer
     accumulator (int64_t and int32_t respectively) instead of Q-format
     saturation, so the partial sums stay exact until you `dump()` them.
 
----
+______________________________________________________________________
 
 ## 6. Bit growth on arithmetic operations
 
@@ -166,7 +168,7 @@ the exact result.
 ### 6a. Addition and subtraction
 
 Adding two n-bit numbers requires n+1 bits to hold every possible result
-without overflow.  In general, adding k numbers of n bits each requires
+without overflow. In general, adding k numbers of n bits each requires
 n + ⌈log₂ k⌉ bits.
 
 ```
@@ -214,7 +216,7 @@ print(quarter[0] / 32768)                   # 0.25
 ### 6c. The dot product
 
 `dot_q15(a, b)` returns the **raw Q30 accumulation** as int64 — no shift, no
-saturation.  This lets you inspect the full precision before deciding how to
+saturation. This lets you inspect the full precision before deciding how to
 normalise.
 
 ```python
@@ -231,19 +233,19 @@ q15_scalar = shr_i64(np.array([raw], dtype=np.int64), 15)
 print(q15_scalar[0])         # 16384  (= 1.0 in Q15 — correct: Σ 0.5² = 1.0)
 ```
 
----
+______________________________________________________________________
 
 ## 7. Required accumulator width (no precision loss)
 
 The accumulator must be wide enough to hold the sum of all products before any
 normalising shift.
 
-| Operation | Operand type | Product width | Max terms | Min accumulator |
-|-----------|-------------|:---:|:---:|:---:|
-| `dot_q15` | Q15 (int16) | Q30 (int32) | ≤ 2³³ | int64 |
-| `dot_q8`  | Q8 (int8)   | Q14 (int16) | ≤ 2¹⁷ | int32 |
-| `AccQ15.madd` | Q15 | Q30 | ≤ 2³³ | int64 |
-| `AccQ8.madd`  | Q8  | Q14 | ≤ 2¹⁷ | int32 |
+| Operation     | Operand type | Product width | Max terms | Min accumulator |
+| ------------- | ------------ | :-----------: | :-------: | :-------------: |
+| `dot_q15`     | Q15 (int16)  |  Q30 (int32)  |   ≤ 2³³   |      int64      |
+| `dot_q8`      | Q8 (int8)    |  Q14 (int16)  |   ≤ 2¹⁷   |      int32      |
+| `AccQ15.madd` | Q15          |      Q30      |   ≤ 2³³   |      int64      |
+| `AccQ8.madd`  | Q8           |      Q14      |   ≤ 2¹⁷   |      int32      |
 
 The guard-bits formula:
 
@@ -261,21 +263,21 @@ For dot_q8 with n=1024:
   total needed = 24 bits → use int32 (32 bits)
 ```
 
----
+______________________________________________________________________
 
 ## 8. Truncation vs rounding
 
 After a multiply or shift you must decide how to discard the fractional bits
 you are throwing away.
 
-| Mode | Rule | Error range | Bias |
-|------|------|:---:|:---:|
-| Truncation (floor) | `x >> n` | [−1 LSB, 0) | negative |
-| Round half-up | `(x + 2^(n−1)) >> n` | [−½ LSB, +½ LSB] | slight positive |
-| Round half-even (banker's) | round to nearest even | [−½ LSB, +½ LSB] | none |
+| Mode                       | Rule                  |   Error range    |      Bias       |
+| -------------------------- | --------------------- | :--------------: | :-------------: |
+| Truncation (floor)         | `x >> n`              |   \[−1 LSB, 0)   |    negative     |
+| Round half-up              | `(x + 2^(n−1)) >> n`  | [−½ LSB, +½ LSB] | slight positive |
+| Round half-even (banker's) | round to nearest even | [−½ LSB, +½ LSB] |      none       |
 
 `doppler.arith` uses **round-half-up** throughout: the bias of ½ LSB is added
-before the shift.  This is the standard choice for DSP and matches the
+before the shift. This is the standard choice for DSP and matches the
 behaviour of most hardware DSPs.
 
 ```
@@ -302,16 +304,16 @@ print(shr_q15(a, 1)[0])                # 20480 / 32768 = 0.625  (= 0.75/2, round
 print(np.int16(np.int32(24576) >> 1))  # 12288 / 32768 = 0.375  (biased low)
 ```
 
----
+______________________________________________________________________
 
 ## 9. Saturation arithmetic — a closer look
 
-Saturation replaces the modular wrap of two's complement with a clamp.  Every
+Saturation replaces the modular wrap of two's complement with a clamp. Every
 `add`, `sub`, `mul`, and `shl` in `doppler.arith` saturates.
 
 ### Why shifts can overflow too
 
-A left shift multiplies by a power of two.  Shifting a Q15 value left by 1
+A left shift multiplies by a power of two. Shifting a Q15 value left by 1
 doubles it, which can overflow:
 
 ```python
@@ -327,10 +329,10 @@ print(shl_q15(a, 1))   # [ 32767, -32768]
 ### The sign-flip hazard
 
 Without saturation, overflow is invisible — the number *looks* valid but has
-the wrong sign.  Saturation makes clipping audible/visible without the far worse
+the wrong sign. Saturation makes clipping audible/visible without the far worse
 artefact of a full sign flip.
 
----
+______________________________________________________________________
 
 ## 10. Working with the doppler.arith API
 
@@ -365,7 +367,7 @@ print(y, '→', y / 32768)
 
 ### Stateful accumulators
 
-`AccQ15` and `AccQ8` maintain a running sum across calls.  Use `madd` for
+`AccQ15` and `AccQ8` maintain a running sum across calls. Use `madd` for
 multiply-accumulate (the MAC operation at the heart of every FIR filter).
 
 ```python
@@ -388,46 +390,46 @@ q15_out = np.int16(np.clip(
 
 ### Q8 vs Q15 — when to choose which
 
-| Criterion | Q8 (int8) | Q15 (int16) |
-|-----------|-----------|-------------|
-| Resolution | 7 fraction bits (~0.8% of full scale) | 15 fraction bits (~0.003%) |
-| SQNR (thermal noise limit) | ~48 dB | ~96 dB |
-| Memory / bandwidth | 1 byte/sample | 2 bytes/sample |
-| AVX2 throughput | 32 int8 per register | 16 int16 per register |
-| Typical use | rough quantization, neural-net weights | audio, SDR, precision DSP |
+| Criterion                  | Q8 (int8)                              | Q15 (int16)                |
+| -------------------------- | -------------------------------------- | -------------------------- |
+| Resolution                 | 7 fraction bits (~0.8% of full scale)  | 15 fraction bits (~0.003%) |
+| SQNR (thermal noise limit) | ~48 dB                                 | ~96 dB                     |
+| Memory / bandwidth         | 1 byte/sample                          | 2 bytes/sample             |
+| AVX2 throughput            | 32 int8 per register                   | 16 int16 per register      |
+| Typical use                | rough quantization, neural-net weights | audio, SDR, precision DSP  |
 
 A 6 dB/bit rule of thumb: each additional bit buys ~6 dB of
 signal-to-quantisation-noise ratio (SQNR).
 
----
+______________________________________________________________________
 
 ## 11. Summary: the five rules
 
-1. **Know your Q.**  Track the binary point through every operation.  If two
-   operands have different Q, align them before adding.
+1. **Know your Q.** Track the binary point through every operation. If two
+    operands have different Q, align them before adding.
 
-2. **Widen on multiply.**  Q15 × Q15 = Q30.  Keep the product in at least
-   int32 before shifting back.  Use int64 for accumulators.
+1. **Widen on multiply.** Q15 × Q15 = Q30. Keep the product in at least
+    int32 before shifting back. Use int64 for accumulators.
 
-3. **Round, don't truncate.**  Add `2^(n−1)` before the right-shift to get
-   round-half-up.  It costs one addition; it buys unbiased output.
+1. **Round, don't truncate.** Add `2^(n−1)` before the right-shift to get
+    round-half-up. It costs one addition; it buys unbiased output.
 
-4. **Saturate at the output.**  Carry full precision through the pipeline; only
-   clamp at the final output word.  Intermediate saturation destroys precision.
+1. **Saturate at the output.** Carry full precision through the pipeline; only
+    clamp at the final output word. Intermediate saturation destroys precision.
 
-5. **Size your accumulator.** Accumulating k products of n-bit width needs
-   n + ⌈log₂ k⌉ bits.  For k = 1024 Q15 products that is 26 bits — int32 is
-   tight; int64 is safe.
+1. **Size your accumulator.** Accumulating k products of n-bit width needs
+    n + ⌈log₂ k⌉ bits. For k = 1024 Q15 products that is 26 bits — int32 is
+    tight; int64 is safe.
 
----
+______________________________________________________________________
 
 ## 12. Further reading
 
 - `doppler.arith` module — `add_q15`, `sub_q15`, `mul_q15`, `dot_q15`,
-  `shl_q15`, `shr_q15`, `AccQ15`, `AccQ8`, and Q8 counterparts.
+    `shl_q15`, `shr_q15`, `AccQ15`, `AccQ8`, and Q8 counterparts.
 - [Quantization design note](../design/QUANTIZATION.md) — doppler's encoding
-  conventions for the `cvt` module (Q15 ↔ float, UQ15, I16).
+    conventions for the `cvt` module (Q15 ↔ float, UQ15, I16).
 - [ADC gallery walkthrough](../gallery/adc.md) — 3–8 bit quantisation noise
-  visualised: time-domain staircase and 6 dB/bit noise-floor descent.
+    visualised: time-domain staircase and 6 dB/bit noise-floor descent.
 - [HBDecimQ15 gallery walkthrough](../gallery/hbdecim_q15.md) — Q15 halfband
-  decimator: the `_mm256_madd_epi16` inner loop and symmetric-fold trick.
+    decimator: the `_mm256_madd_epi16` inner loop and symmetric-fold trick.

@@ -26,20 +26,22 @@ from doppler.spectral import Corr, Corr2D, Detector, Detector2D
 
 # ── Parameters ───────────────────────────────────────────────────────────────
 
-N, LAG = 64, 17       # 1-D frame length and injected lag
-NY, NX = 8, 8         # 2-D frame dimensions
-ROW, COL = 3, 5       # 2-D shift (row, col)
-SIGMA = 2.0           # noise amplitude; power = SIGMA² = 4  →  SNR ≈ −6 dB
-DWELL = 8             # coherent integration depth
-THRESHOLD = 5.0       # detection gate (for the bar-chart panel)
+N, LAG = 64, 17  # 1-D frame length and injected lag
+NY, NX = 8, 8  # 2-D frame dimensions
+ROW, COL = 3, 5  # 2-D shift (row, col)
+SIGMA = 2.0  # noise amplitude; power = SIGMA² = 4  →  SNR ≈ −6 dB
+DWELL = 8  # coherent integration depth
+THRESHOLD = 5.0  # detection gate (for the bar-chart panel)
 
 rng = np.random.default_rng(42)
 
 # Unit-magnitude BPSK PN references — fully deterministic.
-ref1d = rng.choice(np.array([-1.0, 1.0], dtype=np.float32),
-                   size=N).astype(np.complex64)
-ref2d = rng.choice(np.array([-1.0, 1.0], dtype=np.float32),
-                   size=(NY, NX)).astype(np.complex64)
+ref1d = rng.choice(np.array([-1.0, 1.0], dtype=np.float32), size=N).astype(
+    np.complex64
+)
+ref2d = rng.choice(
+    np.array([-1.0, 1.0], dtype=np.float32), size=(NY, NX)
+).astype(np.complex64)
 
 
 _noise_scale = np.float32(SIGMA / np.sqrt(2))
@@ -58,11 +60,8 @@ def noise_block(n_frames: int) -> np.ndarray:
     """Return n_frames*N samples of CF32 noise (no signal)."""
     total = N * n_frames
     return (
-        (rng.standard_normal(total) + 1j * rng.standard_normal(total)).astype(
-            np.complex64
-        )
-        * _noise_scale
-    )
+        rng.standard_normal(total) + 1j * rng.standard_normal(total)
+    ).astype(np.complex64) * _noise_scale
 
 
 print("=== doppler Corr / Corr2D / Detector / Detector2D demo ===\n")
@@ -145,14 +144,24 @@ fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4))
 
 # Panel 1 — 1-D dwell comparison
 tau = np.arange(N)
-ax1.plot(tau, mag_d1, lw=1, color="tab:blue",
-         label=f"dwell=1  (peak/mean={snr_d1:.1f})")
-ax1.plot(tau, mag_d8, lw=1.5, color="tab:orange",
-         label=f"dwell={DWELL}  (peak/mean={snr_d8:.1f})")
+ax1.plot(
+    tau,
+    mag_d1,
+    lw=1,
+    color="tab:blue",
+    label=f"dwell=1  (peak/mean={snr_d1:.1f})",
+)
+ax1.plot(
+    tau,
+    mag_d8,
+    lw=1.5,
+    color="tab:orange",
+    label=f"dwell={DWELL}  (peak/mean={snr_d8:.1f})",
+)
 ax1.axvline(LAG, color="0.5", ls="--", lw=0.8, label=f"lag={LAG}")
 ax1.set_xlabel("lag τ")
 ax1.set_ylabel("|R[τ]|")
-ax1.set_title(f"1-D Corr: dwell comparison (SNR ≈ −6 dB)")
+ax1.set_title("1-D Corr: dwell comparison (SNR ≈ −6 dB)")
 ax1.legend(fontsize=8)
 ax1.grid(alpha=0.3)
 
@@ -169,12 +178,13 @@ fig.colorbar(im, ax=ax2, fraction=0.046)
 n = N_CYCLES
 xs = np.arange(n)
 w = 0.35
-ax3.bar(xs - w / 2, sig_stats,   w, color="tab:blue", label="signal")
+ax3.bar(xs - w / 2, sig_stats, w, color="tab:blue", label="signal")
 ax3.bar(xs + w / 2, noise_stats, w, color="tab:gray", label="noise-only")
-ax3.axhline(THRESHOLD, color="tab:red", ls="--", lw=1,
-            label=f"threshold={THRESHOLD}")
+ax3.axhline(
+    THRESHOLD, color="tab:red", ls="--", lw=1, label=f"threshold={THRESHOLD}"
+)
 ax3.set_xticks(xs)
-ax3.set_xticklabels([f"cycle {i+1}" for i in xs])
+ax3.set_xticklabels([f"cycle {i + 1}" for i in xs])
 ax3.set_ylabel("test_stat  (peak / noise_est)")
 ax3.set_title(f"Detector: test_stat per dwell cycle (dwell={DWELL})")
 ax3.legend(fontsize=8)

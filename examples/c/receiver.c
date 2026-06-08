@@ -41,7 +41,10 @@ power_cf64 (const double _Complex *s, size_t n)
 {
   double p = 0.0;
   for (size_t i = 0; i < n; i++)
-    { double re = creal (s[i]), im = cimag (s[i]); p += re*re + im*im; }
+    {
+      double re = creal (s[i]), im = cimag (s[i]);
+      p += re * re + im * im;
+    }
   return p / (double)n;
 }
 
@@ -49,11 +52,11 @@ static double
 power_ci32 (const int32_t *s, size_t n)
 {
   const double scale = 1.0 / 2147483647.0;
-  double p = 0.0;
+  double       p     = 0.0;
   for (size_t i = 0; i < n; i++)
     {
-      double re = s[2*i] * scale, im = s[2*i+1] * scale;
-      p += re*re + im*im;
+      double re = s[2 * i] * scale, im = s[2 * i + 1] * scale;
+      p += re * re + im * im;
     }
   return p / (double)n;
 }
@@ -61,16 +64,16 @@ power_ci32 (const int32_t *s, size_t n)
 static void
 format_timestamp (uint64_t ts_ns, char *buf, size_t buf_size)
 {
-  time_t secs = (time_t)(ts_ns / 1000000000ULL);
-  unsigned int ms = (unsigned int)((ts_ns % 1000000000ULL) / 1000000ULL);
-  struct tm tm;
+  time_t       secs = (time_t)(ts_ns / 1000000000ULL);
+  unsigned int ms   = (unsigned int)((ts_ns % 1000000000ULL) / 1000000ULL);
+  struct tm    tm;
 #ifdef _WIN32
   localtime_s (&tm, &secs);
 #else
   localtime_r (&secs, &tm);
 #endif
-  snprintf (buf, buf_size, "%02d:%02d:%02d.%03u",
-            tm.tm_hour, tm.tm_min, tm.tm_sec, ms);
+  snprintf (buf, buf_size, "%02d:%02d:%02d.%03u", tm.tm_hour, tm.tm_min,
+            tm.tm_sec, ms);
 }
 
 static void
@@ -83,19 +86,20 @@ print_samples (const void *samples, dp_sample_type_t type, size_t count)
       if (type == CI32)
         {
           const int32_t *s = (const int32_t *)samples;
-          printf ("    [%zu] I: %d, Q: %d\n", i, s[2*i], s[2*i+1]);
+          printf ("    [%zu] I: %d, Q: %d\n", i, s[2 * i], s[2 * i + 1]);
         }
       else if (type == CF64)
         {
           const double _Complex *s = (const double _Complex *)samples;
-          printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i,
-                  creal (s[i]), cimag (s[i]));
+          printf ("    [%zu] I: %+.6f, Q: %+.6f\n", i, creal (s[i]),
+                  cimag (s[i]));
         }
       else if (type == CF128)
         {
-          const long double _Complex *s = (const long double _Complex *)samples;
-          printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i,
-                  creall (s[i]), cimagl (s[i]));
+          const long double _Complex *s
+              = (const long double _Complex *)samples;
+          printf ("    [%zu] I: %+.6Lf, Q: %+.6Lf\n", i, creall (s[i]),
+                  cimagl (s[i]));
         }
     }
 }
@@ -105,8 +109,8 @@ main (int argc, char *argv[])
 {
   const char *endpoint = "tcp://localhost:5555";
 
-  if (argc > 1 && (strcmp (argv[1], "--help") == 0
-                   || strcmp (argv[1], "-h") == 0))
+  if (argc > 1
+      && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
     {
       printf ("Usage: %s [endpoint]\n\n", argv[0]);
       printf ("  endpoint  ZMQ SUB connect address"
@@ -114,9 +118,10 @@ main (int argc, char *argv[])
       printf ("Press Ctrl+C to stop.\n");
       return 0;
     }
-  if (argc > 1) endpoint = argv[1];
+  if (argc > 1)
+    endpoint = argv[1];
 
-  signal (SIGINT,  signal_handler);
+  signal (SIGINT, signal_handler);
   signal (SIGTERM, signal_handler);
 
   dp_sub_t *ctx = dp_sub_create (endpoint);
@@ -130,17 +135,18 @@ main (int argc, char *argv[])
           endpoint);
   fflush (stdout);
 
-  uint64_t total_samples  = 0;
-  uint64_t packet_count   = 0;
-  uint64_t last_seq       = 0;
-  uint64_t dropped        = 0;
+  uint64_t total_samples = 0;
+  uint64_t packet_count  = 0;
+  uint64_t last_seq      = 0;
+  uint64_t dropped       = 0;
 
   while (keep_running)
     {
-      dp_msg_t    *msg = NULL;
-      dp_header_t  hdr;
+      dp_msg_t   *msg = NULL;
+      dp_header_t hdr;
 
-      if (dp_sub_recv (ctx, &msg, &hdr) != DP_OK) continue;
+      if (dp_sub_recv (ctx, &msg, &hdr) != DP_OK)
+        continue;
 
       size_t           n    = dp_msg_num_samples (msg);
       dp_sample_type_t type = dp_msg_sample_type (msg);
@@ -154,8 +160,10 @@ main (int argc, char *argv[])
       last_seq = hdr.sequence;
 
       double pwr = 0.0;
-      if      (type == CI32) pwr = power_ci32 ((const int32_t *)data, n);
-      else if (type == CF64) pwr = power_cf64 ((const double _Complex *)data, n);
+      if (type == CI32)
+        pwr = power_ci32 ((const int32_t *)data, n);
+      else if (type == CF64)
+        pwr = power_cf64 ((const double _Complex *)data, n);
       double pwr_db = 10.0 * log10 (pwr + 1e-12);
 
       char ts[32];
@@ -166,13 +174,13 @@ main (int argc, char *argv[])
 
       printf ("\033[2J\033[H");
       printf ("doppler Receiver\n================\n");
-      printf ("  Endpoint:     %s\n",  endpoint);
-      printf ("  Sample Type:  %s\n",  dp_sample_type_str (type));
+      printf ("  Endpoint:     %s\n", endpoint);
+      printf ("  Sample Type:  %s\n", dp_sample_type_str (type));
       printf ("  Sample Rate:  %.2f MHz\n", hdr.sample_rate / 1e6);
       printf ("  Center Freq:  %.2f GHz\n", hdr.center_freq / 1e9);
       printf ("\n");
       printf ("  Sequence:     %lu\n", (unsigned long)hdr.sequence);
-      printf ("  Timestamp:    %s\n",  ts);
+      printf ("  Timestamp:    %s\n", ts);
       printf ("  Num Samples:  %lu\n", (unsigned long)n);
       printf ("  Power:        %.2f dB\n", pwr_db);
       printf ("\n");

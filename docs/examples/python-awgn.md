@@ -7,7 +7,7 @@ Total complex power = 2 × amplitude².
 Source:
 [`src/doppler/source/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/source/__init__.py)
 
----
+______________________________________________________________________
 
 ## One-shot function
 
@@ -25,7 +25,7 @@ noise = awgn(1024, amplitude=0.3, seed=42)
 Use :class:`AWGN` directly when you need phase-continuous streams,
 reproducible multi-call replay, or per-call amplitude adjustments.
 
----
+______________________________________________________________________
 
 ## Stateful generation
 
@@ -44,7 +44,7 @@ print(f"mean={re.mean():.3f}  std={re.std():.3f}")
 # mean≈0.000  std≈1.000
 ```
 
----
+______________________________________________________________________
 
 ## Amplitude control
 
@@ -61,7 +61,7 @@ n2 = g.generate(65536)
 print(np.std(np.real(n2)))    # ≈ 0.100
 ```
 
----
+______________________________________________________________________
 
 ## Seeding and reproducibility
 
@@ -94,7 +94,7 @@ run_b = g.generate(256)
 assert not np.array_equal(run_a, run_b)
 ```
 
----
+______________________________________________________________________
 
 ## Combining with a signal
 
@@ -124,20 +124,20 @@ print(f"SNR: {10 * np.log10(snr_measured):.1f} dB")
 # SNR: 10.0 dB
 ```
 
----
+______________________________________________________________________
 
 ## Performance
 
 At 64 K blocks, `AWGN.generate()` reaches:
 
-| Path | Rate |
-|------|------|
-| Scalar (x86) | ~183 MSa/s |
+| Path                                     | Rate       |
+| ---------------------------------------- | ---------- |
+| Scalar (x86)                             | ~183 MSa/s |
 | AVX-512 (8-stream xoshiro + libmvec log) | ~525 MSa/s |
 
 The AVX-512 path is selected automatically at runtime when the CPU
 supports it; no user action required.
 
----
+______________________________________________________________________
 
 ::: doppler.source.AWGN

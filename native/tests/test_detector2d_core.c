@@ -3,13 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);        \
-      _fails++;                                                                \
-    }                                                                          \
-  } while (0)
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
 
 #define NY 8
 #define NX 8
@@ -23,7 +26,7 @@ main (void)
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -45,12 +48,12 @@ main (void)
    * test_stat = N >> 1.                                                 */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t results[16];
-    size_t ndet = detector2d_push (det, ref, N, results, 16);
+    det_result2d_t      results[16];
+    size_t              ndet = detector2d_push (det, ref, N, results, 16);
 
     CHECK (ndet == 1);
     CHECK (results[0].row == 0);
@@ -65,11 +68,11 @@ main (void)
   /* ── sub-frame push ──────────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t results[16];
+    det_result2d_t      results[16];
 
     size_t n1 = detector2d_push (det, ref, N / 2, results, 16);
     CHECK (n1 == 0);
@@ -84,11 +87,11 @@ main (void)
   /* ── dwell=2 ─────────────────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t results[16];
+    det_result2d_t      results[16];
 
     size_t n1 = detector2d_push (det, ref, N, results, 16);
     CHECK (n1 == 0);
@@ -103,14 +106,14 @@ main (void)
   /* ── 2-D shift: ref=δ[0,0] in=δ[1,0] → peak at (row=1, col=0) ──── */
   {
     float complex ref[N] = { 0 };
-    float complex in[N] = { 0 };
-    ref[0] = 1.0f;
-    in[NX] = 1.0f; /* row 1, col 0 */
+    float complex in[N]  = { 0 };
+    ref[0]               = 1.0f;
+    in[NX]               = 1.0f; /* row 1, col 0 */
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t results[16];
-    size_t ndet = detector2d_push (det, in, N, results, 16);
+    det_result2d_t      results[16];
+    size_t              ndet = detector2d_push (det, in, N, results, 16);
 
     CHECK (ndet == 1);
     CHECK (results[0].row == 1);
@@ -122,12 +125,12 @@ main (void)
   /* ── threshold gate ──────────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 1000.0f, 1);
-    det_result2d_t results[16];
-    size_t ndet = detector2d_push (det, ref, N, results, 16);
+    det_result2d_t      results[16];
+    size_t              ndet = detector2d_push (det, ref, N, results, 16);
     CHECK (ndet == 0);
 
     detector2d_set_threshold (det, 0.0f);
@@ -140,11 +143,11 @@ main (void)
   /* ── reset clears state ──────────────────────────────────────────── */
   {
     float complex ref[N] = { 0 };
-    ref[0] = 1.0f;
+    ref[0]               = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
-    det_result2d_t results[16];
+    det_result2d_t      results[16];
 
     detector2d_push (det, ref, N, results, 16);
     CHECK (det->corr->count == 1);

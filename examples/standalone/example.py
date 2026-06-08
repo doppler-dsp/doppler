@@ -12,7 +12,7 @@ from doppler.source import awgn
 
 noise = awgn(4096, amplitude=1.0, seed=42)
 
-mean   = noise.mean()
+mean = noise.mean()
 std_re = float(np.std(np.real(noise)))
 std_im = float(np.std(np.imag(noise)))
 

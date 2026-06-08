@@ -8,8 +8,6 @@ show how many calls per second are achievable from Python, which matters
 when these functions are called in tight planning loops or parameter sweeps.
 """
 
-import pytest
-
 from doppler.detection import (
     det_dwell,
     det_dwell_power,
@@ -24,10 +22,11 @@ from doppler.detection import (
 
 # Pre-computed thresholds so benchmark loops don't include threshold overhead.
 ETA = det_threshold(1e-6)
-P   = det_threshold_power(1e-6)
+P = det_threshold_power(1e-6)
 
 
 # ── marcum_q ──────────────────────────────────────────────────────────────────
+
 
 def test_bench_marcum_q_m1(benchmark):
     """Q_1(2.0, 1.0) — typical single-pulse case."""
@@ -46,6 +45,7 @@ def test_bench_marcum_q_large_a(benchmark):
 
 # ── det_threshold / det_threshold_power ──────────────────────────────────────
 
+
 def test_bench_det_threshold(benchmark):
     """Amplitude threshold: √(−2·ln pfa)."""
     benchmark(det_threshold, 1e-6)
@@ -57,6 +57,7 @@ def test_bench_det_threshold_power(benchmark):
 
 
 # ── det_pd / det_pd_power ─────────────────────────────────────────────────────
+
 
 def test_bench_det_pd_m1(benchmark):
     """Pd for single-pulse envelope detector."""
@@ -80,6 +81,7 @@ def test_bench_det_pd_power_m4(benchmark):
 
 # ── det_dwell / det_dwell_power ───────────────────────────────────────────────
 
+
 def test_bench_det_dwell(benchmark):
     """Minimum dwell search: snr=0.5, pd=0.9, pfa=1e-6 (moderate search)."""
     benchmark(det_dwell, 0.5, 0.9, 1e-6, 512)
@@ -91,6 +93,7 @@ def test_bench_det_dwell_power(benchmark):
 
 
 # ── det_snr / det_snr_power ───────────────────────────────────────────────────
+
 
 def test_bench_det_snr_m4(benchmark):
     """SNR requirement for 4-pulse dwell: bisection over snr."""

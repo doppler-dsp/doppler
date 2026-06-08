@@ -12,7 +12,7 @@ Produces the following artifacts in `build/`, `PY_BUILD=src/doppler/<name>/`,
 and `RUST_BUILD=ffi/rust/target` (extensions differ by platform):
 
 | Artifact          | Linux/macOS             | Windows (MinGW)      | Description                  |
-| ------------------| ----------------------- | -------------------- | ---------------------------- |
+| ----------------- | ----------------------- | -------------------- | ---------------------------- |
 | Shared Library    | `libdoppler.so/dylib`   | `libdoppler.dll`     | DSP + streaming              |
 | Static Library    | `libdoppler.a`          | `libdoppler.a`       | Static link (no runtime dep) |
 | Python extensions | `$PY_BUILD/<name>*.so`  | `<name>*.pyd`        | One per module               |
@@ -24,33 +24,33 @@ And the Python package is in `dist/`:
 
 ### Targets
 
-| Target | Description |
-| ------ | ----------- |
-| `make` | Configure + build (Release by default) |
-| `make test` | Run CTest suite |
-| `make test-all` | Run all test suites (C + Python + Rust) |
-| `make pyext` | Build Python extensions into `src/doppler/` |
-| `make install` | Install headers + libs to system (default `/usr/local`) |
-| `make python-test` | Run pytest |
-| `make rust-test` | Run Rust FFI tests (single-threaded) |
-| `make rust-examples` | Build Rust examples and list their paths |
-| `make docker` | Build Docker image |
-| `make docker-test` | Build image + run container tests |
-| `make debug` | Clean + Debug build |
-| `make release` | Clean + Release build |
-| `make clean` | Remove build artifacts |
-| `make help` | Show all targets and overrides |
+| Target               | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `make`               | Configure + build (Release by default)                  |
+| `make test`          | Run CTest suite                                         |
+| `make test-all`      | Run all test suites (C + Python + Rust)                 |
+| `make pyext`         | Build Python extensions into `src/doppler/`             |
+| `make install`       | Install headers + libs to system (default `/usr/local`) |
+| `make python-test`   | Run pytest                                              |
+| `make rust-test`     | Run Rust FFI tests (single-threaded)                    |
+| `make rust-examples` | Build Rust examples and list their paths                |
+| `make docker`        | Build Docker image                                      |
+| `make docker-test`   | Build image + run container tests                       |
+| `make debug`         | Clean + Debug build                                     |
+| `make release`       | Clean + Release build                                   |
+| `make clean`         | Remove build artifacts                                  |
+| `make help`          | Show all targets and overrides                          |
 
 ## Python bindings
 
 One package is published to PyPI with optional extras:
 
-| Extra | Install | Description |
-| ----- | ------- | ----------- |
-| *(none)* | `pip install doppler-dsp` | FFT, FIR, NCO, streaming, buffer |
-| `specan` | `pip install "doppler-dsp[specan]"` | Terminal spectrum analyzer |
+| Extra        | Install                                 | Description                                 |
+| ------------ | --------------------------------------- | ------------------------------------------- |
+| *(none)*     | `pip install doppler-dsp`               | FFT, FIR, NCO, streaming, buffer            |
+| `specan`     | `pip install "doppler-dsp[specan]"`     | Terminal spectrum analyzer                  |
 | `specan-web` | `pip install "doppler-dsp[specan-web]"` | Web spectrum analyzer (FastAPI + WebSocket) |
-| `cli` | `pip install "doppler-dsp[cli]"` | `doppler compose` pipeline orchestrator |
+| `cli`        | `pip install "doppler-dsp[cli]"`        | `doppler compose` pipeline orchestrator     |
 
 **From source** — build and install the C library first, then install
 the Python package:
@@ -74,11 +74,11 @@ sudo cmake --install build
 
 ## CMake options
 
-| Option | Default | Description |
-| ------ | ------- | ----------- |
-| `USE_FFTW` | OFF | pocketfft backend (default, MIT). ON = FFTW3 (faster, GPL-licensed) |
-| `NumPy_INCLUDE_DIR` | auto | Override NumPy include path (e.g. from a uv venv) |
-| `Python3_EXECUTABLE` | auto | Override Python interpreter (ensures correct ABI suffix) |
+| Option               | Default | Description                                                         |
+| -------------------- | ------- | ------------------------------------------------------------------- |
+| `USE_FFTW`           | OFF     | pocketfft backend (default, MIT). ON = FFTW3 (faster, GPL-licensed) |
+| `NumPy_INCLUDE_DIR`  | auto    | Override NumPy include path (e.g. from a uv venv)                   |
+| `Python3_EXECUTABLE` | auto    | Override Python interpreter (ensures correct ABI suffix)            |
 
 ### FFT backend
 
@@ -101,13 +101,13 @@ All dependencies are available via the standard package manager on each
 platform. Minimum versions are declared in `CMakeLists.txt` (C library) and
 `pyproject.toml` (Python bindings).
 
-| Dependency | Ubuntu/Debian | macOS (Homebrew) | Windows (MSYS2) |
-| ---------- | ------------- | ---------------- | --------------- |
-| ZeroMQ | `libzmq3-dev` | `zeromq` | `mingw-w64-x86_64-zeromq` |
-| FFTW3 | `libfftw3-dev` | `fftw` | `mingw-w64-x86_64-fftw` |
-| CMake | `cmake` | `cmake` | `mingw-w64-x86_64-cmake` |
-| Python | `python3-dev` | `python` | `mingw-w64-x86_64-python` |
-| NumPy | `python3-numpy` | `numpy` | `mingw-w64-x86_64-python-numpy` |
+| Dependency | Ubuntu/Debian   | macOS (Homebrew) | Windows (MSYS2)                 |
+| ---------- | --------------- | ---------------- | ------------------------------- |
+| ZeroMQ     | `libzmq3-dev`   | `zeromq`         | `mingw-w64-x86_64-zeromq`       |
+| FFTW3      | `libfftw3-dev`  | `fftw`           | `mingw-w64-x86_64-fftw`         |
+| CMake      | `cmake`         | `cmake`          | `mingw-w64-x86_64-cmake`        |
+| Python     | `python3-dev`   | `python`         | `mingw-w64-x86_64-python`       |
+| NumPy      | `python3-numpy` | `numpy`          | `mingw-w64-x86_64-python-numpy` |
 
 **Ubuntu/Debian:**
 
@@ -149,10 +149,10 @@ pacman -S mingw-w64-ucrt-x86_64-gcc \
 
 The Python `dp_stream` extension statically links a **vendored copy of libzmq** to eliminate runtime dependencies. This means `pip install doppler-dsp` requires **no system packages** on the user's machine.
 
-| Dependency | Version | Location | License | Why Vendored |
-| ---------- | ------- | -------- | ------- | ------------ |
-| **libzmq** | 4.3.5 | `vendor/libzmq/` | MPL-2.0 | Static link in Python extension for zero-dependency installs |
-| **pocketfft** | - | `c/src/pocketfft.cc` | BSD-3-Clause | Default FFT backend (MIT-compatible, no system dependency) |
+| Dependency    | Version | Location             | License      | Why Vendored                                                 |
+| ------------- | ------- | -------------------- | ------------ | ------------------------------------------------------------ |
+| **libzmq**    | 4.3.5   | `vendor/libzmq/`     | MPL-2.0      | Static link in Python extension for zero-dependency installs |
+| **pocketfft** | -       | `c/src/pocketfft.cc` | BSD-3-Clause | Default FFT backend (MIT-compatible, no system dependency)   |
 
 **For developers:** Vendored libzmq is built automatically when you run `make pyext`. No manual steps needed.
 
@@ -226,8 +226,8 @@ runs in the C library.
 ### Prerequisites
 
 - Rust toolchain — install via the MSYS2 package manager on Windows
-  (`mingw-w64-ucrt-x86_64-rust`) or via [rustup](https://rustup.rs/)
-  on Linux/macOS
+    (`mingw-w64-ucrt-x86_64-rust`) or via [rustup](https://rustup.rs/)
+    on Linux/macOS
 - The C library built first: `make build`
 
 ### Build and test
@@ -264,23 +264,23 @@ running `cargo build` with `PKG_CONFIG_PATH` set to the install prefix.
 
 ### Modules
 
-| Module | Wraps | Description |
-| ------ | ----- | ----------- |
-| `acc` | `acc_f32_*`, `acc_cf64_*` | f32 and cf64 accumulators |
-| `fft` | `fft_create`, `fft_execute_cf64/cf32` | 1-D and 2-D FFT |
-| `fir` | `fir_create`, `fir_execute` | FIR filter (real and complex taps) |
-| `nco` | `nco_create`, `nco_steps_*` | Numerically-controlled oscillator |
+| Module | Wraps                                 | Description                        |
+| ------ | ------------------------------------- | ---------------------------------- |
+| `acc`  | `acc_f32_*`, `acc_cf64_*`             | f32 and cf64 accumulators          |
+| `fft`  | `fft_create`, `fft_execute_cf64/cf32` | 1-D and 2-D FFT                    |
+| `fir`  | `fir_create`, `fir_execute`           | FIR filter (real and complex taps) |
+| `nco`  | `nco_create`, `nco_steps_*`           | Numerically-controlled oscillator  |
 
 ### Sample types
 
 The crate exposes `#[repr(C)]` structs that match the C ABI exactly:
 
-| Rust type | C layout | Description |
-| --------- | -------- | ----------- |
-| `DpCf32` | `float complex` | `{i: f32, q: f32}` — `From<Complex<f32>>` |
-| `DpCi8` | `{int8_t i, q}` | Complex i8 IQ pair |
-| `DpCi16` | `{int16_t i, q}` | Complex i16 IQ pair |
-| `DpCi32` | `{int32_t i, q}` | Complex i32 IQ pair |
+| Rust type | C layout         | Description                               |
+| --------- | ---------------- | ----------------------------------------- |
+| `DpCf32`  | `float complex`  | `{i: f32, q: f32}` — `From<Complex<f32>>` |
+| `DpCi8`   | `{int8_t i, q}`  | Complex i8 IQ pair                        |
+| `DpCi16`  | `{int16_t i, q}` | Complex i16 IQ pair                       |
+| `DpCi32`  | `{int32_t i, q}` | Complex i32 IQ pair                       |
 
 ### Using from another crate
 
@@ -333,15 +333,15 @@ Results: 8/8 tests passed
 
 ### Available binaries in the image
 
-| Binary | Description |
-| ------ | ----------- |
-| `transmitter` | Generates and publishes signal samples over ZMQ PUB |
-| `receiver` | Subscribes and prints signal stats |
-| `spectrum_analyzer` | ASCII real-time spectrum display |
-| `pipeline_demo` | PUSH/PULL pipeline demo (in-process threads) |
-| `fft_demo` | FFT demonstration |
-| `test_stream` | Streaming unit tests |
-| `fft_testbench` | FFT correctness tests |
+| Binary              | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `transmitter`       | Generates and publishes signal samples over ZMQ PUB |
+| `receiver`          | Subscribes and prints signal stats                  |
+| `spectrum_analyzer` | ASCII real-time spectrum display                    |
+| `pipeline_demo`     | PUSH/PULL pipeline demo (in-process threads)        |
+| `fft_demo`          | FFT demonstration                                   |
+| `test_stream`       | Streaming unit tests                                |
+| `fft_testbench`     | FFT correctness tests                               |
 
 ### Docker Compose
 

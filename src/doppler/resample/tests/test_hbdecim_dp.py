@@ -38,7 +38,9 @@ def fir_h() -> np.ndarray:
     bank = _halfband_bank()  # shape (2, N), 60 dB
     centre = bank.shape[1] // 2
     # The delay branch has a large centre tap; FIR branch has smaller.
-    fir_row = 0 if abs(float(bank[0, centre])) < abs(float(bank[1, centre])) else 1
+    fir_row = (
+        0 if abs(float(bank[0, centre])) < abs(float(bank[1, centre])) else 1
+    )
     return np.ascontiguousarray(bank[fir_row])
 
 
@@ -50,7 +52,9 @@ def fir_h() -> np.ndarray:
 def _blackman_harris(n: int) -> np.ndarray:
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    return (
+        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    )
 
 
 def _spectrum_db(signal: np.ndarray):
@@ -155,9 +159,9 @@ class TestHalfbandDecimatorDp:
         f_pb = 0.1  # passband; output at 0.2
         f_sb = 0.4  # stopband; aliases to -0.2 in output
         t = np.arange(N)
-        x = (np.exp(2j * np.pi * f_pb * t) + np.exp(2j * np.pi * f_sb * t)).astype(
-            np.complex64
-        )
+        x = (
+            np.exp(2j * np.pi * f_pb * t) + np.exp(2j * np.pi * f_sb * t)
+        ).astype(np.complex64)
         d = HalfbandDecimatorDp(fir_h)
         _ = d.execute(x)
         y = d.execute(x)

@@ -6,18 +6,18 @@ one call, backed by `ddc_state_t` and `ddcr_state_t`.
 Source:
 [`src/doppler/ddc/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/ddc/__init__.py)
 
----
+______________________________________________________________________
 
 ## Which class to use
 
-| Class | Input | Cost | Use when |
-|-------|-------|------|----------|
-| `DDC` | CF32 IQ | baseline | complex ADC, already at fs |
+| Class  | Input        | Cost        | Use when                      |
+| ------ | ------------ | ----------- | ----------------------------- |
+| `DDC`  | CF32 IQ      | baseline    | complex ADC, already at fs    |
 | `DDCR` | float32 real | ~2× cheaper | real ADC, direct-sampling SDR |
 
 Both produce CF32 IQ at the decimated output rate.
 
----
+______________________________________________________________________
 
 ## `DDC` — complex input
 
@@ -56,7 +56,7 @@ for block in iq_stream:     # generator of CF32 arrays
     process(out)
 ```
 
----
+______________________________________________________________________
 
 ## `DDCR` — real input (Architecture D2)
 
@@ -82,47 +82,47 @@ x = np.random.randn(4096).astype(np.float32)   # real ADC samples
 y = ddc.execute(x)          # CF32 output, len(y) ≈ 4096/2 * 0.25 = 512
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.ddc.DDC
 
----
+______________________________________________________________________
 
 ::: doppler.ddc.DDCR
 
----
+______________________________________________________________________
 
 ## Functional DDCR API
 
 The `ddcr_*` free functions expose the same DDCR algorithm with state
-passed explicitly as an opaque handle.  The caller also supplies the
+passed explicitly as an opaque handle. The caller also supplies the
 output buffer, making allocation strategy and buffer reuse entirely
 explicit.
 
 **When to prefer the functional API over `DDCR`:**
 
 - You want to manage multiple independent streams without keeping a
-  collection of class instances.
+    collection of class instances.
 - You are composing pipelines functionally and need state to be a
-  first-class value you can pass, store, and share across call sites.
+    first-class value you can pass, store, and share across call sites.
 - You want deterministic control over when C memory is released
-  (`ddcr_destroy`) vs. relying on the GC.
+    (`ddcr_destroy`) vs. relying on the GC.
 
 **When to prefer `DDCR`:**
 
 - The object owns and pre-allocates its output buffer — one less array
-  to manage when block size is fixed.
+    to manage when block size is fixed.
 - Slightly more ergonomic for simple single-stream use.
 
 ### Throughput
 
-Both APIs call the same C code.  Benchmarks on 65 536-sample blocks show
+Both APIs call the same C code. Benchmarks on 65 536-sample blocks show
 identical throughput — the per-call Python overhead is under 1 µs.
 
 ### Buffer sizing
 
 A decimating DDCR never produces more output samples than it consumes
-input.  An output buffer of `len(x)` elements is always sufficient:
+input. An output buffer of `len(x)` elements is always sufficient:
 
 ```python
 out = np.empty(len(x), dtype=np.complex64)
@@ -199,14 +199,14 @@ the [functional DDCR gallery walkthrough](../gallery/ddc-fn.md).
 
 ### Lifecycle and memory safety
 
-| Scenario | Safe? |
-|---|---|
-| GC without `ddcr_destroy` | Yes — destructor frees state |
-| `ddcr_destroy` then GC | Yes — destructor skips already-freed state |
+| Scenario                       | Safe?                                                   |
+| ------------------------------ | ------------------------------------------------------- |
+| GC without `ddcr_destroy`      | Yes — destructor frees state                            |
+| `ddcr_destroy` then GC         | Yes — destructor skips already-freed state              |
 | Live view after `ddcr_destroy` | Yes — view lives in caller's `out` buffer, not in state |
-| Second call to `ddcr_destroy` | Raises `RuntimeError` |
-| Any call after `ddcr_destroy` | Raises `RuntimeError` |
-| `None` or wrong type as state | Raises `TypeError` / `ValueError` |
+| Second call to `ddcr_destroy`  | Raises `RuntimeError`                                   |
+| Any call after `ddcr_destroy`  | Raises `RuntimeError`                                   |
+| `None` or wrong type as state  | Raises `TypeError` / `ValueError`                       |
 
 ### API reference
 
@@ -219,12 +219,12 @@ help(ddcr_execute)
 
 and in the type stubs (`ddc.pyi`) for IDE completion.
 
----
+______________________________________________________________________
 
 ## DDC Architecture
 
 A DDC shifts a signal from a carrier frequency to DC and optionally
-decimates it.  This section documents the practical architectures, the
+decimates it. This section documents the practical architectures, the
 trade-offs between them, and measured throughput so you can pick the
 right one.
 
@@ -238,17 +238,17 @@ right one.
 
 Three stages, each optional or reorderable:
 
-| Stage | C type | Purpose |
-|---|---|---|
-| LO mix | `lo_state_t` | Multiply by e^{j2πf_n·t} — shift carrier to DC |
-| Halfband ÷2 | `hbdecim_state_t` | Cheap factor-of-2 decimation |
-| Polyphase resample | `resamp_state_t` | Continuously-variable rate conversion |
+| Stage              | C type            | Purpose                                        |
+| ------------------ | ----------------- | ---------------------------------------------- |
+| LO mix             | `lo_state_t`      | Multiply by e^{j2πf_n·t} — shift carrier to DC |
+| Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
+| Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
 
 `ddc_create(norm_freq, rate)` chains LO + polyphase resampler with built-in
 Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
 rejection).
 
----
+______________________________________________________________________
 
 ### Architecture A — Plain DDC (default)
 
@@ -257,11 +257,11 @@ CF32 in ──► LO ──► polyphase resample (0.4/0.6, rate r) ──► CF
 ```
 
 `ddc_create(norm_freq, rate)` with built-in Kaiser bank.
-No design step required.  One allocation, no intermediate buffers.
+No design step required. One allocation, no intermediate buffers.
 
 **Best for:** prototype, any decimation rate, single-stage simplicity.
 
----
+______________________________________________________________________
 
 ### Architecture B — Halfband → DDC (complex input)
 
@@ -269,12 +269,12 @@ No design step required.  One allocation, no intermediate buffers.
 CF32 in ──► HB ÷2 ──► LO ──► polyphase resample (0.4/0.6, rate 2r) ──► CF32 out
 ```
 
-The halfband (N=19, 60 dB) decimates by 2 first.  The resampler then runs
-on half the samples.  Architecture B wins at every decimation rate.
+The halfband (N=19, 60 dB) decimates by 2 first. The resampler then runs
+on half the samples. Architecture B wins at every decimation rate.
 
-**Best for:** complex IQ input, decimation ≥ 2×.  Dominant choice.
+**Best for:** complex IQ input, decimation ≥ 2×. Dominant choice.
 
----
+______________________________________________________________________
 
 ### Architecture D2 — Real input: zero-multiply band capture + fine NCO
 
@@ -283,7 +283,7 @@ Real in ──► Modified HB (fs/4 shift embedded) ──► Fine LO (at fs/2) 
               zero extra multiplications              arbitrary carrier tune
 ```
 
-This is the optimal architecture for any real ADC input.  Mixing by
+This is the optimal architecture for any real ADC input. Mixing by
 fs/4 then decimating by 2 is a lossless real-to-complex conversion —
 the fs/4 mix multiplies by `{1, −j, −1, +j, …}` (sign negations only,
 no multiplications) and is embedded into the halfband tap weights at
@@ -294,18 +294,18 @@ The +0.5 cancels the halfband's embedded −fs/4 shift.
 
 **Cost vs Architecture D (NCO → complex HB → polyphase resample):**
 
-| Stage | Arch D | Arch D2 |
-|---|---|---|
-| Full-rate NCO | 2 MACs | — |
-| Halfband | N/2 MACs (complex) | N/4 MACs (real modified) |
-| Fine NCO at fs/2 | — | 1 MAC (effective) |
-| **Total (N=19)** | **≈ 11.5 MACs** | **≈ 5.75 MACs** |
+| Stage            | Arch D             | Arch D2                  |
+| ---------------- | ------------------ | ------------------------ |
+| Full-rate NCO    | 2 MACs             | —                        |
+| Halfband         | N/2 MACs (complex) | N/4 MACs (real modified) |
+| Fine NCO at fs/2 | —                  | 1 MAC (effective)        |
+| **Total (N=19)** | **≈ 11.5 MACs**    | **≈ 5.75 MACs**          |
 
 Architecture D2 is approximately **2× cheaper** than Architecture D for
-real input at any carrier or decimation rate.  This is what `DDCR`
+real input at any carrier or decimation rate. This is what `DDCR`
 implements.
 
----
+______________________________________________________________________
 
 ### Architecture E — Coarse/fine LO split (high decimation)
 
@@ -315,31 +315,31 @@ worthwhile.
 
 **Break-even:** D ≈ 38× decimation.
 
-| Decimation | Arch B MACs/input | Arch E MACs/input | Δ |
-|---:|---:|---:|---:|
-| 10× | 9.6 | 15.8 | B wins |
-| 38× | 4.0 | 4.2 | break-even |
-| 100× | 2.8 | 1.6 | **E +43%** |
+| Decimation | Arch B MACs/input | Arch E MACs/input |          Δ |
+| ---------: | ----------------: | ----------------: | ---------: |
+|        10× |               9.6 |              15.8 |     B wins |
+|        38× |               4.0 |               4.2 | break-even |
+|       100× |               2.8 |               1.6 | **E +43%** |
 
 Implementation requires a complex-coefficient polyphase variant — planned;
 not yet in the library.
 
----
+______________________________________________________________________
 
 ### Performance (Release build, x86-64)
 
 Block = 65536 samples × 200 iterations, M=3 N=19.
 
-| Rate | Decimation | Arch A | Arch B | Arch C |
-|---|---|---:|---:|---:|
-| 0.50 | 2× | 61 MSa/s | **335 MSa/s** | 70 MSa/s |
-| 0.25 | 4× | 70 MSa/s | **76 MSa/s** | 62 MSa/s |
-| 0.10 | 10× | 72 MSa/s | **97 MSa/s** | 74 MSa/s |
-| 0.01 | 100× | 85 MSa/s | **116 MSa/s** | 80 MSa/s |
+| Rate | Decimation |   Arch A |        Arch B |   Arch C |
+| ---- | ---------- | -------: | ------------: | -------: |
+| 0.50 | 2×         | 61 MSa/s | **335 MSa/s** | 70 MSa/s |
+| 0.25 | 4×         | 70 MSa/s |  **76 MSa/s** | 62 MSa/s |
+| 0.10 | 10×        | 72 MSa/s |  **97 MSa/s** | 74 MSa/s |
+| 0.01 | 100×       | 85 MSa/s | **116 MSa/s** | 80 MSa/s |
 
 Architecture B wins at every rate.
 
----
+______________________________________________________________________
 
 ### Decision guide
 
@@ -357,7 +357,7 @@ Is your input real (single ADC channel)?
   └─ Total decimation > 38× ─► Architecture E (planned)
 ```
 
----
+______________________________________________________________________
 
 ### C code examples
 

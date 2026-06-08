@@ -1,6 +1,6 @@
 # FFT
 
-Each `FFT` object owns one plan and is reused across calls.  Multiple
+Each `FFT` object owns one plan and is reused across calls. Multiple
 instances of different sizes or signs coexist with no global state.
 
 ## 1-D FFT

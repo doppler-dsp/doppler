@@ -6,8 +6,8 @@
 #include <math.h>
 
 void
-magnitude_db_cf32(const float complex *x, size_t x_len, float *out,
-                  float lin_floor, float offset_db)
+magnitude_db_cf32 (const float complex *x, size_t x_len, float *out,
+                   float lin_floor, float offset_db)
 {
   for (size_t k = 0; k < x_len; k++)
     {

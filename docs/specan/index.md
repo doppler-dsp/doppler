@@ -15,7 +15,7 @@ No server. No JavaScript DSP. Pure C output, looped at 30 fps.
 
 [Open full screen ↗](demo.html){ .md-button }
 
----
+______________________________________________________________________
 
 To run the live version against a real IQ source:
 

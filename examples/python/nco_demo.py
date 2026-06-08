@@ -1,4 +1,5 @@
 """nco_demo.py — smoke test for NCO examples from docs/examples/python-nco.md."""
+
 from doppler.source import NCO
 import numpy as np
 
@@ -19,7 +20,9 @@ phases, carry = nco.steps_u32_ovf(16)
 assert phases.dtype == np.uint32
 assert carry.dtype == np.uint8
 assert carry.shape == (16,)
-expected_carry = np.array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], dtype=np.uint8)
+expected_carry = np.array(
+    [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1], dtype=np.uint8
+)
 assert np.array_equal(carry, expected_carry), f"carry: {carry}"
 
 # Scaled output — values in [0, nmax)

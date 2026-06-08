@@ -34,8 +34,11 @@ def bare_python(tmp_path_factory) -> Path:
 
 def _run(python: Path, module: str, *args: str) -> subprocess.CompletedProcess:
     """Run ``python -m <module> [args]`` with only stdlib and doppler/src."""
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("PYTHONPATH", "VIRTUAL_ENV", "VIRTUAL_ENV_PROMPT")}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("PYTHONPATH", "VIRTUAL_ENV", "VIRTUAL_ENV_PROMPT")
+    }
     env["PYTHONPATH"] = str(_SRC)
     return subprocess.run(
         [str(python), "-m", module, *args],

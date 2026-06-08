@@ -18,10 +18,13 @@ from doppler.resample import CIC
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _blackman_harris(n: int) -> np.ndarray:
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    return (
+        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    )
 
 
 def _power_db(signal: np.ndarray, freq_norm: float, pad: int = 4) -> float:
@@ -48,15 +51,18 @@ def _decimate(cic: CIC, x: np.ndarray, block: int = 0) -> np.ndarray:
         return np.array(cic.decimate(x), copy=True)
     chunks = []
     for i in range(0, len(x), block):
-        out = cic.decimate(x[i:i + block])
+        out = cic.decimate(x[i : i + block])
         if len(out):
             chunks.append(np.array(out, copy=True))
-    return np.concatenate(chunks) if chunks else np.array([], dtype=np.complex64)
+    return (
+        np.concatenate(chunks) if chunks else np.array([], dtype=np.complex64)
+    )
 
 
 # ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TestLifecycle:
     def test_create_default(self):
@@ -106,13 +112,14 @@ class TestLifecycle:
 
     def test_reconfigure_invalid_ignored(self):
         obj = CIC(8)
-        obj.reconfigure(3)   # non-power-of-two — silently ignored
+        obj.reconfigure(3)  # non-power-of-two — silently ignored
         assert obj.R == 8
 
 
 # ---------------------------------------------------------------------------
 # Decimation mechanics
 # ---------------------------------------------------------------------------
+
 
 class TestDecimation:
     def test_output_count(self):
@@ -126,8 +133,8 @@ class TestDecimation:
         R = 8
         obj = CIC(R)
         x = np.zeros(R, dtype=np.complex64)
-        assert len(obj.decimate(x[:R - 1])) == 0
-        assert len(obj.decimate(x[R - 1:])) == 1
+        assert len(obj.decimate(x[: R - 1])) == 0
+        assert len(obj.decimate(x[R - 1 :])) == 1
 
     def test_zero_input(self):
         # Offset-binary encoding maps 0.0 → u=32768, so the first CIC_N=4
@@ -155,7 +162,7 @@ class TestDecimation:
         x = np.ones(n_in, dtype=np.complex64)
         obj = CIC(R)
         out = obj.decimate(x)
-        settled = out[len(out) * 3 // 4:]
+        settled = out[len(out) * 3 // 4 :]
         np.testing.assert_allclose(np.abs(settled), 1.0, atol=4e-5)
 
 
@@ -163,13 +170,14 @@ class TestDecimation:
 # Spectral quality
 # ---------------------------------------------------------------------------
 
+
 class TestSpectralQuality:
     """Verify passband gain and alias rejection via FFT."""
 
     R = 8
     N = 4  # fixed — kept as class attr for readability
-    F_PASS  = 0.5 / (2 * R) * 0.10   # deep in passband (~0.003 of input fs)
-    F_ALIAS = 1.0 / R * 0.95          # just inside first null
+    F_PASS = 0.5 / (2 * R) * 0.10  # deep in passband (~0.003 of input fs)
+    F_ALIAS = 1.0 / R * 0.95  # just inside first null
 
     def test_passband_gain(self):
         """Single passband tone at unit amplitude survives with < 3 dB loss."""
@@ -191,9 +199,9 @@ class TestSpectralQuality:
         n_drop = n_transient // self.R + 1
         y = y[n_drop:]
         f_alias_out = (self.F_ALIAS % (1.0 / self.R)) * self.R
-        alias_db    = _power_db(y, f_alias_out)
+        alias_db = _power_db(y, f_alias_out)
         passband_db = _power_db(y, self.F_PASS * self.R)
-        rejection   = passband_db - alias_db
+        rejection = passband_db - alias_db
         assert rejection >= 20.0, f"Alias rejection only {rejection:.1f} dB"
 
     def test_stopband_null(self):

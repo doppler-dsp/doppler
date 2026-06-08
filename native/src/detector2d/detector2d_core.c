@@ -55,15 +55,15 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
   if (!state)
     return NULL;
 
-  state->ny = ny;
-  state->nx = nx;
-  state->n = ny * nx;
-  state->noise_lo = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
-  state->noise_hi = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
+  state->ny         = ny;
+  state->nx         = nx;
+  state->n          = ny * nx;
+  state->noise_lo   = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
+  state->noise_hi   = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
   state->noise_mode = noise_mode;
-  state->threshold = threshold;
+  state->threshold  = threshold;
 
-  size_t n = state->n;
+  size_t n    = state->n;
   state->ring = _ring_create (n > 512 ? n : 512);
   if (!state->ring)
     goto fail;
@@ -137,13 +137,13 @@ detector2d_push (detector2d_state_t *state, const float complex *in,
                  size_t n_in, det_result2d_t *result, size_t max_results)
 {
   size_t ndet = 0;
-  size_t off = 0;
+  size_t off  = 0;
 
   while (off < n_in && ndet < max_results)
     {
-      size_t head = DP_LOAD_RLX (&state->ring->head);
-      size_t tail = DP_LOAD_ACQ (&state->ring->tail);
-      size_t space = state->ring->capacity - (head - tail);
+      size_t head     = DP_LOAD_RLX (&state->ring->head);
+      size_t tail     = DP_LOAD_ACQ (&state->ring->tail);
+      size_t space    = state->ring->capacity - (head - tail);
       size_t to_write = n_in - off;
       if (to_write > space)
         to_write = space;
@@ -161,11 +161,11 @@ detector2d_push (detector2d_state_t *state, const float complex *in,
           if (h - t < state->n)
             break;
 
-          float complex *frame = (float complex *)(state->ring->data
-                                                   + (t & state->ring->mask)
-                                                         * 2);
-          size_t n_out = corr2d_execute (state->corr, frame, state->n,
-                                         state->out_buf);
+          float complex *frame
+              = (float complex *)(state->ring->data
+                                  + (t & state->ring->mask) * 2);
+          size_t n_out
+              = corr2d_execute (state->corr, frame, state->n, state->out_buf);
           dp_f32_consume (state->ring, state->n);
 
           if (n_out == 0)
@@ -174,14 +174,12 @@ detector2d_push (detector2d_state_t *state, const float complex *in,
           state->_last_corr_valid = 1;
           _compute_stat_2d (state);
 
-          if (state->threshold == 0.0f
-              || state->test_stat > state->threshold)
+          if (state->threshold == 0.0f || state->test_stat > state->threshold)
             {
-              result[ndet++] = (det_result2d_t){ state->peak_row,
-                                                 state->peak_col,
-                                                 state->peak_mag,
-                                                 state->noise_est,
-                                                 state->test_stat };
+              result[ndet++]
+                  = (det_result2d_t){ state->peak_row, state->peak_col,
+                                      state->peak_mag, state->noise_est,
+                                      state->test_stat };
             }
         }
 

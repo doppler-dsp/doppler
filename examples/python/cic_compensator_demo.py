@@ -24,6 +24,7 @@ from __future__ import annotations
 import math
 import numpy as np
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -34,8 +35,10 @@ from doppler.resample import ciccompmf
 # Frequency-response helpers
 # ---------------------------------------------------------------------------
 
-def cic_response(freqs_norm: np.ndarray, N: int, R: int,
-                 M: int = 1) -> np.ndarray:
+
+def cic_response(
+    freqs_norm: np.ndarray, N: int, R: int, M: int = 1
+) -> np.ndarray:
     """CIC magnitude response at the *output* (decimated) rate.
 
     freqs_norm is in cycles/output-sample, i.e. 0 … 0.5.
@@ -54,8 +57,7 @@ def cic_response(freqs_norm: np.ndarray, N: int, R: int,
     return h
 
 
-def fir_response(h: np.ndarray,
-                 freqs_norm: np.ndarray) -> np.ndarray:
+def fir_response(h: np.ndarray, freqs_norm: np.ndarray) -> np.ndarray:
     """Evaluate FIR frequency response at normalised frequencies [0, 0.5]."""
     n = len(freqs_norm) * 8
     H = np.fft.rfft(h, n=n)
@@ -69,20 +71,22 @@ def fir_response(h: np.ndarray,
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     R, N_cic = 16, 4
-    taps_list = [5, 7, 11]                  # compensator lengths to compare
-    freqs = np.linspace(0, 0.5, 2000)       # cycles/output-sample
+    taps_list = [5, 7, 11]  # compensator lengths to compare
+    freqs = np.linspace(0, 0.5, 2000)  # cycles/output-sample
 
     cic_mag = cic_response(freqs, N_cic, R)
-    cic_db  = 20.0 * np.log10(np.maximum(cic_mag, 1e-15))
+    cic_db = 20.0 * np.log10(np.maximum(cic_mag, 1e-15))
 
     # ── figure ───────────────────────────────────────────────────────────────
     fig, axes = plt.subplots(1, 3, figsize=(13, 5), constrained_layout=True)
     fig.suptitle(
         f"CIC Compensator Design  R={R}, N={N_cic}\n"
         f"(output rate = fs_in / {R})",
-        fontsize=12, color="#f1f5f9",
+        fontsize=12,
+        color="#f1f5f9",
     )
 
     colours = ["#f97316", "#34d399", "#a78bfa"]
@@ -102,14 +106,22 @@ def main() -> None:
     # Panel 1 — CIC response alone
     ax = axes[0]
     ax.plot(freqs, cic_db, color="#60a5fa", lw=1.2)
-    ax.axvline(0.5 / R, color="#ffffff", lw=0.8, linestyle=":",
-               label=f"Passband edge\n(f = 0.5/{R})")
+    ax.axvline(
+        0.5 / R,
+        color="#ffffff",
+        lw=0.8,
+        linestyle=":",
+        label=f"Passband edge\n(f = 0.5/{R})",
+    )
     pb_edge = 0.5 / R
     droop = cic_db[np.searchsorted(freqs, pb_edge)]
     ax.annotate(
         f"Droop at\npb edge:\n{droop:.1f} dB",
-        xy=(pb_edge, droop), xytext=(0.15, -8),
-        color="#f97316", fontsize=9, va="top",
+        xy=(pb_edge, droop),
+        xytext=(0.15, -8),
+        color="#f97316",
+        fontsize=9,
+        va="top",
         arrowprops=dict(arrowstyle="->", color="#f97316", lw=1.0),
     )
     ax.set_xlim(0, 0.5)
@@ -117,15 +129,20 @@ def main() -> None:
     ax.set_xlabel("Frequency (cycles/output-sample)")
     ax.set_ylabel("Amplitude (dB)")
     ax.set_title("CIC response", loc="right", color="#f1f5f9")
-    ax.legend(loc="lower left", fontsize=9,
-              facecolor="#1f2937", edgecolor="#4b5563", labelcolor="#d1d5db")
+    ax.legend(
+        loc="lower left",
+        fontsize=9,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
+        labelcolor="#d1d5db",
+    )
 
     # Panel 2 — compensator FIR responses
     ax = axes[1]
     for m, col in zip(taps_list, colours):
         h = ciccompmf(N_cic, R, m)
         comp_mag = fir_response(h, freqs)
-        comp_db  = 20.0 * np.log10(np.maximum(comp_mag, 1e-15))
+        comp_db = 20.0 * np.log10(np.maximum(comp_mag, 1e-15))
         ax.plot(freqs, comp_db, color=col, lw=1.2, label=f"M={m}")
     ax.axvline(0.5 / R, color="#ffffff", lw=0.8, linestyle=":")
     ax.set_xlim(0, 0.5)
@@ -133,18 +150,28 @@ def main() -> None:
     ax.set_xlabel("Frequency (cycles/output-sample)")
     ax.set_ylabel("Amplitude (dB)")
     ax.set_title("Compensator FIR", loc="right", color="#f1f5f9")
-    ax.legend(loc="upper right", fontsize=9,
-              facecolor="#1f2937", edgecolor="#4b5563", labelcolor="#d1d5db")
+    ax.legend(
+        loc="upper right",
+        fontsize=9,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
+        labelcolor="#d1d5db",
+    )
 
     # Panel 3 — CIC × compensator combined
     ax = axes[2]
-    ax.plot(freqs, cic_db, color="#60a5fa", lw=0.8,
-            linestyle="--", label="CIC alone")
+    ax.plot(
+        freqs,
+        cic_db,
+        color="#60a5fa",
+        lw=0.8,
+        linestyle="--",
+        label="CIC alone",
+    )
     for m, col in zip(taps_list, colours):
         h = ciccompmf(N_cic, R, m)
         comp_mag = fir_response(h, freqs)
-        combined_db = 20.0 * np.log10(
-            np.maximum(cic_mag * comp_mag, 1e-15))
+        combined_db = 20.0 * np.log10(np.maximum(cic_mag * comp_mag, 1e-15))
         ax.plot(freqs, combined_db, color=col, lw=1.2, label=f"M={m}")
     pb = 0.5 / R
     ax.axvspan(0, pb, color="#1e3a5f", alpha=0.4, label="Passband")
@@ -155,8 +182,13 @@ def main() -> None:
     ax.set_xlabel("Frequency (cycles/output-sample)")
     ax.set_ylabel("Amplitude (dB)")
     ax.set_title("CIC × compensator", loc="right", color="#f1f5f9")
-    ax.legend(loc="lower left", fontsize=9,
-              facecolor="#1f2937", edgecolor="#4b5563", labelcolor="#d1d5db")
+    ax.legend(
+        loc="lower left",
+        fontsize=9,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
+        labelcolor="#d1d5db",
+    )
 
     out = "cic_compensator_demo.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
@@ -169,7 +201,8 @@ def main() -> None:
     for i, c in enumerate(h7):
         print(f"  h[{i}] = {c:+.8f}")
     pb_droop = 20 * math.log10(
-        max(cic_response(np.array([0.5 / R]), N_cic, R)[0], 1e-15))
+        max(cic_response(np.array([0.5 / R]), N_cic, R)[0], 1e-15)
+    )
     print(f"\nCIC passband droop at f=0.5/{R}: {pb_droop:.2f} dB")
 
 

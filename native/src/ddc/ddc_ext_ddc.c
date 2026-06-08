@@ -105,13 +105,15 @@ DDCObj_execute (DDCObject *self, PyObject *args)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex   *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t                 _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t                 n_out;
-  Py_BEGIN_ALLOW_THREADS n_out = ddc_execute (
-      self->handle, _ng0, _ng1, self->_execute_buf, self->_execute_buf_cap);
-  Py_END_ALLOW_THREADS npy_intp dim = (npy_intp)n_out;
-  PyObject                     *arr
+  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t               n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = ddc_execute (self->handle, _ng0, _ng1, self->_execute_buf,
+                         self->_execute_buf_cap);
+  Py_END_ALLOW_THREADS
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr
       = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
   if (!arr)
     return NULL;

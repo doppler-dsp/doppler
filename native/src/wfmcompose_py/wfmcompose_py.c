@@ -211,12 +211,12 @@ _fn_composer_execute (PyObject *mod, PyObject *args)
     return NULL;
   float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   size_t          n;
-  Py_BEGIN_ALLOW_THREADS n = wfm_compose_execute (w->state, out, (size_t)max);
+  Py_BEGIN_ALLOW_THREADS
+    n = wfm_compose_execute (w->state, out, (size_t)max);
   Py_END_ALLOW_THREADS
 
-      /* return out[:n] */
-      PyObject *stop
-      = PyLong_FromSsize_t ((Py_ssize_t)n);
+  /* return out[:n] */
+  PyObject *stop  = PyLong_FromSsize_t ((Py_ssize_t)n);
   PyObject *slice = stop ? PySlice_New (NULL, stop, NULL) : NULL;
   Py_XDECREF (stop);
   PyObject *view = slice ? PyObject_GetItem (arr, slice) : NULL;
@@ -381,11 +381,13 @@ _fn_writer_write (PyObject *mod, PyObject *args)
       iq_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
   if (!arr)
     return NULL;
-  size_t                 n  = (size_t)PyArray_SIZE (arr);
-  float _Complex        *iq = (float _Complex *)PyArray_DATA (arr);
-  size_t                 wrote;
-  Py_BEGIN_ALLOW_THREADS wrote = wfm_writer_write (p->w, iq, n);
-  Py_END_ALLOW_THREADS   Py_DECREF (arr);
+  size_t          n  = (size_t)PyArray_SIZE (arr);
+  float _Complex *iq = (float _Complex *)PyArray_DATA (arr);
+  size_t          wrote;
+  Py_BEGIN_ALLOW_THREADS
+    wrote = wfm_writer_write (p->w, iq, n);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (arr);
   return PyLong_FromSize_t (wrote);
 }
 
@@ -541,11 +543,13 @@ _fn_sink_send (PyObject *mod, PyObject *args)
       iq_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
   if (!arr)
     return NULL;
-  size_t                 n  = (size_t)PyArray_SIZE (arr);
-  float _Complex        *iq = (float _Complex *)PyArray_DATA (arr);
-  int                    rc;
-  Py_BEGIN_ALLOW_THREADS rc = wfm_zmq_sink_send (p->sink, iq, n, fs, fc);
-  Py_END_ALLOW_THREADS   Py_DECREF (arr);
+  size_t          n  = (size_t)PyArray_SIZE (arr);
+  float _Complex *iq = (float _Complex *)PyArray_DATA (arr);
+  int             rc;
+  Py_BEGIN_ALLOW_THREADS
+    rc = wfm_zmq_sink_send (p->sink, iq, n, fs, fc);
+  Py_END_ALLOW_THREADS
+  Py_DECREF (arr);
   if (rc != 0)
     {
       PyErr_SetString (PyExc_RuntimeError, "wfm_zmq_sink_send failed");

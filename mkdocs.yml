@@ -151,6 +151,7 @@ nav:
       - C API: c-api/files.md
       - "Python: FFT": api/python-fft.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
+      - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
       - "Python: FIR Filter": api/python-filter.md
       - "Python: DDC": api/python-ddc.md
       - "Python: Resample": api/python-resample.md

@@ -41,6 +41,25 @@ def test_pn_is_maximal_length():
     assert int(np.sum(chips[:127] == -1)) == 64  # 64 ones / 63 zeros
 
 
+def test_pn_fibonacci_differs_from_galois():
+    """--lfsr selects the realization: same MLS period, different chips."""
+    g = Synth(type="pn", pn_length=9, sps=1, snr=100, lfsr="galois")
+    f = Synth(type="pn", pn_length=9, sps=1, snr=100, lfsr="fibonacci")
+    gc = np.sign(g.steps(511 * 2).real).astype(int)
+    fc = np.sign(f.steps(511 * 2).real).astype(int)
+    assert np.array_equal(fc[:511], fc[511:1022])  # fibonacci also maximal
+    assert int(np.sum(fc[:511] == -1)) == 256  # balanced (2**8)
+    assert not np.array_equal(gc, fc)  # distinct ordering
+
+
+def test_pn_64bit_length():
+    """pn_length > 32 drives the 64-bit LFSR + auto-MLS table (n=2..64)."""
+    x = Synth(type="pn", pn_length=40, sps=1, snr=100).steps(20000)
+    chips = np.sign(x.real).astype(int)
+    assert set(chips.tolist()) <= {-1, 1}  # clean ±1 chips
+    assert abs(chips.mean()) < 0.05  # balanced over a 2**40-1 sequence
+
+
 def test_bpsk_constellation():
     b = Synth(type="bpsk", sps=8, snr=100, freq=0).steps(8 * 64)
     centers = b[4::8]

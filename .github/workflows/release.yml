@@ -101,22 +101,30 @@ jobs:
               \$PYTHON -m build --no-isolation --wheel --outdir dist/
             "
 
-      - name: Verify wheel is portable (no AVX2/AVX-512 baked in)
+      - name: Verify wheel is portable (no -march=native AVX2/AVX-512)
         run: |
-          # Defense in depth: a distributed wheel must run on any x86-64
-          # CPU. -march=native on the build host would emit AVX2 (%ymm) or
-          # AVX-512 (%zmm) instructions and SIGILL on older hardware
-          # (doppler-dsp 0.5.1 shipped exactly this bug). Disassemble every
-          # bundled extension and fail the release if wide SIMD is present.
-          python3 -m pip install --quiet --user pyelftools >/dev/null 2>&1 || true
+          # Defense in depth: a distributed wheel must run on any x86-64 CPU.
+          # -march=native on the build host would spray AVX2 (%ymm) / AVX-512
+          # (%zmm) across every function and SIGILL on older hardware
+          # (doppler-dsp 0.5.1 shipped exactly this bug).
+          #
+          # Wide SIMD is allowed ONLY inside runtime-dispatched functions whose
+          # name contains "avx512" (e.g. awgn's generate_avx512). Those carry a
+          # per-function target attribute and are reached only behind a
+          # __builtin_cpu_supports() check — present in the binary but never
+          # executed on a baseline CPU. Wide SIMD in any other function means
+          # -march=native leaked in → reject.
           fail=0
           tmp="$(mktemp -d)"
           for whl in dist/*.whl; do
             unzip -q -o "$whl" -d "$tmp/extract"
             while IFS= read -r so; do
-              if objdump -d "$so" 2>/dev/null \
-                   | grep -qE '%zmm[0-9]+|%ymm[0-9]+'; then
-                echo "::error::$(basename "$whl"): $(basename "$so") contains AVX2/AVX-512 — non-portable wheel (built with -march=native?)"
+              bad=$(objdump -d "$so" 2>/dev/null | awk '
+                /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
+                /%zmm[0-9]|%ymm[0-9]/ { if (fn !~ /avx512/) { print fn; exit } }
+              ')
+              if [ -n "$bad" ]; then
+                echo "::error::$(basename "$whl"): $(basename "$so") has wide SIMD in non-dispatched function '${bad}' — non-portable (built with -march=native?)"
                 fail=1
               fi
             done < <(find "$tmp/extract" -name '*.so')
@@ -127,7 +135,7 @@ jobs:
             echo "Refusing to publish a non-portable wheel. Build the wheel WITHOUT -DDOPPLER_NATIVE." >&2
             exit 1
           fi
-          echo "All bundled extensions are portable (no %ymm/%zmm)."
+          echo "Portable: wide SIMD only in runtime-dispatched *avx512* functions."
 
       - name: Upload wheel (${{ matrix.python }})
         uses: actions/upload-artifact@v4

@@ -106,8 +106,51 @@ run forever:
 }
 ```
 
+## PN codes — length, polynomial, realization
+
+The PN/LFSR register runs from **2 to 64 bits**; `--pn_poly 0` (the default)
+auto-selects a verified primitive polynomial for the length, so every auto code
+is a true maximum-length sequence. `--lfsr` picks the realization — **`galois`**
+(default, internal XOR) or **`fibonacci`** (external XOR) — same polynomial and
+period `2ⁿ−1`, different chip ordering.
+
+```sh
+wavegen --type pn --pn_length 23 --sps 1                 # length-23 MLS (auto poly)
+wavegen --type pn --pn_length 40 --sps 1                 # 64-bit register, auto MLS
+wavegen --type pn --pn_length 9  --sps 1 --lfsr fibonacci
+```
+
+```python
+import numpy as np
+from doppler.wfmgen import PN
+
+# Galois and Fibonacci realizations of the same length-9 polynomial:
+# identical period (511) and balance, different ordering.
+galois    = np.asarray(PN(0x108, 1, 9, lfsr="galois").generate(511))
+fibonacci = np.asarray(PN(0x108, 1, 9, lfsr="fibonacci").generate(511))
+assert galois.sum() == fibonacci.sum() == 256      # 2**8 ones, balanced
+assert not np.array_equal(galois, fibonacci)        # distinct sequence
+```
+
+A multi-segment spec can carry `"lfsr": "fibonacci"` and a 64-bit `"pn_poly"`
+per segment.
+
+## Detached BLUE headers
+
+`--detached` (BLUE only) splits the container into a header + data pair —
+`<out>.hdr` (the 512-byte HCB, with `detached=1` / `data_start=0`) and
+`<out>.det` (the raw samples). Attached output keeps whatever extension you give
+`-o` (`.blue` / `.prm` / …).
+
+```sh
+wfmgen --type qpsk --sps 8 --count 50000 \
+       --sample_type ci16 --file_type blue --detached -o capture
+# → capture.hdr (512-byte HCB) + capture.det (raw interleaved I/Q)
+```
+
 ## Reproduce
 
 ```sh
-python examples/python/wfmgen_demo.py    # writes wfmgen_demo.png
+python examples/python/wfmgen_demo.py    # the four-waveform figure (writes .png)
+python examples/python/pn_codes.py       # PN MLS / Galois vs Fibonacci / 64-bit
 ```

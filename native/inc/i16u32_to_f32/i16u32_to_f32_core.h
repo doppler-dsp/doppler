@@ -1,14 +1,32 @@
 /**
  * @file i16u32_to_f32_core.h
- * @brief I16U32ToF32 component API.
+ * @brief Q15-in-uint32 to float converter.
+ *
+ * Extracts the lower 16 bits of a uint32, re-interprets them as a signed
+ * int16 (two's complement), then multiplies by @c 1/scale to produce a
+ * normalised float.  This is the exact inverse of F32ToI16U32: a value
+ * written by that converter can be recovered here with the same scale.
+ *
+ *   uint32 0x00008000 → int16 -32768 → float -1.0
+ *   uint32 0x00007FFF → int16  32767 → float ~+1.0
+ *   uint32 0x00000000 → int16      0 → float  0.0
+ *
+ * Upper 16 bits of the uint32 are masked off and ignored, so values
+ * carrying CIC bit-growth headroom in those bits are handled correctly.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
- * Example:
  * @code
- * i16u32_to_f32_state_t *obj = i16u32_to_f32_create(32768.0f);
- * float y = i16u32_to_f32_step(obj, 0U);
- * i16u32_to_f32_destroy(obj);
+ * >>> from doppler.cvt import I16U32ToF32
+ * >>> import numpy as np
+ * >>> obj = I16U32ToF32(scale=32768.0)
+ * >>> float(obj.step(0x8000))
+ * -1.0
+ * >>> float(obj.step(0x0000))
+ * 0.0
+ * >>> x = np.array([0x8000, 0x0000, 0x7FFF], dtype=np.uint32)
+ * >>> [round(v, 6) for v in obj.steps(x).tolist()]
+ * [-1.0, 0.0, 0.999969]
  * @endcode
  */
 #ifndef I16U32_TO_F32_CORE_H
@@ -32,7 +50,12 @@ typedef struct {
 /**
  * @brief Create a i16u32_to_f32 instance.
  *
- * @param scale  scale (default: 32768.0f).
+ * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
+ * single multiply after the lower-16-bit extraction.
+ *
+ * @param scale  Denominator scale; 1/scale is applied after sign-extension
+ *               (default: 32768.0f).  Use 32768.0 to match F32ToI16U32 at
+ *               its default scale.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call i16u32_to_f32_destroy() when done.
  */
@@ -46,15 +69,23 @@ void i16u32_to_f32_destroy(i16u32_to_f32_state_t *state);
 
 /**
  * @brief Reset i16u32_to_f32 to its post-create state.
+ *
+ * No mutable state exists beyond the immutable @c iscale; reset is a no-op
+ * provided for lifecycle symmetry.
+ *
  * @param state  Must be non-NULL.
  */
 void i16u32_to_f32_reset(i16u32_to_f32_state_t *state);
 
 /**
  * @brief Process one input sample.
+ *
+ * Masks the lower 16 bits, sign-extends to int16, then multiplies by iscale.
+ * Upper 16 bits are ignored.
+ *
  * @param state  Must be non-NULL.
- * @param x      Input sample (uint32_t).
- * @return Output sample (float).
+ * @param x      uint32 carrying a Q15 sample in its lower 16 bits.
+ * @return Scaled float32 output.
  */
 JM_FORCEINLINE JM_HOT float
 i16u32_to_f32_step(const i16u32_to_f32_state_t *state, uint32_t x)
@@ -65,12 +96,16 @@ i16u32_to_f32_step(const i16u32_to_f32_state_t *state, uint32_t x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of Q15-in-uint32 samples to float32.
  *
- * @param state   Component state (mutated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n; may alias input for in-place).
- * @param n       Number of samples.
+ * Applies step() to every element.  Accepts an optional pre-allocated output
+ * array; allocates a fresh one when @p output is NULL.
+ *
+ * @param state   Must be non-NULL.
+ * @param input   Input uint32 array (Q15 packed in lower 16 bits);
+ *                must contain at least @p n elements.
+ * @param output  Output float32 array; must contain at least @p n elements.
+ * @param n       Number of samples to process.
  */
 void i16u32_to_f32_steps(
     i16u32_to_f32_state_t *state,

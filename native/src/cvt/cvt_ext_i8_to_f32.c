@@ -181,7 +181,7 @@ static PyMethodDef I8ToF32Obj_methods[] = {
     {"steps",    (PyCFunction)I8ToF32_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Process a block of int8 samples to float32.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import I8ToF32\n"

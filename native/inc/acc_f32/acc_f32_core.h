@@ -7,7 +7,8 @@
  * Example:
  * @code
  * acc_f32_state_t *obj = acc_f32_create(0.0f);
- * acc_f32_step(obj, 0.0f);
+ * acc_f32_step(obj, 1.0f);
+ * float v = acc_f32_get(obj);   // v == 1.0
  * acc_f32_destroy(obj);
  * @endcode
  */
@@ -33,30 +34,68 @@ extern "C"
   } acc_f32_state_t;
 
   /**
-   * @brief Create a acc_f32 instance.
+   * @brief Single-precision floating-point scalar accumulator.
+   * Maintains one running sum (``acc``) that persists across calls to
+   * ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. Use
+   * ``get`` to read without side-effects or ``dump`` to read and
+   * atomically zero in a single call.
    *
-   * @param acc  Initial acc (default: 0.0f).
+   * @param acc  Initial accumulator value (default: 0.0).
    * @return Heap-allocated state, or NULL on allocation failure.
    * @note Caller must call acc_f32_destroy() when done.
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.get_acc()
+   * 0.0
+   * >>> obj.set_acc(5.0)
+   * >>> obj.get_acc()
+   * 5.0
+   * >>> obj.reset()
+   * >>> obj.get_acc()
+   * 0.0
+   * @endcode
    */
   acc_f32_state_t *acc_f32_create (float acc);
 
   /**
-   * @brief Destroy a acc_f32 instance and release all memory.
-   * @param state  May be NULL.
+   * @brief Release all memory owned by an AccF32 instance.
+   * Passing NULL is safe; the function is a no-op in that case.
+   * After this call the pointer must not be used.
    */
   void acc_f32_destroy (acc_f32_state_t *state);
 
   /**
-   * @brief Reset acc_f32 to its post-create state.
-   * @param state  Must be non-NULL.
+   * @brief Zero the accumulator, restoring the same state as a fresh
+   * ``AccF32(0.0)`` — regardless of the value supplied to
+   * ``acc_f32_create``. Subsequent ``get`` / ``dump`` calls return
+   * ``0.0`` until new samples are processed.
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.step(7.0)
+   * >>> obj.reset()
+   * >>> obj.get_acc()
+   * 0.0
+   * @endcode
    */
   void acc_f32_reset (acc_f32_state_t *state);
 
   /**
-   * @brief Consume one input sample (sink; no output).
+   * @brief Add one sample to the running sum (``acc += x``).
+   * This is the hot-path entry point for sample-by-sample processing.
+   * For block inputs prefer ``acc_f32_steps`` to amortise call overhead
+   * and allow auto-vectorisation.
+   *
    * @param state  Must be non-NULL.
    * @param x      Input sample (float).
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.step(3.0)
+   * >>> obj.get()
+   * 3.0
+   * @endcode
    */
   JM_FORCEINLINE JM_HOT void
   acc_f32_step (acc_f32_state_t *state, float x)
@@ -65,72 +104,168 @@ extern "C"
   }
 
   /**
-   * @brief Process a block of input samples (no output).
+   * @brief Add all samples in ``input`` to the running sum.
+   * Equivalent to calling ``acc_f32_step`` for each element, but
+   * SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2).
+   * The loop uses JM_RESTRICT so the compiler can assume no aliasing
+   * between ``state`` and ``input``.
    *
-   * @param state  Component state (mutated).
-   * @param input  Input array (length >= n).
-   * @param n     Number of samples.
+   * @param state  Must be non-NULL.
+   * @param input  Input samples (float32 array).
+   * @param n      Number of elements in ``input``.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.steps(np.array([1.0, 2.0, 3.0], dtype=np.float32))
+   * >>> obj.get()
+   * 6.0
+   * @endcode
    */
   void acc_f32_steps (acc_f32_state_t *state, const float *input, size_t n);
 
   /**
-   * @brief Get current acc.
-   * @param state  Must be non-NULL.
+   * @brief Return the current accumulator value without modifying state.
+   * Use this when you need to read the running sum mid-accumulation
+   * without disturbing it. For a read-and-reset in one call use
+   * ``acc_f32_dump``.
+   *
+   * @return Current value of ``acc`` (float).
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.step(4.0)
+   * >>> obj.get_acc()
+   * 4.0
+   * @endcode
    */
   float acc_f32_get_acc (const acc_f32_state_t *state);
 
   /**
-   * @brief Set acc.
+   * @brief Overwrite the accumulator with a new value.
+   * Useful for seeding the accumulator to a known baseline before
+   * processing a new segment without a full ``reset``.
+   *
    * @param state  Must be non-NULL.
-   * @param acc  New value.
+   * @param acc    New accumulator value.
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.set_acc(10.0)
+   * >>> obj.get_acc()
+   * 10.0
+   * @endcode
    */
   void acc_f32_set_acc (acc_f32_state_t *state, float acc);
 
   /**
-   * @brief get.
+   * @brief Return the current accumulated sum without resetting state.
+   * Identical to reading the ``acc`` property directly; retained as an
+   * explicit method so call sites that need the value can be uniform
+   * with ``dump`` without a conditional.
    *
-   * @param state  Must be non-NULL.
-   * @return Result (float).
+   * @return Current value of ``acc`` (float).
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.step(2.0)
+   * >>> obj.step(3.0)
+   * >>> obj.get()
+   * 5.0
+   * @endcode
    */
   float acc_f32_get (acc_f32_state_t *state);
 
   /**
-   * @brief dump.
+   * @brief Return the accumulated sum and atomically reset it to zero.
+   * This is the canonical "drain" primitive: read the period total, then
+   * start a fresh accumulation interval without a separate ``reset``
+   * call. The zero-reset is unconditional and always writes 0.0f.
    *
-   * @param state  Must be non-NULL.
-   * @return Result (float).
+   * @return Value of ``acc`` just before the reset (float).
+   * @code
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> obj.step(3.0)
+   * >>> obj.step(4.0)
+   * >>> obj.dump()
+   * 7.0
+   * >>> obj.get()
+   * 0.0
+   * @endcode
    */
   float acc_f32_dump (acc_f32_state_t *state);
 
   /**
-   * @brief Multiply-accumulate: acc += sum(x * h) over x_len samples.
+   * @brief Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for
+   * ``i`` in ``0 .. min(x_len, h_len) - 1``. The shorter of the two
+   * arrays limits the iteration count; no out-of-bounds access occurs.
+   * Typical use: apply a short FIR weight vector to one block of
+   * signal samples and fold the result into a running total.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input array (float), length x_len.
-   * @param x_len  Number of input samples.
-   * @param h      Coefficient array (float), length h_len.
-   * @param h_len  Number of coefficients.
+   * @param x      Signal samples (float32 array).
+   * @param x_len  Number of elements in ``x``.
+   * @param h      Coefficient / weight array (float32 array).
+   * @param h_len  Number of elements in ``h``.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> x = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+   * >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+   * >>> obj.madd(x, h)
+   * >>> obj.get()
+   * 5.0
+   * @endcode
    */
   void acc_f32_madd (acc_f32_state_t *state, const float *x, size_t x_len,
                      const float *h, size_t h_len);
 
   /**
-   * @brief Accumulate a 2-D array: acc += sum of all elements in x.
+   * @brief Sum all elements of a (logically) 2-D float array into the
+   * accumulator. The array is treated as a flat C-order buffer of
+   * ``x_len`` floats regardless of the original shape; the caller is
+   * responsible for passing the total element count.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input array (float), x_len elements total.
-   * @param x_len  Total number of elements.
+   * @param x      Input array (float32, any shape — passed as flat buffer).
+   * @param x_len  Number of elements in ``x``.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> grid = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+   * >>> obj.add2d(grid)
+   * >>> obj.get()
+   * 10.0
+   * @endcode
    */
   void acc_f32_add2d (acc_f32_state_t *state, const float *x, size_t x_len);
 
   /**
-   * @brief 2-D multiply-accumulate: acc += sum(x * h) over x_len elements.
+   * @brief Dot-product accumulate over a flat 2-D buffer:
+   * ``acc += sum(x[i] * h[i])`` for ``i`` in
+   * ``0 .. min(x_len, h_len) - 1``. Combines ``add2d`` and ``madd``
+   * semantics — a 2-D signal array is weighted element-wise by a
+   * coefficient buffer and the scalar total is folded into the running
+   * sum.
    *
    * @param state  Must be non-NULL.
-   * @param x      Input array (float), length x_len.
-   * @param x_len  Total number of elements.
-   * @param h      Coefficient array (float), length h_len.
-   * @param h_len  Number of coefficients.
+   * @param x      Signal samples (float32, flat buffer of the 2-D array).
+   * @param x_len  Number of elements in ``x``.
+   * @param h      Coefficient / weight array (float32).
+   * @param h_len  Number of elements in ``h``.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.accumulator import AccF32
+   * >>> obj = AccF32(0.0)
+   * >>> x = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+   * >>> h = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+   * >>> obj.madd2d(x, h)
+   * >>> obj.get()
+   * 5.0
+   * @endcode
    */
   void acc_f32_madd2d (acc_f32_state_t *state, const float *x, size_t x_len,
                        const float *h, size_t h_len);

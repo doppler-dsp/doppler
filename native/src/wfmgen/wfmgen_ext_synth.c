@@ -362,7 +362,7 @@ static PyTypeObject SynthType = {
     .tp_basicsize = sizeof(SynthObject),
     .tp_dealloc   = (destructor)Synth_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "Synth type.\n",
+    .tp_doc       = "Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source.  One call to synth_step() or synth_steps() advances all sub-components in lock-step. SNR >= SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When ``snr_mode`` is \"auto\" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.\n",
     .tp_methods   = Synth_methods,
     .tp_new       = Synth_new,
     .tp_init      = (initproc)Synth_init,

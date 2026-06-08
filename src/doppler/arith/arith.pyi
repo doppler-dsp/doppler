@@ -3,7 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 class AccQ15:
-    """AccQ15 component.
+    """Allocate and initialise an AccQ15 accumulator. The accumulator starts at the supplied initial value and may be driven sample-by-sample (step), in bulk (steps), or via multiply-accumulate (madd). The internal register is a 64-bit signed integer so it will not overflow in any realistic DSP workload.
 
     Parameters
     ----------
@@ -30,13 +30,40 @@ class AccQ15:
     def __init__(self, acc: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> obj = AccQ15(0)
+        >>> obj.step(42)
+        >>> obj.reset()
+        >>> obj.get()
+        0
+
+        """
 
     def step(self, x: int) -> None:
         """Process one input sample."""
 
     def steps(self, x: NDArray[np.int16]) -> None:
-        """Process a samples array."""
+        """Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler.
+
+        Parameters
+        ----------
+        x : NDArray[np.int16]
+            Input.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> import numpy as np
+        >>> obj = AccQ15(0)
+        >>> obj.steps(np.array([1, 2, 3, 4, 5], dtype=np.int16))
+        >>> obj.get()
+        15
+
+        """
 
     def get(self) -> int:
         """Return the current accumulated value without resetting.
@@ -44,7 +71,17 @@ class AccQ15:
         Returns
         -------
         int
-            Output.
+            Current accumulator value (int64_t).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> import numpy as np
+        >>> obj = AccQ15(0)
+        >>> obj.steps(np.array([10, 20, 30], dtype=np.int16))
+        >>> obj.get()
+        60
+
         """
 
     def dump(self) -> int:
@@ -53,7 +90,19 @@ class AccQ15:
         Returns
         -------
         int
-            Output.
+            Accumulator value before the reset (int64_t).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> import numpy as np
+        >>> obj = AccQ15(0)
+        >>> obj.steps(np.array([1, 2, 3, 4, 5], dtype=np.int16))
+        >>> obj.dump()
+        15
+        >>> obj.get()
+        0
+
         """
 
     def madd(self, a: NDArray[np.int16], b: NDArray[np.int16]) -> None:
@@ -62,9 +111,21 @@ class AccQ15:
         Parameters
         ----------
         a : NDArray[np.int16]
-            Input.
+            First input array (int16_t).
         b : NDArray[np.int16]
-            Input.
+            Second input array (int16_t), same length as a.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> import numpy as np
+        >>> obj = AccQ15(0)
+        >>> a = np.array([100, 200, 300], dtype=np.int16)
+        >>> b = np.array([10, 20, 30], dtype=np.int16)
+        >>> obj.madd(a, b)
+        >>> obj.get()
+        14000
+
         """
 
     def destroy(self) -> None:
@@ -75,7 +136,7 @@ class AccQ15:
     def __exit__(self, *args: object) -> None: ...
 
 class AccQ8:
-    """AccQ8 component.
+    """Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes.
 
     Parameters
     ----------
@@ -102,13 +163,40 @@ class AccQ8:
     def __init__(self, acc: int = ...) -> None: ...
 
     def reset(self) -> None:
-        """Reset state to post-create defaults."""
+        """Reset the accumulator to zero, mirroring the post-create state. Always resets to zero regardless of the original constructor value, so it is safe to call at the start of any new accumulation window.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> obj = AccQ8(0)
+        >>> obj.step(42)
+        >>> obj.reset()
+        >>> obj.get()
+        0
+
+        """
 
     def step(self, x: int) -> None:
         """Process one input sample."""
 
     def steps(self, x: NDArray[np.int8]) -> None:
-        """Process a samples array."""
+        """Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls.
+
+        Parameters
+        ----------
+        x : NDArray[np.int8]
+            Input.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> import numpy as np
+        >>> obj = AccQ8(0)
+        >>> obj.steps(np.array([1, 2, 3, 4, 5], dtype=np.int8))
+        >>> obj.get()
+        15
+
+        """
 
     def get(self) -> int:
         """Return the current accumulated value without resetting.
@@ -116,7 +204,17 @@ class AccQ8:
         Returns
         -------
         int
-            Output.
+            Current accumulator value (int32_t).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> import numpy as np
+        >>> obj = AccQ8(0)
+        >>> obj.steps(np.array([10, 20, 30], dtype=np.int8))
+        >>> obj.get()
+        60
+
         """
 
     def dump(self) -> int:
@@ -125,7 +223,19 @@ class AccQ8:
         Returns
         -------
         int
-            Output.
+            Accumulator value before the reset (int32_t).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> import numpy as np
+        >>> obj = AccQ8(0)
+        >>> obj.steps(np.array([1, 2, 3, 4, 5], dtype=np.int8))
+        >>> obj.dump()
+        15
+        >>> obj.get()
+        0
+
         """
 
     def madd(self, a: NDArray[np.int8], b: NDArray[np.int8]) -> None:
@@ -134,9 +244,21 @@ class AccQ8:
         Parameters
         ----------
         a : NDArray[np.int8]
-            Input.
+            First input array (int8_t).
         b : NDArray[np.int8]
-            Input.
+            Second input array (int8_t), same length as a.
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> import numpy as np
+        >>> obj = AccQ8(0)
+        >>> a = np.array([10, 20, 30], dtype=np.int8)
+        >>> b = np.array([1, 2, 3], dtype=np.int8)
+        >>> obj.madd(a, b)
+        >>> obj.get()
+        140
+
         """
 
     def destroy(self) -> None:

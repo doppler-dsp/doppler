@@ -263,7 +263,7 @@ static PyMethodDef AccF32_methods[] = {
     {"steps",    (PyCFunction)AccF32_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_f32_step`` for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM_RESTRICT so the compiler can assume no aliasing between ``state`` and ``input``.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccF32\n"
@@ -279,7 +279,7 @@ static PyMethodDef AccF32_methods[] = {
     {"get", (PyCFunction)AccF32_get, METH_NOARGS,
      "get() -> float\n"
      "\n"
-     "get.\n"
+     "Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.\n"
      "\n"
      "    >>> from doppler import AccF32\n"
      "    >>> obj = AccF32(0.0)\n"
@@ -288,7 +288,7 @@ static PyMethodDef AccF32_methods[] = {
     {"dump", (PyCFunction)AccF32_dump, METH_NOARGS,
      "dump() -> float\n"
      "\n"
-     "dump.\n"
+     "Return the accumulated sum and atomically reset it to zero. This is the canonical \"drain\" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. The zero-reset is unconditional and always writes 0.0f.\n"
      "\n"
      "    >>> from doppler import AccF32\n"
      "    >>> obj = AccF32(0.0)\n"
@@ -334,7 +334,7 @@ static PyTypeObject AccF32Type = {
     .tp_basicsize = sizeof(AccF32Object),
     .tp_dealloc   = (destructor)AccF32_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccF32 type.",
+    .tp_doc       = "Single-precision floating-point scalar accumulator. Maintains one running sum (``acc``) that persists across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. Use ``get`` to read without side-effects or ``dump`` to read and atomically zero in a single call.\n",
     .tp_methods   = AccF32_methods,
     .tp_new       = AccF32_new,
     .tp_init      = (initproc)AccF32_init,

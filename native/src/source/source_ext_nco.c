@@ -224,9 +224,9 @@ NCO_getprop_phase_inc(NCOObject *self, void *Py_UNUSED(closure))
 }
 
 static PyGetSetDef NCO_getset[] = {
-    { "norm_freq", (getter)NCO_getprop_norm_freq, (setter)NCO_setprop_norm_freq, NULL, NULL },
-    { "phase", (getter)NCO_getprop_phase, (setter)NCO_setprop_phase, NULL, NULL },
-    { "phase_inc", (getter)NCO_getprop_phase_inc, NULL, NULL, NULL },
+    { "norm_freq", (getter)NCO_getprop_norm_freq, (setter)NCO_setprop_norm_freq, "Normalised frequency (read/write). Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and takes effect on the next nco_steps_* call; phase is NOT reset.\n", NULL },
+    { "phase", (getter)NCO_getprop_phase, (setter)NCO_setprop_phase, "Current phase accumulator value (read/write). Reading returns the current integer phase in [0, 2^32).  Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO.\n", NULL },
+    { "phase_inc", (getter)NCO_getprop_phase_inc, NULL, "Per-sample phase increment (read-only). Derived from norm_freq as floor(frac(norm_freq) × 2^32).  Updated automatically whenever norm_freq is written.  A freq of 0.25 gives phase_inc = 1073741824 (0x40000000).\n", NULL },
     { NULL }
 };
 

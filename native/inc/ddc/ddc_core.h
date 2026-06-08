@@ -82,42 +82,139 @@ extern "C"
   typedef struct ddc_state ddc_state_t;
 
   /**
-   * @brief Create a complex-input DDC.
+   * @brief Create a complex-input Digital Down-Converter.
+   * Allocates internal state for the LO and RateConverter cascade.
+   * The RateConverter selects the cheapest multi-stage decimation chain
+   * (CIC + optional halfband + polyphase resampler) for the given rate.
    *
    * @param norm_freq  LO frequency in cycles/sample at the input rate.
-   * @param rate       Output rate / input rate.  Must be > 0.
+   *                   Set to -f_carrier to shift a carrier at f_carrier
+   *                   to DC.  Any real value is accepted.
+   * @param rate       Output rate / input rate.  Must be > 0.  Values
+   *                   ≥ 1 are up-sampling; typical use is decimation
+   *                   (0 < rate < 1).
    * @return Non-NULL on success, NULL on OOM or invalid args.
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+   * >>> ddc.norm_freq
+   * -0.1
+   * >>> ddc.rate
+   * 0.25
+   * @endcode
    */
 ddc_state_t *ddc_create(double norm_freq, double rate);
 
-  /** Free all resources.  NULL is a no-op. */
+  /**
+   * @brief Free all resources held by a DDC instance.
+   * Releases the RateConverter and LO substructures, then the struct
+   * itself.  Passing NULL is a no-op.
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)
+   * >>> ddc.destroy()   # releases C memory immediately
+   * @endcode
+   */
 void ddc_destroy(ddc_state_t *state);
 
-  /** Zero LO phase and resampler history. */
+  /**
+   * @brief Zero LO phase and resampler history.
+   * After reset, the next execute call produces the same output as the
+   * first execute after create — useful for reproducible block-by-block
+   * processing or looped test fixtures.
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> import numpy as np
+   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)
+   * >>> x = np.ones(64, dtype=np.complex64)
+   * >>> y1 = ddc.execute(x)
+   * >>> ddc.reset()
+   * >>> y2 = ddc.execute(x)
+   * >>> bool(np.array_equal(y1, y2))
+   * True
+   * @endcode
+   */
 void ddc_reset(ddc_state_t *state);
 
-  /** Return the current LO normalised frequency. */
+  /**
+   * @brief Return the current LO normalised frequency (cycles/sample).
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+   * >>> ddc.norm_freq
+   * -0.1
+   * @endcode
+   */
 double ddc_get_norm_freq(const ddc_state_t *state);
 
   /**
    * @brief Retune the LO without resetting phase or resampler history.
+   * Updates the NCO phase increment atomically so the carrier shift
+   * changes seamlessly across block boundaries.  The resampler history
+   * and LO phase accumulator are left intact, avoiding the transient
+   * that a full reset would cause.
+   *
    * @param state  Must be non-NULL.
-   * @param val    New normalised frequency.
+   * @param val    New normalised frequency (cycles/sample at input rate).
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+   * >>> ddc.norm_freq = -0.2
+   * >>> ddc.norm_freq
+   * -0.2
+   * @endcode
    */
 void ddc_set_norm_freq(ddc_state_t *state, double val);
 
-  /** Return the configured output/input rate ratio. */
+  /**
+   * @brief Return the configured output/input rate ratio (read-only).
+   * The rate is fixed at create time; change it by destroying and
+   * recreating the DDC with the new value.
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> ddc = DDC(norm_freq=0.0, rate=0.25)
+   * >>> ddc.rate
+   * 0.25
+   * @endcode
+   */
 double ddc_get_rate(const ddc_state_t *state);
 
   /**
    * @brief Mix and resample a block of CF32 samples.
+   * Multiplies each input sample by the current LO phasor (advancing the
+   * NCO phase per sample), then feeds the mixed block into the
+   * RateConverter.  The resampler maintains history across calls, so
+   * arbitrary block sizes produce contiguous output with no edge
+   * artefacts.  Output length ≈ x_len * rate (varies by ±1 due to
+   * polyphase indexing).
    *
    * @param state    Must be non-NULL.
-   * @param x        Input samples, complex64, length x_len.
-   * @param x_len    Number of input samples.
-   * @param out      Output buffer, complex64, capacity max_out.
-   * @param max_out  Maximum output samples to write.
-   * @return Number of output samples written.
+   * @param x        CF32 input block; accepted as float32 (auto-cast).
+   * @param x_len    Number of input samples (C-only, hidden from Python).
+   * @param out      CF32 output buffer (C-only, hidden from Python).
+   * @param max_out  Output buffer capacity (C-only, hidden from Python).
+   * @return Number of output samples written (C-only).
+   *
+   * @code
+   * >>> from doppler.ddc import DDC
+   * >>> import numpy as np
+   * >>> ddc = DDC(norm_freq=-0.1, rate=0.25)
+   * >>> t = np.arange(4096)
+   * >>> x = np.exp(1j * 2 * np.pi * 0.1 * t).astype(np.complex64)
+   * >>> y = ddc.execute(x)
+   * >>> y.shape
+   * (1024,)
+   * >>> y.dtype
+   * dtype('complex64')
+   * >>> round(float(abs(y[500])), 2)   # shifted to DC; amplitude ≈ 1
+   * 1.0
+   * @endcode
    */
 size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 
@@ -128,39 +225,140 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
   typedef struct ddcr_state ddcr_state_t;
 
   /**
-   * @brief Create a real-input DDC.
+   * @brief Create a real-input Digital Down-Converter (Architecture D2).
+   * The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) →
+   * fine LO mix at the intermediate rate (fs_in/2) → RateConverter →
+   * CF32 output.  The halfband stage uses ±1/0 coefficients (no
+   * multiplications), making DDCR roughly 2× cheaper than DDC at the
+   * same total decimation ratio.
    *
-   * @param norm_freq  Fine NCO frequency at the intermediate rate (fs_in/2).
-   * @param rate       Total output/input rate.  Must be in (0, 0.5).
+   * @param norm_freq  Fine NCO frequency at the intermediate rate
+   *                   (fs_in/2, cycles/sample).  To tune a real tone at
+   *                   normalised input frequency f_c to DC, set
+   *                   norm_freq = -(2*f_c + 0.5).
+   * @param rate       Total output/input rate.  Must be in (0, 0.5)
+   *                   because the halfband pre-decimates by 2.
    * @return Non-NULL on success, NULL on OOM or invalid args.
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> ddcr.norm_freq
+   * -0.7
+   * >>> ddcr.rate
+   * 0.25
+   * @endcode
    */
   ddcr_state_t *ddcr_create (double norm_freq, double rate);
 
-  /** Free all resources.  NULL is a no-op. */
+  /**
+   * @brief Free all resources held by a DDCR instance.
+   * Releases the halfband, RateConverter, and LO substructures, then
+   * the struct itself.  Passing NULL is a no-op.
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+   * >>> ddcr.destroy()   # releases C memory immediately
+   * @endcode
+   */
   void ddcr_destroy (ddcr_state_t *s);
 
-  /** Zero halfband, LO phase, and resampler history. */
+  /**
+   * @brief Zero halfband filter history, LO phase, and resampler history.
+   * After reset, the next execute call reproduces the output of the
+   * first call after create, enabling repeatable block-by-block tests.
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> import numpy as np
+   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+   * >>> x = np.ones(64, dtype=np.float32)
+   * >>> y1 = ddcr.execute(x)
+   * >>> ddcr.reset()
+   * >>> y2 = ddcr.execute(x)
+   * >>> bool(np.array_equal(y1, y2))
+   * True
+   * @endcode
+   */
   void ddcr_reset (ddcr_state_t *s);
 
-  /** Return the current fine NCO normalised frequency (at intermediate rate).
+  /**
+   * @brief Return the current fine NCO normalised frequency at the
+   * intermediate rate (fs_in/2, cycles/sample).
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> ddcr.norm_freq
+   * -0.7
+   * @endcode
    */
   double ddcr_get_norm_freq (const ddcr_state_t *s);
 
-  /** Retune the fine NCO without resetting state. */
+  /**
+   * @brief Retune the fine NCO without resetting halfband or resampler
+   * history.  Updates the LO phase increment only; state is preserved
+   * for seamless tuning across block boundaries.
+   *
+   * @param s         Must be non-NULL.
+   * @param norm_freq New frequency at the intermediate rate (fs_in/2).
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> ddcr.norm_freq = -0.5
+   * >>> ddcr.norm_freq
+   * -0.5
+   * @endcode
+   */
   void ddcr_set_norm_freq (ddcr_state_t *s, double norm_freq);
 
-  /** Return the total configured rate (fs_out / fs_in). */
+  /**
+   * @brief Return the total configured rate (fs_out / fs_in, read-only).
+   * This is the end-to-end ratio from ADC input to CF32 output.  Change
+   * it by destroying and recreating the DDCR.
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+   * >>> ddcr.rate
+   * 0.25
+   * @endcode
+   */
   double ddcr_get_rate (const ddcr_state_t *s);
 
   /**
-   * @brief Process a block of real float32 samples.
+   * @brief Process a block of real float32 samples through the full
+   * DDCR signal chain: halfband R2C → LO mix → RateConverter → CF32.
+   * The halfband decimates by 2 and applies a built-in +fs/4 frequency
+   * shift; the fine NCO then completes the tuning.  State is maintained
+   * across calls for contiguous streaming.  Output length ≈ n_in * rate
+   * (±1 from polyphase indexing).  A real tone at input normalised
+   * frequency f_c has amplitude 0.5 in the baseband output (one-sided
+   * spectrum), consistent with analytic signal theory.
    *
    * @param s        Must be non-NULL.
-   * @param in       Real input samples, float32, length n_in.
-   * @param n_in     Number of input samples.
-   * @param out      CF32 output buffer, capacity max_out.
-   * @param max_out  Maximum output samples to write.
-   * @return Number of output samples written.
+   * @param in       Real float32 input block.
+   * @param n_in     Number of input samples (C-only, hidden from Python).
+   * @param out      CF32 output buffer (C-only, hidden from Python).
+   * @param max_out  Output buffer capacity (C-only, hidden from Python).
+   * @return Number of output samples written (C-only).
+   *
+   * @code
+   * >>> from doppler.ddc import DDCR
+   * >>> import numpy as np
+   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> t = np.arange(4096)
+   * >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
+   * >>> y = ddcr.execute(x)
+   * >>> y.shape
+   * (1024,)
+   * >>> y.dtype
+   * dtype('complex64')
+   * >>> round(float(abs(y[500])), 2)   # one-sided cosine amplitude ≈ 0.5
+   * 0.5
+   * @endcode
    */
   size_t ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
                        float _Complex *out, size_t max_out);

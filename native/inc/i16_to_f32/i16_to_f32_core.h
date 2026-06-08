@@ -2,20 +2,25 @@
  * @file i16_to_f32_core.h
  * @brief int16-to-float converter with configurable inverse scale.
  *
- * Multiplies the signed int16 sample by @c 1/scale. The default scale of
- * 32768.0 maps the full Q15 range `[-32768, 32767]` into `[-1.0, ~1.0)`, which
- * is the inverse of F32ToI16 with its default scale.
- *
- * The inverse scale is pre-computed at construction time so the step path
- * is a single multiply.
+ * Multiplies the signed int16 sample by @c 1/scale.  The default scale of
+ * 32768.0 maps the full Q15 range [-32768, 32767] to [-1.0, ~+1.0), making
+ * it the exact inverse of F32ToI16 at its default scale.
+ * The inverse scale is pre-computed at construction time so each step is
+ * a single multiply with no division on the hot path.
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
- * Example:
  * @code
- * i16_to_f32_state_t *obj = i16_to_f32_create(32768.0f);
- * float y = i16_to_f32_step(obj, -32768);  // y == -1.0f
- * i16_to_f32_destroy(obj);
+ * >>> from doppler.cvt import I16ToF32
+ * >>> import numpy as np
+ * >>> obj = I16ToF32(scale=32768.0)
+ * >>> float(obj.step(-32768))
+ * -1.0
+ * >>> float(obj.step(0))
+ * 0.0
+ * >>> x = np.array([-32768, 0, 32767], dtype=np.int16)
+ * >>> [round(v, 6) for v in obj.steps(x).tolist()]
+ * [-1.0, 0.0, 0.999969]
  * @endcode
  */
 #ifndef I16_TO_F32_CORE_H
@@ -39,7 +44,12 @@ typedef struct {
 /**
  * @brief Create a i16_to_f32 instance.
  *
- * @param scale  scale (default: 32768.0f).
+ * Pre-computes @c iscale = 1.0f / @p scale so the hot step path is a
+ * single multiply.  Any non-zero finite float is a valid scale value.
+ *
+ * @param scale  Denominator scale; 1/scale is applied to each sample
+ *               (default: 32768.0f).  Use 32768.0 to recover normalised
+ *               [-1, +1] floats from a Q15 int16 stream.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call i16_to_f32_destroy() when done.
  */
@@ -53,15 +63,23 @@ void i16_to_f32_destroy(i16_to_f32_state_t *state);
 
 /**
  * @brief Reset i16_to_f32 to its post-create state.
+ *
+ * This converter has no accumulating state beyond the immutable @c iscale
+ * field, so reset is a no-op in practice; it exists for lifecycle symmetry.
+ *
  * @param state  Must be non-NULL.
  */
 void i16_to_f32_reset(i16_to_f32_state_t *state);
 
 /**
  * @brief Process one input sample.
+ *
+ * Returns @c (float)x * iscale.  No saturation or clipping possible — the
+ * int16 range maps cleanly to float32.
+ *
  * @param state  Must be non-NULL.
- * @param x      Input sample (int16_t).
- * @return Output sample (float).
+ * @param x      Signed int16 input sample.
+ * @return Scaled float output.
  */
 JM_FORCEINLINE JM_HOT float
 i16_to_f32_step(const i16_to_f32_state_t *state, int16_t x)
@@ -70,12 +88,15 @@ i16_to_f32_step(const i16_to_f32_state_t *state, int16_t x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of int16 samples to float32.
  *
- * @param state   Component state (mutated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n; may alias input for in-place).
- * @param n       Number of samples.
+ * Applies step() to every element.  Accepts an optional pre-allocated output
+ * array; allocates a fresh one when @p output is NULL.
+ *
+ * @param state   Must be non-NULL.
+ * @param input   Input int16 array; must contain at least @p n elements.
+ * @param output  Output float32 array; must contain at least @p n elements.
+ * @param n       Number of samples to process.
  */
 void i16_to_f32_steps(
     i16_to_f32_state_t *state,

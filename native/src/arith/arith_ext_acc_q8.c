@@ -219,7 +219,7 @@ static PyMethodDef AccQ8_methods[] = {
     {"steps",    (PyCFunction)AccQ8_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccQ8\n"
@@ -272,7 +272,7 @@ static PyTypeObject AccQ8Type = {
     .tp_basicsize = sizeof(AccQ8Object),
     .tp_dealloc   = (destructor)AccQ8_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccQ8 type.",
+    .tp_doc       = "Allocate and initialise an AccQ8 accumulator. The accumulator starts at the supplied initial value and accepts Q8 (int8_t) samples via step(), steps(), or madd(). The 32-bit internal register handles up to roughly 16 million max-magnitude samples before wrap — sufficient for all standard DSP block sizes.\n",
     .tp_methods   = AccQ8_methods,
     .tp_new       = AccQ8_new,
     .tp_init      = (initproc)AccQ8_init,

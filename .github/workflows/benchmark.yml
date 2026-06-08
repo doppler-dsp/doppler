@@ -74,7 +74,7 @@ jobs:
       # (pytest-benchmark) and <tag>-c.json (jm_bench). Pinned to the project's
       # jm version for reproducibility across runs.
       run: >-
-        uvx --from 'just-makeit==0.17.1' just-makeit bench
+        uvx --from 'just-makeit==0.18.0' just-makeit bench
         --tag ${{ steps.tag.outputs.bench_tag }}
 
     - name: Commit benchmark snapshot

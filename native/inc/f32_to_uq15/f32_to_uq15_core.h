@@ -2,27 +2,44 @@
  * @file f32_to_uq15_core.h
  * @brief Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter.
  *
- * Converts a normalised float sample in [-1, +1] to offset-binary uint16
- * (UQ15 format): the Q15 quantised value is shifted by +32768 so that
- * -1.0 maps to 0, 0.0 maps to 32768, and +1.0 maps to 65535.
+ * Converts a normalised float sample to offset-binary uint16 (UQ15 format).
+ * The Q15 quantised value is biased by +32768 so that the full unsigned range
+ * maps to the signed float domain:
+ *   -1.0  → uint16    0  (0x0000)
+ *    0.0  → uint16 32768 (0x8000)
+ *   +1.0  → uint16 65535 (0xFFFF)
  *
  * Encoding:
  * @code
- *   v_Q15 = round(x * scale);            // Q15 in [-32768, 32767]
- *   u     = (uint16_t)((int32_t)v + 32768); // UQ15 in [0, 65535]
+ *   v_Q15 = clamp(round(x * scale), -32768, 32767)
+ *   u     = (uint16_t)((int32_t)v_Q15 + 32768)
  * @endcode
  *
- * The @c clipped flag is set whenever the pre-saturation scaled value
- * falls outside [-32768, 32767].  It is sticky — cleared only by reset().
+ * This is the unsigned wire format used by some DAC and file-container
+ * conventions that cannot represent negative integer values.  UQ15ToF32
+ * performs the exact inverse.  A sticky @c clipped flag is raised on
+ * saturation and cleared only by reset().
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
  *
- * Example:
  * @code
- * f32_to_uq15_state_t *obj = f32_to_uq15_create(32768.0f);
- * uint16_t y = f32_to_uq15_step(obj, 0.0f);  // y == 32768
- * uint16_t z = f32_to_uq15_step(obj, -1.0f); // z == 0
- * f32_to_uq15_destroy(obj);
+ * >>> from doppler.cvt import F32ToUQ15
+ * >>> import numpy as np
+ * >>> obj = F32ToUQ15(scale=32768.0)
+ * >>> obj.step(0.0)
+ * 32768
+ * >>> obj.step(-1.0)
+ * 0
+ * >>> obj.clipped
+ * False
+ * >>> obj.step(1.0)
+ * 65535
+ * >>> obj.clipped
+ * True
+ * >>> obj.reset()
+ * >>> x = np.array([-1.0, 0.0, 1.0], dtype=np.float32)
+ * >>> obj.steps(x).tolist()
+ * [0, 32768, 65535]
  * @endcode
  */
 #ifndef F32_TO_UQ15_CORE_H
@@ -51,9 +68,13 @@ typedef struct {
 /**
  * @brief Create a f32_to_uq15 instance.
  *
- * @param scale  Multiply factor applied before quantisation (default: 32768.0f).
+ * Stores @p scale and initialises the sticky @c clipped flag to 0.
+ *
+ * @param scale  Multiply factor applied before quantisation and saturation
+ *               (default: 32768.0f).  Use 32768.0 to convert normalised
+ *               [-1, +1] floats to the full UQ15 range [0, 65535].
  *               Must be > 0; returns NULL otherwise.
- * @return Heap-allocated state, or NULL on allocation failure.
+ * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call f32_to_uq15_destroy() when done.
  */
 f32_to_uq15_state_t *f32_to_uq15_create(float scale);
@@ -65,7 +86,10 @@ f32_to_uq15_state_t *f32_to_uq15_create(float scale);
 void f32_to_uq15_destroy(f32_to_uq15_state_t *state);
 
 /**
- * @brief Reset f32_to_uq15 to its post-create state (clears clipped).
+ * @brief Reset f32_to_uq15 to its post-create state.
+ *
+ * Clears the sticky @c clipped flag.  The @c scale is preserved.
+ *
  * @param state  Must be non-NULL.
  */
 void f32_to_uq15_reset(f32_to_uq15_state_t *state);
@@ -73,9 +97,13 @@ void f32_to_uq15_reset(f32_to_uq15_state_t *state);
 /**
  * @brief Process one input sample.
  *
+ * Computes @c round(x * scale), clamps to [-32768, 32767], then adds 32768
+ * to produce the offset-binary uint16 result.  Sets @c clipped if
+ * saturation occurred before clamping.
+ *
  * @param state  Must be non-NULL.
- * @param x      Input sample (float).
- * @return UQ15 offset-binary encoded sample (uint16_t):
+ * @param x      Normalised float input sample.
+ * @return Offset-binary uint16 in [0, 65535]:
  *         x = -1.0 → 0x0000, x = 0.0 → 0x8000, x ≈ +1.0 → 0xFFFF.
  */
 JM_FORCEINLINE JM_HOT uint16_t
@@ -92,12 +120,17 @@ f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
 }
 
 /**
- * @brief Process a block of samples.
+ * @brief Process a block of float samples to UQ15 uint16.
  *
- * @param state   Component state (mutated; clipped flag updated).
- * @param input   Input array (length >= n).
- * @param output  Output array (length >= n; may alias input for in-place).
- * @param n       Number of samples.
+ * Applies step() to every element.  The @c clipped flag is updated
+ * cumulatively across the block.  Accepts an optional pre-allocated output
+ * array; allocates a fresh one when @p output is NULL.
+ *
+ * @param state   Must be non-NULL.
+ * @param input   Input float32 array; must contain at least @p n elements.
+ * @param output  Output uint16 offset-binary array; must contain at least
+ *                @p n elements.
+ * @param n       Number of samples to process.
  */
 void f32_to_uq15_steps(
     f32_to_uq15_state_t *state,

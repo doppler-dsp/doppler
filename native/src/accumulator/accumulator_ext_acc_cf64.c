@@ -266,7 +266,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"steps",    (PyCFunction)AccCf64_steps,    METH_VARARGS,
      "steps(x[, out]) -> ndarray\n"
      "\n"
-     "Process a block of samples in batch.\n"
+     "Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_cf64_step`` for each element; iterates element-by-element over double-precision complex samples.\n"
      "\n"
      "    >>> import numpy as np\n"
      "    >>> from doppler import AccCf64\n"
@@ -282,7 +282,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"get", (PyCFunction)AccCf64_get, METH_NOARGS,
      "get() -> complex\n"
      "\n"
-     "get.\n"
+     "Return the current accumulated sum without resetting state. Identical to reading the ``acc`` property directly; retained as an explicit method so call sites that need the value can be uniform with ``dump`` without a conditional.\n"
      "\n"
      "    >>> from doppler import AccCf64\n"
      "    >>> obj = AccCf64(0j)\n"
@@ -291,7 +291,7 @@ static PyMethodDef AccCf64_methods[] = {
     {"dump", (PyCFunction)AccCf64_dump, METH_NOARGS,
      "dump() -> complex\n"
      "\n"
-     "dump.\n"
+     "Return the accumulated sum and atomically reset it to zero. This is the canonical \"drain\" primitive: read the period total, then start a fresh accumulation interval without a separate ``reset`` call. Both real and imaginary parts are zeroed unconditionally.\n"
      "\n"
      "    >>> from doppler import AccCf64\n"
      "    >>> obj = AccCf64(0j)\n"
@@ -337,7 +337,7 @@ static PyTypeObject AccCf64Type = {
     .tp_basicsize = sizeof(AccCf64Object),
     .tp_dealloc   = (destructor)AccCf64_dealloc,
     .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "AccCf64 type.",
+    .tp_doc       = "Double-precision complex scalar accumulator. Maintains one running complex sum (``acc``) across calls to ``step``, ``steps``, ``madd``, ``add2d``, and ``madd2d``. The signal path is double-precision complex (128-bit per sample); coefficient arrays for ``madd``/``madd2d`` are single-precision float to match typical FIR weight storage. Use ``get`` to read without side-effects or ``dump`` to read and zero atomically.\n",
     .tp_methods   = AccCf64_methods,
     .tp_new       = AccCf64_new,
     .tp_init      = (initproc)AccCf64_init,

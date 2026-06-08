@@ -146,7 +146,7 @@ ensure_scratch (fir_state_t *f, size_t num_samples)
       = (float complex *)realloc (f->scratch, needed * sizeof (float complex));
   if (!tmp)
     return -1;
-  f->scratch = tmp;
+  f->scratch     = tmp;
   f->scratch_cap = needed;
   return 0;
 }
@@ -168,24 +168,24 @@ inner_cf32 (const float complex *JM_RESTRICT buf,
             float complex *JM_RESTRICT out, size_t N)
 {
   const __m512 SIGN = _mm512_load_ps (fir_sign);
-  size_t i = 0;
+  size_t       i    = 0;
   for (; i + 8 <= N; i += 8)
     {
       __m512 acc = _mm512_setzero_ps ();
       for (size_t k = 0; k < M; k++)
         {
-          __m512 vx = _mm512_loadu_ps ((const float *)&buf[i + M - 1 - k]);
+          __m512 vx  = _mm512_loadu_ps ((const float *)&buf[i + M - 1 - k]);
           __m512 vxs = _mm512_permute_ps (vx, 0xB1);
           __m512 vhr = _mm512_set1_ps (crealf (h[k]));
           __m512 vhi = _mm512_set1_ps (cimagf (h[k]));
-          acc = _mm512_fmadd_ps (vhr, vx, acc);
-          acc = _mm512_fmadd_ps (vhi, _mm512_mul_ps (vxs, SIGN), acc);
+          acc        = _mm512_fmadd_ps (vhr, vx, acc);
+          acc        = _mm512_fmadd_ps (vhi, _mm512_mul_ps (vxs, SIGN), acc);
         }
       _mm512_storeu_ps ((float *)&out[i], acc);
     }
   for (ptrdiff_t ii = (ptrdiff_t)i; (size_t)ii < N; ii++)
     {
-      float re = 0.0f, im = 0.0f;
+      float     re = 0.0f, im = 0.0f;
       ptrdiff_t base = ii + (ptrdiff_t)(M - 1);
       for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
         {
@@ -211,7 +211,7 @@ inner_cf32 (const float complex *JM_RESTRICT buf,
   const ptrdiff_t iM = (ptrdiff_t)M;
   for (ptrdiff_t ii = 0; (size_t)ii < N; ii++)
     {
-      float re = 0.0f, im = 0.0f;
+      float     re = 0.0f, im = 0.0f;
       ptrdiff_t base = ii + iM - 1;
       for (ptrdiff_t k = 0; k < iM; k++)
         {
@@ -250,7 +250,7 @@ inner_real_cf32 (const float complex *JM_RESTRICT buf,
                  float complex *JM_RESTRICT out, size_t N)
 {
   const size_t stride = JM_SIMD_WIDTH_F32 / 2;
-  size_t i = 0;
+  size_t       i      = 0;
   for (; i + stride <= N; i += stride)
     {
       JM_VEC_F32 acc = JM_ZERO_F32 ();
@@ -260,7 +260,7 @@ inner_real_cf32 (const float complex *JM_RESTRICT buf,
     }
   for (ptrdiff_t ii = (ptrdiff_t)i; (size_t)ii < N; ii++)
     {
-      float re = 0.0f, im = 0.0f;
+      float     re = 0.0f, im = 0.0f;
       ptrdiff_t base = ii + (ptrdiff_t)(M - 1);
       for (ptrdiff_t k = 0; k < (ptrdiff_t)M; k++)
         {
@@ -284,7 +284,7 @@ inner_real_cf32 (const float complex *JM_RESTRICT buf,
   const ptrdiff_t iM = (ptrdiff_t)M;
   for (ptrdiff_t ii = 0; (size_t)ii < N; ii++)
     {
-      float re = 0.0f, im = 0.0f;
+      float     re = 0.0f, im = 0.0f;
       ptrdiff_t base = ii + iM - 1;
       for (ptrdiff_t k = 0; k < iM; k++)
         {

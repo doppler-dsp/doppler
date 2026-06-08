@@ -35,8 +35,8 @@ ceq32 (float complex a, float complex b)
 int
 main (void)
 {
-  int _fails = 0;
-  const size_t N = 16;
+  int          _fails = 0;
+  const size_t N      = 16;
 
   /* ── lifecycle ──────────────────────────────────────────────────── */
   {
@@ -94,7 +94,7 @@ main (void)
 
   /* ── DC tone: only bin 0 is non-zero ────────────────────────────── */
   {
-    fft_state_t *obj = fft_create (N, -1, 1);
+    fft_state_t   *obj = fft_create (N, -1, 1);
     double complex in[16], out[16];
     for (size_t i = 0; i < N; i++)
       in[i] = 1.0 + 0.0 * I;
@@ -109,7 +109,7 @@ main (void)
 
   /* ── inplace CF64 matches out-of-place ──────────────────────────── */
   {
-    fft_state_t *obj = fft_create (N, -1, 1);
+    fft_state_t   *obj = fft_create (N, -1, 1);
     double complex in[16], out_oop[16], out_ip[16];
     for (size_t i = 0; i < N; i++)
       in[i] = (double)i - 7.5 + (double)i * I;
@@ -124,7 +124,7 @@ main (void)
 
   /* ── inplace CF32 matches out-of-place ──────────────────────────── */
   {
-    fft_state_t *obj = fft_create (N, -1, 1);
+    fft_state_t  *obj = fft_create (N, -1, 1);
     float complex in[16], out_oop[16], out_ip[16];
     for (size_t i = 0; i < N; i++)
       in[i] = (float)i - 7.5f + (float)i * I;

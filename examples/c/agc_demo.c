@@ -27,13 +27,13 @@
 #endif
 
 #define N_TOTAL 6000    /* total samples processed                   */
-#define N_STEP  3000    /* sample index where the input level jumps  */
-#define F_TONE  0.02    /* normalised tone frequency (cycles/sample) */
-#define REF_DB  0.0     /* AGC target output power                   */
+#define N_STEP 3000     /* sample index where the input level jumps  */
+#define F_TONE 0.02     /* normalised tone frequency (cycles/sample) */
+#define REF_DB 0.0      /* AGC target output power                   */
 #define LOOP_BW 0.00125 /* loop noise bandwidth, cycles/sample       */
-#define ALPHA   0.02    /* power-detector EMA coefficient            */
-#define LO_DB   (-10.0) /* input power before the step               */
-#define HI_DB   (10.0)  /* input power after the step                */
+#define ALPHA 0.02      /* power-detector EMA coefficient            */
+#define LO_DB (-10.0)   /* input power before the step               */
+#define HI_DB (10.0)    /* input power after the step                */
 
 /* Instantaneous power of a complex sample, in dB. */
 static double
@@ -66,14 +66,14 @@ main (void)
 
   for (int n = 0; n < N_TOTAL; n++)
     {
-      double amp = (n < N_STEP) ? a_lo : a_hi;
-      double ph = 2.0 * M_PI * F_TONE * (double)n;
+      double amp       = (n < N_STEP) ? a_lo : a_hi;
+      double ph        = 2.0 * M_PI * F_TONE * (double)n;
       float _Complex x = (float)(amp * cos (ph)) + (float)(amp * sin (ph)) * I;
 
       float _Complex y = agc_step (agc, x);
 
-      double in_db = db_power (x);
-      double out_db = db_power (y);
+      double in_db   = db_power (x);
+      double out_db  = db_power (y);
       double gain_db = agc->gain_db; /* loop-filter integrator state */
 
       if (csv)

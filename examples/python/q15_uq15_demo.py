@@ -19,6 +19,7 @@ Run:
 from __future__ import annotations
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,6 +30,7 @@ import doppler.cvt as cvt
 # ---------------------------------------------------------------------------
 # quantizers
 # ---------------------------------------------------------------------------
+
 
 def _q15_roundtrip(x: np.ndarray) -> np.ndarray:
     """Q15 bipolar roundtrip via cvt.F32ToI16 / I16ToF32."""
@@ -83,6 +85,7 @@ def _cf32_apply(fn, x: np.ndarray) -> np.ndarray:
 # signal & spectrum
 # ---------------------------------------------------------------------------
 
+
 def _tone(freq_norm: float, n: int) -> np.ndarray:
     t = np.arange(n, dtype=np.float64)
     return np.exp(2j * np.pi * freq_norm * t).astype(np.complex64)
@@ -96,7 +99,9 @@ def _make_signal(n: int) -> np.ndarray:
 def _blackman_harris(n: int) -> np.ndarray:
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    return a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    return (
+        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    )
 
 
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
@@ -113,6 +118,7 @@ def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
 # plot
 # ---------------------------------------------------------------------------
 
+
 def _style_ax(ax):
     ax.set_facecolor("#111827")
     ax.tick_params(colors="#d1d5db")
@@ -128,12 +134,12 @@ def main(out_path: str = "q15_uq15_demo.png") -> None:
     n = 65536
     x = _make_signal(n)
 
-    xq_q15  = _cf32_apply(_q15_roundtrip,  x)
+    xq_q15 = _cf32_apply(_q15_roundtrip, x)
     xq_uq15 = _cf32_apply(_uq15_roundtrip, x)
 
-    freq, amp_in  = _spectrum_db(x)
-    _, amp_q15    = _spectrum_db(xq_q15)
-    _, amp_uq15   = _spectrum_db(xq_uq15)
+    freq, amp_in = _spectrum_db(x)
+    _, amp_q15 = _spectrum_db(xq_q15)
+    _, amp_uq15 = _spectrum_db(xq_uq15)
 
     fig, (ax_in, ax_q, ax_uq) = plt.subplots(
         3, 1, figsize=(10, 11), constrained_layout=True
@@ -141,7 +147,8 @@ def main(out_path: str = "q15_uq15_demo.png") -> None:
     fig.patch.set_facecolor("#0f172a")
     fig.suptitle(
         "Q15 bipolar vs UQ15 offset-binary — Δ = 2⁻¹⁵ (identical step size)",
-        fontsize=12, color="#f1f5f9",
+        fontsize=12,
+        color="#f1f5f9",
     )
 
     # ── input ────────────────────────────────────────────────────────────────
@@ -168,7 +175,9 @@ def main(out_path: str = "q15_uq15_demo.png") -> None:
     ax_uq.set_ylim(-130, 10)
     ax_uq.set_xlabel("Normalised frequency (cycles/sample)")
     ax_uq.set_ylabel("Amplitude (dBFS)")
-    ax_uq.set_title("UQ15 offset-binary roundtrip (F32 → uint16 → F32)", loc="right")
+    ax_uq.set_title(
+        "UQ15 offset-binary roundtrip (F32 → uint16 → F32)", loc="right"
+    )
     _style_ax(ax_uq)
 
     fig.savefig(out_path, dpi=150, bbox_inches="tight")

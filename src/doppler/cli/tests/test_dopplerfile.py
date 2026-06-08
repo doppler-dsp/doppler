@@ -221,8 +221,12 @@ class TestDiscover:
         cwd_dir.mkdir()
 
         # Global has sweep_rate=1.0, CWD has sweep_rate=2.0
-        _write_dopplerfile(global_dir, {**SIMPLE_DOC, "config": {"sweep_rate": 1.0}})
-        _write_dopplerfile(cwd_dir, {**SIMPLE_DOC, "config": {"sweep_rate": 2.0}})
+        _write_dopplerfile(
+            global_dir, {**SIMPLE_DOC, "config": {"sweep_rate": 1.0}}
+        )
+        _write_dopplerfile(
+            cwd_dir, {**SIMPLE_DOC, "config": {"sweep_rate": 2.0}}
+        )
 
         monkeypatch.setattr(df, "_BLOCKS_DIR", global_dir)
         monkeypatch.chdir(cwd_dir)

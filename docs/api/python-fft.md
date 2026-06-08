@@ -7,18 +7,18 @@ thread-safe, multiple sizes coexist freely.
 Source:
 [`src/doppler/spectral/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/__init__.py)
 
----
+______________________________________________________________________
 
 ## Dtype dispatch
 
 Pass any dtype — the right C path is chosen automatically:
 
-| Input dtype | C path | Speed |
-|-------------|--------|-------|
-| `complex64` | CF32 (fftwf) | ~2× faster |
-| `complex128` | CF64 (fftw) | baseline |
+| Input dtype  | C path       | Speed      |
+| ------------ | ------------ | ---------- |
+| `complex64`  | CF32 (fftwf) | ~2× faster |
+| `complex128` | CF64 (fftw)  | baseline   |
 
----
+______________________________________________________________________
 
 ## Examples
 
@@ -83,10 +83,10 @@ large = FFT(4096)
 # Independent plans — coexist with no conflict
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.spectral.FFT
 
----
+______________________________________________________________________
 
 ::: doppler.spectral.FFT2D

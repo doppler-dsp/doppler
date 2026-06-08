@@ -4,7 +4,7 @@
 
 `doppler.detection` implements the closed-form Marcum Q functions used
 to set thresholds and predict detection probability without running
-Monte Carlo.  `det_pd` gives P_d for a given SNR and dwell;
+Monte Carlo. `det_pd` gives P_d for a given SNR and dwell;
 `det_dwell` inverts it to find the minimum dwell that meets a P_d
 target.
 
@@ -57,7 +57,7 @@ python examples/python/detection_curves.py   # → detection_curves.png
 
 `detection_sim.py` validates both the envelope detector and power
 detector against Marcum Q predictions using 30 000 independent trials
-per SNR point.  The left column shows empirical survival functions
+per SNR point. The left column shows empirical survival functions
 overlaid on the closed-form curves; the right column plots P_d vs SNR.
 MC and theory agree to within statistical noise throughout.
 

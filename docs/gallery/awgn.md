@@ -4,18 +4,18 @@
 
 ## What you're seeing
 
-**Top panel — amplitude histogram.**  Real and imaginary components of 65 536
+**Top panel — amplitude histogram.** Real and imaginary components of 65 536
 CF32 samples with `amplitude=1.0` overlaid with the theoretical
-N(0, σ²=1) Gaussian PDF.  Both components track the curve to within
+N(0, σ²=1) Gaussian PDF. Both components track the curve to within
 statistical noise, confirming the Box-Muller transform is unbiased.
 
-**Middle panel — Welch PSD.**  One-sided power spectral density of
-65 536 samples (Re²+Im², `nperseg=1024`).  The trace stays within ±1 dB
+**Middle panel — Welch PSD.** One-sided power spectral density of
+65 536 samples (Re²+Im², `nperseg=1024`). The trace stays within ±1 dB
 of the expected floor across the full bandwidth, confirming the spectrum
 is white — no tonal artefacts from the LUT phase quantisation.
 
-**Bottom panel — noisy carrier.**  Real part of `LO(0.1) + AWGN(σ=0.3)`,
-first 256 samples.  The clean carrier (dashed) rides underneath the noise.
+**Bottom panel — noisy carrier.** Real part of `LO(0.1) + AWGN(σ=0.3)`,
+first 256 samples. The clean carrier (dashed) rides underneath the noise.
 Total complex power is split evenly: carrier ≈ 1/√2 per component, noise
 σ=0.3 per component, giving ≈ 10 dB SNR.
 

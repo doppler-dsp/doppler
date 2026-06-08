@@ -32,7 +32,7 @@ acc_f32_steps (acc_f32_state_t *JM_RESTRICT state,
                const float *JM_RESTRICT input, size_t n)
 {
   JM_VEC_F32 vacc = JM_ZERO_F32 ();
-  size_t i = 0;
+  size_t     i    = 0;
   for (; i + JM_SIMD_WIDTH_F32 <= n; i += JM_SIMD_WIDTH_F32)
     vacc = JM_ADD_F32 (vacc, JM_LOAD_F32 (input + i));
   state->acc += JM_HSUM_F32 (vacc);
@@ -70,7 +70,7 @@ acc_f32_get (acc_f32_state_t *state)
 float
 acc_f32_dump (acc_f32_state_t *state)
 {
-  float v = state->acc;
+  float v    = state->acc;
   state->acc = 0.0f;
   return v;
 }

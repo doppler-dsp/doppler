@@ -28,11 +28,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define N_FREE   16     /* free-running samples to print        */
-#define N_FM     32     /* FM-modulated samples to generate     */
-#define FM_RATE  0.25f  /* modulating tone: f_n of the sine wave */
-#define FM_DEV   0.05f  /* peak frequency deviation (normalised) */
-#define N_NCO    16     /* raw NCO samples to print             */
+#define N_FREE 16     /* free-running samples to print        */
+#define N_FM 32       /* FM-modulated samples to generate     */
+#define FM_RATE 0.25f /* modulating tone: f_n of the sine wave */
+#define FM_DEV 0.05f  /* peak frequency deviation (normalised) */
+#define N_NCO 16      /* raw NCO samples to print             */
 
 int
 main (void)
@@ -49,8 +49,8 @@ main (void)
   lo_steps (lo, N_FREE, out);
 
   for (int i = 0; i < N_FREE; i++)
-    printf ("%-6d  %+9.6f  %+9.6f\n", i,
-            (double)crealf (out[i]), (double)cimagf (out[i]));
+    printf ("%-6d  %+9.6f  %+9.6f\n", i, (double)crealf (out[i]),
+            (double)cimagf (out[i]));
 
   lo_destroy (lo);
 
@@ -74,9 +74,8 @@ main (void)
   lo_steps_ctrl (fm, ctrl, N_FM, fmo);
 
   for (int i = 0; i < N_FM; i++)
-    printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i,
-            (double)crealf (fmo[i]), (double)cimagf (fmo[i]),
-            (double)(0.1f + ctrl[i]));
+    printf ("%-6d  %+9.6f  %+9.6f  %+9.6f\n", i, (double)crealf (fmo[i]),
+            (double)cimagf (fmo[i]), (double)(0.1f + ctrl[i]));
 
   lo_destroy (fm);
 
@@ -89,8 +88,8 @@ main (void)
   printf ("------  ------------  -----\n");
 
   nco_state_t *nco = nco_create (0.25, 0);
-  uint32_t phase[N_NCO];
-  uint8_t  carry[N_NCO];
+  uint32_t     phase[N_NCO];
+  uint8_t      carry[N_NCO];
   nco_steps_u32_ovf (nco, N_NCO, phase, carry);
 
   for (int i = 0; i < N_NCO; i++)

@@ -1,4 +1,5 @@
 """doppler package."""
+
 from importlib.metadata import version as _version, PackageNotFoundError
 
 try:

@@ -1,6 +1,6 @@
 > **Superseded** — This records the ctypes → native extension migration
-> (now complete).  For the current extension module layout policy see
-> [docs/dev/module-layout.md](../dev/module-layout.md).  For a step-by-step
+> (now complete). For the current extension module layout policy see
+> [docs/dev/module-layout.md](../dev/module-layout.md). For a step-by-step
 > guide to adding a new module see
 > [docs/dev/adding-a-module.md](../dev/adding-a-module.md).
 
@@ -9,9 +9,11 @@
 ## Current Implementation Analysis (client.py)
 
 ### Architecture
+
 **Approach:** ctypes wrapper around `libdoppler.so`
 
 **Flow:**
+
 ```
 
 **Key Decision: Static Linking**
@@ -25,6 +27,7 @@ Python → ctypes → libdoppler.so → libzmq.so
 ### Key Components
 
 #### 1. Library Loading (`_load_lib`, `_get_lib`)
+
 ```python
 # Searches multiple paths for libdoppler.so
 # Lazy loads + caches via CDLL
@@ -32,17 +35,20 @@ Python → ctypes → libdoppler.so → libzmq.so
 ```
 
 **Pros:**
+
 - No compilation needed
 - Easy to debug
 - Works across Python versions without recompilation
 
 **Cons:**
+
 - ~5-10% overhead per call (ctypes marshalling)
 - Manual type checking required
 - No compile-time safety
 - Extra shared library dependency
 
 #### 2. Type Mapping
+
 ```python
 # Current ctypes approach:
 _Header(Structure)  # mirrors C struct dp_header_t
@@ -50,22 +56,25 @@ c_void_p            # opaque dp_pub_t*, dp_sub_t* pointers
 ```
 
 **Issues:**
+
 - Buffer copies on recv (lines 495-523)
 - Manual memory management (dp_sub_free_samples)
-- Type conversions: Python bytes ↔ C char*, NumPy ↔ C arrays
+- Type conversions: Python bytes ↔ C char\*, NumPy ↔ C arrays
 
 #### 3. Critical Path (recv - lines 436-536)
 
 **Current Flow:**
+
 1. Python → ctypes → `dp_sub_recv()`
-2. C allocates buffer
-3. ctypes → Python pointer
-4. `np.ctypeslib.as_array()` wraps memory
-5. `.copy()` to make safe NumPy array
-6. `dp_sub_free_samples()` via ctypes
-7. Build Header namedtuple
+1. C allocates buffer
+1. ctypes → Python pointer
+1. `np.ctypeslib.as_array()` wraps memory
+1. `.copy()` to make safe NumPy array
+1. `dp_sub_free_samples()` via ctypes
+1. Build Header namedtuple
 
 **Overhead per recv:**
+
 - 2 ctypes calls (recv + free)
 - Buffer copy for safety (line 501, 509, 523)
 - Python object allocation overhead
@@ -74,39 +83,44 @@ c_void_p            # opaque dp_pub_t*, dp_sub_t* pointers
 #### 4. Send Path (lines 355-405)
 
 **Current Flow:**
+
 1. `np.ascontiguousarray()` — may copy
-2. `.ctypes.data_as(c_void_p)` — pointer extraction
-3. ctypes → `dp_pub_send_cf64()`
-4. Keep Python object alive during call
+1. `.ctypes.data_as(c_void_p)` — pointer extraction
+1. ctypes → `dp_pub_send_cf64()`
+1. Keep Python object alive during call
 
 **Issues:**
+
 - CI32 requires repacking (lines 383-393) — expensive!
 - Type dispatch in Python (overhead)
 
 #### 5. Timeout Handling (lines 262-304)
 
 **HACK ALERT:** Reaches into opaque `dp_ctx` struct!
+
 ```python
 # Extracts zmq_socket pointer from dp_ctx_t
 # Calls zmq_setsockopt directly via ctypes
 ```
 
 **Why it's bad:**
+
 - Breaks encapsulation
 - Fragile (assumes struct layout)
 - Loads libzmq.so separately
 - ctypes overhead for every timed recv
 
----
+______________________________________________________________________
 
 ## Proposed C Extension Design
 
 ### Goals
+
 1. **Zero-copy recv** where possible
-2. **Eliminate ctypes overhead** (~5-10% per call)
-3. **Bake ZMQ in** — direct API, no struct hacking
-4. **Type safety** at compile time
-5. **Pythonic API** — same interface, faster backend
+1. **Eliminate ctypes overhead** (~5-10% per call)
+1. **Bake ZMQ in** — direct API, no struct hacking
+1. **Type safety** at compile time
+1. **Pythonic API** — same interface, faster backend
 
 ### Architecture
 
@@ -475,11 +489,12 @@ PyInit_dp_stream(void)
 }
 ```
 
----
+______________________________________________________________________
 
 ## Performance Comparison
 
 ### Current (ctypes)
+
 ```python
 # recv() path:
 1. Python call → ctypes marshalling      (~500 ns)
@@ -494,6 +509,7 @@ Total overhead: ~3-5 μs + memcpy
 ```
 
 ### Proposed (C extension)
+
 ```python
 # recv() path:
 1. Python call → C extension             (~50 ns)
@@ -505,15 +521,17 @@ Total overhead: ~3-5 μs, NO memcpy
 ```
 
 **Speedup:**
+
 - ~10x on small arrays (< 1KB) — overhead dominates
 - ~2x on medium arrays (1-100 KB) — copy overhead
 - Negligible on large arrays (> 1 MB) — ZMQ dominates
 
 **Memory:**
+
 - Current: 2x array size (C buffer + Python copy)
 - Proposed: 1x array size (zero-copy view)
 
----
+______________________________________________________________________
 
 ## API Compatibility
 
@@ -531,22 +549,24 @@ data, hdr = sub.recv(timeout_ms=500)
 ```
 
 **Changes needed:**
+
 - Replace `client.py` ctypes wrapper with C extension import
 - Update `__init__.py`:
-  ```python
-  from .dp_stream import (
-      Publisher, Subscriber, Push, Pull,
-      Requester, Replier,
-      CI32, CF64, CF128,
-      get_timestamp_ns,
-  )
-  ```
+    ```python
+    from .dp_stream import (
+        Publisher, Subscriber, Push, Pull,
+        Requester, Replier,
+        CI32, CF64, CF128,
+        get_timestamp_ns,
+    )
+    ```
 
----
+______________________________________________________________________
 
 ## Implementation Phases
 
 ### Phase 1: Core Extension (Publisher + Subscriber)
+
 - `python/ext/dp_stream.c` — basic PUB/SUB only
 - Zero-copy recv
 - Context manager support
@@ -554,43 +574,47 @@ data, hdr = sub.recv(timeout_ms=500)
 - Test compatibility with existing `test_pubsub.py`
 
 ### Phase 2: Complete Pattern Support
+
 - Push / Pull
 - Requester / Replier
 - All sample types (CI32, CF64, CF128)
 - Error handling parity
 
 ### Phase 3: Optimization
+
 - Zero-copy send (zmq_msg_init_data with custom free)
 - GIL release for all blocking operations
 - Pre-allocate common structures
 - Fast-path for CF64 (most common)
 
 ### Phase 4: Remove ctypes Dependency
+
 - Delete `client.py`
 - Update docs
 - Benchmark comparison
 
----
+______________________________________________________________________
 
 ## Key Differences from ctypes Approach
 
-| Aspect | ctypes (current) | C Extension (proposed) |
-|--------|-----------------|------------------------|
-| **Dependency** | libdoppler.so | Built-in (links libzmq directly) |
-| **Call overhead** | ~500 ns/call | ~50 ns/call |
-| **Buffer copy** | Required for safety | Zero-copy via PyArray base object |
-| **Memory** | 2x (C + Python) | 1x (shared) |
-| **Timeout** | Struct hacking | Direct zmq_setsockopt() |
-| **Type safety** | Runtime | Compile-time |
-| **GIL handling** | Manual BEGIN/END | Automatic in C |
-| **Error messages** | Indirect | Direct Python exceptions |
-| **Debugging** | gdb → ctypes → C | gdb → C |
+| Aspect             | ctypes (current)    | C Extension (proposed)            |
+| ------------------ | ------------------- | --------------------------------- |
+| **Dependency**     | libdoppler.so       | Built-in (links libzmq directly)  |
+| **Call overhead**  | ~500 ns/call        | ~50 ns/call                       |
+| **Buffer copy**    | Required for safety | Zero-copy via PyArray base object |
+| **Memory**         | 2x (C + Python)     | 1x (shared)                       |
+| **Timeout**        | Struct hacking      | Direct zmq_setsockopt()           |
+| **Type safety**    | Runtime             | Compile-time                      |
+| **GIL handling**   | Manual BEGIN/END    | Automatic in C                    |
+| **Error messages** | Indirect            | Direct Python exceptions          |
+| **Debugging**      | gdb → ctypes → C    | gdb → C                           |
 
----
+______________________________________________________________________
 
 ## Risk Analysis
 
 ### Benefits
+
 ✅ **10x faster for small messages** (< 1KB)
 ✅ **Zero-copy** — 50% memory reduction
 ✅ **No struct hacking** — robust timeout API
@@ -598,23 +622,26 @@ data, hdr = sub.recv(timeout_ms=500)
 ✅ **Simpler deployment** — one .so instead of two
 
 ### Risks
+
 ⚠️ **More complex to maintain** — C code vs Python
 ⚠️ **Platform-specific builds** — need manylinux wheels
 ⚠️ **Debugging harder** — C extension crashes are opaque
 ⚠️ **NumPy ABI** — must match build-time version
 
 ### Mitigation
+
 - Keep C code simple and well-tested
 - Use CI matrix (Linux, macOS, multiple Python versions)
 - Comprehensive error handling (PyErr_Format everywhere)
 - Document build process clearly
 - Keep ctypes version as fallback (optional)
 
----
+______________________________________________________________________
 
 ## Build Integration
 
 ### CMakeLists.txt
+
 ```cmake
 # python/CMakeLists.txt
 add_library(dp_stream MODULE
@@ -646,17 +673,19 @@ add_custom_command(TARGET dp_stream POST_BUILD
 )
 ```
 
----
+______________________________________________________________________
 
 ## Testing Strategy
 
 ### Unit Tests (existing tests should pass unchanged)
+
 ```bash
 pytest python/dsp/doppler/tests/test_pubsub.py -v
 # All 6 tests should pass with C extension backend
 ```
 
 ### Benchmark
+
 ```python
 # Compare ctypes vs C extension
 import time
@@ -686,14 +715,16 @@ print(f"Latency: {elapsed/10000*1e6:.1f} μs/msg")
 ```
 
 **Expected Results:**
+
 - ctypes: ~200 μs/msg @ 1K samples
 - C extension: ~100 μs/msg @ 1K samples (2x faster)
 
----
+______________________________________________________________________
 
 ## Conclusion
 
 Moving from ctypes to a native C extension provides:
+
 - **Significant performance gains** (2-10x faster)
 - **Memory efficiency** (zero-copy, 50% reduction)
 - **Cleaner API** (no struct hacking for timeouts)

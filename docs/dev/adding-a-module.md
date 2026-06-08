@@ -7,7 +7,7 @@ The scaffold handles boilerplate; you fill in the DSP logic.
 For the layout rules that govern each generated file, see
 [Module Layout](module-layout.md).
 
----
+______________________________________________________________________
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ Install just-makeit (one-liner, adds `just-makeit` to PATH):
 The scaffold writes into the doppler source tree, so run all commands from
 the repo root.
 
----
+______________________________________________________________________
 
 ## Step 1 — Scaffold the module
 
@@ -41,16 +41,16 @@ just-makeit function <fn_name> --module <name> \
 
 **`object`** is for stateful DSP types with a create/destroy lifecycle.
 The default scaffold generates `step()` / `steps()` — single-sample and
-block-processing methods.  Keeping them is preferred for consistency;
+block-processing methods. Keeping them is preferred for consistency;
 suppress only when the pattern genuinely doesn't fit:
 
 - `--no-step` — no meaningful per-sample operation (e.g. a block-only FFT
-  or FIR whose natural API is `execute`)
+    or FIR whose natural API is `execute`)
 - `--no-state` — stateless object; parameters are passed per call
 
 **`function`** is for module-level operations with no persistent state —
 window functions, unit conversions, design helpers, anything that takes
-inputs and returns a result without a lifecycle.  `just-makeit function`
+inputs and returns a result without a lifecycle. `just-makeit function`
 appends a C stub to `<name>_core.c`, injects a declaration into
 `<name>_core.h`, and regenerates `<name>_ext.c` with a Python wrapper.
 A module can have any mix of objects and functions.
@@ -83,13 +83,13 @@ src/doppler/<name>/
 `tests/` and `benchmarks/` under `src/doppler/<name>/` are not scaffolded —
 you create them in Steps 7 and 8.
 
----
+______________________________________________________________________
 
 ## Step 2 — Implement the C core
 
-Open `native/src/<name>/<component>_core.c`.  The primary thing to implement
+Open `native/src/<name>/<component>_core.c`. The primary thing to implement
 is `step()` — the scaffold generates `steps()` as an inline loop over
-`step()`, so it comes for free.  Any other methods you declared via
+`step()`, so it comes for free. Any other methods you declared via
 `just-makeit method` also need their bodies filled in.
 
 ```c
@@ -108,10 +108,10 @@ The lifecycle functions (`create`, `destroy`, `reset`) are scaffolded and
 only need changes if your object allocates extra memory or has non-trivial
 initialization beyond what the generated struct assignment already does.
 
-Keep this file algorithm-only.  No Python headers, no NumPy, no
+Keep this file algorithm-only. No Python headers, no NumPy, no
 `Py_*` calls — those belong exclusively in `<name>_ext.c`.
 
----
+______________________________________________________________________
 
 ## Step 3 — Add extra methods or properties *(optional)*
 
@@ -134,7 +134,7 @@ For read-only C struct fields exposed as Python properties:
 just-makeit property <component> n --module <name> --type size_t --field
 ```
 
----
+______________________________________________________________________
 
 ## Step 4 — Write C tests
 
@@ -164,14 +164,13 @@ make test
 
 All C tests must pass before moving to the Python layer.
 
----
+______________________________________________________________________
 
 ## Step 5 — Write `<module>.pyi`
 
 Open `src/doppler/<name>/<name>.pyi` (generated skeleton) and flesh out
 every public type following the [module layout rules](module-layout.md).
-Docstrings use [numpy-style format](
-https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard):
+Docstrings use [numpy-style format](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard):
 
 ```python
 # mymod/mymod.pyi — type stubs for the mymod C extension.
@@ -225,7 +224,7 @@ python -m doctest -v src/doppler/<name>/<name>.pyi
 
 Fix any failures before continuing.
 
----
+______________________________________________________________________
 
 ## Step 6 — Write `__init__.py`
 
@@ -237,16 +236,15 @@ from .<name> import <component>
 __all__ = ["<component>"]
 ```
 
-`__all__` **is** the public API.  It controls what `from doppler.<name>
-import *` exposes, what IDEs surface in autocompletion, and what users can
-reasonably rely on.  Make sure every symbol a user should be able to reach
-is listed — if it isn't here, it isn't public.  Conversely, every name in
+`__all__` **is** the public API. It controls what `from doppler.<name> import *` exposes, what IDEs surface in autocompletion, and what users can
+reasonably rely on. Make sure every symbol a user should be able to reach
+is listed — if it isn't here, it isn't public. Conversely, every name in
 `__all__` must have a corresponding stub in `<name>.pyi`; the two lists
 must stay in sync.
 
-Nothing else belongs here.  See [Module Layout](module-layout.md).
+Nothing else belongs here. See [Module Layout](module-layout.md).
 
----
+______________________________________________________________________
 
 ## Step 7 — Write Python tests
 
@@ -256,19 +254,19 @@ that exercise the Python API end-to-end through the C extension.
 At minimum, cover these categories:
 
 - **Construction** — valid arguments create the object; invalid arguments
-  raise the expected exception (`TypeError`, `ValueError`, etc.)
+    raise the expected exception (`TypeError`, `ValueError`, etc.)
 - **Output shape and dtype** — every execute path returns an array of the
-  correct shape and dtype for each supported input type
+    correct shape and dtype for each supported input type
 - **Correctness** — known input produces known output; verify numerically
-  against a reference (e.g. `np.allclose`)
+    against a reference (e.g. `np.allclose`)
 - **DSP design requirements** — DSP algorithms carry quantitative targets
-  (filter attenuation, SFDR, passband ripple, decimation accuracy, etc.) that
-  must be verified, not assumed.  Test these thoroughly over repeatable
-  pseudo-random inputs and/or swept parameter ranges so regressions are caught
-  automatically.  Use a fixed `np.random.default_rng(seed)` for
-  reproducibility.
+    (filter attenuation, SFDR, passband ripple, decimation accuracy, etc.) that
+    must be verified, not assumed. Test these thoroughly over repeatable
+    pseudo-random inputs and/or swept parameter ranges so regressions are caught
+    automatically. Use a fixed `np.random.default_rng(seed)` for
+    reproducibility.
 - **`step` / `steps` consistency** — a block processed via `steps()` matches
-  the same samples processed one-at-a-time via `step()`
+    the same samples processed one-at-a-time via `step()`
 - **Properties** — read-only properties return the values passed at construction
 
 ```python
@@ -329,11 +327,11 @@ Run the Python suite:
 make python-test
 ```
 
----
+______________________________________________________________________
 
 ## Step 8 — Write the Python benchmark
 
-Create `src/doppler/<name>/benchmarks/bench_<name>.py`.  Benchmarks use
+Create `src/doppler/<name>/benchmarks/bench_<name>.py`. Benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
 collected into versioned JSON snapshots in `benchmarks/history/` and tracked
 in git for regression detection.
@@ -364,11 +362,11 @@ def test_<name>_execute_cf32(benchmark, obj, x_cf32):
     benchmark(obj.execute_cf32, x_cf32)
 ```
 
-pytest-benchmark handles warmup and repetition automatically.  Name each
+pytest-benchmark handles warmup and repetition automatically. Name each
 test `test_<name>_<method>` so results are identifiable in the JSON history.
 
 CI commits a snapshot automatically on every push to `main` and on every
-release tag — no manual step required.  Run locally when you want an
+release tag — no manual step required. Run locally when you want an
 immediate result during development:
 
 ```sh
@@ -383,7 +381,7 @@ uv run pytest-benchmark compare benchmarks/history/2026-05-01-abc1234.json \
                                  benchmarks/history/2026-05-15-def5678.json
 ```
 
----
+______________________________________________________________________
 
 ## Step 9 — Rebuild and verify
 
@@ -396,7 +394,7 @@ make pyext        # compile the new .so
 make python-test  # full pytest suite
 ```
 
----
+______________________________________________________________________
 
 ## Checklist
 
@@ -412,12 +410,12 @@ Before opening a PR:
 - [ ] `<name>.pyi` has stubs for every exported symbol
 - [ ] `make docs-build` — docs build clean
 
----
+______________________________________________________________________
 
 ## See also
 
 - [Module Layout](module-layout.md) — file layout rules and rationale
 - [Benchmarking](benchmarking.md) — C and Python benchmark pipelines, history files, comparisons
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — full
-  command reference
+    command reference
 - [Build & Install](../build.md) — cmake flags and targets

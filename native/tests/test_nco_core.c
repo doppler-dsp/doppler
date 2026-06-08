@@ -49,7 +49,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     nco_state_t *nco = nco_create (0.0, 0);
-    uint32_t out[8];
+    uint32_t     out[8];
     nco_steps_u32 (nco, 8, out);
     for (int i = 0; i < 8; i++)
       CHECK (out[i] == 0u);
@@ -86,7 +86,7 @@ main (void)
   {
     nco_state_t *a = nco_create (0.1, 0);
     nco_state_t *b = nco_create (0.1, 0);
-    uint32_t ref[16], blk[8];
+    uint32_t     ref[16], blk[8];
     nco_steps_u32 (a, 16, ref);
     nco_steps_u32 (b, 8, blk);
     for (int i = 0; i < 8; i++)
@@ -106,7 +106,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     nco_state_t *nco = nco_create (0.25, 4);
-    uint32_t out[5];
+    uint32_t     out[5];
     nco_steps_u32_scaled (nco, 5, out);
     CHECK (out[0] == 0u);
     CHECK (out[1] == 1u);
@@ -134,8 +134,8 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     nco_state_t *nco = nco_create (0.25, 0);
-    uint32_t ph[8];
-    uint8_t ov[8];
+    uint32_t     ph[8];
+    uint8_t      ov[8];
     nco_steps_u32_ovf (nco, 8, ph, ov);
     CHECK (ph[0] == 0x00000000u);
     CHECK (ov[0] == 0);

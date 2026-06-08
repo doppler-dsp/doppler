@@ -28,12 +28,12 @@
 #include <string.h>
 
 #ifdef _WIN32
-#  include <windows.h>
-#  define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
+#include <windows.h>
+#define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
 const char *ENDPOINT = "tcp://127.0.0.1:15100";
 #else
-#  include <unistd.h>
-#  define dp_usleep(us) usleep ((useconds_t)(us))
+#include <unistd.h>
+#define dp_usleep(us) usleep ((useconds_t)(us))
 const char *ENDPOINT = "ipc:///tmp/dp_pipeline.ipc";
 #endif
 
@@ -41,7 +41,7 @@ const char *ENDPOINT = "ipc:///tmp/dp_pipeline.ipc";
 #define M_PI 3.14159265358979323846
 #endif
 
-#define NUM_BATCHES      100
+#define NUM_BATCHES 100
 #define SAMPLES_PER_BATCH 1024
 
 static void *
@@ -51,21 +51,31 @@ producer_thread (void *arg)
   printf ("Producer: starting...\n");
 
   dp_push_t *ctx = dp_push_create (ENDPOINT, CF64);
-  if (!ctx) { fputs ("Producer: dp_push_create failed\n", stderr); return NULL; }
+  if (!ctx)
+    {
+      fputs ("Producer: dp_push_create failed\n", stderr);
+      return NULL;
+    }
 
   dp_usleep (100000); /* allow consumer to connect */
 
-  double _Complex *samples = malloc (SAMPLES_PER_BATCH * sizeof (double _Complex));
-  if (!samples) { dp_push_destroy (ctx); return NULL; }
+  double _Complex *samples
+      = malloc (SAMPLES_PER_BATCH * sizeof (double _Complex));
+  if (!samples)
+    {
+      dp_push_destroy (ctx);
+      return NULL;
+    }
 
   for (int batch = 0; batch < NUM_BATCHES; batch++)
     {
       for (int i = 0; i < SAMPLES_PER_BATCH; i++)
         {
           double t = 2.0 * M_PI * (double)i / SAMPLES_PER_BATCH;
-          double fm = 1.0 + 0.5 * sin (2.0 * M_PI * (double)batch
-                                       / NUM_BATCHES);
-          samples[i] = (0.8 * cos (fm * t)) + (0.8 * sin (fm * t)) * _Complex_I;
+          double fm
+              = 1.0 + 0.5 * sin (2.0 * M_PI * (double)batch / NUM_BATCHES);
+          samples[i]
+              = (0.8 * cos (fm * t)) + (0.8 * sin (fm * t)) * _Complex_I;
         }
 
       int rc = dp_push_send_cf64 (ctx, samples, SAMPLES_PER_BATCH, 1e6, 2.4e9);
@@ -92,7 +102,10 @@ mean_power_cf64 (const double _Complex *s, size_t n)
 {
   double acc = 0.0;
   for (size_t i = 0; i < n; i++)
-    { double re = creal (s[i]), im = cimag (s[i]); acc += re*re + im*im; }
+    {
+      double re = creal (s[i]), im = cimag (s[i]);
+      acc += re * re + im * im;
+    }
   return acc / (double)n;
 }
 
@@ -105,7 +118,11 @@ consumer_thread (void *arg)
   printf ("Consumer: connecting to %s\n", ENDPOINT);
 
   dp_pull_t *ctx = dp_pull_create (ENDPOINT);
-  if (!ctx) { fputs ("Consumer: dp_pull_create failed\n", stderr); return NULL; }
+  if (!ctx)
+    {
+      fputs ("Consumer: dp_pull_create failed\n", stderr);
+      return NULL;
+    }
 
   int      batches     = 0;
   uint64_t total_samps = 0;
@@ -113,8 +130,8 @@ consumer_thread (void *arg)
 
   for (int i = 0; i < NUM_BATCHES; i++)
     {
-      dp_msg_t    *msg = NULL;
-      dp_header_t  hdr;
+      dp_msg_t   *msg = NULL;
+      dp_header_t hdr;
 
       if (dp_pull_recv (ctx, &msg, &hdr) != DP_OK)
         {
@@ -122,7 +139,7 @@ consumer_thread (void *arg)
           break;
         }
 
-      size_t n    = dp_msg_num_samples (msg);
+      size_t           n    = dp_msg_num_samples (msg);
       dp_sample_type_t type = dp_msg_sample_type (msg);
       batches++;
       total_samps += n;
@@ -138,18 +155,18 @@ consumer_thread (void *arg)
                 dp_sample_type_str (type), n, hdr.sample_rate / 1e6,
                 (unsigned long long)hdr.sequence);
       if ((i + 1) % 10 == 0)
-        printf ("Consumer: batch %3d/%d  power=%.4f (%.2f dB)\n",
-                batches, NUM_BATCHES, pwr, 10.0 * log10 (pwr + 1e-12));
+        printf ("Consumer: batch %3d/%d  power=%.4f (%.2f dB)\n", batches,
+                NUM_BATCHES, pwr, 10.0 * log10 (pwr + 1e-12));
 
       dp_msg_free (msg);
     }
 
   double mean_pwr = batches > 0 ? power_sum / batches : 0.0;
-  double kb = (double)(total_samps * sizeof (double _Complex)) / 1024.0;
+  double kb       = (double)(total_samps * sizeof (double _Complex)) / 1024.0;
   printf ("Consumer: done — %d/%d batches  %llu samples  %.2f KB"
           "  mean power=%.4f (%.2f dB)\n",
-          batches, NUM_BATCHES, (unsigned long long)total_samps, kb,
-          mean_pwr, 10.0 * log10 (mean_pwr + 1e-12));
+          batches, NUM_BATCHES, (unsigned long long)total_samps, kb, mean_pwr,
+          10.0 * log10 (mean_pwr + 1e-12));
 
   dp_pull_destroy (ctx);
   return NULL;
@@ -158,22 +175,23 @@ consumer_thread (void *arg)
 int
 main (int argc, char *argv[])
 {
-  if (argc > 1 && (strcmp (argv[1], "--help") == 0
-                   || strcmp (argv[1], "-h") == 0))
+  if (argc > 1
+      && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
     {
       printf ("Usage: %s\n\n", argv[0]);
       printf ("PUSH/PULL pipeline demo — two in-process threads,\n");
-      printf ("%d batches of %d CF64 samples via %s\n\n",
-              NUM_BATCHES, SAMPLES_PER_BATCH, ENDPOINT);
+      printf ("%d batches of %d CF64 samples via %s\n\n", NUM_BATCHES,
+              SAMPLES_PER_BATCH, ENDPOINT);
       return 0;
     }
 
   printf ("=== doppler Pipeline Demo ===\n");
   printf ("  Transport: %s\n", ENDPOINT);
-  printf ("  Batches:   %d x %d CF64 samples\n", NUM_BATCHES, SAMPLES_PER_BATCH);
+  printf ("  Batches:   %d x %d CF64 samples\n", NUM_BATCHES,
+          SAMPLES_PER_BATCH);
   printf ("  Data:      %.2f KB total\n\n",
-          (double)(NUM_BATCHES * SAMPLES_PER_BATCH
-                   * sizeof (double _Complex)) / 1024.0);
+          (double)(NUM_BATCHES * SAMPLES_PER_BATCH * sizeof (double _Complex))
+              / 1024.0);
 
   pthread_t prod, cons;
   pthread_create (&prod, NULL, producer_thread, NULL);

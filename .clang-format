@@ -1,0 +1,8 @@
+BasedOnStyle: GNU
+ColumnLimit: 79
+AlignConsecutiveDeclarations: Consecutive
+AlignConsecutiveAssignments: Consecutive
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
+SortIncludes: CaseSensitive

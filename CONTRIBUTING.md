@@ -7,8 +7,6 @@ reimplement it.
 
 See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 
-
-
 ## Table of contents
 
 - [Git workflow](#git-workflow)
@@ -19,7 +17,7 @@ See [CLAUDE.md](CLAUDE.md) for the full design philosophy.
 - [Code style](#code-style)
 - [Gotchas](#gotchas)
 
----
+______________________________________________________________________
 
 ## Git workflow
 
@@ -28,12 +26,12 @@ All non-trivial changes go through a branch and a PR. Direct pushes to
 
 ### Branch naming
 
-| Prefix | Use |
-|---|---|
-| `feat/` | new algorithm, module, or binding |
-| `fix/` | bug fix |
-| `docs/` | documentation only |
-| `chore/` | tooling, CI, deps, version bump |
+| Prefix   | Use                               |
+| -------- | --------------------------------- |
+| `feat/`  | new algorithm, module, or binding |
+| `fix/`   | bug fix                           |
+| `docs/`  | documentation only                |
+| `chore/` | tooling, CI, deps, version bump   |
 
 ```sh
 git checkout -b feat/cic-compensator
@@ -53,7 +51,7 @@ gh pr create --fill
 Only the release bump (`chore: release vX.Y.Z`) skips the PR process —
 see [release.md](docs/dev/release.md).
 
----
+______________________________________________________________________
 
 ## Adding a new C module
 
@@ -118,10 +116,11 @@ size_t dp_foo_execute(dp_foo_t *h,
 ```
 
 Rules:
+
 - All public symbols use the `dp_` prefix.
 - Opaque handles hide the `struct` definition.
 - Coefficients/state passed to `_create` are **copied internally** — the
-  caller may free them immediately.
+    caller may free them immediately.
 - Add `#include <dp/foo.h>` to `c/include/doppler.h`.
 
 ### 2. Implementation — `c/src/<module>.c`
@@ -140,8 +139,8 @@ set(DOPPLER_SOURCES
 
 ### 4. Tests — `c/tests/test_<module>.c`
 
-**Mandatory.**  Self-contained: embed any coefficients or design helpers
-you need.  Use the same `pass/fail` counter pattern as `test_nco.c`.
+**Mandatory.** Self-contained: embed any coefficients or design helpers
+you need. Use the same `pass/fail` counter pattern as `test_nco.c`.
 
 Register in `c/CMakeLists.txt`:
 
@@ -153,13 +152,13 @@ add_test(NAME foo_unit_tests COMMAND test_foo)
 
 ### 5. Benchmark — `c/bench/bench_<module>.c`
 
-**Mandatory.**  Reports input MSamples/s at representative block sizes
-and rates.  Self-contained — no external setup required.
+**Mandatory.** Reports input MSamples/s at representative block sizes
+and rates. Self-contained — no external setup required.
 Register as `bench_foo_c` in CMakeLists.txt.
 
 ### 6. Example — `c/examples/<module>_demo.c`
 
-**Mandatory.**  A minimal, runnable program showing the typical use
+**Mandatory.** A minimal, runnable program showing the typical use
 case with console output so users can see expected results.
 
 ### Verify
@@ -168,7 +167,7 @@ case with console output so users can see expected results.
 make build && make test
 ```
 
----
+______________________________________________________________________
 
 ## Adding a Python binding
 
@@ -207,24 +206,26 @@ section of the root `CMakeLists.txt`.
 
 ### 3. Python wrapper — `src/doppler/<module>/`
 
-> [!IMPORTANT] **No `dp_` PREFIX!**
+> [!IMPORTANT]
+> **No `dp_` PREFIX!**
 >
 > Python has dotted module names `doppler.foo`.
 
 Keep it thin: type conversion, error translation, lifetime bridging.
-Logic lives in C, not here.  If the wrapper is a direct pass-through,
+Logic lives in C, not here. If the wrapper is a direct pass-through,
 skip module-level docstrings and let the stub own the documentation
-(see step 4).  Docstrings in `.py` files belong to pure-Python
+(see step 4). Docstrings in `.py` files belong to pure-Python
 modules (polyphase design tools, optimisation helpers, etc.) where
 there is no stub.
 
 ### 4. Type stub — `src/doppler/<module>/<module>.pyi`
 
-> [!IMPORTANT] **THIS IS THE CANONICAL DOCUMENTATION FOR THE MODULE.**
+> [!IMPORTANT]
+> **THIS IS THE CANONICAL DOCUMENTATION FOR THE MODULE.**
 
 The stub is what mkdocstrings reads to generate the API reference
-page.  Write it as if it were the primary user-facing documentation,
-because it is.  Full NumPy-style docstrings with runnable examples
+page. Write it as if it were the primary user-facing documentation,
+because it is. Full NumPy-style docstrings with runnable examples
 are mandatory on every public class and method.
 
 ```python
@@ -289,7 +290,7 @@ class Foo:
 
 ### 5. Tests — `src/doppler/<module>/tests/test_<module>.py`
 
-**Mandatory.**  pytest.  Exercise the round-trip through the C library —
+**Mandatory.** pytest. Exercise the round-trip through the C library —
 don't just test the Python layer in isolation.
 
 ### 6. Documentation page — `docs/api/python-<module>.md`
@@ -317,7 +318,7 @@ nav = [
 ]
 ```
 
-Run `make docs-build` to verify it renders.  No hand-written API table
+Run `make docs-build` to verify it renders. No hand-written API table
 is needed — the stub docstrings are the source of truth.
 
 ### Verify
@@ -326,7 +327,7 @@ is needed — the stub docstrings are the source of truth.
 make pyext && make python-test && make docs-build
 ```
 
----
+______________________________________________________________________
 
 ## Adding a Rust FFI binding
 
@@ -400,7 +401,7 @@ Add tests inline or in `ffi/rust/tests/`.
 make rust-test    # single-threaded — see Gotchas
 ```
 
----
+______________________________________________________________________
 
 ## Cross-language testing
 
@@ -408,8 +409,8 @@ There is no special cross-language test framework.
 
 Pure Python in doppler is rare by design — it exists only for things
 that are genuinely better expressed in Python: filter design,
-polynomial fitting, LP optimisation.  All of it produces **parameters
-that get handed to a C runtime**.  The integration test is therefore
+polynomial fitting, LP optimisation. All of it produces **parameters
+that get handed to a C runtime**. The integration test is therefore
 just a normal pytest that exercises the full path:
 
 ```python
@@ -419,40 +420,40 @@ y = r.execute(x)                     # C extension  — execute
 assert stopband_attenuation(y) > 60  # validate end-to-end
 ```
 
-This lives in the module's regular `test_<module>.py`.  No subprocess,
+This lives in the module's regular `test_<module>.py`. No subprocess,
 no golden vectors, no special harness.
 
 Rust wraps C directly, so Rust tests already are the Rust-C
-integration tests.  Nothing extra needed there either.
+integration tests. Nothing extra needed there either.
 
----
+______________________________________________________________________
 
 ## Build commands
 
-| Command | What it does |
-|---------|-------------|
-| `make build` | cmake configure + build (RelWithDebInfo) |
-| `make blazing` | Release + `-march=native` |
-| `make test` | CTest (C tests) |
-| `make pyext` | Build + copy Python C extensions |
-| `make python-test` | pytest with coverage + doctest |
-| `make rust-test` | `cargo test -- --test-threads=1` |
-| `make install` | System install |
-| `make docs-build` | Build documentation site |
+| Command            | What it does                             |
+| ------------------ | ---------------------------------------- |
+| `make build`       | cmake configure + build (RelWithDebInfo) |
+| `make blazing`     | Release + `-march=native`                |
+| `make test`        | CTest (C tests)                          |
+| `make pyext`       | Build + copy Python C extensions         |
+| `make python-test` | pytest with coverage + doctest           |
+| `make rust-test`   | `cargo test -- --test-threads=1`         |
+| `make install`     | System install                           |
+| `make docs-build`  | Build documentation site                 |
 
----
+______________________________________________________________________
 
 ## Code style
 
-| Language | Tool | Config |
-|----------|------|--------|
-| C | `clang-format` | `.clang-format` |
-| Python | `uvx ruff format --line-length=79` | — |
-| Rust | `rustfmt` | `rustfmt.toml` |
+| Language | Tool                               | Config          |
+| -------- | ---------------------------------- | --------------- |
+| C        | `clang-format`                     | `.clang-format` |
+| Python   | `uvx ruff format --line-length=79` | —               |
+| Rust     | `rustfmt`                          | `rustfmt.toml`  |
 
 Line width: **79 characters** across all languages.
 
----
+______________________________________________________________________
 
 ## Gotchas
 
@@ -467,7 +468,7 @@ Always `cargo test -- --test-threads=1` and `ctest`
 
 **Thin means thin.**
 A wrapper file growing past a few hundred lines is probably
-reimplementing C logic.  Move it to C instead.
+reimplementing C logic. Move it to C instead.
 
 **Never redefine wire formats.**
 One `dp_header_t`, one magic value, one framing convention.

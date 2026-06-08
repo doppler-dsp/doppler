@@ -32,7 +32,7 @@
 #include <stdlib.h>
 
 #ifndef M_PI
-#  define M_PI 3.14159265358979323846
+#define M_PI 3.14159265358979323846
 #endif
 
 /* ── Deterministic BPSK PN via xorshift32 ─────────────────────────────────
@@ -63,8 +63,7 @@ circ_shift_2d (float complex *dst, const float complex *src, size_t ny,
 {
   for (size_t i = 0; i < ny; i++)
     for (size_t j = 0; j < nx; j++)
-      dst[i * nx + j]
-          = src[((i + ny - dr) % ny) * nx + ((j + nx - dc) % nx)];
+      dst[i * nx + j] = src[((i + ny - dr) % ny) * nx + ((j + nx - dc) % nx)];
 }
 
 /* ── §1  Corr: 1-D lag recovery ─────────────────────────────────────────── */
@@ -91,7 +90,11 @@ demo_corr_1d (void)
   for (size_t k = 0; k < N; k++)
     {
       float m = cabsf (out[k]);
-      if (m > peak_mag) { peak_mag = m; peak_bin = k; }
+      if (m > peak_mag)
+        {
+          peak_mag = m;
+          peak_bin = k;
+        }
     }
 
   /* Mean sidelobe magnitude (all bins except peak). */
@@ -101,18 +104,18 @@ demo_corr_1d (void)
       sl_sum += cabsf (out[k]);
   float mean_sl = sl_sum / (float)(N - 1);
 
-  printf ("--- §1  Corr: 1-D lag recovery (N=%zu, BPSK-PN, LAG=%zu) ---\n",
-          N, LAG);
+  printf ("--- §1  Corr: 1-D lag recovery (N=%zu, BPSK-PN, LAG=%zu) ---\n", N,
+          LAG);
   /* R[τ] = sum_n x[n]·conj(ref[n-τ]) (correlation theorem, unnormalized).
    * For unit-power BPSK: peak = N (energy of the reference), not 1. */
   printf ("  peak bin : %zu  (expected %zu)\n", peak_bin, LAG);
-  printf ("  peak |R| : %.3f  (= N = %zu for unit-power ref)\n",
-          peak_mag, N);
+  printf ("  peak |R| : %.3f  (= N = %zu for unit-power ref)\n", peak_mag, N);
   printf ("  mean sidelobe |R| : %.3f\n", mean_sl);
   printf ("  PSLR : %.1f dB\n\n", 20.0f * log10f (peak_mag / mean_sl));
 }
 
-/* ── §2  Corr: coherent integrate-and-dump ───────────────────────────────── */
+/* ── §2  Corr: coherent integrate-and-dump ─────────────────────────────────
+ */
 static void
 demo_corr_dwell (void)
 {
@@ -122,8 +125,8 @@ demo_corr_dwell (void)
   float complex ref[64], out[64];
   fill_pn (ref, N);
 
-  printf ("--- §2  Corr: integrate-and-dump (N=%zu, dwell=%zu) ---\n",
-          N, DWELL);
+  printf ("--- §2  Corr: integrate-and-dump (N=%zu, dwell=%zu) ---\n", N,
+          DWELL);
   printf ("  Pushing the reference against itself %zu times.\n", DWELL);
   printf ("  Self-correlation peak at lag 0:"
           " N=%zu per frame; after dwell=%zu: %.1f.\n\n",
@@ -134,8 +137,8 @@ demo_corr_dwell (void)
     {
       size_t n_out = corr_execute (c, ref, N, out);
       if (n_out == 0)
-        printf ("  frame %zu/%zu : accumulating  (count=%zu)\n",
-                i + 1, DWELL, c->count);
+        printf ("  frame %zu/%zu : accumulating  (count=%zu)\n", i + 1, DWELL,
+                c->count);
       else
         printf ("  frame %zu/%zu : dump!  "
                 "|R[0]| = %.3f  (expected %.1f)\n",
@@ -151,7 +154,7 @@ demo_corr2d (void)
 {
   const size_t NY = 8, NX = 8;
   const size_t DR = 3, DC = 5;
-  const size_t N  = NY * NX;
+  const size_t N = NY * NX;
 
   float complex ref[64], x[64], out[64];
   fill_pn (ref, N);
@@ -166,7 +169,11 @@ demo_corr2d (void)
   for (size_t k = 0; k < N; k++)
     {
       float m = cabsf (out[k]);
-      if (m > peak_mag) { peak_mag = m; peak_flat = k; }
+      if (m > peak_mag)
+        {
+          peak_mag  = m;
+          peak_flat = k;
+        }
     }
 
   printf ("--- §3  Corr2D: 2-D peak recovery"
@@ -177,7 +184,8 @@ demo_corr2d (void)
   printf ("  peak |R| : %.6f\n\n", peak_mag);
 }
 
-/* ── §4  Detector: streaming push in sub-frame chunks ────────────────────── */
+/* ── §4  Detector: streaming push in sub-frame chunks ──────────────────────
+ */
 static void
 demo_detector (void)
 {
@@ -200,14 +208,14 @@ demo_detector (void)
       = detector_create (ref, N, 1, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1);
 
   det_result_t results[4];
-  size_t total = 0;
+  size_t       total = 0;
 
   for (size_t ch = 0; ch < N_CHUNKS; ch++)
     {
       /* Alternate first and second half of ref so consecutive chunk pairs
        * form one complete N-sample frame that matches the reference.      */
-      const float complex *in = ref + (ch % 2) * CHUNK;
-      size_t ndet = detector_push (det, in, CHUNK, results, 4);
+      const float complex *in   = ref + (ch % 2) * CHUNK;
+      size_t               ndet = detector_push (det, in, CHUNK, results, 4);
 
       printf ("  chunk %zu (%zu samples) : ", ch + 1, CHUNK);
       if (ndet == 0)
@@ -219,8 +227,8 @@ demo_detector (void)
           for (size_t d = 0; d < ndet; d++)
             printf ("detection  lag=%zu  "
                     "peak=%.4f  noise=%.4f  stat=%.2f\n",
-                    results[d].lag, results[d].peak_mag,
-                    results[d].noise_est, results[d].test_stat);
+                    results[d].lag, results[d].peak_mag, results[d].noise_est,
+                    results[d].test_stat);
         }
       total += ndet;
     }

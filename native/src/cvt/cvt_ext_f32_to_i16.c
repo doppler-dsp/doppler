@@ -11,220 +11,218 @@
 
 #include "f32_to_i16/f32_to_i16_core.h"
 
-typedef struct {
-    PyObject_HEAD
-    f32_to_i16_state_t *handle;
+typedef struct
+{
+  PyObject_HEAD f32_to_i16_state_t *handle;
 } F32ToI16Object;
 
 static void
-F32ToI16Obj_dealloc(F32ToI16Object *self)
+F32ToI16Obj_dealloc (F32ToI16Object *self)
 {
-    if (self->handle)
-        f32_to_i16_destroy(self->handle);
-    Py_TYPE(self)->tp_free((PyObject *)self);
+  if (self->handle)
+    f32_to_i16_destroy (self->handle);
+  Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
 static PyObject *
-F32ToI16Obj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+F32ToI16Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    F32ToI16Object *self = (F32ToI16Object *)type->tp_alloc(type, 0);
-    if (self)
-        self->handle = NULL;
-    return (PyObject *)self;
+  F32ToI16Object *self = (F32ToI16Object *)type->tp_alloc (type, 0);
+  if (self)
+    self->handle = NULL;
+  return (PyObject *)self;
 }
 
 static int
-F32ToI16Obj_init(F32ToI16Object *self, PyObject *args, PyObject *kwds)
+F32ToI16Obj_init (F32ToI16Object *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"scale", NULL};
-    float scale = 32768.0f;
+  static char *kwlist[] = { "scale", NULL };
+  float        scale    = 32768.0f;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|f", kwlist,
-                                     &scale))
-        return -1;
-    self->handle = f32_to_i16_create(scale);
-    if (!self->handle) {
-        PyErr_SetString(PyExc_MemoryError,
-                        "f32_to_i16_create returned NULL");
-        return -1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|f", kwlist, &scale))
+    return -1;
+  self->handle = f32_to_i16_create (scale);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_MemoryError, "f32_to_i16_create returned NULL");
+      return -1;
     }
-    return 0;
+  return 0;
 }
 
 static PyObject *
-F32ToI16Obj_reset(F32ToI16Object *self, PyObject *Py_UNUSED(ignored))
+F32ToI16Obj_reset (F32ToI16Object *self, PyObject *Py_UNUSED (ignored))
 {
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
-    f32_to_i16_reset(self->handle);
-    Py_RETURN_NONE;
+  f32_to_i16_reset (self->handle);
+  Py_RETURN_NONE;
 }
 
 static PyObject *
-F32ToI16_step(F32ToI16Object *self, PyObject *args)
+F32ToI16_step (F32ToI16Object *self, PyObject *args)
 {
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
-    float x;
-    if (!PyArg_ParseTuple(args, "f", &x))
-        return NULL;
-    int16_t y = f32_to_i16_step(self->handle, x);
-    return PyLong_FromLong((long)y);
+  float x;
+  if (!PyArg_ParseTuple (args, "f", &x))
+    return NULL;
+  int16_t y = f32_to_i16_step (self->handle, x);
+  return PyLong_FromLong ((long)y);
 }
 
 static PyObject *
-F32ToI16_steps(F32ToI16Object *self, PyObject *args)
+F32ToI16_steps (F32ToI16Object *self, PyObject *args)
 {
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
     }
-    PyObject *in_obj  = NULL;
-    PyObject *out_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O|O", &in_obj, &out_obj))
-        return NULL;
+  PyObject *in_obj  = NULL;
+  PyObject *out_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+    return NULL;
 
-    PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
-    if (!in_arr)
-        return NULL;
+  PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+  if (!in_arr)
+    return NULL;
 
-    Py_ssize_t n = PyArray_SIZE(in_arr);
+  Py_ssize_t n = PyArray_SIZE (in_arr);
 
-    if (out_obj && out_obj != Py_None) {
-        PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF(
-            out_obj, NPY_INT16,
-            NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
-        if (!out_arr) { Py_DECREF(in_arr); return NULL; }
-        if (PyArray_SIZE(out_arr) != n) {
-            PyErr_Format(PyExc_ValueError,
-                "out length %zd != input length %zd",
-                (Py_ssize_t)PyArray_SIZE(out_arr), (Py_ssize_t)n);
-            Py_DECREF(out_arr);
-            Py_DECREF(in_arr);
-            return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
         }
-        f32_to_i16_steps(
-            self->handle,
-            (const float *)PyArray_DATA(in_arr),
-            (int16_t *)PyArray_DATA(out_arr),
-            (size_t)n);
-        Py_DECREF(in_arr);
-        return (PyObject *)out_arr;
+      if (PyArray_SIZE (out_arr) != n)
+        {
+          PyErr_Format (PyExc_ValueError, "out length %zd != input length %zd",
+                        (Py_ssize_t)PyArray_SIZE (out_arr), (Py_ssize_t)n);
+          Py_DECREF (out_arr);
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+      f32_to_i16_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                        (int16_t *)PyArray_DATA (out_arr), (size_t)n);
+      Py_DECREF (in_arr);
+      return (PyObject *)out_arr;
     }
 
-    npy_intp dims[] = {n};
-    PyObject *out_arr = PyArray_SimpleNew(1, dims, NPY_INT16);
-    if (!out_arr) {
-        Py_DECREF(in_arr);
-        return NULL;
+  npy_intp  dims[]  = { n };
+  PyObject *out_arr = PyArray_SimpleNew (1, dims, NPY_INT16);
+  if (!out_arr)
+    {
+      Py_DECREF (in_arr);
+      return NULL;
     }
 
-    f32_to_i16_steps(
-        self->handle,
-        (const float *)PyArray_DATA(in_arr),
-        (int16_t *)PyArray_DATA((PyArrayObject *)out_arr),
-        (size_t)n);
+  f32_to_i16_steps (self->handle, (const float *)PyArray_DATA (in_arr),
+                    (int16_t *)PyArray_DATA ((PyArrayObject *)out_arr),
+                    (size_t)n);
 
-    Py_DECREF(in_arr);
-    return out_arr;
-}
-
-
-
-
-static PyObject *
-F32ToI16Obj_destroy(F32ToI16Object *self, PyObject *Py_UNUSED(ignored))
-{
-    if (self->handle) {
-        f32_to_i16_destroy(self->handle);
-        self->handle = NULL;
-    }
-    Py_RETURN_NONE;
+  Py_DECREF (in_arr);
+  return out_arr;
 }
 
 static PyObject *
-F32ToI16Obj_enter(F32ToI16Object *self, PyObject *Py_UNUSED(ignored))
+F32ToI16Obj_destroy (F32ToI16Object *self, PyObject *Py_UNUSED (ignored))
 {
-    Py_INCREF(self);
-    return (PyObject *)self;
+  if (self->handle)
+    {
+      f32_to_i16_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
-F32ToI16Obj_exit(F32ToI16Object *self, PyObject *args)
+F32ToI16Obj_enter (F32ToI16Object *self, PyObject *Py_UNUSED (ignored))
 {
-    (void)args;
-    if (self->handle) {
-        f32_to_i16_destroy(self->handle);
-        self->handle = NULL;
-    }
-    Py_RETURN_NONE;
+  Py_INCREF (self);
+  return (PyObject *)self;
 }
 
 static PyObject *
-F32ToI16Obj_get_clipped(F32ToI16Object *self, void *Py_UNUSED(closure))
+F32ToI16Obj_exit (F32ToI16Object *self, PyObject *args)
 {
-    if (!self->handle) {
-        PyErr_SetString(PyExc_RuntimeError, "destroyed");
-        return NULL;
+  (void)args;
+  if (self->handle)
+    {
+      f32_to_i16_destroy (self->handle);
+      self->handle = NULL;
     }
-    return PyBool_FromLong(self->handle->clipped);
+  Py_RETURN_NONE;
 }
 
-static PyGetSetDef F32ToI16Obj_getset[] = {
-    {"clipped",
-     (getter)F32ToI16Obj_get_clipped, NULL,
-     "True if any sample has been saturated since the last reset().",
-     NULL},
-    {NULL}
-};
+static PyObject *
+F32ToI16Obj_get_clipped (F32ToI16Object *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong (self->handle->clipped);
+}
 
-static PyMethodDef F32ToI16Obj_methods[] = {
-    {"reset",    (PyCFunction)F32ToI16Obj_reset,    METH_NOARGS,
-     "Reset state to post-create defaults."},
-    {"step",     (PyCFunction)F32ToI16_step,     METH_VARARGS,
-     "step(x) -> int16_t\n"
-     "\n"
-     "Process one input sample.\n"
-     "\n"
-     "    >>> from doppler import F32ToI16\n"
-     "    >>> obj = F32ToI16(32768.0)\n"
-     "    >>> obj.step(1.0)\n"
-     "    0\n"},
-    {"steps",    (PyCFunction)F32ToI16_steps,    METH_VARARGS,
-     "steps(x[, out]) -> ndarray\n"
-     "\n"
-     "Process a block of float samples to int16.\n"
-     "\n"
-     "    >>> import numpy as np\n"
-     "    >>> from doppler import F32ToI16\n"
-     "    >>> obj = F32ToI16(32768.0)\n"
-     "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
-     "    >>> y.shape\n"
-     "    (4,)\n"
-     "    >>> y.dtype\n"
-     "    dtype('int16')\n"},
+static PyGetSetDef F32ToI16Obj_getset[]
+    = { { "clipped", (getter)F32ToI16Obj_get_clipped, NULL,
+          "True if any sample has been saturated since the last reset().",
+          NULL },
+        { NULL } };
 
-    {"destroy",  (PyCFunction)F32ToI16Obj_destroy,  METH_NOARGS,
-     "Release resources."},
-    {"__enter__", (PyCFunction)F32ToI16Obj_enter,   METH_NOARGS,  NULL},
-    {"__exit__",  (PyCFunction)F32ToI16Obj_exit,    METH_VARARGS, NULL},
-    {NULL}
-};
+static PyMethodDef F32ToI16Obj_methods[]
+    = { { "reset", (PyCFunction)F32ToI16Obj_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
+        { "step", (PyCFunction)F32ToI16_step, METH_VARARGS,
+          "step(x) -> int16_t\n"
+          "\n"
+          "Process one input sample.\n"
+          "\n"
+          "    >>> from doppler import F32ToI16\n"
+          "    >>> obj = F32ToI16(32768.0)\n"
+          "    >>> obj.step(1.0)\n"
+          "    0\n" },
+        { "steps", (PyCFunction)F32ToI16_steps, METH_VARARGS,
+          "steps(x[, out]) -> ndarray\n"
+          "\n"
+          "Process a block of float samples to int16.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import F32ToI16\n"
+          "    >>> obj = F32ToI16(32768.0)\n"
+          "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
+          "    >>> y.shape\n"
+          "    (4,)\n"
+          "    >>> y.dtype\n"
+          "    dtype('int16')\n" },
+
+        { "destroy", (PyCFunction)F32ToI16Obj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)F32ToI16Obj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)F32ToI16Obj_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject F32ToI16ObjType = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "cvt.F32ToI16",
-    .tp_basicsize = sizeof(F32ToI16Object),
-    .tp_dealloc   = (destructor)F32ToI16Obj_dealloc,
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
-    .tp_doc       = "F32ToI16 type.",
-    .tp_methods   = F32ToI16Obj_methods,
-    .tp_getset    = F32ToI16Obj_getset,
-    .tp_new       = F32ToI16Obj_new,
-    .tp_init      = (initproc)F32ToI16Obj_init,
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.F32ToI16",
+  .tp_basicsize                           = sizeof (F32ToI16Object),
+  .tp_dealloc                             = (destructor)F32ToI16Obj_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "F32ToI16 type.",
+  .tp_methods                             = F32ToI16Obj_methods,
+  .tp_getset                              = F32ToI16Obj_getset,
+  .tp_new                                 = F32ToI16Obj_new,
+  .tp_init                                = (initproc)F32ToI16Obj_init,
 };

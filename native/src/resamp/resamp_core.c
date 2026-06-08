@@ -51,10 +51,10 @@ static float *
 _build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
              double sb)
 {
-  double beta = _kaiser_beta (atten);
+  double beta  = _kaiser_beta (atten);
   double pb_ph = pb / (double)num_phases;
   double sb_ph = sb / (double)num_phases;
-  double wc = 2.0 * M_PI * (pb_ph + (sb_ph - pb_ph) * 0.5);
+  double wc    = 2.0 * M_PI * (pb_ph + (sb_ph - pb_ph) * 0.5);
 
   /* prototype length */
   size_t proto = num_phases * num_taps;
@@ -69,12 +69,12 @@ _build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
   double b0 = _bessel_i0 (beta);
   for (size_t i = 0; i < proto; i++)
     {
-      double m = (double)i - halflen;
+      double m   = (double)i - halflen;
       double mid = (double)(proto - 1) * 0.5;
-      double u = 2.0 * ((double)i - mid) / (double)(proto - 1);
-      double w = _bessel_i0 (beta * sqrt (1.0 - u * u)) / b0;
-      double s = (m == 0.0) ? 1.0 : sin (wc * m) / (wc * m);
-      g[i] = w * wc / M_PI * s * (double)num_phases;
+      double u   = 2.0 * ((double)i - mid) / (double)(proto - 1);
+      double w   = _bessel_i0 (beta * sqrt (1.0 - u * u)) / b0;
+      double s   = (m == 0.0) ? 1.0 : sin (wc * m) / (wc * m);
+      g[i]       = w * wc / M_PI * s * (double)num_phases;
     }
 
   float *bank = malloc (num_phases * num_taps * sizeof (float));
@@ -87,7 +87,7 @@ _build_bank (size_t num_phases, size_t num_taps, double atten, double pb,
   for (size_t p = 0; p < num_phases; p++)
     for (size_t t = 0; t < num_taps; t++)
       {
-        size_t idx = t * num_phases + p;
+        size_t idx             = t * num_phases + p;
         bank[p * num_taps + t] = (idx < proto) ? (float)g[idx] : 0.0f;
       }
 
@@ -104,7 +104,7 @@ _kaiser_num_taps (size_t num_phases, double atten, double pb, double sb)
   size_t proto
       = (size_t)(1.0 + (atten - 8.0) / 2.285 / (2.0 * M_PI * (sb_ph - pb_ph)));
   size_t halflen = proto / 2;
-  size_t htaps = 2 * halflen + 1;
+  size_t htaps   = 2 * halflen + 1;
   return htaps / num_phases + 1;
 }
 
@@ -123,16 +123,16 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
       return NULL;
     }
 
-  s->rate = rate;
-  s->num_phases = num_phases;
-  s->num_taps = num_taps;
+  s->rate        = rate;
+  s->num_phases  = num_phases;
+  s->num_taps    = num_taps;
   s->log2_phases = _log2_u (num_phases);
-  s->upsample = (rate >= 1.0);
-  s->bank = bank_owned;
-  s->phase = 0;
-  s->phase_inc = s->upsample ? (uint32_t)(4294967296.0 / rate)
-                             : (uint32_t)(rate * 4294967296.0);
-  s->ctrl_acc = 0.0;
+  s->upsample    = (rate >= 1.0);
+  s->bank        = bank_owned;
+  s->phase       = 0;
+  s->phase_inc   = s->upsample ? (uint32_t)(4294967296.0 / rate)
+                               : (uint32_t)(rate * 4294967296.0);
+  s->ctrl_acc    = 0.0;
 
   /* delay line: power-of-2 dual buffer */
   s->delay_cap = 1;
@@ -140,7 +140,7 @@ _create_from_bank (size_t num_phases, size_t num_taps, float *bank_owned,
     s->delay_cap <<= 1;
   s->delay_mask = s->delay_cap - 1;
   s->delay_head = 0;
-  s->delay_buf = calloc (2 * s->delay_cap, sizeof (float _Complex));
+  s->delay_buf  = calloc (2 * s->delay_cap, sizeof (float _Complex));
   if (!s->delay_buf)
     {
       free (s->bank);
@@ -172,12 +172,12 @@ resamp_state_t *
 resamp_create (double rate)
 {
   static const size_t NUM_PHASES = 4096;
-  static const double ATTEN = 60.0;
-  static const double PB = 0.4;
-  static const double SB = 0.6;
+  static const double ATTEN      = 60.0;
+  static const double PB         = 0.4;
+  static const double SB         = 0.6;
 
   size_t num_taps = _kaiser_num_taps (NUM_PHASES, ATTEN, PB, SB);
-  float *bank = _build_bank (NUM_PHASES, num_taps, ATTEN, PB, SB);
+  float *bank     = _build_bank (NUM_PHASES, num_taps, ATTEN, PB, SB);
   if (!bank)
     return NULL;
   return _create_from_bank (NUM_PHASES, num_taps, bank, rate);
@@ -191,7 +191,7 @@ resamp_create_custom (size_t num_phases, size_t num_taps, const float *bank,
     return NULL;
 
   size_t len = num_phases * num_taps;
-  float *b = malloc (len * sizeof (float));
+  float *b   = malloc (len * sizeof (float));
   if (!b)
     return NULL;
   memcpy (b, bank, len * sizeof (float));
@@ -213,8 +213,8 @@ resamp_destroy (resamp_state_t *s)
 void
 resamp_reset (resamp_state_t *s)
 {
-  s->phase = 0;
-  s->ctrl_acc = 0.0;
+  s->phase      = 0;
+  s->ctrl_acc   = 0.0;
   s->delay_head = 0;
   memset (s->delay_buf, 0, 2 * s->delay_cap * sizeof (float _Complex));
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
@@ -235,8 +235,8 @@ resamp_get_rate (const resamp_state_t *s)
 void
 resamp_set_rate (resamp_state_t *s, double rate)
 {
-  s->rate = rate;
-  s->upsample = (rate >= 1.0);
+  s->rate      = rate;
+  s->upsample  = (rate >= 1.0);
   s->phase_inc = s->upsample ? (uint32_t)(4294967296.0 / rate)
                              : (uint32_t)(rate * 4294967296.0);
 }
@@ -294,7 +294,7 @@ static inline float _Complex dot_cf32 (const float _Complex *w, const float *h,
 static inline void
 dl_push (resamp_state_t *s, float _Complex x)
 {
-  s->delay_head = (s->delay_head - 1) & s->delay_mask;
+  s->delay_head               = (s->delay_head - 1) & s->delay_mask;
   s->delay_buf[s->delay_head] = x;
   s->delay_buf[s->delay_head + s->delay_cap] = x;
 }
@@ -321,7 +321,7 @@ static size_t
 interp_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
                 float _Complex *out, size_t max_out)
 {
-  size_t xi = 0, oi = 0;
+  size_t   xi = 0, oi = 0;
   uint32_t ph = s->phase, inc = s->phase_inc;
 
   while (xi < num_in && oi < max_out)
@@ -354,17 +354,17 @@ static size_t
 decim_execute (resamp_state_t *s, const float _Complex *in, size_t num_in,
                float _Complex *out, size_t max_out)
 {
-  size_t oi = 0;
-  size_t N = s->num_taps;
-  uint32_t ph = s->phase, inc = s->phase_inc;
-  float scale = (float)s->rate;
-  float _Complex *iad = s->decim_iad;
-  float _Complex *tfd = s->decim_tfd;
+  size_t          oi = 0;
+  size_t          N  = s->num_taps;
+  uint32_t        ph = s->phase, inc = s->phase_inc;
+  float           scale = (float)s->rate;
+  float _Complex *iad   = s->decim_iad;
+  float _Complex *tfd   = s->decim_tfd;
 
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)
     {
       /* 1. Accumulate x[n] × reversed_h into integrate-and-dump */
-      const float *h = get_branch (s, ph);
+      const float *h    = get_branch (s, ph);
       float _Complex xv = in[xi] * scale;
       for (size_t t = 0; t < N; t++)
         iad[t] += xv * h[N - 1 - t];
@@ -427,7 +427,7 @@ resamp_execute_ctrl (resamp_state_t *s, const float _Complex *in,
                      const float _Complex *ctrl, size_t num_in,
                      float _Complex *out, size_t max_out)
 {
-  size_t oi = 0;
+  size_t oi  = 0;
   double acc = s->ctrl_acc;
 
   for (size_t xi = 0; xi < num_in && oi < max_out; xi++)

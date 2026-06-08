@@ -65,7 +65,7 @@ main (void)
    * 2. DC tone — norm_freq = 0 → phase_inc = 0 → all 1 + 0j
    * ---------------------------------------------------------------- */
   {
-    lo_state_t *lo = lo_create (0.0);
+    lo_state_t   *lo = lo_create (0.0);
     float complex out[8];
     lo_steps (lo, 8, out);
     for (int i = 0; i < 8; i++)
@@ -84,7 +84,7 @@ main (void)
    *   phase=0xC0000000 → cos=0, sin=-1 →  0 - 1j
    * ---------------------------------------------------------------- */
   {
-    lo_state_t *lo = lo_create (0.25);
+    lo_state_t   *lo = lo_create (0.25);
     float complex out[8];
     lo_steps (lo, 8, out);
     CHECK (near_c (out[0], 1.0f + 0.0f * I));
@@ -104,8 +104,8 @@ main (void)
    * Two consecutive calls of length N must match a single call of 2N.
    * ---------------------------------------------------------------- */
   {
-    lo_state_t *a = lo_create (0.1);
-    lo_state_t *b = lo_create (0.1);
+    lo_state_t   *a = lo_create (0.1);
+    lo_state_t   *b = lo_create (0.1);
     float complex ref[16], blk[8];
     lo_steps (a, 16, ref);
     lo_steps (b, 8, blk);
@@ -130,7 +130,7 @@ main (void)
    * ---------------------------------------------------------------- */
   {
     lo_state_t *lo_ctrl = lo_create (0.0);
-    lo_state_t *lo_ref = lo_create (0.25);
+    lo_state_t *lo_ref  = lo_create (0.25);
 
     float ctrl[8];
     for (int i = 0; i < 8; i++)
@@ -157,7 +157,7 @@ main (void)
    * Verify |out[k]|² ≈ 1 and that out[1] is close to j·out[0].
    * ---------------------------------------------------------------- */
   {
-    lo_state_t *lo = lo_create (0.25);
+    lo_state_t   *lo = lo_create (0.25);
     float complex out[4];
     lo_steps (lo, 4, out);
     for (int k = 0; k < 4; k++)

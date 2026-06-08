@@ -34,8 +34,8 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int _fails = 0;
-  acc_f32_state_t *obj = acc_f32_create (0.0f);
+  int              _fails = 0;
+  acc_f32_state_t *obj    = acc_f32_create (0.0f);
   CHECK (obj != NULL);
   if (!obj)
     return 1;

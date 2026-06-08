@@ -15,16 +15,16 @@
 static inline void
 dl_push_even (hbdecim_state_t *r, float _Complex x)
 {
-  r->even_head = (r->even_head - 1) & r->even_mask;
-  r->even_buf[r->even_head] = x;
+  r->even_head                            = (r->even_head - 1) & r->even_mask;
+  r->even_buf[r->even_head]               = x;
   r->even_buf[r->even_head + r->even_cap] = x;
 }
 
 static inline void
 dl_push_odd (hbdecim_state_t *r, float _Complex x)
 {
-  r->odd_head = (r->odd_head - 1) & r->even_mask;
-  r->odd_buf[r->odd_head] = x;
+  r->odd_head                           = (r->odd_head - 1) & r->even_mask;
+  r->odd_buf[r->odd_head]               = x;
   r->odd_buf[r->odd_head + r->even_cap] = x;
 }
 
@@ -34,10 +34,10 @@ dl_push_odd (hbdecim_state_t *r, float _Complex x)
 
 static inline float _Complex compute_output (const hbdecim_state_t *r)
 {
-  const float *h = r->h;
-  size_t N = r->num_taps;
-  size_t half = N / 2;
-  float si = 0.0f, sq = 0.0f;
+  const float *h    = r->h;
+  size_t       N    = r->num_taps;
+  size_t       half = N / 2;
+  float        si = 0.0f, sq = 0.0f;
 
   if (r->fir_on_even)
     {
@@ -90,8 +90,8 @@ hbdecim_create (size_t num_taps, const float *h)
   if (!r)
     return NULL;
 
-  r->num_taps = num_taps;
-  r->centre = num_taps / 2;
+  r->num_taps    = num_taps;
+  r->centre      = num_taps / 2;
   r->fir_on_even = !(num_taps & 1); /* even N → FIR on even inputs */
 
   r->h = malloc (num_taps * sizeof (float));
@@ -110,7 +110,7 @@ hbdecim_create (size_t num_taps, const float *h)
   r->even_mask = r->even_cap - 1;
 
   r->even_buf = calloc (2 * r->even_cap, sizeof (float _Complex));
-  r->odd_buf = calloc (2 * r->even_cap, sizeof (float _Complex));
+  r->odd_buf  = calloc (2 * r->even_cap, sizeof (float _Complex));
   if (!r->even_buf || !r->odd_buf)
     goto fail;
 
@@ -138,8 +138,8 @@ hbdecim_destroy (hbdecim_state_t *r)
 void
 hbdecim_reset (hbdecim_state_t *r)
 {
-  r->even_head = 0;
-  r->odd_head = 0;
+  r->even_head   = 0;
+  r->odd_head    = 0;
   r->has_pending = 0;
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
@@ -182,7 +182,7 @@ hbdecim_execute (hbdecim_state_t *r, const float _Complex *in, size_t num_in,
     {
       dl_push_even (r, r->pending);
       dl_push_odd (r, in[xi++]);
-      out[oi++] = compute_output (r);
+      out[oi++]      = compute_output (r);
       r->has_pending = 0;
     }
 
@@ -198,7 +198,7 @@ hbdecim_execute (hbdecim_state_t *r, const float _Complex *in, size_t num_in,
   /* Buffer any dangling even sample for the next call */
   if (xi < num_in)
     {
-      r->pending = in[xi];
+      r->pending     = in[xi];
       r->has_pending = 1;
     }
 

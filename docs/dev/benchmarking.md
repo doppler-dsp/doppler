@@ -5,7 +5,7 @@ which builds the project, runs the C and Python benchmark suites, trims
 the raw per-iteration data, and writes dated JSON snapshots to
 `benchmarks/history/`.
 
----
+______________________________________________________________________
 
 ## Quick start
 
@@ -36,7 +36,7 @@ drops those raw arrays (`stats.data` / `runtimes`) before writing,
 keeping only the summary statistics. A snapshot is then a few tens of
 KB — small enough to commit.
 
----
+______________________________________________________________________
 
 ## Python benchmarks
 
@@ -82,7 +82,7 @@ def test_execute_cf32(benchmark, obj, x):
 Name each test `test_<module>_<method>` so results are identifiable
 across runs.
 
----
+______________________________________________________________________
 
 ## C benchmarks
 
@@ -97,13 +97,13 @@ Each `bench_<component>_core.c` uses the header-only `jm_bench.h` library
 (at `native/benchmarks/jm_bench.h`). The pattern is:
 
 1. **Allocate** input/output buffers and create the DSP object.
-2. **Warm up** — run a few iterations before timing starts.
-3. **Time** — outer loop of `ITERATIONS` independent rounds; inner loop
-   of `BENCH_N` calls; `clock_gettime(CLOCK_MONOTONIC)` around the inner
-   loop.
-4. **Record** — `jm_bench_add()` stores the per-round elapsed times.
-5. **Write JSON** — `jm_bench_write_json()` computes stats and writes
-   `bench_<component>_core.json` to the current working directory.
+1. **Warm up** — run a few iterations before timing starts.
+1. **Time** — outer loop of `ITERATIONS` independent rounds; inner loop
+    of `BENCH_N` calls; `clock_gettime(CLOCK_MONOTONIC)` around the inner
+    loop.
+1. **Record** — `jm_bench_add()` stores the per-round elapsed times.
+1. **Write JSON** — `jm_bench_write_json()` computes stats and writes
+    `bench_<component>_core.json` to the current working directory.
 
 ```c
 #include "<component>/<component>_core.h"
@@ -224,7 +224,7 @@ Resampler::execute[rate=1.0001,block=1024]
 This prevents collisions when multiple components export methods with
 the same name (`step`, `get`, `dump`, etc.).
 
----
+______________________________________________________________________
 
 ## Saving history — when and how
 
@@ -276,7 +276,7 @@ between two of your own runs.
 In short: never commit a snapshot from your own machine — let CI record
 the canonical history on the `benchmarks` branch.
 
----
+______________________________________________________________________
 
 ## Comparing snapshots
 
@@ -309,7 +309,7 @@ The `-c.json` files share the same top-level schema as the Python files
 (`machine_info`, `commit_info`, `benchmarks`, `datetime`) so the same
 tooling works on both.
 
----
+______________________________________________________________________
 
 ## See also
 

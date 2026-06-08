@@ -3,10 +3,10 @@
 Two classes in the `doppler.wfmgen` module, the same C cores that back the
 `wavegen` and `wfmgen` command-line tools:
 
-| Class | Output | Use when |
-|-------|--------|----------|
+| Class   | Output                               | Use when                                                                   |
+| ------- | ------------------------------------ | -------------------------------------------------------------------------- |
 | `Synth` | CF32 — the five-type waveform engine | Generate tone / noise / PN / BPSK / QPSK, with optional LO offset and AWGN |
-| `PN` | uint8 — raw LFSR chips (0/1) | Spreading / ranging codes, scrambling, test vectors |
+| `PN`    | uint8 — raw LFSR chips (0/1)         | Spreading / ranging codes, scrambling, test vectors                        |
 
 Source:
 [`src/doppler/wfmgen/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfmgen/__init__.py)
@@ -14,7 +14,7 @@ Source:
 For the command-line tools built on these cores, see the
 [Waveform Generator guide](../guide/wfmgen.md).
 
----
+______________________________________________________________________
 
 ## `Synth` — the five-type waveform engine
 
@@ -81,11 +81,11 @@ s.reset()
 assert np.array_equal(a, s.steps(512))   # same seed → identical stream
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.wfmgen.Synth
 
----
+______________________________________________________________________
 
 ## `PN` — raw LFSR m-sequence
 
@@ -120,6 +120,6 @@ non-zero (the all-zero register is a fixed point). To map chips to ±1 BPSK
 symbols, use `Synth(type="pn", ...)` instead, which also handles oversampling,
 the LO, and AWGN.
 
----
+______________________________________________________________________
 
 ::: doppler.wfmgen.PN

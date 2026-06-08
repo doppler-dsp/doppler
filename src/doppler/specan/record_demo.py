@@ -135,11 +135,19 @@ def main() -> None:
         "-o", "--output", metavar="FILE", help="output file (default: stdout)"
     )
     ap.add_argument(
-        "--frames", type=int, default=120, help="number of frames (default: 120)"
+        "--frames",
+        type=int,
+        default=120,
+        help="number of frames (default: 120)",
     )
-    ap.add_argument("--fft-size", type=int, default=512, help="FFT size (default: 512)")
     ap.add_argument(
-        "--fs", type=float, default=2.048e6, help="sample rate Hz (default: 2.048e6)"
+        "--fft-size", type=int, default=512, help="FFT size (default: 512)"
+    )
+    ap.add_argument(
+        "--fs",
+        type=float,
+        default=2.048e6,
+        help="sample rate Hz (default: 2.048e6)",
     )
     ap.add_argument("--center", type=float, default=0.0)
     ap.add_argument("--tone-freq", type=float, default=100e3)

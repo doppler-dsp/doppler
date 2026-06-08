@@ -2,25 +2,25 @@
 
 `Corr` cross-correlates a reference against a stream of CF32 frames and
 coherently accumulates over `dwell` frames before dumping — trading
-latency for SNR gain.  `Detector` wraps `Corr` and applies a CFAR
+latency for SNR gain. `Detector` wraps `Corr` and applies a CFAR
 threshold; `Corr2D` / `Detector2D` extend both to 2-D template matching.
 
 The figure below shows all four classes in one run against a BPSK PN
 reference at SNR ≈ −6 dB:
 
 - **Left** — 8 coherent integrations push peak/mean from 4.0 → 7.0,
-  pulling the lag-17 peak cleanly out of the noise floor.
+    pulling the lag-17 peak cleanly out of the noise floor.
 - **Centre** — `Corr2D` finds the (row=3, col=5) shift of a 2-D template
-  in a single call.
+    in a single call.
 - **Right** — `Detector.push()` emits one test-stat per dwell; signal
-  cycles sit well above the threshold=5 gate while noise-only cycles stay below.
+    cycles sit well above the threshold=5 gate while noise-only cycles stay below.
 
 ![Corr / Corr2D / Detector demo](../assets/corr_demo.png)
 
 ## Corr — coherent integrate-and-dump
 
 `execute()` accumulates frames and returns output on the `dwell`-th call;
-all other calls return `None`.  Use as a context manager to ensure cleanup:
+all other calls return `None`. Use as a context manager to ensure cleanup:
 
 ```python
 from doppler.spectral import Corr
@@ -89,6 +89,7 @@ detection  lag=17  stat=7.90
 ```
 
 !!! note
+
     Actual `test_stat` values vary with the random seed; the lag is
     deterministic for this RNG seed.
 

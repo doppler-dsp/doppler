@@ -42,6 +42,7 @@ __all__ = [
 
 # ── internal helpers ──────────────────────────────────────────────────────────
 
+
 def _response(R: int, N: int, M: int, f_in: float) -> float:
     """CIC magnitude at input-normalised frequency f_in.
 
@@ -69,10 +70,11 @@ def _response(R: int, N: int, M: int, f_in: float) -> float:
     num = abs(math.sin(pi * R * M * f_in))
     den = R * M * abs(math.sin(pi * f_in))
     h = (num / den) if den > eps else 0.0
-    return h ** N
+    return h**N
 
 
 # ── public API ────────────────────────────────────────────────────────────────
+
 
 def cic_precision_bits(R: int, N: int, M: int = 1) -> int:
     """Number of valid signal bits in the uint64 CIC pipeline.
@@ -120,9 +122,7 @@ def cic_precision_bits(R: int, N: int, M: int = 1) -> int:
     return max(0, k)
 
 
-def cic_alias_rejection(
-    R: int, N: int, M: int, f_p: float
-) -> float:
+def cic_alias_rejection(R: int, N: int, M: int, f_p: float) -> float:
     """Alias rejection at output passband edge f_p (dB, positive = attenuation).
 
     For a CIC decimator with ratio R, the worst alias at output frequency
@@ -165,9 +165,7 @@ def cic_alias_rejection(
     return -20.0 * math.log10(h)
 
 
-def cic_passband_droop(
-    R: int, N: int, M: int, f_p: float
-) -> float:
+def cic_passband_droop(R: int, N: int, M: int, f_p: float) -> float:
     """Passband droop (dB loss) at output passband edge f_p.
 
     The CIC response rolls off within the passband.  The loss at f_p
@@ -299,16 +297,13 @@ def cic_design(
 
     print(f"CIC decimator design aid  R={R}  f_p={f_p:.3f}")
     print()
-    print(f"  N  M   bits   alias_rej_dB   droop_dB")
-    print(f"---  -  -----  -------------  ---------")
+    print("  N  M   bits   alias_rej_dB   droop_dB")
+    print("---  -  -----  -------------  ---------")
 
     for m in m_list:
         for n in range(1, max_N + 1):
             bits = cic_precision_bits(R, n, m)
-            rej  = cic_alias_rejection(R, n, m, f_p)
-            drp  = cic_passband_droop(R, n, m, f_p)
+            rej = cic_alias_rejection(R, n, m, f_p)
+            drp = cic_passband_droop(R, n, m, f_p)
             flag = " *" if rej >= target_db else "  "
-            print(
-                f"{n:3d}  {m}  {flag} {bits:3d}"
-                f"  {rej:13.1f}  {drp:9.3f}"
-            )
+            print(f"{n:3d}  {m}  {flag} {bits:3d}  {rej:13.1f}  {drp:9.3f}")

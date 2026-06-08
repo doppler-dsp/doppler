@@ -71,7 +71,7 @@ dp_pull_destroy(pull);
 
 For complete, runnable examples see [`examples/c/`](../../examples/c/).
 
----
+______________________________________________________________________
 
 ## Python: Publisher / Subscriber
 
@@ -127,7 +127,7 @@ python examples/python/pipeline_recv.py tcp://localhost:5560 1
 ## Python: Requester / Replier
 
 REQ/REP models a remote DSP service: the client sends a signal block,
-the server processes it and returns the result.  The exchange is strictly
+the server processes it and returns the result. The exchange is strictly
 alternating — `send` then `recv` on the Requester, `recv` then `send` on
 the Replier.
 
@@ -161,7 +161,7 @@ python examples/python/replier.py tcp://*:5562 --gain 0.5
 python examples/python/requester.py tcp://localhost:5562 --count 20
 ```
 
----
+______________________________________________________________________
 
 ## Network configurations
 
@@ -241,7 +241,7 @@ services:
     command: /app/receiver tcp://tx:5555  # uses Docker DNS
 ```
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
@@ -252,31 +252,35 @@ services:
 **Solution:**
 
 1. **Verify the receiver is using the correct IP:**
-   ```bash
-   # On the receiver machine, check you're connecting to the transmitter's IP:
-   ./build/examples/c/receiver tcp://192.168.1.100:5555
-   # NOT tcp://localhost:5555 (that's the receiver's own machine!)
-   ```
 
-2. **Check network connectivity:**
-   ```bash
-   # From the receiver machine:
-   ping 192.168.1.100           # verify basic connectivity
-   nc -zv 192.168.1.100 5555    # test if port 5555 is reachable
-   # or:
-   telnet 192.168.1.100 5555
-   ```
+    ```bash
+    # On the receiver machine, check you're connecting to the transmitter's IP:
+    ./build/examples/c/receiver tcp://192.168.1.100:5555
+    # NOT tcp://localhost:5555 (that's the receiver's own machine!)
+    ```
 
-3. **Verify the firewall on the transmitter:**
-   ```bash
-   # On the transmitter machine:
-   sudo ufw status              # check if port 5555 is allowed
-   sudo ufw allow 5555/tcp      # open it if needed
-   ```
+1. **Check network connectivity:**
 
-4. **Check for cloud/network firewalls:**
-   - AWS security groups, Azure NSGs, GCP firewall rules
-   - Router port forwarding if crossing networks
+    ```bash
+    # From the receiver machine:
+    ping 192.168.1.100           # verify basic connectivity
+    nc -zv 192.168.1.100 5555    # test if port 5555 is reachable
+    # or:
+    telnet 192.168.1.100 5555
+    ```
+
+1. **Verify the firewall on the transmitter:**
+
+    ```bash
+    # On the transmitter machine:
+    sudo ufw status              # check if port 5555 is allowed
+    sudo ufw allow 5555/tcp      # open it if needed
+    ```
+
+1. **Check for cloud/network firewalls:**
+
+    - AWS security groups, Azure NSGs, GCP firewall rules
+    - Router port forwarding if crossing networks
 
 ### Packets are being dropped
 
@@ -285,13 +289,16 @@ services:
 **Causes & solutions:**
 
 - **Slow joiner problem:** Receiver started after transmitter began sending
-  - Solution: Start receiver first, or wait for transmitter's 1-second startup delay
+
+    - Solution: Start receiver first, or wait for transmitter's 1-second startup delay
 
 - **Network congestion:** Too much data for the link
-  - Solution: Reduce sample rate or packet size in transmitter code
+
+    - Solution: Reduce sample rate or packet size in transmitter code
 
 - **Receiver is too slow:** Processing can't keep up with arrival rate
-  - Solution: Profile your receiver code, optimize processing
+
+    - Solution: Profile your receiver code, optimize processing
 
 ### "Address already in use" error
 
@@ -300,23 +307,25 @@ services:
 **Solutions:**
 
 1. **Kill the old process:**
-   ```bash
-   # Find the process using port 5555:
-   sudo lsof -i :5555
-   # or:
-   sudo netstat -tulpn | grep 5555
 
-   # Kill it:
-   kill <PID>
-   ```
+    ```bash
+    # Find the process using port 5555:
+    sudo lsof -i :5555
+    # or:
+    sudo netstat -tulpn | grep 5555
 
-2. **Use a different port:**
-   ```bash
-   ./build/examples/c/transmitter tcp://*:5556
-   ./build/examples/c/receiver tcp://192.168.1.100:5556
-   ```
+    # Kill it:
+    kill <PID>
+    ```
 
-3. **Wait for ZMQ socket cleanup:** Sometimes sockets take a few seconds to release after Ctrl+C.
+1. **Use a different port:**
+
+    ```bash
+    ./build/examples/c/transmitter tcp://*:5556
+    ./build/examples/c/receiver tcp://192.168.1.100:5556
+    ```
+
+1. **Wait for ZMQ socket cleanup:** Sometimes sockets take a few seconds to release after Ctrl+C.
 
 ### No output / silent failure
 
@@ -350,8 +359,8 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 If you're still stuck:
 
 1. Check existing issues: https://github.com/doppler-dsp/doppler/issues
-2. Include in your bug report:
-   - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
-   - Network topology (same machine, LAN, cloud, containers)
-   - Error messages with `ZMQ_VERBOSE=1`
-   - OS and library versions (`uname -a`, `cmake --version`, `pkg-config --modversion libzmq`)
+1. Include in your bug report:
+    - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
+    - Network topology (same machine, LAN, cloud, containers)
+    - Error messages with `ZMQ_VERBOSE=1`
+    - OS and library versions (`uname -a`, `cmake --version`, `pkg-config --modversion libzmq`)

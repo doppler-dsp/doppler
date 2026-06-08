@@ -4,7 +4,7 @@
 #include "spectral/spectral_core.h"
 
 float
-kaiser_enbw(const float *w, size_t w_len)
+kaiser_enbw (const float *w, size_t w_len)
 {
   double sum_sq = 0.0, sum = 0.0;
   for (size_t k = 0; k < w_len; k++)

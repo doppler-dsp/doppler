@@ -7,7 +7,7 @@
 [![CI](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg)](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-doppler--dsp.github.io-blue)](https://doppler-dsp.github.io/doppler/)
 [![PyPI](https://img.shields.io/pypi/v/doppler-dsp)](https://pypi.org/project/doppler-dsp/)
-[![Python](https://img.shields.io/badge/python-3.12%20|%203.13%20|%203.14-blue)](https://pypi.org/project/doppler-dsp/)
+[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/doppler-dsp/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 [![C99](https://img.shields.io/badge/C-C99-blue)](https://en.wikipedia.org/wiki/C99)

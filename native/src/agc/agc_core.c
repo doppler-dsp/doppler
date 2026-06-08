@@ -7,13 +7,13 @@ agc_create (double ref_db, double loop_bw, double alpha)
   agc_state_t *state = calloc (1, sizeof (*state));
   if (!state)
     return NULL;
-  state->ref_db = ref_db;
+  state->ref_db  = ref_db;
   state->loop_bw = loop_bw;
-  state->alpha = alpha;
-  state->decim = AGC_DECIM_DEFAULT;
+  state->alpha   = alpha;
+  state->decim   = AGC_DECIM_DEFAULT;
   state->clip_db = AGC_CLIP_DB_DEFAULT;
   state->gain_db = 0.0;
-  state->g_last = 1.0; /* gain_db = 0 dB -> linear gain 1.0 */
+  state->g_last  = 1.0; /* gain_db = 0 dB -> linear gain 1.0 */
   /* Seed the detector with the reference power 10^(ref_db/10) so the
    * loop starts settled — avoids a large dB error on the first sample
    * and a log10(0) transient before any signal has arrived. */
@@ -31,8 +31,8 @@ void
 agc_reset (agc_state_t *state)
 {
   state->gain_db = 0.0;
-  state->g_last = 1.0;
-  state->p_avg = pow (10.0, state->ref_db * 0.1);
+  state->g_last  = 1.0;
+  state->p_avg   = pow (10.0, state->ref_db * 0.1);
 }
 
 double
@@ -45,9 +45,9 @@ JM_HOT void
 agc_steps (agc_state_t *state, const float complex *input,
            float complex *output, size_t n)
 {
-  size_t d = state->decim ? state->decim : 1; /* chunk length, guard >=1 */
-  double a1 = 1.0 - state->alpha;             /* per-sample EMA pole     */
-  double g_prev = state->g_last;              /* ramp continues from here */
+  size_t d  = state->decim ? state->decim : 1; /* chunk length, guard >=1 */
+  double a1 = 1.0 - state->alpha;              /* per-sample EMA pole     */
+  double g_prev = state->g_last;               /* ramp continues from here */
 
   /* Every full chunk shares the same control coefficients, so compute
    * them — including the reciprocal chunk length used for averaging —
@@ -55,27 +55,27 @@ agc_steps (agc_state_t *state, const float complex *input,
    * (8/16/32) are powers of two, so 1.0/d is exact and the multiply
    * below is bit-identical to a divide. */
   double inv_d = 1.0 / (double)d;
-  double ac = 1.0;
+  double ac    = 1.0;
   for (size_t k = 0; k < d; k++)
     ac *= a1;
-  double alpha_d = 1.0 - ac;                     /* EMA pole over d  */
-  double k_d = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */
+  double alpha_d = 1.0 - ac;                         /* EMA pole over d  */
+  double k_d     = (double)d * 4.0 * state->loop_bw; /* loop-filter gain */
 
   /* Output clip threshold, linear amplitude — constant for the call. */
   float clip_lin = (float)agc_exp10_ (state->clip_db * 0.05);
 
   for (size_t i = 0; i < n; i += d)
     {
-      size_t c = n - i < d ? n - i : d; /* this chunk's length */
+      size_t c     = n - i < d ? n - i : d; /* this chunk's length */
       double inv_c = inv_d, alpha_c = alpha_d, k_c = k_d;
       if (c != d) /* final short chunk: rescale to its actual length */
         {
           inv_c = 1.0 / (double)c;
-          ac = 1.0;
+          ac    = 1.0;
           for (size_t k = 0; k < c; k++)
             ac *= a1;
           alpha_c = 1.0 - ac;
-          k_c = (double)c * 4.0 * state->loop_bw;
+          k_c     = (double)c * 4.0 * state->loop_bw;
         }
 
       /* Linear gain interpolation (first-order hold): ramp from the gain
@@ -84,13 +84,13 @@ agc_steps (agc_state_t *state, const float complex *input,
        * staircase.  At convergence g_target == g_prev and the ramp is a
        * constant.  gj is affine in j, so the loop still vectorises. */
       double g_target = agc_exp10_ (state->gain_db * 0.05);
-      double dg = (g_target - g_prev) * inv_c;
+      double dg       = (g_target - g_prev) * inv_c;
 
       /* Apply the interpolated gain ramp.  gj is affine in j, so this
        * loop vectorises cleanly. */
       for (size_t j = 0; j < c; j++)
         {
-          float gj = (float)(g_prev + (double)(j + 1) * dg);
+          float gj      = (float)(g_prev + (double)(j + 1) * dg);
           output[i + j] = input[i + j] * gj;
         }
       g_prev = g_target; /* ramp endpoint -> start of the next chunk */

@@ -10,6 +10,7 @@ Lifecycle / safety coverage:
   - bad state arg (None, wrong capsule): raises TypeError
   - undersized output buffer: no overflow, just fewer outputs
 """
+
 import gc
 import pytest
 import numpy as np
@@ -24,20 +25,23 @@ from doppler.ddc import (
     ddcr_get_rate,
 )
 
-N    = 1024
+N = 1024
 RATE = 0.25
-BUF  = N          # safe upper bound for decimating DDC
+BUF = N  # safe upper bound for decimating DDC
 
 
 # ------------------------------------------------------------------ #
 # Helpers                                                              #
 # ------------------------------------------------------------------ #
 
+
 def _make_state():
     return ddcr_create(0.0, RATE)
 
+
 def _buf():
     return np.empty(BUF, dtype=np.complex64)
+
 
 def _x():
     return np.ones(N, dtype=np.float32)
@@ -46,6 +50,7 @@ def _x():
 # ------------------------------------------------------------------ #
 # Lifecycle — explicit destroy                                         #
 # ------------------------------------------------------------------ #
+
 
 class TestDdcrFnLifecycle:
     def test_create_returns_capsule(self):
@@ -93,6 +98,7 @@ class TestDdcrFnLifecycle:
 # ------------------------------------------------------------------ #
 # Lifecycle — GC path (no explicit destroy)                           #
 # ------------------------------------------------------------------ #
+
 
 class TestDdcrFnGC:
     def test_gc_capsule_alone(self):
@@ -167,6 +173,7 @@ class TestDdcrFnBadState:
 # Output buffer validation                                             #
 # ------------------------------------------------------------------ #
 
+
 class TestDdcrFnOutputBuf:
     def test_read_only_out_raises(self):
         s = _make_state()
@@ -215,6 +222,7 @@ class TestDdcrFnOutputBuf:
 # Accessors                                                            #
 # ------------------------------------------------------------------ #
 
+
 class TestDdcrFnAccessors:
     def test_get_norm_freq(self):
         s = ddcr_create(0.1, RATE)
@@ -236,6 +244,7 @@ class TestDdcrFnAccessors:
 # ------------------------------------------------------------------ #
 # Execute correctness                                                  #
 # ------------------------------------------------------------------ #
+
 
 class TestDdcrFnExecute:
     def test_returns_complex64(self):

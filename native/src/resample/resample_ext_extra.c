@@ -33,7 +33,7 @@ HalfbandDecimatorDp_init (HalfbandDecimatorDpObject *self, PyObject *args,
                           PyObject *kwds)
 {
   static char *kwlist[] = { "h", NULL };
-  PyObject *h_obj = NULL;
+  PyObject    *h_obj    = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &h_obj))
     return -1;
   PyArrayObject *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -66,7 +66,7 @@ HalfbandDecimatorDp_init (HalfbandDecimatorDpObject *self, PyObject *args,
 
 static PyObject *
 HalfbandDecimatorDp_reset (HalfbandDecimatorDpObject *self,
-                           PyObject *Py_UNUSED (ignored))
+                           PyObject                  *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -121,10 +121,10 @@ HalfbandDecimatorDp_execute (HalfbandDecimatorDpObject *self, PyObject *args)
       in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_ALIGNED);
   if (!in_arr)
     return NULL;
-  size_t num_in = (size_t)PyArray_SIZE (in_arr);
-  size_t num_taps = hbdecim_get_num_taps (self->handle);
-  size_t max_out = (num_in + 1) / 2 + num_taps + 2;
-  npy_intp out_dim = (npy_intp)max_out;
+  size_t         num_in   = (size_t)PyArray_SIZE (in_arr);
+  size_t         num_taps = hbdecim_get_num_taps (self->handle);
+  size_t         max_out  = (num_in + 1) / 2 + num_taps + 2;
+  npy_intp       out_dim  = (npy_intp)max_out;
   PyArrayObject *out_arr
       = (PyArrayObject *)PyArray_SimpleNew (1, &out_dim, NPY_COMPLEX64);
   if (!out_arr)
@@ -144,7 +144,7 @@ HalfbandDecimatorDp_execute (HalfbandDecimatorDpObject *self, PyObject *args)
 
 static PyObject *
 HbDecimDp_enter (HalfbandDecimatorDpObject *self,
-                 PyObject *Py_UNUSED (ignored))
+                 PyObject                  *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
@@ -172,14 +172,14 @@ static PyMethodDef HalfbandDecimatorDp_methods[]
 
 static PyTypeObject HalfbandDecimatorDpType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.HalfbandDecimatorDp",
-  .tp_basicsize = sizeof (HalfbandDecimatorDpObject),
+  .tp_basicsize                           = sizeof (HalfbandDecimatorDpObject),
   .tp_dealloc = (destructor)HalfbandDecimatorDp_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "HbDecimDp(h) — C-library halfband 2:1 decimator (CF32→CF32).",
+  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "HbDecimDp(h) — C-library halfband 2:1 decimator (CF32→CF32).",
   .tp_methods = HalfbandDecimatorDp_methods,
-  .tp_getset = HalfbandDecimatorDp_getset,
-  .tp_new = HalfbandDecimatorDp_new,
-  .tp_init = (initproc)HalfbandDecimatorDp_init,
+  .tp_getset  = HalfbandDecimatorDp_getset,
+  .tp_new     = HalfbandDecimatorDp_new,
+  .tp_init    = (initproc)HalfbandDecimatorDp_init,
 };
 
 /* ======================================================== */
@@ -215,7 +215,7 @@ HalfbandDecimatorR2C_init (HalfbandDecimatorR2CObject *self, PyObject *args,
                            PyObject *kwds)
 {
   static char *kwlist[] = { "h", NULL };
-  PyObject *h_obj = NULL;
+  PyObject    *h_obj    = NULL;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &h_obj))
     return -1;
   PyArrayObject *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -247,7 +247,7 @@ HalfbandDecimatorR2C_init (HalfbandDecimatorR2CObject *self, PyObject *args,
 
 static PyObject *
 HalfbandDecimatorR2C_reset (HalfbandDecimatorR2CObject *self,
-                            PyObject *Py_UNUSED (ignored))
+                            PyObject                   *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -271,7 +271,7 @@ HbDecimR2C_rate (HalfbandDecimatorR2CObject *self, void *Py_UNUSED (closure))
 
 static PyObject *
 HbDecimR2C_num_taps (HalfbandDecimatorR2CObject *self,
-                     void *Py_UNUSED (closure))
+                     void                       *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -305,10 +305,10 @@ HalfbandDecimatorR2C_execute (HalfbandDecimatorR2CObject *self, PyObject *args)
       NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_ALIGNED | NPY_ARRAY_FORCECAST);
   if (!in_arr)
     return NULL;
-  size_t num_in = (size_t)PyArray_SIZE (in_arr);
-  size_t num_taps = hbdecim_r2c_get_num_taps (self->handle);
-  size_t max_out = (num_in + 1) / 2 + num_taps + 2;
-  npy_intp out_dim = (npy_intp)max_out;
+  size_t         num_in   = (size_t)PyArray_SIZE (in_arr);
+  size_t         num_taps = hbdecim_r2c_get_num_taps (self->handle);
+  size_t         max_out  = (num_in + 1) / 2 + num_taps + 2;
+  npy_intp       out_dim  = (npy_intp)max_out;
   PyArrayObject *out_arr
       = (PyArrayObject *)PyArray_SimpleNew (1, &out_dim, NPY_COMPLEX64);
   if (!out_arr)
@@ -328,7 +328,7 @@ HalfbandDecimatorR2C_execute (HalfbandDecimatorR2CObject *self, PyObject *args)
 
 static PyObject *
 HbDecimR2C_enter (HalfbandDecimatorR2CObject *self,
-                  PyObject *Py_UNUSED (ignored))
+                  PyObject                   *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
@@ -357,12 +357,12 @@ static PyMethodDef HalfbandDecimatorR2C_methods[] = {
 static PyTypeObject HalfbandDecimatorR2CType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.HalfbandDecimatorR2C",
   .tp_basicsize = sizeof (HalfbandDecimatorR2CObject),
-  .tp_dealloc = (destructor)HalfbandDecimatorR2C_dealloc,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_dealloc   = (destructor)HalfbandDecimatorR2C_dealloc,
+  .tp_flags     = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "HbDecimR2C(h) — Architecture D2 halfband decimator (float32→CF32).",
   .tp_methods = HalfbandDecimatorR2C_methods,
-  .tp_getset = HalfbandDecimatorR2C_getset,
-  .tp_new = HalfbandDecimatorR2C_new,
-  .tp_init = (initproc)HalfbandDecimatorR2C_init,
+  .tp_getset  = HalfbandDecimatorR2C_getset,
+  .tp_new     = HalfbandDecimatorR2C_new,
+  .tp_init    = (initproc)HalfbandDecimatorR2C_init,
 };

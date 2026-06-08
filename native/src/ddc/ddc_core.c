@@ -58,7 +58,7 @@ static const float s_hb_fir[DDC_HB_TAPS] = {
 
 struct ddc_state
 {
-  lo_state_t *lo;
+  lo_state_t            *lo;
   RateConverter_state_t *rc;
 };
 
@@ -155,10 +155,10 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
 
 struct ddcr_state
 {
-  hbdecim_r2c_state_t *r2c;
-  lo_state_t *lo;
+  hbdecim_r2c_state_t   *r2c;
+  lo_state_t            *lo;
   RateConverter_state_t *rc;
-  double rate; /* total fs_out / fs_in */
+  double                 rate; /* total fs_out / fs_in */
 };
 
 ddcr_state_t *
@@ -245,7 +245,7 @@ ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
     return 0;
 
   /* Step 1: halfband R2C decimation (2:1). */
-  size_t hb_max = n_in / 2 + 2;
+  size_t          hb_max = n_in / 2 + 2;
   float _Complex *hb_buf = malloc (hb_max * sizeof (float _Complex));
   if (!hb_buf)
     return 0;

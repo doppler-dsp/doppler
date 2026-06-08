@@ -19,22 +19,30 @@ def obj():
 def test_bench_steps_u32_1k(benchmark, obj):
     benchmark(obj.steps_u32, BLOCK_1K)
     if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = BLOCK_1K / benchmark.stats["mean"] / 1e6
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_steps_u32_64k(benchmark, obj):
     benchmark(obj.steps_u32, BLOCK_64K)
     if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = BLOCK_64K / benchmark.stats["mean"] / 1e6
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_steps_u32_ovf_1k(benchmark, obj):
     benchmark(obj.steps_u32_ovf, BLOCK_1K)
     if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = BLOCK_1K / benchmark.stats["mean"] / 1e6
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_steps_u32_ovf_64k(benchmark, obj):
     benchmark(obj.steps_u32_ovf, BLOCK_64K)
     if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = BLOCK_64K / benchmark.stats["mean"] / 1e6
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

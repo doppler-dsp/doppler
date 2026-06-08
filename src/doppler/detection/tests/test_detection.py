@@ -44,7 +44,7 @@ class TestMarcumQ:
     def test_a_zero_m1_exact(self, b):
         # Q_1(0, b) = exp(-b^2/2)
         assert marcum_q(1, 0.0, b) == pytest.approx(
-            math.exp(-b**2 / 2), rel=1e-12
+            math.exp(-(b**2) / 2), rel=1e-12
         )
 
     @pytest.mark.parametrize("b", [1.0, 2.0, 3.0])
@@ -63,14 +63,17 @@ class TestMarcumQ:
             math.exp(-v) * (1 + v + v**2 / 2), rel=1e-12
         )
 
-    @pytest.mark.parametrize("m, a, b, expected", [
-        (1, 2.0, 1.0, 0.9181076963694063),
-        (1, 1.0, 2.0, 0.2690120600359100),
-        (2, 1.0, 1.0, 0.9407902191465286),
-        (1, 3.0, 2.0, 0.8867207544023923),
-        (1, 0.5, 0.5, 0.8955085810698598),
-        (4, 2.0, 3.0, 0.6639534637953503),
-    ])
+    @pytest.mark.parametrize(
+        "m, a, b, expected",
+        [
+            (1, 2.0, 1.0, 0.9181076963694063),
+            (1, 1.0, 2.0, 0.2690120600359100),
+            (2, 1.0, 1.0, 0.9407902191465286),
+            (1, 3.0, 2.0, 0.8867207544023923),
+            (1, 0.5, 0.5, 0.8955085810698598),
+            (4, 2.0, 3.0, 0.6639534637953503),
+        ],
+    )
     def test_known_values(self, m, a, b, expected):
         # rel=1e-8: tighter than libm worst-case (1-2 ULP ≈ 4e-16 near 0.9),
         # looser than the series accumulation error floor (~2e-14), so this
@@ -96,9 +99,15 @@ class TestMarcumQ:
             assert marcum_q(1, a, b) < marcum_q(2, a, b)
             assert marcum_q(2, a, b) < marcum_q(4, a, b)
 
-    @pytest.mark.parametrize("m,a,b", [
-        (1, 0.0, 1.0), (2, 1.0, 2.0), (4, 3.0, 3.0), (8, 2.0, 1.0),
-    ])
+    @pytest.mark.parametrize(
+        "m,a,b",
+        [
+            (1, 0.0, 1.0),
+            (2, 1.0, 2.0),
+            (4, 3.0, 3.0),
+            (8, 2.0, 1.0),
+        ],
+    )
     def test_bounded_in_0_1(self, m, a, b):
         q = marcum_q(m, a, b)
         assert 0.0 <= q <= 1.0
@@ -127,11 +136,18 @@ class TestDetThreshold:
         assert math.exp(-0.5 * eta * eta) == pytest.approx(pfa, rel=1e-12)
 
     def test_known_value(self):
-        assert det_threshold(1e-6) == pytest.approx(5.256521769756932, rel=1e-10)
+        assert det_threshold(1e-6) == pytest.approx(
+            5.256521769756932, rel=1e-10
+        )
 
-    @pytest.mark.parametrize("lo, hi", [
-        (1e-6, 1e-4), (1e-10, 1e-6), (1e-4, 1e-2),
-    ])
+    @pytest.mark.parametrize(
+        "lo, hi",
+        [
+            (1e-6, 1e-4),
+            (1e-10, 1e-6),
+            (1e-4, 1e-2),
+        ],
+    )
     def test_monotone_decreasing_pfa(self, lo, hi):
         # Stricter Pfa requires a higher amplitude threshold.
         assert det_threshold(lo) > det_threshold(hi)
@@ -186,12 +202,15 @@ class TestDetDwell:
     def test_infeasible_returns_minus_one(self):
         assert det_dwell(0.001, 0.9, 1e-6, 10) == -1
 
-    @pytest.mark.parametrize("snr,pd_min,pfa", [
-        (0.5, 0.9, 1e-6),
-        (0.3, 0.8, 1e-4),
-        (1.0, 0.99, 1e-6),
-        (0.7, 0.95, 1e-8),
-    ])
+    @pytest.mark.parametrize(
+        "snr,pd_min,pfa",
+        [
+            (0.5, 0.9, 1e-6),
+            (0.3, 0.8, 1e-4),
+            (1.0, 0.99, 1e-6),
+            (0.7, 0.95, 1e-8),
+        ],
+    )
     def test_minimum_dwell_property(self, snr, pd_min, pfa):
         m = det_dwell(snr, pd_min, pfa, 2048)
         assert m > 0, f"infeasible for snr={snr}, pd_min={pd_min}, pfa={pfa}"
@@ -218,8 +237,8 @@ class TestDetSnr:
 
     def test_coherent_gain(self):
         # More dwell → less required SNR (coherent processing gain).
-        snr1  = det_snr(1,  0.9, 1e-6)
-        snr4  = det_snr(4,  0.9, 1e-6)
+        snr1 = det_snr(1, 0.9, 1e-6)
+        snr4 = det_snr(4, 0.9, 1e-6)
         snr16 = det_snr(16, 0.9, 1e-6)
         assert snr16 < snr4 < snr1
 
@@ -255,7 +274,7 @@ class TestDetThresholdPower:
         # Power threshold = eta^2 / 2
         for pfa in PFA_VALUES:
             eta = det_threshold(pfa)
-            p   = det_threshold_power(pfa)
+            p = det_threshold_power(pfa)
             assert p == pytest.approx(0.5 * eta * eta, rel=1e-12)
 
     @pytest.mark.parametrize("lo, hi", [(1e-6, 1e-4), (1e-10, 1e-6)])
@@ -276,14 +295,20 @@ class TestDetPdPower:
         p = det_threshold_power(pfa)
         assert det_pd_power(0.0, m, p) == pytest.approx(pfa, rel=1e-12)
 
-    @pytest.mark.parametrize("snr,m", [
-        (2.0, 1), (1.0, 4), (0.5, 8), (3.0, 2),
-    ])
+    @pytest.mark.parametrize(
+        "snr,m",
+        [
+            (2.0, 1),
+            (1.0, 4),
+            (0.5, 8),
+            (3.0, 2),
+        ],
+    )
     def test_equivalence_with_envelope_pd(self, snr, m):
         # det_pd_power(snr^2, M, p) == det_pd(snr, M, eta) exactly.
         pfa = 1e-6
         eta = det_threshold(pfa)
-        p   = det_threshold_power(pfa)
+        p = det_threshold_power(pfa)
         assert det_pd_power(snr**2, m, p) == pytest.approx(
             det_pd(snr, m, eta), rel=1e-12
         )
@@ -304,19 +329,24 @@ class TestDetPdPower:
         assert det_pd_power(100.0, 8, p) <= 1.0
 
     def test_returns_float(self):
-        assert isinstance(det_pd_power(1.0, 4, det_threshold_power(1e-6)), float)
+        assert isinstance(
+            det_pd_power(1.0, 4, det_threshold_power(1e-6)), float
+        )
 
 
 # ── det_dwell_power ───────────────────────────────────────────────────────────
 
 
 class TestDetDwellPower:
-    @pytest.mark.parametrize("snr,pd_min,pfa", [
-        (0.5, 0.9, 1e-6),
-        (0.3, 0.8, 1e-4),
-        (1.0, 0.99, 1e-6),
-        (0.7, 0.95, 1e-8),
-    ])
+    @pytest.mark.parametrize(
+        "snr,pd_min,pfa",
+        [
+            (0.5, 0.9, 1e-6),
+            (0.3, 0.8, 1e-4),
+            (1.0, 0.99, 1e-6),
+            (0.7, 0.95, 1e-8),
+        ],
+    )
     def test_equivalence_with_envelope_dwell(self, snr, pd_min, pfa):
         m_amp = det_dwell(snr, pd_min, pfa, 2048)
         m_pow = det_dwell_power(snr**2, pd_min, pfa, 2048)
@@ -347,10 +377,10 @@ class TestDetDwellPower:
 class TestDetSnrPower:
     @pytest.mark.parametrize("dwell", [1, 2, 4, 8, 16, 32, 64])
     def test_roundtrip(self, dwell):
-        pfa    = 1e-6
+        pfa = 1e-6
         pd_min = 0.9
-        sp     = det_snr_power(dwell, pd_min, pfa)
-        p      = det_threshold_power(pfa)
+        sp = det_snr_power(dwell, pd_min, pfa)
+        p = det_threshold_power(pfa)
         assert det_pd_power(sp, dwell, p) >= pd_min - 1e-12
 
     @pytest.mark.parametrize("dwell", [1, 2, 4, 8, 16, 32, 64])
@@ -360,8 +390,8 @@ class TestDetSnrPower:
         assert sp == pytest.approx(sa * sa, rel=1e-8)
 
     def test_coherent_gain(self):
-        sp1  = det_snr_power(1,  0.9, 1e-6)
-        sp4  = det_snr_power(4,  0.9, 1e-6)
+        sp1 = det_snr_power(1, 0.9, 1e-6)
+        sp4 = det_snr_power(4, 0.9, 1e-6)
         sp16 = det_snr_power(16, 0.9, 1e-6)
         assert sp16 < sp4 < sp1
 

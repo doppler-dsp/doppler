@@ -11,8 +11,9 @@
  * i.e. SNR_lin = Eb/No_lin * bits_per_symbol / samples_per_symbol.
  */
 float
-wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol)
+wfm_ebno_to_snr_db (float ebno_db, int bits_per_symbol,
+                    float samples_per_symbol)
 {
-    return ebno_db + 10.0f * log10f((float)bits_per_symbol)
-           - 10.0f * log10f(samples_per_symbol);
+  return ebno_db + 10.0f * log10f ((float)bits_per_symbol)
+         - 10.0f * log10f (samples_per_symbol);
 }

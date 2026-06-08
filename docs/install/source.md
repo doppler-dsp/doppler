@@ -2,13 +2,14 @@
 
 ## Prerequisites
 
-| Tool | Minimum | Notes |
-|------|---------|-------|
-| CMake | 3.16 | |
-| C compiler | C11 | GCC, Clang, or MSVC |
-| C++ compiler | C++17 | Required for pocketfft (bundled) |
+| Tool         | Minimum | Notes                            |
+| ------------ | ------- | -------------------------------- |
+| CMake        | 3.16    |                                  |
+| C compiler   | C11     | GCC, Clang, or MSVC              |
+| C++ compiler | C++17   | Required for pocketfft (bundled) |
 
 !!! note "Python extensions"
+
     `make pyext` additionally requires Python 3.11+ with development
     headers and NumPy.
 
@@ -37,10 +38,11 @@ pacman -S mingw-w64-ucrt-x86_64-gcc \
 ```
 
 !!! warning "Use the UCRT64 shell, not MSYS"
+
     The MSYS POSIX compiler (`/usr/bin/cc`) and the UCRT64 native compiler
-    (`/ucrt64/bin/cc`) have incompatible headers.  If CMake picks up the
+    (`/ucrt64/bin/cc`) have incompatible headers. If CMake picks up the
     wrong one you'll see errors like `expected ';' before 'extern'` in
-    `stddef.h`.  Always launch from the **UCRT64** shortcut so
+    `stddef.h`. Always launch from the **UCRT64** shortcut so
     `/ucrt64/bin` is first on `PATH`, and delete any stale `build/`
     directory before reconfiguring.
 
@@ -57,17 +59,18 @@ Or directly with CMake:
 ```
 
 !!! tip "Maximum performance"
+
     `make blazing` adds `-march=native` to enable all CPU extensions
-    (AVX2, NEON, SVE, …) for the current machine.  Binaries built this
+    (AVX2, NEON, SVE, …) for the current machine. Binaries built this
     way are **not portable** to other machines.
 
 ## CMake options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `BUILD_PYTHON` | `OFF` | Build Python C extensions (`make pyext` enables this) |
-| `ENABLE_SIMD` | `ON` | SIMD / fast-math flags (disable for strict portability) |
-| `Python3_EXECUTABLE` | auto | Override Python interpreter (ensures correct ABI suffix) |
+| Option               | Default | Description                                              |
+| -------------------- | ------- | -------------------------------------------------------- |
+| `BUILD_PYTHON`       | `OFF`   | Build Python C extensions (`make pyext` enables this)    |
+| `ENABLE_SIMD`        | `ON`    | SIMD / fast-math flags (disable for strict portability)  |
+| `Python3_EXECUTABLE` | auto    | Override Python interpreter (ensures correct ABI suffix) |
 
 Example — build Python extensions against a specific interpreter:
 
@@ -77,16 +80,16 @@ Example — build Python extensions against a specific interpreter:
 
 ## Make targets
 
-| Target | Description |
-|--------|-------------|
-| `make` | Configure + build (Release) |
-| `make pyext` | Build Python extensions into `src/doppler/` |
-| `make test` | Run CTest suite (requires `make pyext` first) |
-| `make python-test` | Run pytest |
-| `make test-all` | CTest + pytest + example smoke tests |
-| `make rust-test` | Build C library + run Rust FFI tests |
-| `make debug` | Clean + Debug build |
-| `make release` | Clean + Release build |
-| `make blazing` | Clean + Release + `-march=native` |
-| `make clean` | Remove `build/` and compiled `.so` files |
-| `make help` | Show all targets and overrides |
+| Target             | Description                                   |
+| ------------------ | --------------------------------------------- |
+| `make`             | Configure + build (Release)                   |
+| `make pyext`       | Build Python extensions into `src/doppler/`   |
+| `make test`        | Run CTest suite (requires `make pyext` first) |
+| `make python-test` | Run pytest                                    |
+| `make test-all`    | CTest + pytest + example smoke tests          |
+| `make rust-test`   | Build C library + run Rust FFI tests          |
+| `make debug`       | Clean + Debug build                           |
+| `make release`     | Clean + Release build                         |
+| `make blazing`     | Clean + Release + `-march=native`             |
+| `make clean`       | Remove `build/` and compiled `.so` files      |
+| `make help`        | Show all targets and overrides                |

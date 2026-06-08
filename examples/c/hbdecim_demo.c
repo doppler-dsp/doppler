@@ -23,7 +23,7 @@
 #endif
 
 #define N_TAPS 4
-#define N_IN   32
+#define N_IN 32
 
 /* 4-tap symmetric halfband coefficients (minimal passband test case). */
 static const float H_FIR[N_TAPS] = { -0.2122f, 0.6366f, 0.6366f, -0.2122f };
@@ -34,7 +34,7 @@ rms_db (const float _Complex *x, size_t n)
   double s = 0.0;
   for (size_t k = 0; k < n; k++)
     s += (double)crealf (x[k]) * crealf (x[k])
-       + (double)cimagf (x[k]) * cimagf (x[k]);
+         + (double)cimagf (x[k]) * cimagf (x[k]);
   return 10.0 * log10 (s / (double)n + 1e-20);
 }
 
@@ -43,16 +43,15 @@ main (void)
 {
   printf ("=== Halfband Decimator Demo ===\n\n");
 
-  HalfbandDecimator_state_t *dec
-      = HalfbandDecimator_create (N_TAPS, H_FIR);
+  HalfbandDecimator_state_t *dec = HalfbandDecimator_create (N_TAPS, H_FIR);
   if (!dec)
     {
       fprintf (stderr, "ERROR: HalfbandDecimator_create failed\n");
       return 1;
     }
 
-  printf ("Decimator created: %zu taps, rate=%.1f\n\n",
-          N_TAPS, HalfbandDecimator_get_rate (dec));
+  printf ("Decimator created: %zu taps, rate=%.1f\n\n", N_TAPS,
+          HalfbandDecimator_get_rate (dec));
 
   /* Complex tone at f_n = 0.125 (eighth rate — well inside passband) */
   const double tone_freq = 0.125;
@@ -60,7 +59,7 @@ main (void)
   for (int k = 0; k < N_IN; k++)
     {
       double ph = 2.0 * M_PI * tone_freq * (double)k;
-      in[k] = CMPLXF ((float)cos (ph), (float)sin (ph));
+      in[k]     = CMPLXF ((float)cos (ph), (float)sin (ph));
     }
 
   printf ("Input:  %d samples at f_n = %.3f\n", N_IN, tone_freq);
@@ -76,8 +75,8 @@ main (void)
   printf ("%-4s  %10s  %10s\n", "idx", "I", "Q");
   printf ("----  ----------  ----------\n");
   for (size_t k = 0; k < (n_out < 8 ? n_out : 8); k++)
-    printf ("%-4zu  %+10.6f  %+10.6f\n", k,
-            (double)crealf (out[k]), (double)cimagf (out[k]));
+    printf ("%-4zu  %+10.6f  %+10.6f\n", k, (double)crealf (out[k]),
+            (double)cimagf (out[k]));
 
   HalfbandDecimator_destroy (dec);
   return 0;

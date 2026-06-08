@@ -31,6 +31,7 @@ gcc -o app main.c $(pkg-config --cflags --libs doppler)
 ```
 
 !!! tip "Custom install prefix"
+
     ```sh
     --8<-- "tests/install/cmake-install.sh:custom-prefix"
     ```
@@ -46,7 +47,8 @@ Useful during development — no `cmake --install` required.
 ```
 
 !!! warning "rpath on Linux"
-    The `-Wl,-rpath` flag bakes the build path into the binary.  If you
+
+    The `-Wl,-rpath` flag bakes the build path into the binary. If you
     move the binary or the build tree, set `LD_LIBRARY_PATH` or re-link.
 
 **Static library** (no runtime `.so` dependency):

@@ -31,8 +31,9 @@ The image contains:
 ```
 
 !!! warning "Foreground process"
+
     `docker compose up` runs in the foreground and streams all service
-    logs to the terminal.  Use `docker compose up -d` to detach, then
+    logs to the terminal. Use `docker compose up -d` to detach, then
     `docker compose logs -f` to follow logs separately.
 
 ```sh
@@ -41,8 +42,8 @@ The image contains:
 
 Services:
 
-| Service | Description |
-|---------|-------------|
+| Service       | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
 | `transmitter` | Generates and publishes IQ samples over ZMQ PUB (port 5555) |
-| `receiver-1` | Subscribes and prints signal stats |
-| `receiver-2` | Second subscriber (demonstrates PUB/SUB fan-out) |
+| `receiver-1`  | Subscribes and prints signal stats                          |
+| `receiver-2`  | Second subscriber (demonstrates PUB/SUB fan-out)            |

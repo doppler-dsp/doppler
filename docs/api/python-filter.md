@@ -6,16 +6,16 @@ Accepts real (`float32`) or complex (`complex64`) taps; input must be `complex64
 Source:
 [`src/doppler/filter/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/filter/__init__.py)
 
----
+______________________________________________________________________
 
 ## Tap types
 
-| Tap dtype | C path | Cost/tap/sample | When to use |
-|-----------|--------|-----------------|-------------|
-| `float32` | real | 1 FMA | `scipy.signal.firwin`, any symmetric LP/HP/BP |
+| Tap dtype   | C path  | Cost/tap/sample | When to use                                    |
+| ----------- | ------- | --------------- | ---------------------------------------------- |
+| `float32`   | real    | 1 FMA           | `scipy.signal.firwin`, any symmetric LP/HP/BP  |
 | `complex64` | complex | 2 FMA + permute | Hilbert transformer, frequency-shifted designs |
 
----
+______________________________________________________________________
 
 ## Examples
 
@@ -65,6 +65,6 @@ print(filt.is_real)   # False
 filt.reset()    # zero delay line; tap coefficients preserved
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.filter.FIR

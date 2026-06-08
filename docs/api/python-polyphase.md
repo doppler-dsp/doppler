@@ -1,11 +1,12 @@
 # Python Polyphase API
 
 !!! warning "Removed in 0.3.0"
-    `doppler.polyphase` has been removed.  The DPMFS polynomial-fit
+
+    `doppler.polyphase` has been removed. The DPMFS polynomial-fit
     resampler (`ResamplerDpmfs`) has also been removed.
 
     **Migration:** use `doppler.resample.Resampler` for all rate
-    conversion.  Its built-in 4096-phase × 19-tap Kaiser bank covers
+    conversion. Its built-in 4096-phase × 19-tap Kaiser bank covers
     all practical use cases with no coefficient design step required.
 
     ```python

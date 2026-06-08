@@ -35,7 +35,7 @@ ceq32 (float complex a, float complex b)
 int
 main (void)
 {
-  int _fails = 0;
+  int          _fails = 0;
   const size_t NY = 8, NX = 8, N = NY * NX;
 
   /* ── lifecycle ──────────────────────────────────────────────────── */

@@ -7,19 +7,19 @@
 All three panels share the same x-axis (±1024 kHz = ±fs_in/2) so the
 signal positions line up vertically across the cascade.
 
-**Top panel — wideband input.**  Two complex tones:
+**Top panel — wideband input.** Two complex tones:
 a wanted signal at 15 kHz and a jammer at 208 kHz.
 The orange dashed curve is the CIC magnitude response `|H(f)|`.
 The white dotted lines mark the output Nyquist boundaries at ±64 kHz;
 anything outside will fold back into the passband.
 
-**Middle panel — UQ16 quantized input.**  The same signal after the
+**Middle panel — UQ16 quantized input.** The same signal after the
 CF32 → offset-binary UQ16 → CF32 roundtrip that the CIC applies
-internally.  The quantization noise floor is ~−92 dBFS (Q15 SNR),
+internally. The quantization noise floor is ~−92 dBFS (Q15 SNR),
 indistinguishable from the top panel at this scale.
 
-**Bottom panel — decimated output.**  After R=16 decimation, the wanted
-tone at 15 kHz survives near full amplitude.  The jammer at 208 kHz
+**Bottom panel — decimated output.** After R=16 decimation, the wanted
+tone at 15 kHz survives near full amplitude. The jammer at 208 kHz
 falls in the alias zone and folds to −48 kHz in the output, attenuated
 by ~90 dB by the CIC filter.
 

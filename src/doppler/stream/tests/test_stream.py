@@ -263,7 +263,9 @@ def test_push_pull_header_all_fields(push_pull_cf64):
         "protocol",
         "stream_id",
     }
-    assert required.issubset(hdr.keys()), f"Missing keys: {required - hdr.keys()}"
+    assert required.issubset(hdr.keys()), (
+        f"Missing keys: {required - hdr.keys()}"
+    )
 
 
 def test_push_pull_header_num_samples(push_pull_cf64):

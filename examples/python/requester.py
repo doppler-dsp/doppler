@@ -24,11 +24,11 @@ import numpy as np
 
 from doppler.stream import CF64, Requester
 
-SAMPLE_RATE = 1_000_000      # 1 MHz
+SAMPLE_RATE = 1_000_000  # 1 MHz
 CENTER_FREQ = 2_400_000_000  # 2.4 GHz
 BUFFER_SIZE = 1_024
-SIGNAL_FREQ = 10_000         # 10 kHz tone
-N_REQUESTS  = 10             # 0 → run forever
+SIGNAL_FREQ = 10_000  # 10 kHz tone
+N_REQUESTS = 10  # 0 → run forever
 
 keep_running = True
 
@@ -80,8 +80,7 @@ def main() -> None:
         while keep_running and (args.count == 0 or i < args.count):
             x = _make_tone(BUFFER_SIZE, SIGNAL_FREQ, SAMPLE_RATE, phase)
             phase = (
-                phase
-                + 2 * np.pi * SIGNAL_FREQ * BUFFER_SIZE / SAMPLE_RATE
+                phase + 2 * np.pi * SIGNAL_FREQ * BUFFER_SIZE / SAMPLE_RATE
             ) % (2 * np.pi)
 
             t0 = time.monotonic_ns()

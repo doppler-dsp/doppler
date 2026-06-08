@@ -4,15 +4,15 @@
 
 ## What you're seeing
 
-**Left — empirical survival functions vs closed-form curves.**  Each
-histogram is built from 30,000 independent trials per SNR point.  The
+**Left — empirical survival functions vs closed-form curves.** Each
+histogram is built from 30,000 independent trials per SNR point. The
 solid lines are the Rician (H1) and Rayleigh (H0) CDFs evaluated at
-the same parameters.  Empirical and theoretical curves sit on top of
+the same parameters. Empirical and theoretical curves sit on top of
 each other throughout — no visible deviation.
 
-**Right — Pd vs SNR.**  Monte Carlo operating points (dots) track the
+**Right — Pd vs SNR.** Monte Carlo operating points (dots) track the
 Marcum Q prediction (solid line) within statistical noise at every
-tested SNR.  The Pfa operating point is confirmed by the fraction of
+tested SNR. The Pfa operating point is confirmed by the fraction of
 H0 trials that exceed the threshold.
 
 ## How it works
@@ -50,7 +50,7 @@ for snr_db in [-6, -3, 0, 3, 6]:
 ```
 
 The Rician draw uses a single non-central Gaussian pair:
-`re ~ N(nu, sigma)`, `im ~ N(0, sigma)`.  The envelope is
+`re ~ N(nu, sigma)`, `im ~ N(0, sigma)`. The envelope is
 `sqrt(re^2 + im^2)`, which is exactly Rician-distributed.
 
 ```bash

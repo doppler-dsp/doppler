@@ -72,10 +72,10 @@ main (void)
   /* ---- linear-in-dB: a quiet and a loud input settle to the same
           level within the same sample budget.  A level-dependent loop
           would leave one of them far from ref. ---- */
-  agc_state_t *lo = agc_create (0.0, 0.0025, 0.05);
-  agc_state_t *hi = agc_create (0.0, 0.0025, 0.05);
-  double lo_db = run_const (lo, dir * 0.01f, 4000);  /* -40 dB input */
-  double hi_db = run_const (hi, dir * 100.0f, 4000); /* +40 dB input */
+  agc_state_t *lo    = agc_create (0.0, 0.0025, 0.05);
+  agc_state_t *hi    = agc_create (0.0, 0.0025, 0.05);
+  double       lo_db = run_const (lo, dir * 0.01f, 4000);  /* -40 dB input */
+  double       hi_db = run_const (hi, dir * 100.0f, 4000); /* +40 dB input */
   CHECK (ALMOST_EQ (lo_db, 0.0, 0.5));
   CHECK (ALMOST_EQ (hi_db, 0.0, 0.5));
   CHECK (ALMOST_EQ (lo_db, hi_db, 0.5));
@@ -83,8 +83,8 @@ main (void)
   agc_destroy (hi);
 
   /* ---- non-zero reference: output converges to ref_db, not 0 dB ---- */
-  agc_state_t *r = agc_create (-6.0, 0.0025, 0.05);
-  double r_db = run_const (r, dir * 3.0f, 4000);
+  agc_state_t *r    = agc_create (-6.0, 0.0025, 0.05);
+  double       r_db = run_const (r, dir * 3.0f, 4000);
   CHECK (ALMOST_EQ (r_db, -6.0, 0.5));
   agc_destroy (r);
 
@@ -102,8 +102,8 @@ main (void)
   {
     static float complex in[3000];
     static float complex blk[3000];
-    agc_state_t *a = agc_create (0.0, 0.005, 0.1);
-    agc_state_t *b = agc_create (0.0, 0.005, 0.1);
+    agc_state_t         *a = agc_create (0.0, 0.005, 0.1);
+    agc_state_t         *b = agc_create (0.0, 0.005, 0.1);
     for (size_t i = 0; i < 3000; i++)
       in[i] = dir * 4.0f;
     agc_steps (a, in, blk, 3000);
@@ -117,8 +117,8 @@ main (void)
   /* ---- steps() supports in-place operation (output aliases input) ---- */
   {
     float complex buf[64], ref[64];
-    agc_state_t *a = agc_create (0.0, 0.005, 0.1);
-    agc_state_t *b = agc_create (0.0, 0.005, 0.1);
+    agc_state_t  *a = agc_create (0.0, 0.005, 0.1);
+    agc_state_t  *b = agc_create (0.0, 0.005, 0.1);
     for (size_t i = 0; i < 64; i++)
       buf[i] = dir * 5.0f;
     agc_steps (b, buf, ref, 64);
@@ -134,7 +134,7 @@ main (void)
   {
     static float complex in[4000];
     static float complex blk[4000];
-    size_t decims[3] = { 8, 16, 32 };
+    size_t               decims[3] = { 8, 16, 32 };
     for (size_t i = 0; i < 4000; i++)
       in[i] = dir * 8.0f;
     for (int di = 0; di < 3; di++)
@@ -183,7 +183,7 @@ main (void)
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
     CHECK (ALMOST_EQ (s->clip_db, AGC_CLIP_DB_DEFAULT, 1e-6)); /* default */
     s->clip_db = 6.0; /* L = 10^(6/20) ~ 1.995 */
-    double L = pow (10.0, 6.0 / 20.0);
+    double L   = pow (10.0, 6.0 / 20.0);
     /* first step: gain is exactly unity, so output = clip(x).  re (5)
        exceeds L and clamps; im (1) is below L and is kept unchanged —
        proving the clip is square, not a circular magnitude limit. */
@@ -199,7 +199,7 @@ main (void)
   {
     agc_state_t *a = agc_create (0.0, 0.0025, 0.05);
     agc_state_t *b = agc_create (0.0, 0.0025, 0.05);
-    b->clip_db = -3.0; /* aggressive clip on b only */
+    b->clip_db     = -3.0; /* aggressive clip on b only */
     for (size_t i = 0; i < 4000; i++)
       {
         (void)agc_step (a, dir * 10.0f);
@@ -216,7 +216,7 @@ main (void)
     for (size_t i = 0; i < 256; i++)
       in[i] = dir * 50.0f;
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
-    s->clip_db = 0.0; /* L = 10^0 = 1.0 */
+    s->clip_db     = 0.0; /* L = 10^0 = 1.0 */
     agc_steps (s, in, out, 256);
     for (size_t i = 0; i < 256; i++)
       {

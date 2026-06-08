@@ -1,25 +1,25 @@
 # Python Delay Line API
 
 Dual-write circular delay line for complex128 samples, backed by
-`dp_delay_cf64_t`.  Designed for polyphase FIR resamplers that need a
+`dp_delay_cf64_t`. Designed for polyphase FIR resamplers that need a
 contiguous window of history with no modulo arithmetic.
 
 Source:
 [`src/doppler/delay/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/delay/__init__.py)
 
----
+______________________________________________________________________
 
 ## How it works
 
 The buffer holds `2 × capacity` samples, where `capacity` is the
-smallest power of two ≥ `num_taps`.  Every `push` writes the new
-sample at `buf[head]` **and** `buf[head + capacity]`.  `ptr()` always
+smallest power of two ≥ `num_taps`. Every `push` writes the new
+sample at `buf[head]` **and** `buf[head + capacity]`. `ptr()` always
 returns a contiguous `num_taps`-window — no wrap-around branch needed
 by the FIR kernel.
 
 Newest sample is at index 0; oldest at index `num_taps - 1`.
 
----
+______________________________________________________________________
 
 ## Examples
 
@@ -75,6 +75,6 @@ with DelayCf64(32) as dl:
     # dl released on exit
 ```
 
----
+______________________________________________________________________
 
 ::: doppler.delay.DelayCf64

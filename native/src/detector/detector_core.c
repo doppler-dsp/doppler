@@ -54,9 +54,9 @@ _compute_stat (detector_state_t *state)
   state->peak_lag = peak;
   state->peak_mag = state->mag_buf[peak];
 
-  state->noise_est = _noise_estimate (state->mag_buf, state->noise_lo,
-                                      state->noise_hi, state->noise_scratch,
-                                      state->noise_mode);
+  state->noise_est
+      = _noise_estimate (state->mag_buf, state->noise_lo, state->noise_hi,
+                         state->noise_scratch, state->noise_mode);
 
   state->test_stat = (state->noise_est > 0.0f)
                          ? (state->peak_mag / state->noise_est)
@@ -75,11 +75,11 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   if (!state)
     return NULL;
 
-  state->n = n;
-  state->noise_lo = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
-  state->noise_hi = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
+  state->n          = n;
+  state->noise_lo   = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
+  state->noise_hi   = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
   state->noise_mode = noise_mode;
-  state->threshold = threshold;
+  state->threshold  = threshold;
 
   state->ring = _ring_create (n > 512 ? n : 512);
   if (!state->ring)
@@ -155,14 +155,14 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
                det_result_t *result, size_t max_results)
 {
   size_t ndet = 0;
-  size_t off = 0; /* samples consumed from in[] */
+  size_t off  = 0; /* samples consumed from in[] */
 
   while (off < n_in && ndet < max_results)
     {
       /* ── Write a chunk into the ring ──────────────────────────────── */
-      size_t head = DP_LOAD_RLX (&state->ring->head);
-      size_t tail = DP_LOAD_ACQ (&state->ring->tail);
-      size_t space = state->ring->capacity - (head - tail);
+      size_t head     = DP_LOAD_RLX (&state->ring->head);
+      size_t tail     = DP_LOAD_ACQ (&state->ring->tail);
+      size_t space    = state->ring->capacity - (head - tail);
       size_t to_write = n_in - off;
       if (to_write > space)
         to_write = space;
@@ -185,11 +185,11 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
 
           /* Zero-copy frame pointer: double-mapping guarantees contiguity
            * even when the frame wraps around the buffer boundary. */
-          float complex *frame = (float complex *)(state->ring->data
-                                                   + (t & state->ring->mask)
-                                                         * 2);
-          size_t n_out = corr_execute (state->corr, frame, state->n,
-                                       state->out_buf);
+          float complex *frame
+              = (float complex *)(state->ring->data
+                                  + (t & state->ring->mask) * 2);
+          size_t n_out
+              = corr_execute (state->corr, frame, state->n, state->out_buf);
           dp_f32_consume (state->ring, state->n);
 
           if (n_out == 0)
@@ -198,13 +198,11 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
           state->_last_corr_valid = 1;
           _compute_stat (state);
 
-          if (state->threshold == 0.0f
-              || state->test_stat > state->threshold)
+          if (state->threshold == 0.0f || state->test_stat > state->threshold)
             {
-              result[ndet++] = (det_result_t){ state->peak_lag,
-                                               state->peak_mag,
-                                               state->noise_est,
-                                               state->test_stat };
+              result[ndet++]
+                  = (det_result_t){ state->peak_lag, state->peak_mag,
+                                    state->noise_est, state->test_stat };
             }
         }
 

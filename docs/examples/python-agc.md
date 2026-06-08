@@ -2,14 +2,14 @@
 
 `AGC` is a closed-loop power controller: it measures output power with an
 exponential moving average, computes the error from a target level, and
-drives a first-order loop filter to correct the gain.  The `decim`
+drives a first-order loop filter to correct the gain. The `decim`
 parameter runs the detector and loop update once per `decim`-sample chunk
 rather than every sample — coarser timing, same steady-state, lower CPU
 cost.
 
 The key design: `agc_steps()` rescales the loop coefficients by `decim`
 so that `loop_bw` keeps its per-sample meaning regardless of decimation
-factor.  All three decimation settings below converge on identical
+factor. All three decimation settings below converge on identical
 trajectories — they differ only in how often the loop ticks, not where it
 ends up.
 

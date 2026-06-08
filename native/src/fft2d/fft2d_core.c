@@ -17,8 +17,8 @@ fft2d_create (size_t ny, size_t nx, int sign, int nthreads)
       free (state);
       return NULL;
     }
-  state->ny = ny;
-  state->nx = nx;
+  state->ny   = ny;
+  state->nx   = nx;
   state->sign = sign;
   return state;
 }

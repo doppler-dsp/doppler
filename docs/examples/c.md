@@ -7,13 +7,13 @@ A minimal working project lives at
 It generates 4096 AWGN samples with `awgn()` and prints empirical statistics.
 The same example is also available as a one-liner Python script.
 
----
+______________________________________________________________________
 
 ### Get the code
 
 === "Python (wheel)"
 
-    The quickest path — no compiler required.  The wheel bundles all native
+    The quickest path — no compiler required. The wheel bundles all native
     code; no system libraries needed.
 
     ```sh
@@ -22,7 +22,7 @@ The same example is also available as a one-liner Python script.
 
 === "Source"
 
-    Clone and build.  This produces `libdoppler.a`, `libdoppler.so`, and
+    Clone and build. This produces `libdoppler.a`, `libdoppler.so`, and
     (with `BUILD_PYTHON=ON`) the Python extension in `src/doppler/`.
 
     ```sh
@@ -38,11 +38,11 @@ The same example is also available as a one-liner Python script.
     --8<-- "tests/install/standalone.sh:get-artifact"
     ```
 
----
+______________________________________________________________________
 
 ### C — static linking
 
-No runtime `.so` dependency.  Recommended for embedded use and distribution.
+No runtime `.so` dependency. Recommended for embedded use and distribution.
 
 === "Build tree"
 
@@ -62,11 +62,11 @@ No runtime `.so` dependency.  Recommended for embedded use and distribution.
     --8<-- "tests/install/standalone.sh:gcc-static"
     ```
 
----
+______________________________________________________________________
 
 ### C — dynamic linking
 
-Links against `libdoppler.so`.  The rpath is baked in so the binary
+Links against `libdoppler.so`. The rpath is baked in so the binary
 runs without setting `LD_LIBRARY_PATH`.
 
 === "Build tree"
@@ -90,7 +90,7 @@ runs without setting `LD_LIBRARY_PATH`.
     --8<-- "tests/install/standalone.sh:gcc-shared"
     ```
 
----
+______________________________________________________________________
 
 ### Python extension
 
@@ -114,7 +114,7 @@ mean    : -0.0168 + 0.0288i  (expect ≈ 0)
 std dev : 0.9952 (Re)  1.0090 (Im)  (expect ≈ 1.0)
 ```
 
----
+______________________________________________________________________
 
 ## LO — complex phasor generator
 
@@ -167,7 +167,7 @@ lo_steps_ctrl(lo, ctrl, 1024, out);
 lo_destroy(lo);
 ```
 
----
+______________________________________________________________________
 
 ## AWGN — Additive White Gaussian Noise
 
@@ -232,7 +232,7 @@ int main(void) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## NCO — raw phase accumulator
 
@@ -254,7 +254,7 @@ nco_steps_u32_ovf(nco, 16, phase, carry);
 nco_destroy(nco);
 ```
 
----
+______________________________________________________________________
 
 ## FIR filter
 
@@ -287,7 +287,7 @@ int main(void) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## FFT
 
@@ -355,7 +355,7 @@ fft2d_execute_cf32(fft2d, in32_2d, 64 * 64, out32_2d);
 fft2d_destroy(fft2d);
 ```
 
----
+______________________________________________________________________
 
 ## Halfband decimator
 
@@ -394,7 +394,7 @@ make build
 ./build/examples/c/hbdecim_demo
 ```
 
----
+______________________________________________________________________
 
 ## AGC — automatic gain control
 
@@ -441,7 +441,7 @@ make build
 ./build/examples/c/agc_demo
 ```
 
----
+______________________________________________________________________
 
 ## PUSH/PULL pipeline
 
@@ -476,4 +476,3 @@ batches):
 make build
 ./build/examples/c/pipeline_demo
 ```
-

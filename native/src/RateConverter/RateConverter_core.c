@@ -55,25 +55,11 @@
 #define _HB_NTAPS 19
 
 static const float _HB_FIR[_HB_NTAPS] = {
-     0.0015790532f,
-    -0.0046757734f,
-     0.0104431789f,
-    -0.0201746244f,
-     0.0357989259f,
-    -0.0608663708f,
-     0.1041134074f,
-    -0.1975378096f,
-     0.6316009164f,
-     0.6316009164f,
-    -0.1975378096f,
-     0.1041134074f,
-    -0.0608663708f,
-     0.0357989259f,
-    -0.0201746244f,
-     0.0104431789f,
-    -0.0046757734f,
-     0.0015790532f,
-     0.0000000000f,
+  0.0015790532f,  -0.0046757734f, 0.0104431789f,  -0.0201746244f,
+  0.0357989259f,  -0.0608663708f, 0.1041134074f,  -0.1975378096f,
+  0.6316009164f,  0.6316009164f,  -0.1975378096f, 0.1041134074f,
+  -0.0608663708f, 0.0357989259f,  -0.0201746244f, 0.0104431789f,
+  -0.0046757734f, 0.0015790532f,  0.0000000000f,
 };
 
 /* ------------------------------------------------------------------ */
@@ -156,7 +142,7 @@ _plan (double rate, int compensate, rc_plan_entry_t plan[RC_MAX_STAGES])
           return 2;
         }
       /* n >= 3: CIC(R), capped at 4096. */
-      int R = (n <= 12) ? (1 << n) : 4096;
+      int R              = (n <= 12) ? (1 << n) : 4096;
       plan[0].type       = RC_STAGE_CIC;
       plan[0].R          = R;
       plan[0].compensate = compensate;
@@ -259,14 +245,13 @@ _stage_reset (rc_stage_t type, void *ptr)
  * Returns the number of output samples produced.
  */
 static size_t
-_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in,
-             size_t n_in, float _Complex *out, size_t max_out)
+_stage_exec (rc_stage_t type, void *ptr, const float _Complex *in, size_t n_in,
+             float _Complex *out, size_t max_out)
 {
   switch (type)
     {
     case RC_STAGE_HB:
-      return hbdecim_execute ((hbdecim_state_t *)ptr, in, n_in, out,
-                              max_out);
+      return hbdecim_execute ((hbdecim_state_t *)ptr, in, n_in, out, max_out);
     case RC_STAGE_CIC:
       {
         rc_cic_stage_t *cs = (rc_cic_stage_t *)ptr;
@@ -302,7 +287,7 @@ _destroy_all_stages (RateConverter_state_t *s)
   free (s->bufs[0]);
   free (s->bufs[1]);
   s->bufs[0] = s->bufs[1] = NULL;
-  s->buf_cap  = 0;
+  s->buf_cap              = 0;
 }
 
 /*
@@ -395,8 +380,7 @@ RateConverter_create (double rate, int compensate)
   if (n == 0)
     return NULL;
 
-  RateConverter_state_t *s
-      = (RateConverter_state_t *)calloc (1, sizeof (*s));
+  RateConverter_state_t *s = (RateConverter_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -439,24 +423,22 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
     {
       free (s->bufs[0]);
       free (s->bufs[1]);
-      s->bufs[0]
-          = (float _Complex *)malloc (n_in * sizeof (float _Complex));
-      s->bufs[1]
-          = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      s->bufs[0] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
+      s->bufs[1] = (float _Complex *)malloc (n_in * sizeof (float _Complex));
       if (!s->bufs[0] || !s->bufs[1])
         {
           free (s->bufs[0]);
           free (s->bufs[1]);
           s->bufs[0] = s->bufs[1] = NULL;
-          s->buf_cap = 0;
+          s->buf_cap              = 0;
           return 0;
         }
       s->buf_cap = n_in;
     }
 
   if (s->n_stages == 1)
-    return _stage_exec (s->stage_types[0], s->stage_ptrs[0], in, n_in,
-                        out, max_out);
+    return _stage_exec (s->stage_types[0], s->stage_ptrs[0], in, n_in, out,
+                        max_out);
 
   /* Multi-stage: route through ping-pong intermediate buffers. */
   const float _Complex *src  = in;
@@ -466,9 +448,9 @@ RateConverter_execute (RateConverter_state_t *s, const float _Complex *in,
   for (int i = 0; i < s->n_stages - 1; i++)
     {
       float _Complex *dst = s->bufs[ping];
-      n = _stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
-                       s->buf_cap);
-      src  = dst;
+      n   = _stage_exec (s->stage_types[i], s->stage_ptrs[i], src, n, dst,
+                         s->buf_cap);
+      src = dst;
       ping ^= 1;
     }
   return _stage_exec (s->stage_types[s->n_stages - 1],
@@ -542,9 +524,8 @@ RateConverter_stage_label (RateConverter_state_t *s, int i, char *buf,
 }
 
 size_t
-RateConverter_convert (double rate, int compensate,
-                       const float _Complex *in, size_t n_in,
-                       float _Complex *out, size_t max_out)
+RateConverter_convert (double rate, int compensate, const float _Complex *in,
+                       size_t n_in, float _Complex *out, size_t max_out)
 {
   RateConverter_state_t *rc = RateConverter_create (rate, compensate);
   if (!rc)

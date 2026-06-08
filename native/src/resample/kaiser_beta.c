@@ -5,7 +5,7 @@
 #include <math.h>
 
 double
-kaiser_beta(double atten)
+kaiser_beta (double atten)
 {
   if (atten > 50.0)
     return 0.1102 * (atten - 8.7);

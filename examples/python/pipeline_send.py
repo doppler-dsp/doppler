@@ -22,10 +22,10 @@ import numpy as np
 
 from doppler.stream import CF64, Push, get_timestamp_ns
 
-SAMPLE_RATE = 1_000_000       # 1 MHz
-CENTER_FREQ = 2_400_000_000   # 2.4 GHz
+SAMPLE_RATE = 1_000_000  # 1 MHz
+CENTER_FREQ = 2_400_000_000  # 2.4 GHz
 BUFFER_SIZE = 8_192
-SIGNAL_FREQ = 10_000          # 10 kHz tone
+SIGNAL_FREQ = 10_000  # 10 kHz tone
 
 keep_running = True
 
@@ -69,7 +69,9 @@ def main() -> None:
 
         while keep_running:
             samples = _make_tone(BUFFER_SIZE, SIGNAL_FREQ, SAMPLE_RATE, phase)
-            push.send(samples, sample_rate=SAMPLE_RATE, center_freq=CENTER_FREQ)
+            push.send(
+                samples, sample_rate=SAMPLE_RATE, center_freq=CENTER_FREQ
+            )
 
             phase = (
                 phase + 2 * np.pi * SIGNAL_FREQ * BUFFER_SIZE / SAMPLE_RATE

@@ -68,7 +68,9 @@ def main() -> None:
 
     # --- compose ---
     p_compose = sub.add_parser("compose", help="Manage compose chains")
-    compose_sub = p_compose.add_subparsers(dest="compose_cmd", metavar="SUBCOMMAND")
+    compose_sub = p_compose.add_subparsers(
+        dest="compose_cmd", metavar="SUBCOMMAND"
+    )
 
     p_init = compose_sub.add_parser(
         "init",
@@ -96,7 +98,9 @@ def main() -> None:
         help="Write compose file to FILE (default: ~/.doppler/chains/<ID>.yml)",
     )
 
-    p_up = compose_sub.add_parser("up", help="Start a chain from a compose file")
+    p_up = compose_sub.add_parser(
+        "up", help="Start a chain from a compose file"
+    )
     p_up.add_argument(
         "file",
         metavar="FILE",

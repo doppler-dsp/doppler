@@ -5,16 +5,16 @@ This page is the authoritative reference — it supersedes
 [`docs/design/PYTHON_EXTENSION_DESIGN.md`](../design/PYTHON_EXTENSION_DESIGN.md).
 
 The [just-makeit](https://just-buildit.github.io/just-makeit/) scaffold
-generates this layout automatically.  Reading this page tells you *why* each
+generates this layout automatically. Reading this page tells you *why* each
 rule exists, so you can make correct decisions when you write or review code
 by hand.
 
----
+______________________________________________________________________
 
 ## Canonical file tree
 
 `just-makeit module` + `just-makeit object --module` scaffold the native/ side
-and the Python package skeleton.  Python `tests/` and `benchmarks/` are created
+and the Python package skeleton. Python `tests/` and `benchmarks/` are created
 manually (Steps 4 and 8 of [Adding a Module](adding-a-module.md)).
 
 ```text
@@ -45,20 +45,20 @@ src/doppler/<module>/
     └── bench_<module>.py
 ```
 
-There is **no `__init__.pyi`**.  Stubs live in `<module>.pyi`.
+There is **no `__init__.pyi`**. Stubs live in `<module>.pyi`.
 
----
+______________________________________________________________________
 
 ## Rule: no `__init__.pyi`
 
 Python's import system resolves `doppler.filter.FIR` through
 `doppler/filter/__init__.py`, which re-exports `FIR` from
-`doppler/filter/filter`.  Type checkers follow the same chain: they find
-`FIR`'s stub in `filter.pyi`.  An `__init__.pyi` would shadow that chain
-and force you to duplicate every stub.  One stub file, named to match the
+`doppler/filter/filter`. Type checkers follow the same chain: they find
+`FIR`'s stub in `filter.pyi`. An `__init__.pyi` would shadow that chain
+and force you to duplicate every stub. One stub file, named to match the
 `.so`, is the right model.
 
----
+______________________________________________________________________
 
 ## `__init__.py` rules
 
@@ -76,9 +76,9 @@ __all__ = ["FIR", "FIRKind"]
 
 The one explicit exception: pure-Python utilities that are genuinely public
 and have no C equivalent (e.g., `kaiser_beta_for_enbw` in `spectral/`) may
-live in `__init__.py`.  They must be stubbed in `<module>.pyi`.
+live in `__init__.py`. They must be stubbed in `<module>.pyi`.
 
----
+______________________________________________________________________
 
 ## `module.pyi` rules
 
@@ -101,21 +101,20 @@ Only import what the stubs actually reference.
 
 ### Every public symbol must have a stub
 
-Classes and free functions exported from the `.so` need stubs.  If it
+Classes and free functions exported from the `.so` need stubs. If it
 appears in `__all__`, it needs a stub.
 
 ### Docstring format
 
-All docstrings use [numpy-style format](
-https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard).
+All docstrings use [numpy-style format](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard).
 This is also what `mkdocstrings` is configured to render (see `zensical.toml`).
 
 ### Class stubs: docstring + Parameters + Examples
 
 Each entry in the Examples section opens with a plain-text description,
-followed by a blank line, then the `>>>` lines.  Multiple examples are
+followed by a blank line, then the `>>>` lines. Multiple examples are
 separated by a blank line, a description of the next example, and another
-blank line.  The closing `"""` is always preceded by a blank line:
+blank line. The closing `"""` is always preceded by a blank line:
 
 ```python
 class FIR:
@@ -174,16 +173,16 @@ Every example in a `.pyi` stub is a runnable doctest:
 python -m doctest -v src/doppler/filter/filter.pyi
 ```
 
-All examples must pass before a module can be merged.  The CI suite runs
-this check.  Write examples that copy-paste correctly — use realistic types,
+All examples must pass before a module can be merged. The CI suite runs
+this check. Write examples that copy-paste correctly — use realistic types,
 real output values, no ellipsis (`...`) to skip important output.
 
----
+______________________________________________________________________
 
 ## `benchmarks/bench_<module>.py` rules
 
 Every module ships a Python benchmark alongside its C benchmark
-(`native/benchmarks/bench_<module>_core.c`).  Python benchmarks use
+(`native/benchmarks/bench_<module>_core.c`). Python benchmarks use
 [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) so results are
 saved as versioned JSON snapshots in `benchmarks/history/` and checked into
 git for regression tracking.
@@ -214,7 +213,7 @@ def test_fir_execute_cf32(benchmark, fir, x_cf32):
 ```
 
 CI commits a snapshot automatically on every push to `main` and on release
-tags.  Run locally when you need an immediate result:
+tags. Run locally when you need an immediate result:
 
 ```sh
 make bench-python                   # saves benchmarks/history/<tag>.json
@@ -227,27 +226,27 @@ Rules:
 - Name each test `test_<module>_<method>` for readable JSON history
 - Use `scope="module"` fixtures to avoid re-constructing objects per round
 - Snapshots are always taken on `ubuntu-24.04` + Python 3.12 in CI for
-  comparability; local snapshots are for development only
+    comparability; local snapshots are for development only
 
----
+______________________________________________________________________
 
 ## Why C extension types, not Python wrappers
 
 A Python wrapper class duplicates the interface and diverges over time —
 parameter names drift, docstrings contradict the C code, behaviour
-subtly differs.  The C extension type *is* the implementation; the Python
-type object lives in the `.so`.  The `.pyi` stub describes it to type
-checkers.  There is no middle layer.
+subtly differs. The C extension type *is* the implementation; the Python
+type object lives in the `.so`. The `.pyi` stub describes it to type
+checkers. There is no middle layer.
 
 This is the same model NumPy uses: `numpy.ndarray` is a C type, stubbed in
 `numpy/__init__.pyi`.
 
----
+______________________________________________________________________
 
 ## See also
 
 - [Adding a module](adding-a-module.md) — step-by-step guide using
-  just-makeit to scaffold a new extension module
+    just-makeit to scaffold a new extension module
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — scaffold
-  tool that generates compliant layouts automatically
+    tool that generates compliant layouts automatically
 - [Build & Install](../build/) — how to compile extensions

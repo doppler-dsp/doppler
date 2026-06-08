@@ -34,10 +34,10 @@ make_lowpass (float *taps, int N, double cutoff_norm)
     {
       int    n    = k - half;
       double sinc = (n == 0) ? 1.0
-                  : sin (M_PI * cutoff_norm * 2 * n)
-                        / (M_PI * cutoff_norm * 2 * n);
+                             : sin (M_PI * cutoff_norm * 2 * n)
+                                   / (M_PI * cutoff_norm * 2 * n);
       double win  = 0.5 * (1.0 - cos (2.0 * M_PI * k / (N - 1)));
-      taps[k] = (float)(sinc * win);
+      taps[k]     = (float)(sinc * win);
     }
 }
 
@@ -48,7 +48,7 @@ main (void)
 
   /* 15-tap Hann-windowed sinc LP, cutoff = 0.1 * Fs */
   const int N = 15;
-  float taps[15];
+  float     taps[15];
   make_lowpass (taps, N, 0.1);
 
   printf ("15-tap Hann-windowed sinc LP taps:\n  ");
@@ -74,7 +74,7 @@ main (void)
     for (int i = 0; i < S; i++)
       {
         double phase_lo = 2.0 * M_PI * 0.05 * i; /* 0.05*Fs tone */
-        double phase_hi = 2.0 * M_PI * 0.4  * i; /* 0.4*Fs tone  */
+        double phase_hi = 2.0 * M_PI * 0.4 * i;  /* 0.4*Fs tone  */
         in[i] = CMPLXF ((float)(cos (phase_lo) + 0.5 * cos (phase_hi)),
                         (float)(sin (phase_lo) + 0.5 * sin (phase_hi)));
       }
@@ -84,7 +84,7 @@ main (void)
     printf ("  first 8 output samples (LF tone survives, HF attenuated):\n");
     for (int i = 0; i < 8; i++)
       printf ("  [%2d]  in=(%6.3f,%6.3f)  out=(%6.3f,%6.3f)\n", i,
-              (double)crealf (in[i]),  (double)cimagf (in[i]),
+              (double)crealf (in[i]), (double)cimagf (in[i]),
               (double)crealf (out[i]), (double)cimagf (out[i]));
     printf ("\n");
   }
@@ -101,12 +101,12 @@ main (void)
     for (int i = 0; i < 8; i++)
       {
         double phase = 2.0 * M_PI * 0.05 * i;
-        in1[i] = CMPLXF ((float)cos (phase), (float)sin (phase));
+        in1[i]       = CMPLXF ((float)cos (phase), (float)sin (phase));
       }
     for (int i = 0; i < 8; i++)
       {
         double phase = 2.0 * M_PI * 0.05 * (i + 8);
-        in2[i] = CMPLXF ((float)cos (phase), (float)sin (phase));
+        in2[i]       = CMPLXF ((float)cos (phase), (float)sin (phase));
       }
 
     fir_execute (fir, in1, 8, out1);

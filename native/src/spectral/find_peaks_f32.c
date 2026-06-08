@@ -14,15 +14,15 @@ _peak_cmp_desc (const void *a, const void *b)
 }
 
 size_t
-find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db,
-               dp_peak_t *result)
+find_peaks_f32 (const float *db, size_t db_len, size_t n_peaks, float min_db,
+                dp_peak_t *result)
 {
   size_t n = db_len;
   if (n < 3 || n_peaks == 0)
     return 0;
 
-  size_t max_cands = n / 2 + 1;
-  dp_peak_t *cands = malloc (max_cands * sizeof (dp_peak_t));
+  size_t     max_cands = n / 2 + 1;
+  dp_peak_t *cands     = malloc (max_cands * sizeof (dp_peak_t));
   if (!cands)
     return 0;
 
@@ -39,11 +39,13 @@ find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db,
       float gamma = db[k + 1];
       float denom = alpha - 2.0f * beta + gamma;
       float delta = (denom != 0.0f) ? 0.5f * (alpha - gamma) / denom : 0.0f;
-      if (delta < -0.5f) delta = -0.5f;
-      if (delta >  0.5f) delta =  0.5f;
+      if (delta < -0.5f)
+        delta = -0.5f;
+      if (delta > 0.5f)
+        delta = 0.5f;
 
       float freq_norm = ((float)k - (float)(size_t)(n / 2) + delta) / (float)n;
-      float amp = beta - 0.25f * (alpha - gamma) * delta;
+      float amp       = beta - 0.25f * (alpha - gamma) * delta;
 
       if (nc < max_cands)
         {

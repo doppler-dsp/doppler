@@ -78,6 +78,7 @@ def test_reset_clears_clipped():
 
 def test_scale_property():
     import math
+
     bits, dbfs = 12, -10.0
     adc = ADCIQ(bits=bits, dbfs=dbfs)
     expected = (2 ** (bits - 1)) * 10 ** (-dbfs / 20.0)

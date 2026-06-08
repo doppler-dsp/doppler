@@ -3,7 +3,7 @@
 Step-by-step process for cutting a doppler release.
 Run these steps in order — each one is a gate for the next.
 
----
+______________________________________________________________________
 
 ## 1. Verify the tree is clean
 
@@ -16,7 +16,7 @@ just-makeit bench --python-only --tag vX.Y.Z   # local fallback; CI commits auto
 
 All suites must pass. Fix failures before continuing.
 
----
+______________________________________________________________________
 
 ## 2. Check examples
 
@@ -32,15 +32,15 @@ git commit -m "docs: update gallery plots for vX.Y.Z"
 If you added a new plot-generating script, add it to `GALLERY_SCRIPTS`
 in the Makefile before running `make gallery`.
 
----
+______________________________________________________________________
 
 ## 4. Update CHANGELOG.md
 
 In `CHANGELOG.md`:
 
 1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD`
-2. Add a fresh empty `## [Unreleased]` section above it
-3. Update the comparison links at the bottom of the file:
+1. Add a fresh empty `## [Unreleased]` section above it
+1. Update the comparison links at the bottom of the file:
 
 ```markdown
 [Unreleased]: https://github.com/doppler-dsp/doppler/compare/vX.Y.Z...HEAD
@@ -58,17 +58,17 @@ gh pr create --fill
 # merge once CI is green
 ```
 
----
+______________________________________________________________________
 
 ## 5. Bump the version
 
 `make bump-version` updates **three files** atomically:
 
-| File | Field |
-|------|-------|
-| `pyproject.toml` | `version` |
-| `ffi/rust/Cargo.toml` | `version` |
-| `CMakeLists.txt` | `project(doppler VERSION …)` |
+| File                  | Field                        |
+| --------------------- | ---------------------------- |
+| `pyproject.toml`      | `version`                    |
+| `ffi/rust/Cargo.toml` | `version`                    |
+| `CMakeLists.txt`      | `project(doppler VERSION …)` |
 
 ```sh
 make bump-version VERSION=X.Y.Z
@@ -77,7 +77,7 @@ make bump-version VERSION=X.Y.Z
 Review the diff. Do **not** commit here — `make tag-release` (next
 step) creates the `chore: release vX.Y.Z` commit itself.
 
----
+______________________________________________________________________
 
 ## 6. Tag and push
 
@@ -89,10 +89,11 @@ make tag-release VERSION=X.Y.Z
 ```
 
 !!! warning "This push is irreversible"
+
     Once the tag is pushed, the release workflow starts and PyPI
     uploads begin. Double-check the version number before running.
 
----
+______________________________________________________________________
 
 ## 7. Release workflow (automatic)
 
@@ -116,9 +117,9 @@ github-release  ──  GitHub Release + auto-generated notes + wheel attachment
 **What cibuildwheel does per Python version (cp312, cp313):**
 
 1. `before-all` — install system deps (`zeromq-devel`, `fftw-devel`), build C library
-2. `before-build` — clean stale `.so` files, build and copy extensions for this interpreter
-3. `uv_build` — package the wheel
-4. `repair-wheel-command` (`scripts/retag_wheel.sh`) — retag `py3-none-any` → `cpXYZ-cpXYZ`, then `auditwheel repair` (Linux) / `delocate-wheel` (macOS) to bundle shared-lib deps
+1. `before-build` — clean stale `.so` files, build and copy extensions for this interpreter
+1. `uv_build` — package the wheel
+1. `repair-wheel-command` (`scripts/retag_wheel.sh`) — retag `py3-none-any` → `cpXYZ-cpXYZ`, then `auditwheel repair` (Linux) / `delocate-wheel` (macOS) to bundle shared-lib deps
 
 **`verify-version` checks** — the workflow fails immediately if any of these disagree with the tag:
 
@@ -128,7 +129,7 @@ github-release  ──  GitHub Release + auto-generated notes + wheel attachment
 
 If it fails, bump the missed file manually, push a fixup commit on main, then re-tag.
 
----
+______________________________________________________________________
 
 ## 8. Verify the release
 
@@ -145,7 +146,7 @@ python -c "import doppler; print(doppler.__version__)"
 Check the [GitHub Release page](https://github.com/doppler-dsp/doppler/releases)
 to confirm wheels for both platforms (Linux x86_64, macOS arm64) are attached.
 
----
+______________________________________________________________________
 
 ## Version conventions
 
@@ -156,11 +157,12 @@ last released version between releases (no post-release dev bump).
 While pre-1.0 the digits shift down one place: the minor digit stands
 in for major, and the patch digit absorbs both features and fixes.
 
-| Increment | When to use |
-|-----------|-------------|
+| Increment       | When to use                               |
+| --------------- | ----------------------------------------- |
 | **Patch** (`Z`) | New features and bug fixes (non-breaking) |
-| **Minor** (`Y`) | Breaking API changes |
-| **Major** (`X`) | Unused before `1.0.0` |
+| **Minor** (`Y`) | Breaking API changes                      |
+| **Major** (`X`) | Unused before `1.0.0`                     |
 
 !!! note "Pre-1.0"
+
     `CHANGELOG.md` in the repository root is the authoritative record.

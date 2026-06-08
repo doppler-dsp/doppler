@@ -41,8 +41,12 @@ def test_dc_tone():
     lo = LO(0.0)
     out = lo.steps(8)
     assert out.dtype == np.complex64
-    np.testing.assert_allclose(out.real, np.ones(8, dtype=np.float32), atol=TOL)
-    np.testing.assert_allclose(out.imag, np.zeros(8, dtype=np.float32), atol=TOL)
+    np.testing.assert_allclose(
+        out.real, np.ones(8, dtype=np.float32), atol=TOL
+    )
+    np.testing.assert_allclose(
+        out.imag, np.zeros(8, dtype=np.float32), atol=TOL
+    )
 
 
 # ── Quarter-rate IQ ──────────────────────────────────────────────────
@@ -59,7 +63,9 @@ def test_quarter_rate_iq():
     """
     lo = LO(0.25)
     out = lo.steps(8)
-    expected = np.array([1 + 0j, 0 + 1j, -1 + 0j, 0 - 1j] * 2, dtype=np.complex64)
+    expected = np.array(
+        [1 + 0j, 0 + 1j, -1 + 0j, 0 - 1j] * 2, dtype=np.complex64
+    )
     np.testing.assert_allclose(out.real, expected.real, atol=TOL)
     np.testing.assert_allclose(out.imag, expected.imag, atol=TOL)
 
@@ -117,7 +123,9 @@ def test_unit_magnitude():
     lo = LO(0.1)
     out = lo.steps(64)
     mag2 = np.abs(out) ** 2
-    np.testing.assert_allclose(mag2, np.ones(64, dtype=np.float32), atol=2 * TOL)
+    np.testing.assert_allclose(
+        mag2, np.ones(64, dtype=np.float32), atol=2 * TOL
+    )
 
 
 def test_quarter_rate_quadrature():

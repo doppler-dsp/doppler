@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,6 +39,7 @@ from doppler.resample import RateConverter
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _tone(freq_norm: float, n: int) -> np.ndarray:
     """Complex exponential at freq_norm (cycles/sample, −0.5…+0.5)."""
@@ -56,9 +58,7 @@ def _rms_db(x: np.ndarray) -> float:
     return 20.0 * math.log10(rms + 1e-300)
 
 
-def _spectrum_db(
-    x: np.ndarray, pad: int = 8
-) -> tuple[np.ndarray, np.ndarray]:
+def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
     """Windowed FFT, returns (freq_norm, amplitude_db) over [−0.5, +0.5].
 
     Amplitude is normalised so a unit-amplitude complex tone reads 0 dBFS.
@@ -67,7 +67,7 @@ def _spectrum_db(
     n = len(x)
     a = [0.35875, 0.48829, 0.14128, 0.01168]
     k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1]*np.cos(k) + a[2]*np.cos(2*k) - a[3]*np.cos(3*k)
+    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
     cg = w.mean()
     S = np.fft.fftshift(np.fft.fft(x * w, n * pad))
     amp_db = 20.0 * np.log10(np.abs(S) / (n * cg) + 1e-300)
@@ -79,11 +79,12 @@ def _spectrum_db(
 # 1. Stage selection
 # ---------------------------------------------------------------------------
 
+
 def demo_stage_selection():
     print("--- 1. Stage selection ---")
-    rates = [2.0, 0.5, 0.25, 0.125, 0.1, 1.0/3.0]
+    rates = [2.0, 0.5, 0.25, 0.125, 0.1, 1.0 / 3.0]
     print(f"  {'rate':>10}  {'stages'}")
-    print(f"  {'-'*10}  {'-'*40}")
+    print(f"  {'-' * 10}  {'-' * 40}")
     for rate in rates:
         rc = RateConverter(rate)
         labels = " → ".join(rc.stages)
@@ -95,6 +96,7 @@ def demo_stage_selection():
 # 2. Frequency preservation
 # ---------------------------------------------------------------------------
 
+
 def demo_frequency_check():
     """Feed a passband tone and verify it appears at the expected output bin.
 
@@ -103,16 +105,16 @@ def demo_frequency_check():
     We measure actual peak position and compare to the prediction.
     """
     print("--- 2. Frequency preservation ---")
-    fn_in = 0.04          # well below Nyquist for all test rates
-    n_in  = 4096
+    fn_in = 0.04  # well below Nyquist for all test rates
+    n_in = 4096
     x = _tone(fn_in, n_in)
 
-    rates = [0.5, 0.25, 0.125, 0.1, 1.0/3.0]
+    rates = [0.5, 0.25, 0.125, 0.1, 1.0 / 3.0]
     print(
         f"  {'rate':>8}  {'fn_expected':>12}  "
         f"{'fn_measured':>12}  {'err_bins':>10}"
     )
-    print(f"  {'-'*8}  {'-'*12}  {'-'*12}  {'-'*10}")
+    print(f"  {'-' * 8}  {'-' * 12}  {'-' * 12}  {'-' * 10}")
     for rate in rates:
         rc = RateConverter(rate)
         y = np.array(rc.execute(x), copy=True)
@@ -135,6 +137,7 @@ def demo_frequency_check():
 # ---------------------------------------------------------------------------
 # 3. Rate change at runtime
 # ---------------------------------------------------------------------------
+
 
 def demo_rate_change():
     print("--- 3. Rate change at runtime ---")
@@ -159,10 +162,10 @@ def demo_rate_change():
 # ---------------------------------------------------------------------------
 
 REGIMES = [
-    (0.5,         "HB (rate 0.5)"),
-    (0.25,        "HB×2 (rate 0.25)"),
-    (0.125,       "CIC (rate 0.125)"),
-    (0.1,         "CIC+Resamp (rate 0.1)"),
+    (0.5, "HB (rate 0.5)"),
+    (0.25, "HB×2 (rate 0.25)"),
+    (0.125, "CIC (rate 0.125)"),
+    (0.1, "CIC+Resamp (rate 0.1)"),
 ]
 
 
@@ -175,7 +178,7 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
     Tone peaks are marked with a green arrow.
     """
     rng = np.random.default_rng(42)
-    n_in  = 4096
+    n_in = 4096
     fn_in = 0.04
     x = _noise(n_in, rng) + _tone(fn_in, n_in)
 
@@ -203,9 +206,14 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
     # ── input spectrum ────────────────────────────────────────────────────────
     freq_in, amp_in = _spectrum_db(x)
     axes[0].plot(freq_in, amp_in, color="#60a5fa", lw=0.8)
-    axes[0].axvline(fn_in,  color="#4ade80", lw=1.2, linestyle="--")
-    axes[0].axvline(-fn_in, color="#4ade80", lw=1.2, linestyle="--",
-                    label=f"tone at ±{fn_in}")
+    axes[0].axvline(fn_in, color="#4ade80", lw=1.2, linestyle="--")
+    axes[0].axvline(
+        -fn_in,
+        color="#4ade80",
+        lw=1.2,
+        linestyle="--",
+        label=f"tone at ±{fn_in}",
+    )
     axes[0].set_xlim(-0.5, 0.5)
     axes[0].set_ylim(-90, 10)
     axes[0].set_ylabel("dBFS")
@@ -213,7 +221,9 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
         f"Input  ({n_in} samples, fn={fn_in})", loc="right", color="#f1f5f9"
     )
     axes[0].legend(
-        fontsize=9, facecolor="#1f2937", edgecolor="#4b5563",
+        fontsize=9,
+        facecolor="#1f2937",
+        edgecolor="#4b5563",
         labelcolor="#d1d5db",
     )
     _style(axes[0])
@@ -234,23 +244,32 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
         if fn_out < 0.5:
             tone_idx = int(np.argmin(np.abs(freq_out - fn_out)))
             tone_amp = float(amp_out[tone_idx])
-            ax.axvline(fn_out, color="#4ade80", lw=1.2,
-                       linestyle="--", alpha=0.9)
+            ax.axvline(
+                fn_out, color="#4ade80", lw=1.2, linestyle="--", alpha=0.9
+            )
             ax.annotate(
                 f"fn={fn_out:.3f}",
                 xy=(fn_out, tone_amp),
                 xytext=(fn_out + 0.06, tone_amp - 15),
-                color="#4ade80", fontsize=9,
+                color="#4ade80",
+                fontsize=9,
                 arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.0),
             )
 
         # Stage label in top-left corner
         stage_str = " → ".join(rc.stages)
         ax.text(
-            -0.48, 5, stage_str,
-            color="#fbbf24", fontsize=9, va="top",
-            bbox=dict(boxstyle="round,pad=0.2",
-                      facecolor="#1f2937", edgecolor="#4b5563"),
+            -0.48,
+            5,
+            stage_str,
+            color="#fbbf24",
+            fontsize=9,
+            va="top",
+            bbox=dict(
+                boxstyle="round,pad=0.2",
+                facecolor="#1f2937",
+                edgecolor="#4b5563",
+            ),
         )
 
         ax.set_xlim(-0.5, 0.5)
@@ -258,7 +277,8 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
         ax.set_ylabel("dBFS")
         ax.set_title(
             f"{title}  ({len(y_settled)} output samples)",
-            loc="right", color="#f1f5f9",
+            loc="right",
+            color="#f1f5f9",
         )
         _style(ax)
 

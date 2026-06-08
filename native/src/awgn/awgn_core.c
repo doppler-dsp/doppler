@@ -58,7 +58,8 @@
 #if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
 #define AWGN_X86_DISPATCH 1
 #include <immintrin.h>
-#define AWGN_AVX512_TARGET __attribute__((target("avx512f,avx512dq,avx2,fma")))
+#define AWGN_AVX512_TARGET                                                    \
+  __attribute__ ((target ("avx512f,avx512dq,avx2,fma")))
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -67,7 +68,7 @@
 
 #define LUT_BITS 16u
 #define LUT_SIZE (1u << LUT_BITS)
-#define LUT_QTR  (LUT_SIZE >> 2u)
+#define LUT_QTR (LUT_SIZE >> 2u)
 
 static float lut[LUT_SIZE];
 static int   lut_ready = 0;
@@ -111,8 +112,8 @@ static uint64_t
 splitmix64 (uint64_t *x)
 {
   uint64_t z = (*x += 0x9e3779b97f4a7c15ULL);
-  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-  z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+  z          = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+  z          = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
   return z ^ (z >> 31);
 }
 
@@ -167,13 +168,12 @@ awgn_reset (awgn_state_t *state)
   seed_state (state->s, state->seed);
   for (int j = 0; j < 8; j++)
     {
-      uint64_t stream_seed
-          = state->seed + (uint64_t)j * 0x9e3779b97f4a7c15ULL;
-      uint64_t sm     = stream_seed;
-      state->vs[0][j] = splitmix64 (&sm);
-      state->vs[1][j] = splitmix64 (&sm);
-      state->vs[2][j] = splitmix64 (&sm);
-      state->vs[3][j] = splitmix64 (&sm);
+      uint64_t stream_seed = state->seed + (uint64_t)j * 0x9e3779b97f4a7c15ULL;
+      uint64_t sm          = stream_seed;
+      state->vs[0][j]      = splitmix64 (&sm);
+      state->vs[1][j]      = splitmix64 (&sm);
+      state->vs[2][j]      = splitmix64 (&sm);
+      state->vs[3][j]      = splitmix64 (&sm);
     }
 }
 
@@ -224,8 +224,8 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
       float    u1  = (float)((uint32_t)(a >> 40) + 1u) * 0x1.0p-24f;
       uint16_t idx = (uint16_t)(b >> 48);
       float    r   = amp * sqrtf (-2.0f * logf (u1));
-      out[i] = CMPLXF (r * lut[(uint16_t)(idx + (uint16_t)LUT_QTR)],
-                       r * lut[idx]);
+      out[i]       = CMPLXF (r * lut[(uint16_t)(idx + (uint16_t)LUT_QTR)],
+                             r * lut[idx]);
     }
 }
 
@@ -252,7 +252,8 @@ _ZGVdN8v_logf (__m256 x)
 {
   float v[8];
   _mm256_storeu_ps (v, x);
-  for (int i = 0; i < 8; i++) v[i] = logf (v[i]);
+  for (int i = 0; i < 8; i++)
+    v[i] = logf (v[i]);
   return _mm256_loadu_ps (v);
 }
 #endif
@@ -266,18 +267,17 @@ AWGN_AVX512_TARGET static inline __m512i
 xoshiro8_next (__m512i s[4])
 {
   __m512i sum = _mm512_add_epi64 (s[0], s[3]);
-  __m512i r   = _mm512_add_epi64 (
-      _mm512_or_si512 (_mm512_slli_epi64 (sum, 23),
-                       _mm512_srli_epi64 (sum, 41)),
-      s[0]);
-  __m512i t = _mm512_slli_epi64 (s[1], 17);
-  s[2] = _mm512_xor_si512 (s[2], s[0]);
-  s[3] = _mm512_xor_si512 (s[3], s[1]);
-  s[1] = _mm512_xor_si512 (s[1], s[2]);
-  s[0] = _mm512_xor_si512 (s[0], s[3]);
-  s[2] = _mm512_xor_si512 (s[2], t);
-  s[3] = _mm512_or_si512 (_mm512_slli_epi64 (s[3], 45),
-                           _mm512_srli_epi64 (s[3], 19));
+  __m512i r   = _mm512_add_epi64 (_mm512_or_si512 (_mm512_slli_epi64 (sum, 23),
+                                                   _mm512_srli_epi64 (sum, 41)),
+                                  s[0]);
+  __m512i t   = _mm512_slli_epi64 (s[1], 17);
+  s[2]        = _mm512_xor_si512 (s[2], s[0]);
+  s[3]        = _mm512_xor_si512 (s[3], s[1]);
+  s[1]        = _mm512_xor_si512 (s[1], s[2]);
+  s[0]        = _mm512_xor_si512 (s[0], s[3]);
+  s[2]        = _mm512_xor_si512 (s[2], t);
+  s[3]        = _mm512_or_si512 (_mm512_slli_epi64 (s[3], 45),
+                                 _mm512_srli_epi64 (s[3], 19));
   return r;
 }
 
@@ -314,12 +314,13 @@ generate_avx512 (awgn_state_t *state, size_t n, float complex *out)
       __m256 vcos = _mm256_i32gather_ps (lut, cos_idx, 4);
 
       /* radial = amp × sqrt(−2 × log(u1)) */
-      __m256 rad = _mm256_mul_ps (
-          _mm256_set1_ps (amp),
-          _mm256_sqrt_ps (_mm256_mul_ps (_mm256_set1_ps (-2.0f),
-                                         _ZGVdN8v_logf (u1))));
+      __m256 rad
+          = _mm256_mul_ps (_mm256_set1_ps (amp),
+                           _mm256_sqrt_ps (_mm256_mul_ps (
+                               _mm256_set1_ps (-2.0f), _ZGVdN8v_logf (u1))));
 
-      /* Interleave re/im into contiguous complex output (8 × CF32 = 64 bytes) */
+      /* Interleave re/im into contiguous complex output (8 × CF32 = 64 bytes)
+       */
       __m256 re  = _mm256_mul_ps (rad, vcos);
       __m256 im  = _mm256_mul_ps (rad, vsin);
       __m256 ilo = _mm256_unpacklo_ps (re, im);

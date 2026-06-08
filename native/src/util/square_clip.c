@@ -8,9 +8,9 @@
 #include <math.h>
 
 float complex
-square_clip(float complex y, float lin)
+square_clip (float complex y, float lin)
 {
-    float r = fminf(fmaxf(crealf(y), -lin), lin);
-    float i = fminf(fmaxf(cimagf(y), -lin), lin);
-    return r + i * I;
+  float r = fminf (fmaxf (crealf (y), -lin), lin);
+  float i = fminf (fmaxf (cimagf (y), -lin), lin);
+  return r + i * I;
 }

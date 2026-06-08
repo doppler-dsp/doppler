@@ -1,0 +1,12 @@
+[i8_to_f32]
+arg_type = "int8_t"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "I8ToF32"
+
+[[i8_to_f32.init_params]]
+name = "scale"
+type = "float"
+default = "128.0f"

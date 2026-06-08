@@ -70,6 +70,74 @@ class I16ToF32:
 
     def __exit__(self, *args: object) -> None: ...
 
+class I32ToF32:
+    """I32ToF32 component.
+
+    Parameters
+    ----------
+    scale : float, default 2147483648.0
+        scale constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import I32ToF32
+    >>> obj = I32ToF32(scale=2147483648.0)
+
+    """
+    def __init__(self, scale: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def step(self, x: int) -> float:
+        """Process one input sample."""
+
+    def steps(self, x: NDArray[np.int32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        """Process a samples array."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "I32ToF32": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class I8ToF32:
+    """I8ToF32 component.
+
+    Parameters
+    ----------
+    scale : float, default 128.0
+        scale constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import I8ToF32
+    >>> obj = I8ToF32(scale=128.0)
+
+    """
+    def __init__(self, scale: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset state to post-create defaults."""
+
+    def step(self, x: int) -> float:
+        """Process one input sample."""
+
+    def steps(self, x: NDArray[np.int8], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        """Process a samples array."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "I8ToF32": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 class F32ToI16U32:
     """F32ToI16U32 component.
 

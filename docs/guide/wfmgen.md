@@ -299,6 +299,24 @@ sym = np.asarray(Synth(type="qpsk", snr=20, snr_mode="esno", sps=8).steps(8*600)
 pts = sym.reshape(-1, 8).mean(axis=1)    # boxcar matched filter per symbol
 ```
 
+### Reading a capture back
+
+The `raw` container is **interleaved** I/Q in the chosen `--sample_type`, so a
+naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
+`read_iq` does the right thing — a zero-copy complex view for the float types, a
+SIMD rescale to ±1.0 for the integer types — or pass `raw=True` for the raw
+`(N, 2)` on-disk view:
+
+```python
+from doppler.wfmgen.readback import read_iq
+
+iq = read_iq("capture.iq", sample_type="ci16")   # → complex64, ±1.0
+iq = read_iq("capture.iq", sample_type="cf32")   # → complex64, zero-copy
+```
+
+`generate → read_iq` is bit-faithful. See
+[Type System → Reading interleaved I/Q](../types.md#reading-interleaved-iq-in-python).
+
 ---
 
 ## Recipes

@@ -13,6 +13,42 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-06-08
+
+The headline is **real-time pacing + a container reader**: a C-first sample
+clock that emits and timestamps samples at their true rate, and the `Reader`
+dual of `Writer`.
+
+### Added
+
+- **`Reader` — the dual of `Writer`** (`wfm_reader`, C-first; Python bind-only)
+    — reads a capture back to `complex64`, **auto-detecting** the container
+    (BLUE `"BLUE"` magic / `.sigmf-meta` sidecar / `.csv` / raw). Self-describing
+    containers (BLUE, SigMF) recover sample type, byte order, `fs` and `fc` from
+    metadata; headerless raw/CSV take hints. All detection, header parsing and
+    wire→unit conversion live in C; `doppler.wfmgen.compose.Reader` is thin glue
+    (`.read()` / `.read_all()` + `file_type` / `sample_type` / `fs` / `fc` /
+    `num_samples`). Round-trips every container against the writer.
+
+- **Benchmarks** for the new subsystems: `bench_timing_core`,
+    `bench_wfm_writer_core`, `bench_wfm_reader_core` (C, via `make bench`) and
+    `bench_timing` / `bench_compose` (Python, pytest-benchmark).
+
+- **Real-time sample-clock pacing + timestamping** (`timing_core`, C-first) —
+    a `dp_sample_clock_t` that paces a producer to `fs` on a drift-free
+    `epoch + n/fs` schedule (mimicking a hardware sample clock) and stamps
+    blocks with their ideal UNIX-epoch-ns time. Exposed both ways:
+
+    - **CLI**: `wfmgen --realtime` throttles the emit loop to `fs` (zmq or
+        file); `--realtime-resync` re-anchors on underrun. Pacing is
+        byte-transparent and reports an underrun summary at exit.
+    - **Python**: `doppler.wfmgen.compose.SampleClock(fs, resync=...)` with
+        `pace()` / `stamp()` / `reset()` / `resync()` and `underruns` /
+        `max_lateness` telemetry; the `pace()` sleep releases the GIL.
+
+    POSIX only (mirrors the ZMQ sink). Drift-free because each deadline is
+    recomputed from the cumulative sample count, not summed sleeps.
+
 ## [0.8.0] — 2026-06-08
 
 The headline is the **C composer subsystem, now in Python** — the multi-segment
@@ -938,4 +974,5 @@ ______________________________________________________________________
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...HEAD
+[0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.9.0...HEAD

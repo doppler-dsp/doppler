@@ -155,13 +155,19 @@ Doppler uses [Semantic Versioning](https://semver.org) with stable
 last released version between releases (no post-release dev bump).
 
 While pre-1.0 the digits shift down one place: the minor digit stands
-in for major, and the patch digit absorbs both features and fixes.
+in for major, and the patch digit stands in for minor.
 
-| Increment       | When to use                               |
-| --------------- | ----------------------------------------- |
-| **Patch** (`Z`) | New features and bug fixes (non-breaking) |
-| **Minor** (`Y`) | Breaking API changes                      |
-| **Major** (`X`) | Unused before `1.0.0`                     |
+| Increment       | When to use                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| **Patch** (`Z`) | Bug fixes and small non-breaking additions                         |
+| **Minor** (`Y`) | Notable feature releases (new modules/APIs) or any breaking change |
+| **Major** (`X`) | Unused before `1.0.0`                                              |
+
+A *notable* feature release — a new module, a new public API surface,
+or a substantial subsystem — takes a minor bump even though it is
+non-breaking (e.g. 0.6.0 the waveform generator, 0.7.0 `read_iq`, 0.8.0
+the Python composer subsystem). Reserve patch bumps for fixes and small
+additive tweaks that don't warrant a headline.
 
 !!! note "Pre-1.0"
 

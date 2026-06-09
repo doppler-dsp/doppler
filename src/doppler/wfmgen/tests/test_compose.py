@@ -243,6 +243,53 @@ def test_write_blue_header_big_endian(tmp_path):
     assert struct.unpack_from(">d", h, 264)[0] == pytest.approx(1 / 2e6)
 
 
+def test_stream_yields_blocks_matching_compose():
+    """stream() concatenates to the same array as compose()."""
+    spec = [Segment("qpsk", sps=8, num_samples=2000, seed=3)]
+    whole = Composer(spec).compose()
+    streamed = np.concatenate(list(Composer(spec).stream(256)))
+    assert np.array_equal(streamed, whole)
+
+
+def test_stream_block_sizes():
+    """Every block is `block` long except a possibly-short final one."""
+    c = Composer(type="tone", num_samples=1000)
+    blocks = list(c.stream(256))
+    assert [len(b) for b in blocks] == [256, 256, 256, 232]  # 3*256 + 232
+
+
+def test_stream_continuous_is_infinite():
+    """A continuous spec streams forever — take a few blocks and stop."""
+    import itertools
+
+    c = Composer(type="tone", continuous=True)
+    blocks = list(itertools.islice(c.stream(512), 5))
+    assert len(blocks) == 5 and all(len(b) == 512 for b in blocks)
+
+
+@_needs_clock
+def test_stream_realtime_paces():
+    """stream(realtime=True) paces blocks at the segment's fs (~ N/fs total)."""
+    # 100 blocks of 1000 @ 1e5 = 1.0 s; realtime=True uses segments[0].fs.
+    c = Composer(type="tone", fs=1e5, num_samples=100_000)
+    t0 = time.perf_counter()
+    n = sum(len(b) for b in c.stream(1000, realtime=True))
+    elapsed = time.perf_counter() - t0
+    assert n == 100_000
+    assert 0.9 < elapsed < 1.4, (
+        f"paced stream took {elapsed:.3f}s, expected ~1.0"
+    )
+
+
+@_needs_clock
+def test_stream_realtime_float_rate_overrides():
+    """A float realtime= overrides the rate (here a fast rate → quick)."""
+    c = Composer(type="tone", fs=1e5, num_samples=10_000)
+    t0 = time.perf_counter()
+    list(c.stream(1000, realtime=1e7))  # 10 MS/s → ~1 ms total
+    assert time.perf_counter() - t0 < 0.3
+
+
 @_needs_clock
 def test_sampleclock_paces_to_rate():
     """Pacing N samples at fs takes ~N/fs seconds, drift-free."""

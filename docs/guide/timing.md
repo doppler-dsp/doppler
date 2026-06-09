@@ -86,6 +86,21 @@ real time at the cost of an inserted gap).
 
 ## Pacing — Python
 
+The one-liner equivalent of `--realtime` is `Composer.stream(block, realtime=…)`, a generator that paces each block as it yields it (`realtime=True`
+uses the first segment's `fs`; pass a float to set the rate):
+
+```python
+from doppler.wfmgen.compose import Composer, ZmqSink
+
+comp = Composer(type="qpsk", sps=8, fs=1e6, continuous=True)
+with ZmqSink("tcp://0.0.0.0:5555") as sink:
+    for blk in comp.stream(4096, realtime=True):   # paced to fs
+        sink.send(blk, fs=1e6, fc=0.0)
+```
+
+Under the hood `stream()` drives a `SampleClock`, which you can also use
+directly when you need the slack value, the timestamp, or a custom loop:
+
 ```python
 from doppler.wfmgen.compose import Composer, SampleClock, ZmqSink
 

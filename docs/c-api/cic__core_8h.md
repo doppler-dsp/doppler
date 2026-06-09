@@ -58,12 +58,12 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 
 | Type | Name |
 | ---: | :--- |
-|  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R) <br>_Create a CIC decimation filter._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Decimate n\_in CF32 samples; write output to out._  |
+|  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R) <br>_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
-|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place; resets all filter state._  |
-|  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all filter state; preserve R and shift._  |
+|  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in [2, 4096] — the state is left unchanged in that case._  |
+|  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
 
 
 
@@ -135,7 +135,7 @@ cic_destroy(cic);
 
 ### function cic\_create 
 
-_Create a CIC decimation filter._ 
+_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM._ 
 ```C++
 cic_state_t * cic_create (
     uint32_t R
@@ -149,16 +149,23 @@ cic_state_t * cic_create (
 **Parameters:**
 
 
-* `R` Decimation ratio. Must be a power of two in `[2, 4096]`. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. 
+* `R` Decimation ratio. Must be a power of two in [2, 4096]. Returns NULL for R=0, non-power-of-two, or R &gt; 4096. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on invalid R or OOM. 
+Heap-allocated state, or NULL on invalid R or OOM.
 
 
 
+```C++
+>>> from doppler.resample import CIC
+>>> cic = CIC(R=16)
+>>> cic.R, cic.shift
+(16, 16)
+```
+ 
 
 
         
@@ -169,7 +176,7 @@ Heap-allocated state, or NULL on invalid R or OOM.
 
 ### function cic\_decimate 
 
-_Decimate n\_in CF32 samples; write output to out._ 
+_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._ 
 ```C++
 JM_FORCEINLINE  JM_HOT size_t cic_decimate (
     cic_state_t * state,
@@ -181,27 +188,35 @@ JM_FORCEINLINE  JM_HOT size_t cic_decimate (
 
 
 
-Each sample is converted to UQ16, run through CIC\_N integrators, tested against the decimation phase, then (if a decimation boundary) passed through CIC\_N comb stages and converted back to CF32.
-
-
 
 
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `in` CF32 input array, length n\_in. 
+* `state` Pointer to a valid [**cic\_state\_t**](structcic__state__t.md). 
+* `in` CF32 input block. 
 * `n_in` Number of input samples. 
-* `out` Output buffer; must hold at least ceil((state-&gt;phase + n\_in) / state-&gt;R) elements. 
+* `out` Output buffer; must hold at least n\_in elements. 
 
 
 
 **Returns:**
 
-Number of output samples written. 
+CF32 output array; length is floor((phase + n\_in) / R).
 
 
 
+```C++
+>>> from doppler.resample import CIC
+>>> import numpy as np
+>>> cic = CIC(R=16)
+>>> for _ in range(4):
+...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
+>>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
+>>> y.tolist(), y.dtype
+([0j], dtype('complex64'))
+```
+ 
 
 
         
@@ -251,7 +266,7 @@ Free resources. NULL is a no-op.
 
 ### function cic\_reconfigure 
 
-_Change the decimation ratio in place; resets all filter state._ 
+_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in [2, 4096] — the state is left unchanged in that case._ 
 ```C++
 void cic_reconfigure (
     cic_state_t * state,
@@ -261,18 +276,23 @@ void cic_reconfigure (
 
 
 
-Silently ignores invalid R (non-power-of-two, out of range).
-
-
 
 
 **Parameters:**
 
 
-* `state` Filter state to reconfigure. Must be non-NULL. 
-* `R` New decimation ratio. Same constraints as [**cic\_create()**](cic__core_8h.md#function-cic_create). 
+* `state` Pointer to a valid [**cic\_state\_t**](structcic__state__t.md). 
+* `R` New decimation ratio. Same constraints as [**cic\_create()**](cic__core_8h.md#function-cic_create).
 
 
+```C++
+>>> from doppler.resample import CIC
+>>> cic = CIC(R=4)
+>>> cic.reconfigure(8)
+>>> cic.R, cic.shift
+(8, 12)
+```
+ 
 
 
         
@@ -283,7 +303,7 @@ Silently ignores invalid R (non-power-of-two, out of range).
 
 ### function cic\_reset 
 
-_Zero all filter state; preserve R and shift._ 
+_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._ 
 ```C++
 void cic_reset (
     cic_state_t * state
@@ -292,7 +312,15 @@ void cic_reset (
 
 
 
-The first output sample after reset is produced on input sample R-1, matching post-create behaviour. 
+
+```C++
+>>> from doppler.resample import CIC
+>>> cic = CIC(R=16)
+>>> cic.reset()
+>>> cic.R
+16
+```
+ 
 
 
         

@@ -26,20 +26,19 @@ extern "C"
 
   typedef struct ddc_state ddc_state_t;
 
-  ddc_state_t *ddc_create (double norm_freq, double rate);
+ddc_state_t *ddc_create(double norm_freq, double rate);
 
-  void ddc_destroy (ddc_state_t *s);
+void ddc_destroy(ddc_state_t *state);
 
-  void ddc_reset (ddc_state_t *s);
+void ddc_reset(ddc_state_t *state);
 
-  double ddc_get_norm_freq (const ddc_state_t *s);
+double ddc_get_norm_freq(const ddc_state_t *state);
 
-  void ddc_set_norm_freq (ddc_state_t *s, double norm_freq);
+void ddc_set_norm_freq(ddc_state_t *state, double val);
 
-  double ddc_get_rate (const ddc_state_t *s);
+double ddc_get_rate(const ddc_state_t *state);
 
-  size_t ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
-                      float _Complex *out, size_t max_out);
+size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
 
   /* ================================================================== */
   /* DdcR — real-input DDC (Architecture D2)                           */
@@ -61,6 +60,8 @@ extern "C"
 
   size_t ddcr_execute (ddcr_state_t *s, const float *in, size_t n_in,
                        float _Complex *out, size_t max_out);
+
+size_t ddc_execute_max_out(ddc_state_t *state);
 
 #ifdef __cplusplus
 }

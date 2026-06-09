@@ -16,15 +16,15 @@
 extern "C" {
 #endif
 
-double marcum_q (int m, double a, double b);
+double marcum_q(int m, double a, double b);
 
-double det_threshold (double pfa);
+double det_threshold(double pfa);
 
-double det_pd (double snr, int dwell, double threshold);
+double det_pd(double snr, int dwell, double threshold);
 
-int det_dwell (double snr, double pd_min, double pfa, int max_dwell);
+int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
-double det_snr (int dwell, double pd_min, double pfa);
+double det_snr(int dwell, double pd_min, double pfa);
 
 /* ── Power detector ──────────────────────────────────────────────────────── */
 /*                                                                            */
@@ -46,15 +46,16 @@ double det_snr (int dwell, double pd_min, double pfa);
 /* the power detector offers a simpler threshold formula and an exponential  */
 /* null distribution.                                                         */
 
-double det_threshold_power (double pfa);
+double det_threshold_power(double pfa);
 
-double det_pd_power (double snr_power, int dwell, double power_threshold);
+double det_pd_power(double snr_power, int dwell, double power_threshold);
 
 int det_dwell_power (double snr_power, double pd_min, double pfa,
                      int max_dwell);
 
-double det_snr_power (int dwell, double pd_min, double pfa);
+double det_snr_power(int dwell, double pd_min, double pfa);
 
+int det_dwell_power(double snr_power, double pd_min, double pfa, int max_dwell);
 #ifdef __cplusplus
 }
 #endif

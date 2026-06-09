@@ -51,8 +51,10 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   double nco_get_norm_freq (const nco_state_t *state);
   void nco_set_norm_freq (nco_state_t *state, double norm_freq);
+
   uint32_t nco_get_phase (const nco_state_t *state);
   void nco_set_phase (nco_state_t *state, uint32_t phase);
+
   uint32_t nco_get_phase_inc (const nco_state_t *state);
 
   /* ---- Block generators ---- */

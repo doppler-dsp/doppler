@@ -58,11 +58,11 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads) <br>_Create a 2-D FFT correlator._  |
+|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**corr2d\_destroy**](#function-corr2d_destroy) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
-|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Correlate one 2-D frame and optionally dump the accumulator._  |
+|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → IFFT2 → normalise (÷ ny\*nx) → accumulate → conditional dump. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._  |
 |  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (always == ny\*nx)._  |
-|  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0._  |
+|  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
 |  void | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference and recompute conj(FFT2(ref))._  |
 
 
@@ -126,7 +126,7 @@ corr2d_destroy(c);
 
 ### function corr2d\_create 
 
-_Create a 2-D FFT correlator._ 
+_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._
 ```C++
 corr2d_state_t * corr2d_create (
     const float complex * ref,
@@ -144,17 +144,26 @@ corr2d_state_t * corr2d_create (
 **Parameters:**
 
 
-* `ref` Reference image, flat row-major CF32, length ny\*nx. 
-* `ny` Number of rows. 
-* `nx` Number of columns. 
+* `ref` Reference image, 2-D (ny, nx) CF32 ndarray in Python. 
+* `ny` Number of rows in the reference and input frames. 
+* `nx` Number of columns in the reference and input frames. 
 * `dwell` Integration depth; must be &gt;= 1. 
-* `nthreads` Ignored (pocketfft is single-threaded). 
+* `nthreads` Accepted for API compatibility; ignored. 
 
 
 
 **Returns:**
 
 Heap-allocated state, or NULL on failure. 
+```C++
+>>> from doppler.spectral import Corr2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> c = Corr2D(ref=ref, dwell=1, nthreads=1)
+>>> c.ny, c.nx, c.dwell, c.count
+(4, 4, 1, 0)
+```
+ 
 
 
 
@@ -195,7 +204,7 @@ void corr2d_destroy (
 
 ### function corr2d\_execute 
 
-_Correlate one 2-D frame and optionally dump the accumulator._ 
+_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → IFFT2 → normalise (÷ ny\*nx) → accumulate → conditional dump. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ 
 ```C++
 size_t corr2d_execute (
     corr2d_state_t * state,
@@ -207,32 +216,33 @@ size_t corr2d_execute (
 
 
 
-Steps:
-* FFT2(in) → work\_fft
-* `work_fft[k] *= ref_spec[k]`
-* IFFT2(work\_fft) → work\_ifft (divide by ny\*nx)
-* `accum[k] += work_ifft[k] / (ny*nx)`
-* If count == dwell: copy accum → out, zero, reset, return ny\*nx.
-* Otherwise: return 0.
-
-
-
-
 
 
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `in` Flat row-major CF32 frame, length n\_in (must equal ny\*nx). 
-* `n_in` Total number of input samples. 
-* `out` Output buffer of length &gt;= ny\*nx. Only written on dump. 
+* `state` Allocated 2-D correlator (non-NULL). 
+* `in` Input frame, flat row-major CF32, length ny\*nx. 
+* `n_in` Number of input samples; must equal ny\*nx. 
+* `out` Output buffer for the correlation map (CF32, length ny\*nx); written only on a dump call. 
 
 
 
 **Returns:**
 
-ny\*nx on a dump, 0 otherwise. 
+ny\*nx on a dump, 0 otherwise (None in Python). 
+```C++
+>>> from doppler.spectral import Corr2D
+>>> import numpy as np
+>>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+>>> c = Corr2D(ref=ref, dwell=2)
+>>> x = np.ones((2, 2), dtype=np.complex64)
+>>> c.execute(x) is None   # frame 1 — no dump
+True
+>>> c.execute(x).tolist()  # frame 2 — dump
+[(2+0j), (2+0j), (2+0j), (2+0j)]
+```
+ 
 
 
 
@@ -262,7 +272,7 @@ size_t corr2d_execute_max_out (
 
 ### function corr2d\_reset 
 
-_Zero the accumulator and reset the integration counter to 0._ 
+_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._ 
 ```C++
 void corr2d_reset (
     corr2d_state_t * state
@@ -272,13 +282,19 @@ void corr2d_reset (
 
 
 
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
+```C++
+>>> from doppler.spectral import Corr2D
+>>> import numpy as np
+>>> ref = np.zeros((2, 2), dtype=np.complex64); ref[0, 0] = 1.0
+>>> c = Corr2D(ref=ref, dwell=3)
+>>> _ = c.execute(np.ones((2, 2), dtype=np.complex64))
+>>> c.count
+1
+>>> c.reset()
+>>> c.count
+0
+```
+ 
 
 
         

@@ -22,6 +22,10 @@ extern "C" {
 
 #include "i16_to_f32/i16_to_f32_core.h"
 
+#include "i32_to_f32/i32_to_f32_core.h"
+
+#include "i8_to_f32/i8_to_f32_core.h"
+
 #include "f32_to_i16u32/f32_to_i16u32_core.h"
 
 #include "f32_to_i16u64/f32_to_i16u64_core.h"
@@ -30,15 +34,29 @@ extern "C" {
 
 #include "i16u64_to_f32/i16u64_to_f32_core.h"
 
+#include "f32_to_uq15/f32_to_uq15_core.h"
+
+#include "uq15_to_f32/uq15_to_f32_core.h"
+
+#include "adc/adc_core.h"
+
 #include "acc_f32/acc_f32_core.h"
 
 #include "acc_cf64/acc_cf64_core.h"
 
 #include "fir/fir_core.h"
 
+#include "hbdecim_q15/hbdecim_q15_core.h"
+
 #include "nco/nco_core.h"
 
 #include "lo/lo_core.h"
+
+#include "awgn/awgn_core.h"
+
+#include "pn/pn_core.h"
+
+#include "synth/synth_core.h"
 
 #include "delay/delay_core.h"
 
@@ -54,13 +72,23 @@ extern "C" {
 
 #include "detector2d/detector2d_core.h"
 
+#include "ddc/ddc_core.h"
+
+#include "ddcr/ddcr_core.h"
+
 #include "Resampler/Resampler_core.h"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"
 
 #include "cic/cic_core.h"
 
+#include "RateConverter/RateConverter_core.h"
+
 #include "agc/agc_core.h"
+
+#include "acc_q15/acc_q15_core.h"
+
+#include "acc_q8/acc_q8_core.h"
 
 #ifdef __cplusplus
 }

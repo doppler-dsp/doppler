@@ -25,6 +25,18 @@
 #  define CMPLXF(r, i) __builtin_complex ((float)(r), (float)(i))
 #endif
 
+/* ------------------------------------------------------------------ */
+/* Return-code convention                                              */
+/*                                                                     */
+/* int-returning functions use these codes.  0 is always success.     */
+/* size_t-returning functions return a sample/byte count; they        */
+/* operate on already-created objects and cannot fail.                */
+/* Pointer-returning functions return NULL on failure.                */
+/* ------------------------------------------------------------------ */
+#define DP_OK          0   
+#define DP_ERR_MEMORY  (-1) 
+#define DP_ERR_INVALID (-2) 
+
 #include "jm_perf.h"
 
 #endif /* CLIB_COMMON_H */

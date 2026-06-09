@@ -18,6 +18,9 @@
 
 ## d
 
+* **DP\_ERR\_INVALID** ([**clib\_common.h**](clib__common_8h.md))
+* **DP\_ERR\_MEMORY** ([**clib\_common.h**](clib__common_8h.md))
+* **DP\_OK** ([**clib\_common.h**](clib__common_8h.md))
 * **DECLARE\_DP\_BUFFER** ([**buffer.h**](buffer_8h.md))
 * **DP\_ALIGN** ([**buffer.h**](buffer_8h.md))
 * **DP\_ASSERT\_PWR2** ([**buffer.h**](buffer_8h.md))
@@ -73,7 +76,13 @@
 
 ## r
 
+* **RC\_MAX\_STAGES** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **RESAMPLER\_MAX\_OUT** ([**Resampler\_core.h**](Resampler__core_8h.md))
+
+
+## s
+
+* **SYNTH\_SNR\_CLEAN** ([**synth\_core.h**](synth__core_8h.md))
 
 
 ## _

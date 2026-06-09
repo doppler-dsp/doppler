@@ -63,7 +63,7 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 |  void | [**f32\_to\_i16u32\_destroy**](#function-f32_to_i16u32_destroy) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u32 instance and release all memory._  |
 |  void | [**f32\_to\_i16u32\_reset**](#function-f32_to_i16u32_reset) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state) <br>_Reset f32\_to\_i16u32 to its post-create state._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint32\_t | [**f32\_to\_i16u32\_step**](#function-f32_to_i16u32_step) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, float x) <br>_Process one input sample._  |
-|  void | [**f32\_to\_i16u32\_steps**](#function-f32_to_i16u32_steps) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, const float \* input, uint32\_t \* output, size\_t n) <br>_Process a block of samples._  |
+|  void | [**f32\_to\_i16u32\_steps**](#function-f32_to_i16u32_steps) ([**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) \* state, const float \* input, uint32\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint32._  |
 
 
 
@@ -95,23 +95,32 @@ _Scale-and-saturate float to Q15-in-uint32 converter._ [More...](#detailed-descr
 ## Detailed Description
 
 
-Converts a float to a saturated int16, then zero-extends the 16-bit two's complement representation into the lower 16 bits of a uint32 (upper 16 bits are always zero). This is the format expected by the CIC filter's integer input path, which uses the upper bits as headroom for bit-growth through the integrator cascade.
+Converts a float to a saturated int16, then zero-extends the 16-bit two's complement bit pattern into the lower 16 bits of a uint32 (upper 16 bits are always zero). This is the wire format expected by the CIC filter's integer input path, which exploits the upper bits as headroom for the bit-growth that naturally occurs through an integrator cascade.
 
 
 input +1.0 → int16 32767 → uint32 0x00007FFF input -1.0 → int16 -32768 → uint32 0x00008000
 
 
-The default scale of 32768.0 maps `[-1, +1]` float to Q15 range.
+The default scale of 32768.0 maps [-1, +1] float to Q15 range. A sticky `clipped` flag is raised on saturation and cleared only by reset().
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 
-Example: 
+
 ```C++
-f32_to_i16u32_state_t *obj = f32_to_i16u32_create(32768.0f);
-uint32_t y = f32_to_i16u32_step(obj, -1.0f);  // y == 0x00008000
-f32_to_i16u32_destroy(obj);
+>>> from doppler.cvt import F32ToI16U32
+>>> import numpy as np
+>>> obj = F32ToI16U32(scale=32768.0)
+>>> hex(obj.step(-1.0))
+'0x8000'
+>>> hex(obj.step(1.0))
+'0x7fff'
+>>> obj.step(0.0)
+0
+>>> x = np.array([-1.0, 0.0, 1.0], dtype=np.float32)
+>>> obj.steps(x).tolist()
+[32768, 0, 32767]
 ```
  
 
@@ -133,12 +142,15 @@ f32_to_i16u32_state_t * f32_to_i16u32_create (
 
 
 
+Stores `scale` and initialises the sticky `clipped` flag to 0.
+
+
 
 
 **Parameters:**
 
 
-* `scale` scale (default: 32768.0f). 
+* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised [-1, +1] samples to Q15 packed into a uint32. 
 
 
 
@@ -201,6 +213,9 @@ void f32_to_i16u32_reset (
 
 
 
+Clears the sticky `clipped` flag. The `scale` is preserved.
+
+
 
 
 **Parameters:**
@@ -229,19 +244,22 @@ JM_FORCEINLINE  JM_HOT uint32_t f32_to_i16u32_step (
 
 
 
+Computes `round(x * scale)`, saturates to [-32768, 32767], then zero-extends the int16 bit pattern into the lower 16 bits of a uint32. The `clipped` flag is set if saturation occurred.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
-* `x` Input sample (float). 
+* `x` Normalised float input sample. 
 
 
 
 **Returns:**
 
-Output sample (uint32\_t). 
+Q15 value packed into the lower 16 bits of a uint32. 
 
 
 
@@ -255,7 +273,7 @@ Output sample (uint32\_t).
 
 ### function f32\_to\_i16u32\_steps 
 
-_Process a block of samples._ 
+_Process a block of float samples to Q15-in-uint32._ 
 ```C++
 void f32_to_i16u32_steps (
     f32_to_i16u32_state_t * state,
@@ -267,15 +285,18 @@ void f32_to_i16u32_steps (
 
 
 
+Applies step() to every element. The `clipped` flag is updated cumulatively across the block. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+
+
 
 
 **Parameters:**
 
 
-* `state` Component state (mutated). 
-* `input` Input array (length &gt;= n). 
-* `output` Output array (length &gt;= n; may alias input for in-place). 
-* `n` Number of samples. 
+* `state` Must be non-NULL. 
+* `input` Input float32 array; must contain at least `n` elements. 
+* `output` Output uint32 array; must contain at least `n` elements. 
+* `n` Number of samples to process. 
 
 
 

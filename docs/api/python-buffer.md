@@ -11,14 +11,18 @@ ______________________________________________________________________
 
 ## Buffer types
 
-| Class       | NumPy dtype              | Bytes/sample | Min capacity |
-| ----------- | ------------------------ | ------------ | ------------ |
-| `F32Buffer` | `complex64`              | 8            | 512 samples  |
-| `F64Buffer` | `complex128`             | 16           | 256 samples  |
-| `I16Buffer` | `int16` (shape `(n, 2)`) | 4            | 1024 samples |
+| Class       | NumPy dtype              | Bytes/sample | Min (4 KiB page) | Min (16 KiB page) |
+| ----------- | ------------------------ | ------------ | ---------------- | ----------------- |
+| `F32Buffer` | `complex64`              | 8            | 512 samples      | 2048 samples      |
+| `F64Buffer` | `complex128`             | 16           | 256 samples      | 1024 samples      |
+| `I16Buffer` | `int16` (shape `(n, 2)`) | 4            | 1024 samples     | 4096 samples      |
 
-Minimum capacity is a page-alignment constraint from the double-mapping
-trick. Requested capacities are rounded up to the next power of two.
+`n_samples` must be a power of two. The double-mapping trick builds the mirror
+at page granularity, so the buffer must span at least one whole page — a
+sub-page request is rounded **up** to the smallest power-of-two that does. The
+minimum therefore depends on the system page size (4 KiB on Linux x86-64,
+16 KiB on macOS arm64). Always read the real size back from `.capacity`; it may
+exceed what you asked for.
 
 ______________________________________________________________________
 

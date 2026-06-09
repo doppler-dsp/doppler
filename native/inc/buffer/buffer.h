@@ -345,17 +345,32 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
    * Uses virtual memory mirroring so reads/writes that cross the buffer      \
    * boundary wrap transparently — zero-copy, branchless.                   \
    *                                                                          \
-   * @param n_samples Buffer size in complex samples. MUST be a power of 2,   \
-   *                  and n_samples * sizeof(type) * 2 must be page-aligned.  \
+   * @param n_samples Requested buffer size in complex samples. MUST be a     \
+   *                  power of 2. The VM-mirror maps the sample region twice  \
+   *                  at adjacent addresses, and mmap works at page           \
+   *                  granularity, so the mirror unit                         \
+   *                  (n_samples * sizeof(type) * 2 bytes) must be a          \
+   *                  whole-page multiple. When the request is sub-page       \
+   *                  (e.g. f32(1024) = 8 KiB on a 16 KiB-page system), the   \
+   *                  capacity is rounded UP to the smallest power-of-two     \
+   *                  whose byte size is one page — read it back from the     \
+   *                  ->capacity field, which is authoritative.               \
    * @return Pointer to an initialised dp_##name##_t, or NULL on failure.     \
    */                                                                         \
   static inline dp_##name##_t *dp_##name##_create (size_t n_samples)          \
   {                                                                           \
-    size_t bytes = n_samples * sizeof (type) * 2;                             \
-    if ((n_samples & (n_samples - 1)) != 0)                                   \
+    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
       return NULL;                                                            \
-    if (bytes % dp__page_size () != 0)                                        \
-      return NULL;                                                            \
+    /* sizeof(type)*2 (bytes per complex sample) and the page size are both   \
+       powers of two, and n_samples is a power of two, so the mirror unit is  \
+       a power of two. Rounding n_samples up until the unit reaches one page  \
+       therefore lands on an exact page multiple — capacity stays a power of  \
+       two. */                                                                \
+    size_t page = dp__page_size ();                                           \
+    size_t elem = sizeof (type) * 2;                                          \
+    while (n_samples * elem < page)                                           \
+      n_samples <<= 1;                                                        \
+    size_t bytes = n_samples * elem;                                          \
     void *handle = NULL;                                                      \
     void *addr = dp__buf_alloc (bytes, &handle);                              \
     if (!addr)                                                                \

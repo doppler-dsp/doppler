@@ -46,7 +46,8 @@ on your hardware.
 from doppler.spectral import FFT
 import numpy as np
 
-X = FFT(1024).execute(np.random.randn(1024).astype(np.complex64))
+x = np.random.randn(1024).astype(np.complex64)
+X = FFT(1024).execute_cf32(x)
 ```
 
 **C**

@@ -296,6 +296,13 @@ jobs:
     - name: Install dev deps
       run: uv sync --group dev
 
+    - name: Check Python API docs coverage
+      # Fails if a public symbol (module __all__) is documented nowhere under
+      # docs/api/. Pre-existing gaps are baselined in .api-coverage-ignore, so
+      # this only trips on a NEW undocumented surface. doppler is importable
+      # here because uv sync built the extensions for mkdocstrings.
+      run: uv run python scripts/check_api_docs.py
+
     - name: Build docs
       run: uv run mkdocs build
 

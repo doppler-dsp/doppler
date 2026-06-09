@@ -74,6 +74,14 @@ plugins:
           paths: [src]
           options:
             docstring_style: numpy
+            # jm-generated .pyi ctors expose the internal --state fields while
+            # the header-derived docstring documents the public init_params
+            # (e.g. Synth: signature wtype/nsps/… vs documented type/fs/…), so
+            # griffe flags every documented param as "not in the signature".
+            # The runtime ctor *does* accept those params (bridged in C); this
+            # is a known jm init_params/state stub gap, not a real mismatch.
+            docstring_options:
+              warn_unknown_params: false
             show_source: false
             show_root_heading: true
             show_root_full_path: false
@@ -150,6 +158,8 @@ nav:
   - API Reference:
       - C API: c-api/files.md
       - "Python: FFT": api/python-fft.md
+      - "Python: Correlation & Detection": api/python-spectral.md
+      - "Python: Detection Statistics": api/python-detection.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
       - "Python: FIR Filter": api/python-filter.md

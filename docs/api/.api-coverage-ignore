@@ -1,0 +1,50 @@
+# API-docs coverage baseline — pre-existing undocumented public symbols.
+# Checked by scripts/check_api_docs.py (CI: the Docs job).
+#
+# These modules/symbols have no docs/api page yet — documentation debt to
+# pay down over time (delete a line once it's documented). The gate fails
+# on any NEW public symbol not listed here, so a fresh surface (like
+# spectral.Detector was) can't land undocumented again.
+#
+# Whole modules with no API page: agc, arith, cvt, util.
+
+doppler.agc.AGC
+doppler.arith.AccQ15
+doppler.arith.AccQ8
+doppler.arith.add_q15
+doppler.arith.add_q8
+doppler.arith.dot_q15
+doppler.arith.dot_q8
+doppler.arith.mul_q15
+doppler.arith.mul_q8
+doppler.arith.shl_i64
+doppler.arith.shl_q15
+doppler.arith.shl_q8
+doppler.arith.shr_i64
+doppler.arith.shr_q15
+doppler.arith.shr_q8
+doppler.arith.sub_q15
+doppler.arith.sub_q8
+doppler.cvt.F32ToI16
+doppler.cvt.F32ToI16U32
+doppler.cvt.F32ToI16U64
+doppler.cvt.F32ToUQ15
+doppler.cvt.I16ToF32
+doppler.cvt.I16U32ToF32
+doppler.cvt.I16U64ToF32
+doppler.cvt.I32ToF32
+doppler.cvt.I8ToF32
+doppler.cvt.UQ15ToF32
+doppler.ddc.ddcr_get_norm_freq
+doppler.ddc.ddcr_get_rate
+doppler.ddc.ddcr_reset
+doppler.filter.HBDecimQ15
+doppler.resample.kaiser_beta
+doppler.resample.kaiser_num_taps
+doppler.stream.CF128
+doppler.stream.CI32
+doppler.util.square_clip
+doppler.wfmgen.bpsk_map
+doppler.wfmgen.qpsk_map
+doppler.wfmgen.wfm_awgn_amplitude
+doppler.wfmgen.wfm_ebno_to_snr_db

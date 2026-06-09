@@ -400,7 +400,23 @@ def write_blue_header(
     data_start: float = 0.0,
     detached: bool = True,
 ) -> None:
-    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``)."""
+    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``).
+
+    The 512-byte header carries the ``"BLUE"`` magic, byte order, ``data_size``
+    (``total`` × bytes-per-sample), the type-1000 tag and ``xdelta = 1/fs``;
+    pair it with a detached ``.det`` body of raw interleaved I/Q.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from doppler.wfmgen.compose import write_blue_header
+    >>> p = os.path.join(tempfile.mkdtemp(), "cap.hdr")
+    >>> write_blue_header(p, sample_type="cf32", fs=1e6, total=512)
+    >>> with open(p, "rb") as f:
+    ...     head = f.read()
+    >>> head[:4], len(head)
+    (b'BLUE', 512)
+    """
     _c.blue_write_hcb(
         os.fspath(path),
         _idx(sample_type, _STYPES, "sample_type"),

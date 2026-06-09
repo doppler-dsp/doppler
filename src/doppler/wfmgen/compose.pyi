@@ -222,7 +222,20 @@ def write_blue_header(
     data_start: float = ...,
     detached: bool = ...,
 ) -> None:
-    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``)."""
+    """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``).
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> from doppler.wfmgen.compose import write_blue_header
+    >>> p = os.path.join(tempfile.mkdtemp(), "cap.hdr")
+    >>> write_blue_header(p, sample_type="cf32", fs=1e6, total=512)
+    >>> with open(p, "rb") as f:
+    ...     head = f.read()
+    >>> head[:4], len(head)
+    (b'BLUE', 512)
+
+    """
     ...
 
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:

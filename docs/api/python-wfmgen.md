@@ -170,6 +170,8 @@ detached BLUE use `write_blue_header(...)`. The `ZmqSink` is POSIX-only. DSP
 helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
 pulse-shaping and spreading primitives.
 
+### Classes
+
 ::: doppler.wfmgen.compose.Composer
 
 ::: doppler.wfmgen.compose.Segment
@@ -177,3 +179,15 @@ pulse-shaping and spreading primitives.
 ::: doppler.wfmgen.compose.Writer
 
 ::: doppler.wfmgen.compose.ZmqSink
+
+### Module-level helpers
+
+::: doppler.wfmgen.compose.sigmf_meta
+
+::: doppler.wfmgen.compose.write_blue_header
+
+::: doppler.wfmgen.compose.rrc_taps
+
+::: doppler.wfmgen.compose.dsss_spread
+
+::: doppler.wfmgen.compose.mls_poly

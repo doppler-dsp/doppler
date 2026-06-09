@@ -7,25 +7,37 @@ Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers
 """
 
 import hashlib
+import random
 import shutil
+import struct
 import subprocess
+import time
 
 import numpy as np
 import pytest
 
+from doppler.wfmgen import _wfmcompose as _c
 from doppler.wfmgen.compose import (
     Composer,
     Segment,
     Writer,
+    ZmqSink,
     dsss_spread,
     mls_poly,
     rrc_taps,
+    sigmf_meta,
+    write_blue_header,
 )
 from doppler.wfmgen.readback import read_iq
 
 _WAVEGEN = shutil.which("wavegen")
 _needs_cli = pytest.mark.skipif(
     _WAVEGEN is None, reason="wavegen CLI not on PATH"
+)
+# ZmqSink is POSIX-only; the C extension omits sink_* off-platform.
+_needs_zmq = pytest.mark.skipif(
+    not hasattr(_c, "sink_open"),
+    reason="ZmqSink not available on this platform",
 )
 
 
@@ -156,3 +168,92 @@ def test_context_manager_and_idempotent_close():
     with Composer(type="tone", num_samples=64) as c:
         assert len(c.execute(64)) == 64
     c.close()  # idempotent after __exit__
+
+
+@_needs_zmq
+def test_zmqsink_loopback_to_subscriber():
+    """ZmqSink publishes the wfmgen fs/fc framing that doppler.stream decodes.
+
+    ZmqSink frames with ``dp_pub_send_*`` (the shared wire format), so a
+    ``doppler.stream.Subscriber`` on the same endpoint must recover the samples
+    and the fs/fc tags. cf64 is used because the Python recv path decodes
+    CF64/CI32/CF128 (cf32 is wire-valid but not Python-decodable).
+    """
+    from doppler.stream import Subscriber
+
+    ep = f"tcp://127.0.0.1:{random.randint(49152, 65000)}"
+    x = Composer(type="tone", freq=1e5, num_samples=512).compose()
+    with ZmqSink(ep, sample_type="cf64") as sink, Subscriber(ep) as sub:
+        time.sleep(0.15)  # PUB/SUB subscription warm-up
+        sink.send(x, fs=1e6, fc=2.4e9)
+        samples, hdr = sub.recv(timeout_ms=2000)
+    assert samples.dtype == np.complex128 and len(samples) == 512
+    assert np.allclose(samples, x.astype(np.complex128), atol=1e-6)
+    assert hdr["sample_rate"] == pytest.approx(1e6)
+    assert hdr["center_freq"] == pytest.approx(2.4e9)
+
+
+@_needs_zmq
+def test_zmqsink_idempotent_close():
+    ep = f"tcp://127.0.0.1:{random.randint(49152, 65000)}"
+    sink = ZmqSink(ep)
+    sink.close()
+    sink.close()  # idempotent
+
+
+def test_write_blue_header_detached_hcb(tmp_path):
+    """write_blue_header lays down a standard detached type-1000 HCB.
+
+    Parses the 512-byte header and checks the fixed fields the C writer emits:
+    magic, byte order (EEEI for little-endian), detached flag, data_size
+    (total * bytes-per-sample), the 1000 type tag, the complex format code, and
+    xdelta = 1/fs.
+    """
+    p = tmp_path / "cap.hdr"
+    write_blue_header(p, sample_type="cf32", fs=1e6, total=512, detached=True)
+    h = p.read_bytes()
+    assert len(h) == 512
+    assert h[0:4] == b"BLUE"
+    assert h[4:8] == b"EEEI" and h[8:12] == b"EEEI"  # little-endian
+    assert struct.unpack_from("<i", h, 12)[0] == 1  # detached
+    assert struct.unpack_from("<d", h, 32)[0] == 0.0  # data_start (detached)
+    assert struct.unpack_from("<d", h, 40)[0] == 512 * 8  # cf32 = 8 B/sample
+    assert struct.unpack_from("<i", h, 48)[0] == 1000  # type-1000
+    assert chr(h[52]) == "C" and chr(h[53]) == "F"  # complex float32
+    assert struct.unpack_from("<d", h, 264)[0] == pytest.approx(1e-6)  # xdelta
+
+
+def test_write_blue_header_big_endian(tmp_path):
+    """endian='be' flips the rep tags and byte order of the fields."""
+    p = tmp_path / "cap.hdr"
+    write_blue_header(
+        p, sample_type="ci16", endian="be", fs=2e6, total=100, detached=True
+    )
+    h = p.read_bytes()
+    assert h[4:8] == b"IEEE" and h[8:12] == b"IEEE"
+    assert struct.unpack_from(">d", h, 40)[0] == 100 * 4  # ci16 = 4 B/sample
+    assert struct.unpack_from(">i", h, 48)[0] == 1000
+    assert struct.unpack_from(">d", h, 264)[0] == pytest.approx(1 / 2e6)
+
+
+def test_sigmf_meta_and_data_pair(tmp_path):
+    """sigmf_meta() + Writer(file_type='sigmf') produce a valid SigMF pair.
+
+    The metadata records the global sample rate and one annotation per segment;
+    the companion .sigmf-data round-trips back through read_iq.
+    """
+    import json
+
+    spec = [
+        Segment("tone", freq=1e5, num_samples=256),
+        Segment("qpsk", sps=8, num_samples=512, seed=3),
+    ]
+    x = Composer(spec).compose()
+    data = tmp_path / "cap.sigmf-data"
+    with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
+        w.write(x)
+    meta = json.loads(sigmf_meta(sample_type="cf32", fs=1e6, segments=spec))
+    assert meta["global"]["core:sample_rate"] == 1e6
+    assert meta["global"]["core:datatype"] == "cf32_le"
+    assert len(meta["annotations"]) == 2  # one per segment
+    assert np.allclose(read_iq(str(data), "cf32"), x)

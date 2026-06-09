@@ -216,6 +216,56 @@ class Composer:
             return np.empty(0, dtype=np.complex64)
         return np.concatenate(chunks)
 
+    def stream(self, block: int = 4096, *, realtime: bool | float = False):
+        """Yield successive blocks — a generator over :meth:`execute`.
+
+        Turns the ``while len(b := c.execute(n)):`` boilerplate into
+        ``for b in c.stream(n):``. A finite spec ends when ``execute`` drains;
+        a ``continuous`` spec streams forever.
+
+        This is the Python equivalent of the ``wfmgen --realtime`` flag: pass
+        ``realtime`` to pace each block to real time (the same `timing_core`
+        clock the CLI uses). ``realtime=True`` paces at the first segment's
+        ``fs``; pass a float to override the rate. Each block is emitted, then
+        the generator sleeps until the next block's deadline before producing
+        it — so the first block is immediate and the long-run rate is exactly
+        ``fs`` (POSIX only; raises ``NotImplementedError`` off-platform, like
+        :class:`SampleClock`).
+
+        Parameters
+        ----------
+        block : int
+            Samples per yielded array (the last finite block may be shorter).
+        realtime : bool or float, optional
+            Pace to real time. ``True`` uses ``segments[0].fs``; a float sets
+            the sample-clock rate explicitly. Default ``False`` (as fast as
+            possible).
+
+        Yields
+        ------
+        NDArray[np.complex64]
+            One block per iteration.
+
+        Examples
+        --------
+        >>> from doppler.wfmgen.compose import Composer
+        >>> c = Composer(type="tone", freq=1e5, num_samples=1000)
+        >>> total = sum(len(b) for b in c.stream(256))
+        >>> total
+        1000
+        """
+        clk = None
+        if realtime:
+            fs = self.segments[0].fs if realtime is True else float(realtime)
+            clk = SampleClock(fs)
+        while True:
+            blk = self.execute(block)
+            if len(blk) == 0:
+                break
+            yield blk
+            if clk is not None:
+                clk.pace(len(blk))  # sleep to the next block's deadline
+
     @property
     def _resolved(self) -> tuple[list[Segment], bool, bool]:
         segs, repeat, continuous = _c.composer_segments(self._cap)

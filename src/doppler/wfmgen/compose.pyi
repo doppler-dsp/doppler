@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Iterator, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -93,6 +93,24 @@ class Composer:
 
     def compose(self, block: int = ...) -> NDArray[np.complex64]:
         """Drain a finite spec into one array (raises if ``continuous``)."""
+        ...
+
+    def stream(
+        self, block: int = ..., *, realtime: bool | float = ...
+    ) -> Iterator[NDArray[np.complex64]]:
+        """Yield successive blocks (a generator over :meth:`execute`).
+
+        The Python equivalent of ``wfmgen --realtime``: ``realtime`` paces each
+        block to real time (``True`` = ``segments[0].fs``, or a float rate).
+
+        Examples
+        --------
+        >>> from doppler.wfmgen.compose import Composer
+        >>> c = Composer(type="tone", freq=1e5, num_samples=1000)
+        >>> sum(len(b) for b in c.stream(256))
+        1000
+
+        """
         ...
 
     @property

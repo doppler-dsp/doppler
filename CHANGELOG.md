@@ -13,6 +13,40 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-06-09
+
+The headline is **broadened Python support: 3.9 – 3.14** (the floor drops from
+3.11). doppler's C extensions were already 3.9-clean — no `Py_NewRef`-era API,
+no runtime PEP-604 unions, no `match`/`case` — so the floor was set entirely by
+NumPy (2.1 dropped 3.9, 2.3 dropped 3.10), not by doppler. Lowering it is
+packaging plus two small fixes flushed out by the new CI rows.
+
+### Changed
+
+- **Supported Python is now 3.9 – 3.14** (`requires-python = ">=3.9"`). Each
+    interpreter resolves a compatible dependency set via PEP 508
+    `python_version` environment markers — NumPy is capped per-version
+    (`<2.1` on 3.9, `<2.3` on 3.10) in both the runtime deps and the build
+    backend, so the cp39 wheel builds against NumPy 2.0.x and runs against any
+    later 2.x via the stable ABI. The dev group caps `scipy` / `matplotlib` /
+    `pytest` the same way. CI gains 3.9 / 3.10 / 3.11 test rows and the release
+    wheel matrices gain cp39 – cp311 (manylinux_2_28 x86_64 + macOS arm64).
+
+### Fixed
+
+- **`SpecanConfig` pydantic fields** use `Optional[float]`, not PEP-604
+    `float | None`. pydantic force-evaluates field annotations via
+    `get_type_hints` at class-definition time, which raises on Python 3.9
+    (`from __future__ import annotations` does not help — pydantic resolves the
+    deferred strings), breaking CLI test collection. Functionally identical;
+    3.9-safe.
+- **`test_missing_extras`** reproduces a stdlib-only "bare" install with an
+    in-process import-blocker instead of a nested `venv.create()` interpreter.
+    A venv created under a uv-managed python-build-standalone interpreter (the
+    new 3.9 / 3.10 CI rows) cannot bootstrap its own stdlib and died before the
+    CLI's install-hint could print; blocking the extras' imports in the working
+    interpreter tests identically on every version.
+
 ## [0.9.0] — 2026-06-08
 
 The headline is **real-time pacing + a container reader**: a C-first sample
@@ -949,6 +983,7 @@ ______________________________________________________________________
 - **Python executable matching** in CI for C extension builds
 
 [0.1.0]: https://github.com/doppler-dsp/doppler/releases/tag/v0.1.0
+[0.10.0]: https://github.com/doppler-dsp/doppler/compare/v0.9.0...v0.10.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -975,4 +1010,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.9.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...HEAD

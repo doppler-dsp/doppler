@@ -13,6 +13,41 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-08
+
+The headline is the **C composer subsystem, now in Python** — the multi-segment
+waveform engine behind the `wfmgen` CLI, exposed as an ergonomic class API whose
+output is byte-identical to the CLI.
+
+### Added
+
+- **`doppler.wfmgen.compose`** — the Python face of the C `wfmgen` composer /
+    writer / sink subsystem (~18 C functions), a hand-written `no_generate`
+    CPython module (the `ddc_fn` pattern: opaque PyCapsules, GIL released around
+    the kernels):
+
+    - **`Segment` + `Composer`** — multi-segment streams (per-segment on-time and
+        trailing gap), `repeat` / `continuous`, streaming `execute()` / one-shot
+        `compose()`, and a JSON spec round-trip (`to_json` / `from_json` /
+        `from_file`).
+    - **`Writer`** — raw / CSV / BLUE type-1000 / SigMF containers, pairing with
+        `read_iq`; plus `sigmf_meta()` and `write_blue_header()` helpers.
+    - **`ZmqSink`** (POSIX) — ZeroMQ PUB with the wfmgen fs/fc framing, decodable
+        by `doppler.stream.Subscriber`.
+    - **`rrc_taps`, `dsss_spread`, `mls_poly`** free functions.
+
+    Output is byte-identical to the `wavegen` / `wfmgen` CLIs — proven by 15 md5
+    byte-parity tests (5 waveform types × 3 sample types) against the CLI, plus a
+    `ZmqSink`→`Subscriber` loopback, BLUE/SigMF container tests, and JSON /
+    Writer↔`read_iq` round-trips (33 pytests, doctests on every public symbol).
+
+### Changed
+
+- The `nogil` execute bindings (`ddc`, `ddcr`) and the new composer binding are
+    GNU-formatted with `Py_BEGIN/END_ALLOW_THREADS` treated as block macros, so
+    clang-format keeps each on its own line (synced to just-makeit's canonical
+    `.clang-format`).
+
 ## [0.7.0] — 2026-06-08
 
 ### Added

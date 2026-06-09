@@ -57,11 +57,66 @@ target_include_directories(test_wfm_writer PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
 
+# ── input containers: the dual of the writer (raw/csv/BLUE/SigMF auto-detect) ─
+add_library(wfm_reader_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_reader.c)
+target_include_directories(wfm_reader_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
+target_link_libraries(wfm_reader_core PUBLIC m)
+
+add_executable(test_wfm_reader
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader.c)
+target_link_libraries(test_wfm_reader PRIVATE
+    wfm_reader_core wfm_writer_core wfm_cjson m)
+target_include_directories(test_wfm_reader PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
+add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
+
+# ── container codec benchmarks (writer / reader throughput) — make bench ─────
+add_executable(bench_wfm_writer_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
+target_link_libraries(bench_wfm_writer_core PRIVATE wfm_writer_core wfm_cjson m)
+target_include_directories(bench_wfm_writer_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
+
+add_executable(bench_wfm_reader_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
+target_link_libraries(bench_wfm_reader_core PRIVATE
+    wfm_reader_core wfm_writer_core wfm_cjson m)
+target_include_directories(bench_wfm_reader_core PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
+    ${CMAKE_SOURCE_DIR}/vendor/cjson)
+
 # ── ZMQ PUB sink — POSIX only (vendored zmq + pthreads don't build on MinGW;
 #    mirrors examples/c's streaming guard). The sink is independent of the
 #    composer, so it links the stream layer, not synth. ──────────────────────
 if(NOT WIN32)
     find_package(Threads REQUIRED)
+
+    # ── sample-clock pacing + timestamping (timing_core) — POSIX (clock_*),
+    #    so it sits under the same guard as the sink. Generic (no wfmgen deps);
+    #    consumed by both wfmgen_cli (--realtime) and _wfmcompose. ────────────
+    add_library(timing_core OBJECT
+        ${CMAKE_SOURCE_DIR}/native/src/timing/timing_core.c)
+    target_include_directories(timing_core PUBLIC
+        ${CMAKE_SOURCE_DIR}/native/inc)
+
+    add_executable(test_timing_core
+        ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
+    target_link_libraries(test_timing_core PRIVATE timing_core)
+    target_include_directories(test_timing_core PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc)
+    add_test(NAME test_timing_core COMMAND test_timing_core)
+
+    add_executable(bench_timing_core
+        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
+    target_link_libraries(bench_timing_core PRIVATE timing_core)
+    target_include_directories(bench_timing_core PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
     add_library(wfm_sink_core OBJECT
         ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_sink.c)
     target_include_directories(wfm_sink_core PUBLIC
@@ -88,7 +143,7 @@ if(NOT WIN32)
     add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
-        wfm_compose_core wfm_writer_core wfm_sink_core wfm_cjson
+        wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
         synth_core lo_core awgn_core pn_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static

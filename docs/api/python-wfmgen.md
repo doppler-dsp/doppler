@@ -164,11 +164,49 @@ assert np.array_equal(Composer.from_json(j).compose(), iq)
 mls_poly(7)                              # 0x41 — the length-7 MLS polynomial
 ```
 
-`Writer` pairs with [`read_iq`](#read_iq); for SigMF, pair a
-`Writer(..., file_type="sigmf")` data file with `sigmf_meta(...)`, and for
-detached BLUE use `write_blue_header(...)`. The `ZmqSink` is POSIX-only. DSP
+`Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,
+auto-detecting the container (BLUE magic / `.sigmf-meta` sidecar / `.csv` / raw)
+and recovering `fs`/`fc`/sample type from BLUE and SigMF metadata. All parsing
+and conversion is in C:
+
+```python
+from doppler.wfmgen.compose import Composer, Writer, Reader
+
+Composer(type="qpsk", sps=8, num_samples=4096).compose()  # ... write it ...
+with Reader("capture.blue") as r:          # container auto-detected
+    print(r.file_type, r.fs, r.num_samples)
+    x = r.read_all()                        # or block-wise: r.read(4096)
+```
+
+For a quick raw-only read with no object, [`read_iq`](#read_iq) still works;
+`Reader` is the full container-aware dual. `Writer` pairs with `read_iq` or
+`Reader`; for SigMF, pair a `Writer(..., file_type="sigmf")` data file with
+`sigmf_meta(...)`, and for detached BLUE use `write_blue_header(...)`. The
+`ZmqSink` is POSIX-only. DSP
 helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
 pulse-shaping and spreading primitives.
+
+`SampleClock` (POSIX) paces and timestamps a stream against an ideal `fs`-Hz
+clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
+throttle a producer to real time and to tag blocks with their ideal timestamp:
+
+```python
+from doppler.wfmgen.compose import Composer, SampleClock, ZmqSink
+
+# Stream at the true 1 MS/s instead of as fast as possible.
+comp = Composer(type="qpsk", sps=8, continuous=True)
+clk = SampleClock(fs=1e6)
+with ZmqSink("tcp://0.0.0.0:5555") as sink:
+    while True:
+        blk = comp.execute(4096)
+        ts = clk.stamp()              # ideal ns timestamp of this block
+        sink.send(blk, fs=1e6, fc=0.0)
+        clk.pace(len(blk))            # sleep to epoch + n/fs (GIL released)
+```
+
+The schedule is drift-free (deadlines come from the cumulative sample count, not
+summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
+and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ### Classes
 
@@ -178,7 +216,11 @@ pulse-shaping and spreading primitives.
 
 ::: doppler.wfmgen.compose.Writer
 
+::: doppler.wfmgen.compose.Reader
+
 ::: doppler.wfmgen.compose.ZmqSink
+
+::: doppler.wfmgen.compose.SampleClock
 
 ### Module-level helpers
 

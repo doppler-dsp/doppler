@@ -19,6 +19,8 @@ import pytest
 from doppler.wfmgen import _wfmcompose as _c
 from doppler.wfmgen.compose import (
     Composer,
+    Reader,
+    SampleClock,
     Segment,
     Writer,
     ZmqSink,
@@ -38,6 +40,11 @@ _needs_cli = pytest.mark.skipif(
 _needs_zmq = pytest.mark.skipif(
     not hasattr(_c, "sink_open"),
     reason="ZmqSink not available on this platform",
+)
+# SampleClock is POSIX-only too (clock_gettime / nanosleep).
+_needs_clock = pytest.mark.skipif(
+    not hasattr(_c, "clock_create"),
+    reason="SampleClock not available on this platform",
 )
 
 
@@ -234,6 +241,190 @@ def test_write_blue_header_big_endian(tmp_path):
     assert struct.unpack_from(">d", h, 40)[0] == 100 * 4  # ci16 = 4 B/sample
     assert struct.unpack_from(">i", h, 48)[0] == 1000
     assert struct.unpack_from(">d", h, 264)[0] == pytest.approx(1 / 2e6)
+
+
+@_needs_clock
+def test_sampleclock_paces_to_rate():
+    """Pacing N samples at fs takes ~N/fs seconds, drift-free."""
+    clk = SampleClock(fs=1e5)  # 100 kS/s
+    t0 = time.perf_counter()
+    for _ in range(50):
+        clk.pace(2000)  # 50 * 2000 / 1e5 = 1.0 s
+    elapsed = time.perf_counter() - t0
+    assert 0.9 < elapsed < 1.4, f"paced run took {elapsed:.3f}s, expected ~1.0"
+    assert clk.samples == 100000
+    assert clk.underruns == 0
+
+
+@_needs_clock
+def test_sampleclock_stamp_is_exact():
+    """stamp() advances by exactly count/fs nanoseconds (pure arithmetic)."""
+    clk = SampleClock(fs=1e6)  # 1 sample = 1000 ns
+    s0 = clk.stamp()
+    clk.pace(1000)
+    assert clk.stamp() - s0 == 1_000_000  # 1000 samples @ 1 MS/s = 1 ms
+    assert isinstance(clk.stamp(), int)
+
+
+@_needs_clock
+def test_sampleclock_underrun_counted():
+    """An impossible rate makes every deadline past → counted underruns."""
+    clk = SampleClock(fs=1e12)  # 1 TS/s: nothing can keep up
+    for _ in range(5):
+        clk.pace(1000)
+    assert clk.underruns >= 1
+    assert clk.max_lateness > 0.0
+
+
+@_needs_clock
+def test_sampleclock_resync_reanchors():
+    """resync=True keeps the clock near 'now' instead of piling up lateness."""
+    clk = SampleClock(fs=1e12, resync=True)
+    for _ in range(5):
+        clk.pace(1000)
+    # With resync the epoch advances, so lateness stays bounded per block
+    # rather than growing; just assert it ran and counted without raising.
+    assert clk.samples == 5000
+
+
+@_needs_clock
+def test_sampleclock_reset():
+    clk = SampleClock(fs=1e12)
+    clk.pace(1000)
+    clk.reset()
+    assert clk.samples == 0
+    assert clk.underruns == 0
+
+
+@_needs_clock
+def test_sampleclock_releases_gil():
+    """pace() must release the GIL: a paced worker can't stall the main thread.
+
+    A worker paces ~0.5 s in one block while the main thread keeps counting;
+    if the GIL were held, the main thread would make no progress during the
+    sleep. We assert it kept running.
+    """
+    import threading
+
+    done = threading.Event()
+
+    def worker():
+        SampleClock(fs=1000.0).pace(500)  # 500/1000 = 0.5 s in C, GIL released
+        done.set()
+
+    t = threading.Thread(target=worker)
+    t.start()
+    ticks = 0
+    while not done.is_set():
+        ticks += 1
+        time.sleep(0.005)
+    t.join()
+    assert ticks > 10, f"main thread only ran {ticks}x — GIL not released?"
+
+
+@pytest.mark.parametrize(
+    "file_type,ext,stype,tol",
+    [
+        ("raw", "cf32", "cf32", 1e-6),
+        ("raw", "cf64", "cf64", 1e-9),
+        ("raw", "ci16", "ci16", 1e-3),
+        ("csv", "csv", "cf32", 1e-6),
+        ("csv", "csv", "ci16", 1e-3),
+        ("blue", "blue", "cf32", 1e-6),
+        ("blue", "blue", "ci16", 1e-3),
+    ],
+)
+def test_reader_roundtrips_each_container(
+    tmp_path, file_type, ext, stype, tol
+):
+    """Writer → Reader round-trips per container; auto-detection recovers it."""
+    x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
+    p = tmp_path / f"cap.{ext}"
+    with Writer(p, file_type=file_type, sample_type=stype, fs=1e6) as w:
+        w.write(x)
+    with Reader(p, sample_type=stype) as r:
+        assert r.file_type == file_type  # container auto-detected
+        assert r.sample_type == stype
+        y = r.read_all()
+    assert len(y) == len(x)
+    assert np.max(np.abs(y - x)) < tol
+
+
+def test_reader_blue_recovers_metadata(tmp_path):
+    """A BLUE capture self-describes: fs comes back from the HCB, no hint."""
+    x = Composer(type="qpsk", sps=8, num_samples=2048).compose()
+    p = tmp_path / "cap.blue"
+    with Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6) as w:
+        w.write(x)
+    # Open with the *wrong* default hint — BLUE metadata must override it.
+    with Reader(p) as r:
+        assert r.file_type == "blue"
+        assert r.sample_type == "ci16"  # recovered, not the cf32 default
+        assert r.fs == pytest.approx(2.4e6)
+        assert r.num_samples == 2048
+        y = r.read_all()
+    assert np.max(np.abs(y - x)) < 1e-3
+
+
+def test_reader_sigmf_pair(tmp_path):
+    """Reader auto-detects a SigMF .sigmf-data via its .sigmf-meta sidecar."""
+    spec = [Segment("tone", freq=1e5, num_samples=300)]
+    x = Composer(spec).compose()
+    data = tmp_path / "cap.sigmf-data"
+    with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
+        w.write(x)
+    (tmp_path / "cap.sigmf-meta").write_text(
+        sigmf_meta(sample_type="cf32", fs=1e6, segments=spec)
+    )
+    with Reader(data) as r:
+        assert r.file_type == "sigmf"
+        assert r.fs == pytest.approx(1e6)
+        assert np.allclose(r.read_all(), x)
+
+
+def test_reader_matches_read_iq_for_raw(tmp_path):
+    """Reader agrees with the existing read_iq helper on a raw capture."""
+    x = Composer(type="noise", snr=20, num_samples=4096, seed=5).compose()
+    p = tmp_path / "cap.ci32"
+    with Writer(p, sample_type="ci32", fs=1e6) as w:
+        w.write(x)
+    via_reader = Reader(str(p), sample_type="ci32").read_all()
+    via_read_iq = read_iq(str(p), "ci32")
+    # Both divide by the same full-scale; the C reader does it scalar, read_iq
+    # via the SIMD cvt converter, so they agree to float precision (not bitwise).
+    assert via_reader.shape == via_read_iq.shape
+    assert np.allclose(via_reader, via_read_iq, atol=1e-6)
+
+
+def test_reader_blocked_read_matches_read_all(tmp_path):
+    """Block-wise read() concatenates to the same array as read_all()."""
+    x = Composer(type="bpsk", sps=4, num_samples=3000, seed=2).compose()
+    p = tmp_path / "cap.cf32"
+    with Writer(p) as w:
+        w.write(x)
+    whole = Reader(str(p)).read_all()
+    r = Reader(str(p))
+    chunks, blk = [], r.read(256)
+    while len(blk):
+        chunks.append(blk)
+        blk = r.read(256)
+    r.close()
+    assert np.array_equal(np.concatenate(chunks), whole)
+
+
+def test_reader_idempotent_close(tmp_path):
+    p = tmp_path / "cap.cf32"
+    with Writer(p) as w:
+        w.write(Composer(type="tone", num_samples=64).compose())
+    r = Reader(str(p))
+    r.read_all()
+    r.close()
+    r.close()  # idempotent
+
+
+def test_reader_missing_file_raises(tmp_path):
+    with pytest.raises(OSError):
+        Reader(str(tmp_path / "does-not-exist.cf32"))
 
 
 def test_sigmf_meta_and_data_pair(tmp_path):

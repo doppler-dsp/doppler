@@ -19,12 +19,13 @@ if(WIN32)
     # No ZMQ sink on Windows (vendored zmq is POSIX-only); the binding #ifdefs
     # the sink_* functions out to match.
     target_link_libraries(_wfmcompose PRIVATE
-        wfm_compose_core wfm_writer_core wfm_dsp_core wfm_cjson
+        wfm_compose_core wfm_writer_core wfm_reader_core wfm_dsp_core wfm_cjson
         synth_core lo_core awgn_core pn_core
         m Python3::NumPy)
 else()
     target_link_libraries(_wfmcompose PRIVATE
-        wfm_compose_core wfm_writer_core wfm_sink_core wfm_dsp_core wfm_cjson
+        wfm_compose_core wfm_writer_core wfm_reader_core wfm_sink_core
+        timing_core wfm_dsp_core wfm_cjson
         synth_core lo_core awgn_core pn_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static

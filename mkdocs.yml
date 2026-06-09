@@ -163,6 +163,7 @@ nav:
   - Type System: types.md
   - Guides:
       - Waveform Generator (wavegen / wfmgen): guide/wfmgen.md
+      - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Quantization: design/QUANTIZATION.md

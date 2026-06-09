@@ -323,6 +323,113 @@ class Writer:
         self.close()
 
 
+class Reader:
+    """Read a capture back to ``complex64`` — the dual of :class:`Writer`.
+
+    The container is **auto-detected** from the file (BLUE ``"BLUE"`` magic, a
+    ``.sigmf-meta`` sidecar, the ``.csv`` extension, else raw), and
+    self-describing containers (BLUE, SigMF) recover the sample type, byte
+    order, sample rate and centre frequency from their metadata. Headerless raw
+    / CSV take the ``sample_type`` / ``endian`` hints. All detection, header
+    parsing and wire→unit conversion happen in C; this class is thin glue.
+
+    Parameters
+    ----------
+    path : str or PathLike
+        Capture to read. A BLUE ``.det`` or SigMF ``.sigmf-data`` data file
+        resolves its ``.hdr`` / ``.sigmf-meta`` sidecar automatically.
+    sample_type : {"cf32", "cf64", "ci32", "ci16", "ci8"}
+        Wire type for headerless raw / CSV (ignored once BLUE/SigMF metadata is
+        parsed).
+    endian : {"le", "be"}
+        Byte order for headerless raw.
+
+    Examples
+    --------
+    >>> import tempfile, os, numpy as np
+    >>> from doppler.wfmgen.compose import Composer, Writer, Reader
+    >>> x = Composer(type="tone", freq=1e5, num_samples=512).compose()
+    >>> p = os.path.join(tempfile.mkdtemp(), "cap.blue")
+    >>> with Writer(p, file_type="blue", fs=1e6) as w:
+    ...     _ = w.write(x)
+    >>> with Reader(p) as r:            # BLUE self-describes — no hints needed
+    ...     y = r.read_all()
+    ...     print(r.file_type, int(r.fs), bool(np.allclose(y, x)))
+    blue 1000000 True
+    """
+
+    def __init__(
+        self,
+        path: str | os.PathLike,
+        *,
+        sample_type: str = "cf32",
+        endian: str = "le",
+    ) -> None:
+        self._cap = _c.reader_open(
+            os.fspath(path),
+            _idx(sample_type, _STYPES, "sample_type"),
+            _idx(endian, _ENDIANS, "endian"),
+        )
+        # Metadata is fixed for the open capture; resolve it once.
+        self._info = _c.reader_info(self._cap)
+
+    @property
+    def file_type(self) -> str:
+        """Detected container: ``"raw"`` / ``"csv"`` / ``"blue"`` / ``"sigmf"``."""
+        return _FTYPES[self._info[0]]
+
+    @property
+    def sample_type(self) -> str:
+        """Resolved wire sample type."""
+        return _STYPES[self._info[1]]
+
+    @property
+    def endian(self) -> str:
+        """Resolved byte order."""
+        return _ENDIANS[self._info[2]]
+
+    @property
+    def fs(self) -> float:
+        """Sample rate (Hz); ``0.0`` if the container doesn't carry it."""
+        return self._info[3]
+
+    @property
+    def fc(self) -> float:
+        """Centre frequency (Hz); ``0.0`` if not recorded."""
+        return self._info[4]
+
+    @property
+    def num_samples(self) -> int:
+        """Total complex samples available; ``0`` if unknown (a stream)."""
+        return self._info[5]
+
+    def read(self, n: int) -> NDArray[np.complex64]:
+        """Read up to ``n`` samples; a shorter (or empty) array marks EOF."""
+        return _c.reader_read(self._cap, int(n))
+
+    def read_all(self, block: int = 65536) -> NDArray[np.complex64]:
+        """Drain the whole capture into one ``complex64`` array."""
+        chunks = []
+        while True:
+            blk = self.read(block)
+            if len(blk) == 0:
+                break
+            chunks.append(blk)
+        if not chunks:
+            return np.empty(0, dtype=np.complex64)
+        return np.concatenate(chunks)
+
+    def close(self) -> None:
+        """Close the file (idempotent)."""
+        _c.reader_close(self._cap)
+
+    def __enter__(self) -> "Reader":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.close()
+
+
 class ZmqSink:
     """Publish ``complex64`` samples over a ZeroMQ PUB socket (POSIX only).
 
@@ -362,6 +469,99 @@ class ZmqSink:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+
+class SampleClock:
+    """Pace and timestamp a stream against an ideal ``fs``-Hz clock (POSIX).
+
+    A :class:`SampleClock` mimics a hardware sample clock in software. Off one
+    drift-free timeline anchored at construction it does two things:
+
+    - :meth:`pace` — sleep so each block leaves at its real-time deadline
+      ``epoch + n/fs``, throttling a producer (e.g. a :class:`Composer` feeding
+      a :class:`ZmqSink`) to real time.
+    - :meth:`stamp` — return the ideal UNIX-epoch-ns time of the next sample,
+      for reproducible capture metadata (SigMF ``core:datetime``, records).
+
+    The schedule is anchored, not incremental: every deadline is recomputed
+    from the cumulative sample count against a fixed epoch, so an over- or
+    under-sleep on one block is corrected on the next — the long-run rate is
+    exactly ``fs``, with only bounded per-block jitter. Software on a
+    non-realtime OS gives drift-free *average* rate, never true sample-clock
+    fidelity; keep blocks large enough (period ``N/fs`` ≫ scheduler jitter,
+    say ≥ 1 ms) and let the consumer's buffer absorb the jitter.
+
+    When the producer can't keep up — a block takes longer than its ``N/fs``
+    period — that's an *underrun*: :meth:`pace` doesn't sleep (it's already
+    behind), counts it (:attr:`underruns`, :attr:`max_lateness`), and, if
+    ``resync=True``, re-anchors the timeline to now instead of keeping the
+    (now unreachable) absolute schedule.
+
+    Parameters
+    ----------
+    fs : float
+        Sample rate (Hz). Must be > 0.
+    resync : bool, optional
+        Re-anchor the timeline to "now" on each underrun (default: keep the
+        absolute schedule and let the average rate self-heal if it catches up).
+
+    Examples
+    --------
+    >>> from doppler.wfmgen.compose import SampleClock
+    >>> clk = SampleClock(fs=1e6)
+    >>> slack = clk.pace(1000)        # advance 1000 samples (~1 ms) and wait
+    >>> clk.samples
+    1000
+    >>> isinstance(clk.stamp(), int)  # ideal ns timestamp of the next sample
+    True
+    """
+
+    def __init__(self, fs: float, *, resync: bool = False) -> None:
+        if not hasattr(_c, "clock_create"):
+            raise NotImplementedError(
+                "SampleClock is not available on this platform"
+            )
+        self._cap = _c.clock_create(float(fs), bool(resync))
+
+    def pace(self, count: int) -> float:
+        """Advance ``count`` samples and sleep to that block's deadline.
+
+        Returns the slack in seconds measured before sleeping: ``>= 0`` means
+        the block was early (and it slept that long); ``< 0`` means it arrived
+        late — an underrun (no sleep, counted).
+        """
+        return _c.clock_pace(self._cap, int(count))
+
+    def stamp(self) -> int:
+        """Ideal UNIX-epoch-ns timestamp of the next sample (index ``n``).
+
+        Call before :meth:`pace` to tag the block you're about to emit, or
+        after to tag the following one.
+        """
+        return _c.clock_stamp(self._cap)
+
+    def reset(self) -> None:
+        """Re-anchor to now and zero the counters — a fresh clock at ``n=0``."""
+        _c.clock_reset(self._cap)
+
+    def resync(self) -> None:
+        """Drop accumulated lateness; pace forward from now (keeps ``n``)."""
+        _c.clock_resync(self._cap)
+
+    @property
+    def samples(self) -> int:
+        """Cumulative samples advanced through :meth:`pace`."""
+        return _c.clock_stats(self._cap)[0]
+
+    @property
+    def underruns(self) -> int:
+        """Number of :meth:`pace` calls that arrived past their deadline."""
+        return _c.clock_stats(self._cap)[1]
+
+    @property
+    def max_lateness(self) -> float:
+        """Worst lateness observed (seconds); ``0.0`` if never behind."""
+        return _c.clock_stats(self._cap)[2] / 1e9
 
 
 # ── module-level helpers ─────────────────────────────────────────────────────

@@ -22,8 +22,10 @@
 #include "synth/synth_core.h" /* synth_mls_poly */
 #include "wfmgen/wfm_compose.h"
 #include "wfmgen/wfm_dsp.h"
+#include "wfmgen/wfm_reader.h"
 #include "wfmgen/wfm_writer.h"
 #ifndef _WIN32
+#include "timing/timing_core.h"
 #include "wfmgen/wfm_sink.h"
 #endif
 
@@ -468,6 +470,150 @@ _fn_sigmf_meta_json (PyObject *mod, PyObject *args)
   return s;
 }
 
+/* ─────────────────────────── reader capsule ───────────────────────────────
+ *
+ * Wraps wfm_reader_t — the dual of the writer. Container detection, header
+ * parsing and the wire→unit conversion all live in C; this is pure binding.
+ */
+
+static const char _READER_CAPS[] = "doppler.wfmgen.compose.reader";
+
+typedef struct
+{
+  wfm_reader_t *reader;
+  int           closed;
+} _reader_wrap_t;
+
+static void
+_reader_destructor (PyObject *cap)
+{
+  _reader_wrap_t *p
+      = (_reader_wrap_t *)PyCapsule_GetPointer (cap, _READER_CAPS);
+  if (!p)
+    return;
+  if (!p->closed)
+    wfm_reader_close (p->reader);
+  free (p);
+}
+
+static PyObject *
+_fn_reader_open (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  const char *path;
+  int         hint_stype, hint_endian;
+  if (!PyArg_ParseTuple (args, "sii", &path, &hint_stype, &hint_endian))
+    return NULL;
+  wfm_reader_t *r = wfm_reader_open (path, hint_stype, hint_endian);
+  if (!r)
+    {
+      PyErr_Format (PyExc_OSError, "cannot open capture %s", path);
+      return NULL;
+    }
+  _reader_wrap_t *p = (_reader_wrap_t *)malloc (sizeof *p);
+  if (!p)
+    {
+      wfm_reader_close (r);
+      return PyErr_NoMemory ();
+    }
+  p->reader     = r;
+  p->closed     = 0;
+  PyObject *cap = PyCapsule_New (p, _READER_CAPS, _reader_destructor);
+  if (!cap)
+    {
+      wfm_reader_close (r);
+      free (p);
+      return NULL;
+    }
+  return cap;
+}
+
+static _reader_wrap_t *
+_reader_get (PyObject *cap)
+{
+  _reader_wrap_t *p
+      = (_reader_wrap_t *)PyCapsule_GetPointer (cap, _READER_CAPS);
+  if (!p)
+    return NULL;
+  if (p->closed)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "reader already closed");
+      return NULL;
+    }
+  return p;
+}
+
+static PyObject *
+_fn_reader_info (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  _reader_wrap_t *p = _reader_get (cap);
+  if (!p)
+    return NULL;
+  wfm_reader_info_t info;
+  wfm_reader_info (p->reader, &info);
+  return Py_BuildValue ("iiiddK", info.file_type, info.sample_type,
+                        info.endian, info.fs, info.fc,
+                        (unsigned long long)info.num_samples);
+}
+
+static PyObject *
+_fn_reader_read (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject  *cap;
+  Py_ssize_t max;
+  if (!PyArg_ParseTuple (args, "On", &cap, &max))
+    return NULL;
+  _reader_wrap_t *p = _reader_get (cap);
+  if (!p)
+    return NULL;
+  if (max < 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "max must be >= 0");
+      return NULL;
+    }
+  npy_intp  dims[] = { max };
+  PyObject *arr    = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
+  if (!arr)
+    return NULL;
+  float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
+  size_t          n;
+  Py_BEGIN_ALLOW_THREADS
+    n = wfm_reader_read (p->reader, out, (size_t)max);
+  Py_END_ALLOW_THREADS
+
+  PyObject *stop  = PyLong_FromSsize_t ((Py_ssize_t)n);
+  PyObject *slice = stop ? PySlice_New (NULL, stop, NULL) : NULL;
+  Py_XDECREF (stop);
+  PyObject *view = slice ? PyObject_GetItem (arr, slice) : NULL;
+  Py_XDECREF (slice);
+  Py_DECREF (arr);
+  return view;
+}
+
+static PyObject *
+_fn_reader_close (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  _reader_wrap_t *p
+      = (_reader_wrap_t *)PyCapsule_GetPointer (cap, _READER_CAPS);
+  if (!p)
+    return NULL;
+  if (!p->closed)
+    {
+      wfm_reader_close (p->reader);
+      p->closed = 1;
+    }
+  Py_RETURN_NONE;
+}
+
 /* ───────────────────────── ZMQ sink capsule (POSIX) ───────────────────────
  */
 
@@ -574,6 +720,127 @@ _fn_sink_close (PyObject *mod, PyObject *args)
       p->closed = 1;
     }
   Py_RETURN_NONE;
+}
+
+/* ─────────────────────── sample-clock capsule (POSIX) ─────────────────────
+ *
+ * Wraps dp_sample_clock_t. clock_pace releases the GIL around the sleep so a
+ * paced producer thread does not stall the interpreter.
+ */
+
+static const char _CLOCK_CAPS[] = "doppler.wfmgen.compose.clock";
+
+static void
+_clock_destructor (PyObject *cap)
+{
+  void *p = PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  free (p);
+}
+
+static PyObject *
+_fn_clock_create (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  double fs;
+  int    resync;
+  if (!PyArg_ParseTuple (args, "dp", &fs, &resync))
+    return NULL;
+  if (!(fs > 0.0))
+    {
+      PyErr_SetString (PyExc_ValueError, "fs must be > 0");
+      return NULL;
+    }
+  dp_sample_clock_t *c = (dp_sample_clock_t *)malloc (sizeof *c);
+  if (!c)
+    return PyErr_NoMemory ();
+  dp_sample_clock_init (c, fs, resync);
+  PyObject *cap = PyCapsule_New (c, _CLOCK_CAPS, _clock_destructor);
+  if (!cap)
+    {
+      free (c);
+      return NULL;
+    }
+  return cap;
+}
+
+static PyObject *
+_fn_clock_pace (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject          *cap;
+  unsigned long long count;
+  if (!PyArg_ParseTuple (args, "OK", &cap, &count))
+    return NULL;
+  dp_sample_clock_t *c
+      = (dp_sample_clock_t *)PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  if (!c)
+    return NULL;
+  double slack;
+  Py_BEGIN_ALLOW_THREADS
+    slack = dp_sample_clock_pace (c, (size_t)count);
+  Py_END_ALLOW_THREADS
+  return PyFloat_FromDouble (slack);
+}
+
+static PyObject *
+_fn_clock_stamp (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  dp_sample_clock_t *c
+      = (dp_sample_clock_t *)PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  if (!c)
+    return NULL;
+  return PyLong_FromUnsignedLongLong (dp_sample_clock_stamp (c));
+}
+
+static PyObject *
+_fn_clock_reset (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  dp_sample_clock_t *c
+      = (dp_sample_clock_t *)PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  if (!c)
+    return NULL;
+  dp_sample_clock_reset (c);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+_fn_clock_resync (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  dp_sample_clock_t *c
+      = (dp_sample_clock_t *)PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  if (!c)
+    return NULL;
+  dp_sample_clock_resync (c);
+  Py_RETURN_NONE;
+}
+
+/* (n, underruns, max_late_ns) — backs the Python read-only properties. */
+static PyObject *
+_fn_clock_stats (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  dp_sample_clock_t *c
+      = (dp_sample_clock_t *)PyCapsule_GetPointer (cap, _CLOCK_CAPS);
+  if (!c)
+    return NULL;
+  return Py_BuildValue ("KKK", (unsigned long long)c->n,
+                        (unsigned long long)c->underruns,
+                        (unsigned long long)c->max_late_ns);
 }
 #endif /* !_WIN32 */
 
@@ -689,12 +956,32 @@ static PyMethodDef _methods[] = {
     " detached) -> None" },
   { "sigmf_meta_json", _fn_sigmf_meta_json, METH_VARARGS,
     "sigmf_meta_json(sample_type, endian, fs, fc, segments) -> str" },
+  { "reader_open", _fn_reader_open, METH_VARARGS,
+    "reader_open(path, hint_sample_type, hint_endian) -> capsule" },
+  { "reader_info", _fn_reader_info, METH_VARARGS,
+    "reader_info(state) -> (file_type, sample_type, endian, fs, fc, num)" },
+  { "reader_read", _fn_reader_read, METH_VARARGS,
+    "reader_read(state, max) -> ndarray[complex64]" },
+  { "reader_close", _fn_reader_close, METH_VARARGS,
+    "reader_close(state) -> None" },
 #ifndef _WIN32
   { "sink_open", _fn_sink_open, METH_VARARGS,
     "sink_open(endpoint, sample_type) -> capsule" },
   { "sink_send", _fn_sink_send, METH_VARARGS,
     "sink_send(state, iq, fs, fc) -> None" },
   { "sink_close", _fn_sink_close, METH_VARARGS, "sink_close(state) -> None" },
+  { "clock_create", _fn_clock_create, METH_VARARGS,
+    "clock_create(fs, resync) -> capsule" },
+  { "clock_pace", _fn_clock_pace, METH_VARARGS,
+    "clock_pace(state, count) -> float slack_s" },
+  { "clock_stamp", _fn_clock_stamp, METH_VARARGS,
+    "clock_stamp(state) -> int ns" },
+  { "clock_reset", _fn_clock_reset, METH_VARARGS,
+    "clock_reset(state) -> None" },
+  { "clock_resync", _fn_clock_resync, METH_VARARGS,
+    "clock_resync(state) -> None" },
+  { "clock_stats", _fn_clock_stats, METH_VARARGS,
+    "clock_stats(state) -> (n, underruns, max_late_ns)" },
 #endif
   { "rrc_taps", _fn_rrc_taps, METH_VARARGS,
     "rrc_taps(beta, sps, span) -> ndarray[float32]" },

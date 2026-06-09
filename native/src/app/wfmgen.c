@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "timing/timing_core.h"
 #include "wfmgen/wfm_compose.h"
 #include "wfmgen/wfm_sink.h"
 #include "wfmgen/wfm_writer.h"
@@ -52,8 +53,8 @@ static const char USAGE[]
       "  [--count N] [--off N] [--repeat] [--continuous]\n"
       "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type "
       "raw|csv|blue|sigmf]\n"
-      "  [--endian le|be] [--detached] [--output FILE|zmq://EP] [--record "
-      "FILE]\n";
+      "  [--endian le|be] [--detached] [--realtime] [--realtime-resync]\n"
+      "  [--output FILE|zmq://EP] [--record FILE]\n";
 
 int
 main (int argc, char *argv[])
@@ -71,6 +72,7 @@ main (int argc, char *argv[])
                            .num_samples = 1024,
                            .off_samples = 0 };
   int           repeat = 0, continuous = 0, detached = 0;
+  int           realtime = 0, realtime_resync = 0;
   int           sample_type = 0, file_type = 0, endian = 0;
   double        fc        = 0.0;
   const char   *from_file = NULL, *out_path = NULL, *record_path = NULL;
@@ -179,6 +181,15 @@ main (int argc, char *argv[])
         {
           detached = 1;
         }
+      else if (!strcmp (a, "--realtime"))
+        {
+          realtime = 1;
+        }
+      else if (!strcmp (a, "--realtime-resync"))
+        {
+          realtime        = 1;
+          realtime_resync = 1;
+        }
       else if (!strcmp (a, "--output") || !strcmp (a, "-o"))
         {
           out_path = NEXT ();
@@ -226,6 +237,12 @@ main (int argc, char *argv[])
         }
     }
 
+  /* Real-time pacing: throttle the emit loop to fs, mimicking a sample clock
+     driving the output. Anchored once here so the schedule is drift-free. */
+  dp_sample_clock_t clk;
+  if (realtime)
+    dp_sample_clock_init (&clk, fs, realtime_resync);
+
   int           rc = 0;
   float complex buf[BLK];
   size_t        n;
@@ -244,6 +261,8 @@ main (int argc, char *argv[])
           while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
             {
               wfm_zmq_sink_send (sink, buf, n, fs, fc);
+              if (realtime)
+                dp_sample_clock_pace (&clk, n);
               if (n < BLK)
                 break;
             }
@@ -346,6 +365,8 @@ main (int argc, char *argv[])
           while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
             {
               wfm_writer_write (w, buf, n);
+              if (realtime)
+                dp_sample_clock_pace (&clk, n);
               if (n < BLK)
                 break;
             }
@@ -373,6 +394,11 @@ main (int argc, char *argv[])
             }
         }
     }
+
+  if (realtime && clk.underruns)
+    fprintf (stderr,
+             "wfmgen: %llu underrun(s) — worst %.3f ms behind real time\n",
+             (unsigned long long)clk.underruns, (double)clk.max_late_ns / 1e6);
 
   wfm_compose_destroy (comp);
   return rc;

@@ -168,6 +168,63 @@ class Writer:
     def __enter__(self) -> Writer: ...
     def __exit__(self, *exc: object) -> None: ...
 
+class Reader:
+    """Read a capture back to ``complex64`` — the dual of :class:`Writer`.
+
+    Auto-detects the container (BLUE magic / ``.sigmf-meta`` sidecar / ``.csv`` /
+    raw); BLUE and SigMF recover sample type, byte order, ``fs`` and ``fc`` from
+    metadata, while raw / CSV use the ``sample_type`` / ``endian`` hints. All
+    parsing and conversion is in C.
+
+    Examples
+    --------
+    >>> import tempfile, os, numpy as np
+    >>> from doppler.wfmgen.compose import Composer, Writer, Reader
+    >>> x = Composer(type="tone", freq=1e5, num_samples=512).compose()
+    >>> p = os.path.join(tempfile.mkdtemp(), "cap.blue")
+    >>> with Writer(p, file_type="blue", fs=1e6) as w:
+    ...     _ = w.write(x)
+    >>> with Reader(p) as r:
+    ...     y = r.read_all()
+    ...     print(r.file_type, int(r.fs), bool(np.allclose(y, x)))
+    blue 1000000 True
+
+    """
+
+    def __init__(
+        self,
+        path: str | os.PathLike,
+        *,
+        sample_type: str = ...,
+        endian: str = ...,
+    ) -> None: ...
+    @property
+    def file_type(self) -> str: ...
+    @property
+    def sample_type(self) -> str: ...
+    @property
+    def endian(self) -> str: ...
+    @property
+    def fs(self) -> float: ...
+    @property
+    def fc(self) -> float: ...
+    @property
+    def num_samples(self) -> int: ...
+    def read(self, n: int) -> NDArray[np.complex64]:
+        """Read up to ``n`` samples; a short/empty array marks EOF."""
+        ...
+
+    def read_all(self, block: int = ...) -> NDArray[np.complex64]:
+        """Drain the whole capture into one ``complex64`` array."""
+        ...
+
+    def close(self) -> None:
+        """Close the file (idempotent)."""
+        ...
+
+    def __enter__(self) -> Reader: ...
+    def __exit__(self, *exc: object) -> None: ...
+
 class ZmqSink:
     """Publish ``complex64`` samples over a ZeroMQ PUB socket (POSIX only).
 
@@ -189,6 +246,53 @@ class ZmqSink:
 
     def __enter__(self) -> ZmqSink: ...
     def __exit__(self, *exc: object) -> None: ...
+
+class SampleClock:
+    """Pace and timestamp a stream against an ideal ``fs``-Hz clock (POSIX).
+
+    :meth:`pace` sleeps so each block leaves at ``epoch + n/fs`` (throttling a
+    producer to real time); :meth:`stamp` returns the ideal UNIX-epoch-ns time
+    of the next sample. One drift-free timeline: deadlines are recomputed from
+    the cumulative sample count, so jitter never accumulates into drift.
+    Underruns (producer can't keep up) are counted; ``resync=True`` re-anchors
+    to now instead of keeping the unreachable schedule. Raises
+    ``NotImplementedError`` off POSIX (Windows).
+
+    Examples
+    --------
+    >>> from doppler.wfmgen.compose import SampleClock
+    >>> clk = SampleClock(fs=1e6)
+    >>> _ = clk.pace(1000)            # advance 1000 samples (~1 ms) and wait
+    >>> clk.samples
+    1000
+    >>> isinstance(clk.stamp(), int)
+    True
+
+    """
+
+    def __init__(self, fs: float, *, resync: bool = ...) -> None: ...
+    def pace(self, count: int) -> float:
+        """Advance ``count`` samples, sleep to the deadline; returns slack (s)."""
+        ...
+
+    def stamp(self) -> int:
+        """Ideal UNIX-epoch-ns timestamp of the next sample (index ``n``)."""
+        ...
+
+    def reset(self) -> None:
+        """Re-anchor to now and zero the counters (fresh clock at n=0)."""
+        ...
+
+    def resync(self) -> None:
+        """Drop accumulated lateness; pace forward from now (keeps ``n``)."""
+        ...
+
+    @property
+    def samples(self) -> int: ...
+    @property
+    def underruns(self) -> int: ...
+    @property
+    def max_lateness(self) -> float: ...
 
 def sigmf_meta(
     *,

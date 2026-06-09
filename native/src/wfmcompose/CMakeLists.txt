@@ -88,6 +88,16 @@ if(NOT WIN32)
     target_include_directories(timing_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc)
 
+    # Expose the sample clock in libdoppler (.so + .a) for downstream C — the
+    # header already ships via the native/inc install. doppler_lib /
+    # doppler_lib_static are defined in the root CMakeLists before this
+    # add_subdirectory, so referencing their object sets here is safe and keeps
+    # the change out of the jm-managed Components block. (The other wfmcompose
+    # cores stay app/binding-only by design; timing_core is the one general-
+    # purpose primitive worth shipping.) POSIX-only, like timing_core itself.
+    target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)
+    target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:timing_core>)
+
     add_executable(test_timing_core
         ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
     target_link_libraries(test_timing_core PRIVATE timing_core)

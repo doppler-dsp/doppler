@@ -1,5 +1,13 @@
 [build-system]
-requires = ["just-buildit", "numpy"]
+# NumPy caps track its own Python floor (2.1 dropped 3.9, 2.3 dropped 3.10), so
+# the cp39 wheel builds against numpy 2.0.x — its stable 2.x ABI means the wheel
+# still runs against newer numpy at import time.
+requires = [
+    "just-buildit",
+    "numpy; python_version >= '3.11'",
+    "numpy<2.3; python_version == '3.10'",
+    "numpy<2.1; python_version == '3.9'",
+]
 build-backend = "just_buildit"
 
 [project]
@@ -7,7 +15,7 @@ name = "doppler-dsp"
 version = "0.9.0"
 description = "Dead-simple, ultra-fast digital signal processing."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
     { name = "doppler contributors" },
@@ -20,6 +28,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: C",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -28,7 +39,11 @@ classifiers = [
     "Topic :: System :: Hardware :: Hardware Drivers",
 ]
 dependencies = [
-    "numpy",
+    # Runtime NumPy floor follows its own Python support window (2.1 dropped
+    # 3.9, 2.3 dropped 3.10); 3.9 users get numpy 2.0.x.
+    "numpy; python_version >= '3.11'",
+    "numpy<2.3; python_version == '3.10'",
+    "numpy<2.1; python_version == '3.9'",
 ]
 
 [project.urls]
@@ -68,10 +83,15 @@ testpaths = ["src"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.3",
+    "pytest>=9.0.3; python_version >= '3.10'",
+    "pytest<9; python_version == '3.9'",
     "pytest-benchmark>=5.2.3",
     "pytest-cov>=6.0",
-    "scipy>=1.17.1",
+    # scipy / matplotlib follow their own Python floors (used only for tests,
+    # benchmarks and the gallery — not shipped to end users).
+    "scipy>=1.17.1; python_version >= '3.11'",
+    "scipy<1.16; python_version == '3.10'",
+    "scipy<1.14; python_version == '3.9'",
     "mkdocs-material>=9.5",
     "mkdocs-glightbox>=0.4",
     "mkdocstrings[python]>=0.29",
@@ -79,7 +99,8 @@ dev = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "rich>=13.0",
-    "matplotlib>=3.10.9",
+    "matplotlib>=3.10.9; python_version >= '3.10'",
+    "matplotlib<3.10; python_version == '3.9'",
 ]
 
 [tool.ruff]

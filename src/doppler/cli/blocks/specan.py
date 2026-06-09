@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from doppler.cli.blocks import Block, BlockConfig, register
 
@@ -10,9 +10,13 @@ from doppler.cli.blocks import Block, BlockConfig, register
 class SpecanConfig(BlockConfig):
     mode: Literal["terminal", "web"] = "web"
     center: float = 0.0
-    span: float | None = None
-    rbw: float | None = None
-    level: float | None = None
+    # `Optional[...]`, not `float | None`: pydantic force-evaluates field
+    # annotations via get_type_hints at class-definition time, and PEP-604
+    # `|` unions are not evaluatable on Python 3.9. `from __future__ import
+    # annotations` does not help here — pydantic resolves the strings.
+    span: Optional[float] = None
+    rbw: Optional[float] = None
+    level: Optional[float] = None
     web_port: int = 8080
     web_host: str = "127.0.0.1"
 

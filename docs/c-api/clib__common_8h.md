@@ -85,6 +85,9 @@
 | Type | Name |
 | ---: | :--- |
 | define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
+| define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-2)`<br> |
+| define  | [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory)  `(-1)`<br> |
+| define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
 ## Macro Definition Documentation
 
@@ -104,6 +107,57 @@
 
 
 [**clib\_common.h**](clib__common_8h.md) — common C99 types and performance macros for doppler. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_INVALID 
+
+```C++
+#define DP_ERR_INVALID `(-2)`
+```
+
+
+
+Invalid argument. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_MEMORY 
+
+```C++
+#define DP_ERR_MEMORY `(-1)`
+```
+
+
+
+Memory allocation failure. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_OK 
+
+```C++
+#define DP_OK `0`
+```
+
+
+
+Success. 
 
 
         

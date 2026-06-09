@@ -60,14 +60,14 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**agc\_state\_t**](structagc__state__t.md) \* | [**agc\_create**](#function-agc_create) (double ref\_db, double loop\_bw, double alpha) <br>_Create an AGC instance._  |
-|  void | [**agc\_destroy**](#function-agc_destroy) ([**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Destroy an AGC instance and release all memory._  |
+|  [**agc\_state\_t**](structagc__state__t.md) \* | [**agc\_create**](#function-agc_create) (double ref\_db, double loop\_bw, double alpha) <br>_Construct a log-domain feedback AGC and return its heap state. The loop integrator starts at 0 dB (unity gain) and the power detector_ `p_avg` _is pre-seeded to_`10^` _(ref\_db/10) linear, so the first block of on-target samples produces no transient. Three parameters tune the closed-loop behaviour:_`ref_db` _sets the target,_`loop_bw` _sets the convergence speed, and_`alpha` _sets the detector smoothing._ |
+|  void | [**agc\_destroy**](#function-agc_destroy) ([**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Destroy an AGC instance and release all memory. Frees the heap-allocated_ `agc_state_t` _. Safe to call with_`NULL` _. After this call the pointer is invalid; set it to_`NULL` _. The Python binding calls this automatically when the object is garbage- collected or when used as a context manager (_`with` _AGC() as agc:)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_exp10\_**](#function-agc_exp10_) (double v) <br>_Fast 10^v approximation (~1e-3 relative)._  |
-|  double | [**agc\_get\_applied\_gain\_db**](#function-agc_get_applied_gain_db) (const [**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Gain actually applied to the most recent sample, in dB._  |
+|  double | [**agc\_get\_applied\_gain\_db**](#function-agc_get_applied_gain_db) (const [**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Return the gain (in dB) actually applied to the most recent sample. Computes_ `20*log10` _(g\_last), where_`g_last` _is the linear multiplier that was used on the most recently processed sample. This differs from_`gain_db` _(the loop integrator's current command) because the loop filter advances the command one step ahead after each sample: immediately after_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) __`gain_db` _already reflects the updated command while_`applied_gain_db` _still reflects what the signal actually saw. At loop convergence the two values are numerically equal. At create/reset both are 0.0 dB (unity)._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_log10\_**](#function-agc_log10_) (double p) <br>_Fast log10(p) approximation for p &gt; 0 (~1e-3 absolute)._  |
-|  void | [**agc\_reset**](#function-agc_reset) ([**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Reset the AGC to its post-create state._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**agc\_step**](#function-agc_step) ([**agc\_state\_t**](structagc__state__t.md) \* state, float complex x) <br>_Process one input sample (exact per-sample control loop)._  |
-|  void | [**agc\_steps**](#function-agc_steps) ([**agc\_state\_t**](structagc__state__t.md) \* state, const float complex \* input, float complex \* output, size\_t n) <br>_Process a block of samples (decimated control loop)._  |
+|  void | [**agc\_reset**](#function-agc_reset) ([**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**agc\_step**](#function-agc_step) ([**agc\_state\_t**](structagc__state__t.md) \* state, float complex x) <br>_Process one complex sample through the exact per-sample AGC loop. Applies the current_ `gain_db` _, measures the output power via the EMA detector, advances the loop-filter integrator by one step, then square-clips the returned sample to_`clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. This is the exact reference path;_[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _is the faster block equivalent and is not bit-identical but converges to the same steady state._ |
+|  void | [**agc\_steps**](#function-agc_steps) ([**agc\_state\_t**](structagc__state__t.md) \* state, const float complex \* input, float complex \* output, size\_t n) <br>_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) _. The output array may alias the input (in-place)._ |
 
 
 
@@ -198,7 +198,7 @@ agc_destroy(agc);
 
 ### function agc\_create 
 
-_Create an AGC instance._ 
+_Construct a log-domain feedback AGC and return its heap state. The loop integrator starts at 0 dB (unity gain) and the power detector_ `p_avg` _is pre-seeded to_`10^` _(ref\_db/10) linear, so the first block of on-target samples produces no transient. Three parameters tune the closed-loop behaviour:_`ref_db` _sets the target,_`loop_bw` _sets the convergence speed, and_`alpha` _sets the detector smoothing._
 ```C++
 agc_state_t * agc_create (
     double ref_db,
@@ -214,29 +214,26 @@ agc_state_t * agc_create (
 **Parameters:**
 
 
-* `ref_db` Target output power in dB (e.g. 0.0). 
-* `loop_bw` Loop noise bandwidth, normalised (cycles/sample); ~1/(4\*loop\_bw) samples to settle. Smaller is slower and smoother. 
-* `alpha` Power-detector EMA coefficient in (0, 1]. 
+* `ref_db` Target output power in dB (e.g. `0.0` for unity power). 
+* `loop_bw` Loop noise bandwidth in cycles/sample; the loop settles in roughly `1/`(4\*loop\_bw) samples. Smaller values are slower and smoother; keep well below `1/`(4\*decim) when using [**agc\_steps()**](agc__core_8h.md#function-agc_steps). 
+* `alpha` Power-detector EMA coefficient in (0, 1]; smaller values smooth harder but react slower to envelope changes. 
 
 
 
 **Returns:**
 
-Heap-allocated state, or NULL on allocation failure. 
-
-
-
-
-**Note:**
-
-`gain_db` starts at 0 dB (unity gain); `p_avg` is seeded with the reference power 10^(ref\_db/10) so the loop starts settled. 
-
-
-
-
-**Note:**
-
-Caller must call [**agc\_destroy()**](agc__core_8h.md#function-agc_destroy) when done. 
+Heap-allocated `agc_state_t`, or `NULL` on allocation failure. The caller must call [**agc\_destroy()**](agc__core_8h.md#function-agc_destroy) when done. 
+```C++
+>>> from doppler.agc import AGC
+>>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> agc.ref_db, agc.loop_bw, agc.alpha
+(0.0, 0.0025, 0.05)
+>>> agc.gain_db, agc.applied_gain_db
+(0.0, 0.0)
+>>> agc.decim, agc.clip_db
+(8, 120.0)
+```
+ 
 
 
 
@@ -250,7 +247,7 @@ Caller must call [**agc\_destroy()**](agc__core_8h.md#function-agc_destroy) when
 
 ### function agc\_destroy 
 
-_Destroy an AGC instance and release all memory._ 
+_Destroy an AGC instance and release all memory. Frees the heap-allocated_ `agc_state_t` _. Safe to call with_`NULL` _. After this call the pointer is invalid; set it to_`NULL` _. The Python binding calls this automatically when the object is garbage- collected or when used as a context manager (_`with` _AGC() as agc:)._
 ```C++
 void agc_destroy (
     agc_state_t * state
@@ -264,7 +261,17 @@ void agc_destroy (
 **Parameters:**
 
 
-* `state` May be NULL. 
+* `state` Pointer to the state to free; may be `NULL` (no-op). 
+```C++
+>>> from doppler.agc import AGC
+>>> agc = AGC()
+>>> agc.destroy()   # explicit release
+>>> with AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05) as agc2:
+...     y = agc2.step(1.0+0.0j)
+...     y
+(1+0j)
+```
+ 
 
 
 
@@ -297,7 +304,7 @@ Routes through 2^z = 2^floor(z) \* 2^frac with z = v\*log2(10): the integer part
 
 ### function agc\_get\_applied\_gain\_db 
 
-_Gain actually applied to the most recent sample, in dB._ 
+_Return the gain (in dB) actually applied to the most recent sample. Computes_ `20*log10` _(g\_last), where_`g_last` _is the linear multiplier that was used on the most recently processed sample. This differs from_`gain_db` _(the loop integrator's current command) because the loop filter advances the command one step ahead after each sample: immediately after_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) __`gain_db` _already reflects the updated command while_`applied_gain_db` _still reflects what the signal actually saw. At loop convergence the two values are numerically equal. At create/reset both are 0.0 dB (unity)._
 ```C++
 double agc_get_applied_gain_db (
     const agc_state_t * state
@@ -306,31 +313,23 @@ double agc_get_applied_gain_db (
 
 
 
-Returns `20*log10` of the internal linear gain `g_last` — the gain the signal last _saw_. This is distinct from `gain_db`, which is the gain the loop currently _commands_:
-
-
-
-* after [**agc\_step()**](agc__core_8h.md#function-agc_step) the two differ, because the loop filter has already advanced past the gain it just applied;
-* within an [**agc\_steps()**](agc__core_8h.md#function-agc_steps) block the applied gain is a first-order-hold ramp, and this returns the ramp's endpoint (the last sample's gain).
-
-
-
-
-Use it for telemetry when the AGC is a stage in a larger chain and a downstream consumer needs to know what gain was used, not what the loop last asked for.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
 
 
 **Returns:**
 
-Applied gain in dB; 0.0 dB (unity) at create / reset. 
+Applied gain in dB; 0.0 at create / reset. 
+```C++
+>>> from doppler.agc import AGC
+>>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> agc.applied_gain_db   # unity before any sample
+0.0
+>>> _ = agc.step(4.0+0.0j)
+>>> agc.applied_gain_db   # gain USED on that sample was still 0 dB
+0.0
+>>> round(agc.gain_db, 6)  # loop already advanced to new command
+-0.024276
+```
+ 
 
 
 
@@ -364,7 +363,7 @@ Splits p = m \* 2^e via the IEEE-754 fields, takes log2(m) from the atanh series
 
 ### function agc\_reset 
 
-_Reset the AGC to its post-create state._ 
+_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._
 ```C++
 void agc_reset (
     agc_state_t * state
@@ -373,12 +372,24 @@ void agc_reset (
 
 
 
-Zeroes `gain_db` and re-seeds `p_avg` from the current `ref_db`. Configuration (`ref_db`, `loop_bw`, `alpha`, `decim`, `clip_db`) is unchanged. 
+
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
+```C++
+>>> from doppler.agc import AGC
+>>> import numpy as np
+>>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> _ = agc.steps(np.full(1000, 4.0+0.0j, dtype=np.complex64))
+>>> round(agc.gain_db, 1)   # converged to -12 dB
+-12.0
+>>> agc.reset()
+>>> agc.gain_db, agc.applied_gain_db
+(0.0, 0.0)
+```
+ 
 
 
 
@@ -391,7 +402,7 @@ Zeroes `gain_db` and re-seeds `p_avg` from the current `ref_db`. Configuration (
 
 ### function agc\_step 
 
-_Process one input sample (exact per-sample control loop)._ 
+_Process one complex sample through the exact per-sample AGC loop. Applies the current_ `gain_db` _, measures the output power via the EMA detector, advances the loop-filter integrator by one step, then square-clips the returned sample to_`clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. This is the exact reference path;_[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _is the faster block equivalent and is not bit-identical but converges to the same steady state._
 ```C++
 JM_FORCEINLINE  JM_HOT float complex agc_step (
     agc_state_t * state,
@@ -401,22 +412,33 @@ JM_FORCEINLINE  JM_HOT float complex agc_step (
 
 
 
-Applies the current gain, updates the power detector from the gained output, advances the loop filter by one step, then square-clips the returned sample to `clip_db`. This is the exact reference path; [**agc\_steps()**](agc__core_8h.md#function-agc_steps) is the faster decimated equivalent.
-
-
 
 
 **Parameters:**
 
 
-* `state` Must be non-NULL; mutated (gain\_db, p\_avg). 
-* `x` Input sample (float complex). 
+* `state` Must be non-NULL. 
+* `x` Complex input sample. 
 
 
 
 **Returns:**
 
-Output sample = x \* 10^(gain\_db/20), square-clipped to `clip_db`. The clip does not feed the detector. 
+Gained, clipped output sample `x` \* 10^(gain\_db/20) with each component independently clamped to `+/-10^`(clip\_db/20). 
+```C++
+>>> from doppler.agc import AGC
+>>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> agc.step(1.0+0.0j)   # unity gain at start, 0 dB in = 0 dB out
+(1+0j)
+>>> agc.gain_db           # loop already advanced from 0 dB
+0.0
+>>> agc2 = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample passes at unity gain
+(4+0j)
+>>> round(agc2.gain_db, 6)  # loop starts driving gain negative
+-0.024276
+```
+ 
 
 
 
@@ -430,7 +452,7 @@ Output sample = x \* 10^(gain\_db/20), square-clipped to `clip_db`. The clip doe
 
 ### function agc\_steps 
 
-_Process a block of samples (decimated control loop)._ 
+_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) _. The output array may alias the input (in-place)._
 ```C++
 void agc_steps (
     agc_state_t * state,
@@ -442,18 +464,30 @@ void agc_steps (
 
 
 
-Processes `input` in chunks of `state->decim` samples. The gain the loop commands is linearly interpolated across each chunk (a first-order hold — no inter-chunk staircase), and the detector and loop filter run once per chunk on the chunk's mean power. Not bit-identical to a per-sample [**agc\_step()**](agc__core_8h.md#function-agc_step) loop — see the file header — but equivalent at convergence. Each output sample is then square-clipped to `clip_db`; the clip is applied after the power sum, so it does not feed the detector.
-
-
 
 
 **Parameters:**
 
 
-* `state` Component state (mutated). 
-* `input` Input array (length &gt;= n). 
-* `output` Output array (length &gt;= n; may alias input in-place). 
-* `n` Number of samples. 
+* `state` Must be non-NULL. 
+* `input` Input complex64 array of `n` samples. 
+* `output` Output buffer; must hold at least `n` elements. May alias `input` for in-place operation. 
+* `n` Number of samples to process. 
+```C++
+>>> from doppler.agc import AGC
+>>> import numpy as np
+>>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+>>> _ = agc.steps(np.full(1000, 4.0+0.0j, dtype=np.complex64))
+>>> round(agc.gain_db, 1)   # gain converged to -12 dB
+-12.0
+>>> x = np.full(8, 4.0+0.0j, dtype=np.complex64)
+>>> y = agc.steps(x)
+>>> y.shape, y.dtype
+((8,), dtype('complex64'))
+>>> [round(abs(v)**2, 2) for v in y.tolist()]  # output power ~1.0
+[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+```
+ 
 
 
 

@@ -21,14 +21,13 @@ extern "C"
 {
 #endif
 
-  JM_FORCEINLINE float complex
+  static JM_FORCEINLINE float complex
   square_clip (float complex y, float lin)
   {
     float r = fminf (fmaxf (crealf (y), -lin), lin);
     float i = fminf (fmaxf (cimagf (y), -lin), lin);
     return r + i * I;
   }
-
 #ifdef __cplusplus
 }
 #endif

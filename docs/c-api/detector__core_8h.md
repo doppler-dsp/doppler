@@ -64,10 +64,10 @@ _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, a
 
 | Type | Name |
 | ---: | :--- |
-|  [**detector\_state\_t**](structdetector__state__t.md) \* | [**detector\_create**](#function-detector_create) (const float complex \* ref, size\_t n, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Create a 1-D signal detector._  |
+|  [**detector\_state\_t**](structdetector__state__t.md) \* | [**detector\_create**](#function-detector_create) (const float complex \* ref, size\_t n, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**corr\_state\_t**_](structcorr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow2(max(n, 512)) complex samples._ |
 |  void | [**detector\_destroy**](#function-detector_destroy) ([**detector\_state\_t**](structdetector__state__t.md) \* state) <br>_Destroy and free a detector instance._  |
-|  size\_t | [**detector\_push**](#function-detector_push) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Push an arbitrary-length CF32 chunk through the detector._  |
-|  void | [**detector\_reset**](#function-detector_reset) ([**detector\_state\_t**](structdetector__state__t.md) \* state) <br>_Reset the correlator, ring buffer, and last-corr flag._  |
+|  size\_t | [**detector\_push**](#function-detector_push) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**det\_result\_t**](structdet__result__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the detector pipeline. Writes samples into the ring buffer, drains complete n-sample frames through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._  |
+|  void | [**detector\_reset**](#function-detector_reset) ([**detector\_state\_t**](structdetector__state__t.md) \* state) <br>_Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._  |
 |  void | [**detector\_set\_ref**](#function-detector_set_ref) ([**detector\_state\_t**](structdetector__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
 |  void | [**detector\_set\_threshold**](#function-detector_set_threshold) ([**detector\_state\_t**](structdetector__state__t.md) \* state, float threshold) <br>_Change the threshold without rebuilding the object._  |
 
@@ -163,7 +163,7 @@ enum det_noise_mode_t {
 
 ### function detector\_create 
 
-_Create a 1-D signal detector._ 
+_Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a_ [_**corr\_state\_t**_](structcorr__state__t.md) _with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed. After every int-dump the peak-to-noise test statistic is compared against_`threshold` _; a_[_**det\_result\_t**_](structdet__result__t.md) _is emitted when it passes. Setting_`threshold` _to 0.0 unconditionally fires on every dump. The ring capacity is next\_pow2(max(n, 512)) complex samples._
 ```C++
 detector_state_t * detector_create (
     const float complex * ref,
@@ -179,28 +179,35 @@ detector_state_t * detector_create (
 
 
 
-Allocates a [**corr\_state\_t**](structcorr__state__t.md), a dp\_f32\_t ring buffer of capacity next\_pow2(max(n, 512)), and all scratch buffers. The ring buffer satisfies the dp\_f32\_create() page-alignment constraint automatically.
-
-
 
 
 **Parameters:**
 
 
-* `ref` Reference signal, CF32, length `n`. May be freed after this call returns. 
-* `n` Frame / FFT length in complex samples. Must be &gt;= 1. 
-* `dwell` Int-dump depth. Must be &gt;= 1. 
-* `noise_lo` Lower noise bin (inclusive, 0 &lt;= noise\_lo &lt;= noise\_hi). 
-* `noise_hi` Upper noise bin (inclusive, noise\_hi &lt; n). 
-* `noise_mode` Aggregation mode for noise estimation. 
-* `threshold` Test-stat threshold. 0.0 = always emit a detection. 
-* `nthreads` Passed through to [**corr\_create()**](corr__core_8h.md#function-corr_create); currently ignored. 
+* `ref` Reference signal, CF32 ndarray of length n. 
+* `n` Reference / FFT length in complex samples. 
+* `dwell` Int-dump depth; must be &gt;= 1. 
+* `noise_lo` Lower noise bin index (inclusive, 0-based). 
+* `noise_hi` Upper noise bin index (inclusive, &lt; n). 
+* `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
+* `threshold` Test-stat gate; 0.0 = always emit. 
+* `nthreads` Accepted for API compatibility; ignored. 
 
 
 
 **Returns:**
 
 Heap-allocated state, or NULL on allocation failure. 
+```C++
+>>> from doppler.spectral import Detector
+>>> import numpy as np
+>>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+>>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+...                noise_mode="mean", threshold=0.0)
+>>> det.n, det.dwell, det.ring_cap
+(8, 1, 512)
+```
+ 
 
 
 
@@ -241,7 +248,7 @@ void detector_destroy (
 
 ### function detector\_push 
 
-_Push an arbitrary-length CF32 chunk through the detector._ 
+_Stream an arbitrary-length CF32 chunk through the detector pipeline. Writes samples into the ring buffer, drains complete n-sample frames through the correlator, and on every int-dump computes the test statistic peak\_mag / noise\_est. Detections that pass the threshold are appended to the Python return list as (lag, peak\_mag, noise\_est, test\_stat) tuples. In Python the result is always a list, even when empty._ 
 ```C++
 size_t detector_push (
     detector_state_t * state,
@@ -254,33 +261,36 @@ size_t detector_push (
 
 
 
-Writes `n_in` complex samples into the ring buffer in the minimum number of chunks that fit, then drains all complete n-sample frames through the correlator. On every int-dump a test statistic is computed; if it passes the threshold, a [**det\_result\_t**](structdet__result__t.md) is appended to `result`[]. The function returns as soon as `n_in` samples have been consumed or `max_results` detections have been stored, whichever comes first.
-
-
-The `result` array must be pre-allocated by the caller. A stack array of 64 elements is sufficient for any realistic push size: 
-```C++
-det_result_t buf[64];
-size_t n = detector_push(det, chunk, len, buf, 64);
-```
-
-
-
 
 
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `in` Input CF32 array of length `n_in`. 
-* `n_in` Number of complex samples to push. 
-* `result` Output array; caller allocates at least `max_results`. 
-* `max_results` Maximum detections to store; prevents unbounded output. 
+* `state` Allocated detector (non-NULL). 
+* `in` CF32 input chunk of arbitrary length. 
+* `n_in` Number of input samples in `in`. 
+* `result` Caller-supplied array of at least `max_results` [**det\_result\_t**](structdet__result__t.md) structs; filled on return. 
+* `max_results` Capacity of `result` (maximum detections to emit). 
 
 
 
 **Returns:**
 
-Number of detections stored in `result`[]. 
+Number of [**det\_result\_t**](structdet__result__t.md) entries written to `result`. 
+```C++
+>>> from doppler.spectral import Detector
+>>> import numpy as np
+>>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+>>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+...                noise_mode="mean", threshold=0.0)
+>>> results = det.push(np.ones(8, dtype=np.complex64))
+>>> len(results)
+1
+>>> lag, peak, noise, stat = results[0]
+>>> lag, round(peak, 4), round(noise, 4), round(stat, 4)
+(0, 1.0, 1.0, 1.0)
+```
+ 
 
 
 
@@ -294,7 +304,7 @@ Number of detections stored in `result`[].
 
 ### function detector\_reset 
 
-_Reset the correlator, ring buffer, and last-corr flag._ 
+_Reset the correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. Equivalent to starting fresh from the same reference without rebuilding any internal object._ 
 ```C++
 void detector_reset (
     detector_state_t * state
@@ -303,17 +313,19 @@ void detector_reset (
 
 
 
-Discards any partial frame buffered in the ring. Equivalent to starting fresh from the same reference.
 
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
+```C++
+>>> from doppler.spectral import Detector
+>>> import numpy as np
+>>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
+>>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+...                noise_mode="mean", threshold=0.0)
+>>> _ = det.push(np.ones(8, dtype=np.complex64))
+>>> det.reset()
+>>> det.count
+0
+```
+ 
 
 
         

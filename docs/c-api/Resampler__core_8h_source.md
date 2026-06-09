@@ -61,7 +61,9 @@ extern "C"
 
   double Resampler_get_rate (const Resampler_state_t *state);
   void Resampler_set_rate (Resampler_state_t *state, double rate);
+
   size_t Resampler_get_num_phases (const Resampler_state_t *state);
+
   size_t Resampler_get_num_taps (const Resampler_state_t *state);
 
 #ifdef __cplusplus

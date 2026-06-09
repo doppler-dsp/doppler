@@ -36,8 +36,10 @@ extern "C"
 
   double lo_get_norm_freq (const lo_state_t *state);
   void lo_set_norm_freq (lo_state_t *state, double norm_freq);
+
   uint32_t lo_get_phase (const lo_state_t *state);
   void lo_set_phase (lo_state_t *state, uint32_t phase);
+
   uint32_t lo_get_phase_inc (const lo_state_t *state);
 
   /* ---- Block generators ---- */

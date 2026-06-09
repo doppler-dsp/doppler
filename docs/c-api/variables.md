@@ -24,7 +24,23 @@
 
 ## r
 
+* **rc\_stage\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **Resampler\_state\_t** ([**Resampler\_core.h**](Resampler__core_8h.md))
+
+
+## w
+
+* **wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_reader\_t** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_zmq\_sink\_t** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_filetype\_t** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_t** ([**wfm\_writer.h**](wfm__writer_8h.md))
+
+
+## @
+
+* **@363037266276365067044042006330270222323345306043** ([**pn\_core.h**](pn__core_8h.md))
+* **@013030212227253331271157327264131156300177213217** ([**synth\_core.h**](synth__core_8h.md))
 
 
 

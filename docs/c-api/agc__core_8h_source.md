@@ -77,11 +77,11 @@ extern "C"
     double g_last;  /* last linear gain applied — ramp continuity      */
   } agc_state_t;
 
-  agc_state_t *agc_create (double ref_db, double loop_bw, double alpha);
+agc_state_t *agc_create(double ref_db, double loop_bw, double alpha);
 
-  void agc_destroy (agc_state_t *state);
+void agc_destroy(agc_state_t *state);
 
-  void agc_reset (agc_state_t *state);
+void agc_reset(agc_state_t *state);
 
   JM_FORCEINLINE JM_HOT float complex
   agc_step (agc_state_t *state, float complex x)
@@ -116,7 +116,7 @@ extern "C"
   void agc_steps (agc_state_t *state, const float complex *input,
                   float complex *output, size_t n);
 
-  double agc_get_applied_gain_db (const agc_state_t *state);
+double agc_get_applied_gain_db(const agc_state_t *state);
 
 #ifdef __cplusplus
 }

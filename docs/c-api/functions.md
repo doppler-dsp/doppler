@@ -29,6 +29,31 @@
 * **acc\_f32\_set\_acc** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
 * **acc\_f32\_step** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
 * **acc\_f32\_steps** ([**acc\_f32\_core.h**](acc__f32__core_8h.md))
+* **acc\_q15\_create** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_destroy** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_dump** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_get** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_get\_acc** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_madd** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_reset** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_set\_acc** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_step** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q15\_steps** ([**acc\_q15\_core.h**](acc__q15__core_8h.md))
+* **acc\_q8\_create** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_destroy** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_dump** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_get** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_get\_acc** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_madd** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_reset** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_set\_acc** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_step** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_q8\_steps** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **adc\_create** ([**adc\_core.h**](adc__core_8h.md))
+* **adc\_destroy** ([**adc\_core.h**](adc__core_8h.md))
+* **adc\_reset** ([**adc\_core.h**](adc__core_8h.md))
+* **adc\_step** ([**adc\_core.h**](adc__core_8h.md))
+* **adc\_steps** ([**adc\_core.h**](adc__core_8h.md))
 * **agc\_create** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_destroy** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_exp10\_** ([**agc\_core.h**](agc__core_8h.md))
@@ -37,6 +62,22 @@
 * **agc\_reset** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_step** ([**agc\_core.h**](agc__core_8h.md))
 * **agc\_steps** ([**agc\_core.h**](agc__core_8h.md))
+* **add\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **add\_q8** ([**arith\_core.h**](arith__core_8h.md))
+* **awgn** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_create** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_destroy** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_generate** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_generate\_max\_out** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_get\_amplitude** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_reseed** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_reset** ([**awgn\_core.h**](awgn__core_8h.md))
+* **awgn\_set\_amplitude** ([**awgn\_core.h**](awgn__core_8h.md))
+
+
+## b
+
+* **bpsk\_map** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
 
 
 ## c
@@ -64,12 +105,15 @@
 
 ## d
 
+* **dot\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **dot\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **dp\_\_buf\_alloc** ([**buffer.h**](buffer_8h.md))
 * **dp\_\_buf\_free** ([**buffer.h**](buffer_8h.md))
 * **dp\_\_page\_size** ([**buffer.h**](buffer_8h.md))
 * **ddc\_create** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_destroy** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_execute** ([**ddc\_core.h**](ddc__core_8h.md))
+* **ddc\_execute\_max\_out** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_get\_norm\_freq** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_get\_rate** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddc\_reset** ([**ddc\_core.h**](ddc__core_8h.md))
@@ -81,6 +125,7 @@
 * **ddcr\_get\_rate** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_reset** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_set\_norm\_freq** ([**ddc\_core.h**](ddc__core_8h.md))
+* **ddcr\_execute\_max\_out** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **delay\_create** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_destroy** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_ptr** ([**delay\_core.h**](delay__core_8h.md))
@@ -110,6 +155,14 @@
 * **detector2d\_reset** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **detector2d\_set\_ref** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **detector2d\_set\_threshold** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **dp\_mono\_ns** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_real\_ns** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_init** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_pace** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_reset** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_resync** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_stamp** ([**timing\_core.h**](timing__core_8h.md))
+* **dot\_q15\_scalar** ([**q15\_mac.h**](q15__mac_8h.md))
 
 
 ## f
@@ -129,6 +182,11 @@
 * **f32\_to\_i16u64\_reset** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
 * **f32\_to\_i16u64\_step** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
 * **f32\_to\_i16u64\_steps** ([**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md))
+* **f32\_to\_uq15\_create** ([**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md))
+* **f32\_to\_uq15\_destroy** ([**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md))
+* **f32\_to\_uq15\_reset** ([**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md))
+* **f32\_to\_uq15\_step** ([**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md))
+* **f32\_to\_uq15\_steps** ([**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md))
 * **fft\_create** ([**fft\_core.h**](fft__core_8h.md))
 * **fft\_destroy** ([**fft\_core.h**](fft__core_8h.md))
 * **fft\_execute\_cf32** ([**fft\_core.h**](fft__core_8h.md))
@@ -183,6 +241,13 @@
 * **hbdecim\_r2c\_get\_num\_taps** ([**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md))
 * **hbdecim\_r2c\_get\_rate** ([**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md))
 * **hbdecim\_r2c\_reset** ([**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md))
+* **hbdecim\_q15\_create** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_destroy** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_execute** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_execute\_max\_out** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_get\_num\_taps** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_get\_rate** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
+* **hbdecim\_q15\_reset** ([**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md))
 * **hann\_window** ([**spectral\_core.h**](spectral__core_8h.md))
 
 
@@ -203,6 +268,16 @@
 * **i16u64\_to\_f32\_reset** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
 * **i16u64\_to\_f32\_step** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
 * **i16u64\_to\_f32\_steps** ([**i16u64\_to\_f32\_core.h**](i16u64__to__f32__core_8h.md))
+* **i32\_to\_f32\_create** ([**i32\_to\_f32\_core.h**](i32__to__f32__core_8h.md))
+* **i32\_to\_f32\_destroy** ([**i32\_to\_f32\_core.h**](i32__to__f32__core_8h.md))
+* **i32\_to\_f32\_reset** ([**i32\_to\_f32\_core.h**](i32__to__f32__core_8h.md))
+* **i32\_to\_f32\_step** ([**i32\_to\_f32\_core.h**](i32__to__f32__core_8h.md))
+* **i32\_to\_f32\_steps** ([**i32\_to\_f32\_core.h**](i32__to__f32__core_8h.md))
+* **i8\_to\_f32\_create** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
+* **i8\_to\_f32\_destroy** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
+* **i8\_to\_f32\_reset** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
+* **i8\_to\_f32\_step** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
+* **i8\_to\_f32\_steps** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
 
 
 ## k
@@ -231,6 +306,8 @@
 
 ## m
 
+* **mul\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **mul\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **marcum\_q** ([**detection\_core.h**](detection__core_8h.md))
 * **magnitude\_db\_cf32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
@@ -256,8 +333,32 @@
 * **nco\_steps\_u32\_scaled\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
 
 
+## p
+
+* **pn\_create** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_destroy** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_generate** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_generate\_max\_out** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_reset** ([**pn\_core.h**](pn__core_8h.md))
+* **pn\_step** ([**pn\_core.h**](pn__core_8h.md))
+
+
+## q
+
+* **qpsk\_map** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
+
+
 ## r
 
+* **RateConverter\_convert** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_create** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_destroy** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_execute** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_execute\_max\_out** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_get\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_reset** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_set\_rate** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
+* **RateConverter\_stage\_label** ([**RateConverter\_core.h**](RateConverter__core_8h.md))
 * **Resampler\_create** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_create\_custom** ([**Resampler\_core.h**](Resampler__core_8h.md))
 * **Resampler\_destroy** ([**Resampler\_core.h**](Resampler__core_8h.md))
@@ -284,7 +385,70 @@
 
 ## s
 
+* **sat16** ([**arith\_core.h**](arith__core_8h.md))
+* **sat8** ([**arith\_core.h**](arith__core_8h.md))
+* **shl\_i64** ([**arith\_core.h**](arith__core_8h.md))
+* **shl\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **shl\_q8** ([**arith\_core.h**](arith__core_8h.md))
+* **shr\_i64** ([**arith\_core.h**](arith__core_8h.md))
+* **shr\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **shr\_q8** ([**arith\_core.h**](arith__core_8h.md))
+* **sub\_q15** ([**arith\_core.h**](arith__core_8h.md))
+* **sub\_q8** ([**arith\_core.h**](arith__core_8h.md))
+* **synth\_create** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_destroy** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_get\_cur\_im** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_get\_cur\_re** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_get\_nsps** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_get\_sym\_pos** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_get\_wtype** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_mls\_poly** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_reset** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_set\_cur\_im** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_set\_cur\_re** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_set\_nsps** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_set\_sym\_pos** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_set\_wtype** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_step** ([**synth\_core.h**](synth__core_8h.md))
+* **synth\_steps** ([**synth\_core.h**](synth__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
+
+
+## u
+
+* **uq15\_to\_f32\_create** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+* **uq15\_to\_f32\_destroy** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+* **uq15\_to\_f32\_reset** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+* **uq15\_to\_f32\_step** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+* **uq15\_to\_f32\_steps** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
+
+
+## w
+
+* **wfm\_compose\_create** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_execute** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_from\_file** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_from\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_compose\_segments** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_spec\_to\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_dsss\_spread** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
+* **wfm\_rrc\_ntaps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
+* **wfm\_rrc\_taps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
+* **wfm\_reader\_close** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_reader\_info** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_reader\_open** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_reader\_read** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_zmq\_sink\_close** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_zmq\_sink\_open** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_zmq\_sink\_send** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_blue\_write\_hcb** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_sigmf\_meta\_json** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_close** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_open** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_write** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_awgn\_amplitude** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
+* **wfm\_ebno\_to\_snr\_db** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
 
 
 ## _

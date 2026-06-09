@@ -64,10 +64,10 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-|  [**detector2d\_state\_t**](structdetector2d__state__t.md) \* | [**detector2d\_create**](#function-detector2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Create a 2-D signal detector._  |
+|  [**detector2d\_state\_t**](structdetector2d__state__t.md) \* | [**detector2d\_create**](#function-detector2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**detector\_create()**_](detector__core_8h.md#function-detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
 |  void | [**detector2d\_destroy**](#function-detector2d_destroy) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br>_Destroy and free._  |
-|  size\_t | [**detector2d\_push**](#function-detector2d_push) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Push an arbitrary-length CF32 chunk through the 2-D detector._  |
-|  void | [**detector2d\_reset**](#function-detector2d_reset) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br>_Reset correlator, ring buffer, and last-corr flag._  |
+|  size\_t | [**detector2d\_push**](#function-detector2d_push) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _except frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
+|  void | [**detector2d\_reset**](#function-detector2d_reset) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
 |  void | [**detector2d\_set\_ref**](#function-detector2d_set_ref) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference image and recompute conj(FFT2(ref))._  |
 |  void | [**detector2d\_set\_threshold**](#function-detector2d_set_threshold) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
 
@@ -157,7 +157,7 @@ enum det_noise_mode_t {
 
 ### function detector2d\_create 
 
-_Create a 2-D signal detector._ 
+_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**detector\_create()**_](detector__core_8h.md#function-detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._
 ```C++
 detector2d_state_t * detector2d_create (
     const float complex * ref,
@@ -179,21 +179,31 @@ detector2d_state_t * detector2d_create (
 **Parameters:**
 
 
-* `ref` Reference image, flat row-major CF32, length ny\*nx. 
-* `ny` Number of rows. 
-* `nx` Number of columns. 
-* `dwell` Int-dump depth. Must be &gt;= 1. 
-* `noise_lo` Lower flat-index noise bin (inclusive). 
+* `ref` 2-D reference image, (ny, nx) CF32 ndarray in Python. 
+* `ny` Number of rows in the reference and input frames. 
+* `nx` Number of columns in the reference and input frames. 
+* `dwell` Int-dump depth; must be &gt;= 1. 
+* `noise_lo` Lower flat-index noise bin (inclusive, 0-based). 
 * `noise_hi` Upper flat-index noise bin (inclusive, &lt; ny\*nx). 
-* `noise_mode` Noise aggregation mode. 
-* `threshold` 0.0 = always emit a detection. 
-* `nthreads` Passed to [**corr2d\_create()**](corr2d__core_8h.md#function-corr2d_create); currently ignored. 
+* `noise_mode` Noise aggregation: "mean", "median", "min", or "max". 
+* `threshold` Test-stat gate; 0.0 = always emit. 
+* `nthreads` Accepted for API compatibility; ignored. 
 
 
 
 **Returns:**
 
 Heap-allocated state, or NULL on allocation failure. 
+```C++
+>>> from doppler.spectral import Detector2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+...                  noise_mode="mean", threshold=0.0)
+>>> det.ny, det.nx, det.n, det.dwell
+(4, 4, 16, 1)
+```
+ 
 
 
 
@@ -234,7 +244,7 @@ void detector2d_destroy (
 
 ### function detector2d\_push 
 
-_Push an arbitrary-length CF32 chunk through the 2-D detector._ 
+_Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _except frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._
 ```C++
 size_t detector2d_push (
     detector2d_state_t * state,
@@ -247,25 +257,36 @@ size_t detector2d_push (
 
 
 
-Behaviour is identical to [**detector\_push()**](detector__core_8h.md#function-detector_push) except frames have length ny\*nx and results carry (row, col) instead of a single lag.
-
-
 
 
 **Parameters:**
 
 
-* `state` Must be non-NULL. 
-* `in` Input CF32 array of length `n_in`. 
-* `n_in` Number of complex samples to push. 
-* `result` Output array; caller allocates at least `max_results`. 
-* `max_results` Maximum detections to store. 
+* `state` Allocated 2-D detector (non-NULL). 
+* `in` CF32 input chunk of arbitrary length. 
+* `n_in` Number of input samples in `in`. 
+* `result` Caller-supplied array of at least `max_results` [**det\_result2d\_t**](structdet__result2d__t.md) structs; filled on return. 
+* `max_results` Capacity of `result` (maximum detections to emit). 
 
 
 
 **Returns:**
 
-Number of detections stored in `result`[]. 
+Number of [**det\_result2d\_t**](structdet__result2d__t.md) entries written to `result`. 
+```C++
+>>> from doppler.spectral import Detector2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+...                  noise_mode="mean", threshold=0.0)
+>>> results = det.push(np.ones((4, 4), dtype=np.complex64))
+>>> len(results)
+1
+>>> row, col, peak, noise, stat = results[0]
+>>> row, col, round(peak, 4), round(noise, 4), round(stat, 4)
+(0, 0, 1.0, 1.0, 1.0)
+```
+ 
 
 
 
@@ -279,7 +300,7 @@ Number of detections stored in `result`[].
 
 ### function detector2d\_reset 
 
-_Reset correlator, ring buffer, and last-corr flag._ 
+_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._ 
 ```C++
 void detector2d_reset (
     detector2d_state_t * state
@@ -289,13 +310,18 @@ void detector2d_reset (
 
 
 
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-
-
+```C++
+>>> from doppler.spectral import Detector2D
+>>> import numpy as np
+>>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
+>>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+...                  noise_mode="mean", threshold=0.0)
+>>> _ = det.push(np.ones((4, 4), dtype=np.complex64))
+>>> det.reset()
+>>> det.count
+0
+```
+ 
 
 
         

@@ -62,7 +62,7 @@ _int16-to-float converter with configurable inverse scale._ [More...](#detailed-
 |  void | [**i16\_to\_f32\_destroy**](#function-i16_to_f32_destroy) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state) <br>_Destroy a i16\_to\_f32 instance and release all memory._  |
 |  void | [**i16\_to\_f32\_reset**](#function-i16_to_f32_reset) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state) <br>_Reset i16\_to\_f32 to its post-create state._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float | [**i16\_to\_f32\_step**](#function-i16_to_f32_step) (const [**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, int16\_t x) <br>_Process one input sample._  |
-|  void | [**i16\_to\_f32\_steps**](#function-i16_to_f32_steps) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, const int16\_t \* input, float \* output, size\_t n) <br>_Process a block of samples._  |
+|  void | [**i16\_to\_f32\_steps**](#function-i16_to_f32_steps) ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md) \* state, const int16\_t \* input, float \* output, size\_t n) <br>_Process a block of int16 samples to float32._  |
 
 
 
@@ -94,20 +94,24 @@ _int16-to-float converter with configurable inverse scale._ [More...](#detailed-
 ## Detailed Description
 
 
-Multiplies the signed int16 sample by `1/scale`. The default scale of 32768.0 maps the full Q15 range `[-32768, 32767]` into `[-1.0, ~1.0)`, which is the inverse of F32ToI16 with its default scale.
-
-
-The inverse scale is pre-computed at construction time so the step path is a single multiply.
+Multiplies the signed int16 sample by `1/scale`. The default scale of 32768.0 maps the full Q15 range [-32768, 32767] to [-1.0, ~+1.0), making it the exact inverse of F32ToI16 at its default scale. The inverse scale is pre-computed at construction time so each step is a single multiply with no division on the hot path.
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
 
 
-Example: 
+
 ```C++
-i16_to_f32_state_t *obj = i16_to_f32_create(32768.0f);
-float y = i16_to_f32_step(obj, -32768);  // y == -1.0f
-i16_to_f32_destroy(obj);
+>>> from doppler.cvt import I16ToF32
+>>> import numpy as np
+>>> obj = I16ToF32(scale=32768.0)
+>>> float(obj.step(-32768))
+-1.0
+>>> float(obj.step(0))
+0.0
+>>> x = np.array([-32768, 0, 32767], dtype=np.int16)
+>>> [round(v, 6) for v in obj.steps(x).tolist()]
+[-1.0, 0.0, 0.999969]
 ```
  
 
@@ -129,12 +133,15 @@ i16_to_f32_state_t * i16_to_f32_create (
 
 
 
+Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply. Any non-zero finite float is a valid scale value.
+
+
 
 
 **Parameters:**
 
 
-* `scale` scale (default: 32768.0f). 
+* `scale` Denominator scale; 1/scale is applied to each sample (default: 32768.0f). Use 32768.0 to recover normalised [-1, +1] floats from a Q15 int16 stream. 
 
 
 
@@ -197,6 +204,9 @@ void i16_to_f32_reset (
 
 
 
+This converter has no accumulating state beyond the immutable `iscale` field, so reset is a no-op in practice; it exists for lifecycle symmetry.
+
+
 
 
 **Parameters:**
@@ -225,19 +235,22 @@ JM_FORCEINLINE  JM_HOT float i16_to_f32_step (
 
 
 
+Returns ``(float)x \* iscale. No saturation or clipping possible — the int16 range maps cleanly to float32.
+
+
 
 
 **Parameters:**
 
 
 * `state` Must be non-NULL. 
-* `x` Input sample (int16\_t). 
+* `x` Signed int16 input sample. 
 
 
 
 **Returns:**
 
-Output sample (float). 
+Scaled float output. 
 
 
 
@@ -251,7 +264,7 @@ Output sample (float).
 
 ### function i16\_to\_f32\_steps 
 
-_Process a block of samples._ 
+_Process a block of int16 samples to float32._ 
 ```C++
 void i16_to_f32_steps (
     i16_to_f32_state_t * state,
@@ -263,15 +276,18 @@ void i16_to_f32_steps (
 
 
 
+Applies step() to every element. Accepts an optional pre-allocated output array; allocates a fresh one when `output` is NULL.
+
+
 
 
 **Parameters:**
 
 
-* `state` Component state (mutated). 
-* `input` Input array (length &gt;= n). 
-* `output` Output array (length &gt;= n; may alias input for in-place). 
-* `n` Number of samples. 
+* `state` Must be non-NULL. 
+* `input` Input int16 array; must contain at least `n` elements. 
+* `output` Output float32 array; must contain at least `n` elements. 
+* `n` Number of samples to process. 
 
 
 

@@ -50,13 +50,13 @@ _Util module — public C API._ [More...](#detailed-description)
 
 
 
-## Public Functions
+
+
+## Public Static Functions
 
 | Type | Name |
 | ---: | :--- |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**square\_clip**](#function-square_clip) (float complex y, float lin) <br>_Square-clip a complex sample._  |
-
-
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**square\_clip**](#function-square_clip) (float complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._  |
 
 
 
@@ -90,16 +90,16 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
 
 
     
-## Public Functions Documentation
+## Public Static Functions Documentation
 
 
 
 
 ### function square\_clip 
 
-_Square-clip a complex sample._ 
+_Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ 
 ```C++
-JM_FORCEINLINE float complex square_clip (
+static JM_FORCEINLINE float complex square_clip (
     float complex y,
     float lin
 ) 
@@ -107,22 +107,33 @@ JM_FORCEINLINE float complex square_clip (
 
 
 
-Clips the real and imaginary parts independently to &#91;-lin, lin&#93; — a square region in the IQ plane, not a circular magnitude limit.
-
-
 
 
 **Parameters:**
 
 
-* `y` Input sample. 
-* `lin` Per-component clip threshold (linear amplitude, &gt;= 0). 
+* `y` Complex CF32 input sample. 
+* `lin` Per-component clip threshold (linear amplitude, &gt;= 0). Values outside [-lin, lin] are clamped; values on the boundary are preserved exactly. 
 
 
 
 **Returns:**
 
-Sample with each component limited to &#91;-lin, lin&#93;. 
+Sample with each component limited to [-lin, lin]. 
+```C++
+>>> from doppler.util import square_clip
+>>> square_clip(0.5+0.25j, 1.0)   # within bounds, passed through
+(0.5+0.25j)
+>>> square_clip(2.0+0.5j, 1.0)    # real clipped, imag unchanged
+(1+0.5j)
+>>> square_clip(3.0-4.0j, 1.0)    # both components clipped
+(1-1j)
+>>> square_clip(0.5+0.5j, 0.25)   # smaller threshold clips both
+(0.25+0.25j)
+>>> square_clip(-2.0+0.0j, 1.0)   # negative real clipped
+(-1+0j)
+```
+ 
 
 
 

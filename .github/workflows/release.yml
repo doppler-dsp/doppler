@@ -100,6 +100,15 @@ jobs:
         if: startsWith(matrix.os, 'macos')
         run: jbx -r install-deps -g runtime,dev -s brew
 
+      # `make pyext` ends in `uv sync`, so uv must be on PATH (the per-version
+      # CI job gets this from setup-uv; the gate needs it too). Pin a single
+      # interpreter — CI already ran the full 3.9–3.14 matrix on this commit;
+      # the gate only re-confirms the suite on the shipping platforms.
+      - name: Install uv + Python
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: '3.12'
+
       - name: Build + Python extensions
         run: make pyext
 
@@ -158,6 +167,15 @@ jobs:
           # __builtin_cpu_supports() check — present in the binary but never
           # executed on a baseline CPU. Wide SIMD in any other function means
           # -march=native leaked in → reject.
+          #
+          # Scan ONLY doppler's own compiled extensions (*.cpython-*.so), not
+          # the third-party libraries auditwheel/delocate vendor into the
+          # `<dist>.libs/` (Linux) or `.dylibs/` (macOS) bundle dir. Those
+          # vendored libs are not ours to make portable: glibc's libmvec, for
+          # instance, ships AVX vector-math variants (e.g. _ZGVcN4v_cos) that
+          # are ifunc-/caller-ISA-selected and never executed on a baseline
+          # CPU — scanning them is a guaranteed false positive (it flagged the
+          # cp39 wheel, whose build happened to vendor libmvec).
           fail=0
           tmp="$(mktemp -d)"
           for whl in dist/*.whl; do
@@ -171,7 +189,7 @@ jobs:
                 echo "::error::$(basename "$whl"): $(basename "$so") has wide SIMD in non-dispatched function '${bad}' — non-portable (built with -march=native?)"
                 fail=1
               fi
-            done < <(find "$tmp/extract" -name '*.so')
+            done < <(find "$tmp/extract" -name '*.cpython-*.so')
             rm -rf "$tmp/extract"
           done
           rm -rf "$tmp"

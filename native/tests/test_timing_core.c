@@ -38,7 +38,12 @@ test_stamp_exact (void)
 }
 
 /* Pacing N samples at fs takes ~N/fs seconds. fs=1e5, 20000 samples => 0.2 s.
-   Lower bound proves it waited; upper bound is loose for loaded runners. */
+   Lower bound proves it waited; upper bound is loose for loaded runners. We do
+   NOT assert zero underruns: on a non-realtime OS (notably the macOS CI path,
+   which sleeps via nanosleep rather than clock_nanosleep ABSTIME) an idle
+   pacer can legitimately fall behind once under scheduler load — that's
+   exactly what the underrun counter records. The absolute schedule
+   self-corrects, so the total elapsed still tracks ~0.2 s. */
 static int
 test_pace_waits (void)
 {
@@ -50,7 +55,6 @@ test_pace_waits (void)
   double elapsed = (double)(dp_mono_ns () - start) / 1e9;
   CHECK (elapsed > 0.18, "paced run waited at least ~0.2 s");
   CHECK (elapsed < 0.6, "paced run was not absurdly slow");
-  CHECK (c.underruns == 0, "no underruns on an idle pacer");
   CHECK (c.n == 20000, "cumulative sample count tracked");
   return 0;
 }

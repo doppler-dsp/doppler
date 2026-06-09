@@ -94,7 +94,7 @@ static int
 test_blue_gate (void)
 {
   /* raw cf32 file that happens to start with non-"BLUE" bytes → raw. */
-  const char *raw = "/tmp/dp_reader_raw.cf32";
+  const char *raw = "dp_reader_raw.cf32";
   float _Complex x[8];
   make_signal (x, 8);
   FILE *fp = fopen (raw, "wb");
@@ -111,15 +111,15 @@ test_blue_gate (void)
   wfm_reader_close (r);
 
   /* a .det whose .hdr lacks the BLUE magic must be rejected. */
-  FILE *hf = fopen ("/tmp/dp_reader_bad.hdr", "wb");
+  FILE *hf = fopen ("dp_reader_bad.hdr", "wb");
   CHECK (hf, "open bad hdr");
   char junk[512] = "NOTBLUE";
   fwrite (junk, 1, 512, hf);
   fclose (hf);
-  FILE *df = fopen ("/tmp/dp_reader_bad.det", "wb");
+  FILE *df = fopen ("dp_reader_bad.det", "wb");
   fwrite (x, sizeof x, 1, df);
   fclose (df);
-  CHECK (wfm_reader_open ("/tmp/dp_reader_bad.det", 0, 0) == NULL,
+  CHECK (wfm_reader_open ("dp_reader_bad.det", 0, 0) == NULL,
          "detached without BLUE magic is rejected");
   return 0;
 }
@@ -127,19 +127,19 @@ test_blue_gate (void)
 int
 main (void)
 {
-  if (roundtrip ("/tmp/dp_reader.cf32", WFM_FT_RAW, 0, 1e6, 1e-6))
+  if (roundtrip ("dp_reader.cf32", WFM_FT_RAW, 0, 1e6, 1e-6))
     return 1;
-  if (roundtrip ("/tmp/dp_reader.cf64", WFM_FT_RAW, 1, 1e6, 1e-9))
+  if (roundtrip ("dp_reader.cf64", WFM_FT_RAW, 1, 1e6, 1e-9))
     return 1;
-  if (roundtrip ("/tmp/dp_reader.ci16", WFM_FT_RAW, 3, 1e6, 1e-3))
+  if (roundtrip ("dp_reader.ci16", WFM_FT_RAW, 3, 1e6, 1e-3))
     return 1;
-  if (roundtrip ("/tmp/dp_reader.blue", WFM_FT_BLUE, 0, 2.4e6, 1e-6))
+  if (roundtrip ("dp_reader.blue", WFM_FT_BLUE, 0, 2.4e6, 1e-6))
     return 1;
-  if (roundtrip ("/tmp/dp_reader.sigmf-data", WFM_FT_SIGMF, 0, 1e6, 1e-6))
+  if (roundtrip ("dp_reader.sigmf-data", WFM_FT_SIGMF, 0, 1e6, 1e-6))
     return 1;
-  if (roundtrip ("/tmp/dp_reader.csv", WFM_FT_CSV, 0, 1e6, 1e-6))
+  if (roundtrip ("dp_reader.csv", WFM_FT_CSV, 0, 1e6, 1e-6))
     return 1;
-  if (roundtrip ("/tmp/dp_reader_i16.csv", WFM_FT_CSV, 3, 1e6, 1e-3))
+  if (roundtrip ("dp_reader_i16.csv", WFM_FT_CSV, 3, 1e6, 1e-3))
     return 1;
   if (test_blue_gate ())
     return 1;

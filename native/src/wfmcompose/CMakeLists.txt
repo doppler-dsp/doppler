@@ -74,22 +74,6 @@ target_include_directories(test_wfm_reader PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
 
-# ── container codec benchmarks (writer / reader throughput) — make bench ─────
-add_executable(bench_wfm_writer_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
-target_link_libraries(bench_wfm_writer_core PRIVATE wfm_writer_core wfm_cjson m)
-target_include_directories(bench_wfm_writer_core PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
-    ${CMAKE_SOURCE_DIR}/vendor/cjson)
-
-add_executable(bench_wfm_reader_core
-    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
-target_link_libraries(bench_wfm_reader_core PRIVATE
-    wfm_reader_core wfm_writer_core wfm_cjson m)
-target_include_directories(bench_wfm_reader_core PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
-    ${CMAKE_SOURCE_DIR}/vendor/cjson)
-
 # ── ZMQ PUB sink — POSIX only (vendored zmq + pthreads don't build on MinGW;
 #    mirrors examples/c's streaming guard). The sink is independent of the
 #    composer, so it links the stream layer, not synth. ──────────────────────
@@ -116,6 +100,25 @@ if(NOT WIN32)
     target_link_libraries(bench_timing_core PRIVATE timing_core)
     target_include_directories(bench_timing_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+    # Container codec benchmarks (make bench). POSIX-only too: the writer bench
+    # isolates the codec via open_memstream and the reader bench uses temp
+    # files — neither is on the Windows portability path (no Windows wheels).
+    add_executable(bench_wfm_writer_core
+        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
+    target_link_libraries(bench_wfm_writer_core PRIVATE
+        wfm_writer_core wfm_cjson m)
+    target_include_directories(bench_wfm_writer_core PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
+        ${CMAKE_SOURCE_DIR}/vendor/cjson)
+
+    add_executable(bench_wfm_reader_core
+        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
+    target_link_libraries(bench_wfm_reader_core PRIVATE
+        wfm_reader_core wfm_writer_core wfm_cjson m)
+    target_include_directories(bench_wfm_reader_core PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
+        ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
     add_library(wfm_sink_core OBJECT
         ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_sink.c)

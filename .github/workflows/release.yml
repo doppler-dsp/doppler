@@ -61,6 +61,50 @@ jobs:
             exit 1
           fi
 
+  # ------------------------------------------------------------------
+  # Belt-and-suspenders test gate.
+  #
+  # release.yml is tag-triggered and runs independently of ci.yml — so without
+  # this, a tag on a red commit would still publish to PyPI (irreversible). The
+  # PR flow keeps `main` green, but this re-runs the suite on the tagged commit
+  # across the shipping platforms (Ubuntu + macOS), and `publish-python` needs
+  # it, so a failing test blocks the PyPI upload. Mirrors ci.yml's build+test.
+  # ------------------------------------------------------------------
+  test:
+    name: Test gate on ${{ matrix.os }}
+    needs: verify-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jbx
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
+            -o "$HOME/.local/bin/just-runit"
+          chmod +x "$HOME/.local/bin/just-runit"
+          ln -sf just-runit "$HOME/.local/bin/jbx"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          jbx -r install-deps -g runtime,dev -s apt
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: jbx -r install-deps -g runtime,dev -s brew
+
+      - name: Build + Python extensions
+        run: make pyext
+
+      - name: CTest + pytest + example smoke tests
+        run: make test-all
 
   # ------------------------------------------------------------------
   # Build Python wheels
@@ -293,7 +337,7 @@ jobs:
   # ------------------------------------------------------------------
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, build-sdist, build-python, build-macos]
+    needs: [verify-version, test, build-sdist, build-python, build-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -316,6 +360,7 @@ jobs:
     name: Create GitHub Release
     needs:
       - verify-version
+      - test
       - build-sdist
       - build-python
       - build-macos

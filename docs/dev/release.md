@@ -34,35 +34,22 @@ in the Makefile before running `make gallery`.
 
 ______________________________________________________________________
 
-## 4. Update CHANGELOG.md
+!!! danger "`main` is protected — everything goes through a PR"
 
-In `CHANGELOG.md`:
+    All changes to `main`, **including the release bump**, land via a pull
+    request that the required status checks must pass before merge. Never push
+    to `main` directly, and never tag a commit that is not already on a green
+    `main`. The release workflow (step 7) runs independently of CI and is *not*
+    gated on it — so **the PR merge in step 5 is the real gate**. The tag only
+    ever points at a commit those checks already passed.
 
-1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD`
-1. Add a fresh empty `## [Unreleased]` section above it
-1. Update the comparison links at the bottom of the file:
-
-```markdown
-[Unreleased]: https://github.com/doppler-dsp/doppler/compare/vX.Y.Z...HEAD
-[X.Y.Z]: https://github.com/doppler-dsp/doppler/compare/vPREV...vX.Y.Z
-```
-
-Open a release branch, commit the CHANGELOG, get CI green, then merge:
+## 3. Cut the release branch + bump the version
 
 ```sh
-git checkout -b chore/release-X.Y.Z
-git add CHANGELOG.md
-git commit -m "docs: update CHANGELOG for vX.Y.Z"
-git push -u origin chore/release-X.Y.Z
-gh pr create --fill
-# merge once CI is green
+make release-branch VERSION=X.Y.Z   # branches chore/release-X.Y.Z, then bumps
 ```
 
-______________________________________________________________________
-
-## 5. Bump the version
-
-`make bump-version` updates **three files** atomically:
+`bump-version` updates **three files** atomically:
 
 | File                  | Field                        |
 | --------------------- | ---------------------------- |
@@ -70,28 +57,46 @@ ______________________________________________________________________
 | `ffi/rust/Cargo.toml` | `version`                    |
 | `CMakeLists.txt`      | `project(doppler VERSION …)` |
 
-```sh
-make bump-version VERSION=X.Y.Z
+## 4. Update CHANGELOG.md
+
+On the release branch:
+
+1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD`
+1. Add a fresh empty `## [Unreleased]` section above it
+1. Update the comparison links at the bottom of the file:
+
+```markdown
+[X.Y.Z]: https://github.com/doppler-dsp/doppler/compare/vPREV...vX.Y.Z
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/vX.Y.Z...HEAD
 ```
 
-Review the diff. Do **not** commit here — `make tag-release` (next
-step) creates the `chore: release vX.Y.Z` commit itself.
-
-______________________________________________________________________
-
-## 6. Tag and push
-
-`make tag-release` creates the release commit, an annotated tag, and
-pushes both, which **triggers the release workflow automatically**:
+## 5. Open the PR and merge it green (the gate)
 
 ```sh
-make tag-release VERSION=X.Y.Z
+git commit -am "chore: release vX.Y.Z"
+git push -u origin HEAD
+gh pr create --fill
+# merge ONLY once every required check is green — do not bypass them
 ```
 
-!!! warning "This push is irreversible"
+The release tag will point at this merged commit, so CI passing here is what
+makes the release safe.
 
-    Once the tag is pushed, the release workflow starts and PyPI
-    uploads begin. Double-check the version number before running.
+## 6. Tag merged main
+
+```sh
+git checkout main && git pull
+make tag-release VERSION=X.Y.Z   # verifies on-main + in-sync, tags, pushes the tag
+```
+
+`tag-release` pushes **only the tag** (never `main`), which triggers the release
+workflow.
+
+!!! warning "The tag push is irreversible"
+
+    Pushing the tag starts the release workflow and PyPI uploads begin. Because
+    PyPI is independent of CI, the safety comes entirely from step 5 — only ever
+    tag a commit that already passed the required checks on `main`.
 
 ______________________________________________________________________
 

@@ -279,7 +279,8 @@ endif
 	sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
 	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
 	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt"
-	@echo "Next: review CHANGELOG.md, commit, then: make tag-release VERSION=$(VERSION)"
+	@echo "Next: edit CHANGELOG.md, commit, push the branch, open a PR, get CI"
+	@echo "      green, merge — then on main: make tag-release VERSION=$(VERSION)"
 
 # ── check-version ─────────────────────────────────────────────────────────────
 # Verify that all five version locations agree.  Run before tagging.
@@ -297,20 +298,43 @@ check-version:
 	     exit 1; \
 	 fi
 
+# ── release-branch ────────────────────────────────────────────────────────────
+# Start a release: branch off main, bump the version. Then edit CHANGELOG.md,
+# commit, push, open a PR, and let CI gate it — main is never pushed to directly.
+#   make release-branch VERSION=0.2.0
+release-branch:
+ifndef VERSION
+	@echo "usage: make release-branch VERSION=<x.y.z>"
+	@exit 1
+endif
+	git checkout -b chore/release-$(VERSION)
+	$(MAKE) bump-version VERSION=$(VERSION)
+	@echo ""
+	@echo "Now: edit CHANGELOG.md ([Unreleased] -> [$(VERSION)] + compare links),"
+	@echo "     git commit -am 'chore: release v$(VERSION)', git push -u origin HEAD,"
+	@echo "     gh pr create --fill, merge once the required checks are green,"
+	@echo "     then: git checkout main && git pull && make tag-release VERSION=$(VERSION)"
+
 # ── tag-release ───────────────────────────────────────────────────────────────
-# Commit the version bump and push the release tag.
+# Tag an already-merged, CI-green main commit and push ONLY the tag (the bump +
+# CHANGELOG land via a PR first — see release-branch). main is never pushed to
+# directly, so the tag always points at code the required checks already passed.
+# Triggers release.yml.
 #   make tag-release VERSION=0.2.0
 tag-release:
 ifndef VERSION
 	@echo "usage: make tag-release VERSION=<x.y.z>"
 	@exit 1
 endif
+	@test "$$(git rev-parse --abbrev-ref HEAD)" = "main" || \
+	  { echo "ERROR: not on main — release tags only point at merged main"; exit 1; }
+	git fetch --quiet origin main
+	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || \
+	  { echo "ERROR: local main != origin/main — git pull first"; exit 1; }
 	$(MAKE) check-version VERSION=$(VERSION)
-	git add pyproject.toml $(RUST_DIR)/Cargo.toml CMakeLists.txt
-	git commit -m "chore: release v$(VERSION)"
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	git push origin main "v$(VERSION)"
-	@echo "Tagged and pushed v$(VERSION) — release workflow starting on GitHub"
+	git push origin "v$(VERSION)"
+	@echo "Tagged v$(VERSION) on merged main — release workflow starting on GitHub"
 
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:

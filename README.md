@@ -4,16 +4,20 @@
 
 <p align="center"><strong>Dead-simple, ultra-fast digital signal processing.</strong></p>
 
-[![CI](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg)](https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-doppler--dsp.github.io-blue)](https://doppler-dsp.github.io/doppler/)
-[![PyPI](https://img.shields.io/pypi/v/doppler-dsp)](https://pypi.org/project/doppler-dsp/)
-[![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/doppler-dsp/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+<p align="center">
+  <a href="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml"><img src="https://github.com/doppler-dsp/doppler/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://doppler-dsp.github.io/doppler/"><img src="https://img.shields.io/badge/docs-doppler--dsp.github.io-blue" alt="Docs"></a>
+  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/pypi/v/doppler-dsp" alt="PyPI"></a>
+  <a href="https://pypi.org/project/doppler-dsp/"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+</p>
 
-[![C99](https://img.shields.io/badge/C-C99-blue)](https://en.wikipedia.org/wiki/C99)
-[![Rust](https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white)](ffi/rust)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+<p align="center">
+  <a href="https://en.wikipedia.org/wiki/C99"><img src="https://img.shields.io/badge/C-C99-blue" alt="C99"></a>
+  <a href="ffi/rust"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+</p>
 
 doppler is a C99 DSP library: NCO, FIR filter, FFT, polyphase resampler,
 DDC, and ZMQ-based signal streaming. Python and Rust wrap the same C core —

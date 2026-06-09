@@ -150,25 +150,37 @@ ______________________________________________________________________
 
 ## Version conventions
 
-Doppler uses [Semantic Versioning](https://semver.org) with stable
-`X.Y.Z` releases only — no alpha/beta/rc suffixes. `main` stays at the
+Doppler uses plain [Semantic Versioning](https://semver.org) —
+`MAJOR.MINOR.PATCH`, which read positionally is **`BREAKING.FEATURE.PATCH`**:
+
+| Position  | Bumps on                                              |
+| --------- | ----------------------------------------------------- |
+| **MAJOR** | a backward-**incompatible** (breaking) API change     |
+| **MINOR** | a new, backward-**compatible** feature / module / API |
+| **PATCH** | a backward-compatible bug fix or small additive tweak |
+
+Stable `X.Y.Z` releases only — no alpha/beta/rc suffixes. `main` stays at the
 last released version between releases (no post-release dev bump).
 
-While pre-1.0 the digits shift down one place: the minor digit stands
-in for major, and the patch digit stands in for minor.
+### Pre-1.0 (where we are)
 
-| Increment       | When to use                                                        |
-| --------------- | ------------------------------------------------------------------ |
-| **Patch** (`Z`) | Bug fixes and small non-breaking additions                         |
-| **Minor** (`Y`) | Notable feature releases (new modules/APIs) or any breaking change |
-| **Major** (`X`) | Unused before `1.0.0`                                              |
+The **MAJOR** digit stays `0` until we commit to a stable public API and cut
+`1.0.0`. So every current version is **`0.FEATURE.PATCH`**, and — per
+[SemVer §4](https://semver.org/#spec-item-4) — while pre-1.0 a *breaking* change
+also bumps the FEATURE digit (there is nowhere else for it to go yet):
 
-A *notable* feature release — a new module, a new public API surface,
-or a substantial subsystem — takes a minor bump even though it is
-non-breaking (e.g. 0.6.0 the waveform generator, 0.7.0 `read_iq`, 0.8.0
-the Python composer subsystem). Reserve patch bumps for fixes and small
-additive tweaks that don't warrant a headline.
+| Increment       | Pre-1.0 meaning                                               |
+| --------------- | ------------------------------------------------------------- |
+| **MINOR** (`Y`) | a new feature / module / public API, **or** a breaking change |
+| **PATCH** (`Z`) | a backward-compatible bug fix or small additive tweak         |
+| **MAJOR** (`X`) | unused before `1.0.0`                                         |
 
-!!! note "Pre-1.0"
+Worked examples: 0.6.0 (waveform generator), 0.7.0 (`read_iq`), 0.8.0 (the
+Python composer subsystem), and 0.9.0 (the `timing` pacing/timestamping
+subsystem) are all **feature** bumps. A bug-fix-only release off 0.8.0 would
+have been 0.8.1.
 
-    `CHANGELOG.md` in the repository root is the authoritative record.
+!!! note "Authoritative record"
+
+    `CHANGELOG.md` in the repository root is the source of truth for what each
+    version changed.

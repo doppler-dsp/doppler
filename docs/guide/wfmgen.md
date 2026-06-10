@@ -105,36 +105,33 @@ ______________________________________________________________________
 
 ## Amplitude & full-scale
 
-doppler's generator has **no amplitude knob** — by design, and the same is true
-of the `Synth` class and the `Composer`. Every waveform is synthesised at **unit
-average power with a constant envelope of exactly `|z| = 1.0`**, which is digital
-full-scale. The level you set is the *noise* (`--snr`), never the signal.
+The amplitude invariant is **unit average power**: every waveform is normalised
+so its mean power is `1.0`. That — *not* a constant envelope — is what the rest
+of the system is built on. It is the reference the SNR math uses (signal power
+≡ 1, so the noise σ falls straight out of the target SNR; see
+[SNR & noise](#snr-noise)), and the level you control is the SNR, not a signal
+gain. The I/Q full-scale is **±1.0** per axis (→ the largest integer code).
 
-| `--type`      | Sample values                         | Magnitude | Avg. power |
-| ------------- | ------------------------------------- | --------- | ---------- |
-| `tone`        | `exp(j·2πft)`                         | `1.0`     | `1.0`      |
-| `bpsk` / `pn` | `±1` (real axis)                      | `1.0`     | `1.0`      |
-| `qpsk`        | `(±1/√2, ±1/√2)`                      | `1.0`     | `1.0`      |
-| `noise`       | complex Gaussian, `σ = 1/√2` per axis | Gaussian  | `1.0`      |
+Today's waveforms all *happen* to be **constant-envelope**, so for them the peak
+equals the average and they sit exactly at ±1.0 — but that is a property of the
+current set, **not** a design assumption:
 
-The CW/modulated types are **constant-envelope**: the instantaneous magnitude
-never leaves the unit circle, even with a `--freq` offset (the LO only rotates
-it). `noise` is the exception — Gaussian, so its *average* power is `1.0` but
-individual samples routinely exceed `1.0`.
+| `--type`      | Sample values                         | Envelope           | Avg. power |
+| ------------- | ------------------------------------- | ------------------ | ---------- |
+| `tone`        | `exp(j·2πft)`                         | constant, mag 1    | `1.0`      |
+| `bpsk` / `pn` | `±1` (real axis)                      | constant, mag 1    | `1.0`      |
+| `qpsk`        | `(±1/√2, ±1/√2)`                      | constant, mag 1    | `1.0`      |
+| `noise`       | complex Gaussian, `σ = 1/√2` per axis | Gaussian, PAPR > 0 | `1.0`      |
 
-Fixing the signal at full-scale (instead of exposing a gain) buys two things:
+**Don't rely on `|z| = 1`.** A pulse-shaped (RRC), QAM, or OFDM waveform has a
+**peak-to-average power ratio (PAPR) above 0 dB**: at unit *average* power its
+*peaks* run well past ±1.0. `noise`, and any signal-plus-noise sum, already do.
 
-- **Exact SNR.** Signal power is `1.0` by construction, so the noise σ falls
-    straight out of the target SNR — `σ = sqrt(1 / (2·10^(SNR_fs/10)))`, see
-    [SNR & noise](#snr-noise). A signal gain would just cancel out of every SNR.
-- **Full integer dynamic range.** `|z| = 1.0` maps to the largest code with
-    nothing wasted.
+### Scaling to the wire, and headroom
 
-### Scaling to the wire
-
-`cf32` / `cf64` carry the samples verbatim — including any noise excursion past
-`1.0`; floats don't clip. The integer types map **±1.0 → ±max-code**, clipping
-first:
+`cf32` / `cf64` carry samples verbatim and **never clip** — peaks past ±1.0 are
+preserved. The integer types map **±1.0 → ±max-code** by **saturating each axis
+to ±1.0, then truncating toward zero** (a plain cast, not round-to-nearest):
 
 | `--sample_type` | Map                   | Full-scale code  |
 | --------------- | --------------------- | ---------------- |
@@ -142,28 +139,33 @@ first:
 | `ci16`          | `clip(v, ±1)·32767`   | `±32 767`        |
 | `ci8`           | `clip(v, ±1)·127`     | `±127`           |
 
-The quantiser **saturates to ±1.0, then truncates toward zero** (a plain cast,
-not round-to-nearest). Two things to internalise:
+So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
 
-- **A clean constant-envelope signal lands exactly at full-scale and never
-    clips.** `tone` / `bpsk` / `qpsk` / `pn` at the default `--snr 100` use the
-    entire integer range with no distortion.
-- **Anything past `|z| = 1.0` clips — there is no headroom and no backoff.** Add
-    noise and the signal-plus-noise peaks saturate at the rails; at `--snr 0`
-    (noise power = signal power) roughly **half** of all I/Q components already
-    exceed full-scale and clip. `--type noise` clips on its Gaussian tails by
-    nature. If you need those excursions preserved, generate a **float** type
-    (`cf32` / `cf64`) — it never clips. [`Reader`](#reading-a-capture-back)
-    inverts the same map, so a float round-trip is exact; an integer round-trip
-    is exact only where it neither clipped nor truncated.
+- A **constant-envelope, clean** signal (today's tone/PSK/PN at `--snr 100`)
+    fills the integer range exactly, with no clipping.
+- **Any PAPR > 0 dB content clips** at the rails — added noise (at `--snr 0`,
+    noise power = signal power, ~⅓ of integer I/Q components already saturate)
+    and any future pulse-shaped / QAM / OFDM mode. Such a signal needs
+    **headroom**: its average power set *below* full-scale so the peaks fit. The
+    generator does **not** yet expose a peak-backoff / target-amplitude control —
+    when high-PAPR waveforms land it will need one. Until then, carry
+    envelope-varying signals as a **float** type (`cf32` / `cf64`), which never
+    clips, or accept the saturation.
+
+[`Reader`](#reading-a-capture-back) inverts the same map, so a float round-trip
+is exact and an integer round-trip is exact only where it neither clipped nor
+truncated.
 
 ```python
 >>> import numpy as np
 >>> from doppler.wfmgen import Synth
->>> x = Synth(type="qpsk", sps=1, snr=100.0).steps(4)
->>> bool(np.allclose(np.abs(x), 1.0))               # constant envelope: |z| = 1
+>>> # the invariant is unit *average* power (here a clean, constant-envelope QPSK)
+>>> x = Synth(type="qpsk", sps=1, snr=100.0).steps(4096)
+>>> bool(np.allclose(np.mean(np.abs(x) ** 2), 1.0))
 True
->>> bool(np.allclose(np.mean(np.abs(x) ** 2), 1.0))  # unit average power
+>>> # add noise (or, later, pulse-shaping / QAM) and peaks exceed full-scale:
+>>> y = Synth(type="qpsk", sps=1, snr=0.0).steps(100000)
+>>> float(np.mean(np.abs(y.real) > 1.0)) > 0.1   # many samples clip in ci*
 True
 ```
 
@@ -182,8 +184,8 @@ ______________________________________________________________________
 
 **`--snr 100` (the default) is *clean*** — `snr ≥ 100 dB` generates **no AWGN at
 all**, so a clean waveform pays no noise cost. Lower `--snr` to add noise; the
-signal stays at unit power ([Amplitude & full-scale](#amplitude-full-scale)), so
-the per-axis noise σ is `σ = sqrt(1 / (2·10^(snr_fs/10)))`, where Es/No and Eb/No
+signal stays at unit average power ([Amplitude & full-scale](#amplitude-full-scale)),
+so the per-axis noise σ is `σ = sqrt(1 / (2·10^(snr_fs/10)))`, where Es/No and Eb/No
 are first converted to an over-`fs` SNR using `10·log10(sps)` (and, for Eb/No,
 the bits/symbol: 1 for BPSK/PN, 2 for QPSK). (`--type noise` always generates
 AWGN.)

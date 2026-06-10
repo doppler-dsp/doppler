@@ -72,6 +72,26 @@ size_t wfm_writer_write(wfm_writer_t *w, const float _Complex *iq, size_t n);
  */
 int wfm_writer_close(wfm_writer_t *w);
 
+/* ── clip detection ───────────────────────────────────────────────────────
+ * Full-scale is ±1.0 per axis; integer wire types saturate to it. The writer
+ * always tracks the running peak |I|/|Q| (a fused max, free in the write loop),
+ * so peak > 1.0 means an integer capture clipped — and the remedy is exactly
+ * ceil(20*log10(peak)) dB of headroom. The per-component clipped *fraction* is
+ * the one extra per-sample compare, so it is opt-in via
+ * wfm_writer_track_clipping(); off, clip_fraction() returns 0. Float types
+ * (cf32/cf64) never clip but still report a peak. Call after writing. */
+
+/** Enable the per-component clip *counter* (off by default; peak is always on). */
+void wfm_writer_track_clipping(wfm_writer_t *w, int on);
+
+/** Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip, full-scale
+ *  1.0). > 1.0 ⇒ integer output clipped; peak_dBFS = 20*log10(peak). */
+double wfm_writer_peak(const wfm_writer_t *w);
+
+/** Fraction (0..1) of I/Q components that saturated (|v| > 1). Always 0 unless
+ *  wfm_writer_track_clipping() was enabled. */
+double wfm_writer_clip_fraction(const wfm_writer_t *w);
+
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
  *

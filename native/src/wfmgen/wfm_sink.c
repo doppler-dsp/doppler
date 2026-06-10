@@ -9,6 +9,8 @@
 #include "wfmgen/wfm_sink.h"
 
 #include <complex.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "stream/stream.h"
@@ -29,6 +31,10 @@ struct wfm_zmq_sink
   int       wtype;
   void     *scratch; /* converted-sample buffer */
   size_t    cap;     /* scratch capacity in bytes */
+  float     peak;    /* running max |I|/|Q| on integer paths (pre-clip) */
+  uint64_t  nclip;   /* saturated components (only when `track`) */
+  uint64_t  ntot;    /* integer components processed (fraction denominator) */
+  int       track;   /* count clips (opt-in); peak always on */
 };
 
 static long
@@ -39,6 +45,20 @@ qz (float v, double fs_val)
   if (v < -1.0f)
     v = -1.0f;
   return (long)(v * fs_val);
+}
+
+/* Track peak + opt-in clip on the integer convert paths (called per sample).
+ */
+static inline void
+track_sample (wfm_zmq_sink_t *s, float re, float im)
+{
+  float ar = fabsf (re), ai = fabsf (im);
+  float m = ar > ai ? ar : ai;
+  if (m > s->peak)
+    s->peak = m;
+  s->ntot += 2;
+  if (s->track)
+    s->nclip += (uint64_t)(ar > 1.0f) + (uint64_t)(ai > 1.0f);
 }
 
 /* Ensure scratch holds at least `need` bytes. */
@@ -119,6 +139,7 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int32_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
+            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
             o[2 * i]     = (int32_t)qz (crealf (iq[i]), 2147483647.0);
             o[2 * i + 1] = (int32_t)qz (cimagf (iq[i]), 2147483647.0);
           }
@@ -131,6 +152,7 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int16_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
+            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
             o[2 * i]     = (int16_t)qz (crealf (iq[i]), 32767.0);
             o[2 * i + 1] = (int16_t)qz (cimagf (iq[i]), 32767.0);
           }
@@ -143,6 +165,7 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int8_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
+            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
             o[2 * i]     = (int8_t)qz (crealf (iq[i]), 127.0);
             o[2 * i + 1] = (int8_t)qz (cimagf (iq[i]), 127.0);
           }
@@ -161,4 +184,25 @@ wfm_zmq_sink_close (wfm_zmq_sink_t *sink)
       free (sink->scratch);
       free (sink);
     }
+}
+
+void
+wfm_zmq_sink_track_clipping (wfm_zmq_sink_t *sink, int on)
+{
+  if (sink)
+    sink->track = on ? 1 : 0;
+}
+
+double
+wfm_zmq_sink_peak (const wfm_zmq_sink_t *sink)
+{
+  return sink ? (double)sink->peak : 0.0;
+}
+
+double
+wfm_zmq_sink_clip_fraction (const wfm_zmq_sink_t *sink)
+{
+  if (!sink || sink->ntot == 0)
+    return 0.0;
+  return (double)sink->nclip / (double)sink->ntot;
 }

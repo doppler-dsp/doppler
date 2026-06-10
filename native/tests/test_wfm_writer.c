@@ -177,6 +177,49 @@ main (void)
     free (j);
   }
 
-  printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf meta)\n");
+  /* ── clip detection: peak (always) + opt-in fraction ── */
+  {
+    /* s0: |re|=1.5 clips, |im|=0.5 ok; s1: |re|=0.5 ok, |im|=2.0 clips.
+       peak = 2.0; 2 of 4 components saturate → fraction 0.5 (ci16). */
+    float _Complex s[2] = { 1.5f + 0.5f * I, -0.5f - 2.0f * I };
+    FILE         *fp    = tmpfile ();
+    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    CHECK (w, "clip open");
+    wfm_writer_track_clipping (w, 1);
+    CHECK (wfm_writer_write (w, s, 2) == 2, "clip write");
+    CHECK (wfm_writer_peak (w) == 2.0, "clip peak == 2.0");
+    double f = wfm_writer_clip_fraction (w);
+    CHECK (f > 0.49 && f < 0.51, "clip fraction == 0.5");
+    CHECK (wfm_writer_close (w) == 0, "clip close");
+    fclose (fp);
+  }
+
+  /* ── float never clips: peak tracked, fraction stays 0 ── */
+  {
+    float _Complex s[1] = { 3.0f + 0.0f * I };
+    FILE         *fp    = tmpfile ();
+    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 0, 0, 1e6, 0, 1);
+    wfm_writer_track_clipping (w, 1);
+    wfm_writer_write (w, s, 1);
+    CHECK (wfm_writer_peak (w) == 3.0, "float peak tracked");
+    CHECK (wfm_writer_clip_fraction (w) == 0.0, "float never clips");
+    wfm_writer_close (w);
+    fclose (fp);
+  }
+
+  /* ── clean at full-scale: peak == 1.0, no clip; fraction 0 without opt-in ──
+   */
+  {
+    float _Complex s[2] = { 1.0f + 1.0f * I, -1.0f - 1.0f * I };
+    FILE         *fp    = tmpfile ();
+    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 2);
+    wfm_writer_write (w, s, 2); /* no track_clipping → fraction stays 0 */
+    CHECK (wfm_writer_peak (w) == 1.0, "clean peak == 1.0 (no clip)");
+    CHECK (wfm_writer_clip_fraction (w) == 0.0, "no opt-in → fraction 0");
+    wfm_writer_close (w);
+    fclose (fp);
+  }
+
+  printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf meta + clip)\n");
   return 0;
 }

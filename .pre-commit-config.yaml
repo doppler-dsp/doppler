@@ -37,8 +37,10 @@ repos:
     rev: 1.0.0
     hooks:
       - id: mdformat
-        # docs/c-api is mkdoxy-generated from the C headers at build time.
-        exclude: '^docs/c-api/'
+        # Generated, not hand-written: docs/c-api is mkdoxy from the C headers;
+        # docs/benchmarks.md is `make bench-docs` output (mdformat would realign
+        # its tables on every regen → spurious diffs).
+        exclude: '^docs/(c-api/|benchmarks\.md$)'
         additional_dependencies:
           - mdformat-gfm
           - mdformat-gfm-alerts

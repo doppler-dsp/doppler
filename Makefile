@@ -76,7 +76,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo gallery \
-        bench bench-report bench-table \
+        bench bench-report bench-table bench-docs \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -192,13 +192,18 @@ python-test:
 bench: pyext
 	uvx just-makeit bench
 
-# ── bench-table ───────────────────────────────────────────────────────────────
+# ── bench-table / bench-docs ──────────────────────────────────────────────────
 # Representative absolute-numbers table (MSa/s) from THIS machine's latest
-# `make bench` run (benchmarks/history/), stamped with the CPU. THIS is what
-# you quote in the docs/README. Run `make bench` first, then redirect/paste:
-#   make bench && make bench-table > /tmp/bench.md
+# `make bench` run (benchmarks/history/), stamped with the CPU. Run `make bench`
+# first (on a representative machine, NOT a CI runner).
+#   bench-table  → print to stdout (quick look / README pasting)
+#   bench-docs   → write the committed docs page docs/benchmarks.md
+# Cut a release? Regenerate the page: `make bench && make bench-docs`, commit.
 bench-table:
 	uv run python scripts/bench_report.py --static
+
+bench-docs:
+	uv run python scripts/bench_report.py --static --out docs/benchmarks.md
 
 # ── bench-report ──────────────────────────────────────────────────────────────
 # Newest-vs-previous comparison from the release snapshots on the `benchmarks`

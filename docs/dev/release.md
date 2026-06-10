@@ -44,9 +44,13 @@ builds** so the page shows the from-source upside: **portable** (the wheel) and
 **native** (`-DDOPPLER_NATIVE=ON`).
 
 On the **same representative machine** each release (so the history stays
-comparable), measure both builds **interleaved** and publish:
+comparable), measure both builds **interleaved** and publish. First put the CPU
+in a peak, repeatable state — the published `doppler_meta` records the governor
+either way, but `powersave` understates the numbers:
 
 ```sh
+sudo cpupower frequency-set -g performance   # peak, repeatable; quiesce other load
+
 make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
                                        # alternately, keeps the per-bench best
 make bench-docs                        # render docs/benchmarks.md (two columns)

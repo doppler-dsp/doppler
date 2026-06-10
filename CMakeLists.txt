@@ -4,6 +4,13 @@ project(doppler VERSION 0.10.1 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Always emit build/compile_commands.json so clangd/IDEs resolve include paths
+# and feature-macro defines (Python, NumPy, vendored cJSON, _POSIX sources).
+# Symlink it from the repo root once: `ln -s build/compile_commands.json .`
+# (the file is gitignored). Without this a stale or absent DB makes clangd
+# report bogus "file not found" / "unknown type" errors for those headers.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
 
 # -march policy — DISTRIBUTION SAFETY IS THE DEFAULT.
@@ -24,34 +31,35 @@ option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
 # safe path is the default, speed is the thing you ask for.
 option(DOPPLER_NATIVE
        "Tune for the build host CPU (-march=native). Local dev/bench ONLY — never for distributed wheels." OFF)
-if(ENABLE_SIMD)
-    if(MSVC)
-        add_compile_options(/arch:AVX2 /fp:fast)
-    else()
-        if(DOPPLER_NATIVE)
-            add_compile_options(-march=native)
-        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-            # x86-64-v2 (SSE4.2) is the preferred portable baseline, but the
-            # microarch-level name only exists in GCC >= 11 / Clang >= 12.
-            # Older toolchains (e.g. Debian 10's GCC 8) reject it, so probe
-            # and fall back to the plain x86-64 baseline, which builds
-            # everywhere and is equally portable.
-            include(CheckCCompilerFlag)
-            check_c_compiler_flag("-march=x86-64-v2" _doppler_have_v2)
-            if(_doppler_have_v2)
-                add_compile_options(-march=x86-64-v2)
-            else()
-                add_compile_options(-march=x86-64)
-            endif()
+# Windows / MSVC is intentionally unsupported (signal-processing users on
+# Windows run under WSL2, a VM, or a container), so only the GCC/Clang
+# toolchains carry SIMD flags. The MSVC `/arch:AVX2` branch was never even
+# exercised — Windows CI built with MinGW — and AVX2-by-default would SIGILL on
+# pre-2013 CPUs anyway, the same portability trap the -march policy avoids.
+if(ENABLE_SIMD AND NOT MSVC)
+    if(DOPPLER_NATIVE)
+        add_compile_options(-march=native)
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        # x86-64-v2 (SSE4.2) is the preferred portable baseline, but the
+        # microarch-level name only exists in GCC >= 11 / Clang >= 12.
+        # Older toolchains (e.g. Debian 10's GCC 8) reject it, so probe
+        # and fall back to the plain x86-64 baseline, which builds
+        # everywhere and is equally portable.
+        include(CheckCCompilerFlag)
+        check_c_compiler_flag("-march=x86-64-v2" _doppler_have_v2)
+        if(_doppler_have_v2)
+            add_compile_options(-march=x86-64-v2)
+        else()
+            add_compile_options(-march=x86-64)
         endif()
-        # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
-        # glibc's __*_finite aliases (e.g. __exp_finite), removed in
-        # glibc 2.31 — a wheel built in the old-glibc manylinux image
-        # then fails to load (undefined symbol) on modern Linux.
-        # Disabling the finite-only assumption keeps every other
-        # fast-math optimisation.
-        add_compile_options(-ffast-math -fno-finite-math-only)
     endif()
+    # -fno-finite-math-only: bare -ffast-math makes GCC emit calls to
+    # glibc's __*_finite aliases (e.g. __exp_finite), removed in
+    # glibc 2.31 — a wheel built in the old-glibc manylinux image
+    # then fails to load (undefined symbol) on modern Linux.
+    # Disabling the finite-only assumption keeps every other
+    # fast-math optimisation.
+    add_compile_options(-ffast-math -fno-finite-math-only)
 endif()
 
 option(BUILD_PYTHON "Build Python C extensions" OFF)

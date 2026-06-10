@@ -45,28 +45,52 @@ def rc_interp():
 def test_bench_hb_64k(benchmark, rc_hb):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(rc_hb.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_hb2_64k(benchmark, rc_hb2):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(rc_hb2.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_cic_64k(benchmark, rc_cic):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(rc_cic.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_cic_resamp_64k(benchmark, rc_cic_resamp):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(rc_cic_resamp.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_resamp_64k(benchmark, rc_resamp):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(rc_resamp.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_interp_1k(benchmark, rc_interp):
     x = np.ones(BLOCK_1K, dtype=np.complex64)
     benchmark(rc_interp.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )

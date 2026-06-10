@@ -30,6 +30,8 @@ def test_bench_writer(benchmark, samples, tmp_path, file_type, stype):
             w.write(samples)
 
     benchmark(write)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6
 
 
 @pytest.mark.parametrize(
@@ -44,3 +46,5 @@ def test_bench_reader(benchmark, samples, tmp_path, file_type, stype):
         Reader(p, sample_type=stype).read_all()
 
     benchmark(read)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = BLOCK / benchmark.stats["mean"] / 1e6

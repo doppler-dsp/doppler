@@ -180,7 +180,11 @@ jm_bench_write_json (const jm_bench_t *b, const char *component)
                e->name);
       fprintf (fp, "      \"params\": null,\n");
       fprintf (fp, "      \"param\": null,\n");
-      fprintf (fp, "      \"extra_info\": {},\n");
+      /* Throughput in mega-samples/s, mirroring the Python benches'
+         extra_info["MSa_s"]. iters is the per-round sample count (BENCH_N) and
+         mean is the per-round time, so ops (= iters/mean) is samples/s — the
+         same value the bench prints to its console. */
+      fprintf (fp, "      \"extra_info\": {\"MSa_s\": %.17g},\n", ops / 1e6);
       fprintf (fp, "      \"options\": {\n");
       fprintf (fp, "        \"disable_gc\": false,\n");
       fprintf (fp, "        \"timer\": \"clock_gettime\",\n");

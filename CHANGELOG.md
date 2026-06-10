@@ -13,6 +13,39 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-06-10
+
+Build, tooling, and documentation release — the importable API and C ABI are
+**identical to 0.10.1** (no functional library change). Ships the build cleanup
+from adopting just-makeit 0.19.0 and a new representative Benchmarks page.
+
+### Added
+
+- **Dedicated Benchmarks page** (`docs/benchmarks.md`) with representative,
+    hand-measured numbers committed under `benchmarks/published/`. Each release
+    is measured in two builds — **portable** (the PyPI wheel) and **native**
+    (`-DDOPPLER_NATIVE=ON`) — run **interleaved** to denoise the comparison;
+    throughput is reported in MSa/s, and every snapshot carries full
+    reproducibility metadata (CPU + scaling governor, compiler + flags,
+    glibc/NumPy versions, commit, timestamp). (#78–#89)
+
+### Removed
+
+- **Unused Windows MinGW CMake boilerplate** from every component. doppler has
+    been Linux/macOS-only since 0.10.1; adopting **just-makeit 0.19.0** — which
+    gates the per-component Windows DLL-copy block behind `[project] platforms`,
+    resolving the doppler-filed
+    [jm#213](https://github.com/just-buildit/just-makeit/issues/213) — drops
+    ~200 lines of dead build scaffolding. The wheel is unaffected. (#90)
+
+### Changed
+
+- Pin just-makeit **0.18.0 → 0.19.0** (manifest-drift gate + benchmark tooling).
+- Developer tooling: a `.clangd` config that silences diagnostics the compile
+    database can't resolve; CMake now always exports `compile_commands.json`;
+    and a PR CI gate that flags leaked AVX instructions in the portable build.
+    (#73, #74, #83)
+
 ## [0.10.1] — 2026-06-09
 
 Bug-fix release: two macOS arm64 correctness issues surfaced by the new macOS
@@ -1009,6 +1042,8 @@ ______________________________________________________________________
 
 [0.1.0]: https://github.com/doppler-dsp/doppler/releases/tag/v0.1.0
 [0.10.0]: https://github.com/doppler-dsp/doppler/compare/v0.9.0...v0.10.0
+[0.10.1]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...v0.10.1
+[0.10.2]: https://github.com/doppler-dsp/doppler/compare/v0.10.1...v0.10.2
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1035,5 +1070,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[0.10.1]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...v0.10.1
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.2...HEAD

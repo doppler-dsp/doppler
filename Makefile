@@ -76,7 +76,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo gallery \
-        bench bench-report bench-publish bench-docs \
+        bench bench-report bench-publish bench-interleaved bench-docs \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -196,12 +196,20 @@ bench: pyext
 # builds per release (portable = the wheel, native = -DDOPPLER_NATIVE=ON), each
 # stamped with the compiler + flags. Measure on a REAL machine, not CI.
 #
-#   # for each build, on a representative machine:
-#   make pyext && make bench && make bench-publish VERSION=X.Y.Z BUILD=portable
-#   make pyext CMAKE_ARGS=-DDOPPLER_NATIVE=ON && make bench && \
-#       make bench-publish VERSION=X.Y.Z BUILD=native
-#   make bench-docs        # render docs/benchmarks.md (two-column page)
-#   make bench-report      # portable trend across releases, to stdout
+#   make bench-interleaved VERSION=X.Y.Z   # measure BOTH builds, denoised
+#   make bench-docs                        # render docs/benchmarks.md
+#   make bench-report                      # portable trend across releases
+#
+# bench-interleaved is the canonical path: it builds portable + native in two
+# git worktrees and runs them alternately K times (K=5; override with K=N),
+# keeping the per-benchmark best so the *from src* column isn't corrupted by
+# cross-run drift. bench-publish stamps a single build by hand if you need it.
+bench-interleaved:
+ifndef VERSION
+	@echo "usage: make bench-interleaved VERSION=X.Y.Z [K=5]"; exit 1
+endif
+	uv run python scripts/bench_interleaved.py $(VERSION) $(if $(K),-k $(K),)
+
 bench-publish:
 ifndef VERSION
 	@echo "usage: make bench-publish VERSION=X.Y.Z BUILD=portable|native"; exit 1

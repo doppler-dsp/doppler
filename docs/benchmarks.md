@@ -6,11 +6,11 @@ Representative single-machine numbers for **v0.10.1**, measured on **AMD Ryzen A
 Two builds are shown so you can see the from-source upside:
 
 - **portable** — `-O3 -march=x86-64-v2 -ffast-math` — the shipped PyPI wheel.
-- **native** — `-O3 -march=native -ffast-math` — `-DDOPPLER_NATIVE=ON`, built from source for this CPU.
+- **native** — `-O3 -march=native -mprefer-vector-width=256 -ffast-math` — `-DDOPPLER_NATIVE=ON`, built from source for this CPU.
 
 Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (lower is better). *from src* = native vs portable.
 
-> The two builds are measured in separate runs, so *from src* is only meaningful where it's large: big gains (e.g. vectorizable kernels under AVX-512) are real, while small or negative deltas on overhead-bound benches (tiny per-call work) are run-to-run noise, not a native penalty.
+> The two builds are measured **interleaved** (alternating runs, per-benchmark best), so *from src* reflects the real build difference. Big gains are vectorizable kernels under AVX-512; overhead-bound benches (tiny per-call work) sit near 0% because the build can't help where Python-call overhead dominates.
 
 ## Python (pytest-benchmark)
 
@@ -18,151 +18,151 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 
 | benchmark | portable throughput | native throughput | from src |
 | --- | ---: | ---: | ---: |
-| `corr2d::execute_64k` | 82.97 GSa/s | 53.47 GSa/s | -36% |
-| `corr::execute_64k` | 44.57 GSa/s | 55.70 GSa/s | +25% |
-| `i16_to_f32::steps_64k` | 17.27 GSa/s | 32.55 GSa/s | +89% |
-| `i16u32_to_f32::steps_64k` | 13.15 GSa/s | 23.92 GSa/s | +82% |
-| `i8_to_f32::steps_64k` | 12.76 GSa/s | 28.05 GSa/s | +120% |
-| `i32_to_f32::steps_64k` | 12.00 GSa/s | 13.92 GSa/s | +16% |
-| `synth::steps_64k` | 11.20 GSa/s | 25.53 GSa/s | +128% |
-| `uq15_to_f32::steps_64k` | 9.48 GSa/s | 19.71 GSa/s | +108% |
-| `i16u64_to_f32::steps_64k` | 8.47 GSa/s | 11.78 GSa/s | +39% |
-| `nco::steps_u32_64k` | 8.23 GSa/s | 21.96 GSa/s | +167% |
-| `nco::steps_u32_1k` | 5.92 GSa/s | 14.45 GSa/s | +144% |
-| `acc_f32::steps[409600]` | 5.69 GSa/s | 19.90 GSa/s | +250% |
-| `i16_to_f32::steps_1k` | 5.68 GSa/s | 6.97 GSa/s | +23% |
-| `acc_f32::steps[20480]` | 5.63 GSa/s | 22.96 GSa/s | +308% |
-| `i32_to_f32::steps_1k` | 5.46 GSa/s | 7.85 GSa/s | +44% |
-| `i8_to_f32::steps_1k` | 5.42 GSa/s | 6.53 GSa/s | +20% |
-| `uq15_to_f32::steps_1k` | 5.09 GSa/s | 7.44 GSa/s | +46% |
-| `i16u32_to_f32::steps_1k` | 4.55 GSa/s | 6.28 GSa/s | +38% |
-| `acc_f32::steps[819200]` | 4.39 GSa/s | 21.69 GSa/s | +394% |
-| `acc_q15::steps_64k` | 4.36 GSa/s | 13.78 GSa/s | +216% |
-| `delay::push_ptr_1k` | 4.03 GSa/s | 5.61 GSa/s | +39% |
-| `nco::steps_u32_ovf_64k` | 4.01 GSa/s | 4.03 GSa/s | +1% |
-| `acc_f32::steps[1024]` | 3.93 GSa/s | 11.67 GSa/s | +197% |
-| `buffer::f32_write` | 3.78 GSa/s | 3.76 GSa/s | -1% |
-| `i16u64_to_f32::steps_1k` | 3.72 GSa/s | 6.52 GSa/s | +76% |
-| `acc_q8::steps_64k` | 3.71 GSa/s | 3.20 GSa/s | -14% |
-| `lo::steps_64k` | 3.63 GSa/s | 1.89 GSa/s | -48% |
-| `delay::push_ptr_64k` | 3.63 GSa/s | 5.00 GSa/s | +38% |
-| `acc_q15::steps_1k` | 3.59 GSa/s | 9.63 GSa/s | +168% |
-| `acc_q8::steps_1k` | 3.13 GSa/s | 3.20 GSa/s | +2% |
-| `buffer::f64_write` | 2.99 GSa/s | 2.54 GSa/s | -15% |
-| `synth::steps_1k` | 2.75 GSa/s | 5.86 GSa/s | +113% |
-| `lo::steps_1k` | 1.98 GSa/s | 1.81 GSa/s | -8% |
-| `compose::reader[raw-cf32]` | 1.62 GSa/s | 1.33 GSa/s | -18% |
-| `compose::reader[blue-cf32]` | 1.57 GSa/s | 1.35 GSa/s | -14% |
-| `acc_cf64::steps[20480]` | 1.37 GSa/s | 5.52 GSa/s | +303% |
-| `nco::steps_u32_ovf_1k` | 1.32 GSa/s | 1.41 GSa/s | +7% |
-| `acc_cf64::steps[1024]` | 1.22 GSa/s | 4.18 GSa/s | +244% |
-| `acc_cf64::steps[409600]` | 1.19 GSa/s | 3.81 GSa/s | +220% |
-| `lo::steps_ctrl_64k` | 1.15 GSa/s | 824.8 MSa/s | -28% |
-| `corr2d::execute_1k` | 1.14 GSa/s | 887.9 MSa/s | -22% |
-| `acc_cf64::steps[819200]` | 1.03 GSa/s | 4.07 GSa/s | +294% |
-| `adc::steps_64k` | 1.00 GSa/s | 2.51 GSa/s | +151% |
-| `compose::reader[raw-ci16]` | 844.3 MSa/s | 837.9 MSa/s | -1% |
-| `corr::execute_1k` | 790.6 MSa/s | 1.03 GSa/s | +30% |
-| `lo::steps_ctrl_1k` | 786.7 MSa/s | 536.0 MSa/s | -32% |
-| `adc::steps_1k` | 776.6 MSa/s | 1.72 GSa/s | +121% |
-| `compose::writer[blue-cf32]` | 751.2 MSa/s | 495.9 MSa/s | -34% |
-| `cic::decimate_R32` | 692.3 MSa/s | 567.9 MSa/s | -18% |
-| `awgn::generate_64k` | 690.2 MSa/s | 701.0 MSa/s | +2% |
-| `cic::decimate_R256` | 640.2 MSa/s | 596.2 MSa/s | -7% |
-| `awgn::generate_1k` | 632.2 MSa/s | 709.2 MSa/s | +12% |
-| `cic::decimate_R8` | 620.9 MSa/s | 521.4 MSa/s | -16% |
-| `RateConverter::cic_64k` | 605.1 MSa/s | 560.7 MSa/s | -7% |
-| `cic::decimate_64k` | 592.6 MSa/s | 612.9 MSa/s | +3% |
-| `compose::writer[raw-cf32]` | 558.2 MSa/s | 682.8 MSa/s | +22% |
-| `compose::writer[raw-ci16]` | 550.3 MSa/s | 561.1 MSa/s | +2% |
-| `cic::decimate_1k` | 549.2 MSa/s | 551.5 MSa/s | +0% |
-| `cic::decimate_R64` | 538.3 MSa/s | 640.5 MSa/s | +19% |
-| `cic::decimate_R4` | 522.3 MSa/s | 491.5 MSa/s | -6% |
-| `fft2d::execute_cf32` | 432.5 MSa/s | 639.7 MSa/s | +48% |
-| `f32_to_uq15::steps_64k` | 409.0 MSa/s | 358.7 MSa/s | -12% |
-| `f32_to_i16u32::steps_64k` | 402.1 MSa/s | 393.4 MSa/s | -2% |
-| `f32_to_i16u64::steps_64k` | 397.4 MSa/s | 407.6 MSa/s | +3% |
-| `f32_to_i16::steps_64k` | 392.1 MSa/s | 380.7 MSa/s | -3% |
-| `f32_to_i16u32::steps_1k` | 362.8 MSa/s | 373.3 MSa/s | +3% |
-| `f32_to_uq15::steps_1k` | 358.0 MSa/s | 347.5 MSa/s | -3% |
-| `f32_to_i16u64::steps_1k` | 356.7 MSa/s | 391.4 MSa/s | +10% |
-| `HalfbandDecimator::execute_64k` | 352.1 MSa/s | 247.5 MSa/s | -30% |
-| `RateConverter::cic_resamp_64k` | 350.4 MSa/s | 253.6 MSa/s | -28% |
-| `f32_to_i16::steps_1k` | 323.6 MSa/s | 291.1 MSa/s | -10% |
-| `RateConverter::hb_64k` | 305.4 MSa/s | 322.9 MSa/s | +6% |
-| `resample::hbdecim` | 294.9 MSa/s | 209.2 MSa/s | -29% |
-| `hbdecim_q15::execute_64k` | 294.5 MSa/s | 212.2 MSa/s | -28% |
-| `HalfbandDecimator::execute_1k` | 280.7 MSa/s | 269.6 MSa/s | -4% |
-| `fft2d::execute_cf64` | 261.2 MSa/s | 473.1 MSa/s | +81% |
-| `hbdecim_q15::execute_1k` | 251.3 MSa/s | 328.0 MSa/s | +31% |
-| `RateConverter::hb2_64k` | 240.1 MSa/s | 200.0 MSa/s | -17% |
-| `ddc::execute_64k` | 236.6 MSa/s | 163.3 MSa/s | -31% |
-| `ddc::execute_1k` | 234.8 MSa/s | 152.7 MSa/s | -35% |
-| `ddcr_fn::oo_64k` | 226.0 MSa/s | 232.9 MSa/s | +3% |
-| `ddcr::execute_64k` | 206.0 MSa/s | 183.3 MSa/s | -11% |
-| `ddcr_fn::fn_64k` | 204.1 MSa/s | 201.3 MSa/s | -1% |
-| `ddcr::execute_1k` | 193.6 MSa/s | 196.8 MSa/s | +2% |
-| `ddcr_fn::fn_1k` | 189.8 MSa/s | 209.0 MSa/s | +10% |
-| `ddcr_fn::oo_1k` | 188.4 MSa/s | 181.0 MSa/s | -4% |
-| `fft::execute_cf64_8k` | 176.5 MSa/s | 246.8 MSa/s | +40% |
-| `fft::execute_cf64_1k` | 171.6 MSa/s | 223.0 MSa/s | +30% |
-| `fft::execute_cf32_1k` | 162.1 MSa/s | 189.4 MSa/s | +17% |
-| `RateConverter::resamp_64k` | 150.6 MSa/s | 105.6 MSa/s | -30% |
-| `fft::execute_cf32_8k` | 136.8 MSa/s | 151.1 MSa/s | +10% |
-| `resample::resample_down` | 131.7 MSa/s | 73.3 MSa/s | -44% |
-| `agc::steps_64k` | 126.5 MSa/s | 114.7 MSa/s | -9% |
-| `Resampler::execute_decim_1k` | 124.1 MSa/s | 83.3 MSa/s | -33% |
-| `Resampler::execute_decim_64k` | 116.5 MSa/s | 66.8 MSa/s | -43% |
-| `agc::steps_1k` | 106.0 MSa/s | 101.5 MSa/s | -4% |
-| `fir::execute[1024]` | 78.0 MSa/s | 233.9 MSa/s | +200% |
-| `RateConverter::interp_1k` | 74.7 MSa/s | 58.5 MSa/s | -22% |
-| `resample::resample_up` | 73.6 MSa/s | 72.9 MSa/s | -1% |
-| `fir::execute[20480]` | 71.8 MSa/s | 201.5 MSa/s | +181% |
-| `fir::execute[409600]` | 67.6 MSa/s | 208.2 MSa/s | +208% |
-| `Resampler::execute_interp_1k` | 67.1 MSa/s | 70.1 MSa/s | +4% |
-| `fir::execute[819200]` | 66.1 MSa/s | 156.3 MSa/s | +137% |
-| `delay::push` | 34.8 MSa/s | 30.6 MSa/s | -12% |
-| `compose::writer[csv-cf32]` | 5.3 MSa/s | 5.3 MSa/s | -1% |
+| `corr2d::execute_64k` | 79.11 GSa/s | 70.83 GSa/s | -10% |
+| `corr::execute_64k` | 52.00 GSa/s | 68.86 GSa/s | +32% |
+| `i32_to_f32::steps_64k` | 18.89 GSa/s | 31.77 GSa/s | +68% |
+| `i16_to_f32::steps_64k` | 17.96 GSa/s | 33.94 GSa/s | +89% |
+| `synth::steps_64k` | 17.31 GSa/s | 24.05 GSa/s | +39% |
+| `i16u32_to_f32::steps_64k` | 13.08 GSa/s | 23.69 GSa/s | +81% |
+| `i8_to_f32::steps_64k` | 12.13 GSa/s | 27.03 GSa/s | +123% |
+| `uq15_to_f32::steps_64k` | 11.87 GSa/s | 31.97 GSa/s | +169% |
+| `i16u64_to_f32::steps_64k` | 9.47 GSa/s | 16.16 GSa/s | +71% |
+| `nco::steps_u32_64k` | 9.10 GSa/s | 21.68 GSa/s | +138% |
+| `nco::steps_u32_1k` | 6.45 GSa/s | 11.22 GSa/s | +74% |
+| `acc_f32::steps[20480]` | 6.29 GSa/s | 22.42 GSa/s | +256% |
+| `i16_to_f32::steps_1k` | 6.26 GSa/s | 7.25 GSa/s | +16% |
+| `acc_f32::steps[409600]` | 6.25 GSa/s | 24.90 GSa/s | +299% |
+| `acc_f32::steps[819200]` | 6.11 GSa/s | 21.80 GSa/s | +257% |
+| `i8_to_f32::steps_1k` | 5.86 GSa/s | 7.03 GSa/s | +20% |
+| `i32_to_f32::steps_1k` | 5.86 GSa/s | 7.34 GSa/s | +25% |
+| `delay::push_ptr_64k` | 5.72 GSa/s | 5.86 GSa/s | +2% |
+| `delay::push_ptr_1k` | 5.69 GSa/s | 5.54 GSa/s | -3% |
+| `uq15_to_f32::steps_1k` | 5.48 GSa/s | 7.43 GSa/s | +36% |
+| `i16u32_to_f32::steps_1k` | 5.07 GSa/s | 6.29 GSa/s | +24% |
+| `synth::steps_1k` | 4.90 GSa/s | 5.51 GSa/s | +12% |
+| `acc_f32::steps[1024]` | 4.68 GSa/s | 12.67 GSa/s | +171% |
+| `i16u64_to_f32::steps_1k` | 4.29 GSa/s | 5.76 GSa/s | +34% |
+| `nco::steps_u32_ovf_64k` | 4.27 GSa/s | 4.10 GSa/s | -4% |
+| `acc_q15::steps_64k` | 4.20 GSa/s | 9.61 GSa/s | +129% |
+| `acc_q8::steps_64k` | 4.05 GSa/s | 3.79 GSa/s | -6% |
+| `acc_q15::steps_1k` | 4.00 GSa/s | 6.13 GSa/s | +53% |
+| `buffer::f32_write` | 3.92 GSa/s | 4.13 GSa/s | +5% |
+| `lo::steps_64k` | 3.31 GSa/s | 2.40 GSa/s | -27% |
+| `acc_q8::steps_1k` | 3.08 GSa/s | 3.16 GSa/s | +3% |
+| `buffer::f64_write` | 2.99 GSa/s | 3.42 GSa/s | +14% |
+| `nco::steps_u32_ovf_1k` | 2.81 GSa/s | 2.91 GSa/s | +4% |
+| `lo::steps_1k` | 2.80 GSa/s | 1.89 GSa/s | -33% |
+| `compose::reader[raw-cf32]` | 1.65 GSa/s | 1.43 GSa/s | -13% |
+| `acc_cf64::steps[20480]` | 1.53 GSa/s | 3.07 GSa/s | +101% |
+| `compose::reader[blue-cf32]` | 1.50 GSa/s | 1.38 GSa/s | -8% |
+| `acc_cf64::steps[1024]` | 1.47 GSa/s | 2.62 GSa/s | +78% |
+| `acc_cf64::steps[819200]` | 1.40 GSa/s | 2.75 GSa/s | +96% |
+| `acc_cf64::steps[409600]` | 1.36 GSa/s | 2.76 GSa/s | +103% |
+| `corr2d::execute_1k` | 1.32 GSa/s | 914.2 MSa/s | -31% |
+| `lo::steps_ctrl_64k` | 1.20 GSa/s | 881.8 MSa/s | -27% |
+| `lo::steps_ctrl_1k` | 1.07 GSa/s | 838.0 MSa/s | -22% |
+| `adc::steps_64k` | 963.9 MSa/s | 2.52 GSa/s | +162% |
+| `compose::reader[raw-ci16]` | 900.1 MSa/s | 958.9 MSa/s | +7% |
+| `adc::steps_1k` | 891.7 MSa/s | 1.71 GSa/s | +91% |
+| `corr::execute_1k` | 803.4 MSa/s | 1.06 GSa/s | +32% |
+| `compose::writer[raw-ci16]` | 722.2 MSa/s | 737.7 MSa/s | +2% |
+| `awgn::generate_1k` | 708.5 MSa/s | 699.3 MSa/s | -1% |
+| `awgn::generate_64k` | 694.1 MSa/s | 727.4 MSa/s | +5% |
+| `cic::decimate_R32` | 691.9 MSa/s | 632.5 MSa/s | -9% |
+| `cic::decimate_R256` | 668.0 MSa/s | 693.9 MSa/s | +4% |
+| `cic::decimate_R64` | 665.4 MSa/s | 648.9 MSa/s | -2% |
+| `cic::decimate_64k` | 643.3 MSa/s | 709.4 MSa/s | +10% |
+| `cic::decimate_1k` | 638.7 MSa/s | 644.5 MSa/s | +1% |
+| `compose::writer[raw-cf32]` | 636.4 MSa/s | 675.7 MSa/s | +6% |
+| `compose::writer[blue-cf32]` | 621.0 MSa/s | 619.8 MSa/s | -0% |
+| `cic::decimate_R8` | 609.6 MSa/s | 621.4 MSa/s | +2% |
+| `RateConverter::cic_64k` | 601.3 MSa/s | 602.4 MSa/s | +0% |
+| `cic::decimate_R4` | 570.0 MSa/s | 573.9 MSa/s | +1% |
+| `fft2d::execute_cf32` | 514.7 MSa/s | 584.2 MSa/s | +13% |
+| `f32_to_uq15::steps_64k` | 445.3 MSa/s | 434.5 MSa/s | -2% |
+| `f32_to_i16u32::steps_64k` | 440.9 MSa/s | 451.3 MSa/s | +2% |
+| `f32_to_i16::steps_64k` | 419.9 MSa/s | 392.8 MSa/s | -6% |
+| `f32_to_i16u32::steps_1k` | 417.1 MSa/s | 442.3 MSa/s | +6% |
+| `f32_to_i16u64::steps_64k` | 414.3 MSa/s | 390.4 MSa/s | -6% |
+| `RateConverter::hb_64k` | 410.4 MSa/s | 340.4 MSa/s | -17% |
+| `HalfbandDecimator::execute_64k` | 389.9 MSa/s | 309.5 MSa/s | -21% |
+| `f32_to_uq15::steps_1k` | 386.0 MSa/s | 388.9 MSa/s | +1% |
+| `f32_to_i16::steps_1k` | 385.5 MSa/s | 381.3 MSa/s | -1% |
+| `f32_to_i16u64::steps_1k` | 384.1 MSa/s | 400.6 MSa/s | +4% |
+| `HalfbandDecimator::execute_1k` | 368.5 MSa/s | 309.3 MSa/s | -16% |
+| `RateConverter::cic_resamp_64k` | 352.5 MSa/s | 292.4 MSa/s | -17% |
+| `resample::hbdecim` | 344.5 MSa/s | 318.2 MSa/s | -8% |
+| `hbdecim_q15::execute_64k` | 331.2 MSa/s | 337.1 MSa/s | +2% |
+| `hbdecim_q15::execute_1k` | 306.8 MSa/s | 306.9 MSa/s | +0% |
+| `fft2d::execute_cf64` | 286.4 MSa/s | 492.4 MSa/s | +72% |
+| `RateConverter::hb2_64k` | 257.8 MSa/s | 211.3 MSa/s | -18% |
+| `ddcr_fn::oo_64k` | 252.7 MSa/s | 236.0 MSa/s | -7% |
+| `ddcr::execute_64k` | 251.6 MSa/s | 251.1 MSa/s | -0% |
+| `ddc::execute_64k` | 241.3 MSa/s | 184.1 MSa/s | -24% |
+| `ddcr_fn::fn_1k` | 234.2 MSa/s | 232.6 MSa/s | -1% |
+| `ddcr_fn::oo_1k` | 233.7 MSa/s | 214.1 MSa/s | -8% |
+| `ddcr::execute_1k` | 233.6 MSa/s | 224.3 MSa/s | -4% |
+| `ddcr_fn::fn_64k` | 231.9 MSa/s | 230.4 MSa/s | -1% |
+| `ddc::execute_1k` | 228.7 MSa/s | 189.1 MSa/s | -17% |
+| `fft::execute_cf64_1k` | 199.1 MSa/s | 234.4 MSa/s | +18% |
+| `fft::execute_cf32_1k` | 177.1 MSa/s | 212.3 MSa/s | +20% |
+| `fft::execute_cf64_8k` | 166.7 MSa/s | 239.7 MSa/s | +44% |
+| `fft::execute_cf32_8k` | 159.4 MSa/s | 182.5 MSa/s | +14% |
+| `RateConverter::resamp_64k` | 145.6 MSa/s | 177.5 MSa/s | +22% |
+| `agc::steps_64k` | 137.6 MSa/s | 135.7 MSa/s | -1% |
+| `resample::resample_down` | 133.1 MSa/s | 138.3 MSa/s | +4% |
+| `Resampler::execute_decim_64k` | 129.9 MSa/s | 118.8 MSa/s | -9% |
+| `agc::steps_1k` | 128.3 MSa/s | 117.5 MSa/s | -8% |
+| `Resampler::execute_decim_1k` | 125.6 MSa/s | 122.7 MSa/s | -2% |
+| `fir::execute[409600]` | 82.0 MSa/s | 243.2 MSa/s | +196% |
+| `fir::execute[20480]` | 80.6 MSa/s | 253.9 MSa/s | +215% |
+| `Resampler::execute_interp_1k` | 77.0 MSa/s | 91.6 MSa/s | +19% |
+| `fir::execute[1024]` | 75.6 MSa/s | 262.5 MSa/s | +247% |
+| `RateConverter::interp_1k` | 75.6 MSa/s | 90.8 MSa/s | +20% |
+| `resample::resample_up` | 74.5 MSa/s | 98.7 MSa/s | +32% |
+| `fir::execute[819200]` | 71.7 MSa/s | 209.7 MSa/s | +192% |
+| `delay::push` | 39.7 MSa/s | 36.3 MSa/s | -9% |
+| `compose::writer[csv-cf32]` | 5.7 MSa/s | 5.7 MSa/s | +1% |
 
 ### Latency
 
 | benchmark | portable time/call | native time/call | from src |
 | --- | ---: | ---: | ---: |
-| `i8_to_f32::step` | 28.77 ns | 30.10 ns | -4% |
-| `detection::det_threshold_power` | 30.01 ns | 27.50 ns | +9% |
-| `i16_to_f32::step` | 30.11 ns | 34.34 ns | -12% |
-| `adc::step` | 30.61 ns | 31.18 ns | -2% |
-| `i32_to_f32::step` | 30.64 ns | 29.60 ns | +4% |
-| `acc_q15::step` | 30.73 ns | 30.76 ns | -0% |
-| `acc_q8::step` | 31.01 ns | 27.06 ns | +15% |
-| `i16u64_to_f32::step` | 31.48 ns | 29.81 ns | +6% |
-| `synth::step` | 32.40 ns | 30.26 ns | +7% |
-| `uq15_to_f32::step` | 32.61 ns | 33.85 ns | -4% |
-| `i16u32_to_f32::step` | 33.32 ns | 27.97 ns | +19% |
-| `f32_to_i16::step` | 33.86 ns | 33.60 ns | +1% |
-| `f32_to_i16u64::step` | 34.07 ns | 32.98 ns | +3% |
-| `f32_to_uq15::step` | 34.53 ns | 33.68 ns | +3% |
-| `detection::marcum_q_large_a` | 35.51 ns | 36.84 ns | -4% |
-| `f32_to_i16u32::step` | 35.91 ns | 34.93 ns | +3% |
-| `detection::det_threshold` | 38.53 ns | 36.39 ns | +6% |
-| `agc::step` | 54.64 ns | 82.43 ns | -34% |
-| `timing::stamp` | 67.21 ns | 74.90 ns | -10% |
-| `detection::det_pd_m1` | 78.45 ns | 81.83 ns | -4% |
-| `detection::marcum_q_m4` | 79.49 ns | 72.33 ns | +10% |
-| `detection::marcum_q_m1` | 86.99 ns | 86.43 ns | +1% |
-| `detection::det_pd_m4` | 98.34 ns | 107.23 ns | -8% |
-| `detection::det_pd_power_m4` | 108.91 ns | 115.51 ns | -6% |
-| `timing::pace_nowait` | 129.56 ns | 162.40 ns | -20% |
-| `detection::det_pd_m16` | 167.90 ns | 160.75 ns | +4% |
-| `detection::det_dwell` | 9.69 µs | 9.48 µs | +2% |
-| `detection::det_dwell_power` | 10.07 µs | 8.08 µs | +25% |
-| `detection::det_snr_power_m4` | 10.94 µs | 10.22 µs | +7% |
-| `detection::det_snr_m4` | 11.01 µs | 11.55 µs | -5% |
-| `detector2d::push_1k` | 13.24 µs | 17.30 µs | -23% |
-| `detection::det_snr_m16` | 13.51 µs | 11.68 µs | +16% |
-| `detector::push_1k` | 21.56 µs | 14.55 µs | +48% |
-| `detector2d::push_64k` | 177.64 µs | 303.38 µs | -41% |
-| `detector::push_64k` | 329.96 µs | 239.97 µs | +38% |
+| `i16u64_to_f32::step` | 24.53 ns | 24.49 ns | +0% |
+| `i16_to_f32::step` | 24.77 ns | 26.59 ns | -7% |
+| `acc_q15::step` | 26.35 ns | 27.75 ns | -5% |
+| `i8_to_f32::step` | 27.30 ns | 27.39 ns | -0% |
+| `uq15_to_f32::step` | 27.34 ns | 24.42 ns | +12% |
+| `synth::step` | 27.42 ns | 24.28 ns | +13% |
+| `i16u32_to_f32::step` | 28.40 ns | 29.07 ns | -2% |
+| `acc_q8::step` | 28.51 ns | 27.00 ns | +6% |
+| `detection::det_threshold_power` | 28.85 ns | 28.11 ns | +3% |
+| `i32_to_f32::step` | 29.56 ns | 26.78 ns | +10% |
+| `f32_to_i16::step` | 29.60 ns | 29.89 ns | -1% |
+| `adc::step` | 30.54 ns | 28.33 ns | +8% |
+| `f32_to_i16u32::step` | 32.41 ns | 30.92 ns | +5% |
+| `f32_to_i16u64::step` | 33.03 ns | 32.74 ns | +1% |
+| `detection::marcum_q_large_a` | 33.10 ns | 31.52 ns | +5% |
+| `detection::det_threshold` | 33.31 ns | 32.27 ns | +3% |
+| `f32_to_uq15::step` | 33.48 ns | 34.80 ns | -4% |
+| `agc::step` | 51.30 ns | 49.18 ns | +4% |
+| `timing::stamp` | 66.04 ns | 68.63 ns | -4% |
+| `detection::det_pd_m1` | 74.85 ns | 73.90 ns | +1% |
+| `detection::marcum_q_m4` | 80.44 ns | 82.18 ns | -2% |
+| `detection::marcum_q_m1` | 82.81 ns | 87.91 ns | -6% |
+| `detection::det_pd_power_m4` | 95.15 ns | 99.20 ns | -4% |
+| `detection::det_pd_m4` | 95.59 ns | 84.93 ns | +13% |
+| `timing::pace_nowait` | 136.27 ns | 131.49 ns | +4% |
+| `detection::det_pd_m16` | 158.56 ns | 153.66 ns | +3% |
+| `detection::det_dwell` | 8.84 µs | 8.54 µs | +4% |
+| `detection::det_dwell_power` | 9.01 µs | 8.66 µs | +4% |
+| `detection::det_snr_power_m4` | 9.61 µs | 8.92 µs | +8% |
+| `detection::det_snr_m16` | 9.78 µs | 10.28 µs | -5% |
+| `detection::det_snr_m4` | 10.43 µs | 9.94 µs | +5% |
+| `detector2d::push_1k` | 10.51 µs | 14.87 µs | -29% |
+| `detector::push_1k` | 18.16 µs | 14.04 µs | +29% |
+| `detector2d::push_64k` | 189.73 µs | 230.44 µs | -18% |
+| `detector::push_64k` | 316.29 µs | 213.63 µs | +48% |
 
 ## C (jm_bench)
 
@@ -170,66 +170,66 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 
 | benchmark | portable throughput | native throughput | from src |
 | --- | ---: | ---: | ---: |
-| `i32_to_f32::steps` | 13.26 GSa/s | 17.60 GSa/s | +33% |
-| `i16_to_f32::steps` | 10.71 GSa/s | 22.86 GSa/s | +113% |
-| `i8_to_f32::steps` | 10.07 GSa/s | 18.46 GSa/s | +83% |
-| `i16u32_to_f32::steps` | 7.32 GSa/s | 16.15 GSa/s | +121% |
-| `uq15_to_f32::steps` | 5.99 GSa/s | 20.54 GSa/s | +243% |
-| `i16u64_to_f32::steps` | 5.87 GSa/s | 8.67 GSa/s | +48% |
-| `acc_f32::steps` | 4.39 GSa/s | 11.86 GSa/s | +170% |
-| `acc_q8::steps` | 4.28 GSa/s | 2.97 GSa/s | -31% |
-| `acc_q15::steps` | 3.29 GSa/s | 11.70 GSa/s | +256% |
-| `i32_to_f32::step` | 2.74 GSa/s | 3.23 GSa/s | +18% |
-| `i16u64_to_f32::step` | 2.65 GSa/s | 3.27 GSa/s | +24% |
-| `acc_q15::step` | 2.60 GSa/s | 11.69 GSa/s | +350% |
-| `acc_q8::step` | 2.54 GSa/s | 2.93 GSa/s | +15% |
-| `i16_to_f32::step` | 2.53 GSa/s | 3.27 GSa/s | +29% |
-| `i8_to_f32::step` | 2.48 GSa/s | 3.24 GSa/s | +30% |
-| `i16u32_to_f32::step` | 2.01 GSa/s | 3.21 GSa/s | +60% |
-| `uq15_to_f32::step` | 1.95 GSa/s | 2.03 GSa/s | +4% |
-| `synth::tone  clean` | 1.51 GSa/s | 1.51 GSa/s | -0% |
-| `acc_f32::madd` | 1.26 GSa/s | 1.01 GSa/s | -20% |
-| `acc_f32::madd2d` | 1.25 GSa/s | 1.26 GSa/s | +1% |
-| `acc_f32::add2d` | 1.25 GSa/s | 1.25 GSa/s | -0% |
-| `acc_f32::dump` | 1.14 GSa/s | 841.9 MSa/s | -26% |
-| `acc_cf64::steps` | 1.10 GSa/s | 4.55 GSa/s | +314% |
-| `acc_f32::step` | 1.09 GSa/s | 1.13 GSa/s | +3% |
-| `acc_cf64::step` | 1.07 GSa/s | 1.09 GSa/s | +2% |
-| `acc_f32::get` | 1.04 GSa/s | 827.5 MSa/s | -20% |
-| `acc_cf64::dump` | 839.7 MSa/s | 1.26 GSa/s | +50% |
-| `adc::step` | 827.7 MSa/s | 1.03 GSa/s | +25% |
-| `acc_cf64::get` | 823.9 MSa/s | 1.16 GSa/s | +41% |
-| `acc_cf64::madd` | 804.0 MSa/s | 1.26 GSa/s | +57% |
-| `synth::pn    baseband clean` | 792.7 MSa/s | 725.6 MSa/s | -8% |
-| `acc_cf64::madd2d` | 763.8 MSa/s | 813.1 MSa/s | +6% |
-| `synth::qpsk  clean` | 762.9 MSa/s | 349.7 MSa/s | -54% |
-| `acc_cf64::add2d` | 750.2 MSa/s | 1.26 GSa/s | +68% |
-| `adc::steps` | 711.7 MSa/s | 2.05 GSa/s | +187% |
-| `synth::bpsk  clean` | 558.1 MSa/s | 731.7 MSa/s | +31% |
-| `cic::decimate` | 553.5 MSa/s | 580.0 MSa/s | +5% |
-| `RateConverter::CIC(0.125)` | 504.9 MSa/s | 491.1 MSa/s | -3% |
-| `synth::pn    n=40 baseband(64b)` | 429.4 MSa/s | 958.9 MSa/s | +123% |
-| `synth::pn    fibonacci baseband` | 420.8 MSa/s | 921.6 MSa/s | +119% |
-| `RateConverter::HB(0.5)` | 343.5 MSa/s | 281.6 MSa/s | -18% |
-| `delay::push` | 326.6 MSa/s | 822.7 MSa/s | +152% |
-| `f32_to_uq15::steps` | 320.3 MSa/s | 323.3 MSa/s | +1% |
-| `RateConverter::CIC+Rs(0.1)` | 319.8 MSa/s | 276.6 MSa/s | -13% |
-| `f32_to_uq15::step` | 311.3 MSa/s | 314.3 MSa/s | +1% |
-| `f32_to_i16u64::steps` | 283.4 MSa/s | 303.9 MSa/s | +7% |
-| `f32_to_i16u32::step` | 278.5 MSa/s | 304.6 MSa/s | +9% |
-| `RateConverter::HB2(0.25)` | 272.1 MSa/s | 192.9 MSa/s | -29% |
-| `delay::write` | 262.3 MSa/s | 824.7 MSa/s | +214% |
-| `f32_to_i16::step` | 252.5 MSa/s | 308.5 MSa/s | +22% |
-| `f32_to_i16u64::step` | 241.7 MSa/s | 308.8 MSa/s | +28% |
-| `f32_to_i16u32::steps` | 236.0 MSa/s | 314.9 MSa/s | +33% |
-| `Resampler::reset` | 219.0 MSa/s | 194.6 MSa/s | -11% |
-| `synth::bpsk  +noise` | 218.1 MSa/s | 194.8 MSa/s | -11% |
-| `f32_to_i16::steps` | 210.8 MSa/s | 299.9 MSa/s | +42% |
-| `synth::qpsk  +noise` | 209.8 MSa/s | 164.8 MSa/s | -21% |
-| `synth::noise (AWGN)` | 187.9 MSa/s | 200.0 MSa/s | +6% |
-| `synth::tone  +noise` | 182.2 MSa/s | 177.7 MSa/s | -2% |
-| `RateConverter::Resamp(1/3)` | 165.7 MSa/s | 84.7 MSa/s | -49% |
-| `synth::pn    +LO +noise` | 162.0 MSa/s | 164.8 MSa/s | +2% |
-| `agc::steps` | 136.2 MSa/s | 107.8 MSa/s | -21% |
-| `RateConverter::Interp(2.0)` | 82.5 MSa/s | 65.8 MSa/s | -20% |
-| `agc::step` | 29.3 MSa/s | 39.8 MSa/s | +36% |
+| `i16_to_f32::steps` | 12.71 GSa/s | 23.95 GSa/s | +88% |
+| `uq15_to_f32::steps` | 12.56 GSa/s | 30.04 GSa/s | +139% |
+| `i16u32_to_f32::steps` | 9.29 GSa/s | 16.57 GSa/s | +78% |
+| `i32_to_f32::steps` | 8.95 GSa/s | 19.49 GSa/s | +118% |
+| `i8_to_f32::steps` | 7.25 GSa/s | 19.10 GSa/s | +163% |
+| `i16u64_to_f32::steps` | 6.91 GSa/s | 12.15 GSa/s | +76% |
+| `acc_f32::steps` | 6.70 GSa/s | 26.66 GSa/s | +298% |
+| `acc_q15::steps` | 3.31 GSa/s | 6.38 GSa/s | +93% |
+| `acc_q15::step` | 3.30 GSa/s | 5.92 GSa/s | +79% |
+| `i16_to_f32::step` | 3.15 GSa/s | 3.47 GSa/s | +10% |
+| `acc_q8::steps` | 3.12 GSa/s | 3.64 GSa/s | +17% |
+| `i16u32_to_f32::step` | 3.06 GSa/s | 2.71 GSa/s | -11% |
+| `acc_q8::step` | 2.81 GSa/s | 3.54 GSa/s | +26% |
+| `uq15_to_f32::step` | 2.71 GSa/s | 4.84 GSa/s | +79% |
+| `i8_to_f32::step` | 2.45 GSa/s | 3.27 GSa/s | +33% |
+| `i16u64_to_f32::step` | 2.38 GSa/s | 2.82 GSa/s | +19% |
+| `i32_to_f32::step` | 2.36 GSa/s | 3.26 GSa/s | +38% |
+| `acc_cf64::steps` | 1.57 GSa/s | 2.80 GSa/s | +79% |
+| `synth::tone  clean` | 1.51 GSa/s | 1.47 GSa/s | -3% |
+| `acc_cf64::step` | 1.38 GSa/s | 1.57 GSa/s | +14% |
+| `acc_cf64::madd2d` | 1.26 GSa/s | 1.26 GSa/s | +0% |
+| `acc_f32::madd` | 1.26 GSa/s | 1.26 GSa/s | -0% |
+| `acc_cf64::madd` | 1.26 GSa/s | 1.20 GSa/s | -5% |
+| `acc_cf64::dump` | 1.26 GSa/s | 1.26 GSa/s | +0% |
+| `acc_f32::madd2d` | 1.26 GSa/s | 1.26 GSa/s | +0% |
+| `acc_cf64::get` | 1.26 GSa/s | 1.26 GSa/s | -0% |
+| `acc_f32::dump` | 1.26 GSa/s | 1.26 GSa/s | -0% |
+| `acc_f32::add2d` | 1.25 GSa/s | 1.26 GSa/s | +1% |
+| `acc_cf64::add2d` | 1.25 GSa/s | 1.26 GSa/s | +1% |
+| `acc_f32::get` | 1.23 GSa/s | 1.03 GSa/s | -16% |
+| `acc_f32::step` | 1.14 GSa/s | 1.14 GSa/s | -0% |
+| `adc::steps` | 1.06 GSa/s | 2.53 GSa/s | +139% |
+| `synth::pn    n=40 baseband(64b)` | 919.4 MSa/s | 674.1 MSa/s | -27% |
+| `synth::pn    fibonacci baseband` | 919.0 MSa/s | 680.9 MSa/s | -26% |
+| `synth::bpsk  clean` | 843.1 MSa/s | 591.9 MSa/s | -30% |
+| `adc::step` | 801.2 MSa/s | 1.03 GSa/s | +28% |
+| `synth::qpsk  clean` | 762.4 MSa/s | 647.7 MSa/s | -15% |
+| `cic::decimate` | 686.4 MSa/s | 438.1 MSa/s | -36% |
+| `synth::pn    baseband clean` | 643.5 MSa/s | 674.0 MSa/s | +5% |
+| `RateConverter::CIC(0.125)` | 505.3 MSa/s | 504.4 MSa/s | -0% |
+| `delay::write` | 392.2 MSa/s | 856.7 MSa/s | +118% |
+| `RateConverter::HB(0.5)` | 381.8 MSa/s | 340.2 MSa/s | -11% |
+| `f32_to_uq15::steps` | 365.4 MSa/s | 457.3 MSa/s | +25% |
+| `delay::push` | 354.3 MSa/s | 625.9 MSa/s | +77% |
+| `RateConverter::CIC+Rs(0.1)` | 320.6 MSa/s | 295.1 MSa/s | -8% |
+| `f32_to_i16::steps` | 320.2 MSa/s | 320.1 MSa/s | -0% |
+| `f32_to_i16u32::steps` | 320.1 MSa/s | 357.6 MSa/s | +12% |
+| `f32_to_i16u64::steps` | 319.7 MSa/s | 418.0 MSa/s | +31% |
+| `f32_to_uq15::step` | 301.3 MSa/s | 376.3 MSa/s | +25% |
+| `f32_to_i16::step` | 300.0 MSa/s | 277.0 MSa/s | -8% |
+| `f32_to_i16u32::step` | 288.9 MSa/s | 336.0 MSa/s | +16% |
+| `f32_to_i16u64::step` | 285.9 MSa/s | 305.8 MSa/s | +7% |
+| `RateConverter::HB2(0.25)` | 269.2 MSa/s | 245.2 MSa/s | -9% |
+| `synth::qpsk  +noise` | 214.6 MSa/s | 200.7 MSa/s | -6% |
+| `synth::bpsk  +noise` | 214.2 MSa/s | 206.6 MSa/s | -4% |
+| `Resampler::reset` | 202.2 MSa/s | 214.6 MSa/s | +6% |
+| `synth::tone  +noise` | 182.6 MSa/s | 176.1 MSa/s | -4% |
+| `synth::noise (AWGN)` | 178.2 MSa/s | 200.2 MSa/s | +12% |
+| `synth::pn    +LO +noise` | 169.9 MSa/s | 142.9 MSa/s | -16% |
+| `RateConverter::Resamp(1/3)` | 167.9 MSa/s | 160.8 MSa/s | -4% |
+| `agc::steps` | 123.2 MSa/s | 139.2 MSa/s | +13% |
+| `RateConverter::Interp(2.0)` | 82.6 MSa/s | 102.1 MSa/s | +24% |
+| `agc::step` | 36.0 MSa/s | 32.4 MSa/s | -10% |

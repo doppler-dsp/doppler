@@ -39,6 +39,15 @@ option(DOPPLER_NATIVE
 if(ENABLE_SIMD AND NOT MSVC)
     if(DOPPLER_NATIVE)
         add_compile_options(-march=native)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+            # Cap vectors at 256 bits even when -march=native enables AVX-512.
+            # 256 is the x86 throughput sweet spot: it sidesteps AVX-512
+            # frequency downclocking (Intel) and the double-pumped-512 penalty
+            # (AMD Zen 4/5 mobile, e.g. Strix Point), where forcing 512-bit
+            # vectors measured *slower* than SSE4.2 on complex-float DSP
+            # kernels — while still using AVX-512's extra registers/encodings.
+            add_compile_options(-mprefer-vector-width=256)
+        endif()
     elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
         # x86-64-v2 (SSE4.2) is the preferred portable baseline, but the
         # microarch-level name only exists in GCC >= 11 / Clang >= 12.

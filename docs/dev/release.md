@@ -44,27 +44,23 @@ builds** so the page shows the from-source upside: **portable** (the wheel) and
 **native** (`-DDOPPLER_NATIVE=ON`).
 
 On the **same representative machine** each release (so the history stays
-comparable), measure both builds and publish:
+comparable), measure both builds **interleaved** and publish:
 
 ```sh
-# portable — the shipped wheel baseline (-march=x86-64-v2)
-make pyext
-make bench
-make bench-publish VERSION=X.Y.Z BUILD=portable
-
-# native — from-source peak (-march=native)
-make pyext CMAKE_ARGS=-DDOPPLER_NATIVE=ON
-make bench
-make bench-publish VERSION=X.Y.Z BUILD=native
-
-make bench-docs                       # render docs/benchmarks.md (two columns)
+make bench-interleaved VERSION=X.Y.Z   # builds portable + native, runs them
+                                       # alternately, keeps the per-bench best
+make bench-docs                        # render docs/benchmarks.md (two columns)
 git add benchmarks/published docs/benchmarks.md
 git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"
 ```
 
-`bench-publish` stamps each snapshot with the compiler + flags it read from
-`compile_commands.json`, so the page is self-describing. Skip only if no
-perf-relevant code changed since the last release.
+`bench-interleaved` builds both flavours in throwaway git worktrees, runs the
+suite alternately K times (default 5; `K=N` to override), and keeps each
+benchmark's lowest-mean run — so the *from src* column reflects the real build
+difference, not cross-run system drift. Each snapshot is stamped with the
+compiler + flags it read from `compile_commands.json`, so the page is
+self-describing. Skip only if no perf-relevant code changed since the last
+release.
 
 ______________________________________________________________________
 

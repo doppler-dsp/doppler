@@ -303,6 +303,11 @@ jobs:
       # here because uv sync built the extensions for mkdocstrings.
       run: uv run python scripts/check_api_docs.py
 
+    - name: Generate benchmarks page
+      # Same generated page the deploy builds (docs.yml); render it here so a PR
+      # that breaks scripts/bench_report.py is caught and the nav link resolves.
+      run: uv run python scripts/bench_report.py --page
+
     - name: Build docs
       run: uv run mkdocs build
 

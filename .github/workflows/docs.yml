@@ -46,6 +46,11 @@ jobs:
           # mkdoxy doesn't generate index.md; restore the committed landing page
           git checkout -- docs/c-api/index.md
 
+      - name: Generate benchmarks page
+        # Reads the per-release snapshots from the `benchmarks` branch (the
+        # script self-fetches it) into docs/benchmarks.md + trend plots.
+        run: uv run python scripts/bench_report.py --page
+
       - name: Build site
         run: uv run mkdocs build
 

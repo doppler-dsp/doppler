@@ -171,6 +171,7 @@ nav:
       - "Python: Accumulator": api/python-accumulator.md
       - "Polyphase → Resample": api/python-polyphase.md
   - Type System: types.md
+  - Benchmarks: benchmarks.md
   - Guides:
       - Waveform Generator (wavegen / wfmgen): guide/wfmgen.md
       - Real-Time Pacing & Timestamping: guide/timing.md

@@ -137,14 +137,24 @@
  * #ifdef / #else can be used freely.
  * ====================================================================== */
 
-/** @brief Returns the system page size. */
+/**
+ * @brief Returns the granularity the double-mapped views must align to.
+ *
+ * This is the unit the ring-buffer mirror is rounded up to. On POSIX that is
+ * the page size. On Windows it is the *allocation granularity* (64 KiB),
+ * which is ≥ dwPageSize: MapViewOfFileEx requires each view's base address to
+ * be a multiple of the allocation granularity, so the second (mirror) view at
+ * base + bytes is only placeable when @c bytes is a whole multiple of it.
+ * Using dwPageSize (4 KiB) here would let a sub-64-KiB buffer pass the size
+ * check and then fail to map.
+ */
 static inline size_t
 dp__page_size (void)
 {
 #ifdef _WIN32
   SYSTEM_INFO si;
   GetSystemInfo (&si);
-  return (size_t)si.dwPageSize;
+  return (size_t)si.dwAllocationGranularity;
 #else
   return (size_t)sysconf (_SC_PAGESIZE);
 #endif

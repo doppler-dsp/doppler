@@ -20,9 +20,10 @@ ______________________________________________________________________
 `n_samples` must be a power of two. The double-mapping trick builds the mirror
 at page granularity, so the buffer must span at least one whole page — a
 sub-page request is rounded **up** to the smallest power-of-two that does. The
-minimum therefore depends on the system page size (4 KiB on Linux x86-64,
-16 KiB on macOS arm64). Always read the real size back from `.capacity`; it may
-exceed what you asked for.
+minimum therefore depends on the system mapping granularity (4 KiB on Linux
+x86-64, 16 KiB on macOS arm64, and the 64 KiB allocation granularity on
+Windows — so the Windows minimums are 16× the 4 KiB column). Always read the
+real size back from `.capacity`; it may exceed what you asked for.
 
 ______________________________________________________________________
 

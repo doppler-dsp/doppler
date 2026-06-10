@@ -12,10 +12,6 @@ ffi/rust/target/
 # Generated documentation output
 docs/doxygen/
 site/
-# Benchmarks page + trend plots — regenerated from the `benchmarks` branch by
-# `make bench-page` (docs-build) on every build; data churns each release.
-docs/benchmarks.md
-docs/assets/bench/
 
 # Example / benchmark artifacts written to the working tree (regenerable;
 # belong in build/, never committed to the repo root)

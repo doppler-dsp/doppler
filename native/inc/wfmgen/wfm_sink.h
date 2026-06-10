@@ -51,6 +51,20 @@ int wfm_zmq_sink_send(wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
 /** @brief Close the sink and destroy the publisher. @param sink May be NULL. */
 void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
 
+/* Clip detection, mirroring wfm_writer (peak always tracked on the integer
+ * paths, where saturation can occur; the per-component fraction is opt-in). The
+ * cf32 path is left untouched — it never clips and is the streaming hot path. */
+
+/** Enable the per-component clip counter (off by default; peak always on). */
+void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
+
+/** Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
+ *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
+double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
+
+/** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. */
+double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
+
 #ifdef __cplusplus
 }
 #endif

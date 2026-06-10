@@ -34,7 +34,23 @@ struct wfm_writer
   size_t   written; /* complex samples emitted */
   uint8_t *buf;     /* convert scratch */
   size_t   cap;
+  float    peak;  /* running max |I|/|Q| (pre-clip); always tracked */
+  uint64_t nclip; /* saturated I/Q components (only when `track`) */
+  int      track; /* count clips (opt-in); peak is always on */
 };
+
+/* Update the running peak (always) and, when opted in for an integer wire
+ * type, the saturated-component count. One fused max in the write loop. */
+static inline void
+track_sample (wfm_writer_t *w, float re, float im)
+{
+  float ar = fabsf (re), ai = fabsf (im);
+  float m = ar > ai ? ar : ai;
+  if (m > w->peak)
+    w->peak = m;
+  if (w->track && w->stype >= 2)
+    w->nclip += (uint64_t)(ar > 1.0f) + (uint64_t)(ai > 1.0f);
+}
 
 static long
 qz (float v, double scale)
@@ -157,6 +173,7 @@ write_csv (wfm_writer_t *w, const float _Complex *iq, size_t n)
     {
       float re = crealf (iq[i]), im = cimagf (iq[i]);
       int   ok;
+      track_sample (w, re, im);
       if (w->stype == 0)
         ok = fprintf (w->fp, "%0.9f,%0.9f\n", (double)re, (double)im) > 0;
       else if (w->stype == 1)
@@ -182,6 +199,7 @@ write_binary (wfm_writer_t *w, const float _Complex *iq, size_t n)
   for (size_t i = 0; i < n; i++)
     {
       float re = crealf (iq[i]), im = cimagf (iq[i]);
+      track_sample (w, re, im);
       switch (w->stype)
         {
         case 0:
@@ -259,6 +277,27 @@ wfm_writer_close (wfm_writer_t *w)
       free (w);
     }
   return rc;
+}
+
+void
+wfm_writer_track_clipping (wfm_writer_t *w, int on)
+{
+  if (w)
+    w->track = on ? 1 : 0;
+}
+
+double
+wfm_writer_peak (const wfm_writer_t *w)
+{
+  return w ? (double)w->peak : 0.0;
+}
+
+double
+wfm_writer_clip_fraction (const wfm_writer_t *w)
+{
+  if (!w || w->written == 0)
+    return 0.0;
+  return (double)w->nclip / (double)(2 * w->written);
 }
 
 /* SigMF "cf32_le"-style datatype string (ci8 has no endian suffix). */

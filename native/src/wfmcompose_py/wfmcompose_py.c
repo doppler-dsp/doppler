@@ -302,6 +302,8 @@ typedef struct
   wfm_writer_t *w;
   FILE         *fp;
   int           closed;
+  double        peak;     /* snapshot at close (writer is freed there) */
+  double        clipfrac; /* snapshot at close */
 } _wr_wrap_t;
 
 static void
@@ -353,6 +355,8 @@ _fn_writer_open (PyObject *mod, PyObject *args)
   p->w          = w;
   p->fp         = fp;
   p->closed     = 0;
+  p->peak       = 0.0;
+  p->clipfrac   = 0.0;
   PyObject *cap = PyCapsule_New (p, _WR_CAPS, _wr_destructor);
   if (!cap)
     {
@@ -405,7 +409,9 @@ _fn_writer_close (PyObject *mod, PyObject *args)
     return NULL;
   if (!p->closed)
     {
-      int rc = wfm_writer_close (p->w);
+      p->peak     = wfm_writer_peak (p->w);
+      p->clipfrac = wfm_writer_clip_fraction (p->w);
+      int rc      = wfm_writer_close (p->w);
       fclose (p->fp);
       p->closed = 1;
       if (rc != 0)
@@ -415,6 +421,39 @@ _fn_writer_close (PyObject *mod, PyObject *args)
         }
     }
   Py_RETURN_NONE;
+}
+
+static PyObject *
+_fn_writer_track_clipping (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  int       on;
+  if (!PyArg_ParseTuple (args, "Op", &cap, &on))
+    return NULL;
+  _wr_wrap_t *p = (_wr_wrap_t *)PyCapsule_GetPointer (cap, _WR_CAPS);
+  if (!p)
+    return NULL;
+  if (!p->closed)
+    wfm_writer_track_clipping (p->w, on);
+  Py_RETURN_NONE;
+}
+
+/* (peak, clip_fraction): the live writer's values, or the close-time snapshot
+ * once closed (the writer is freed at close). */
+static PyObject *
+_fn_writer_stats (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  if (!PyArg_ParseTuple (args, "O", &cap))
+    return NULL;
+  _wr_wrap_t *p = (_wr_wrap_t *)PyCapsule_GetPointer (cap, _WR_CAPS);
+  if (!p)
+    return NULL;
+  double peak = p->closed ? p->peak : wfm_writer_peak (p->w);
+  double frac = p->closed ? p->clipfrac : wfm_writer_clip_fraction (p->w);
+  return Py_BuildValue ("(dd)", peak, frac);
 }
 
 static PyObject *
@@ -951,6 +990,10 @@ static PyMethodDef _methods[] = {
     "writer_write(state, iq) -> int" },
   { "writer_close", _fn_writer_close, METH_VARARGS,
     "writer_close(state) -> None" },
+  { "writer_track_clipping", _fn_writer_track_clipping, METH_VARARGS,
+    "writer_track_clipping(state, on) -> None" },
+  { "writer_stats", _fn_writer_stats, METH_VARARGS,
+    "writer_stats(state) -> (peak, clip_fraction)" },
   { "blue_write_hcb", _fn_blue_write_hcb, METH_VARARGS,
     "blue_write_hcb(path, sample_type, endian, fs, fc, data_start, total,"
     " detached) -> None" },

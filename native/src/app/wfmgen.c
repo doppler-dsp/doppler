@@ -15,6 +15,7 @@
  * `wavegen --type qpsk --count 4096 …` agree sample-for-sample.
  */
 #include <complex.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,31 @@ lookup (const char *s, const char *const *tbl, int n)
   return -1;
 }
 
+/* Warn (and optionally fail) when an integer wire type clipped. peak > 1 means
+ * the composite ran past full-scale; report the overshoot in dB (the headroom
+ * it would need) and how to capture it losslessly. Float types never clip.
+ * Shared by the writer and sink paths. Returns non-zero when --clip-error
+ * should fail the run. */
+static int
+report_clip (double peak, double frac, int stype, int clip_report,
+             int clip_error)
+{
+  double dbfs = peak > 0.0 ? 20.0 * log10 (peak) : -120.0;
+  if (stype < 2 || peak <= 1.0)
+    {
+      if (clip_report)
+        fprintf (stderr, "wfmgen: peak %.1f dBFS — no clipping\n", dbfs);
+      return 0;
+    }
+  fprintf (stderr,
+           "wfmgen: warning: %s output clipped — peak is +%.1f dB over full "
+           "scale.\n  use --sample_type cf32 to capture it losslessly.\n",
+           STYPES[stype], dbfs);
+  if (clip_report)
+    fprintf (stderr, "  clipped %.2f%% of I/Q components\n", 100.0 * frac);
+  return clip_error ? 1 : 0;
+}
+
 static const char USAGE[]
     = "usage: wfmgen [--from-file SPEC.json] [--type "
       "tone|noise|pn|bpsk|qpsk]\n"
@@ -54,7 +80,8 @@ static const char USAGE[]
       "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type "
       "raw|csv|blue|sigmf]\n"
       "  [--endian le|be] [--detached] [--realtime] [--realtime-resync]\n"
-      "  [--output FILE|zmq://EP] [--record FILE]\n";
+      "  [--clip-report] [--clip-error] [--output FILE|zmq://EP] [--record "
+      "FILE]\n";
 
 int
 main (int argc, char *argv[])
@@ -73,6 +100,7 @@ main (int argc, char *argv[])
                            .off_samples = 0 };
   int           repeat = 0, continuous = 0, detached = 0;
   int           realtime = 0, realtime_resync = 0;
+  int           clip_report = 0, clip_error = 0;
   int           sample_type = 0, file_type = 0, endian = 0;
   double        fc        = 0.0;
   const char   *from_file = NULL, *out_path = NULL, *record_path = NULL;
@@ -185,6 +213,14 @@ main (int argc, char *argv[])
         {
           realtime = 1;
         }
+      else if (!strcmp (a, "--clip-report"))
+        {
+          clip_report = 1;
+        }
+      else if (!strcmp (a, "--clip-error"))
+        {
+          clip_error = 1;
+        }
       else if (!strcmp (a, "--realtime-resync"))
         {
           realtime        = 1;
@@ -258,6 +294,8 @@ main (int argc, char *argv[])
         }
       else
         {
+          if (clip_report)
+            wfm_zmq_sink_track_clipping (sink, 1);
           while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
             {
               wfm_zmq_sink_send (sink, buf, n, fs, fc);
@@ -266,6 +304,10 @@ main (int argc, char *argv[])
               if (n < BLK)
                 break;
             }
+          if (report_clip (wfm_zmq_sink_peak (sink),
+                           wfm_zmq_sink_clip_fraction (sink), sample_type,
+                           clip_report, clip_error))
+            rc = 1;
           wfm_zmq_sink_close (sink);
         }
     }
@@ -300,6 +342,8 @@ main (int argc, char *argv[])
           size_t        total = 0;
           if (w)
             {
+              if (clip_report)
+                wfm_writer_track_clipping (w, 1);
               while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
                 {
                   wfm_writer_write (w, buf, n);
@@ -307,6 +351,10 @@ main (int argc, char *argv[])
                   if (n < BLK)
                     break;
                 }
+              if (report_clip (wfm_writer_peak (w),
+                               wfm_writer_clip_fraction (w), sample_type,
+                               clip_report, clip_error))
+                rc = 1;
               wfm_writer_close (w);
             }
           fclose (df);
@@ -362,6 +410,8 @@ main (int argc, char *argv[])
         }
       else
         {
+          if (clip_report)
+            wfm_writer_track_clipping (w, 1);
           while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
             {
               wfm_writer_write (w, buf, n);
@@ -370,6 +420,9 @@ main (int argc, char *argv[])
               if (n < BLK)
                 break;
             }
+          if (report_clip (wfm_writer_peak (w), wfm_writer_clip_fraction (w),
+                           sample_type, clip_report, clip_error))
+            rc = 1;
           wfm_writer_close (w);
         }
       if (fp != stdout)

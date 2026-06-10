@@ -25,6 +25,7 @@ Examples
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from typing import Sequence
@@ -348,10 +349,11 @@ class Writer:
         fc: float = 0.0,
         total: int = 0,
     ) -> None:
+        self._stype = _idx(sample_type, _STYPES, "sample_type")
         self._cap = _c.writer_open(
             os.fspath(path),
             _idx(file_type, _FTYPES, "file_type"),
-            _idx(sample_type, _STYPES, "sample_type"),
+            self._stype,
             _idx(endian, _ENDIANS, "endian"),
             float(fs),
             float(fc),
@@ -361,6 +363,34 @@ class Writer:
     def write(self, iq: NDArray[np.complex64]) -> int:
         """Write a block of samples; returns the number written."""
         return _c.writer_write(self._cap, iq)
+
+    def track_clipping(self, on: bool = True) -> None:
+        """Enable the per-component clip *counter* (off by default; the peak is
+        always tracked). Call before writing if you want :attr:`clip_fraction`.
+        """
+        _c.writer_track_clipping(self._cap, bool(on))
+
+    @property
+    def peak_dbfs(self) -> float:
+        """Largest sample magnitude written, in dBFS (``0`` dB = full scale).
+        Positive means an integer wire type clipped; the value is the headroom
+        it would need. Readable while open or after :meth:`close`."""
+        peak, _ = _c.writer_stats(self._cap)
+        return 20.0 * math.log10(peak) if peak > 0.0 else float("-inf")
+
+    @property
+    def clip_fraction(self) -> float:
+        """Fraction (0..1) of I/Q components that saturated. Always ``0`` unless
+        :meth:`track_clipping` was enabled; only meaningful for integer types.
+        """
+        _, frac = _c.writer_stats(self._cap)
+        return frac
+
+    @property
+    def clipped(self) -> bool:
+        """True if an integer capture ran past full scale (``peak > 1``)."""
+        peak, _ = _c.writer_stats(self._cap)
+        return self._stype >= 2 and peak > 1.0
 
     def close(self) -> None:
         """Flush, patch any header, and close the file (idempotent)."""

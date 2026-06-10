@@ -497,3 +497,30 @@ def test_sigmf_meta_and_data_pair(tmp_path):
     assert meta["global"]["core:datatype"] == "cf32_le"
     assert len(meta["annotations"]) == 2  # one per segment
     assert np.allclose(read_iq(str(data), "cf32"), x)
+
+
+def test_writer_clip_detection(tmp_path):
+    """Writer tracks the peak (always) and the clipped fraction (opt-in),
+    and the values survive close()."""
+    # peak magnitude 2.0 (clips in ci16); 2 of 4 components exceed full-scale.
+    x = np.array([1.5 + 0.5j, -0.5 - 2.0j], dtype=np.complex64)
+    w = Writer(tmp_path / "clip.ci16", sample_type="ci16")
+    w.track_clipping(True)
+    w.write(x)
+    assert w.clipped
+    assert abs(w.peak_dbfs - 20.0 * np.log10(2.0)) < 1e-4
+    assert abs(w.clip_fraction - 0.5) < 1e-6
+    w.close()
+    assert w.clipped  # snapshot survives close
+
+    # clean at full scale: peak 0 dBFS, no clip.
+    c = Writer(tmp_path / "clean.ci16", sample_type="ci16")
+    c.write(np.array([1.0 + 1.0j, -1.0 - 1.0j], dtype=np.complex64))
+    assert not c.clipped and abs(c.peak_dbfs) < 1e-4
+    c.close()
+
+    # float never clips, even past full scale.
+    f = Writer(tmp_path / "x.cf32", sample_type="cf32")
+    f.write(x)
+    assert not f.clipped
+    f.close()

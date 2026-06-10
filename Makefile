@@ -309,7 +309,8 @@ endif
 	sed -i 's/^version = "[^"]*"/version = "$(VERSION)"/' pyproject.toml
 	sed -i "s/^version = \"[0-9.]*/version = \"$$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" $(RUST_DIR)/Cargo.toml
 	sed -i "s/^project(doppler VERSION [0-9.]*/project(doppler VERSION $$(echo $(VERSION) | sed 's/[^0-9.].*//g')/" CMakeLists.txt
-	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt"
+	uv lock      # sync uv.lock's editable doppler-dsp version (else it drifts)
+	@echo "Bumped to $(VERSION) in pyproject.toml, Cargo.toml, CMakeLists.txt, uv.lock"
 	@echo "Next: edit CHANGELOG.md, commit, push the branch, open a PR, get CI"
 	@echo "      green, merge — then on main: make tag-release VERSION=$(VERSION)"
 

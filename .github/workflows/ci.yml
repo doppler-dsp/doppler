@@ -19,13 +19,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, macos-latest, windows-latest]
+        # Windows is intentionally unsupported: signal-processing users on
+        # Windows run under WSL2, a VM, or a container. Dropping it removes the
+        # flaky MSYS2 toolchain setup and the MinGW build/test matrix.
+        os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install jbx
-      if: matrix.os != 'windows-latest'
       run: |
         mkdir -p "$HOME/.local/bin"
         curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
@@ -46,56 +48,16 @@ jobs:
       if: startsWith(matrix.os, 'macos')
       run: jbx -r install-deps -g runtime,dev -s brew
 
-    - name: Install dependencies (Windows / MSYS2)
-      if: matrix.os == 'windows-latest'
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: UCRT64
-        update: true
-        install: >
-          mingw-w64-ucrt-x86_64-uv
-          mingw-w64-ucrt-x86_64-gcc
-          mingw-w64-ucrt-x86_64-cmake
-          mingw-w64-ucrt-x86_64-zeromq
-          mingw-w64-ucrt-x86_64-fftw
-          mingw-w64-ucrt-x86_64-rust
-          make
-
     - name: Build
-      if: matrix.os != 'windows-latest'
       run: make build
 
-    - name: Build (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
-      run: |
-        make build
-
     - name: Test
-      if: matrix.os != 'windows-latest'
-      run: make test
-
-    - name: Test (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
       run: make test
 
     - name: Example smoke tests
-      if: matrix.os != 'windows-latest'
-      run: make test-examples
-
-    - name: Example smoke tests (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
       run: make test-examples
 
     - name: Rust FFI tests
-      if: matrix.os != 'windows-latest'
-      run: make rust-test
-
-    - name: Rust FFI tests (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
       run: make rust-test
 
     # Early portability signal: the release pipeline already objdumps every

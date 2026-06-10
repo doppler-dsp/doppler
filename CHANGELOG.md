@@ -13,6 +13,31 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-06-09
+
+Bug-fix release: two macOS arm64 correctness issues surfaced by the new macOS
+test gate added in 0.10.0. Both are pre-existing — not 0.10.0 regressions.
+
+### Fixed
+
+- **VM-mirrored ring buffers (`F32Buffer` / `F64Buffer` / `I16Buffer`) were
+    unusable on 16 KiB-page systems (macOS arm64).** `create()` rejected any
+    sub-page request — `F32Buffer(1024)` is 8 KiB, below one 16 KiB page — so
+    the double-mapping could not be constructed. Sizes are now rounded **up** to
+    the smallest power-of-two that spans a whole page; read the real size back
+    from `.capacity` (it may exceed the request). 4 KiB-page (Linux x86-64)
+    behaviour is unchanged. The Windows path aligns to the 64 KiB allocation
+    granularity for the same reason. (#66)
+- **The Python `Composer` diverged byte-for-byte from the `wavegen` CLI for
+    `qpsk` / `cf32` on arm64.** The composer pulled samples through the scalar
+    `synth_step()` while the CLI uses the block `synth_steps()`; under
+    `-ffast-math` those contract fused multiply-adds differently, and QPSK's
+    irrational ±1/√2 symbol leg exposed the ULP gap (other waveforms' ±1/0 legs
+    are exact, so they were immune; it also rounded away under `ci16`/`ci8`,
+    leaving only `cf32` affected). The composer now drives the **same**
+    `synth_steps()` the CLI uses, so both faces are byte-identical by
+    construction. (#67)
+
 ## [0.10.0] — 2026-06-09
 
 The headline is **broadened Python support: 3.9 – 3.14** (the floor drops from
@@ -1010,4 +1035,5 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...HEAD
+[0.10.1]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...v0.10.1
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.1...HEAD

@@ -178,6 +178,7 @@ nav:
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Quantization: design/QUANTIZATION.md
+      - Waveform Amplitude & Composition: design/wfmgen-composition.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - Dopplerfile: cli/dopplerfile.md

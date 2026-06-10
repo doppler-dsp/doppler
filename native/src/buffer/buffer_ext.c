@@ -67,8 +67,8 @@ F32Buffer_init (F32BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->buf)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "dp_f32_create failed — n_samples must be a power of 2 "
-                       "and aligned to the system page size");
+                       "dp_f32_create failed — n_samples must be a power of "
+                       "2 (sub-page sizes are rounded up to one page)");
       return -1;
     }
   return 0;
@@ -207,7 +207,8 @@ static PyTypeObject F32BufferType = {
   .tp_flags = Py_TPFLAGS_DEFAULT,
   .tp_doc = "F32Buffer(n_samples)\n\n"
             "Double-mapped SPSC circular buffer for complex64 samples.\n"
-            "n_samples must be a power of 2 aligned to the system page size.",
+            "n_samples must be a power of 2; a sub-page request is rounded\n"
+            "up to one page, so read the real size from `.capacity`.",
   .tp_methods = F32Buffer_methods,
   .tp_getset = F32Buffer_getset,
   .tp_init = (initproc)F32Buffer_init,
@@ -251,8 +252,8 @@ F64Buffer_init (F64BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->buf)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "dp_f64_create failed — n_samples must be a power of 2 "
-                       "and aligned to the system page size");
+                       "dp_f64_create failed — n_samples must be a power of "
+                       "2 (sub-page sizes are rounded up to one page)");
       return -1;
     }
   return 0;
@@ -388,7 +389,8 @@ static PyTypeObject F64BufferType = {
   .tp_flags = Py_TPFLAGS_DEFAULT,
   .tp_doc = "F64Buffer(n_samples)\n\n"
             "Double-mapped SPSC circular buffer for complex128 samples.\n"
-            "n_samples must be a power of 2 aligned to the system page size.",
+            "n_samples must be a power of 2; a sub-page request is rounded\n"
+            "up to one page, so read the real size from `.capacity`.",
   .tp_methods = F64Buffer_methods,
   .tp_getset = F64Buffer_getset,
   .tp_init = (initproc)F64Buffer_init,
@@ -435,8 +437,8 @@ I16Buffer_init (I16BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->buf)
     {
       PyErr_SetString (PyExc_MemoryError,
-                       "dp_i16_create failed — n_samples must be a power of 2 "
-                       "and aligned to the system page size");
+                       "dp_i16_create failed — n_samples must be a power of "
+                       "2 (sub-page sizes are rounded up to one page)");
       return -1;
     }
   return 0;
@@ -583,7 +585,8 @@ static PyTypeObject I16BufferType = {
   .tp_doc = "I16Buffer(n_samples)\n\n"
             "Double-mapped SPSC circular buffer for int16 IQ samples.\n"
             "wait(n) returns an (n, 2) int16 array (col 0=I, col 1=Q).\n"
-            "n_samples must be a power of 2 aligned to the system page size.",
+            "n_samples must be a power of 2; a sub-page request is rounded\n"
+            "up to one page, so read the real size from `.capacity`.",
   .tp_methods = I16Buffer_methods,
   .tp_getset = I16Buffer_getset,
   .tp_init = (initproc)I16Buffer_init,

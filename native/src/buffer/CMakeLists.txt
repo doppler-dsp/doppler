@@ -1,3 +1,12 @@
+# C-level test — buffer/buffer.h is header-only (no _core.c to link). This is
+# the only buffer gate on the macOS C job, which runs without BUILD_PYTHON, so
+# it lives outside the guard below.
+add_executable(test_buffer_core
+               ${CMAKE_SOURCE_DIR}/native/tests/test_buffer_core.c)
+target_include_directories(test_buffer_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_buffer_core COMMAND test_buffer_core)
+
 if(BUILD_PYTHON)
 # buffer Python module — wraps buffer/buffer.h (header-only, no C source link)
 Python3_add_library(buffer MODULE WITH_SOABI buffer_ext.c)

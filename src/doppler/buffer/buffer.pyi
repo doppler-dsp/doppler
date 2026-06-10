@@ -21,17 +21,20 @@ class F32Buffer:
     Parameters
     ----------
     capacity : int
-        Buffer size in complex samples.  Must be a power of two and
-        ``capacity * 8`` must be a multiple of the system page size
-        (4096 on Linux x86-64, so the minimum is 512).
+        Requested buffer size in complex samples.  Must be a power of two.
+        The VM mirror is built at page granularity, so ``capacity * 8`` must
+        span a whole page; a sub-page request is rounded **up** to the
+        smallest power-of-two that does (minimum 512 on 4 KiB pages, 2048 on
+        16 KiB pages such as macOS arm64).  Read :attr:`capacity` back for the
+        size actually allocated.
 
     Examples
     --------
     >>> from doppler.buffer import F32Buffer
     >>> import numpy as np
     >>> buf = F32Buffer(1024)
-    >>> buf.capacity
-    1024
+    >>> buf.capacity >= 1024
+    True
     >>> buf.write(np.ones(512, dtype=np.complex64))
     True
 
@@ -169,15 +172,16 @@ class F32Buffer:
     def capacity(self) -> int:
         """Buffer capacity in complex samples.
 
-        Read-only.  Set at construction time and never changes.  On
-        Linux x86-64 the minimum is 512 (so that
-        ``capacity * 8 == 4096`` meets the page-alignment requirement).
+        Read-only.  Set at construction time and never changes.  This is the
+        *actual* allocated size: a sub-page request is rounded up to the
+        page-spanning minimum (512 on 4 KiB pages, 2048 on 16 KiB pages), so
+        it may exceed the value passed to the constructor.
 
         Examples
         --------
         >>> from doppler.buffer import F32Buffer
-        >>> F32Buffer(1024).capacity
-        1024
+        >>> F32Buffer(1024).capacity >= 1024
+        True
 
         """
         ...
@@ -220,17 +224,19 @@ class F64Buffer:
     Parameters
     ----------
     capacity : int
-        Buffer size in complex samples.  Must be a power of two and
-        ``capacity * 16`` must be a multiple of the system page size
-        (minimum 256 on Linux x86-64).
+        Requested buffer size in complex samples.  Must be a power of two.
+        ``capacity * 16`` must span a whole page; a sub-page request is
+        rounded **up** to the smallest power-of-two that does (minimum 256 on
+        4 KiB pages, 1024 on 16 KiB pages).  Read :attr:`capacity` back for the
+        size actually allocated.
 
     Examples
     --------
     >>> from doppler.buffer import F64Buffer
     >>> import numpy as np
     >>> buf = F64Buffer(512)
-    >>> buf.capacity
-    512
+    >>> buf.capacity >= 512
+    True
     >>> buf.write(np.ones(256, dtype=np.complex128))
     True
 
@@ -354,14 +360,15 @@ class F64Buffer:
     def capacity(self) -> int:
         """Buffer capacity in complex samples.
 
-        Read-only.  Minimum 256 on Linux x86-64 (page-alignment
-        requirement: ``capacity * 16 >= 4096``).
+        Read-only.  The *actual* allocated size: a sub-page request rounds up
+        to the page-spanning minimum (256 on 4 KiB pages, 1024 on 16 KiB
+        pages), so it may exceed the requested value.
 
         Examples
         --------
         >>> from doppler.buffer import F64Buffer
-        >>> F64Buffer(512).capacity
-        512
+        >>> F64Buffer(512).capacity >= 512
+        True
 
         """
         ...
@@ -407,17 +414,19 @@ class I16Buffer:
     Parameters
     ----------
     capacity : int
-        Buffer size in IQ sample pairs.  Must be a power of two and
-        ``capacity * 4`` must be a multiple of the system page size
-        (minimum 1024 on Linux x86-64).
+        Requested buffer size in IQ sample pairs.  Must be a power of two.
+        ``capacity * 4`` must span a whole page; a sub-page request is rounded
+        **up** to the smallest power-of-two that does (minimum 1024 on 4 KiB
+        pages, 4096 on 16 KiB pages).  Read :attr:`capacity` back for the size
+        actually allocated.
 
     Examples
     --------
     >>> from doppler.buffer import I16Buffer
     >>> import numpy as np
     >>> buf = I16Buffer(1024)
-    >>> buf.capacity
-    1024
+    >>> buf.capacity >= 1024
+    True
     >>> buf.write(np.array([10, 20, 30, 40], dtype=np.int16))
     True
 
@@ -546,14 +555,15 @@ class I16Buffer:
     def capacity(self) -> int:
         """Buffer capacity in IQ sample pairs.
 
-        Read-only.  Minimum 1024 on Linux x86-64 (page-alignment
-        requirement: ``capacity * 4 >= 4096``).
+        Read-only.  The *actual* allocated size: a sub-page request rounds up
+        to the page-spanning minimum (1024 on 4 KiB pages, 4096 on 16 KiB
+        pages), so it may exceed the requested value.
 
         Examples
         --------
         >>> from doppler.buffer import I16Buffer
-        >>> I16Buffer(1024).capacity
-        1024
+        >>> I16Buffer(1024).capacity >= 1024
+        True
 
         """
         ...

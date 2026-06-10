@@ -5403,8 +5403,19 @@
  ],
  "datetime": "2026-06-10T13:01:58.500968+00:00",
  "version": "5.2.3",
- "doppler_build": {
+ "doppler_meta": {
+  "measured_at": "2026-06-10T13:01:58.500968+00:00",
+  "commit": "8a47c29",
   "compiler": "cc (GCC) 16.1.1 20260430",
-  "flags": "-O3 -march=native -mprefer-vector-width=256 -ffast-math"
+  "flags": "-O3 -march=native -mprefer-vector-width=256 -ffast-math",
+  "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+  "cores": 20,
+  "cpu_governor": "powersave",
+  "cpu_boost": "on",
+  "kernel": "7.0.11-1-cachyos",
+  "python": "3.12.13",
+  "numpy": "2.4.6",
+  "glibc": "glibc 2.43",
+  "cmake": "4.3.3"
  }
 }

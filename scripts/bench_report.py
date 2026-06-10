@@ -294,11 +294,11 @@ def cmd_page(published, out_path) -> int:
         "Throughput is **MSa/s** (higher is better); latency ops are mean "
         "**time/call** (lower is better). *from src* = native vs portable.",
         "",
-        "> The two builds are measured in separate runs, so *from src* is only "
-        "meaningful where it's large: big gains (e.g. vectorizable kernels under "
-        "AVX-512) are real, while small or negative deltas on overhead-bound "
-        "benches (tiny per-call work) are run-to-run noise, not a native "
-        "penalty.",
+        "> The two builds are measured **interleaved** (alternating runs, "
+        "per-benchmark best), so *from src* reflects the real build difference. "
+        "Big gains are vectorizable kernels under AVX-512; overhead-bound "
+        "benches (tiny per-call work) sit near 0% because the build can't help "
+        "where Python-call overhead dominates.",
         "",
     ]
     for suite in SUITES:

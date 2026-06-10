@@ -3,22 +3,27 @@
 
 The release pipeline (`.github/workflows/benchmark.yml`) commits one Python
 (`<tag>.json`, pytest-benchmark) and one C (`<tag>-c.json`, jm_bench) snapshot
-per release tag to the **`benchmarks` branch** under `history/`. Both share the
-pytest-benchmark ``stats`` shape (mean/min/stddev in seconds). Those snapshots
-were write-only — nothing ever read them back. This is that reader: it turns the
+per release tag to the **`benchmarks` branch** under `history/`. Those snapshots
+were write-only — nothing read them back. This is that reader: it turns the
 release time-series into a table you can scan and a docs page you can look at.
+
+Metric. Throughput benchmarks record samples-per-second in
+``stats``-adjacent ``extra_info["MSa_s"]`` (mega-samples/s) — for those, the
+headline number is **MSa/s, higher is better**. Benchmarks without a sample
+count (scalar ops; the whole C suite today, whose harness records no size) fall
+back to **mean time per call, lower is better**. Each report labels which.
 
 Data source is the git branch itself (read via ``git show``), so it needs no
 working-tree checkout of the snapshots — just ``origin/benchmarks`` fetched.
 
 Examples
 --------
-Print the newest-release-vs-previous comparison (what ``make bench-report`` runs)::
+Newest-release-vs-previous comparison (what ``make bench-report`` runs)::
 
     python scripts/bench_report.py
     python scripts/bench_report.py --top 40
 
-Generate the docs page + trend plots (run by ``make docs-build``)::
+Docs page + trend plots (run by ``make docs-build``)::
 
     python scripts/bench_report.py --page \
         --out docs/benchmarks.md --assets docs/assets/bench
@@ -34,7 +39,7 @@ from collections import defaultdict
 
 BRANCH = "origin/benchmarks"
 VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
-SUITES = ("c", "python")
+SUITES = ("python", "c")
 SUITE_LABEL = {"c": "C (jm_bench)", "python": "Python (pytest-benchmark)"}
 
 
@@ -48,22 +53,33 @@ def _version_key(tag: str):
     return tuple(int(x) for x in m.groups()) if m else None
 
 
-def load_history() -> dict[str, dict[str, dict[str, float]]]:
+def _display_name(suite: str, bench: dict) -> str:
+    """Short, unique label. Python `name`s collide across modules (the same
+    ``test_bench_steps[1024]`` lives in several files), so derive a
+    ``module::case`` label from ``fullname`` for Python; C names are already
+    unique and clean (``RateConverter::HB(0.5)``)."""
+    name = bench.get("name", "?")
+    full = bench.get("fullname") or name
+    if suite == "python" and "::" in full:
+        mod = full.rsplit("::", 1)[0].rsplit("/", 1)[-1]
+        mod = mod.removesuffix(".py").removeprefix("bench_")
+        case = name.removeprefix("test_bench_").removeprefix("test_")
+        return f"{mod}::{case}" if mod else case
+    return name
+
+
+def load_history():
     """Load every release snapshot from the benchmarks branch.
 
-    Returns ``{suite: {tag: {benchmark_name: mean_seconds}}}`` with tags sorted
-    ascending by semantic version. Non-version snapshots (e.g. ``baseline-*``)
-    are skipped so the series is a clean release timeline.
+    Returns ``{suite: {tag: {fullname: {"disp", "mean", "msas"}}}}`` with tags
+    sorted ascending by version. ``msas`` is None when the benchmark records no
+    throughput. Non-version snapshots (e.g. ``baseline-*``) are skipped.
     """
     _git("fetch", "-q", "origin", "benchmarks")
     listing = _git("ls-tree", "-r", "--name-only", BRANCH)
-    series: dict[str, dict[str, dict[str, float]]] = {
-        s: defaultdict(dict) for s in SUITES
-    }
+    series = {s: defaultdict(dict) for s in SUITES}
     if listing.returncode != 0:
-        return {
-            s: {} for s in SUITES
-        }  # branch unavailable (e.g. shallow clone)
+        return {s: {} for s in SUITES}  # branch unavailable (shallow clone)
 
     for path in listing.stdout.splitlines():
         if not (path.startswith("history/") and path.endswith(".json")):
@@ -80,8 +96,16 @@ def load_history() -> dict[str, dict[str, dict[str, float]]]:
             continue
         for b in json.loads(blob.stdout).get("benchmarks", []):
             mean = b.get("stats", {}).get("mean")
-            if isinstance(mean, (int, float)) and mean > 0:
-                series[suite][tag][b["name"]] = float(mean)
+            if not (isinstance(mean, (int, float)) and mean > 0):
+                continue
+            msas = b.get("extra_info", {}).get("MSa_s")
+            series[suite][tag][b.get("fullname") or b["name"]] = {
+                "disp": _display_name(suite, b),
+                "mean": float(mean),
+                "msas": float(msas)
+                if isinstance(msas, (int, float))
+                else None,
+            }
 
     return {
         s: dict(sorted(d.items(), key=lambda kv: _version_key(kv[0])))
@@ -90,73 +114,111 @@ def load_history() -> dict[str, dict[str, dict[str, float]]]:
 
 
 def fmt_time(seconds: float) -> str:
-    """Human-readable duration: ns / µs / ms / s."""
     for scale, unit in ((1e-9, "ns"), (1e-6, "µs"), (1e-3, "ms"), (1.0, "s")):
         if seconds < scale * 1000:
             return f"{seconds / scale:.2f} {unit}"
     return f"{seconds:.2f} s"
 
 
-def _delta_rows(tags: list[str], snaps: dict[str, dict[str, float]]):
-    """(name, prev_mean, cur_mean, pct) for benchmarks present in both newest tags."""
-    prev, cur = tags[-2], tags[-1]
+def fmt_tput(msas: float) -> str:
+    """MSa/s, or GSa/s once it crosses 1000."""
+    return f"{msas / 1000:.2f} GSa/s" if msas >= 1000 else f"{msas:.1f} MSa/s"
+
+
+def _groups(snaps: dict):
+    """Split benchmark keys into (throughput, timed) by whether any snapshot
+    recorded MSa/s for them."""
+    tput, timed = set(), set()
+    for tag in snaps:
+        for key, e in snaps[tag].items():
+            (tput if e["msas"] is not None else timed).add(key)
+    timed -= tput  # a key with MSa/s in any snapshot counts as throughput
+    return tput, timed
+
+
+def _value(entry: dict, throughput: bool):
+    return entry["msas"] if throughput else entry["mean"]
+
+
+def _rows(tags, snaps, keys, throughput):
+    """(disp, prev, cur, pct) for keys present (with a value) in both newest
+    tags, sorted by |pct| desc. pct is the signed change in the metric."""
+    prev_t, cur_t = tags[-2], tags[-1]
     rows = []
-    for name, cur_mean in snaps[cur].items():
-        prev_mean = snaps[prev].get(name)
-        if prev_mean:
-            pct = (cur_mean - prev_mean) / prev_mean * 100.0
-            rows.append((name, prev_mean, cur_mean, pct))
+    for k in keys:
+        pe, ce = snaps[prev_t].get(k), snaps[cur_t].get(k)
+        if not pe or not ce:
+            continue
+        a, b = _value(pe, throughput), _value(ce, throughput)
+        if a and b:
+            rows.append((ce["disp"], a, b, (b - a) / a * 100.0))
     rows.sort(key=lambda r: -abs(r[3]))
-    return prev, cur, rows
+    return prev_t, cur_t, rows
 
 
-def cmd_table(series, top: int, regress_pct: float) -> int:
-    """Print a newest-vs-previous comparison table per suite to stdout."""
-    any_data = False
+def _improved(pct: float, throughput: bool, thr: float) -> int:
+    """+1 better, -1 worse, 0 within threshold (direction depends on metric)."""
+    good = pct > thr if throughput else pct < -thr
+    bad = pct < -thr if throughput else pct > thr
+    return 1 if good else (-1 if bad else 0)
+
+
+def _section_iter(series):
+    """Yield (suite, label, throughput, keys, snaps) for each non-empty group."""
     for suite in SUITES:
         snaps = series[suite]
-        tags = list(snaps)
-        if len(tags) < 2:
+        if len(snaps) < 2:
             continue
+        tput, timed = _groups(snaps)
+        for throughput, keys in ((True, tput), (False, timed)):
+            if keys:
+                metric = "MSa/s ↑" if throughput else "time ↓"
+                yield (
+                    suite,
+                    f"{SUITE_LABEL[suite]} — {metric}",
+                    throughput,
+                    keys,
+                    snaps,
+                )
+
+
+def cmd_table(series, top: int, thr: float) -> int:
+    any_data = False
+    for _suite, label, tput, keys, snaps in _section_iter(series):
         any_data = True
-        prev, cur, rows = _delta_rows(tags, snaps)
-        regressions = sum(1 for *_, p in rows if p > regress_pct)
-        improvements = sum(1 for *_, p in rows if p < -regress_pct)
+        prev, cur, rows = _rows(list(snaps), snaps, keys, tput)
+        if not rows:
+            continue
+        fmt = fmt_tput if tput else fmt_time
+        better = sum(1 for *_, p in rows if _improved(p, tput, thr) > 0)
+        worse = sum(1 for *_, p in rows if _improved(p, tput, thr) < 0)
         print(
-            f"\n=== {SUITE_LABEL[suite]}: {cur} vs {prev} "
-            f"({len(rows)} benchmarks, ±{regress_pct:.0f}% threshold) ==="
+            f"\n=== {label}: {cur} vs {prev} "
+            f"({len(rows)} benchmarks, ±{thr:.0f}%) ==="
         )
-        print(f"{'benchmark':42}  {prev:>10}  {cur:>10}  {'Δ':>8}")
-        print("-" * 76)
-        for name, a, b, pct in rows[:top]:
-            flag = (
-                " ⚠"
-                if pct > regress_pct
-                else (" ✓" if pct < -regress_pct else "")
-            )
-            disp = name if len(name) <= 42 else name[:39] + "..."
-            print(
-                f"{disp:42}  {fmt_time(a):>10}  {fmt_time(b):>10}  {pct:>+7.1f}%{flag}"
-            )
+        print(f"{'benchmark':46}  {prev:>11}  {cur:>11}  {'Δ':>8}")
+        print("-" * 82)
+        for disp, a, b, pct in rows[:top]:
+            mark = _improved(pct, tput, thr)
+            flag = " ✓" if mark > 0 else (" ⚠" if mark < 0 else "")
+            d = disp if len(disp) <= 46 else disp[:43] + "..."
+            print(f"{d:46}  {fmt(a):>11}  {fmt(b):>11}  {pct:>+7.1f}%{flag}")
         if len(rows) > top:
-            print(
-                f"... {len(rows) - top} more (use --top {len(rows)} for all)"
-            )
+            print(f"... {len(rows) - top} more (--top {len(rows)} for all)")
         print(
-            f"summary: {regressions} regressed >{regress_pct:.0f}%, "
-            f"{improvements} improved >{regress_pct:.0f}%"
+            f"summary: {better} better, {worse} worse "
+            f"(>{thr:.0f}%); ✓ = faster"
         )
     if not any_data:
         print(
-            "No release snapshots found on the `benchmarks` branch "
-            "(need ≥2 releases). Is origin/benchmarks fetched?"
+            "No release snapshots on the `benchmarks` branch (need ≥2 "
+            "releases). Is origin/benchmarks fetched?"
         )
         return 1
     return 0
 
 
 def cmd_page(series, out: str, assets: str, top: int) -> int:
-    """Write a docs markdown page with per-suite trend plots over releases."""
     import os
 
     import matplotlib
@@ -165,75 +227,86 @@ def cmd_page(series, out: str, assets: str, top: int) -> int:
     import matplotlib.pyplot as plt
 
     os.makedirs(assets, exist_ok=True)
-    rel_assets = os.path.relpath(assets, os.path.dirname(out) or ".")
+    rel = os.path.relpath(assets, os.path.dirname(out) or ".")
     lines = [
         "# Benchmarks",
         "",
-        "Per-release benchmark history, captured automatically on every release",
-        "tag by [`benchmark.yml`](https://github.com/doppler-dsp/doppler/blob/"
-        "main/.github/workflows/benchmark.yml) on a pinned runner "
-        "(ubuntu-24.04, Python 3.12) and stored on the `benchmarks` branch. "
-        "Lower is better (mean wall-clock per call).",
+        "Per-release benchmark history, captured automatically on every "
+        "release tag by [`benchmark.yml`](https://github.com/doppler-dsp/"
+        "doppler/blob/main/.github/workflows/benchmark.yml) on a pinned runner "
+        "(ubuntu-24.04, Python 3.12) and stored on the `benchmarks` branch.",
+        "",
+        "Throughput benchmarks are shown in **MSa/s (higher is better)**; "
+        "others in **mean time per call (lower is better)**. Single-release "
+        "deltas carry cross-runner CI noise — read the *trend*, not one step.",
         "",
     ]
 
     produced = False
-    for suite in SUITES:
-        snaps = series[suite]
-        tags = list(snaps)
-        if len(tags) < 2:
-            continue
+    seen_suite = set()
+    for suite, label, tput, keys, snaps in _section_iter(series):
         produced = True
-        # The N slowest benchmarks in the newest release — the ones worth watching.
-        newest = snaps[tags[-1]]
-        watch = sorted(newest, key=lambda n: -newest[n])[:top]
+        if suite not in seen_suite:
+            lines += [f"## {SUITE_LABEL[suite]}", ""]
+            seen_suite.add(suite)
+        tags = list(snaps)
+        # The N "biggest" benchmarks in the newest release: fastest by
+        # throughput, or slowest by time — the headline numbers worth watching.
+        newest = {
+            k: _value(snaps[tags[-1]][k], tput)
+            for k in keys
+            if k in snaps[tags[-1]]
+        }
+        watch = sorted(newest, key=lambda k: -newest[k])[:top]
 
         fig, ax = plt.subplots(figsize=(10, 5.5))
         xs = range(len(tags))
-        for name in watch:
-            ys = [snaps[t].get(name) for t in tags]
+        for k in watch:
+            ys = [
+                _value(snaps[t][k], tput) if k in snaps[t] else None
+                for t in tags
+            ]
             ax.plot(
                 xs,
                 [y if y else float("nan") for y in ys],
                 marker="o",
                 ms=3,
                 lw=1.2,
-                label=name,
+                label=snaps[tags[-1]][k]["disp"],
             )
         ax.set_xticks(list(xs))
         ax.set_xticklabels(tags, rotation=45, ha="right", fontsize=7)
-        ax.set_ylabel("mean time per call (s)")
-        ax.set_yscale("log")
-        ax.set_title(f"{SUITE_LABEL[suite]} — {len(watch)} slowest benchmarks")
+        if tput:
+            ax.set_ylabel("throughput (MSa/s) — higher is better")
+        else:
+            ax.set_ylabel("mean time per call (s) — lower is better")
+            ax.set_yscale("log")
         ax.grid(True, which="both", alpha=0.25)
         ax.legend(
-            fontsize=6, ncol=2, loc="upper left", bbox_to_anchor=(1.01, 1.0)
+            fontsize=6, ncol=1, loc="upper left", bbox_to_anchor=(1.01, 1.0)
         )
         fig.tight_layout()
-        png = os.path.join(assets, f"trend-{suite}.png")
-        fig.savefig(png, dpi=110)
+        slug = f"{suite}-{'tput' if tput else 'time'}"
+        fig.savefig(os.path.join(assets, f"trend-{slug}.png"), dpi=110)
         plt.close(fig)
 
-        prev, cur, rows = _delta_rows(tags, snaps)
+        prev, cur, rows = _rows(tags, snaps, keys, tput)
+        fmt = fmt_tput if tput else fmt_time
+        unit = "MSa/s, ↑ better" if tput else "time, ↓ better"
         lines += [
-            f"## {SUITE_LABEL[suite]}",
+            f"### {'Throughput' if tput else 'Timing'} ({unit})",
             "",
-            f"![{suite} benchmark trend]({rel_assets}/trend-{suite}.png)",
-            "",
-            f"### {cur} vs {prev}",
+            f"![{slug} trend]({rel}/trend-{slug}.png)",
             "",
             f"| benchmark | {prev} | {cur} | Δ |",
             "| --- | ---: | ---: | ---: |",
         ]
-        for name, a, b, pct in rows[:top]:
-            lines.append(
-                f"| `{name}` | {fmt_time(a)} | {fmt_time(b)} | {pct:+.1f}% |"
-            )
+        for disp, a, b, pct in rows[:top]:
+            lines.append(f"| `{disp}` | {fmt(a)} | {fmt(b)} | {pct:+.1f}% |")
         lines.append("")
 
     if not produced:
         lines += ["_No release snapshots available at build time._", ""]
-
     with open(out, "w") as fh:
         fh.write("\n".join(lines))
     print(f"wrote {out}" + ("" if produced else " (no data)"))
@@ -247,30 +320,21 @@ def main() -> int:
         action="store_true",
         help="generate the docs page + plots instead of a table",
     )
-    p.add_argument(
-        "--out",
-        default="docs/benchmarks.md",
-        help="markdown output path (--page mode)",
-    )
-    p.add_argument(
-        "--assets",
-        default="docs/assets/bench",
-        help="directory for generated plot PNGs (--page mode)",
-    )
+    p.add_argument("--out", default="docs/benchmarks.md")
+    p.add_argument("--assets", default="docs/assets/bench")
     p.add_argument(
         "--top",
         type=int,
-        default=25,
-        help="rows/series to show per suite (default 25)",
+        default=20,
+        help="rows/series per group (default 20)",
     )
     p.add_argument(
         "--threshold",
         type=float,
         default=10.0,
-        help="±%% to flag as a regression/improvement (table mode)",
+        help="±%% to flag better/worse (table mode)",
     )
     a = p.parse_args()
-
     series = load_history()
     if a.page:
         return cmd_page(series, a.out, a.assets, a.top)

@@ -22,7 +22,15 @@ def test_bench_step(benchmark, obj):
 
 def test_bench_steps_1k(benchmark, obj):
     benchmark(obj.steps, BLOCK_1K)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_steps_64k(benchmark, obj):
     benchmark(obj.steps, BLOCK_64K)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

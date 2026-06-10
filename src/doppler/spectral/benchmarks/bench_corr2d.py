@@ -22,8 +22,16 @@ def obj():
 def test_bench_execute_1k(benchmark, obj):
     x = np.ones(BLOCK_1K, dtype=np.complex64)
     benchmark(obj.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_execute_64k(benchmark, obj):
     x = np.ones(BLOCK_64K, dtype=np.complex64)
     benchmark(obj.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

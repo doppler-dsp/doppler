@@ -47,11 +47,19 @@ def fn():
 def test_bench_oo_1k(benchmark, oo):
     x = np.ones(BLOCK_1K, dtype=np.float32)
     benchmark(oo.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_oo_64k(benchmark, oo):
     x = np.ones(BLOCK_64K, dtype=np.float32)
     benchmark(oo.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )
 
 
 # ------------------------------------------------------------------ #
@@ -63,9 +71,17 @@ def test_bench_fn_1k(benchmark, fn):
     x = np.ones(BLOCK_1K, dtype=np.float32)
     out = np.empty(BLOCK_1K, dtype=np.complex64)
     benchmark(ddcr_execute, fn, x, out)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_fn_64k(benchmark, fn):
     x = np.ones(BLOCK_64K, dtype=np.float32)
     out = np.empty(BLOCK_64K, dtype=np.complex64)
     benchmark(ddcr_execute, fn, x, out)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

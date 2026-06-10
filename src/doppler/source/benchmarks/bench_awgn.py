@@ -18,7 +18,15 @@ def obj():
 
 def test_bench_generate_1k(benchmark, obj):
     benchmark(obj.generate, BLOCK_1K)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_generate_64k(benchmark, obj):
     benchmark(obj.generate, BLOCK_64K)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

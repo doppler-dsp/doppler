@@ -24,8 +24,16 @@ def test_bench_step(benchmark, obj):
 def test_bench_steps_1k(benchmark, obj):
     x = np.ones(BLOCK_1K, dtype=np.int8)
     benchmark(obj.steps, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_steps_64k(benchmark, obj):
     x = np.ones(BLOCK_64K, dtype=np.int8)
     benchmark(obj.steps, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

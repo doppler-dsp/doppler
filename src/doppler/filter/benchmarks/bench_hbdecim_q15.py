@@ -28,8 +28,16 @@ def dec(hb_fir):
 def test_bench_execute_1k(benchmark, dec):
     x = np.zeros(2 * BLOCK_1K, dtype=np.int16)
     benchmark(dec.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_1K / benchmark.stats["mean"] / 1e6
+        )
 
 
 def test_bench_execute_64k(benchmark, dec):
     x = np.zeros(2 * BLOCK_64K, dtype=np.int16)
     benchmark(dec.execute, x)
+    if benchmark.stats:
+        benchmark.extra_info["MSa_s"] = (
+            BLOCK_64K / benchmark.stats["mean"] / 1e6
+        )

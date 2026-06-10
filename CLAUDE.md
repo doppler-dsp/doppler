@@ -198,10 +198,9 @@ the `wfmgen`/`wavegen` tool is being built on (see `~/.claude/plans`). The
 string-enum binding parses a Python string and maps it to the C enum index, so
 `Obj(kind="tone")` works directly.
 
-### 0.18.0 adoptions — header-derived docstrings + @code doctests (pin: 0.18.0)
+### 0.18.0 adoptions — header-derived docstrings + @code doctests
 
-The CI drift gate now pins **0.18.0** (`ci.yml`); `jm_version` is stamped 0.18.0.
-**Always drive doppler with `uvx --from 'just-makeit==0.18.0' just-makeit …`.**
+(Pinned 0.18.0 at the time; superseded by the 0.19.0 pin below.)
 
 jm 0.18.0 synthesizes comprehensive `.pyi` docstrings from the sacred header
 Doxygen: a `@code … @endcode` block becomes a runnable numpy **`Examples`**
@@ -212,6 +211,24 @@ briefs are filtered for idempotency). doppler's headers carry verified `@code`
 doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
 runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
 blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
+
+### 0.19.0 adoptions — Windows boilerplate is opt-in (pin: 0.19.0)
+
+The CI drift gate now pins **0.19.0** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.19.0. **Always drive doppler with
+`uvx --from 'just-makeit==0.19.0' just-makeit …`.**
+
+jm 0.19.0 resolves the doppler-driven [jm#213](https://github.com/just-buildit/just-makeit/issues/213):
+the per-component MinGW runtime-DLL `if(WIN32 …)` block is now gated on
+`[project] platforms` (default `["linux", "macos"]`) instead of emitted
+unconditionally. doppler sets `platforms = ["linux", "macos"]` in
+`just-makeit.toml`; `jm apply` stripped the block from all 13 generated module
+`CMakeLists.txt`, and `jm status --check` treats its absence as correct — so the
+Windows fluff doppler couldn't remove (frozen by the drift gate) is finally
+gone. The lone remaining block was `native/src/buffer/CMakeLists.txt` (a
+`no_generate`, hand-owned module); removed by hand. jm itself also dropped
+Windows CI/tooling in 0.19.0 (the "jm doesn't really support Windows" point from
+the issue).
 
 ### 0.17.0 adoptions — `jm app` output axes (pin: 0.17.1)
 

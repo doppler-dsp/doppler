@@ -1,10 +1,14 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.18.0"
+jm_version = "0.19.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
+# doppler does not target Windows (signal-processing users run WSL2/VM/container
+# — see docs). Omitting "windows" drops jm's per-component MinGW DLL-copy
+# boilerplate (jm-gh-213); the drift gate treats its absence as correct.
+platforms = ["linux", "macos"]
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"

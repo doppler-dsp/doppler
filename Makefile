@@ -76,7 +76,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo gallery \
-        bench bench-report bench-table bench-docs \
+        bench bench-report bench-publish bench-docs \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -185,32 +185,35 @@ python-test:
 	uv run pytest src/ -v
 
 # ── bench ─────────────────────────────────────────────────────────────────────
-# Run C + Python benchmarks and save a dated, trimmed snapshot under
-# benchmarks/history/.  Snapshots are committed so perf regressions are
-# visible in git history.  Use the CLI directly for options, e.g.
-# `uvx just-makeit bench --tag v1.2.3` or `just-makeit bench --c-only`.
+# Run C + Python benchmarks on THIS machine, snapshot to benchmarks/history/
+# (local scratch, gitignored). Use the CLI directly for options, e.g.
+# `uvx just-makeit bench --c-only`.
 bench: pyext
 	uvx just-makeit bench
 
-# ── bench-table / bench-docs ──────────────────────────────────────────────────
-# Representative absolute-numbers table (MSa/s) from THIS machine's latest
-# `make bench` run (benchmarks/history/), stamped with the CPU. Run `make bench`
-# first (on a representative machine, NOT a CI runner).
-#   bench-table  → print to stdout (quick look / README pasting)
-#   bench-docs   → write the committed docs page docs/benchmarks.md
-# Cut a release? Regenerate the page: `make bench && make bench-docs`, commit.
-bench-table:
-	uv run python scripts/bench_report.py --static
+# ── bench-publish / bench-docs / bench-report ─────────────────────────────────
+# Representative published numbers live under benchmarks/published/v<ver>/, two
+# builds per release (portable = the wheel, native = -DDOPPLER_NATIVE=ON), each
+# stamped with the compiler + flags. Measure on a REAL machine, not CI.
+#
+#   # for each build, on a representative machine:
+#   make pyext && make bench && make bench-publish VERSION=X.Y.Z BUILD=portable
+#   make pyext CMAKE_ARGS=-DDOPPLER_NATIVE=ON && make bench && \
+#       make bench-publish VERSION=X.Y.Z BUILD=native
+#   make bench-docs        # render docs/benchmarks.md (two-column page)
+#   make bench-report      # portable trend across releases, to stdout
+bench-publish:
+ifndef VERSION
+	@echo "usage: make bench-publish VERSION=X.Y.Z BUILD=portable|native"; exit 1
+endif
+	uv run python scripts/bench_report.py --publish $(VERSION) \
+		--build $(or $(BUILD),portable)
 
 bench-docs:
-	uv run python scripts/bench_report.py --static --out docs/benchmarks.md
+	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
 
-# ── bench-report ──────────────────────────────────────────────────────────────
-# Newest-vs-previous comparison from the release snapshots on the `benchmarks`
-# branch. Indicative only — GitHub runners are shared/non-deterministic, so
-# never publish these. `make bench-report ARGS="--top 60 --threshold 5"`.
 bench-report:
-	uv run python scripts/bench_report.py $(ARGS)
+	uv run python scripts/bench_report.py
 
 
 # ── rust-test ─────────────────────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+# clangd project config. The include *paths* come from the compile DB
+# (symlink compile_commands.json -> build/compile_commands.json; the build
+# exports it, see CMakeLists CMAKE_EXPORT_COMPILE_COMMANDS). This file only
+# silences two diagnostic classes the DB fundamentally cannot fix.
+
+Diagnostics:
+  # doppler's public headers include clib_common.h / jm_perf.h for macros and
+  # attributes (JM_RESTRICT, DP_* …) that clangd's include-cleaner can't see
+  # are used, so it wrongly flags them as unused. Off repo-wide.
+  UnusedIncludes: None
+  MissingIncludes: None
+
+---
+# The per-object CPython binding fragments (native/src/<mod>/<mod>_ext_<obj>.c)
+# are #included into the jm-generated <mod>_ext.c aggregator — they are never
+# compiled standalone, so they have no compile_commands entry and clangd parses
+# them in isolation, spewing bogus errors (unknown PyObject_HEAD, etc.). The
+# aggregator itself is analysed normally; mute the fragments.
+If:
+  PathMatch: '.*_ext_.*\.c'
+Diagnostics:
+  Suppress: '*'

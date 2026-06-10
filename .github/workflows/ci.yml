@@ -98,6 +98,26 @@ jobs:
       shell: msys2 {0}
       run: make rust-test
 
+    # Early portability signal: the release pipeline already objdumps every
+    # wheel .so for leaked AVX (release.yml), but only on tags — too late to
+    # catch a flag regression in review. The default `make build` here uses the
+    # portable baseline (x86-64-v2, no AVX), identical to the manylinux wheel,
+    # so any %ymm/%zmm outside a runtime-dispatched *avx512* function means
+    # -march=native (or a stray wide-SIMD flag) leaked into the default build.
+    # x86_64 Linux only: macOS is arm64 (NEON, no AVX) and Windows isn't shipped.
+    - name: Verify portable SIMD (no leaked AVX2/AVX-512)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        bad=$(objdump -d build/libdoppler.so 2>/dev/null | awk '
+          /^[0-9a-f]+ <.*>:/ { fn=$2; gsub(/[<>:]/, "", fn) }
+          /%zmm[0-9]|%ymm[0-9]/ { if (fn !~ /avx512/) { print fn; exit } }
+        ')
+        if [ -n "$bad" ]; then
+          echo "::error::libdoppler.so has wide SIMD in non-dispatched function '${bad}' — non-portable (a wide-SIMD flag leaked into the default build?)"
+          exit 1
+        fi
+        echo "OK — wide SIMD only in runtime-dispatched *avx512* functions."
+
   # ------------------------------------------------------------------
   # Python package build + pytest
   # ------------------------------------------------------------------

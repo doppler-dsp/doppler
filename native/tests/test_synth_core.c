@@ -2,6 +2,7 @@
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -79,6 +80,53 @@ main (void)
   }
 
   synth_destroy (obj);
+
+  /* ── step() loop is byte-identical to steps() ─────────────────────────
+   * synth_step() must equal a synth_steps() block bit-for-bit; it delegates
+   * to synth_steps() precisely so the two cannot drift. A hand-rolled scalar
+   * `sym*carrier + noise` contracts to FMAs differently from the block path
+   * under -ffast-math, and QPSK's irrational ±1/√2 leg made them diverge by
+   * an ULP on arm64 (#67) — invisible on x86 (no baseline FMA), so this gate
+   * matters most on the macOS C job. Cover every waveform, with the LO on
+   * (freq offset) and both clean (snr=100, AWGN off) and noisy (snr=10) — the
+   * #67 repro was the clean qpsk case. */
+  {
+    enum
+    {
+      N = 1024
+    };
+    static float complex a[N], b[N];
+    const int            types[]
+        = { SYNTH_TONE, SYNTH_NOISE, SYNTH_PN, SYNTH_BPSK, SYNTH_QPSK };
+    const double snrs[] = { 100.0, 10.0 }; /* clean, noisy */
+    const int    spss[] = { 1, 4 };
+    for (size_t t = 0; t < sizeof (types) / sizeof (types[0]); t++)
+      for (size_t q = 0; q < sizeof (snrs) / sizeof (snrs[0]); q++)
+        for (size_t p = 0; p < sizeof (spss) / sizeof (spss[0]); p++)
+          {
+            int    ty = types[t];
+            double sn = snrs[q];
+            int    sp = spss[p];
+            /* identical config → identical PN/LO/AWGN evolution */
+            synth_state_t *sa
+                = synth_create (ty, 1e6, 1e5, sn, 0, 7, sp, 7, 0, 0);
+            synth_state_t *sb
+                = synth_create (ty, 1e6, 1e5, sn, 0, 7, sp, 7, 0, 0);
+            CHECK (sa && sb);
+            if (sa && sb)
+              {
+                for (int i = 0; i < N; i++)
+                  a[i] = synth_step (sa);
+                synth_steps (sb, b, N);
+                CHECK (memcmp (a, b, sizeof (a)) == 0);
+              }
+            if (sa)
+              synth_destroy (sa);
+            if (sb)
+              synth_destroy (sb);
+          }
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_synth_core FAILED (%d)\n", _fails);

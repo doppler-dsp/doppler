@@ -211,12 +211,27 @@ void synth_destroy(synth_state_t *state);
  */
 void synth_reset(synth_state_t *state);
 
+/* Forward declaration: synth_step() delegates to the block generator so the
+ * two share a single implementation (see synth_step's note below). */
+void synth_steps(synth_state_t *state, float complex *output, size_t n);
+
 /**
  * @brief Generate one output sample from internal state.
  * Advances the PN LFSR (modulated types only, on symbol boundaries), the
  * LO phase accumulator, and the AWGN engine, then returns the mixed
- * result: ``sym * carrier + noise``.  Inlined and hot-path annotated so
- * tight per-sample loops pay no call overhead.
+ * result: ``sym * carrier + noise``.
+ *
+ * Implemented as ``synth_steps(state, &y, 1)`` rather than a separate scalar
+ * recurrence.  A hand-rolled scalar form is *not* reliably byte-identical to
+ * the block path under ``-ffast-math``: writing ``sym*carrier + noise`` as one
+ * expression lets the compiler contract it into FMAs on targets with a fused
+ * multiply-add (arm64), whereas synth_steps() rounds the multiply and the
+ * noise-add separately — and the gap is unfixable per-function (Clang ignores
+ * ``#pragma STDC FP_CONTRACT OFF`` and ``fp contract(off)`` under fast-math).
+ * QPSK's irrational ±1/√2 leg made the two diverge by an ULP, which broke the
+ * macOS composer/CLI byte-parity (#67).  One code path removes the class of
+ * bug entirely; per-sample step() has no hot caller, so the block setup cost
+ * is irrelevant.
  *
  * @param state  Must be non-NULL.
  * @return Next output sample (float complex).
@@ -230,31 +245,9 @@ void synth_reset(synth_state_t *state);
 JM_FORCEINLINE JM_HOT float complex
 synth_step(synth_state_t *state)
 {
-    if (state->wtype >= SYNTH_PN) {
-        if (state->sym_pos == 0) {
-            if (state->wtype == SYNTH_QPSK) {
-                uint8_t b0 = pn_step(state->pn);
-                uint8_t b1 = pn_step(state->pn);
-                const float s = 0.70710678118654752f;
-                state->cur_re = b0 ? -s : s;
-                state->cur_im = b1 ? -s : s;
-            } else { /* pn or bpsk: +-1 */
-                uint8_t b = pn_step(state->pn);
-                state->cur_re = b ? -1.0f : 1.0f;
-                state->cur_im = 0.0f;
-            }
-        }
-        if (++state->sym_pos >= state->nsps)
-            state->sym_pos = 0;
-    }
-    float complex sym = state->cur_re + state->cur_im * I;
-    float complex carrier = 1.0f + 0.0f * I;
-    if (state->lo)
-        lo_steps(state->lo, 1, &carrier);
-    float complex noise = 0.0f + 0.0f * I;
-    if (state->awgn)
-        awgn_generate(state->awgn, 1, &noise);
-    return sym * carrier + noise;
+    float complex y;
+    synth_steps(state, &y, 1);
+    return y;
 }
 
 /**

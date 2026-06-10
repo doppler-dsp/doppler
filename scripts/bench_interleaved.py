@@ -39,7 +39,7 @@ REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
 BUILD_ARGS = {"portable": [], "native": ["-DDOPPLER_NATIVE=ON"]}
 FLAG_RE = re.compile(
-    r"-O\S+|-march=\S+|-mtune=\S+|-ffast-math|-funsafe-math\S*"
+    r"-O\S+|-march=\S+|-mtune=\S+|-mprefer-vector-width=\S+|-ffast-math|-funsafe-math\S*"
 )
 
 

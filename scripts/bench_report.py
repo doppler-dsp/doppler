@@ -56,7 +56,7 @@ SUITE_LABEL = {"c": "C (jm_bench)", "python": "Python (pytest-benchmark)"}
 VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 # Flags worth quoting on the page (the ones that actually move benchmark numbers)
 FLAG_RE = re.compile(
-    r"-O\S+|-march=\S+|-mtune=\S+|-ffast-math|-funsafe-math\S*"
+    r"-O\S+|-march=\S+|-mtune=\S+|-mprefer-vector-width=\S+|-ffast-math|-funsafe-math\S*"
 )
 
 

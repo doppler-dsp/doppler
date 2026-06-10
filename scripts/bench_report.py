@@ -1,62 +1,73 @@
 #!/usr/bin/env python3
-"""Read doppler's benchmark snapshots into a table.
+"""Publish and render doppler's representative benchmark numbers.
 
-Two sources, two purposes:
+Numbers are measured **by hand on a representative machine** and committed under
+``benchmarks/published/v<version>/`` — they are deliberately not pulled from
+CI, whose shared runners are non-deterministic. Each release is measured in two
+builds so users can see the from-source upside:
 
-* **`--static`** (``make bench-table``) — a representative absolute-numbers
-  table from THIS machine's latest ``make bench`` run
-  (``benchmarks/history/``), stamped with the CPU it ran on. These are the
-  numbers you quote in the docs/README: a dedicated box, not a shared CI
-  runner.
-* **default** (``make bench-report``) — a newest-vs-previous **comparison**
-  table read from the release snapshots on the **`benchmarks` branch**
-  (committed by ``benchmark.yml`` per tag). Useful for spotting movement, but
-  GitHub runners are shared/non-deterministic, so treat these as indicative
-  only — never publish them.
+* **portable** — the shipped baseline (``-march=x86-64-v2 -ffast-math``), i.e.
+  what a PyPI wheel delivers;
+* **native** — ``-DDOPPLER_NATIVE=ON`` (``-march=native``), peak on the exact
+  CPU, what a from-source build gets.
 
-Metric. Throughput benchmarks record samples/s in
-``extra_info["MSa_s"]`` — shown as **MSa/s, higher is better**. Benchmarks
-with no sample count (scalar ops; the whole C suite today, whose harness
-records no size) fall back to **mean time per call, lower is better**.
+Layout (committed)::
 
-Examples
---------
+    benchmarks/published/v0.10.1/
+        portable.json  portable-c.json     # pytest-benchmark + jm_bench
+        native.json    native-c.json
+
+Each snapshot carries an injected ``doppler_build`` (compiler + effective
+flags, read from compile_commands.json at publish time) so the page is
+self-describing.
+
+Metric: throughput benches record ``extra_info["MSa_s"]`` → **MSa/s, higher is
+better**; latency ops (no sample count) → **mean time per call, lower is
+better**.
+
+Workflow / commands
+-------------------
 ::
 
-    python scripts/bench_report.py --static        # representative table
-    python scripts/bench_report.py                 # CI-branch comparison
-    python scripts/bench_report.py --top 40
+    # on a representative machine, for each build:
+    make pyext                                  # portable (default)
+    make bench && make bench-publish VERSION=0.10.1 BUILD=portable
+    make pyext CMAKE_ARGS=-DDOPPLER_NATIVE=ON   # native
+    make bench && make bench-publish VERSION=0.10.1 BUILD=native
+
+    make bench-docs        # render docs/benchmarks.md from published/
+    make bench-report      # portable trend across releases, to stdout
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
 import json
+import os
 import re
 import subprocess
-from collections import defaultdict
 
-BRANCH = "origin/benchmarks"
-VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+PUBLISHED = "benchmarks/published"
+LOCAL = "benchmarks/history"
+BUILDS = ("portable", "native")
 SUITES = ("python", "c")
 SUITE_LABEL = {"c": "C (jm_bench)", "python": "Python (pytest-benchmark)"}
+VER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+# Flags worth quoting on the page (the ones that actually move benchmark numbers)
+FLAG_RE = re.compile(
+    r"-O\S+|-march=\S+|-mtune=\S+|-ffast-math|-funsafe-math\S*"
+)
 
 
-def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True)
-
-
-def _version_key(tag: str):
-    """(major, minor, patch) for a ``vX.Y.Z`` tag, else None (skips baselines)."""
-    m = VER_RE.match(tag)
+def _version_key(v: str):
+    m = VER_RE.match(v)
     return tuple(int(x) for x in m.groups()) if m else None
 
 
 def _display_name(suite: str, bench: dict) -> str:
-    """Short, unique label. Python `name`s collide across modules (the same
-    ``test_bench_steps[1024]`` lives in several files), so derive a
-    ``module::case`` label from ``fullname`` for Python; C names are already
-    unique and clean (``RateConverter::HB(0.5)``)."""
+    """Short, unique label. Python `name`s collide across modules, so derive a
+    ``module::case`` label from ``fullname``; C names are already unique."""
     name = bench.get("name", "?")
     full = bench.get("fullname") or name
     if suite == "python" and "::" in full:
@@ -67,170 +78,20 @@ def _display_name(suite: str, bench: dict) -> str:
     return name
 
 
-def load_history():
-    """Load every release snapshot from the benchmarks branch.
-
-    Returns ``{suite: {tag: {fullname: {"disp", "mean", "msas"}}}}`` with tags
-    sorted ascending by version. ``msas`` is None when the benchmark records no
-    throughput. Non-version snapshots (e.g. ``baseline-*``) are skipped.
-    """
-    _git("fetch", "-q", "origin", "benchmarks")
-    listing = _git("ls-tree", "-r", "--name-only", BRANCH)
-    series = {s: defaultdict(dict) for s in SUITES}
-    if listing.returncode != 0:
-        return {s: {} for s in SUITES}  # branch unavailable (shallow clone)
-
-    for path in listing.stdout.splitlines():
-        if not (path.startswith("history/") and path.endswith(".json")):
+def _parse(data, suite):
+    """{fullname: {disp, mean, msas}} for one snapshot's benchmarks."""
+    out = {}
+    for b in data.get("benchmarks", []):
+        mean = b.get("stats", {}).get("mean")
+        if not (isinstance(mean, (int, float)) and mean > 0):
             continue
-        fn = path[len("history/") :]
-        if fn.endswith("-c.json"):
-            tag, suite = fn[: -len("-c.json")], "c"
-        else:
-            tag, suite = fn[: -len(".json")], "python"
-        if _version_key(tag) is None:
-            continue
-        blob = _git("show", f"{BRANCH}:{path}")
-        if blob.returncode != 0:
-            continue
-        for b in json.loads(blob.stdout).get("benchmarks", []):
-            mean = b.get("stats", {}).get("mean")
-            if not (isinstance(mean, (int, float)) and mean > 0):
-                continue
-            msas = b.get("extra_info", {}).get("MSa_s")
-            series[suite][tag][b.get("fullname") or b["name"]] = {
-                "disp": _display_name(suite, b),
-                "mean": float(mean),
-                "msas": float(msas)
-                if isinstance(msas, (int, float))
-                else None,
-            }
-
-    return {
-        s: dict(sorted(d.items(), key=lambda kv: _version_key(kv[0])))
-        for s, d in series.items()
-    }
-
-
-def load_local(history_dir="benchmarks/history"):
-    """Read the newest LOCAL snapshot pair (this machine's ``make bench``
-    output) from ``benchmarks/history/``.
-
-    This is the *representative* path: the numbers come from whatever box ran
-    ``make bench``, not the shared, non-deterministic CI runner the
-    ``benchmarks`` branch holds. Returns ``{tag, machine, datetime, suites:
-    {python, c}}`` or None when there is no local run yet.
-    """
-    import glob
-    import os
-
-    py = sorted(
-        (
-            f
-            for f in glob.glob(os.path.join(history_dir, "*.json"))
-            if not f.endswith("-c.json")
-        ),
-        key=os.path.getmtime,
-    )
-    if not py:
-        return None
-    latest = py[-1]
-    tag = os.path.basename(latest)[: -len(".json")]
-    suites = {"python": {}, "c": {}}
-
-    def _parse(data, suite):
-        for b in data.get("benchmarks", []):
-            mean = b.get("stats", {}).get("mean")
-            if not (isinstance(mean, (int, float)) and mean > 0):
-                continue
-            msas = b.get("extra_info", {}).get("MSa_s")
-            suites[suite][b.get("fullname") or b["name"]] = {
-                "disp": _display_name(suite, b),
-                "mean": float(mean),
-                "msas": float(msas)
-                if isinstance(msas, (int, float))
-                else None,
-            }
-
-    with open(latest) as fh:
-        pdata = json.load(fh)
-    _parse(pdata, "python")
-    cfile = os.path.join(history_dir, f"{tag}-c.json")
-    if os.path.exists(cfile):
-        with open(cfile) as fh:
-            _parse(json.load(fh), "c")
-    return {
-        "tag": tag,
-        "machine": pdata.get("machine_info", {}),
-        "datetime": pdata.get("datetime", ""),
-        "suites": suites,
-    }
-
-
-def cmd_static(local, out_path=None) -> int:
-    """Render a representative absolute-numbers benchmark page for one local run.
-
-    Single-machine snapshot (no cross-release deltas, no CI): doppler's quoted
-    performance, with the CPU it was measured on stamped in the header so it is
-    never mistaken for the shared CI runner. Written to ``out_path`` (the
-    committed docs page) when given, else printed.
-    """
-    if not local:
-        msg = (
-            "No local snapshot under benchmarks/history/ — run `make bench` "
-            "on a representative machine first, then `make bench-docs`."
-        )
-        print(msg)
-        return 1
-    cpu = local["machine"].get("cpu")
-    cpu = cpu.get("brand_raw") if isinstance(cpu, dict) else cpu
-    pyv = local["machine"].get("python_version", "?")
-    when = (local["datetime"] or "")[:10]
-    out = [
-        "<!-- generated by `make bench-docs` (scripts/bench_report.py "
-        "--static); regenerate on a representative machine, don't hand-edit -->",
-        "# Benchmarks",
-        "",
-        f"Measured on **{cpu or 'this machine'}**, Python {pyv}"
-        + (f", {when}" if when else "")
-        + ". Throughput is **MSa/s** (higher is better); other ops are mean "
-        "**time per call** (lower is better). These are representative "
-        "single-machine numbers — *not* the shared CI runner (whose absolute "
-        "values aren't hardware-representative). Regenerate with "
-        "`make bench && make bench-docs`.",
-        "",
-    ]
-    for suite in SUITES:
-        benches = local["suites"].get(suite, {})
-        if not benches:
-            continue
-        out += [f"## {SUITE_LABEL[suite]}", ""]
-        tput = sorted(
-            (e for e in benches.values() if e["msas"] is not None),
-            key=lambda e: -e["msas"],
-        )
-        timed = sorted(
-            (e for e in benches.values() if e["msas"] is None),
-            key=lambda e: e["mean"],
-        )
-        if tput:
-            out += ["| benchmark | throughput |", "| --- | ---: |"]
-            out += [f"| `{e['disp']}` | {fmt_tput(e['msas'])} |" for e in tput]
-            out.append("")
-        if timed:
-            out += ["| benchmark | time/call |", "| --- | ---: |"]
-            out += [
-                f"| `{e['disp']}` | {fmt_time(e['mean'])} |" for e in timed
-            ]
-            out.append("")
-    text = "\n".join(out).rstrip("\n")
-    if out_path:
-        with open(out_path, "w") as fh:
-            fh.write(text + "\n")  # exactly one trailing newline (idempotent)
-        print(f"wrote {out_path} ({cpu})")
-    else:
-        print(text)
-    return 0
+        msas = b.get("extra_info", {}).get("MSa_s")
+        out[b.get("fullname") or b["name"]] = {
+            "disp": _display_name(suite, b),
+            "mean": float(mean),
+            "msas": float(msas) if isinstance(msas, (int, float)) else None,
+        }
+    return out
 
 
 def fmt_time(seconds: float) -> str:
@@ -241,133 +102,350 @@ def fmt_time(seconds: float) -> str:
 
 
 def fmt_tput(msas: float) -> str:
-    """MSa/s, or GSa/s once it crosses 1000."""
     return f"{msas / 1000:.2f} GSa/s" if msas >= 1000 else f"{msas:.1f} MSa/s"
 
 
-def _groups(snaps: dict):
-    """Split benchmark keys into (throughput, timed) by whether any snapshot
-    recorded MSa/s for them."""
-    tput, timed = set(), set()
-    for tag in snaps:
-        for key, e in snaps[tag].items():
-            (tput if e["msas"] is not None else timed).add(key)
-    timed -= tput  # a key with MSa/s in any snapshot counts as throughput
-    return tput, timed
+# ── loading ────────────────────────────────────────────────────────────────
 
 
-def _value(entry: dict, throughput: bool):
-    return entry["msas"] if throughput else entry["mean"]
+def _load_build(version_dir, build):
+    """One build of one release → {machine, doppler_build, suites} or None."""
+    pj = os.path.join(version_dir, f"{build}.json")
+    if not os.path.exists(pj):
+        return None
+    with open(pj) as fh:
+        pdata = json.load(fh)
+    suites = {"python": _parse(pdata, "python"), "c": {}}
+    cj = os.path.join(version_dir, f"{build}-c.json")
+    if os.path.exists(cj):
+        with open(cj) as fh:
+            suites["c"] = _parse(json.load(fh), "c")
+    return {
+        "machine": pdata.get("machine_info", {}),
+        "doppler_build": pdata.get("doppler_build", {}),
+        "datetime": pdata.get("datetime", ""),
+        "suites": suites,
+    }
 
 
-def _rows(tags, snaps, keys, throughput):
-    """(disp, prev, cur, pct) for keys present (with a value) in both newest
-    tags, sorted by |pct| desc. pct is the signed change in the metric."""
-    prev_t, cur_t = tags[-2], tags[-1]
+def load_published(root=PUBLISHED):
+    """{version: {build: {...}}} for every committed release, version-sorted."""
+    out = {}
+    for d in sorted(glob.glob(os.path.join(root, "v*"))):
+        version = os.path.basename(d)
+        if _version_key(version) is None:
+            continue
+        builds = {b: _load_build(d, b) for b in BUILDS}
+        builds = {b: v for b, v in builds.items() if v}
+        if builds:
+            out[version] = builds
+    return dict(sorted(out.items(), key=lambda kv: _version_key(kv[0])))
+
+
+# ── publish (stamp a release) ────────────────────────────────────────────────
+
+
+def _build_info():
+    """(compiler, flags) for the current build, from compile_commands.json."""
+    db = "compile_commands.json"
+    if not os.path.exists(db):
+        return "", ""
+    with open(db) as fh:
+        entries = json.load(fh)
+    core = next(
+        (
+            e
+            for e in entries
+            if e["file"].endswith("_core.c") and "vendor" not in e["file"]
+        ),
+        entries[0] if entries else None,
+    )
+    if not core:
+        return "", ""
+    cmd = core.get("command") or " ".join(core.get("arguments", []))
+    cc = cmd.split()[0]
+    ver = subprocess.run([cc, "--version"], capture_output=True, text=True)
+    compiler = (
+        ver.stdout.splitlines()[0].strip() if ver.returncode == 0 else cc
+    )
+    flags = " ".join(dict.fromkeys(FLAG_RE.findall(cmd)))  # de-dup, keep order
+    return compiler, flags
+
+
+def cmd_publish(version, build) -> int:
+    """Stamp THIS machine's newest `make bench` run into published/v<version>/."""
+    if build not in BUILDS:
+        print(f"--build must be one of {BUILDS}")
+        return 1
+    ver = f"v{version.lstrip('v')}"
+    py = sorted(
+        (
+            f
+            for f in glob.glob(os.path.join(LOCAL, "*.json"))
+            if not f.endswith("-c.json")
+        ),
+        key=os.path.getmtime,
+    )
+    if not py:
+        print(f"No local snapshot in {LOCAL}/ — run `make bench` first.")
+        return 1
+    latest = py[-1]
+    tag = os.path.basename(latest)[: -len(".json")]
+    compiler, flags = _build_info()
+    dst = os.path.join(PUBLISHED, ver)
+    os.makedirs(dst, exist_ok=True)
+    for src_name, out_name in (
+        (f"{tag}.json", f"{build}.json"),
+        (f"{tag}-c.json", f"{build}-c.json"),
+    ):
+        src = os.path.join(LOCAL, src_name)
+        if not os.path.exists(src):
+            continue
+        with open(src) as fh:
+            data = json.load(fh)
+        data["doppler_build"] = {"compiler": compiler, "flags": flags}
+        with open(os.path.join(dst, out_name), "w") as fh:
+            json.dump(data, fh, indent=1)
+            fh.write("\n")
+    print(f"published {ver}/{build}  [{compiler}; {flags}]")
+    return 0
+
+
+# ── render the page ──────────────────────────────────────────────────────────
+
+
+def _speedup(portable, native, throughput):
+    """Native-vs-portable as a signed %: higher throughput / lower time = +."""
+    if not portable or not native:
+        return None
+    return (
+        (native / portable - 1.0) * 100.0
+        if throughput
+        else (portable / native - 1.0) * 100.0
+    )
+
+
+def _two_col_rows(rel, suite, throughput):
+    """(disp, portable_val, native_val, speedup_pct) for the chosen metric."""
+    keys = set()
+    for b in BUILDS:
+        if b in rel:
+            for k, e in rel[b]["suites"].get(suite, {}).items():
+                if (e["msas"] is not None) == throughput:
+                    keys.add(k)
     rows = []
     for k in keys:
-        pe, ce = snaps[prev_t].get(k), snaps[cur_t].get(k)
-        if not pe or not ce:
-            continue
-        a, b = _value(pe, throughput), _value(ce, throughput)
-        if a and b:
-            rows.append((ce["disp"], a, b, (b - a) / a * 100.0))
-    rows.sort(key=lambda r: -abs(r[3]))
-    return prev_t, cur_t, rows
-
-
-def _improved(pct: float, throughput: bool, thr: float) -> int:
-    """+1 better, -1 worse, 0 within threshold (direction depends on metric)."""
-    good = pct > thr if throughput else pct < -thr
-    bad = pct < -thr if throughput else pct > thr
-    return 1 if good else (-1 if bad else 0)
-
-
-def _section_iter(series):
-    """Yield (suite, label, throughput, keys, snaps) for each non-empty group."""
-    for suite in SUITES:
-        snaps = series[suite]
-        if len(snaps) < 2:
-            continue
-        tput, timed = _groups(snaps)
-        for throughput, keys in ((True, tput), (False, timed)):
-            if keys:
-                metric = "MSa/s ↑" if throughput else "time ↓"
-                yield (
-                    suite,
-                    f"{SUITE_LABEL[suite]} — {metric}",
-                    throughput,
-                    keys,
-                    snaps,
-                )
-
-
-def cmd_table(series, top: int, thr: float) -> int:
-    any_data = False
-    for _suite, label, tput, keys, snaps in _section_iter(series):
-        any_data = True
-        prev, cur, rows = _rows(list(snaps), snaps, keys, tput)
-        if not rows:
-            continue
-        fmt = fmt_tput if tput else fmt_time
-        better = sum(1 for *_, p in rows if _improved(p, tput, thr) > 0)
-        worse = sum(1 for *_, p in rows if _improved(p, tput, thr) < 0)
-        print(
-            f"\n=== {label}: {cur} vs {prev} "
-            f"({len(rows)} benchmarks, ±{thr:.0f}%) ==="
+        p = rel.get("portable", {}).get("suites", {}).get(suite, {}).get(k)
+        n = rel.get("native", {}).get("suites", {}).get(suite, {}).get(k)
+        disp = (p or n)["disp"]
+        pv = (p["msas"] if throughput else p["mean"]) if p else None
+        nv = (n["msas"] if throughput else n["mean"]) if n else None
+        rows.append((disp, pv, nv, _speedup(pv, nv, throughput)))
+    # headline ordering: fastest throughput / slowest time first
+    rows.sort(
+        key=lambda r: (
+            -(r[1] or r[2] or 0) if throughput else (r[1] or r[2] or 0)
         )
-        print(f"{'benchmark':46}  {prev:>11}  {cur:>11}  {'Δ':>8}")
-        print("-" * 82)
-        for disp, a, b, pct in rows[:top]:
-            mark = _improved(pct, tput, thr)
-            flag = " ✓" if mark > 0 else (" ⚠" if mark < 0 else "")
-            d = disp if len(disp) <= 46 else disp[:43] + "..."
-            print(f"{d:46}  {fmt(a):>11}  {fmt(b):>11}  {pct:>+7.1f}%{flag}")
-        if len(rows) > top:
-            print(f"... {len(rows) - top} more (--top {len(rows)} for all)")
-        print(
-            f"summary: {better} better, {worse} worse "
-            f"(>{thr:.0f}%); ✓ = faster"
+    )
+    return rows
+
+
+def cmd_page(published, out_path) -> int:
+    if not published:
+        msg = (
+            f"No published snapshots under {PUBLISHED}/ — "
+            "run `make bench && make bench-publish ...` first."
         )
-    if not any_data:
-        print(
-            "No release snapshots on the `benchmarks` branch (need ≥2 "
-            "releases). Is origin/benchmarks fetched?"
+        (
+            print(msg)
+            if not out_path
+            else open(out_path, "w").write(
+                "# Benchmarks\n\n_No published numbers yet._\n"
+            )
         )
         return 1
+    versions = list(published)
+    latest = versions[-1]
+    rel = published[latest]
+    ref = rel.get("portable") or rel.get("native")
+    cpu = ref["machine"].get("cpu")
+    cpu = cpu.get("brand_raw") if isinstance(cpu, dict) else (cpu or "?")
+    pyv = ref["machine"].get("python_version", "?")
+    when = (ref["datetime"] or "")[:10]
+    pb = rel.get("portable", {}).get("doppler_build", {})
+    nb = rel.get("native", {}).get("doppler_build", {})
+
+    L = [
+        "<!-- generated by `make bench-docs` (scripts/bench_report.py --page); "
+        "regenerate on a representative machine, don't hand-edit -->",
+        "# Benchmarks",
+        "",
+        f"Representative single-machine numbers for **{latest}**, measured on "
+        f"**{cpu}** ({pb.get('compiler') or nb.get('compiler') or '?'}, "
+        f"Python {pyv}{', ' + when if when else ''}). These are committed by "
+        "hand, *not* from CI (shared runners aren't hardware-representative).",
+        "",
+        "Two builds are shown so you can see the from-source upside:",
+        "",
+        f"- **portable** — `{pb.get('flags', '?')}` — the shipped PyPI wheel.",
+        f"- **native** — `{nb.get('flags', '?')}` — `-DDOPPLER_NATIVE=ON`, "
+        "built from source for this CPU.",
+        "",
+        "Throughput is **MSa/s** (higher is better); latency ops are mean "
+        "**time/call** (lower is better). *from src* = native vs portable.",
+        "",
+        "> The two builds are measured in separate runs, so *from src* is only "
+        "meaningful where it's large: big gains (e.g. vectorizable kernels under "
+        "AVX-512) are real, while small or negative deltas on overhead-bound "
+        "benches (tiny per-call work) are run-to-run noise, not a native "
+        "penalty.",
+        "",
+    ]
+    for suite in SUITES:
+        if not any(b in rel and rel[b]["suites"].get(suite) for b in BUILDS):
+            continue
+        L += [f"## {SUITE_LABEL[suite]}", ""]
+        for throughput in (True, False):
+            rows = _two_col_rows(rel, suite, throughput)
+            if not rows:
+                continue
+            fmt = fmt_tput if throughput else fmt_time
+            head = "throughput" if throughput else "time/call"
+            L += [
+                f"### {'Throughput' if throughput else 'Latency'}",
+                "",
+                f"| benchmark | portable {head} | native {head} | from src |",
+                "| --- | ---: | ---: | ---: |",
+            ]
+            for disp, pv, nv, sp in rows:
+                pc = fmt(pv) if pv else "—"
+                nc = fmt(nv) if nv else "—"
+                spc = f"{sp:+.0f}%" if sp is not None else "—"
+                L.append(f"| `{disp}` | {pc} | {nc} | {spc} |")
+            L.append("")
+
+    if len(versions) >= 2:
+        L += _history_section(published)
+
+    text = "\n".join(L).rstrip("\n") + "\n"
+    if out_path:
+        with open(out_path, "w") as fh:
+            fh.write(text)
+        print(f"wrote {out_path} ({cpu}, {len(versions)} release(s))")
+    else:
+        print(text)
+    return 0
+
+
+def _history_section(published):
+    """Portable-build MSa/s of throughput benches across releases (the wheel
+    trend users actually track)."""
+    versions = list(published)
+    L = [
+        "## Release history (portable build)",
+        "",
+        "Portable-build throughput across releases — the wheel numbers. "
+        "Comparable only across releases measured on the same machine.",
+        "",
+    ]
+    for suite in SUITES:
+        # benchmarks present (throughput) in the latest portable build
+        latest = published[versions[-1]].get("portable")
+        if not latest:
+            continue
+        keys = [
+            k
+            for k, e in latest["suites"].get(suite, {}).items()
+            if e["msas"] is not None
+        ]
+        if not keys:
+            continue
+        keys.sort(key=lambda k: -latest["suites"][suite][k]["msas"])
+        L += [
+            f"### {SUITE_LABEL[suite]}",
+            "",
+            "| benchmark | " + " | ".join(versions) + " |",
+            "| --- |" + " ---: |" * len(versions),
+        ]
+        for k in keys:
+            cells = []
+            for v in versions:
+                e = (
+                    published[v]
+                    .get("portable", {})
+                    .get("suites", {})
+                    .get(suite, {})
+                    .get(k)
+                )
+                cells.append(fmt_tput(e["msas"]) if e and e["msas"] else "—")
+            disp = latest["suites"][suite][k]["disp"]
+            L.append(f"| `{disp}` | " + " | ".join(cells) + " |")
+        L.append("")
+    return L
+
+
+# ── stdout comparison (portable trend, quick check) ──────────────────────────
+
+
+def cmd_compare(published) -> int:
+    versions = list(published)
+    if len(versions) < 2:
+        print(
+            "Need ≥2 published releases to compare. "
+            f"Have: {versions or 'none'}."
+        )
+        return 1
+    prev, cur = versions[-2], versions[-1]
+    for suite in SUITES:
+        pcur = (
+            published[cur].get("portable", {}).get("suites", {}).get(suite, {})
+        )
+        pprev = (
+            published[prev]
+            .get("portable", {})
+            .get("suites", {})
+            .get(suite, {})
+        )
+        rows = []
+        for k, e in pcur.items():
+            if e["msas"] and k in pprev and pprev[k]["msas"]:
+                a, b = pprev[k]["msas"], e["msas"]
+                rows.append((e["disp"], a, b, (b - a) / a * 100))
+        if not rows:
+            continue
+        rows.sort(key=lambda r: -abs(r[3]))
+        print(
+            f"\n=== {SUITE_LABEL[suite]} portable: {cur} vs {prev} (MSa/s) ==="
+        )
+        for disp, a, b, pct in rows[:25]:
+            flag = " ⚠" if pct < -10 else (" ✓" if pct > 10 else "")
+            print(
+                f"{disp:42}  {fmt_tput(a):>11}  {fmt_tput(b):>11}  "
+                f"{pct:>+6.1f}%{flag}"
+            )
     return 0
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument(
-        "--static",
+        "--page",
         action="store_true",
-        help="representative absolute-numbers table from THIS machine's "
-        "latest `make bench` run (benchmarks/history/), not the CI branch",
+        help="render the docs page from benchmarks/published/",
     )
+    p.add_argument("--out", default=None, help="write --page here")
     p.add_argument(
-        "--out",
-        default=None,
-        help="write the --static page here (e.g. docs/benchmarks.md) instead "
-        "of stdout",
+        "--publish",
+        metavar="VERSION",
+        help="stamp THIS machine's latest run into published/",
     )
-    p.add_argument(
-        "--top",
-        type=int,
-        default=20,
-        help="rows/series per group, comparison mode (default 20)",
-    )
-    p.add_argument(
-        "--threshold",
-        type=float,
-        default=10.0,
-        help="±%% to flag better/worse (comparison mode)",
-    )
+    p.add_argument("--build", choices=BUILDS, default="portable")
     a = p.parse_args()
-    if a.static:
-        return cmd_static(load_local(), a.out)
-    return cmd_table(load_history(), a.top, a.threshold)
+    if a.publish:
+        return cmd_publish(a.publish, a.build)
+    if a.page:
+        return cmd_page(load_published(), a.out)
+    return cmd_compare(load_published())
 
 
 if __name__ == "__main__":

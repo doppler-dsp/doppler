@@ -18,9 +18,9 @@ site/
 /*.png
 /bench_*.json
 
-# Local benchmark snapshots are scratch — the canonical, comparable
-# history is CI-written on the `benchmarks` branch (see docs/dev/
-# benchmarking.md). Only the .gitkeep placeholder is tracked here.
+# benchmarks/history/ is local scratch from `make bench`. The canonical,
+# committed numbers live in benchmarks/published/v<ver>/ (representative,
+# measured by hand — see docs/dev/release.md §2b). Only the .gitkeep here.
 benchmarks/history/*
 !benchmarks/history/.gitkeep
 

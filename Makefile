@@ -341,10 +341,15 @@ endif
 	git checkout -b chore/release-$(VERSION)
 	$(MAKE) bump-version VERSION=$(VERSION)
 	@echo ""
-	@echo "Now: edit CHANGELOG.md ([Unreleased] -> [$(VERSION)] + compare links),"
-	@echo "     git commit -am 'chore: release v$(VERSION)', git push -u origin HEAD,"
-	@echo "     gh pr create --fill, merge once the required checks are green,"
-	@echo "     then: git checkout main && git pull && make tag-release VERSION=$(VERSION)"
+	@echo "Now:"
+	@echo "  - edit CHANGELOG.md ([Unreleased] -> [$(VERSION)] + compare links)"
+	@echo "  - if perf-relevant code changed since the last release (release.md"
+	@echo "    §2b): make bench-interleaved VERSION=$(VERSION) && make bench-docs"
+	@echo "    (on a representative machine), then commit benchmarks/published +"
+	@echo "    docs/benchmarks.md"
+	@echo "  - git commit -am 'chore: release v$(VERSION)', git push -u origin HEAD"
+	@echo "  - gh pr create --fill, merge once the required checks are green"
+	@echo "  - then: git checkout main && git pull && make tag-release VERSION=$(VERSION)"
 
 # ── tag-release ───────────────────────────────────────────────────────────────
 # Tag an already-merged, CI-green main commit and push ONLY the tag (the bump +

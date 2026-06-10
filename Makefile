@@ -76,7 +76,7 @@ endif
 .PHONY: all build test pyext \
         wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
         specan record-demo gallery \
-        bench bench-report bench-page \
+        bench bench-report bench-table \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python clean help
 
@@ -192,18 +192,20 @@ python-test:
 bench: pyext
 	uvx just-makeit bench
 
+# ── bench-table ───────────────────────────────────────────────────────────────
+# Representative absolute-numbers table (MSa/s) from THIS machine's latest
+# `make bench` run (benchmarks/history/), stamped with the CPU. THIS is what
+# you quote in the docs/README. Run `make bench` first, then redirect/paste:
+#   make bench && make bench-table > /tmp/bench.md
+bench-table:
+	uv run python scripts/bench_report.py --static
+
 # ── bench-report ──────────────────────────────────────────────────────────────
-# Read the per-release snapshots committed to the `benchmarks` branch and print
-# a newest-vs-previous comparison (C + Python). Pass options via ARGS, e.g.
-# `make bench-report ARGS="--top 60 --threshold 5"`.
+# Newest-vs-previous comparison from the release snapshots on the `benchmarks`
+# branch. Indicative only — GitHub runners are shared/non-deterministic, so
+# never publish these. `make bench-report ARGS="--top 60 --threshold 5"`.
 bench-report:
 	uv run python scripts/bench_report.py $(ARGS)
-
-# Regenerate the docs Benchmarks page + trend plots from that same history.
-# Run by docs-build; the script self-fetches origin/benchmarks and degrades to
-# an empty page if the branch isn't reachable.
-bench-page:
-	uv run python scripts/bench_report.py --page
 
 
 # ── rust-test ─────────────────────────────────────────────────────────────────
@@ -211,10 +213,10 @@ rust-test: build
 	cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # ── docs ──────────────────────────────────────────────────────────────────────
-docs-build: gen-c-api bench-page
+docs-build: gen-c-api
 	uv run mkdocs build
 
-docs-serve: gen-c-api bench-page
+docs-serve: gen-c-api
 	uv run mkdocs serve
 
 gen-c-api:

@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
-"""Render doppler's benchmark history into a comparison table and/or a docs page.
+"""Read doppler's benchmark snapshots into a table.
 
-The release pipeline (`.github/workflows/benchmark.yml`) commits one Python
-(`<tag>.json`, pytest-benchmark) and one C (`<tag>-c.json`, jm_bench) snapshot
-per release tag to the **`benchmarks` branch** under `history/`. Those snapshots
-were write-only — nothing read them back. This is that reader: it turns the
-release time-series into a table you can scan and a docs page you can look at.
+Two sources, two purposes:
 
-Metric. Throughput benchmarks record samples-per-second in
-``stats``-adjacent ``extra_info["MSa_s"]`` (mega-samples/s) — for those, the
-headline number is **MSa/s, higher is better**. Benchmarks without a sample
-count (scalar ops; the whole C suite today, whose harness records no size) fall
-back to **mean time per call, lower is better**. Each report labels which.
+* **`--static`** (``make bench-table``) — a representative absolute-numbers
+  table from THIS machine's latest ``make bench`` run
+  (``benchmarks/history/``), stamped with the CPU it ran on. These are the
+  numbers you quote in the docs/README: a dedicated box, not a shared CI
+  runner.
+* **default** (``make bench-report``) — a newest-vs-previous **comparison**
+  table read from the release snapshots on the **`benchmarks` branch**
+  (committed by ``benchmark.yml`` per tag). Useful for spotting movement, but
+  GitHub runners are shared/non-deterministic, so treat these as indicative
+  only — never publish them.
 
-Data source is the git branch itself (read via ``git show``), so it needs no
-working-tree checkout of the snapshots — just ``origin/benchmarks`` fetched.
+Metric. Throughput benchmarks record samples/s in
+``extra_info["MSa_s"]`` — shown as **MSa/s, higher is better**. Benchmarks
+with no sample count (scalar ops; the whole C suite today, whose harness
+records no size) fall back to **mean time per call, lower is better**.
 
 Examples
 --------
-Newest-release-vs-previous comparison (what ``make bench-report`` runs)::
+::
 
-    python scripts/bench_report.py
+    python scripts/bench_report.py --static        # representative table
+    python scripts/bench_report.py                 # CI-branch comparison
     python scripts/bench_report.py --top 40
-
-Docs page + trend plots (run by ``make docs-build``)::
-
-    python scripts/bench_report.py --page \
-        --out docs/benchmarks.md --assets docs/assets/bench
 """
 
 from __future__ import annotations
@@ -111,6 +110,117 @@ def load_history():
         s: dict(sorted(d.items(), key=lambda kv: _version_key(kv[0])))
         for s, d in series.items()
     }
+
+
+def load_local(history_dir="benchmarks/history"):
+    """Read the newest LOCAL snapshot pair (this machine's ``make bench``
+    output) from ``benchmarks/history/``.
+
+    This is the *representative* path: the numbers come from whatever box ran
+    ``make bench``, not the shared, non-deterministic CI runner the
+    ``benchmarks`` branch holds. Returns ``{tag, machine, datetime, suites:
+    {python, c}}`` or None when there is no local run yet.
+    """
+    import glob
+    import os
+
+    py = sorted(
+        (
+            f
+            for f in glob.glob(os.path.join(history_dir, "*.json"))
+            if not f.endswith("-c.json")
+        ),
+        key=os.path.getmtime,
+    )
+    if not py:
+        return None
+    latest = py[-1]
+    tag = os.path.basename(latest)[: -len(".json")]
+    suites = {"python": {}, "c": {}}
+
+    def _parse(data, suite):
+        for b in data.get("benchmarks", []):
+            mean = b.get("stats", {}).get("mean")
+            if not (isinstance(mean, (int, float)) and mean > 0):
+                continue
+            msas = b.get("extra_info", {}).get("MSa_s")
+            suites[suite][b.get("fullname") or b["name"]] = {
+                "disp": _display_name(suite, b),
+                "mean": float(mean),
+                "msas": float(msas)
+                if isinstance(msas, (int, float))
+                else None,
+            }
+
+    with open(latest) as fh:
+        pdata = json.load(fh)
+    _parse(pdata, "python")
+    cfile = os.path.join(history_dir, f"{tag}-c.json")
+    if os.path.exists(cfile):
+        with open(cfile) as fh:
+            _parse(json.load(fh), "c")
+    return {
+        "tag": tag,
+        "machine": pdata.get("machine_info", {}),
+        "datetime": pdata.get("datetime", ""),
+        "suites": suites,
+    }
+
+
+def cmd_static(local) -> int:
+    """Print a representative absolute-numbers markdown table for one local run.
+
+    Single-machine snapshot (no cross-release deltas, no CI): the table you
+    paste into the docs/README as doppler's quoted performance, with the CPU it
+    was measured on stamped in the header so it's never mistaken for the runner.
+    """
+    if not local:
+        print(
+            "No local snapshot under benchmarks/history/ — run `make bench` "
+            "on this machine first, then `make bench-table`."
+        )
+        return 1
+    cpu = local["machine"].get("cpu")
+    cpu = cpu.get("brand_raw") if isinstance(cpu, dict) else cpu
+    pyv = local["machine"].get("python_version", "?")
+    when = (local["datetime"] or "")[:10]
+    out = [
+        "<!-- generated by `make bench-table` (scripts/bench_report.py "
+        "--static) — regenerate, don't hand-edit -->",
+        "## Benchmarks",
+        "",
+        f"Measured on **{cpu or 'this machine'}**, Python {pyv}"
+        + (f", {when}" if when else "")
+        + ". Throughput is **MSa/s** (higher is better); other ops are mean "
+        "**time per call** (lower is better). Representative single-machine "
+        "numbers — not the shared CI runner.",
+        "",
+    ]
+    for suite in SUITES:
+        benches = local["suites"].get(suite, {})
+        if not benches:
+            continue
+        out += [f"### {SUITE_LABEL[suite]}", ""]
+        tput = sorted(
+            (e for e in benches.values() if e["msas"] is not None),
+            key=lambda e: -e["msas"],
+        )
+        timed = sorted(
+            (e for e in benches.values() if e["msas"] is None),
+            key=lambda e: e["mean"],
+        )
+        if tput:
+            out += ["| benchmark | throughput |", "| --- | ---: |"]
+            out += [f"| `{e['disp']}` | {fmt_tput(e['msas'])} |" for e in tput]
+            out.append("")
+        if timed:
+            out += ["| benchmark | time/call |", "| --- | ---: |"]
+            out += [
+                f"| `{e['disp']}` | {fmt_time(e['mean'])} |" for e in timed
+            ]
+            out.append("")
+    print("\n".join(out))
+    return 0
 
 
 def fmt_time(seconds: float) -> str:
@@ -218,127 +328,30 @@ def cmd_table(series, top: int, thr: float) -> int:
     return 0
 
 
-def cmd_page(series, out: str, assets: str, top: int) -> int:
-    import os
-
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    os.makedirs(assets, exist_ok=True)
-    rel = os.path.relpath(assets, os.path.dirname(out) or ".")
-    lines = [
-        "# Benchmarks",
-        "",
-        "Per-release benchmark history, captured automatically on every "
-        "release tag by [`benchmark.yml`](https://github.com/doppler-dsp/"
-        "doppler/blob/main/.github/workflows/benchmark.yml) on a pinned runner "
-        "(ubuntu-24.04, Python 3.12) and stored on the `benchmarks` branch.",
-        "",
-        "Throughput benchmarks are shown in **MSa/s (higher is better)**; "
-        "others in **mean time per call (lower is better)**. Single-release "
-        "deltas carry cross-runner CI noise — read the *trend*, not one step.",
-        "",
-    ]
-
-    produced = False
-    seen_suite = set()
-    for suite, label, tput, keys, snaps in _section_iter(series):
-        produced = True
-        if suite not in seen_suite:
-            lines += [f"## {SUITE_LABEL[suite]}", ""]
-            seen_suite.add(suite)
-        tags = list(snaps)
-        # The N "biggest" benchmarks in the newest release: fastest by
-        # throughput, or slowest by time — the headline numbers worth watching.
-        newest = {
-            k: _value(snaps[tags[-1]][k], tput)
-            for k in keys
-            if k in snaps[tags[-1]]
-        }
-        watch = sorted(newest, key=lambda k: -newest[k])[:top]
-
-        fig, ax = plt.subplots(figsize=(10, 5.5))
-        xs = range(len(tags))
-        for k in watch:
-            ys = [
-                _value(snaps[t][k], tput) if k in snaps[t] else None
-                for t in tags
-            ]
-            ax.plot(
-                xs,
-                [y if y else float("nan") for y in ys],
-                marker="o",
-                ms=3,
-                lw=1.2,
-                label=snaps[tags[-1]][k]["disp"],
-            )
-        ax.set_xticks(list(xs))
-        ax.set_xticklabels(tags, rotation=45, ha="right", fontsize=7)
-        if tput:
-            ax.set_ylabel("throughput (MSa/s) — higher is better")
-        else:
-            ax.set_ylabel("mean time per call (s) — lower is better")
-            ax.set_yscale("log")
-        ax.grid(True, which="both", alpha=0.25)
-        ax.legend(
-            fontsize=6, ncol=1, loc="upper left", bbox_to_anchor=(1.01, 1.0)
-        )
-        fig.tight_layout()
-        slug = f"{suite}-{'tput' if tput else 'time'}"
-        fig.savefig(os.path.join(assets, f"trend-{slug}.png"), dpi=110)
-        plt.close(fig)
-
-        prev, cur, rows = _rows(tags, snaps, keys, tput)
-        fmt = fmt_tput if tput else fmt_time
-        unit = "MSa/s, ↑ better" if tput else "time, ↓ better"
-        lines += [
-            f"### {'Throughput' if tput else 'Timing'} ({unit})",
-            "",
-            f"![{slug} trend]({rel}/trend-{slug}.png)",
-            "",
-            f"| benchmark | {prev} | {cur} | Δ |",
-            "| --- | ---: | ---: | ---: |",
-        ]
-        for disp, a, b, pct in rows[:top]:
-            lines.append(f"| `{disp}` | {fmt(a)} | {fmt(b)} | {pct:+.1f}% |")
-        lines.append("")
-
-    if not produced:
-        lines += ["_No release snapshots available at build time._", ""]
-    with open(out, "w") as fh:
-        fh.write("\n".join(lines))
-    print(f"wrote {out}" + ("" if produced else " (no data)"))
-    return 0
-
-
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument(
-        "--page",
+        "--static",
         action="store_true",
-        help="generate the docs page + plots instead of a table",
+        help="representative absolute-numbers table from THIS machine's "
+        "latest `make bench` run (benchmarks/history/), not the CI branch",
     )
-    p.add_argument("--out", default="docs/benchmarks.md")
-    p.add_argument("--assets", default="docs/assets/bench")
     p.add_argument(
         "--top",
         type=int,
         default=20,
-        help="rows/series per group (default 20)",
+        help="rows/series per group, comparison mode (default 20)",
     )
     p.add_argument(
         "--threshold",
         type=float,
         default=10.0,
-        help="±%% to flag better/worse (table mode)",
+        help="±%% to flag better/worse (comparison mode)",
     )
     a = p.parse_args()
-    series = load_history()
-    if a.page:
-        return cmd_page(series, a.out, a.assets, a.top)
-    return cmd_table(series, a.top, a.threshold)
+    if a.static:
+        return cmd_static(load_local())
+    return cmd_table(load_history(), a.top, a.threshold)
 
 
 if __name__ == "__main__":

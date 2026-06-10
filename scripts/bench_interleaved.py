@@ -14,7 +14,9 @@ per-benchmark best, which cancels that drift:
    (order flipped each round so neither build is systematically favoured);
 3. per benchmark, keep the run with the **lowest mean** (the interference-free
    sample) — its ``MSa_s`` is already consistent with that mean;
-4. stamp each merged snapshot with the build's compiler + flags and write it to
+4. stamp each merged snapshot with full reproducibility metadata (when,
+   commit, compiler + flags, CPU state, lib versions — see
+   ``bench_report.collect_meta``) and write it to
    ``benchmarks/published/v<version>/``.
 
 This replaces the two manual `bench-publish` passes — one command publishes
@@ -34,6 +36,10 @@ import json
 import os
 import re
 import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bench_report import collect_meta  # noqa: E402  (sibling script)
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
@@ -143,13 +149,22 @@ def main() -> int:
             samples[b]["py"].append(py)
             samples[b]["c"].append(c)
 
+    commit = _run(
+        ["git", "rev-parse", "--short", "HEAD"], REPO, capture_output=True
+    ).stdout.strip()
     dst = os.path.join(PUBLISHED, ver)
     os.makedirs(dst, exist_ok=True)
     for b in BUILD_ARGS:
         compiler, flags = info[b]
         for suite, name in (("py", f"{b}.json"), ("c", f"{b}-c.json")):
             merged = _merge_best(samples[b][suite])
-            merged["doppler_build"] = {"compiler": compiler, "flags": flags}
+            merged["doppler_meta"] = collect_meta(
+                merged.get("machine_info", {}),
+                compiler,
+                flags,
+                commit,
+                merged.get("datetime", ""),
+            )
             with open(os.path.join(dst, name), "w") as fh:
                 json.dump(merged, fh, indent=1)
                 fh.write("\n")

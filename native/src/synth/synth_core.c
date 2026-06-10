@@ -119,8 +119,12 @@ synth_steps (synth_state_t *state, float complex *output, size_t n)
    * (NCO) and AWGN are generated a block at a time (their vectorized paths);
    * PN chips come from the block pn_generate() (kind-hoisted, ~1 GSa/s),
    * never per-sample pn_step(); the symbol map and the LO-mix / noise-add are
-   * separate, data-parallel passes. Output is byte-identical to a per-sample
-   * synth_step() loop. */
+   * separate, data-parallel passes. This rounds the symbol*carrier multiply
+   * and the noise-add separately, whereas synth_step() evaluates
+   * `sym*carrier + noise` as one expression — so under -ffast-math the two can
+   * differ by an ULP on FMA targets (arm64) for QPSK's irrational ±1/√2 leg.
+   * Callers that need the composer/CLI to agree byte-for-byte must drive a
+   * single path; wfm_compose uses synth_steps() for exactly this reason. */
   enum
   {
     CH = 2048

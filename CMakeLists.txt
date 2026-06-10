@@ -4,6 +4,13 @@ project(doppler VERSION 0.10.1 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Always emit build/compile_commands.json so clangd/IDEs resolve include paths
+# and feature-macro defines (Python, NumPy, vendored cJSON, _POSIX sources).
+# Symlink it from the repo root once: `ln -s build/compile_commands.json .`
+# (the file is gitignored). Without this a stale or absent DB makes clangd
+# report bogus "file not found" / "unknown type" errors for those headers.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
 
 # -march policy — DISTRIBUTION SAFETY IS THE DEFAULT.

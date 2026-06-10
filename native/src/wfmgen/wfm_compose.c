@@ -124,8 +124,23 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
               state->left  = state->segs[state->cur].off_samples;
               continue;
             }
-          out[i++] = synth_step (state->syn);
-          state->left--;
+          /* Pull the ON run as a block through the *same* synth_steps() the
+           * wavegen CLI uses, so the composer and CLI are byte-identical by
+           * construction. A per-sample synth_step() loop is only byte-equal to
+           * synth_steps() when FP contraction is off: under -ffast-math the
+           * scalar `sym*carrier + noise` contracts to FMAs on targets with a
+           * fused multiply-add (arm64), while the block path rounds the
+           * multiply and the noise-add separately. QPSK's irrational ±1/√2 leg
+           * exposes the gap (±1/0 legs are immune), which diverged the macOS
+           * composer from the CLI (#67). synth_steps() is chunk-invariant, so
+           * batching here also leaves the Linux output bit-for-bit unchanged.
+           */
+          size_t k = max - i;
+          if (k > state->left)
+            k = state->left;
+          synth_steps (state->syn, out + i, k);
+          i += k;
+          state->left -= k;
         }
       else
         { /* PHASE_OFF */

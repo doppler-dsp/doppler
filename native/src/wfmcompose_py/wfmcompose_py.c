@@ -439,6 +439,22 @@ _fn_writer_track_clipping (PyObject *mod, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+_fn_writer_set_gain (PyObject *mod, PyObject *args)
+{
+  (void)mod;
+  PyObject *cap;
+  double    gain;
+  if (!PyArg_ParseTuple (args, "Od", &cap, &gain))
+    return NULL;
+  _wr_wrap_t *p = (_wr_wrap_t *)PyCapsule_GetPointer (cap, _WR_CAPS);
+  if (!p)
+    return NULL;
+  if (!p->closed)
+    wfm_writer_set_gain (p->w, gain);
+  Py_RETURN_NONE;
+}
+
 /* (peak, clip_fraction): the live writer's values, or the close-time snapshot
  * once closed (the writer is freed at close). */
 static PyObject *
@@ -992,6 +1008,8 @@ static PyMethodDef _methods[] = {
     "writer_close(state) -> None" },
   { "writer_track_clipping", _fn_writer_track_clipping, METH_VARARGS,
     "writer_track_clipping(state, on) -> None" },
+  { "writer_set_gain", _fn_writer_set_gain, METH_VARARGS,
+    "writer_set_gain(state, gain) -> None" },
   { "writer_stats", _fn_writer_stats, METH_VARARGS,
     "writer_stats(state) -> (peak, clip_fraction)" },
   { "blue_write_hcb", _fn_blue_write_hcb, METH_VARARGS,

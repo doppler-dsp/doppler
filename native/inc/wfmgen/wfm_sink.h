@@ -58,6 +58,10 @@ void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
 /** Enable the per-component clip counter (off by default; peak always on). */
 void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
 
+/** Set the output gain (linear; default 1.0). For headroom H dB pass
+ *  10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). */
+void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
+
 /** Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
  *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
 double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);

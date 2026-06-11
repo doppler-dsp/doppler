@@ -84,6 +84,18 @@ int wfm_writer_close(wfm_writer_t *w);
 /** Enable the per-component clip *counter* (off by default; peak is always on). */
 void wfm_writer_track_clipping(wfm_writer_t *w, int on);
 
+/* ── headroom ──────────────────────────────────────────────────────────────
+ * A common output gain applied to every sample just before quantisation, so
+ * peaks fit under full-scale. `--headroom H` (dB) backs the composite off to
+ * −H dBFS: gain = 10^(−H/20). It is a single scale, so it does not change any
+ * power ratio (SNR is invariant); it only moves the absolute level. Default
+ * gain 1.0 (H = 0) is a bit-exact no-op (×1.0), so output stays byte-identical.
+ * Floats scale too (they just never clip); peak/clip tracking sees the scaled
+ * values. */
+
+/** Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). */
+void wfm_writer_set_gain(wfm_writer_t *w, double gain);
+
 /** Largest per-axis magnitude max(|I|,|Q|) written so far (pre-clip, full-scale
  *  1.0). > 1.0 ⇒ integer output clipped; peak_dBFS = 20*log10(peak). */
 double wfm_writer_peak(const wfm_writer_t *w);

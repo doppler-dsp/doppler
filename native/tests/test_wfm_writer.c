@@ -220,6 +220,39 @@ main (void)
     fclose (fp);
   }
 
-  printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf meta + clip)\n");
+  /* ── headroom: gain 1.0 is a bit-exact no-op (byte-identical) ── */
+  {
+    float _Complex s[1] = { 0.8f - 0.3f * I };
+    uint8_t       a[4], b[4];
+    FILE         *fa = tmpfile (), *fb = tmpfile ();
+    wfm_writer_t *wa = wfm_writer_open (fa, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_t *wb = wfm_writer_open (fb, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_set_gain (wa, 1.0); /* explicit 1.0 == default (no gain) */
+    wfm_writer_write (wa, s, 1);
+    wfm_writer_write (wb, s, 1);
+    wfm_writer_close (wa);
+    wfm_writer_close (wb);
+    CHECK (slurp (fa, a, 4) == 4 && slurp (fb, b, 4) == 4, "headroom sizes");
+    CHECK (memcmp (a, b, 4) == 0, "gain 1.0 byte-identical");
+    fclose (fa);
+    fclose (fb);
+  }
+
+  /* ── headroom backs the signal off: gain 0.5 clears a clip ── */
+  {
+    float _Complex s[1] = { 1.5f + 0.0f * I }; /* clips at unity gain */
+    FILE         *fp    = tmpfile ();
+    wfm_writer_t *w     = wfm_writer_open (fp, WFM_FT_RAW, 3, 0, 1e6, 0, 1);
+    wfm_writer_set_gain (w, 0.5); /* 1.5 * 0.5 = 0.75, fits full-scale */
+    wfm_writer_track_clipping (w, 1);
+    wfm_writer_write (w, s, 1);
+    CHECK (wfm_writer_peak (w) == 0.75, "gain 0.5: peak 0.75 (no clip)");
+    CHECK (wfm_writer_clip_fraction (w) == 0.0, "headroom cleared the clip");
+    wfm_writer_close (w);
+    fclose (fp);
+  }
+
+  printf ("test_wfm_writer: OK (raw/endian/csv/blue + sigmf + clip + "
+          "headroom)\n");
   return 0;
 }

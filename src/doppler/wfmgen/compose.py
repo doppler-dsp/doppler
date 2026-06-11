@@ -348,6 +348,7 @@ class Writer:
         fs: float = 1e6,
         fc: float = 0.0,
         total: int = 0,
+        headroom: float = 0.0,
     ) -> None:
         self._stype = _idx(sample_type, _STYPES, "sample_type")
         self._cap = _c.writer_open(
@@ -359,6 +360,10 @@ class Writer:
             float(fc),
             int(total),
         )
+        # headroom backs the composite off to -H dBFS so peaks fit; a single
+        # gain, so SNR is invariant. 0 dB is a bit-exact no-op.
+        if headroom:
+            _c.writer_set_gain(self._cap, 10.0 ** (-float(headroom) / 20.0))
 
     def write(self, iq: NDArray[np.complex64]) -> int:
         """Write a block of samples; returns the number written."""

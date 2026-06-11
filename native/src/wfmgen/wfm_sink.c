@@ -35,6 +35,7 @@ struct wfm_zmq_sink
   uint64_t  nclip;   /* saturated components (only when `track`) */
   uint64_t  ntot;    /* integer components processed (fraction denominator) */
   int       track;   /* count clips (opt-in); peak always on */
+  float     gain;    /* output gain (headroom); 1.0 = no-op (direct cf32) */
 };
 
 static long
@@ -104,6 +105,7 @@ wfm_zmq_sink_open (const char *endpoint, int sample_type)
   if (!s)
     return NULL;
   s->wtype = sample_type;
+  s->gain  = 1.0f;
   s->pub   = dp_pub_create (endpoint, dt);
   if (!s->pub)
     {
@@ -122,14 +124,24 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
   switch (sink->wtype)
     {
     case WT_CF32:
-      return dp_pub_send_cf32 (sink->pub, iq, n, fs, fc);
+      {
+        if (sink->gain == 1.0f) /* no headroom → direct, byte-identical */
+          return dp_pub_send_cf32 (sink->pub, iq, n, fs, fc);
+        if (grow (sink, n * sizeof (float _Complex)))
+          return -1;
+        float _Complex *o = sink->scratch;
+        for (size_t i = 0; i < n; i++)
+          o[i] = crealf (iq[i]) * sink->gain + cimagf (iq[i]) * sink->gain * I;
+        return dp_pub_send_cf32 (sink->pub, o, n, fs, fc);
+      }
     case WT_CF64:
       {
         if (grow (sink, n * sizeof (double _Complex)))
           return -1;
         double _Complex *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
-          o[i] = (double)crealf (iq[i]) + (double)cimagf (iq[i]) * I;
+          o[i] = (double)(crealf (iq[i]) * sink->gain)
+                 + (double)(cimagf (iq[i]) * sink->gain) * I;
         return dp_pub_send_cf64 (sink->pub, o, n, fs, fc);
       }
     case WT_CI32:
@@ -139,9 +151,11 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int32_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
-            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
-            o[2 * i]     = (int32_t)qz (crealf (iq[i]), 2147483647.0);
-            o[2 * i + 1] = (int32_t)qz (cimagf (iq[i]), 2147483647.0);
+            float re = crealf (iq[i]) * sink->gain,
+                  im = cimagf (iq[i]) * sink->gain;
+            track_sample (sink, re, im);
+            o[2 * i]     = (int32_t)qz (re, 2147483647.0);
+            o[2 * i + 1] = (int32_t)qz (im, 2147483647.0);
           }
         return dp_pub_send_ci32 (sink->pub, o, n, fs, fc);
       }
@@ -152,9 +166,11 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int16_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
-            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
-            o[2 * i]     = (int16_t)qz (crealf (iq[i]), 32767.0);
-            o[2 * i + 1] = (int16_t)qz (cimagf (iq[i]), 32767.0);
+            float re = crealf (iq[i]) * sink->gain,
+                  im = cimagf (iq[i]) * sink->gain;
+            track_sample (sink, re, im);
+            o[2 * i]     = (int16_t)qz (re, 32767.0);
+            o[2 * i + 1] = (int16_t)qz (im, 32767.0);
           }
         return dp_pub_send_ci16 (sink->pub, o, n, fs, fc);
       }
@@ -165,9 +181,11 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
         int8_t *o = sink->scratch;
         for (size_t i = 0; i < n; i++)
           {
-            track_sample (sink, crealf (iq[i]), cimagf (iq[i]));
-            o[2 * i]     = (int8_t)qz (crealf (iq[i]), 127.0);
-            o[2 * i + 1] = (int8_t)qz (cimagf (iq[i]), 127.0);
+            float re = crealf (iq[i]) * sink->gain,
+                  im = cimagf (iq[i]) * sink->gain;
+            track_sample (sink, re, im);
+            o[2 * i]     = (int8_t)qz (re, 127.0);
+            o[2 * i + 1] = (int8_t)qz (im, 127.0);
           }
         return dp_pub_send_ci8 (sink->pub, o, n, fs, fc);
       }
@@ -191,6 +209,13 @@ wfm_zmq_sink_track_clipping (wfm_zmq_sink_t *sink, int on)
 {
   if (sink)
     sink->track = on ? 1 : 0;
+}
+
+void
+wfm_zmq_sink_set_gain (wfm_zmq_sink_t *sink, double gain)
+{
+  if (sink)
+    sink->gain = (float)gain;
 }
 
 double

@@ -93,6 +93,8 @@ ______________________________________________________________________
 | Flag                    | Meaning                                                                                       |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
 | `--from-file SPEC.json` | run a multi-segment spec (see [Multi-segment](#multi-segment-specs))                          |
+| `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                     |
+| `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip                    |
 | `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                                    |
 | `--off N`               | trailing off-time (zeros) after the segment                                                   |
 | `--repeat`              | loop the whole sequence                                                                       |
@@ -146,11 +148,13 @@ So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
 - **Any PAPR > 0 dB content clips** at the rails — added noise (at `--snr 0`,
     noise power = signal power, ~⅓ of integer I/Q components already saturate)
     and any future pulse-shaped / QAM / OFDM mode. Such a signal needs
-    **headroom**: its average power set *below* full-scale so the peaks fit. The
-    generator does **not** yet expose a peak-backoff / target-amplitude control —
-    when high-PAPR waveforms land it will need one. Until then, carry
-    envelope-varying signals as a **float** type (`cf32` / `cf64`), which never
-    clips, or accept the saturation.
+    **headroom**, which `wfmgen` provides: **`--headroom <dB>`** (and
+    `Writer(headroom=…)` in Python) scales the whole output down to `−H` dBFS so
+    the peaks fit. It is a single common gain, so it is **SNR-invariant** — it
+    moves only the absolute level, not any power ratio — and `0` dB (the default)
+    is a bit-exact no-op. An integer capture that clips reports the exact backoff
+    to use (`remedy: --headroom N`). You can also just carry envelope-varying
+    signals as a **float** type (`cf32` / `cf64`), which never clips.
 
 [`Reader`](#reading-a-capture-back) inverts the same map, so a float round-trip
 is exact and an integer round-trip is exact only where it neither clipped nor

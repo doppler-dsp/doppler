@@ -14,11 +14,6 @@
 typedef struct
 {
   PyObject_HEAD nco_state_t *handle;
-  uint32_t *_steps_u32_buf; /* pre-allocated output for steps_u32 */
-  uint32_t
-      *_steps_u32_scaled_buf;   /* pre-allocated output for steps_u32_scaled */
-  uint32_t *_steps_u32_ovf_buf; /* pre-allocated output for steps_u32_ovf */
-  uint8_t  *_steps_u32_ovf_buf_1; /* pre-allocated output for steps_u32_ovf */
 } NCOObject;
 
 static void
@@ -26,10 +21,6 @@ NCOObj_dealloc (NCOObject *self)
 {
   if (self->handle)
     nco_destroy (self->handle);
-  free (self->_steps_u32_buf);
-  free (self->_steps_u32_scaled_buf);
-  free (self->_steps_u32_ovf_buf);
-  free (self->_steps_u32_ovf_buf_1);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -85,26 +76,19 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
-  if (!self->_steps_u32_buf)
+  if (n < 0)
     {
-      size_t _max = nco_steps_u32_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)n;
-      self->_steps_u32_buf = malloc (_max * sizeof (uint32_t));
-      if (!self->_steps_u32_buf)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
+      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
+      return NULL;
     }
-  size_t n_out = nco_steps_u32 (self->handle, (size_t)n, self->_steps_u32_buf);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_UINT32, self->_steps_u32_buf);
+  /* NumPy owns the output: allocate exactly n and write into it (sizing a
+   * shared reuse buffer to a fixed cap overflowed for large n — #116). */
+  npy_intp  dim = (npy_intp)n;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT32);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  nco_steps_u32 (self->handle, (size_t)n,
+                 (uint32_t *)PyArray_DATA ((PyArrayObject *)arr));
   return arr;
 }
 
@@ -119,27 +103,17 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
-  if (!self->_steps_u32_scaled_buf)
+  if (n < 0)
     {
-      size_t _max = nco_steps_u32_scaled_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)n;
-      self->_steps_u32_scaled_buf = malloc (_max * sizeof (uint32_t));
-      if (!self->_steps_u32_scaled_buf)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
+      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
+      return NULL;
     }
-  size_t    n_out = nco_steps_u32_scaled (self->handle, (size_t)n,
-                                          self->_steps_u32_scaled_buf);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr   = PyArray_SimpleNewFromData (1, &dim, NPY_UINT32,
-                                               self->_steps_u32_scaled_buf);
+  npy_intp  dim = (npy_intp)n;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT32);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  nco_steps_u32_scaled (self->handle, (size_t)n,
+                        (uint32_t *)PyArray_DATA ((PyArrayObject *)arr));
   return arr;
 }
 
@@ -154,45 +128,27 @@ NCOObj_steps_u32_ovf (NCOObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
-  if (!self->_steps_u32_ovf_buf)
+  if (n < 0)
     {
-      size_t _max = nco_steps_u32_ovf_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)n;
-      self->_steps_u32_ovf_buf = malloc (_max * sizeof (uint32_t));
-      if (!self->_steps_u32_ovf_buf)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      self->_steps_u32_ovf_buf_1 = malloc (_max * sizeof (uint8_t));
-      if (!self->_steps_u32_ovf_buf_1)
-        {
-          free (self->_steps_u32_ovf_buf);
-          self->_steps_u32_ovf_buf = NULL;
-          PyErr_NoMemory ();
-          return NULL;
-        }
-    }
-  size_t n_out
-      = nco_steps_u32_ovf (self->handle, (size_t)n, self->_steps_u32_ovf_buf,
-                           self->_steps_u32_ovf_buf_1);
-  npy_intp  dim  = (npy_intp)n_out;
-  PyObject *arr0 = PyArray_SimpleNewFromData (1, &dim, NPY_UINT32,
-                                              self->_steps_u32_ovf_buf);
-  PyObject *arr1 = PyArray_SimpleNewFromData (1, &dim, NPY_UINT8,
-                                              self->_steps_u32_ovf_buf_1);
-  if (!arr0 || !arr1)
-    {
-      Py_XDECREF (arr0);
-      Py_XDECREF (arr1);
+      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
       return NULL;
     }
-  PyArray_SetBaseObject ((PyArrayObject *)arr0, (PyObject *)self);
-  Py_INCREF (self);
-  PyArray_SetBaseObject ((PyArrayObject *)arr1, (PyObject *)self);
-  Py_INCREF (self);
-  PyObject *result = PyTuple_Pack (2, arr0, arr1);
+  /* Two parallel outputs (phase u32 + overflow flags u8), both length n, each
+   * NumPy-owned and independent (see steps_u32). */
+  npy_intp  dim  = (npy_intp)n;
+  PyObject *arr0 = PyArray_SimpleNew (1, &dim, NPY_UINT32);
+  if (!arr0)
+    return NULL;
+  PyObject *arr1 = PyArray_SimpleNew (1, &dim, NPY_UINT8);
+  if (!arr1)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  nco_steps_u32_ovf (self->handle, (size_t)n,
+                     (uint32_t *)PyArray_DATA ((PyArrayObject *)arr0),
+                     (uint8_t *)PyArray_DATA ((PyArrayObject *)arr1));
+  PyObject *result = PyTuple_Pack (2, arr0, arr1); /* INCREFs both */
   Py_DECREF (arr0);
   Py_DECREF (arr1);
   return result;

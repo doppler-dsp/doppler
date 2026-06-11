@@ -75,7 +75,7 @@ class _SynthEngine:
 
     Parameters
     ----------
-    type : Literal["tone", "noise", "pn", "bpsk", "qpsk"], default "tone"
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"], default "tone"
         type constructor parameter.
     fs : float, default 1000000.0
         fs constructor parameter.
@@ -95,13 +95,15 @@ class _SynthEngine:
         pn_poly constructor parameter.
     lfsr : Literal["galois", "fibonacci"], default "galois"
         lfsr constructor parameter.
+    f_end : float, default 0.0
+        f_end constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.wfm import _SynthEngine
-    >>> obj = _SynthEngine(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois")
+    >>> obj = _SynthEngine(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois", f_end=0.0)
     >>> obj.get_wtype()
     0
     >>> obj.get_nsps()

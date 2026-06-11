@@ -37,8 +37,8 @@ static int
 _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "type", "snr_mode",  "fs",      "freq", "snr", "seed",
-          "sps",  "pn_length", "pn_poly", "lfsr", NULL };
+      = { "type", "snr_mode",  "fs",      "freq", "snr",   "seed",
+          "sps",  "pn_length", "pn_poly", "lfsr", "f_end", NULL };
   const char        *type_str     = "tone";
   const char        *snr_mode_str = "auto";
   double             fs           = 1000000.0;
@@ -49,10 +49,12 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   int                pn_length    = 7;
   unsigned long long pn_poly_raw  = 0ULL;
   const char        *lfsr_str     = "galois";
+  double             f_end        = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|ssdddkiiKs", kwlist, &type_str, &snr_mode_str, &fs,
-          &freq, &snr, &seed_raw, &sps, &pn_length, &pn_poly_raw, &lfsr_str))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|ssdddkiiKsd", kwlist,
+                                    &type_str, &snr_mode_str, &fs, &freq, &snr,
+                                    &seed_raw, &sps, &pn_length, &pn_poly_raw,
+                                    &lfsr_str, &f_end))
     return -1;
   int type = 0;
   if (strcmp (type_str, "tone") == 0)
@@ -65,11 +67,15 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     type = 3;
   else if (strcmp (type_str, "qpsk") == 0)
     type = 4;
+  else if (strcmp (type_str, "chirp") == 0)
+    type = 5;
+  else if (strcmp (type_str, "bits") == 0)
+    type = 6;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "type must be one of \"tone\", \"noise\", \"pn\", "
-                    "\"bpsk\", \"qpsk\", got '%s'",
+                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", got '%s'",
                     type_str);
       return -1;
     }
@@ -105,7 +111,7 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
   uint32_t seed    = (uint32_t)seed_raw;
   uint64_t pn_poly = (uint64_t)pn_poly_raw;
   self->handle = wfm_synth_create (type, fs, freq, snr, snr_mode, seed, sps,
-                                   pn_length, pn_poly, lfsr);
+                                   pn_length, pn_poly, lfsr, f_end);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "wfm_synth_create returned NULL");
@@ -187,6 +193,39 @@ _SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
     {
       PyErr_SetString (PyExc_ValueError,
                        "set_rrc: empty taps or alloc failed");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+/* set_bits(pattern, modulation=1) — attach a user bit pattern to a type=bits
+ * synth. pattern is any array-like of 0/1 (coerced to uint8); modulation is
+ * 0=none, 1=bpsk, 2=qpsk. */
+static PyObject *
+_SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *pat_obj    = NULL;
+  int       modulation = 1;
+  if (!PyArg_ParseTuple (args, "O|i", &pat_obj, &modulation))
+    return NULL;
+  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
+      pat_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!arr)
+    return NULL;
+  size_t n  = (size_t)PyArray_SIZE (arr);
+  int    rc = wfm_synth_set_bits (
+      self->handle, (const uint8_t *)PyArray_DATA (arr), n, modulation);
+  Py_DECREF (arr);
+  if (rc != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_bits: empty pattern, modulation not in 0..2, or "
+                       "not a bits synth");
       return NULL;
     }
   Py_RETURN_NONE;
@@ -390,6 +429,11 @@ static PyMethodDef _SynthEngine_methods[] = {
     "set_rrc(taps) -> None\n"
     "\n"
     "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk only).\n" },
+  { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
+    "set_bits(pattern, modulation=1) -> None\n"
+    "\n"
+    "Attach a user bit pattern (array of 0/1) to a type='bits' synth.\n"
+    "modulation: 0=none (0/1), 1=bpsk (+-1), 2=qpsk (2 bits/symbol).\n" },
   { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
     "Get wtype." },
   { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,

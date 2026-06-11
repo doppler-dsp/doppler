@@ -15,6 +15,30 @@ ______________________________________________________________________
 
 ### Added
 
+- **Chirp (LFM) waveform type** — `Synth(type="chirp", freq=f_start, f_end=…)`
+    and the `chirp(f_start, f_end)` builder generate a linear-FM sweep whose
+    instantaneous frequency ramps from `freq` (the start) to `f_end` over the
+    generated length, then holds at `f_end`; `f_end < freq` is a down-chirp. The
+    phase is continuous across `steps()`/segments, so concatenated chirps join
+    seamlessly (radar pulse compression, SAR, sonar, frequency-response tests).
+    Exposed on every face: the `wfmgen --type chirp --freq … --f_end …` CLI, the
+    JSON spec (`"type":"chirp"`, `"f_end"`), `Segment`/`Composer` (the sweep
+    spans the segment's `num_samples`), and SigMF annotations (the
+    `f_start..f_end` occupied band). Byte-identical CLI ⇄ Composer ⇄ standalone,
+    and the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
+    (#113)
+- **User bit-pattern waveform type (`bits`)** — `Synth(type="bits",   pattern=…, modulation=…)` and the `bits(pattern, modulation)` builder play
+    back a specific bit sequence (preambles, sync words, test vectors). The
+    pattern is a 0/1 string (`"10110101"`), a hex string (`"0xAA55"`, MSB
+    first), or any array-like of 0/1; `modulation` maps it to symbols
+    (`"none"` → 0/1 amplitude, `"bpsk"` → ±1, `"qpsk"` → two bits/symbol,
+    Gray-coded). Each bit is held `sps` samples and the pattern **cycles** to
+    fill the requested length (one pass is `Synth.n_samples`). On every face:
+    the `wfmgen --type bits --bits/--bits-hex/--bits-file --modulation …` CLI,
+    the JSON spec (`"pattern"` + `"modulation"`), `Segment`/`Composer` (incl.
+    `.sum` scenes), and SigMF. Byte-identical CLI ⇄ Composer ⇄ standalone, and
+    the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
+    (#114)
 - **RRC pulse shaping for the PSK carriers** — `pulse="rrc"` (with `rrc_beta` /
     `rrc_span`) on a `pn` / `bpsk` / `qpsk` `Synth` replaces the rectangular
     sample-and-hold with **root-raised-cosine** shaping, so a band-limited
@@ -26,6 +50,20 @@ ______________________________________________________________________
     `wfmgen --pulse rrc --rrc-beta … --rrc-span …` CLI, the JSON spec, and
     `Segment`/`Composer` (incl. `.sum`). Byte-identical CLI ⇄ Composer ⇄
     standalone. (#115)
+
+### Fixed
+
+- **`source` heap overflow on large single-call generation** (#116) —
+    `LO.steps(n)`, `NCO.steps_u32`/`steps_u32_scaled`/`steps_u32_ovf`, and
+    `AWGN.generate(n)` sized their output buffer to a fixed internal cap
+    (`*_MAX_OUT = 65536`) but then wrote `n` samples, overflowing the heap for
+    `n > 65536` — silently corrupting memory, and segfaulting once `n` ran past
+    a page (e.g. `LO.steps(393216)`). The bindings now allocate a NumPy-owned
+    output of exactly `n` per call (the same pattern `Synth.steps` uses), which
+    also makes each returned array independent: concatenating or holding results
+    across calls is now correct (the old shared reuse buffer aliased/overwrote
+    earlier results). Also fixes a leak of the `LO`/`AWGN` reuse buffers at
+    dealloc.
 
 ## [0.11.0] — 2026-06-11
 

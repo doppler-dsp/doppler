@@ -175,7 +175,7 @@ main (void)
     CHECK (wfm_compose_execute (c, viac, 200) == 200, "1src execute");
     wfm_compose_destroy (c);
     wfm_synth_state_t *s
-        = wfm_synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0);
+        = wfm_synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0, 0.0);
     wfm_synth_steps (s, direct, 200);
     wfm_synth_destroy (s);
     int ok = 1;
@@ -203,9 +203,9 @@ main (void)
     wfm_compose_destroy (c);
     /* reference: render each source and add with the same gains + order. */
     wfm_synth_state_t *sa
-        = wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0);
+        = wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
     wfm_synth_state_t *sb
-        = wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0);
+        = wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0, 0.0);
     float complex ba[100], bb[100];
     wfm_synth_steps (sa, ba, 100);
     wfm_synth_steps (sb, bb, 100);

@@ -37,13 +37,36 @@ from . import _wfmcompose as _c
 from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
-_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk")
+_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits")
 _MODES = ("auto", "fs", "ebno", "esno")
 _PULSES = ("rect", "rrc")  # PSK pulse shape → C: rect (hold) / rrc (FIR)
+_BITMODS = ("none", "bpsk", "qpsk")  # bits-pattern modulation → C bit_mod
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _FTYPES = ("raw", "csv", "blue", "sigmf")
 _ENDIANS = ("le", "be")
 _LFSRS = ("galois", "fibonacci")
+
+
+def _parse_bits(pattern) -> np.ndarray:
+    """Coerce a bit pattern to a uint8 array of 0/1.
+
+    Accepts a binary string (``"10110101"``), a hex string prefixed ``0x``
+    (``"0xAA55"`` → 16 bits, MSB first), or any array-like of 0/1.
+    """
+    if isinstance(pattern, str):
+        s = pattern.strip()
+        if s[:2].lower() == "0x":
+            n = len(s) - 2
+            val = int(s, 16)
+            bits = [(val >> (4 * n - 1 - i)) & 1 for i in range(4 * n)]
+            return np.array(bits, dtype=np.uint8)
+        if set(s) - {"0", "1"}:
+            raise ValueError(
+                "bit string must be 0/1 (or '0x..' hex), got " + repr(pattern)
+            )
+        return np.frombuffer(s.encode(), dtype=np.uint8) - ord("0")
+    arr = np.asarray(pattern, dtype=np.uint8).ravel()
+    return (arr != 0).astype(np.uint8)
 
 
 def _idx(name: str, table: tuple[str, ...], what: str) -> int:
@@ -78,13 +101,25 @@ class Synth:
 
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk"}
-        Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS).
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
+        Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS;
+        ``"chirp"`` is a linear-FM sweep — see ``f_end``).
     fs : float
         Sample rate (Hz) for standalone generation. Ignored when the synth is
         used in a :class:`Segment` — the segment owns the rate.
     freq : float
-        Carrier/offset frequency (Hz).
+        Carrier/offset frequency (Hz). For a ``chirp`` this is the **start**
+        frequency f_start (the instantaneous frequency at t=0); ``f_start=`` is
+        accepted as an alias.
+    f_end : float
+        Chirp **end** frequency (Hz); used only when ``type="chirp"``. The
+        instantaneous frequency sweeps linearly ``freq → f_end`` over the
+        generated length (``steps(n)`` standalone, or the segment's
+        ``num_samples`` in composition), then holds at ``f_end``. ``f_end <
+        freq`` is a down-chirp.
+    f_start : float, optional
+        Readable alias for ``freq`` (chirp start frequency); folded into
+        ``freq`` at construction when given.
     snr : float
         SNR in dB under ``snr_mode``; ``100`` (the default) is numerically clean.
     snr_mode : {"auto", "fs", "ebno", "esno"}
@@ -104,11 +139,15 @@ class Synth:
     >>> from doppler.wfm import Synth
     >>> Synth(type="tone", fs=1.0, freq=0.0).steps(4).tolist()
     [(1+0j), (1+0j), (1+0j), (1+0j)]
+    >>> # an up-chirp sweeping 100 kHz → 300 kHz over 4096 samples
+    >>> Synth(type="chirp", fs=1e6, f_start=1e5, f_end=3e5).steps(4096).shape
+    (4096,)
     """
 
     type: str = "tone"
     fs: float = 1e6
     freq: float = 0.0
+    f_end: float = 0.0
     snr: float = 100.0
     snr_mode: str = "auto"
     seed: int = 1
@@ -117,17 +156,38 @@ class Synth:
     pn_poly: int = 0
     lfsr: str = "galois"
     level: float = 0.0
+    f_start: float | None = None
+    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
+    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
     pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
     rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
     rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
 
     def __post_init__(self):
+        # ``f_start`` is sugar for ``freq`` (chirp's start frequency *is* the
+        # carrier offset at t=0); fold it in so there is one stored value.
+        if self.f_start is not None:
+            self.freq = self.f_start
         # Validate the string-enum fields eagerly (cheap, no engine spun) so a
         # bad spec fails at construction, not lazily on the first ``steps``.
         _idx(self.type, _TYPES, "type")
         _idx(self.snr_mode, _MODES, "snr_mode")
         _idx(self.lfsr, _LFSRS, "lfsr")
         _idx(self.pulse, _PULSES, "pulse")
+        if self.type == "bits":
+            _idx(self.modulation, _BITMODS, "modulation")
+            if self.pattern is None:
+                raise ValueError("type='bits' needs a pattern")
+
+    @property
+    def n_samples(self) -> int:
+        """One full pass of a ``bits`` pattern, in samples (``n_bits*sps``,
+        halved for qpsk). 0 for the streaming types (no natural length)."""
+        if self.type != "bits":
+            return 0
+        nb = len(_parse_bits(self.pattern))
+        per_sym = 2 if self.modulation == "qpsk" else 1
+        return (nb // per_sym) * self.sps
 
     def _engine(self):
         """Build the backing C engine (no ``level`` — that is composition)."""
@@ -135,6 +195,7 @@ class Synth:
             type=self.type,
             fs=self.fs,
             freq=self.freq,
+            f_end=self.f_end,
             snr=self.snr,
             snr_mode=self.snr_mode,
             seed=self.seed,
@@ -143,6 +204,10 @@ class Synth:
             pn_poly=self.pn_poly,
             lfsr=self.lfsr,
         )
+        if self.type == "bits":
+            eng.set_bits(
+                _parse_bits(self.pattern), _idx(self.modulation, _BITMODS, "")
+            )
         # RRC pulse shaping (pn/bpsk/qpsk only): pass the raw unit-energy taps;
         # the C set_rrc scales them by sqrt(sps) for unit transmit power, so the
         # standalone and composer faces are byte-identical.
@@ -174,9 +239,16 @@ class Synth:
     def _tuple(self) -> tuple:
         """Fixed-order 13-tuple consumed by the C binding (enums → ints).
 
-        The trailing ``pulse`` / ``rrc_beta`` / ``rrc_span`` carry RRC pulse
-        shaping; ``pulse="rect"`` (the default) is byte-stable.
+        The trailing ``f_end`` (chirp), ``modulation``/``bits`` (a bits
+        pattern as a ``bytes`` of 0/1, else ``None``), and ``pulse``/
+        ``rrc_beta``/``rrc_span`` (RRC shaping) default to 0/``None``/rect for
+        other types so the serialisation is byte-stable.
         """
+        bits_bytes = (
+            _parse_bits(self.pattern).tobytes()
+            if self.type == "bits"
+            else None
+        )
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.freq),
@@ -188,6 +260,9 @@ class Synth:
             int(self.pn_poly),
             _idx(self.lfsr, _LFSRS, "lfsr"),
             float(self.level),
+            float(self.f_end),
+            _idx(self.modulation, _BITMODS, "modulation"),
+            bits_bytes,
             _idx(self.pulse, _PULSES, "pulse"),
             float(self.rrc_beta),
             int(self.rrc_span),
@@ -195,6 +270,9 @@ class Synth:
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Synth":
+        pattern = (
+            np.frombuffer(t[12], dtype=np.uint8) if t[12] is not None else None
+        )
         return cls(
             type=_TYPES[t[0]],
             freq=t[1],
@@ -206,9 +284,12 @@ class Synth:
             pn_poly=t[7],
             lfsr=_LFSRS[t[8]],
             level=t[9],
-            pulse=_PULSES[t[10]],
-            rrc_beta=t[11],
-            rrc_span=t[12],
+            f_end=t[10],
+            modulation=_BITMODS[t[11]],
+            pattern=pattern,
+            pulse=_PULSES[t[13]],
+            rrc_beta=t[14],
+            rrc_span=t[15],
         )
 
 
@@ -237,6 +318,46 @@ def noise(level: float = 0.0, **kw) -> Synth:
     return Synth(type="noise", level=level, **kw)
 
 
+def chirp(f_start: float = 0.0, f_end: float = 1e5, **kw) -> Synth:
+    """A linear-FM (LFM) chirp :class:`Synth` sweeping ``f_start`` → ``f_end``.
+
+    The instantaneous frequency rises (or falls, if ``f_end < f_start``)
+    linearly across the generated length — ``steps(n)`` standalone, or the
+    segment's ``num_samples`` in composition — then holds at ``f_end``. The
+    phase is continuous, so multi-segment chirps connect seamlessly.
+
+    Examples
+    --------
+    >>> from doppler.wfm import chirp
+    >>> s = chirp(f_start=100e3, f_end=200e3, fs=1e6)
+    >>> s.steps(10000).shape
+    (10000,)
+    """
+    return Synth(type="chirp", freq=f_start, f_end=f_end, **kw)
+
+
+def bits(pattern, modulation: str = "bpsk", **kw) -> Synth:
+    """A user-bit-pattern :class:`Synth` (preambles / sync words / test vectors).
+
+    ``pattern`` is a binary string (``"10110101"``), a hex string
+    (``"0xAA55"``, MSB first), or any array-like of 0/1. ``modulation`` maps the
+    bits to symbols — ``"none"`` (0/1 amplitude), ``"bpsk"`` (±1), or ``"qpsk"``
+    (two bits per symbol, Gray-coded). Each bit is held ``sps`` samples and the
+    pattern **cycles** to fill the requested length; one pass is
+    :attr:`Synth.n_samples`.
+
+    Examples
+    --------
+    >>> from doppler.wfm import bits
+    >>> s = bits("10110101", sps=4, modulation="bpsk")
+    >>> s.n_samples
+    32
+    >>> s.steps(s.n_samples).shape
+    (32,)
+    """
+    return Synth(type="bits", pattern=pattern, modulation=modulation, **kw)
+
+
 @dataclass
 class Segment:
     """One waveform segment of a composed stream.
@@ -247,12 +368,16 @@ class Segment:
 
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk"}
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
         Waveform kind.
     fs : float
         Sample rate (Hz).
     freq : float
-        Carrier/offset frequency (Hz); normalised by ``fs`` internally.
+        Carrier/offset frequency (Hz); normalised by ``fs`` internally. For a
+        ``chirp`` this is the start frequency (``f_start=`` is an alias).
+    f_end : float
+        Chirp end frequency (Hz); used only when ``type="chirp"``. The sweep
+        ``freq → f_end`` spans the segment's ``num_samples``.
     snr : float
         SNR in dB under ``snr_mode``; the default (100 dB) is numerically clean.
     snr_mode : {"auto", "fs", "ebno", "esno"}
@@ -280,6 +405,7 @@ class Segment:
     type: str = "tone"
     fs: float = 1e6
     freq: float = 0.0
+    f_end: float = 0.0
     snr: float = 100.0
     snr_mode: str = "auto"
     seed: int = 1
@@ -291,9 +417,17 @@ class Segment:
     off_samples: int = 0
     level: float = 0.0
     sources: list[Synth] | None = None
+    f_start: float | None = None
+    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
+    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
     pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
     rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
     rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
+
+    def __post_init__(self):
+        # ``f_start`` is sugar for ``freq`` (a chirp's start frequency).
+        if self.f_start is not None:
+            self.freq = self.f_start
 
     @classmethod
     def sum(
@@ -334,8 +468,9 @@ class Segment:
 
         A multi-source segment crosses as ``(num, off, fs, [source13tuple, …])``
         (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the flat 16-tuple form (the trailing ``pulse``/``rrc_beta``/``rrc_span``
-        default to rect → byte-stable for non-RRC).
+        the flat 19-tuple form (the trailing ``f_end`` + ``modulation``/``bits``
+        + ``pulse``/``rrc_beta``/``rrc_span`` default to 0/``None``/rect →
+        byte-stable).
         """
         if self.sources is not None:
             return (
@@ -344,6 +479,11 @@ class Segment:
                 float(self.fs),
                 [s._tuple() for s in self.sources],
             )
+        bits_bytes = (
+            _parse_bits(self.pattern).tobytes()
+            if self.type == "bits"
+            else None
+        )
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.fs),
@@ -358,6 +498,9 @@ class Segment:
             int(self.num_samples),
             int(self.off_samples),
             float(self.level),
+            float(self.f_end),
+            _idx(self.modulation, _BITMODS, "modulation"),
+            bits_bytes,
             _idx(self.pulse, _PULSES, "pulse"),
             float(self.rrc_beta),
             int(self.rrc_span),
@@ -365,7 +508,7 @@ class Segment:
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 16:  # nested multi-source: (num, off, fs, [sources])
+        if len(t) != 19:  # nested multi-source: (num, off, fs, [sources])
             num, off, fs, srclist = t
             return cls(
                 num_samples=num,
@@ -373,6 +516,9 @@ class Segment:
                 fs=fs,
                 sources=[Synth._from_tuple(st) for st in srclist],
             )
+        pattern = (
+            np.frombuffer(t[15], dtype=np.uint8) if t[15] is not None else None
+        )
         return cls(
             type=_TYPES[t[0]],
             fs=t[1],
@@ -387,9 +533,12 @@ class Segment:
             num_samples=t[10],
             off_samples=t[11],
             level=t[12],
-            pulse=_PULSES[t[13]],
-            rrc_beta=t[14],
-            rrc_span=t[15],
+            f_end=t[13],
+            modulation=_BITMODS[t[14]],
+            pattern=pattern,
+            pulse=_PULSES[t[16]],
+            rrc_beta=t[17],
+            rrc_span=t[18],
         )
 
     def add(self, *others: "Segment") -> "Timeline":

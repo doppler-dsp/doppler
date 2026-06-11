@@ -16,11 +16,11 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "fir/fir_core.h"
 #include "lo/lo_core.h"
 #include "awgn/awgn_core.h"
 #include "pn/pn_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
-#include "fir/fir_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,6 +32,8 @@ enum {
     WFM_SYNTH_PN = 2,    /* BPSK-modulated PN m-sequence chips       */
     WFM_SYNTH_BPSK = 3,  /* BPSK over PN-sourced data bits           */
     WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
+    WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
+    WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -128,6 +130,16 @@ typedef struct {
     int sym_pos;
     float cur_re;
     float cur_im;
+    double chirp_f0;
+    double chirp_fend;
+    double chirp_k;
+    double chirp_ph;
+    size_t chirp_n;
+    size_t chirp_span;
+    uint8_t * bits;
+    size_t n_bits;
+    size_t bit_idx;
+    int bit_mod;
     fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
@@ -144,13 +156,16 @@ typedef struct {
  * natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR
  * for tone/noise/PN.
  *
- * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
- *              The Python binding accepts strings "tone"|"noise"|"pn"|
- *              "bpsk"|"qpsk".
+ * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
+ *              5=chirp, 6=bits.  The Python binding accepts strings "tone"|
+ *              "noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits".  For "bits" attach
+ *              the pattern with wfm_synth_set_bits() after create().
  * @param fs  Sample rate in Hz.  Sets the carrier frequency normalisation
  *              and the noise bandwidth.  Default 1 000 000.0.
  * @param freq  Carrier frequency offset in Hz (−fs/2 … fs/2).  A
- *              complex LO is created only when freq != 0.  Default 0.0.
+ *              complex LO is created only when freq != 0.  For a chirp this
+ *              is the start frequency f_start (the instantaneous frequency at
+ *              t=0).  Default 0.0.
  * @param snr  Target SNR in dB, interpreted per ``snr_mode``.  Values >=
  *              WFM_SYNTH_SNR_CLEAN (100) disable AWGN.  Default 100.0.
  * @param snr_mode  SNR reference: 0=auto, 1=fs (full-band), 2=ebno,
@@ -165,6 +180,12 @@ typedef struct {
  *              the canonical MLS polynomial for pn_length" from the
  *              wfm_synth_mls_poly table.  Default 0.
  * @param lfsr  LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).
+ * @param f_end  Chirp end frequency in Hz (type=chirp only; ignored otherwise).
+ *              With ``freq`` as the start, the instantaneous frequency sweeps
+ *              linearly from ``freq`` to ``f_end`` over the span (set by
+ *              wfm_synth_set_chirp_span() or the first wfm_synth_steps() call),
+ *              then holds at ``f_end``.  ``f_end < freq`` is a down-chirp.
+ *              Default 0.0.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call wfm_synth_destroy() when done.
  * @code
@@ -178,18 +199,51 @@ typedef struct {
  * [(1+0j), (1+0j), (1+0j), (1+0j)]
  * @endcode
  */
-wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr);
+wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr, double f_end);
+
+/**
+ * @brief Pin a chirp's sweep span to @p span samples (no-op for non-chirp).
+ *
+ * A linear chirp's slope is `(f_end − f_start) / span`, so the span — the
+ * number of samples the sweep occupies — must be known before generation. The
+ * composer/CLI call this with the segment length; a standalone synth that is
+ * never pinned locks its span to the first wfm_synth_steps() call instead.
+ * Only the first pin (while the span is still 0) takes effect, so it is safe to
+ * call unconditionally after wfm_synth_create().
+ *
+ * @param state  Must be non-NULL.
+ * @param span   Sweep length in samples (> 0).
+ */
+void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
+
+/**
+ * @brief Attach a user bit pattern to a type=bits synth (no-op otherwise).
+ *
+ * Copies @p n bits (each 0/1) into the synth; @p modulation maps them to
+ * symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2,
+ * two bits per symbol). The pattern is oversampled by the create-time `sps`
+ * and **cycled** to fill whatever length `wfm_synth_steps()` requests, so one
+ * pass is `n * sps` samples (`2*ceil... ` — `n/2 * sps` for qpsk). Replaces any
+ * previous pattern; resets the read position. Safe to call repeatedly.
+ *
+ * @param state  Must be non-NULL.
+ * @param bits   Array of @p n bytes, each 0 or 1.
+ * @param n      Number of bits (> 0).
+ * @param modulation  0=none, 1=bpsk, 2=qpsk.
+ * @return 0 on success; -1 on bad args or allocation failure.
+ */
+int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+                       int modulation);
 
 /**
  * @brief Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk).
  *
  * Replaces the default rectangular sample-and-hold with a root-raised-cosine
  * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
- * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)` scaled for
- * unit transmit power). The caller computes the taps because the tap design
- * lives in the higher-level wfm DSP library; the engine only owns the FIR.
- * No-op for non-modulated types (tone/noise). Replaces any existing shaper and
- * clears its delay line.
+ * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps
+ * are scaled by sqrt(sps) internally for unit transmit power, so every caller
+ * passes the raw taps and gets byte-identical shaping. No-op for non-modulated
+ * types. Replaces any existing shaper and clears its delay line.
  *
  * @param state  Must be non-NULL.
  * @param taps   Real FIR taps (copied).
@@ -252,7 +306,32 @@ JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     float complex sym;
-    if (state->wtype >= WFM_SYNTH_PN) {
+    if (state->wtype == WFM_SYNTH_BITS) {
+        /* User bit pattern, oversampled sps and cycled to fill the request. The
+         * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
+         * instead of the LFSR; bit_mod picks the mapping. */
+        if (state->sym_pos == 0 && state->bits && state->n_bits) {
+            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                uint8_t b0 = state->bits[state->bit_idx];
+                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+                const float s = 0.70710678118654752f;
+                state->cur_re = b0 ? -s : s;
+                state->cur_im = b1 ? -s : s;
+                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            } else { /* none: unmodulated 0/1 amplitude */
+                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            }
+        }
+        if (++state->sym_pos >= state->nsps)
+            state->sym_pos = 0;
+        sym = state->cur_re + state->cur_im * I; /* bits: no pulse shaping */
+    } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
                 uint8_t b0 = pn_step(state->pn);
@@ -284,8 +363,23 @@ wfm_synth_step(wfm_synth_state_t *state)
         sym = state->cur_re + state->cur_im * I;
     }
     float complex carrier = 1.0f + 0.0f * I;
-    if (state->lo)
+    if (state->lo) {
         lo_steps(state->lo, 1, &carrier);
+    } else if (state->wtype == WFM_SYNTH_CHIRP) {
+        /* Sweeping carrier: f(n) = f0 + k*n (normalised cycles/sample), held at
+         * f_end once the span is reached. Phase accumulates in cycles, wrapped to
+         * [0,1) each step so the double keeps precision over a long sweep. The
+         * fused sym*carrier + noise below is the *same* expression the tone path
+         * (and wfm_synth_steps) uses, so step()/steps() stay byte-identical. */
+        double nf = (state->chirp_span && state->chirp_n >= state->chirp_span)
+                        ? (double)state->chirp_span
+                        : (double)state->chirp_n;
+        double w   = state->chirp_f0 + state->chirp_k * nf;
+        carrier    = cexpf((float)(6.283185307179586 * state->chirp_ph) * I);
+        state->chirp_ph += w;
+        state->chirp_ph -= floor(state->chirp_ph);
+        state->chirp_n++;
+    }
     float complex noise = 0.0f + 0.0f * I;
     if (state->awgn)
         awgn_generate(state->awgn, 1, &noise);

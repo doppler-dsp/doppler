@@ -1,7 +1,7 @@
 /*
  * accumulator_ext.c — Python extension module accumulator
  *
- * Objects: AccF32, AccCf64
+ * Objects: AccF32, AccCf64, AccTrace
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 
 #include "accumulator_ext_acc_f32.c"
 #include "accumulator_ext_acc_cf64.c"
+#include "accumulator_ext_acc_trace.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -33,6 +34,7 @@ PyInit_accumulator(void)
     import_array();
     if (PyType_Ready(&AccF32Type) < 0) return NULL;
     if (PyType_Ready(&AccCf64Type) < 0) return NULL;
+    if (PyType_Ready(&AccTraceObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&accumulator_moduledef);
     if (!m) return NULL;
     Py_INCREF(&AccF32Type);
@@ -42,6 +44,10 @@ PyInit_accumulator(void)
     Py_INCREF(&AccCf64Type);
     if (PyModule_AddObject(m, "AccCf64", (PyObject *)&AccCf64Type) < 0) {
         Py_DECREF(&AccCf64Type); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&AccTraceObjType);
+    if (PyModule_AddObject(m, "AccTrace", (PyObject *)&AccTraceObjType) < 0) {
+        Py_DECREF(&AccTraceObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

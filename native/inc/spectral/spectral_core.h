@@ -160,6 +160,8 @@ void magnitude_db_cf64(const double complex *x, size_t x_len, float *out, double
    */
 size_t find_peaks_f32(const float *db, size_t db_len, size_t n_peaks, float min_db, dp_peak_t *result);
 
+double obw_from_power(const double *pwr, size_t pwr_len, double fs, double frac);
+double noise_floor_db(const float *db, size_t db_len);
 #ifdef __cplusplus
 }
 #endif

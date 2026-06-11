@@ -44,7 +44,8 @@ doppler.resample.kaiser_num_taps
 doppler.stream.CF128
 doppler.stream.CI32
 doppler.util.square_clip
-doppler.wfmgen.bpsk_map
-doppler.wfmgen.qpsk_map
-doppler.wfmgen.wfm_awgn_amplitude
-doppler.wfmgen.wfm_ebno_to_snr_db
+doppler.wfm.bpsk_map
+doppler.wfm.qpsk_map
+doppler.wfm.wfm_awgn_amplitude
+doppler.wfm.wfm_ebno_to_snr_db
+doppler.wfm.compose.Timeline

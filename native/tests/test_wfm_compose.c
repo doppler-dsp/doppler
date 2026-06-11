@@ -28,27 +28,31 @@ int
 main (void)
 {
   /* tone @100kHz (1000 on, 500 off), then qpsk (4096 on, 0 off). */
+  wfm_source_t  src0    = { .type      = 0,
+                            .freq      = 1e5,
+                            .snr       = 100.0,
+                            .snr_mode  = 0,
+                            .seed      = 1,
+                            .sps       = 8,
+                            .pn_length = 7,
+                            .pn_poly   = 0 };
+  wfm_source_t  src1    = { .type      = 4,
+                            .freq      = 0,
+                            .snr       = 100.0,
+                            .snr_mode  = 0,
+                            .seed      = 5,
+                            .sps       = 8,
+                            .pn_length = 7,
+                            .pn_poly   = 0 };
   wfm_segment_t segs[2] = {
-    { .type        = 0,
+    { .sources     = &src0,
+      .n_sources   = 1,
       .fs          = 1e6,
-      .freq        = 1e5,
-      .snr         = 100.0,
-      .snr_mode    = 0,
-      .seed        = 1,
-      .sps         = 8,
-      .pn_length   = 7,
-      .pn_poly     = 0,
       .num_samples = 1000,
       .off_samples = 500 },
-    { .type        = 4,
+    { .sources     = &src1,
+      .n_sources   = 1,
       .fs          = 1e6,
-      .freq        = 0,
-      .snr         = 100.0,
-      .snr_mode    = 0,
-      .seed        = 5,
-      .sps         = 8,
-      .pn_length   = 7,
-      .pn_poly     = 0,
       .num_samples = 4096,
       .off_samples = 0 },
   };
@@ -133,15 +137,14 @@ main (void)
 
   /* ── level: a segment at -6.0206 dBFS is the level-0 stream × 0.5 ── */
   {
-    wfm_segment_t s0 = { .type        = 0,
-                         .fs          = 1e6,
-                         .snr         = 100.0,
-                         .seed        = 1,
-                         .sps         = 8,
-                         .pn_length   = 7,
-                         .num_samples = 64 };
-    wfm_segment_t s6 = s0;
-    s6.level         = -6.020599913; /* gain 0.5 */
+    wfm_source_t src0
+        = { .type = 0, .snr = 100.0, .seed = 1, .sps = 8, .pn_length = 7 };
+    wfm_source_t src6 = src0;
+    src6.level        = -6.020599913; /* gain 0.5 */
+    wfm_segment_t s0
+        = { .sources = &src0, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
+    wfm_segment_t s6
+        = { .sources = &src6, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
     float complex        a[64], b[64];
     wfm_compose_state_t *ca = wfm_compose_create (&s0, 1, 0, 0);
     wfm_compose_state_t *cb = wfm_compose_create (&s6, 1, 0, 0);
@@ -156,7 +159,66 @@ main (void)
     wfm_compose_destroy (cb);
   }
 
-  printf ("test_wfm_compose: OK (total=%zu, json round-trip ok, level)\n",
+  /* ── 1 source ≡ bundled: a noisy single source == direct synth_steps ── */
+  {
+    wfm_source_t  src = { .type      = 4, /* qpsk */
+                          .snr       = 9.0,
+                          .snr_mode  = 3,
+                          .seed      = 7,
+                          .sps       = 4,
+                          .pn_length = 7 };
+    wfm_segment_t seg
+        = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 200 };
+    float complex        viac[200], direct[200];
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    CHECK (wfm_compose_execute (c, viac, 200) == 200, "1src execute");
+    wfm_compose_destroy (c);
+    synth_state_t *s = synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0);
+    synth_steps (s, direct, 200);
+    synth_destroy (s);
+    int ok = 1;
+    for (int i = 0; i < 200; i++)
+      if (viac[i] != direct[i]) /* same synth_steps call → bit-identical */
+        ok = 0;
+    CHECK (ok, "1-source segment == bundled synth_steps (bit-exact)");
+  }
+
+  /* ── 2-source accumulate: segment sum == g0*synth0 + g1*synth1 ── */
+  {
+    wfm_source_t srcs[2] = {
+      { .type = 0, .freq = 0.0, .snr = 100.0, .seed = 1 }, /* tone */
+      { .type  = 0,
+        .freq  = 2e5,
+        .snr   = 100.0,
+        .seed  = 2,
+        .level = -6.020599913 }, /* tone -6 dB */
+    };
+    wfm_segment_t seg
+        = { .sources = srcs, .n_sources = 2, .fs = 1e6, .num_samples = 100 };
+    float complex        sum[100];
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    CHECK (wfm_compose_execute (c, sum, 100) == 100, "2src execute");
+    wfm_compose_destroy (c);
+    /* reference: render each source and add with the same gains + order. */
+    synth_state_t *sa = synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0);
+    synth_state_t *sb = synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0);
+    float complex  ba[100], bb[100];
+    synth_steps (sa, ba, 100);
+    synth_steps (sb, bb, 100);
+    synth_destroy (sa);
+    synth_destroy (sb);
+    float gb = (float)pow (10.0, -6.020599913 / 20.0);
+    int   ok = 1;
+    for (int i = 0; i < 100; i++)
+      {
+        float complex ref = ba[i] + gb * bb[i];
+        if (cabsf (sum[i] - ref) > 1e-5f)
+          ok = 0;
+      }
+    CHECK (ok, "2-source sum == s0 + 0.5*s1");
+  }
+
+  printf ("test_wfm_compose: OK (total=%zu, json round-trip ok, level, sum)\n",
           total);
   return 0;
 }

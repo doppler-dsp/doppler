@@ -13,10 +13,12 @@
  * Lifecycle: wfm_compose_create -> wfm_compose_execute* -> wfm_compose_destroy
  *
  * @code
+ * wfm_source_t tone = {.type = 0, .freq = 1e5, .snr = 100.0};
+ * wfm_source_t qpsk = {.type = 4, .sps = 8, .snr = 9.0};
  * wfm_segment_t segs[2] = {
- *     {.type = 0, .fs = 1e6, .freq = 1e5, .snr = 100.0,
+ *     {.sources = &tone, .n_sources = 1, .fs = 1e6,
  *      .num_samples = 1000, .off_samples = 500},          // tone, then a gap
- *     {.type = 4, .fs = 1e6, .sps = 8, .snr = 9.0,
+ *     {.sources = &qpsk, .n_sources = 1, .fs = 1e6,
  *      .num_samples = 4096, .off_samples = 0},            // qpsk
  * };
  * wfm_compose_state_t *c = wfm_compose_create(segs, 2, 0, 0);
@@ -37,16 +39,15 @@ extern "C" {
 #endif
 
 /**
- * @brief One composer segment: a `synth` config + on/off sample counts.
+ * @brief One additive source within a segment: a `synth` config + its level.
  *
- * The nine synth fields mirror `synth_create()` exactly. `num_samples` is the
- * on-time (samples emitted from the synth); `off_samples` is a trailing gap of
- * zeros inserted after the segment (off-time). Durations in seconds are
- * `round(duration * fs)` — the caller resolves them.
+ * The nine synth fields mirror `synth_create()` (minus `fs`, which is the
+ * segment's — one receiver, one sample rate). `level` is the source's average
+ * power in dBFS (≤0); the segment sums its sources, each scaled by
+ * `10^(level/20)`.
  */
 typedef struct {
     int type;          /* SYNTH_TONE … SYNTH_QPSK */
-    double fs;         /* sample rate (Hz) */
     double freq;       /* freq offset (Hz) */
     double snr;        /* dB, per snr_mode */
     int snr_mode;      /* 0 auto, 1 fs, 2 ebno, 3 esno */
@@ -55,9 +56,23 @@ typedef struct {
     int pn_length;     /* LFSR register length */
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
-    size_t num_samples; /* on-time (samples) */
-    size_t off_samples; /* off-time gap after the segment (samples) */
-    double level;       /* source level in dBFS (≤0); 0 = unit power, no gain */
+    double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+} wfm_source_t;
+
+/**
+ * @brief One composer segment: one or more sources summed over the same span,
+ * then a trailing off-time gap.
+ *
+ * A 1-source segment is byte-identical to driving that source's `synth`
+ * directly. `num_samples` is the on-time; `off_samples` is a trailing gap of
+ * zeros. Durations in seconds are `round(duration * fs)` — the caller resolves.
+ */
+typedef struct {
+    wfm_source_t *sources; /* n_sources sources summed at the same time */
+    size_t n_sources;
+    double fs;             /* sample rate (Hz) — one per segment */
+    size_t num_samples;    /* on-time (samples) */
+    size_t off_samples;    /* off-time gap after the segment (samples) */
 } wfm_segment_t;
 
 /** Opaque composer state. */

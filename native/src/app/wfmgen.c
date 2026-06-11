@@ -89,16 +89,18 @@ static const char USAGE[]
 int
 main (int argc, char *argv[])
 {
-  /* single-segment defaults mirror synth/wavegen */
-  wfm_segment_t seg    = { .type        = 0,
+  /* single-segment defaults mirror synth/wavegen: one source in one segment */
+  wfm_source_t  src    = { .type      = 0,
+                           .freq      = 0.0,
+                           .snr       = 100.0,
+                           .snr_mode  = 0,
+                           .seed      = 1,
+                           .sps       = 8,
+                           .pn_length = 7,
+                           .pn_poly   = 0 };
+  wfm_segment_t seg    = { .sources     = &src,
+                           .n_sources   = 1,
                            .fs          = 1e6,
-                           .freq        = 0.0,
-                           .snr         = 100.0,
-                           .snr_mode    = 0,
-                           .seed        = 1,
-                           .sps         = 8,
-                           .pn_length   = 7,
-                           .pn_poly     = 0,
                            .num_samples = 1024,
                            .off_samples = 0 };
   int           repeat = 0, continuous = 0, detached = 0;
@@ -139,11 +141,11 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--type"))
         {
-          CHOICE (seg.type, TYPES);
+          CHOICE (src.type, TYPES);
         }
       else if (!strcmp (a, "--snr_mode"))
         {
-          CHOICE (seg.snr_mode, MODES);
+          CHOICE (src.snr_mode, MODES);
         }
       else if (!strcmp (a, "--sample_type"))
         {
@@ -159,7 +161,7 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--lfsr"))
         {
-          CHOICE (seg.lfsr, LFSRS);
+          CHOICE (src.lfsr, LFSRS);
         }
       else if (!strcmp (a, "--fs"))
         {
@@ -167,7 +169,7 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--freq"))
         {
-          seg.freq = strtod (NEXT (), NULL);
+          src.freq = strtod (NEXT (), NULL);
         }
       else if (!strcmp (a, "--fc"))
         {
@@ -175,23 +177,23 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--snr"))
         {
-          seg.snr = strtod (NEXT (), NULL);
+          src.snr = strtod (NEXT (), NULL);
         }
       else if (!strcmp (a, "--seed"))
         {
-          seg.seed = (uint32_t)strtoul (NEXT (), NULL, 10);
+          src.seed = (uint32_t)strtoul (NEXT (), NULL, 10);
         }
       else if (!strcmp (a, "--sps"))
         {
-          seg.sps = (int)strtol (NEXT (), NULL, 10);
+          src.sps = (int)strtol (NEXT (), NULL, 10);
         }
       else if (!strcmp (a, "--pn_length"))
         {
-          seg.pn_length = (int)strtol (NEXT (), NULL, 10);
+          src.pn_length = (int)strtol (NEXT (), NULL, 10);
         }
       else if (!strcmp (a, "--pn_poly"))
         {
-          seg.pn_poly = (uint64_t)strtoull (NEXT (), NULL, 10);
+          src.pn_poly = (uint64_t)strtoull (NEXT (), NULL, 10);
         }
       else if (!strcmp (a, "--count"))
         {
@@ -219,7 +221,7 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--level"))
         {
-          seg.level = strtod (NEXT (), NULL);
+          src.level = strtod (NEXT (), NULL);
         }
       else if (!strcmp (a, "--headroom"))
         {

@@ -49,24 +49,27 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   cJSON *arr = cJSON_AddArrayToObject (root, "segments");
   for (size_t i = 0; i < n_segs; i++)
     {
-      const wfm_segment_t *g = &segs[i];
-      cJSON               *s = cJSON_CreateObject ();
-      int                  t = (g->type >= 0 && g->type < 5) ? g->type : 0;
-      int m = (g->snr_mode >= 0 && g->snr_mode < 4) ? g->snr_mode : 0;
+      const wfm_segment_t *g  = &segs[i];
+      const wfm_source_t *src = &g->sources[0]; /* 4a: 1 source, inline form */
+      cJSON              *s   = cJSON_CreateObject ();
+      int t = (src->type >= 0 && src->type < 5) ? src->type : 0;
+      int m = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
       cJSON_AddStringToObject (s, "type", TYPE_NAMES[t]);
       cJSON_AddNumberToObject (s, "fs", g->fs);
-      cJSON_AddNumberToObject (s, "freq", g->freq);
-      cJSON_AddNumberToObject (s, "snr", g->snr);
+      cJSON_AddNumberToObject (s, "freq", src->freq);
+      cJSON_AddNumberToObject (s, "snr", src->snr);
       cJSON_AddStringToObject (s, "snr_mode", MODE_NAMES[m]);
-      cJSON_AddNumberToObject (s, "seed", (double)g->seed);
-      cJSON_AddNumberToObject (s, "sps", g->sps);
-      cJSON_AddNumberToObject (s, "pn_length", g->pn_length);
-      cJSON_AddNumberToObject (s, "pn_poly", (double)g->pn_poly);
-      cJSON_AddStringToObject (s, "lfsr", LFSR_NAMES[(g->lfsr == 1) ? 1 : 0]);
+      cJSON_AddNumberToObject (s, "seed", (double)src->seed);
+      cJSON_AddNumberToObject (s, "sps", src->sps);
+      cJSON_AddNumberToObject (s, "pn_length", src->pn_length);
+      cJSON_AddNumberToObject (s, "pn_poly", (double)src->pn_poly);
+      cJSON_AddStringToObject (s, "lfsr",
+                               LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
       cJSON_AddNumberToObject (s, "num_samples", (double)g->num_samples);
       cJSON_AddNumberToObject (s, "off_samples", (double)g->off_samples);
-      if (g->level != 0.0) /* omit at 0 dBFS so existing specs are unchanged */
-        cJSON_AddNumberToObject (s, "level", g->level);
+      if (src->level
+          != 0.0) /* omit at 0 dBFS so existing specs are unchanged */
+        cJSON_AddNumberToObject (s, "level", src->level);
       cJSON_AddItemToArray (arr, s);
     }
   char *out = cJSON_Print (root);
@@ -111,30 +114,46 @@ wfm_compose_from_json (const char *json)
       }
     const cJSON *md = cJSON_GetObjectItemCaseSensitive (s, "snr_mode");
     int          m  = name_index (cJSON_GetStringValue (md), MODE_NAMES, 4);
-    segs[i]         = (wfm_segment_t){
-              .type        = t,
-              .fs          = num (s, "fs", 1000000.0),
-              .freq        = num (s, "freq", 0.0),
-              .snr         = num (s, "snr", 100.0),
-              .snr_mode    = (m < 0) ? 0 : m,
-              .seed        = (uint32_t)num (s, "seed", 1),
-              .sps         = (int)num (s, "sps", 8),
-              .pn_length   = (int)num (s, "pn_length", 7),
-              .pn_poly     = (uint64_t)num (s, "pn_poly", 0),
-              .lfsr        = (name_index (cJSON_GetStringValue (
+    /* 4a: inline source fields → a 1-source segment. */
+    wfm_source_t *srcs = malloc (sizeof (wfm_source_t));
+    if (!srcs)
+      {
+        for (size_t j = 0; j < i; j++)
+          free (segs[j].sources);
+        free (segs);
+        cJSON_Delete (root);
+        return NULL;
+      }
+    srcs[0] = (wfm_source_t){
+      .type      = t,
+      .freq      = num (s, "freq", 0.0),
+      .snr       = num (s, "snr", 100.0),
+      .snr_mode  = (m < 0) ? 0 : m,
+      .seed      = (uint32_t)num (s, "seed", 1),
+      .sps       = (int)num (s, "sps", 8),
+      .pn_length = (int)num (s, "pn_length", 7),
+      .pn_poly   = (uint64_t)num (s, "pn_poly", 0),
+      .lfsr      = (name_index (cJSON_GetStringValue (
                                cJSON_GetObjectItemCaseSensitive (s, "lfsr")),
-                                          LFSR_NAMES, 2)
+                                LFSR_NAMES, 2)
                == 1)
-                                 ? 1
-                                 : 0,
-              .num_samples = (size_t)num (s, "num_samples", 0),
-              .off_samples = (size_t)num (s, "off_samples", 0),
-              .level       = num (s, "level", 0.0),
+                       ? 1
+                       : 0,
+      .level     = num (s, "level", 0.0),
+    };
+    segs[i] = (wfm_segment_t){
+      .sources     = srcs,
+      .n_sources   = 1,
+      .fs          = num (s, "fs", 1000000.0),
+      .num_samples = (size_t)num (s, "num_samples", 0),
+      .off_samples = (size_t)num (s, "off_samples", 0),
     };
     i++;
   }
   cJSON_Delete (root);
   wfm_compose_state_t *c = wfm_compose_create (segs, n, repeat, cont);
+  for (size_t j = 0; j < n; j++)
+    free (segs[j].sources);
   free (segs);
   return c;
 }

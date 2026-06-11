@@ -32,9 +32,22 @@
 /* type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level */
 #define _SEG_FMT "idddiIiiKinnd"
 
-/* Parse a Python list of 12-tuples into a malloc'd wfm_segment_t[].
- * Returns the array (caller frees) and writes the count to *n_out, or NULL on
- * error (with a Python exception set). */
+/* Free a wfm_segment_t[] including each of the first `n` segments' sources. */
+static void
+_free_segments (wfm_segment_t *segs, size_t n)
+{
+  if (segs)
+    {
+      for (size_t i = 0; i < n; i++)
+        free (segs[i].sources);
+      free (segs);
+    }
+}
+
+/* Parse a Python list of 13-tuples into a malloc'd wfm_segment_t[], each a
+ * 1-source segment. Returns the array (caller frees via _free_segments) and
+ * writes the count to *n_out, or NULL on error (with a Python exception set).
+ */
 static wfm_segment_t *
 _parse_segments (PyObject *list, size_t *n_out)
 {
@@ -55,14 +68,22 @@ _parse_segments (PyObject *list, size_t *n_out)
 
   for (Py_ssize_t i = 0; i < n; i++)
     {
-      PyObject      *t = PyList_GET_ITEM (list, i);
-      wfm_segment_t *s = &segs[i];
-      if (!PyArg_ParseTuple (t, _SEG_FMT, &s->type, &s->fs, &s->freq, &s->snr,
-                             &s->snr_mode, &s->seed, &s->sps, &s->pn_length,
-                             &s->pn_poly, &s->lfsr, &s->num_samples,
-                             &s->off_samples, &s->level))
+      PyObject      *t   = PyList_GET_ITEM (list, i);
+      wfm_segment_t *s   = &segs[i];
+      wfm_source_t  *src = (wfm_source_t *)malloc (sizeof *src);
+      if (!src)
         {
-          free (segs);
+          _free_segments (segs, (size_t)i);
+          return (wfm_segment_t *)PyErr_NoMemory ();
+        }
+      s->sources   = src;
+      s->n_sources = 1;
+      if (!PyArg_ParseTuple (t, _SEG_FMT, &src->type, &s->fs, &src->freq,
+                             &src->snr, &src->snr_mode, &src->seed, &src->sps,
+                             &src->pn_length, &src->pn_poly, &src->lfsr,
+                             &s->num_samples, &s->off_samples, &src->level))
+        {
+          _free_segments (segs, (size_t)i + 1);
           return NULL;
         }
     }
@@ -70,7 +91,7 @@ _parse_segments (PyObject *list, size_t *n_out)
   return segs;
 }
 
-/* Build a Python list of 12-tuples from a wfm_segment_t[]. */
+/* Build a Python list of 13-tuples from a wfm_segment_t[] (1 source each). */
 static PyObject *
 _segments_to_list (const wfm_segment_t *segs, size_t n)
 {
@@ -79,11 +100,13 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
     return NULL;
   for (size_t i = 0; i < n; i++)
     {
-      const wfm_segment_t *s = &segs[i];
-      PyObject            *t = Py_BuildValue (
-          "(" _SEG_FMT ")", s->type, s->fs, s->freq, s->snr, s->snr_mode,
-          s->seed, s->sps, s->pn_length, s->pn_poly, s->lfsr,
-          (Py_ssize_t)s->num_samples, (Py_ssize_t)s->off_samples, s->level);
+      const wfm_segment_t *s   = &segs[i];
+      const wfm_source_t  *src = &s->sources[0];
+      PyObject            *t   = Py_BuildValue (
+          "(" _SEG_FMT ")", src->type, s->fs, src->freq, src->snr,
+          src->snr_mode, src->seed, src->sps, src->pn_length, src->pn_poly,
+          src->lfsr, (Py_ssize_t)s->num_samples, (Py_ssize_t)s->off_samples,
+          src->level);
       if (!t)
         {
           Py_DECREF (list);
@@ -167,7 +190,7 @@ _fn_composer_create (PyObject *mod, PyObject *args)
     return NULL;
   wfm_compose_state_t *st
       = wfm_compose_create (segs, n_segs, repeat, continuous);
-  free (segs);
+  _free_segments (segs, n_segs);
   return _wrap_compose (st);
 }
 
@@ -281,7 +304,7 @@ _fn_spec_to_json (PyObject *mod, PyObject *args)
   if (!segs)
     return NULL;
   char *json = wfm_spec_to_json (segs, n_segs, repeat, continuous);
-  free (segs);
+  _free_segments (segs, n_segs);
   if (!json)
     {
       PyErr_SetString (PyExc_RuntimeError, "wfm_spec_to_json failed");
@@ -514,7 +537,7 @@ _fn_sigmf_meta_json (PyObject *mod, PyObject *args)
   if (!segs)
     return NULL;
   char *json = wfm_sigmf_meta_json (st, endian, fs, fc, segs, n_segs);
-  free (segs);
+  _free_segments (segs, n_segs);
   if (!json)
     {
       PyErr_SetString (PyExc_RuntimeError, "wfm_sigmf_meta_json failed");

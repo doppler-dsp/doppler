@@ -45,12 +45,12 @@ shared floor was resolved from.
 
 ```python
 import numpy as np
-from doppler.wfm.compose import Composer, Segment, Writer, qpsk, tone
+from doppler.wfm import Composer, Segment, Writer, qpsk, tone
 
 # 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise floor.
 soi   = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
 inter = tone(freq=2e5, level=-3.0)                # −3 dBFS CW at +200 kHz
-scene = Segment.sum(soi, inter, n=1 << 16)        # the floor is resolved in C
+scene = Segment.sum(soi, inter, num_samples=1 << 16)        # the floor is resolved in C
 
 # 2. Sequence it after a preamble (time, not frequency).
 preamble = Segment("tone", freq=-3e5, num_samples=16384, off_samples=8192)
@@ -62,7 +62,7 @@ x = Composer(timeline).compose()                  # → complex64
 The `snr` on the SoI is all you specify; `Segment.sum` resolves the **anchor**
 (the first source carrying `snr`), places the floor at
 `level(anchor) − SNR_fs(anchor)`, and appends an explicit `noise` source there.
-Interferers set their power with `level`; an explicit `noise(nf=…)` source pins
+Interferers set their power with `level`; an explicit `noise(level=…)` source pins
 the floor directly. (Giving a *non-anchor* both `snr` and `level` is a spec
 error — pick one.)
 

@@ -130,6 +130,7 @@ nav:
       - Gallery: gallery/index.md
       - Waveform Generator: gallery/wfmgen.md
       - Waveform Scenes: gallery/wfm-composition.md
+      - Waveform I/O: gallery/wfm-io.md
       - AGC: gallery/agc.md
       - CIC Decimation: gallery/cic.md
       - Q15 vs UQ15: gallery/q15-uq15.md
@@ -174,7 +175,7 @@ nav:
   - Type System: types.md
   - Benchmarks: benchmarks.md
   - Guides:
-      - Waveform Generator (wavegen / wfmgen): guide/wfmgen.md
+      - Waveform Generator (wfmgen): guide/wfmgen.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:

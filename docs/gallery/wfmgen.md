@@ -5,7 +5,7 @@
 ## What you're seeing
 
 A single declarative engine — `doppler.wfm.Synth`, the same C core the
-`wavegen` and `wfmgen` command-line tools run — produces every waveform type,
+`wfmgen` command-line tool run — produces every waveform type,
 shown here through the view that makes each one's structure obvious.
 
 **Top-left — tone.** A complex baseband tone at `fn = 0.10` (relative to `fs`)
@@ -25,32 +25,32 @@ realises the Es/No — integrating a symbol's `sps` samples buys
 points and BPSK's two antipodal points sit exactly where the modulation places
 them; the cloud size is the symbol-energy SNR made visible.
 
-## The engine and its two tools
+## The engine and its CLI
 
 Every type, SNR mode, and the MLS auto-polynomial live once in C
-(`native/src/wfm/synth_core.c`, generated from `objects/synth.toml`). Two
-command-line tools expose it:
+(`native/src/wfm_synth/wfm_synth_core.c`, generated from
+`objects/wfm_synth.toml`), and **one** command-line tool — `wfmgen` — exposes
+it:
 
-|            | `wavegen`                                | `wfmgen`                               |
-| ---------- | ---------------------------------------- | -------------------------------------- |
-| Built by   | `jm app` (3 faces: C / console / pep723) | hand-written C                         |
-| Scope      | one waveform, quick                      | multi-segment composer                 |
-| Spec       | flags only                               | flags **or** `--from-file spec.json`   |
-| Containers | `raw`, `csv`                             | `raw`, `csv`, **BLUE-1000**, **SigMF** |
-| Output     | file / stdout                            | file / stdout / **`zmq://`**           |
-| Provenance | `--record run.json`                      | `--record run.json`                    |
+| `wfmgen`   |                                                     |
+| ---------- | --------------------------------------------------- |
+| Scope      | one waveform from flags, *or* a multi-segment scene |
+| Spec       | flags **or** `--from-file spec.json`                |
+| Containers | `raw`, `csv`, **BLUE-1000**, **SigMF**              |
+| Output     | file / stdout / **`zmq://`**                        |
+| Provenance | `--record run.json` (replays byte-identically)      |
 
-A single-segment `wfmgen` run is byte-identical to the same `wavegen` invocation
-— same engine, same flags.
+The same engine is the `doppler.wfm` Python API; a one-segment `wfmgen` run is
+the simple single-waveform case of the composer.
 
 ## Smart defaults
 
 The goal is that a bare command Just Works and you only dial in what you need:
 
 ```sh
-wavegen --type tone                  # clean baseband tone, fs 1 MHz, 1024 cf32
-wavegen --type qpsk --snr 12         # QPSK at 12 dB Es/No (the auto mode for *psk)
-wavegen --type pn --pn_length 9      # length-9 MLS, primitive poly chosen for you
+wfmgen --type tone                  # clean baseband tone, fs 1 MHz, 1024 cf32
+wfmgen --type qpsk --snr 12         # QPSK at 12 dB Es/No (the auto mode for *psk)
+wfmgen --type pn --pn_length 9      # length-9 MLS, primitive poly chosen for you
 ```
 
 - `--snr_mode auto` resolves per type: **over-fs** for tone/noise/pn,
@@ -115,9 +115,9 @@ is a true maximum-length sequence. `--lfsr` picks the realization — **`galois`
 period `2ⁿ−1`, different chip ordering.
 
 ```sh
-wavegen --type pn --pn_length 23 --sps 1                 # length-23 MLS (auto poly)
-wavegen --type pn --pn_length 40 --sps 1                 # 64-bit register, auto MLS
-wavegen --type pn --pn_length 9  --sps 1 --lfsr fibonacci
+wfmgen --type pn --pn_length 23 --sps 1                 # length-23 MLS (auto poly)
+wfmgen --type pn --pn_length 40 --sps 1                 # 64-bit register, auto MLS
+wfmgen --type pn --pn_length 9  --sps 1 --lfsr fibonacci
 ```
 
 ```python
@@ -157,11 +157,11 @@ python examples/python/pn_codes.py       # PN MLS / Galois vs Fibonacci / 64-bit
 
 ## From Python — the composer API
 
-The same composer is available in Python (`doppler.wfm.compose`), producing
+The same composer is available in Python (`doppler.wfm`), producing
 byte-identical output to the CLI:
 
 ```python
-from doppler.wfm.compose import Composer, Segment, Writer
+from doppler.wfm import Composer, Segment, Writer
 
 spec = [Segment("pn", num_samples=127), Segment("qpsk", num_samples=4096,
                                                 off_samples=512)]

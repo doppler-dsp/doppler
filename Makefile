@@ -163,6 +163,10 @@ PYTHON_EXAMPLE_SCRIPTS := \
     examples/python/detection2d_demo.py \
     examples/python/rate_converter_demo.py \
     examples/python/awgn_demo.py \
+    examples/python/wfmgen_demo.py \
+    examples/python/wfm_composition_demo.py \
+    examples/python/wfm_io_demo.py \
+    examples/python/pn_codes.py \
     examples/standalone/example.py
 
 test-examples-python:

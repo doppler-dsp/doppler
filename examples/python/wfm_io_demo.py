@@ -71,7 +71,9 @@ formats = [
 results = []
 for file_type, name, read_kw in formats:
     path = os.path.join(work, name)
-    with Writer(path, file_type=file_type, sample_type="cf32", fs=FS, fc=FC) as w:
+    with Writer(
+        path, file_type=file_type, sample_type="cf32", fs=FS, fc=FC
+    ) as w:
         w.write(x)
     # SigMF is a pair: the Writer lays down the .sigmf-data samples; the
     # .sigmf-meta JSON sidecar (sample rate, datatype, per-segment annotations)
@@ -79,7 +81,9 @@ for file_type, name, read_kw in formats:
     if file_type == "sigmf":
         meta_path = path.replace(".sigmf-data", ".sigmf-meta")
         with open(meta_path, "w") as fh:
-            fh.write(sigmf_meta(sample_type="cf32", fs=FS, fc=FC, segments=[seg]))
+            fh.write(
+                sigmf_meta(sample_type="cf32", fs=FS, fc=FC, segments=[seg])
+            )
     with Reader(path, **read_kw) as r:
         y = r.read_all()
         meta = dict(file_type=r.file_type, fs=r.fs, fc=r.fc)

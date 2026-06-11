@@ -80,13 +80,13 @@ ______________________________________________________________________
 
 ### Output
 
-| Flag              | Values                                   | Default | Meaning                                   |
-| ----------------- | ---------------------------------------- | ------- | ----------------------------------------- |
-| `--sample_type`   | `cf32 cf64 ci32 ci16 ci8`                | `cf32`  | wire type; integers are full-scale ±1.0   |
-| `--file_type`     | `raw csv blue sigmf`                     | `raw`   | container (see [Containers](#containers)) |
-| `--endian`        | `le be`                                  | `le`    | byte order (raw/BLUE only; csv is text)   |
-| `--output` / `-o` | path *(or `zmq://…`)*                     | stdout  | sink                                      |
-| `--record`        | path                                     | —       | write a JSON record of the resolved run   |
+| Flag              | Values                    | Default | Meaning                                   |
+| ----------------- | ------------------------- | ------- | ----------------------------------------- |
+| `--sample_type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0   |
+| `--file_type`     | `raw csv blue sigmf`      | `raw`   | container (see [Containers](#containers)) |
+| `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)   |
+| `--output` / `-o` | path *(or `zmq://…`)*     | stdout  | sink                                      |
+| `--record`        | path                      | —       | write a JSON record of the resolved run   |
 
 ### Composer (multi-segment, `--from-file`)
 

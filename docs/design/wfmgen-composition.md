@@ -4,7 +4,7 @@
 
     This RFC is now built. Per-source `level`, `--headroom`, multi-source
     `Segment.sum()` over one resolved noise floor, and the `.add()` timeline all
-    landed on `main`; the Python API is `Source` + `tone`/`bpsk`/`qpsk`/`pn`/
+    landed on `main`; the Python API is the unified `Synth` + `tone`/`bpsk`/`qpsk`/`pn`/
     `noise` builders with `Segment.sum` / `Segment.add` (see the
     [Waveform Generator guide](../guide/wfmgen.md)), and the JSON `"sum"` schema
     behind `wfmgen --from-file` is byte-identical to it. Single-source,
@@ -77,7 +77,7 @@ band. Source-level SNR resolves against it:
     (noise power `= P_src / 10^(SNR_fs/10)`). Put `snr` on the signal of interest.
 - Other summed sources give a `level`; their SNRs are then **derived**
     (`level − floor`).
-- A floor not tied to any signal is an **explicit noise source**: `noise(nf=N0)`
+- A floor not tied to any signal is an **explicit noise source**: `noise(level=N0)`
     sets the floor at `N0` dBFS (integrated over `fs`).
 - `snr` on a second source is sugar for *"place me `snr` dB above the floor"* →
     `level = floor + snr`.
@@ -140,11 +140,11 @@ clear:
 | **`.add()`** | time sequence     | segments, back-to-back | a Timeline |
 
 ```text
-Source  ──sum──▶  Segment  ──add──▶  Timeline
+Synth   ──sum──▶  Segment  ──add──▶  Timeline
 tone/qpsk/…       (mix + noise)      (sequence in time)
 ```
 
-- **`Segment.sum(*sources, n=…)`** overlays sources at the same time span (the
+- **`Segment.sum(*synths, num_samples=…)`** overlays sources at the same time span (the
     additive mix).
 - **`segment.add(other)`** concatenates segments in time (the sequence the
     composer already is); `timeline.add(seg)` appends.

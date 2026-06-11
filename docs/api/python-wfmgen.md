@@ -1,7 +1,6 @@
 # Python Waveform Generator API — Synth / PN
 
-Everything in the `doppler.wfm` package imports from one place — `from
-doppler.wfm import …`. The two low-level generators are:
+Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
 | Class   | Output                               | Use when                                                                   |
 | ------- | ------------------------------------ | -------------------------------------------------------------------------- |
@@ -136,7 +135,7 @@ subsystem — the same engine behind the `wfmgen` CLI, output byte-identical for
 the same parameters. There are two composition verbs:
 
 - **`Segment.sum(*synths, num_samples=…)`** *mixes* synths at the same time over
-  one resolved noise floor (a multi-source scene);
+    one resolved noise floor (a multi-source scene);
 - **`Segment.add(*segments)`** *sequences* segments in time (a timeline).
 
 The ladder is **`Synth` → (`.sum`) → `Segment` → (`.add`) → `Timeline` →

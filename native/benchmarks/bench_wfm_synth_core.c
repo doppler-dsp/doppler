@@ -28,8 +28,8 @@ static void
 bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
            double snr, double freq, float complex *out, jm_bench_t *bench)
 {
-  wfm_synth_state_t *obj
-      = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, lfsr);
+  wfm_synth_state_t *obj = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps,
+                                             pnlen, 0, lfsr, 0.0);
   if (!obj)
     {
       printf ("  %-26s   (create failed)\n", name);

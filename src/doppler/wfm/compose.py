@@ -37,7 +37,7 @@ from . import _wfmcompose as _c
 from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
-_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk")
+_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "chirp")
 _MODES = ("auto", "fs", "ebno", "esno")
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _FTYPES = ("raw", "csv", "blue", "sigmf")
@@ -77,13 +77,25 @@ class Synth:
 
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk"}
-        Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS).
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
+        Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS;
+        ``"chirp"`` is a linear-FM sweep — see ``f_end``).
     fs : float
         Sample rate (Hz) for standalone generation. Ignored when the synth is
         used in a :class:`Segment` — the segment owns the rate.
     freq : float
-        Carrier/offset frequency (Hz).
+        Carrier/offset frequency (Hz). For a ``chirp`` this is the **start**
+        frequency f_start (the instantaneous frequency at t=0); ``f_start=`` is
+        accepted as an alias.
+    f_end : float
+        Chirp **end** frequency (Hz); used only when ``type="chirp"``. The
+        instantaneous frequency sweeps linearly ``freq → f_end`` over the
+        generated length (``steps(n)`` standalone, or the segment's
+        ``num_samples`` in composition), then holds at ``f_end``. ``f_end <
+        freq`` is a down-chirp.
+    f_start : float, optional
+        Readable alias for ``freq`` (chirp start frequency); folded into
+        ``freq`` at construction when given.
     snr : float
         SNR in dB under ``snr_mode``; ``100`` (the default) is numerically clean.
     snr_mode : {"auto", "fs", "ebno", "esno"}
@@ -103,11 +115,15 @@ class Synth:
     >>> from doppler.wfm import Synth
     >>> Synth(type="tone", fs=1.0, freq=0.0).steps(4).tolist()
     [(1+0j), (1+0j), (1+0j), (1+0j)]
+    >>> # an up-chirp sweeping 100 kHz → 300 kHz over 4096 samples
+    >>> Synth(type="chirp", fs=1e6, f_start=1e5, f_end=3e5).steps(4096).shape
+    (4096,)
     """
 
     type: str = "tone"
     fs: float = 1e6
     freq: float = 0.0
+    f_end: float = 0.0
     snr: float = 100.0
     snr_mode: str = "auto"
     seed: int = 1
@@ -116,8 +132,13 @@ class Synth:
     pn_poly: int = 0
     lfsr: str = "galois"
     level: float = 0.0
+    f_start: float | None = None
 
     def __post_init__(self):
+        # ``f_start`` is sugar for ``freq`` (chirp's start frequency *is* the
+        # carrier offset at t=0); fold it in so there is one stored value.
+        if self.f_start is not None:
+            self.freq = self.f_start
         # Validate the string-enum fields eagerly (cheap, no engine spun) so a
         # bad spec fails at construction, not lazily on the first ``steps``.
         _idx(self.type, _TYPES, "type")
@@ -130,6 +151,7 @@ class Synth:
             type=self.type,
             fs=self.fs,
             freq=self.freq,
+            f_end=self.f_end,
             snr=self.snr,
             snr_mode=self.snr_mode,
             seed=self.seed,
@@ -161,7 +183,7 @@ class Synth:
             eng.reset()
 
     def _tuple(self) -> tuple:
-        """Fixed-order 10-tuple consumed by the C binding (enums → ints)."""
+        """Fixed-order 11-tuple consumed by the C binding (enums → ints)."""
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.freq),
@@ -173,6 +195,7 @@ class Synth:
             int(self.pn_poly),
             _idx(self.lfsr, _LFSRS, "lfsr"),
             float(self.level),
+            float(self.f_end),
         )
 
     @classmethod
@@ -188,6 +211,7 @@ class Synth:
             pn_poly=t[7],
             lfsr=_LFSRS[t[8]],
             level=t[9],
+            f_end=t[10],
         )
 
 
@@ -216,6 +240,24 @@ def noise(level: float = 0.0, **kw) -> Synth:
     return Synth(type="noise", level=level, **kw)
 
 
+def chirp(f_start: float = 0.0, f_end: float = 1e5, **kw) -> Synth:
+    """A linear-FM (LFM) chirp :class:`Synth` sweeping ``f_start`` → ``f_end``.
+
+    The instantaneous frequency rises (or falls, if ``f_end < f_start``)
+    linearly across the generated length — ``steps(n)`` standalone, or the
+    segment's ``num_samples`` in composition — then holds at ``f_end``. The
+    phase is continuous, so multi-segment chirps connect seamlessly.
+
+    Examples
+    --------
+    >>> from doppler.wfm import chirp
+    >>> s = chirp(f_start=100e3, f_end=200e3, fs=1e6)
+    >>> s.steps(10000).shape
+    (10000,)
+    """
+    return Synth(type="chirp", freq=f_start, f_end=f_end, **kw)
+
+
 @dataclass
 class Segment:
     """One waveform segment of a composed stream.
@@ -226,12 +268,16 @@ class Segment:
 
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk"}
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
         Waveform kind.
     fs : float
         Sample rate (Hz).
     freq : float
-        Carrier/offset frequency (Hz); normalised by ``fs`` internally.
+        Carrier/offset frequency (Hz); normalised by ``fs`` internally. For a
+        ``chirp`` this is the start frequency (``f_start=`` is an alias).
+    f_end : float
+        Chirp end frequency (Hz); used only when ``type="chirp"``. The sweep
+        ``freq → f_end`` spans the segment's ``num_samples``.
     snr : float
         SNR in dB under ``snr_mode``; the default (100 dB) is numerically clean.
     snr_mode : {"auto", "fs", "ebno", "esno"}
@@ -259,6 +305,7 @@ class Segment:
     type: str = "tone"
     fs: float = 1e6
     freq: float = 0.0
+    f_end: float = 0.0
     snr: float = 100.0
     snr_mode: str = "auto"
     seed: int = 1
@@ -270,6 +317,12 @@ class Segment:
     off_samples: int = 0
     level: float = 0.0
     sources: list[Synth] | None = None
+    f_start: float | None = None
+
+    def __post_init__(self):
+        # ``f_start`` is sugar for ``freq`` (a chirp's start frequency).
+        if self.f_start is not None:
+            self.freq = self.f_start
 
     @classmethod
     def sum(
@@ -306,11 +359,12 @@ class Segment:
         )
 
     def _tuple(self) -> tuple:
-        """C-binding tuple: 13-tuple for 1 source, else nested multi-source.
+        """C-binding tuple: 14-tuple for 1 source, else nested multi-source.
 
-        A multi-source segment crosses as ``(num, off, fs, [source10tuple, …])``
+        A multi-source segment crosses as ``(num, off, fs, [source11tuple, …])``
         (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the 13-tuple form so it is byte-identical to the pre-``sum`` path.
+        the flat 14-tuple form so it is byte-identical to the pre-``sum`` path
+        (the trailing ``f_end`` defaults to 0 for every non-chirp type).
         """
         if self.sources is not None:
             return (
@@ -333,11 +387,12 @@ class Segment:
             int(self.num_samples),
             int(self.off_samples),
             float(self.level),
+            float(self.f_end),
         )
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 13:  # nested multi-source: (num, off, fs, [sources])
+        if len(t) != 14:  # nested multi-source: (num, off, fs, [sources])
             num, off, fs, srclist = t
             return cls(
                 num_samples=num,
@@ -359,6 +414,7 @@ class Segment:
             num_samples=t[10],
             off_samples=t[11],
             level=t[12],
+            f_end=t[13],
         )
 
     def add(self, *others: "Segment") -> "Timeline":

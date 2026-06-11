@@ -13,6 +13,63 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-06-11
+
+The **waveform composer** and the **`wfm` API cleanup**. doppler can now build a
+multi-source *scene* — a signal of interest, interferers, and a noise floor mixed
+at one sample rate — and sequence scenes into a timeline, with full amplitude
+bookkeeping (per-source level, headroom, clip detection). Alongside it, the whole
+waveform subsystem is unified under one `wfm` name: one Python package
+(`doppler.wfm`), one engine object (`Synth`), and one CLI (`wfmgen`).
+
+> **Breaking (pre-1.0):** the Python import path, the `Synth`/`Source` model, two
+> builder/method parameters, and the C symbol prefix all changed. See **Changed**
+> / **Removed** below and the migration table in the
+> [Waveform Generator guide](https://doppler-dsp.github.io/doppler/guide/wfmgen/).
+
+### Added
+
+- **Waveform composition** — mix and sequence waveforms into a scene:
+    - `Segment.sum(*synths, num_samples=…)` mixes several `Synth` at the same time
+        over **one resolved noise floor** — computed once, in C, so the Python /
+        JSON / `wfmgen --from-file` faces are byte-identical. (#99, #100, #101)
+    - `Segment.add(*segments)` and `Timeline` sequence segments back-to-back in
+        time. (#102)
+    - Per-source **`level`** (dBFS), **`--headroom`** (SNR-invariant output
+        scaling so peaks fit full-scale), and **clip detection** (`peak_dbfs` /
+        `clip_fraction`; `--clip-report` / `--clip-error`). (#96, #97, #98, #103)
+    - The JSON spec gains a `"sum"` array; SigMF emits one annotation per source.
+- **`wfm_io_demo`** + a Waveform I/O gallery page: write one capture to all four
+    containers (raw / CSV / BLUE / SigMF) and read each back, showing which
+    metadata each recovers. (#104, #110)
+
+### Changed
+
+- **The waveform subsystem is unified under `wfm`** (the API cleanup):
+    - **Python package `doppler.wfmgen` → `doppler.wfm`**, with **one import
+        path** — `from doppler.wfm import …` re-exports the whole surface.
+        **(breaking)** (#106, #109)
+    - **One waveform object `Synth`** that both generates (`.steps()` / `.step()`
+        / `.reset()`) and composes (passed straight into `Segment.sum`). `Source`
+        is gone; the builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()`
+        return `Synth`. **(breaking)** (#109)
+    - **One CLI, `wfmgen`** — a single waveform from flags *or* a multi-segment
+        scene from `--from-file`, into raw / CSV / BLUE / SigMF, to file / stdout
+        / `zmq://`. The wheel now ships the `wfmgen` binary + a console-script
+        shim that `exec`s it. (#107)
+    - Parameter renames: **`noise(level=)`** (was `nf=`) and
+        **`Segment.sum(num_samples=)`** (was `n=`). **(breaking)** (#109)
+    - C symbols **`synth_*` → `wfm_synth_*`**; the C sources moved under
+        `native/{src,inc}/wfm/`. **(breaking, C ABI)** (#106)
+
+### Removed
+
+- **The single-shot `wavegen` tool** — the C binary, the PEP 723 script, and the
+    Python CLI. A one-segment `wfmgen` run is byte-for-byte identical to it, so
+    `wfmgen` is now the only CLI. **(breaking)** (#107)
+- `Synth`'s `get_*` / `set_*` engine accessors are no longer on the public object
+    (internal engine state). **(breaking)** (#109)
+
 ## [0.10.2] — 2026-06-10
 
 Build, tooling, and documentation release — the importable API and C ABI are
@@ -1044,6 +1101,7 @@ ______________________________________________________________________
 [0.10.0]: https://github.com/doppler-dsp/doppler/compare/v0.9.0...v0.10.0
 [0.10.1]: https://github.com/doppler-dsp/doppler/compare/v0.10.0...v0.10.1
 [0.10.2]: https://github.com/doppler-dsp/doppler/compare/v0.10.1...v0.10.2
+[0.11.0]: https://github.com/doppler-dsp/doppler/compare/v0.10.2...v0.11.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1070,4 +1128,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.10.2...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.11.0...HEAD

@@ -40,8 +40,8 @@ SKIP_TOP = {"cli", "specan", "tests", "benchmarks"}
 # No-``__all__`` submodules whose public surface should still be covered,
 # as (dotted name, path-relative-to-PKG_DIR).
 EXTRA_MODULES = [
-    ("doppler.wfmgen.compose", "wfmgen/compose.py"),
-    ("doppler.wfmgen.readback", "wfmgen/readback.py"),
+    ("doppler.wfm.compose", "wfm/compose.py"),
+    ("doppler.wfm.readback", "wfm/readback.py"),
 ]
 
 

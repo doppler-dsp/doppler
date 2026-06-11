@@ -7,7 +7,7 @@
  * is deterministic — the full pub→sub round-trip is exercised by the streaming
  * example apps, not here (zmq slow-joiner makes that flaky in CI).
  */
-#include "wfmgen/wfm_sink.h"
+#include "wfm/wfm_sink.h"
 
 #include <complex.h>
 #include <stdio.h>

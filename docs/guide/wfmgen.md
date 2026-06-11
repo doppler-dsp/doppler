@@ -7,7 +7,7 @@ doppler ships a C-first **waveform generator**: one declarative synth engine
     faces: a C binary, a Python console script, and a PEP 723 script).
 - **`wfmgen`** — a hand-written C composer for **multi-segment** scenarios, the
     **BLUE** / **SigMF** containers, and streaming to **ZMQ**.
-- **`doppler.wfmgen`** — the same engine as a Python API.
+- **`doppler.wfm`** — the same engine as a Python API.
 
 ![wfmgen engine](../assets/wfmgen_demo.png)
 
@@ -28,10 +28,10 @@ ______________________________________________________________________
 ## Installation
 
 ```sh
-pip install doppler-dsp        # → the `wavegen` command + the doppler.wfmgen API
+pip install doppler-dsp        # → the `wavegen` command + the doppler.wfm API
 ```
 
-The `wavegen` console script and the `doppler.wfmgen` Python module install with
+The `wavegen` console script and the `doppler.wfm` Python module install with
 the wheel. The **`wfmgen`** composer binary is POSIX-only (it links the vendored
 ZMQ) and is built from source:
 
@@ -163,7 +163,7 @@ truncated.
 
 ```python
 >>> import numpy as np
->>> from doppler.wfmgen import Synth
+>>> from doppler.wfm import Synth
 >>> # the invariant is unit *average* power (here a clean, constant-envelope QPSK)
 >>> x = Synth(type="qpsk", sps=1, snr=100.0).steps(4096)
 >>> bool(np.allclose(np.mean(np.abs(x) ** 2), 1.0))
@@ -366,7 +366,7 @@ composition verbs are orthogonal:
     timeline above, built fluently.
 
 ```python
-from doppler.wfmgen.compose import Composer, Segment, qpsk, tone, noise
+from doppler.wfm.compose import Composer, Segment, qpsk, tone, noise
 
 # A scene: a −12 dB QPSK SoI at +50 kHz over a CW interferer, at 15 dB Es/No.
 scene = Segment.sum(
@@ -429,7 +429,7 @@ and produce **byte-identical** output:
 
 ```sh
 wavegen --type qpsk --count 4096 -o out.iq            # 1. installed C-backed console script
-python -m doppler.wfmgen.cli --type qpsk --count 4096 # 1b. same, as a module
+python -m doppler.wfm.cli --type qpsk --count 4096 # 1b. same, as a module
 python wavegen.py --type qpsk --count 4096            # 2. PEP 723 script (uv run wavegen.py)
 ./build/wavegen --type qpsk --count 4096              # 3. standalone C binary
 ```
@@ -442,7 +442,7 @@ The engine is also a Python class — ideal for notebooks and pipelines.
 
 ```python
 import numpy as np
-from doppler.wfmgen import Synth
+from doppler.wfm import Synth
 
 # Every flag is a keyword argument; the same defaults apply.
 synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
@@ -452,7 +452,7 @@ one   = synth.step()                     # → a single complex64 sample
 synth.reset()                            # restart the sequence (keeps config)
 ```
 
-Also exported from `doppler.wfmgen`:
+Also exported from `doppler.wfm`:
 
 | Symbol                                                             | Use                                                 |
 | ------------------------------------------------------------------ | --------------------------------------------------- |
@@ -477,7 +477,7 @@ SIMD rescale to ±1.0 for the integer types — or pass `raw=True` for the raw
 `(N, 2)` on-disk view:
 
 ```python
-from doppler.wfmgen.readback import read_iq
+from doppler.wfm.readback import read_iq
 
 iq = read_iq("capture.iq", sample_type="ci16")   # → complex64, ±1.0
 iq = read_iq("capture.iq", sample_type="cf32")   # → complex64, zero-copy

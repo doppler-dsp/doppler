@@ -5,7 +5,7 @@
  * This is a `no_generate` module (just-makeit only wires the CMake
  * add_subdirectory): the whole file is hand-owned, like ddc_fn_ext.c. It
  * exposes the low-level primitives over opaque PyCapsules; the ergonomic
- * Segment/Composer/Writer/ZmqSink API lives in src/doppler/wfmgen/compose.py.
+ * Segment/Composer/Writer/ZmqSink API lives in src/doppler/wfm/compose.py.
  *
  * Segments cross the boundary as fixed-order 12-tuples (see _SEG_FMT) built by
  * the Python wrapper from its Segment dataclass — keeps parsing trivial and
@@ -19,14 +19,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "synth/synth_core.h" /* synth_mls_poly */
-#include "wfmgen/wfm_compose.h"
-#include "wfmgen/wfm_dsp.h"
-#include "wfmgen/wfm_reader.h"
-#include "wfmgen/wfm_writer.h"
+#include "wfm/wfm_compose.h"
+#include "wfm/wfm_dsp.h"
+#include "wfm/wfm_reader.h"
+#include "wfm/wfm_writer.h"
+#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly */
 #ifndef _WIN32
 #include "timing/timing_core.h"
-#include "wfmgen/wfm_sink.h"
+#include "wfm/wfm_sink.h"
 #endif
 
 /* A 1-source segment crosses as a 13-tuple (the back-compat form):
@@ -209,7 +209,7 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
 /* ───────────────────────── composer capsule ───────────────────────────────
  */
 
-static const char _COMP_CAPS[] = "doppler.wfmgen.compose.composer";
+static const char _COMP_CAPS[] = "doppler.wfm.compose.composer";
 
 typedef struct
 {
@@ -407,7 +407,7 @@ _fn_spec_to_json (PyObject *mod, PyObject *args)
 /* ───────────────────────── writer capsule ─────────────────────────────────
  */
 
-static const char _WR_CAPS[] = "doppler.wfmgen.compose.writer";
+static const char _WR_CAPS[] = "doppler.wfm.compose.writer";
 
 typedef struct
 {
@@ -643,7 +643,7 @@ _fn_sigmf_meta_json (PyObject *mod, PyObject *args)
  * parsing and the wire→unit conversion all live in C; this is pure binding.
  */
 
-static const char _READER_CAPS[] = "doppler.wfmgen.compose.reader";
+static const char _READER_CAPS[] = "doppler.wfm.compose.reader";
 
 typedef struct
 {
@@ -785,7 +785,7 @@ _fn_reader_close (PyObject *mod, PyObject *args)
  */
 
 #ifndef _WIN32
-static const char _SINK_CAPS[] = "doppler.wfmgen.compose.sink";
+static const char _SINK_CAPS[] = "doppler.wfm.compose.sink";
 
 typedef struct
 {
@@ -895,7 +895,7 @@ _fn_sink_close (PyObject *mod, PyObject *args)
  * paced producer thread does not stall the interpreter.
  */
 
-static const char _CLOCK_CAPS[] = "doppler.wfmgen.compose.clock";
+static const char _CLOCK_CAPS[] = "doppler.wfm.compose.clock";
 
 static void
 _clock_destructor (PyObject *cap)
@@ -1090,7 +1090,7 @@ _fn_mls_poly (PyObject *mod, PyObject *args)
   unsigned int n;
   if (!PyArg_ParseTuple (args, "I", &n))
     return NULL;
-  return PyLong_FromUnsignedLongLong (synth_mls_poly (n));
+  return PyLong_FromUnsignedLongLong (wfm_synth_mls_poly (n));
 }
 
 /* ───────────────────────── module table ───────────────────────────────────

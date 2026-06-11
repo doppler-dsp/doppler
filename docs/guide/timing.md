@@ -90,7 +90,7 @@ The one-liner equivalent of `--realtime` is `Composer.stream(block, realtime=…
 uses the first segment's `fs`; pass a float to set the rate):
 
 ```python
-from doppler.wfmgen.compose import Composer, ZmqSink
+from doppler.wfm.compose import Composer, ZmqSink
 
 comp = Composer(type="qpsk", sps=8, fs=1e6, continuous=True)
 with ZmqSink("tcp://0.0.0.0:5555") as sink:
@@ -102,7 +102,7 @@ Under the hood `stream()` drives a `SampleClock`, which you can also use
 directly when you need the slack value, the timestamp, or a custom loop:
 
 ```python
-from doppler.wfmgen.compose import Composer, SampleClock, ZmqSink
+from doppler.wfm.compose import Composer, SampleClock, ZmqSink
 
 comp = Composer(type="qpsk", sps=8, continuous=True)
 clk = SampleClock(fs=1e6)
@@ -179,7 +179,7 @@ copy.
 ```python
 import threading
 from doppler.buffer import F32Buffer
-from doppler.wfmgen.compose import Composer, SampleClock
+from doppler.wfm.compose import Composer, SampleClock
 
 ring = F32Buffer(capacity=1 << 20)        # 1 Mi-sample ring
 

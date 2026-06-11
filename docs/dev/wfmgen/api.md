@@ -38,7 +38,7 @@ name mirrors its C backing at the same level.
 
 | Layer                     | Name                                                                                    | Was                           |
 | ------------------------- | --------------------------------------------------------------------------------------- | ----------------------------- |
-| Python package            | **`doppler.wfm`** *(submodules `wfm.synth`/`wfm.compose`/`wfm.io`, re-exported at top)* | `doppler.wfmgen`              |
+| Python package            | **`doppler.wfm`** *(submodules `wfm.synth`/`wfm.compose`/`wfm.io`, re-exported at top)* | `doppler.wfm`                 |
 | C symbol prefix           | **`wfm_*`** — engine `wfm_synth`, `wfm_compose`, `wfm_resolve`, `wfm_writer`, …         | mixed `synth_*` + `wfm_*`     |
 | C CLI + console script    | **`wfmgen`**                                                                            | `wfmgen` (C) / `wavegen` (py) |
 | engine                    | C `wfm_synth` · Python `wfm.synth` → class **`Synth`**                                  | `synth` · `Synth`             |
@@ -58,7 +58,7 @@ name mirrors its C backing at the same level.
 | D7  | One import path: re-export everything at **`doppler.wfm`**.                                                                                    | **[decided]** | Part of the umbrella; today `Synth` is at the package but `Composer/Segment/…` are only under `.compose`.                                                                                                                                                                                                    |
 | D8  | Rename builder/method params for consistency: `noise(nf=)` → `noise(level=)`; `Segment.sum(n=)` → `num_samples=`.                              | **[decided]** | `level` and `num_samples` are used everywhere else.                                                                                                                                                                                                                                                          |
 | D9  | Hide `Synth`'s ~12 jm `get_*`/`set_*` state accessors from the public surface.                                                                 | **[decided]** | Internal engine state; falls out of the `Synth` Python-wrapper rework (D4).                                                                                                                                                                                                                                  |
-| D10 | Rename the Python package `doppler.wfmgen` → **`doppler.wfm`**.                                                                                | **[decided]** | The umbrella name; breaking import change (pre-1.0; do it now).                                                                                                                                                                                                                                              |
+| D10 | Rename the Python package `doppler.wfm` → **`doppler.wfm`**.                                                                                   | **[decided]** | The umbrella name; breaking import change (pre-1.0; do it now).                                                                                                                                                                                                                                              |
 
 The composition **verbs** are settled and unchanged: `Segment.sum()` mixes
 sources at the same time (one noise floor); `Segment.add()` sequences segments
@@ -76,23 +76,23 @@ in time. No `+`/`-` operators.
 | output                  | `--sample_type --file_type --endian --output/-o --record --fc`                          |
 | realtime                | `--realtime --realtime-resync --detached`                                               |
 
-### B · Python `doppler.wfmgen`
+### B · Python `doppler.wfm`
 
-| Symbol                                                                          | Import           | Role                                  | Key surface                                                                                  |
-| ------------------------------------------------------------------------------- | ---------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `Synth(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr)`     | `doppler.wfmgen` | live single-waveform engine           | `.step()` · `.steps(n)` · `.reset()` *(+ ~12 jm `get_*`/`set_*`)*                            |
-| `tone() bpsk() qpsk() pn() noise(nf=)`                                          | `.compose`       | builders → `Source`                   | return a `Source`                                                                            |
-| `Source(type, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr, level)` | `.compose`       | untimed waveform spec (no `fs`/state) | —                                                                                            |
-| `Segment(…, num_samples, off_samples, sources)`                                 | `.compose`       | timed; 1+ sources                     | `.sum(*sources, n, off, fs)` · `.add(*others)`                                               |
-| `Timeline(segments)`                                                            | `.compose`       | segments in time                      | `.add(*segments)`                                                                            |
-| `Composer(segments\|Timeline\|Segment, *, repeat, continuous)`                  | `.compose`       | driver → samples                      | `.compose()` · `.execute(n)` · `.stream()` · `.to_json()` · `.from_json()` · `.from_file()`  |
-| `Writer(path, *, file_type, sample_type, endian, fs, fc, total, headroom)`      | `.compose`       | container writer                      | `.write()` · `.track_clipping()` · `.peak_dbfs` · `.clip_fraction` · `.clipped` · `.close()` |
-| `ZmqSink(endpoint, *, sample_type)`                                             | `.compose`       | zmq:// publisher                      | `.send(iq, fs, fc)` · `.close()`                                                             |
-| `Reader(path, *, sample_type, endian)`                                          | `.compose`       | container reader                      | `.read()` · `.read_all()` · props                                                            |
-| `read_iq(path, sample_type, endian, *, raw)`                                    | `.readback`      | one-shot file read                    | —                                                                                            |
-| `SampleClock(fs, *, resync)`                                                    | `.compose`       | real-time pacing                      | `.pace(n)` · `.stamp()` · `.reset()` · props                                                 |
-| `mls_poly` · `rrc_taps` · `dsss_spread` · `sigmf_meta` · `write_blue_header`    | `.compose`       | DSP / format helpers                  | —                                                                                            |
-| `PN` · `bpsk_map` · `qpsk_map` · `wfm_awgn_amplitude` · `wfm_ebno_to_snr_db`    | `doppler.wfmgen` | low-level primitives                  | —                                                                                            |
+| Symbol                                                                          | Import        | Role                                  | Key surface                                                                                  |
+| ------------------------------------------------------------------------------- | ------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `Synth(type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr)`     | `doppler.wfm` | live single-waveform engine           | `.step()` · `.steps(n)` · `.reset()` *(+ ~12 jm `get_*`/`set_*`)*                            |
+| `tone() bpsk() qpsk() pn() noise(nf=)`                                          | `.compose`    | builders → `Source`                   | return a `Source`                                                                            |
+| `Source(type, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr, level)` | `.compose`    | untimed waveform spec (no `fs`/state) | —                                                                                            |
+| `Segment(…, num_samples, off_samples, sources)`                                 | `.compose`    | timed; 1+ sources                     | `.sum(*sources, n, off, fs)` · `.add(*others)`                                               |
+| `Timeline(segments)`                                                            | `.compose`    | segments in time                      | `.add(*segments)`                                                                            |
+| `Composer(segments\|Timeline\|Segment, *, repeat, continuous)`                  | `.compose`    | driver → samples                      | `.compose()` · `.execute(n)` · `.stream()` · `.to_json()` · `.from_json()` · `.from_file()`  |
+| `Writer(path, *, file_type, sample_type, endian, fs, fc, total, headroom)`      | `.compose`    | container writer                      | `.write()` · `.track_clipping()` · `.peak_dbfs` · `.clip_fraction` · `.clipped` · `.close()` |
+| `ZmqSink(endpoint, *, sample_type)`                                             | `.compose`    | zmq:// publisher                      | `.send(iq, fs, fc)` · `.close()`                                                             |
+| `Reader(path, *, sample_type, endian)`                                          | `.compose`    | container reader                      | `.read()` · `.read_all()` · props                                                            |
+| `read_iq(path, sample_type, endian, *, raw)`                                    | `.readback`   | one-shot file read                    | —                                                                                            |
+| `SampleClock(fs, *, resync)`                                                    | `.compose`    | real-time pacing                      | `.pace(n)` · `.stamp()` · `.reset()` · props                                                 |
+| `mls_poly` · `rrc_taps` · `dsss_spread` · `sigmf_meta` · `write_blue_header`    | `.compose`    | DSP / format helpers                  | —                                                                                            |
+| `PN` · `bpsk_map` · `qpsk_map` · `wfm_awgn_amplitude` · `wfm_ebno_to_snr_db`    | `doppler.wfm` | low-level primitives                  | —                                                                                            |
 
 ## Target surface (0.11.0)
 
@@ -125,21 +125,21 @@ Composer(scene).compose()
 
 ## Breaking changes / migration (pre-1.0, allowed)
 
-| Was                                                                       | Now                                      |
-| ------------------------------------------------------------------------- | ---------------------------------------- |
-| `from doppler.wfmgen import …` / `…wfmgen.compose import Source, qpsk, …` | `from doppler.wfm import Synth, qpsk, …` |
-| `Source(...)` / builder → `Source`                                        | `Synth(...)` / builder → `Synth`         |
-| `noise(nf=-20)`                                                           | `noise(level=-20)`                       |
-| `Segment.sum(*srcs, n=4096)`                                              | `Segment.sum(*srcs, num_samples=4096)`   |
-| pep723 `wavegen.py` / Python-implemented `wavegen`                        | removed; `wfmgen` CLI + `os.execv` shim  |
-| C `synth_*`                                                               | C `wfm_synth_*`                          |
+| Was                                                                    | Now                                      |
+| ---------------------------------------------------------------------- | ---------------------------------------- |
+| `from doppler.wfm import …` / `…wfmgen.compose import Source, qpsk, …` | `from doppler.wfm import Synth, qpsk, …` |
+| `Source(...)` / builder → `Source`                                     | `Synth(...)` / builder → `Synth`         |
+| `noise(nf=-20)`                                                        | `noise(level=-20)`                       |
+| `Segment.sum(*srcs, n=4096)`                                           | `Segment.sum(*srcs, num_samples=4096)`   |
+| pep723 `wavegen.py` / Python-implemented `wavegen`                     | removed; `wfmgen` CLI + `os.execv` shim  |
+| C `synth_*`                                                            | C `wfm_synth_*`                          |
 
 ## Execution plan
 
 Riskiest gate first (the jm drift gate), each step its own PR:
 
 1. **The `wfm` rename** (D0/D10) — `synth_*` → `wfm_synth_*` (C); package
-    `doppler.wfmgen` → `doppler.wfm`; reconcile `objects/`, `just-makeit.toml`
+    `doppler.wfm` → `doppler.wfm`; reconcile `objects/`, `just-makeit.toml`
     (module name), and keep **`jm status --check` green**.
 1. **jm-app removal** — delete the single-shot `wavegen` jm app + the
     Python CLI (`doppler.wfm.cli`) + `wavegen.py`; the C `wfmgen` composer

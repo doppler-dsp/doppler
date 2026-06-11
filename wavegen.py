@@ -16,13 +16,13 @@ import sys
 
 import numpy as np
 
-from doppler.wfmgen import Synth
+from doppler.wfm import WfmSynth
 
 
 def _make_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="wavegen",
-        description="doppler: Synth-powered stream tool.",
+        description="doppler: WfmSynth-powered stream tool.",
     )
     p.add_argument(
         "--input", "-i", default=None,
@@ -101,7 +101,7 @@ def main() -> None:
         import json
         with open(args.record, "w") as _rf:
             json.dump({"tool": "wavegen", "version": "0.1.0", "type": args.type, "fs": args.fs, "freq": args.freq, "snr": args.snr, "snr_mode": args.snr_mode, "seed": args.seed, "sps": args.sps, "pn_length": args.pn_length, "pn_poly": args.pn_poly, "lfsr": args.lfsr, "count": args.count, "sample_type": args.sample_type, "file_type": args.file_type, "endian": args.endian}, _rf, indent=2)
-    obj = Synth(type=args.type, fs=args.fs, freq=args.freq, snr=args.snr, snr_mode=args.snr_mode, seed=args.seed, sps=args.sps, pn_length=args.pn_length, pn_poly=args.pn_poly, lfsr=args.lfsr)
+    obj = WfmSynth(type=args.type, fs=args.fs, freq=args.freq, snr=args.snr, snr_mode=args.snr_mode, seed=args.seed, sps=args.sps, pn_length=args.pn_length, pn_poly=args.pn_poly, lfsr=args.lfsr)
     out = np.asarray(
         obj.steps(args.count), dtype=np.complex64
     )

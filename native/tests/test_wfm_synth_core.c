@@ -1,0 +1,90 @@
+#include "wfm_synth/wfm_synth_core.h"
+#include <complex.h>
+#include <math.h>
+#include <stdio.h>
+
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);    \
+          _fails++;                                                           \
+        }                                                                     \
+    }                                                                         \
+  while (0)
+
+/* Floating-point helpers — use inline functions, not macros, so arguments
+ * are evaluated exactly once.  Safe to call with stateful step() results. */
+static inline int
+_almost_eq (float a, float b, float tol)
+{
+  return fabsf (a - b) <= tol;
+}
+static inline int
+_almost_eq_c (float complex a, float complex b, float tol)
+{
+  return _almost_eq (crealf (a), crealf (b), tol)
+         && _almost_eq (cimagf (a), cimagf (b), tol);
+}
+#define ALMOST_EQ(a, b, tol) _almost_eq ((float)(a), (float)(b), tol)
+#define ALMOST_EQ_C(a, b, tol)                                                \
+  _almost_eq_c ((float complex) (a), (float complex) (b), tol)
+
+int
+main (void)
+{
+  int                _fails = 0;
+  wfm_synth_state_t *obj
+      = wfm_synth_create (0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
+  CHECK (obj != NULL);
+  if (!obj)
+    return 1;
+
+  /* step: verify it runs without crashing */
+  (void)wfm_synth_step (obj);
+
+  /* reset */
+  wfm_synth_reset (obj);
+
+  /* ── clean (snr >= WFM_SYNTH_SNR_CLEAN) generates no AWGN; baseband no LO ──
+   */
+  {
+    /* clean tone with a freq offset: LO present, no AWGN */
+    wfm_synth_state_t *c
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0);
+    CHECK (c && c->awgn == NULL && c->lo != NULL);
+    if (c)
+      wfm_synth_destroy (c);
+
+    /* noisy tone: AWGN present */
+    wfm_synth_state_t *nz
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 1e5, 10.0, 0, 1, 8, 7, 0, 0);
+    CHECK (nz && nz->awgn != NULL);
+    if (nz)
+      wfm_synth_destroy (nz);
+
+    /* baseband (freq 0): no LO */
+    wfm_synth_state_t *bb
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
+    CHECK (bb && bb->lo == NULL && bb->awgn == NULL);
+    if (bb)
+      wfm_synth_destroy (bb);
+
+    /* noise type always has AWGN, even at high snr */
+    wfm_synth_state_t *ns = wfm_synth_create (WFM_SYNTH_NOISE, 1e6, 0.0, 100.0,
+                                              0, 1, 8, 7, 0, 0);
+    CHECK (ns && ns->awgn != NULL);
+    if (ns)
+      wfm_synth_destroy (ns);
+  }
+
+  wfm_synth_destroy (obj);
+  if (_fails)
+    {
+      fprintf (stderr, "test_wfm_synth_core FAILED (%d)\n", _fails);
+      return 1;
+    }
+  printf ("test_wfm_synth_core PASSED\n");
+  return 0;
+}

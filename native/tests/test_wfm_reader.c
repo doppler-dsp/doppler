@@ -2,8 +2,8 @@
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
  * container, plus container auto-detection and the BLUE-magic gate.
  */
-#include "wfmgen/wfm_reader.h"
-#include "wfmgen/wfm_writer.h"
+#include "wfm/wfm_reader.h"
+#include "wfm/wfm_writer.h"
 
 #include <complex.h>
 #include <math.h>

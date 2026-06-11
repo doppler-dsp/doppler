@@ -155,7 +155,7 @@ tone/qpsk/…       (mix + noise)      (sequence in time)
 ### Python
 
 ```python
-from doppler.wfmgen import tone, qpsk, gap, noise, Segment, Composer
+from doppler.wfm import tone, qpsk, gap, noise, Segment, Composer
 
 # mix: sum sources into one segment (same span)
 sig = Segment.sum(

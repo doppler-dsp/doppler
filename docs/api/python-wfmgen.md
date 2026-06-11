@@ -1,6 +1,6 @@
 # Python Waveform Generator API — Synth / PN
 
-Two classes in the `doppler.wfmgen` module, the same C cores that back the
+Two classes in the `doppler.wfm` module, the same C cores that back the
 `wavegen` and `wfmgen` command-line tools:
 
 | Class   | Output                               | Use when                                                                   |
@@ -9,7 +9,7 @@ Two classes in the `doppler.wfmgen` module, the same C cores that back the
 | `PN`    | uint8 — raw LFSR chips (0/1)         | Spreading / ranging codes, scrambling, test vectors                        |
 
 Source:
-[`src/doppler/wfmgen/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfmgen/__init__.py)
+[`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
 
 For the command-line tools built on these cores, see the
 [Waveform Generator guide](../guide/wfmgen.md).
@@ -23,7 +23,7 @@ One declarative engine produces every waveform type, selected by the string
 sensible defaults mean a bare `Synth()` is a clean, unit-power baseband tone.
 
 ```python
-from doppler.wfmgen import Synth
+from doppler.wfm import Synth
 import numpy as np
 
 # Bare construct → clean baseband tone, unit power, no noise
@@ -83,7 +83,7 @@ assert np.array_equal(a, s.steps(512))   # same seed → identical stream
 
 ______________________________________________________________________
 
-::: doppler.wfmgen.Synth
+::: doppler.wfm.Synth
 
 ______________________________________________________________________
 
@@ -96,7 +96,7 @@ either the **Galois** (internal-XOR, default) or **Fibonacci** (external-XOR)
 realization — both realize the same polynomial and period.
 
 ```python
-from doppler.wfmgen import PN
+from doppler.wfm import PN
 import numpy as np
 
 # Length-7 MLS (primitive polynomial 0x41), one full period
@@ -122,13 +122,13 @@ the LO, and AWGN.
 
 ______________________________________________________________________
 
-::: doppler.wfmgen.PN
+::: doppler.wfm.PN
 
 ______________________________________________________________________
 
 ## `compose` — multi-segment composition, writers, and a ZMQ sink
 
-`doppler.wfmgen.compose` is the Python face of the C `wfmgen` composer
+`doppler.wfm.compose` is the Python face of the C `wfmgen` composer
 subsystem — the same engine behind the `wfmgen` CLI. A `Composer` strings
 `Segment` specs into one stream (with per-segment on-time and trailing gaps),
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
@@ -139,8 +139,8 @@ through JSON, so a capture is fully reproducible. Output is byte-identical to th
 
 ```python
 import numpy as np
-from doppler.wfmgen.compose import Composer, Segment, Writer, mls_poly
-from doppler.wfmgen.readback import read_iq
+from doppler.wfm.compose import Composer, Segment, Writer, mls_poly
+from doppler.wfm.readback import read_iq
 
 # A frame: a PN preamble, a QPSK payload, then a guard gap.
 spec = [
@@ -170,7 +170,7 @@ and recovering `fs`/`fc`/sample type from BLUE and SigMF metadata. All parsing
 and conversion is in C:
 
 ```python
-from doppler.wfmgen.compose import Composer, Writer, Reader
+from doppler.wfm.compose import Composer, Writer, Reader
 
 Composer(type="qpsk", sps=8, num_samples=4096).compose()  # ... write it ...
 with Reader("capture.blue") as r:          # container auto-detected
@@ -191,7 +191,7 @@ clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
 throttle a producer to real time and to tag blocks with their ideal timestamp:
 
 ```python
-from doppler.wfmgen.compose import Composer, SampleClock, ZmqSink
+from doppler.wfm.compose import Composer, SampleClock, ZmqSink
 
 # Stream at the true 1 MS/s instead of as fast as possible.
 comp = Composer(type="qpsk", sps=8, continuous=True)
@@ -210,26 +210,26 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ### Classes
 
-::: doppler.wfmgen.compose.Composer
+::: doppler.wfm.compose.Composer
 
-::: doppler.wfmgen.compose.Segment
+::: doppler.wfm.compose.Segment
 
-::: doppler.wfmgen.compose.Writer
+::: doppler.wfm.compose.Writer
 
-::: doppler.wfmgen.compose.Reader
+::: doppler.wfm.compose.Reader
 
-::: doppler.wfmgen.compose.ZmqSink
+::: doppler.wfm.compose.ZmqSink
 
-::: doppler.wfmgen.compose.SampleClock
+::: doppler.wfm.compose.SampleClock
 
 ### Module-level helpers
 
-::: doppler.wfmgen.compose.sigmf_meta
+::: doppler.wfm.compose.sigmf_meta
 
-::: doppler.wfmgen.compose.write_blue_header
+::: doppler.wfm.compose.write_blue_header
 
-::: doppler.wfmgen.compose.rrc_taps
+::: doppler.wfm.compose.rrc_taps
 
-::: doppler.wfmgen.compose.dsss_spread
+::: doppler.wfm.compose.dsss_spread
 
-::: doppler.wfmgen.compose.mls_poly
+::: doppler.wfm.compose.mls_poly

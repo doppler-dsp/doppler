@@ -29,55 +29,55 @@ objects = ["fir", "hbdecim_q15"]
 objects = ["nco", "lo", "awgn"]
 extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
-[module.wfmgen]
-objects = ["pn", "synth"]
+[module.wfm]
+objects = ["pn", "wfm_synth"]
 extra_link_libs = ["lo_core", "awgn_core"]
 
-[[module.wfmgen.functions]]
+[[module.wfm.functions]]
 name = "bpsk_map"
 doc = "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."
 out_type = "float _Complex"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "bits"
 type = "uint8_t[]"
 
-[[module.wfmgen.functions]]
+[[module.wfm.functions]]
 name = "qpsk_map"
 doc = "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."
 out_type = "float _Complex"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "syms"
 type = "uint8_t[]"
 
-[[module.wfmgen.functions]]
+[[module.wfm.functions]]
 name = "wfm_awgn_amplitude"
 doc = "AWGN amplitude for a target SNR (dB, over fs) given signal power."
 return_type = "float"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "snr_db"
 type = "float"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "signal_power"
 type = "float"
 
-[[module.wfmgen.functions]]
+[[module.wfm.functions]]
 name = "wfm_ebno_to_snr_db"
 doc = "Convert Eb/No (dB) to SNR (dB over fs)."
 return_type = "float"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "ebno_db"
 type = "float"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "bits_per_symbol"
 type = "int"
 
-[[module.wfmgen.functions.params]]
+[[module.wfm.functions.params]]
 name = "samples_per_symbol"
 type = "float"
 [module.delay]
@@ -580,5 +580,5 @@ type = "int"
 [app]
 target = "pep723"
 name = "wavegen"
-object = "synth"
-module = "wfmgen"
+object = "wfm_synth"
+module = "wfm"

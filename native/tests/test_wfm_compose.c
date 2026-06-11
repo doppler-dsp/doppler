@@ -5,7 +5,7 @@
  * and repeat looping — all over the reused Phase-A synth engine.
  */
 #define _GNU_SOURCE
-#include "wfmgen/wfm_compose.h"
+#include "wfm/wfm_compose.h"
 
 #include <complex.h>
 #include <math.h>
@@ -159,7 +159,8 @@ main (void)
     wfm_compose_destroy (cb);
   }
 
-  /* ── 1 source ≡ bundled: a noisy single source == direct synth_steps ── */
+  /* ── 1 source ≡ bundled: a noisy single source == direct wfm_synth_steps ──
+   */
   {
     wfm_source_t  src = { .type      = 4, /* qpsk */
                           .snr       = 9.0,
@@ -173,14 +174,15 @@ main (void)
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
     CHECK (wfm_compose_execute (c, viac, 200) == 200, "1src execute");
     wfm_compose_destroy (c);
-    synth_state_t *s = synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0);
-    synth_steps (s, direct, 200);
-    synth_destroy (s);
+    wfm_synth_state_t *s
+        = wfm_synth_create (4, 1e6, 0.0, 9.0, 3, 7, 4, 7, 0, 0);
+    wfm_synth_steps (s, direct, 200);
+    wfm_synth_destroy (s);
     int ok = 1;
     for (int i = 0; i < 200; i++)
-      if (viac[i] != direct[i]) /* same synth_steps call → bit-identical */
+      if (viac[i] != direct[i]) /* same wfm_synth_steps call → bit-identical */
         ok = 0;
-    CHECK (ok, "1-source segment == bundled synth_steps (bit-exact)");
+    CHECK (ok, "1-source segment == bundled wfm_synth_steps (bit-exact)");
   }
 
   /* ── 2-source accumulate: segment sum == g0*synth0 + g1*synth1 ── */
@@ -200,13 +202,15 @@ main (void)
     CHECK (wfm_compose_execute (c, sum, 100) == 100, "2src execute");
     wfm_compose_destroy (c);
     /* reference: render each source and add with the same gains + order. */
-    synth_state_t *sa = synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0);
-    synth_state_t *sb = synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0);
-    float complex  ba[100], bb[100];
-    synth_steps (sa, ba, 100);
-    synth_steps (sb, bb, 100);
-    synth_destroy (sa);
-    synth_destroy (sb);
+    wfm_synth_state_t *sa
+        = wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0);
+    wfm_synth_state_t *sb
+        = wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0);
+    float complex ba[100], bb[100];
+    wfm_synth_steps (sa, ba, 100);
+    wfm_synth_steps (sb, bb, 100);
+    wfm_synth_destroy (sa);
+    wfm_synth_destroy (sb);
     float gb = (float)pow (10.0, -6.020599913 / 20.0);
     int   ok = 1;
     for (int i = 0; i < 100; i++)
@@ -218,7 +222,8 @@ main (void)
     CHECK (ok, "2-source sum == s0 + 0.5*s1");
   }
 
-  /* ── noise resolve: snr on a source → a SYNTH_NOISE source at the floor ──
+  /* ── noise resolve: snr on a source → a WFM_SYNTH_NOISE source at the floor
+   * ──
    */
   {
     wfm_source_t srcs[2] = {
@@ -235,8 +240,9 @@ main (void)
     size_t               nseg;
     const wfm_segment_t *rs = wfm_compose_segments (c, &nseg, NULL, NULL);
     CHECK (rs[0].n_sources == 3, "noise source appended (2 → 3)");
-    CHECK (rs[0].sources[0].snr >= SYNTH_SNR_CLEAN, "anchor cleaned");
-    CHECK (rs[0].sources[2].type == SYNTH_NOISE, "appended is SYNTH_NOISE");
+    CHECK (rs[0].sources[0].snr >= WFM_SYNTH_SNR_CLEAN, "anchor cleaned");
+    CHECK (rs[0].sources[2].type == WFM_SYNTH_NOISE,
+           "appended is WFM_SYNTH_NOISE");
     CHECK (fabs (rs[0].sources[2].level - (-10.0)) < 1e-9,
            "floor = level - snr_fs = -10 dBFS");
     wfm_compose_destroy (c);
@@ -248,7 +254,7 @@ main (void)
     wfm_source_t resolved[3] = {
       { .type = 0, .snr = 100.0, .level = 0.0 },
       { .type = 0, .freq = 2e5, .snr = 100.0, .level = -20.0 },
-      { .type = SYNTH_NOISE, .level = -10.0 }, /* explicit floor */
+      { .type = WFM_SYNTH_NOISE, .level = -10.0 }, /* explicit floor */
     };
     wfm_segment_t seg = {
       .sources = resolved, .n_sources = 3, .fs = 1e6, .num_samples = 16

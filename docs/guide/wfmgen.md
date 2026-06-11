@@ -352,6 +352,58 @@ wfmgen --from-file scenario.json -o scenario.cf32
 
 ______________________________________________________________________
 
+## Mixing sources (`sum`) and sequencing them (`add`)
+
+A segment can hold **several sources mixed at the same time** — a signal of
+interest plus interferers plus a noise floor — instead of just one. The two
+composition verbs are orthogonal:
+
+- **`.sum()` mixes** sources over the *same* span (one receiver → one sample
+    rate, one shared noise floor). SNR lives on a source; the floor is resolved
+    **once, in C**, so the Python, JSON, and `wfmgen --from-file` faces are
+    byte-identical.
+- **`.add()` sequences** segments in *time*, back-to-back — the multi-segment
+    timeline above, built fluently.
+
+```python
+from doppler.wfmgen.compose import Composer, Segment, qpsk, tone, noise
+
+# A scene: a −12 dB QPSK SoI at +50 kHz over a CW interferer, at 15 dB Es/No.
+scene = Segment.sum(
+    qpsk(snr=15, snr_mode="esno", level=-12),  # the anchor sets the floor
+    tone(freq=5e4),                             # an interferer (level 0 dBFS)
+    n=65536,
+)
+
+# Sequence a clean preamble tone, then the scene:
+timeline = Segment("tone", freq=1e5, num_samples=2000, off_samples=500).add(scene)
+iq = Composer(timeline).compose()
+```
+
+Rules of the floor (resolved per segment): an explicit `noise(nf=N)` source
+fixes it at `N` dBFS; otherwise the first source carrying `snr` is the anchor
+and the floor is `level(anchor) − SNR_fs(anchor)`. Other sources place
+themselves with `level` (a plain dBFS offset); giving a non-anchor *both* `snr`
+and `level` is a spec error. A single-source segment keeps its bundled AWGN
+untouched, so it is byte-identical to the pre-composition path.
+
+In the `wfmgen-1` JSON schema, a mixed segment replaces the inline source fields
+with a **`sum`** array (each entry is a source; `fs`/`num_samples`/`off_samples`
+stay on the segment):
+
+```json
+{ "fs": 1e6, "num_samples": 65536, "off_samples": 0,
+  "sum": [
+    { "type": "qpsk", "snr": 15.0, "snr_mode": "esno", "sps": 8, "level": -12.0 },
+    { "type": "tone", "freq": 5e4 }
+  ] }
+```
+
+`--record` writes the **resolved** sum (the cleaned anchor plus an explicit
+`noise` source at the floor), so a recorded scene reproduces exactly.
+
+______________________________________________________________________
+
 ## Reproducible runs (`--record`)
 
 `--record run.json` writes the **fully-resolved** spec — every value *after*

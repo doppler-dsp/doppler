@@ -1,11 +1,16 @@
 # Waveform amplitude & composition
 
-!!! warning "Status: Proposed — not yet implemented"
+!!! success "Status: Implemented — ships in 0.11.0"
 
-    This is a design RFC for the next iteration of the waveform generator. It
-    describes intended behaviour, not current behaviour. For what ships today,
-    see the [Waveform Generator guide](../guide/wfmgen.md). Single-source,
-    `level = 0`, `--headroom 0` reproduces today's output byte-for-byte.
+    This RFC is now built. Per-source `level`, `--headroom`, multi-source
+    `Segment.sum()` over one resolved noise floor, and the `.add()` timeline all
+    landed on `main`; the Python API is `Source` + `tone`/`bpsk`/`qpsk`/`pn`/
+    `noise` builders with `Segment.sum` / `Segment.add` (see the
+    [Waveform Generator guide](../guide/wfmgen.md)), and the JSON `"sum"` schema
+    behind `wfmgen --from-file` is byte-identical to it. Single-source,
+    `level = 0`, `--headroom 0` reproduces the pre-0.11 output byte-for-byte.
+    The text below is kept as the design rationale. One deferred item:
+    `--headroom` is not yet folded into `--record`.
 
 ## Motivation
 

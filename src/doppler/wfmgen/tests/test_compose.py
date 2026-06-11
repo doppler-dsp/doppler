@@ -24,6 +24,7 @@ from doppler.wfmgen.compose import (
     Reader,
     SampleClock,
     Segment,
+    Timeline,
     Writer,
     ZmqSink,
     dsss_spread,
@@ -718,3 +719,46 @@ def test_sum_needs_a_source():
     """Segment.sum with no sources is rejected up front."""
     with pytest.raises(ValueError):
         Segment.sum(n=1024)
+
+
+# ── Phase 5: .add() timeline ergonomics ──────────────────────────────────────
+
+
+def test_add_builds_timeline_equal_to_list():
+    """seg.add(other) composes identically to the explicit segment list."""
+    a = Segment("tone", freq=1e5, num_samples=1000, off_samples=500)
+    b = Segment.sum(qpsk(snr=15), tone(level=-12), n=4096)
+    tl = a.add(b)
+    assert isinstance(tl, Timeline) and len(tl) == 2
+    assert np.array_equal(Composer(tl).compose(), Composer([a, b]).compose())
+
+
+def test_timeline_add_chains():
+    """Timeline.add appends and is chainable; order is preserved."""
+    a = Segment("tone", freq=1e5, num_samples=500)
+    b = Segment("pn", num_samples=127, pn_length=7)
+    c = Segment("qpsk", num_samples=200, seed=4)
+    tl = a.add(b).add(c)
+    assert [s for s in tl] == [a, b, c] and tl[1] is b
+    assert np.array_equal(
+        Composer(tl).compose(), Composer([a, b, c]).compose()
+    )
+
+
+def test_composer_accepts_lone_segment_and_timeline():
+    """Composer takes a bare Segment or a Timeline, not just a list."""
+    seg = Segment("tone", freq=1e5, num_samples=256)
+    assert np.array_equal(Composer(seg).compose(), Composer([seg]).compose())
+    tl = Timeline([seg])
+    assert np.array_equal(Composer(tl).compose(), Composer([seg]).compose())
+
+
+def test_timeline_json_roundtrip():
+    """A timeline round-trips through JSON like any segment list."""
+    tl = Segment("tone", freq=1e5, num_samples=300).add(
+        Segment.sum(qpsk(snr=12), tone(level=-9), n=512)
+    )
+    js = Composer(tl).to_json()
+    assert np.array_equal(
+        Composer.from_json(js).compose(), Composer(tl).compose()
+    )

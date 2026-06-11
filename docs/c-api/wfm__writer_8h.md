@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfm\_writer.h**](wfm__writer_8h.md)
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_writer.h**](wfm__writer_8h.md)
 
 [Go to the source code of this file](wfm__writer_8h_source.md)
 
@@ -12,7 +12,7 @@ _Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 * `#include <stdio.h>`
 * `#include "clib_common.h"`
-* `#include "wfmgen/wfm_compose.h"`
+* `#include "wfm/wfm_compose.h"`
 
 
 
@@ -62,8 +62,12 @@ _Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 | ---: | :--- |
 |  int | [**wfm\_blue\_write\_hcb**](#function-wfm_blue_write_hcb) (FILE \* fp, int sample\_type, int endian, double fs, double fc, double data\_start, size\_t total\_samples, int detached) <br>_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._  |
 |  char \* | [**wfm\_sigmf\_meta\_json**](#function-wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
+|  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br> |
 |  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), and free the writer (does not close the FILE\*)._  |
 |  [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* | [**wfm\_writer\_open**](#function-wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples) <br>_Open a writer on an already-open stream._  |
+|  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br> |
+|  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w, double gain) <br> |
+|  void | [**wfm\_writer\_track\_clipping**](#function-wfm_writer_track_clipping) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w, int on) <br> |
 |  size\_t | [**wfm\_writer\_write**](#function-wfm_writer_write) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w, const float \_Complex \* iq, size\_t n) <br>_Convert and write_ `n` _complex samples._ |
 
 
@@ -248,6 +252,25 @@ malloc'd JSON string (caller frees), or NULL on allocation failure.
 
 
 
+### function wfm\_writer\_clip\_fraction 
+
+```C++
+double wfm_writer_clip_fraction (
+    const wfm_writer_t * w
+) 
+```
+
+
+
+Fraction (0..1) of I/Q components that saturated (\|v\| &gt; 1). Always 0 unless [**wfm\_writer\_track\_clipping()**](wfm__writer_8h.md#function-wfm_writer_track_clipping) was enabled. 
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_writer\_close 
 
 _Flush, patch the BLUE data\_size from the actual count (if seekable), and free the writer (does not close the FILE\*)._ 
@@ -321,6 +344,65 @@ Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header
 
 
 
+### function wfm\_writer\_peak 
+
+```C++
+double wfm_writer_peak (
+    const wfm_writer_t * w
+) 
+```
+
+
+
+Largest per-axis magnitude max(\|I\|,\|Q\|) written so far (pre-clip, full-scale 1.0). &gt; 1.0 ⇒ integer output clipped; peak\_dBFS = 20\*log10(peak). 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_writer\_set\_gain 
+
+```C++
+void wfm_writer_set_gain (
+    wfm_writer_t * w,
+    double gain
+) 
+```
+
+
+
+Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_writer\_track\_clipping 
+
+```C++
+void wfm_writer_track_clipping (
+    wfm_writer_t * w,
+    int on
+) 
+```
+
+
+
+Enable the per-component clip _counter_ (off by default; peak is always on). 
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_writer\_write 
 
 _Convert and write_ `n` _complex samples._
@@ -349,5 +431,5 @@ Number of complex samples written (== n on success, else short).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfmgen/wfm_writer.h`
+The documentation for this class was generated from the following file `native/inc/wfm/wfm_writer.h`
 

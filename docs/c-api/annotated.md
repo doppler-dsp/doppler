@@ -9,6 +9,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**acc\_f32\_state\_t**](structacc__f32__state__t.md) _AccF32 state._     
 * **struct** [**acc\_q15\_state\_t**](structacc__q15__state__t.md) _AccQ15 state._     
 * **struct** [**acc\_q8\_state\_t**](structacc__q8__state__t.md) _AccQ8 state._     
+* **struct** [**acc\_trace\_state\_t**](structacc__trace__state__t.md) _AccTrace state. Allocate with_ [_**acc\_trace\_create()**_](acc__trace__core_8h.md#function-acc_trace_create) _._    
 * **struct** [**adc\_state\_t**](structadc__state__t.md) _ADC state._     
 * **struct** [**agc\_state\_t**](structagc__state__t.md) _AGC state._     
 * **struct** [**awgn\_state\_t**](structawgn__state__t.md)     
@@ -41,8 +42,10 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**nco\_state\_t**](structnco__state__t.md) _NCO state._     
 * **struct** [**pn\_state\_t**](structpn__state__t.md)     
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md)     
-* **struct** [**synth\_state\_t**](structsynth__state__t.md) _Synth state._     
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._     
+* **struct** [**welch\_state\_t**](structwelch__state__t.md) _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-welch_create) _._    
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     
-* **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: a_ `synth` _config + on/off sample counts._    
+* **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: one or more sources summed over the same span, then a trailing off-time gap._     
+* **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._    
+* **struct** [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) _Synth state._     
 

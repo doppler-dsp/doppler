@@ -1,16 +1,16 @@
 
 
-# File wfmgen\_core.h
+# File wfm\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfmgen\_core.h**](wfmgen__core_8h.md)
+[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_core.h**](wfm__core_8h.md)
 
-[Go to the documentation of this file](wfmgen__core_8h.md)
+[Go to the documentation of this file](wfm__core_8h.md)
 
 
 ```C++
 
-#ifndef WFMGEN_CORE_H
-#define WFMGEN_CORE_H
+#ifndef WFM_CORE_H
+#define WFM_CORE_H
 
 #include "clib_common.h"
 
@@ -29,7 +29,7 @@ float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_s
 }
 #endif
 
-#endif /* WFMGEN_CORE_H */
+#endif /* WFM_CORE_H */
 ```
 
 

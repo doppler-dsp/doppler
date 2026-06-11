@@ -2,7 +2,7 @@
 
 # File wfm\_reader.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfm\_reader.h**](wfm__reader_8h.md)
+[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_reader.h**](wfm__reader_8h.md)
 
 [Go to the documentation of this file](wfm__reader_8h.md)
 
@@ -15,7 +15,7 @@
 #include <complex.h>
 #include <stddef.h>
 
-#include "wfmgen/wfm_writer.h" /* wfm_filetype_t */
+#include "wfm/wfm_writer.h" /* wfm_filetype_t */
 
 #ifdef __cplusplus
 extern "C"

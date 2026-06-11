@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfm\_sink.h**](wfm__sink_8h.md)
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_sink.h**](wfm__sink_8h.md)
 
 [Go to the source code of this file](wfm__sink_8h_source.md)
 
@@ -57,9 +57,13 @@ _ZMQ PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**wfm\_zmq\_sink\_clip\_fraction**](#function-wfm_zmq_sink_clip_fraction) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
 |  void | [**wfm\_zmq\_sink\_close**](#function-wfm_zmq_sink_close) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
 |  [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* | [**wfm\_zmq\_sink\_open**](#function-wfm_zmq_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a ZMQ PUB sink._  |
+|  double | [**wfm\_zmq\_sink\_peak**](#function-wfm_zmq_sink_peak) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
 |  int | [**wfm\_zmq\_sink\_send**](#function-wfm_zmq_sink_send) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
+|  void | [**wfm\_zmq\_sink\_set\_gain**](#function-wfm_zmq_sink_set_gain) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, double gain) <br> |
+|  void | [**wfm\_zmq\_sink\_track\_clipping**](#function-wfm_zmq_sink_track_clipping) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, int on) <br> |
 
 
 
@@ -128,6 +132,25 @@ Opaque ZMQ sink.
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function wfm\_zmq\_sink\_clip\_fraction 
+
+```C++
+double wfm_zmq_sink_clip_fraction (
+    const wfm_zmq_sink_t * sink
+) 
+```
+
+
+
+Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. 
+
+
+        
+
+<hr>
 
 
 
@@ -201,6 +224,27 @@ Caller must [**wfm\_zmq\_sink\_close()**](wfm__sink_8h.md#function-wfm_zmq_sink_
 
 
 
+### function wfm\_zmq\_sink\_peak 
+
+```C++
+double wfm_zmq_sink_peak (
+    const wfm_zmq_sink_t * sink
+) 
+```
+
+
+
+Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1). 
+> 1.0 ⇒ clipped; peak\_dBFS = 20\*log10(peak). 
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_zmq\_sink\_send 
 
 _Convert a cf32 block to the wire type and publish it._ 
@@ -241,6 +285,46 @@ int wfm_zmq_sink_send (
 
 <hr>
 
+
+
+### function wfm\_zmq\_sink\_set\_gain 
+
+```C++
+void wfm_zmq_sink_set_gain (
+    wfm_zmq_sink_t * sink,
+    double gain
+) 
+```
+
+
+
+Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_zmq\_sink\_track\_clipping 
+
+```C++
+void wfm_zmq_sink_track_clipping (
+    wfm_zmq_sink_t * sink,
+    int on
+) 
+```
+
+
+
+Enable the per-component clip counter (off by default; peak always on). 
+
+
+        
+
+<hr>
+
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfmgen/wfm_sink.h`
+The documentation for this class was generated from the following file `native/inc/wfm/wfm_sink.h`
 

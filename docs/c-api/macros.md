@@ -80,9 +80,9 @@
 * **RESAMPLER\_MAX\_OUT** ([**Resampler\_core.h**](Resampler__core_8h.md))
 
 
-## s
+## w
 
-* **SYNTH\_SNR\_CLEAN** ([**synth\_core.h**](synth__core_8h.md))
+* **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 
 
 ## _

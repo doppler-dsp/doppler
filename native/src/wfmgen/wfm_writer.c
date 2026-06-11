@@ -348,27 +348,35 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
   for (size_t i = 0; i < n_segs; i++)
     {
       const wfm_segment_t *s = &segs[i];
-      /* one annotation per segment, from its first source (4a: 1 source). */
-      const wfm_source_t *src = &s->sources[0];
-      cJSON              *a   = cJSON_CreateObject ();
-      cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
-      cJSON_AddNumberToObject (a, "core:sample_count", (double)s->num_samples);
-      double bw
-          = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps : 0.0;
-      double center = fc + src->freq;
-      cJSON_AddNumberToObject (a, "core:freq_lower_edge", center - bw / 2.0);
-      cJSON_AddNumberToObject (a, "core:freq_upper_edge", center + bw / 2.0);
-      if (src->type >= 0 && src->type < 5)
-        cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
-      cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
-      if (src->snr_mode >= 0 && src->snr_mode < 4)
-        cJSON_AddStringToObject (a, "wfmgen:snr_mode",
-                                 MODE_NAMES[src->snr_mode]);
-      cJSON_AddNumberToObject (a, "wfmgen:sps", src->sps);
-      cJSON_AddNumberToObject (a, "wfmgen:seed", src->seed);
-      cJSON_AddNumberToObject (a, "wfmgen:pn_length", src->pn_length);
-      cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
-      cJSON_AddItemToArray (anns, a);
+      /* one annotation per source, all sharing the segment's sample span
+       * (1-source → exactly one, byte-identical to the pre-sum output). */
+      for (size_t k = 0; k < s->n_sources; k++)
+        {
+          const wfm_source_t *src = &s->sources[k];
+          cJSON              *a   = cJSON_CreateObject ();
+          cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
+          cJSON_AddNumberToObject (a, "core:sample_count",
+                                   (double)s->num_samples);
+          double bw     = (src->type >= 2 && src->sps > 0)
+                              ? s->fs / (double)src->sps
+                              : 0.0;
+          double center = fc + src->freq;
+          cJSON_AddNumberToObject (a, "core:freq_lower_edge",
+                                   center - bw / 2.0);
+          cJSON_AddNumberToObject (a, "core:freq_upper_edge",
+                                   center + bw / 2.0);
+          if (src->type >= 0 && src->type < 5)
+            cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
+          cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
+          if (src->snr_mode >= 0 && src->snr_mode < 4)
+            cJSON_AddStringToObject (a, "wfmgen:snr_mode",
+                                     MODE_NAMES[src->snr_mode]);
+          cJSON_AddNumberToObject (a, "wfmgen:sps", src->sps);
+          cJSON_AddNumberToObject (a, "wfmgen:seed", src->seed);
+          cJSON_AddNumberToObject (a, "wfmgen:pn_length", src->pn_length);
+          cJSON_AddNumberToObject (a, "wfmgen:pn_poly", src->pn_poly);
+          cJSON_AddItemToArray (anns, a);
+        }
       start += s->num_samples + s->off_samples;
     }
 

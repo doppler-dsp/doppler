@@ -274,8 +274,45 @@ main (void)
            "reject non-anchor snr + level");
   }
 
+  /* ── JSON "sum" round-trip: a multi-source segment serialises + reparses ──
+   */
+  {
+    wfm_source_t srcs[2] = {
+      { .type      = 4, /* qpsk */
+        .snr       = 12.0,
+        .snr_mode  = 3,
+        .seed      = 3,
+        .sps       = 4,
+        .pn_length = 7 },
+      { .type = 0, .freq = 1.5e5, .snr = 100.0, .level = -10.0 }, /* tone */
+    };
+    wfm_segment_t seg
+        = { .sources = srcs, .n_sources = 2, .fs = 1e6, .num_samples = 4096 };
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    CHECK (c, "sum-json create");
+    size_t               ns;
+    int                  rp, ct;
+    const wfm_segment_t *rs   = wfm_compose_segments (c, &ns, &rp, &ct);
+    char                *json = wfm_spec_to_json (rs, ns, rp, ct);
+    CHECK (json && strstr (json, "\"sum\""), "sum array emitted");
+    /* reparse and compare sample-for-sample. */
+    wfm_compose_state_t *jc = wfm_compose_from_json (json);
+    CHECK (jc, "sum from_json");
+    float complex a[4096], b[4096];
+    CHECK (wfm_compose_execute (c, a, 4096) == 4096, "sum direct");
+    CHECK (wfm_compose_execute (jc, b, 4096) == 4096, "sum reparsed");
+    int ok = 1;
+    for (int i = 0; i < 4096; i++)
+      if (a[i] != b[i])
+        ok = 0;
+    CHECK (ok, "JSON sum round-trip sample-identical");
+    free (json);
+    wfm_compose_destroy (c);
+    wfm_compose_destroy (jc);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve)\n",
+          "resolve, sum-json)\n",
           total);
   return 0;
 }

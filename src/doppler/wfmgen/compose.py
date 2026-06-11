@@ -54,6 +54,107 @@ def _idx(name: str, table: tuple[str, ...], what: str) -> int:
 
 
 @dataclass
+class Source:
+    """One additive source within a :meth:`Segment.sum` segment.
+
+    Mirrors the C ``wfm_source_t``: a ``synth`` configuration plus a ``level``,
+    but **no** ``fs`` (the sample rate is the segment's — one receiver, one
+    rate) and no on/off counts (those are the segment's too). Build one with the
+    :func:`tone` / :func:`qpsk` / :func:`bpsk` / :func:`pn` / :func:`noise`
+    helpers rather than by hand.
+
+    ``snr`` lives on the source because it is self-referential — ``snr_mode``'s
+    Eb/No needs this source's bits/symbol and samples/symbol. In a multi-source
+    segment the composer resolves all the per-source SNRs into one shared noise
+    floor (see :meth:`Segment.sum`); a lone source keeps its bundled AWGN.
+
+    Parameters
+    ----------
+    type : {"tone", "noise", "pn", "bpsk", "qpsk"}
+        Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS).
+    freq : float
+        Carrier/offset frequency (Hz).
+    snr : float
+        SNR in dB under ``snr_mode``; ``100`` (the default) is numerically clean.
+    snr_mode : {"auto", "fs", "ebno", "esno"}
+        How ``snr`` is interpreted; ``auto`` resolves per ``type``.
+    seed : int
+        PRNG / LFSR seed.
+    sps, pn_length, pn_poly, lfsr
+        PN/PSK data-source parameters (see :class:`Segment`).
+    level : float
+        Source level in dBFS (``<= 0``); its output is scaled by
+        ``10 ** (level / 20)``. For a ``noise`` source this *is* the floor.
+    """
+
+    type: str = "tone"
+    freq: float = 0.0
+    snr: float = 100.0
+    snr_mode: str = "auto"
+    seed: int = 1
+    sps: int = 8
+    pn_length: int = 7
+    pn_poly: int = 0
+    lfsr: str = "galois"
+    level: float = 0.0
+
+    def _tuple(self) -> tuple:
+        """Fixed-order 10-tuple consumed by the C binding (enums → ints)."""
+        return (
+            _idx(self.type, _TYPES, "type"),
+            float(self.freq),
+            float(self.snr),
+            _idx(self.snr_mode, _MODES, "snr_mode"),
+            int(self.seed),
+            int(self.sps),
+            int(self.pn_length),
+            int(self.pn_poly),
+            _idx(self.lfsr, _LFSRS, "lfsr"),
+            float(self.level),
+        )
+
+    @classmethod
+    def _from_tuple(cls, t: tuple) -> "Source":
+        return cls(
+            type=_TYPES[t[0]],
+            freq=t[1],
+            snr=t[2],
+            snr_mode=_MODES[t[3]],
+            seed=t[4],
+            sps=t[5],
+            pn_length=t[6],
+            pn_poly=t[7],
+            lfsr=_LFSRS[t[8]],
+            level=t[9],
+        )
+
+
+def tone(freq: float = 0.0, **kw) -> Source:
+    """A continuous-wave tone source at ``freq`` Hz (see :class:`Source`)."""
+    return Source(type="tone", freq=freq, **kw)
+
+
+def bpsk(**kw) -> Source:
+    """A BPSK source (see :class:`Source`)."""
+    return Source(type="bpsk", **kw)
+
+
+def qpsk(**kw) -> Source:
+    """A QPSK source (see :class:`Source`)."""
+    return Source(type="qpsk", **kw)
+
+
+def pn(**kw) -> Source:
+    """A PN/MLS chip source (see :class:`Source`)."""
+    return Source(type="pn", **kw)
+
+
+def noise(nf: float = 0.0, **kw) -> Source:
+    """An AWGN noise-floor source at ``nf`` dBFS (sets the segment floor)."""
+    return Source(type="noise", level=nf, **kw)
+
+
+@dataclass
 class Segment:
     """One waveform segment of a composed stream.
 
@@ -106,9 +207,51 @@ class Segment:
     num_samples: int = 1024
     off_samples: int = 0
     level: float = 0.0
+    sources: list[Source] | None = None
+
+    @classmethod
+    def sum(
+        cls,
+        *sources: Source,
+        n: int,
+        off: int = 0,
+        fs: float = 1e6,
+    ) -> "Segment":
+        """Sum several :class:`Source` together over the same ``n`` samples.
+
+        The sources mix at the same time (one receiver), so they share one
+        sample rate ``fs`` and one noise floor: per-source ``snr`` resolves to a
+        single AWGN source in C (see :class:`Source`). ``off`` is the trailing
+        gap. This is the multi-source counterpart of the single-source
+        :class:`Segment` constructor.
+
+        Examples
+        --------
+        >>> from doppler.wfmgen.compose import Segment, qpsk, tone
+        >>> seg = Segment.sum(qpsk(snr=15), tone(freq=2e5, level=-12), n=4096)
+        >>> len(seg.sources)
+        2
+        """
+        if not sources:
+            raise ValueError("Segment.sum needs at least one source")
+        return cls(
+            num_samples=n, off_samples=off, fs=fs, sources=list(sources)
+        )
 
     def _tuple(self) -> tuple:
-        """Fixed-order 13-tuple consumed by the C binding (enums → ints)."""
+        """C-binding tuple: 13-tuple for 1 source, else nested multi-source.
+
+        A multi-source segment crosses as ``(num, off, fs, [source10tuple, …])``
+        (the ``fs``/on/off live on the segment); a single-source segment keeps
+        the 13-tuple form so it is byte-identical to the pre-``sum`` path.
+        """
+        if self.sources is not None:
+            return (
+                int(self.num_samples),
+                int(self.off_samples),
+                float(self.fs),
+                [s._tuple() for s in self.sources],
+            )
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.fs),
@@ -127,6 +270,14 @@ class Segment:
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
+        if len(t) != 13:  # nested multi-source: (num, off, fs, [sources])
+            num, off, fs, srclist = t
+            return cls(
+                num_samples=num,
+                off_samples=off,
+                fs=fs,
+                sources=[Source._from_tuple(st) for st in srclist],
+            )
         return cls(
             type=_TYPES[t[0]],
             fs=t[1],

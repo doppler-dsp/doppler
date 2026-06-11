@@ -1,17 +1,20 @@
 # Python Waveform Generator API — Synth / PN
 
-Two classes in the `doppler.wfm` module, the same C cores that back the
-`wavegen` and `wfmgen` command-line tools:
+Everything in the `doppler.wfm` package imports from one place — `from
+doppler.wfm import …`. The two low-level generators are:
 
 | Class   | Output                               | Use when                                                                   |
 | ------- | ------------------------------------ | -------------------------------------------------------------------------- |
 | `Synth` | CF32 — the five-type waveform engine | Generate tone / noise / PN / BPSK / QPSK, with optional LO offset and AWGN |
 | `PN`    | uint8 — raw LFSR chips (0/1)         | Spreading / ranging codes, scrambling, test vectors                        |
 
+`Synth` is also the unit of **composition** — pass synths into `Segment.sum`
+to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-zmq-sink) below).
+
 Source:
 [`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
 
-For the command-line tools built on these cores, see the
+These same C cores back the one command-line tool, `wfmgen` — see the
 [Waveform Generator guide](../guide/wfmgen.md).
 
 ______________________________________________________________________
@@ -83,7 +86,7 @@ assert np.array_equal(a, s.steps(512))   # same seed → identical stream
 
 ______________________________________________________________________
 
-::: doppler.wfm.Synth
+::: doppler.wfm.compose.Synth
 
 ______________________________________________________________________
 
@@ -128,41 +131,80 @@ ______________________________________________________________________
 
 ## `compose` — multi-segment composition, writers, and a ZMQ sink
 
-`doppler.wfm.compose` is the Python face of the C `wfmgen` composer
-subsystem — the same engine behind the `wfmgen` CLI. A `Composer` strings
-`Segment` specs into one stream (with per-segment on-time and trailing gaps),
+The composition layer is the Python face of the C `wfmgen` composer
+subsystem — the same engine behind the `wfmgen` CLI, output byte-identical for
+the same parameters. There are two composition verbs:
+
+- **`Segment.sum(*synths, num_samples=…)`** *mixes* synths at the same time over
+  one resolved noise floor (a multi-source scene);
+- **`Segment.add(*segments)`** *sequences* segments in time (a timeline).
+
+The ladder is **`Synth` → (`.sum`) → `Segment` → (`.add`) → `Timeline` →
+`Composer` → samples**: `.sum` stacks synths in the *same* time window (one
+column), `.add` lays segments out along *time* (one row).
+
+```mermaid
+flowchart LR
+    subgraph SEG["Segment — .sum() mixes at the SAME time, one noise floor"]
+        direction TB
+        y1["Synth qpsk · level −10 dBFS"]
+        y2["Synth tone · level −3 dBFS"]
+        y3["Synth noise · the floor"]
+    end
+    subgraph TL["Timeline — .add() sequences in TIME ▶"]
+        direction LR
+        sA["Segment A"] --> sB["Segment B<br/>(+ trailing gap)"] --> sC["…"]
+    end
+    SEG -- ".add(B, …)" --> sA
+    TL --> COMP["Composer(…).compose()"] --> IQ[("complex64 I/Q")]
+
+    classDef syn fill:#ede7f6,stroke:#5e35b1,color:#000;
+    classDef seg fill:#e3f2fd,stroke:#1565c0,color:#000;
+    class y1,y2,y3 syn;
+    class sA,sB,sC seg;
+```
+
+A `Composer` turns a `Segment` / `Timeline` / segment-list into samples,
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
-serialises to the same containers as the CLI (raw / CSV / BLUE type-1000 /
-SigMF), and `ZmqSink` publishes over ZeroMQ. The resolved spec round-trips
-through JSON, so a capture is fully reproducible. Output is byte-identical to the
-`wfmgen`/`wavegen` CLIs for the same parameters.
+serialises to the four containers (raw / CSV / BLUE type-1000 / SigMF), and
+`ZmqSink` publishes over ZeroMQ. The resolved spec round-trips through JSON, so a
+capture is fully reproducible.
 
 ```python
 import numpy as np
-from doppler.wfm.compose import Composer, Segment, Writer, mls_poly
-from doppler.wfm.readback import read_iq
+from doppler.wfm import Composer, Segment, Writer, mls_poly, qpsk, tone
+from doppler.wfm import read_iq
 
-# A frame: a PN preamble, a QPSK payload, then a guard gap.
-spec = [
-    Segment("pn", num_samples=127, pn_length=7),
-    Segment("qpsk", sps=8, num_samples=4096, seed=42, off_samples=512),
-]
-iq = Composer(spec).compose()            # one complex64 array
+# Mix: a QPSK signal of interest under a CW interferer, one noise floor.
+scene = Segment.sum(
+    qpsk(snr=15, sps=8, level=-10),       # builders return Synth
+    tone(freq=2e5, level=-3),
+    num_samples=65536,
+)
+
+# Sequence: a PN preamble, then the scene, back-to-back in time.
+timeline = Segment("pn", num_samples=127, pn_length=7).add(scene)
+iq = Composer(timeline).compose()         # one complex64 array
 
 # Or stream block-by-block (an empty block marks the end):
-c = Composer(spec)
+c = Composer(timeline)
 with Writer("frame.cf32", sample_type="cf32") as w:
     while len(blk := c.execute(4096)):
         w.write(blk)
-back = read_iq("frame.cf32", "cf32")     # zero-copy complex64 view
+back = read_iq("frame.cf32", "cf32")      # zero-copy complex64 view
 
 # Reproducible: the resolved spec serialises to JSON and back.
-j = Composer(spec).to_json()
+j = Composer(timeline).to_json()
 assert np.array_equal(Composer.from_json(j).compose(), iq)
 
 # Utilities
-mls_poly(7)                              # 0x41 — the length-7 MLS polynomial
+mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
+
+The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` each return a
+`Synth` (a `noise(level=…)` is a bare AWGN floor at that level in dBFS); or
+construct `Synth(...)` directly. In a `Segment.sum` the per-synth `snr` resolves
+into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 `Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,
 auto-detecting the container (BLUE magic / `.sigmf-meta` sidecar / `.csv` / raw)
@@ -170,7 +212,7 @@ and recovering `fs`/`fc`/sample type from BLUE and SigMF metadata. All parsing
 and conversion is in C:
 
 ```python
-from doppler.wfm.compose import Composer, Writer, Reader
+from doppler.wfm import Composer, Writer, Reader
 
 Composer(type="qpsk", sps=8, num_samples=4096).compose()  # ... write it ...
 with Reader("capture.blue") as r:          # container auto-detected
@@ -191,7 +233,7 @@ clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
 throttle a producer to real time and to tag blocks with their ideal timestamp:
 
 ```python
-from doppler.wfm.compose import Composer, SampleClock, ZmqSink
+from doppler.wfm import Composer, SampleClock, ZmqSink
 
 # Stream at the true 1 MS/s instead of as fast as possible.
 comp = Composer(type="qpsk", sps=8, continuous=True)
@@ -213,6 +255,8 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 ::: doppler.wfm.compose.Composer
 
 ::: doppler.wfm.compose.Segment
+
+::: doppler.wfm.compose.Timeline
 
 ::: doppler.wfm.compose.Writer
 

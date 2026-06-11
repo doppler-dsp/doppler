@@ -101,21 +101,40 @@ All dependencies are available via the standard package manager on each
 platform. Minimum versions are declared in `CMakeLists.txt` (C library) and
 `pyproject.toml` (Python bindings).
 
-| Dependency | Ubuntu/Debian   | macOS (Homebrew) |
-| ---------- | --------------- | ---------------- |
-| ZeroMQ     | `libzmq3-dev`   | `zeromq`         |
-| FFTW3      | `libfftw3-dev`  | `fftw`           |
-| CMake      | `cmake`         | `cmake`          |
-| Python     | `python3-dev`   | `python`         |
-| NumPy      | `python3-numpy` | `numpy`          |
+| Dependency | Debian/Ubuntu     | Arch           | Fedora/RHEL        | openSUSE           | macOS     |
+| ---------- | ----------------- | -------------- | ------------------ | ------------------ | --------- |
+| Toolchain  | `build-essential` | `base-devel`   | `gcc gcc-c++ make` | `gcc gcc-c++ make` | Xcode CLT |
+| CMake      | `cmake`           | `cmake`        | `cmake`            | `cmake`            | `cmake`   |
+| Python     | `python3-dev`     | `python`       | `python3-devel`    | `python3-devel`    | `python`  |
+| NumPy      | `python3-numpy`   | `python-numpy` | `python3-numpy`    | `python3-numpy`    | `numpy`   |
+| ZeroMQ     | `libzmq3-dev`     | `zeromq`       | `zeromq-devel`     | `zeromq-devel`     | `zeromq`  |
+| FFTW3      | `libfftw3-dev`    | `fftw`         | `fftw-devel`       | `fftw3-devel`      | `fftw`    |
 
-**Ubuntu/Debian:**
+**Debian / Ubuntu:**
 
-```bash
-sudo apt-get install libzmq3-dev libfftw3-dev cmake pkg-config python3-dev python3-numpy
+```sh
+--8<-- "tests/install/build-apt-deps.sh:install"
 ```
 
-**macOS** (all deps available via [Homebrew](https://brew.sh)):
+**Arch** (Manjaro, EndeavourOS, CachyOS):
+
+```sh
+--8<-- "tests/install/build-pacman-deps.sh:install"
+```
+
+**Fedora / RHEL** (Rocky, AlmaLinux):
+
+```sh
+--8<-- "tests/install/build-dnf-deps.sh:install"
+```
+
+**openSUSE** (Leap / Tumbleweed):
+
+```sh
+--8<-- "tests/install/build-zypper-deps.sh:install"
+```
+
+**macOS** (all deps via [Homebrew](https://brew.sh)):
 
 ```bash
 brew install zeromq fftw cmake python numpy

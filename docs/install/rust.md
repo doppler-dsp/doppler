@@ -5,8 +5,7 @@ All DSP logic runs in C; the crate is pure glue.
 
 !!! note "Prerequisites"
 
-    - Rust toolchain — [rustup](https://rustup.rs/) on Linux/macOS, or
-        `mingw-w64-ucrt-x86_64-rust` on MSYS2/UCRT64
+    - Rust toolchain — [rustup](https://rustup.rs/)
     - C library built first: `make build`
 
 ## Build and test

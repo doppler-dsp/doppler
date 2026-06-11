@@ -294,6 +294,51 @@ class Segment:
             level=t[12],
         )
 
+    def add(self, *others: "Segment") -> "Timeline":
+        """Sequence this segment then ``others`` in time → a :class:`Timeline`.
+
+        The time-sequence counterpart of :meth:`sum` (which mixes sources at the
+        *same* time): ``a.add(b)`` plays ``a`` then ``b`` back-to-back. Chain
+        with :meth:`Timeline.add`, then hand the result to :class:`Composer`.
+
+        Examples
+        --------
+        >>> from doppler.wfmgen.compose import Composer, Segment, qpsk, tone
+        >>> tl = Segment("tone", freq=1e5, num_samples=1000).add(
+        ...     Segment.sum(qpsk(snr=15), tone(level=-12), n=4096)
+        ... )
+        >>> len(Composer(tl).compose())
+        5096
+        """
+        return Timeline([self, *others])
+
+
+@dataclass
+class Timeline:
+    """An ordered run of :class:`Segment` played back-to-back in time.
+
+    The composer already sequences a segment list; :class:`Timeline` is the
+    fluent face of that list, built by :meth:`Segment.add` / :meth:`add`. It is
+    a plain sequence — iterate it, index it, or pass it straight to
+    :class:`Composer`.
+    """
+
+    segments: list[Segment]
+
+    def add(self, *segments: Segment) -> "Timeline":
+        """Append more segments to the end of the timeline (chainable)."""
+        self.segments.extend(segments)
+        return self
+
+    def __iter__(self):
+        return iter(self.segments)
+
+    def __len__(self) -> int:
+        return len(self.segments)
+
+    def __getitem__(self, i):
+        return self.segments[i]
+
 
 class Composer:
     """A multi-segment waveform generator over a list of :class:`Segment`.
@@ -326,7 +371,7 @@ class Composer:
 
     def __init__(
         self,
-        segments: Sequence[Segment] | None = None,
+        segments: Sequence[Segment] | Timeline | Segment | None = None,
         *,
         repeat: bool = False,
         continuous: bool = False,
@@ -338,6 +383,10 @@ class Composer:
             raise TypeError(
                 "pass either a segments list or single-segment kwargs, not both"
             )
+        elif isinstance(segments, Segment):
+            segments = [
+                segments
+            ]  # a lone segment (Timeline is iterable as-is)
         tuples = [s._tuple() for s in segments]
         self._cap = _c.composer_create(tuples, bool(repeat), bool(continuous))
 

@@ -2,10 +2,10 @@
 
 Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
-| Class   | Output                              | Use when                                                                           |
-| ------- | ----------------------------------- | ---------------------------------------------------------------------------------- |
-| `Synth` | CF32 — the six-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp, with optional LO offset and AWGN |
-| `PN`    | uint8 — raw LFSR chips (0/1)        | Spreading / ranging codes, scrambling, test vectors                                |
+| Class   | Output                                | Use when                                                                                  |
+| ------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `Synth` | CF32 — the seven-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits, with optional LO offset and AWGN |
+| `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                       |
 
 `Synth` is also the unit of **composition** — pass synths into `Segment.sum`
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-zmq-sink) below).
@@ -44,6 +44,31 @@ qpsk = Synth(type="qpsk", sps=8, snr=10).steps(8192)
 
 # Scalar (one sample at a time)
 s = Synth(type="tone", freq=1000, fs=1e6).step()
+```
+
+### Bits (user-defined pattern)
+
+A `bits` waveform plays back a **specific bit sequence** — preambles, sync
+words, test vectors, exact packet structures. The pattern is a binary string
+(`"10110101"`), a hex string (`"0xAA55"`, MSB first), or any array-like of 0/1;
+`modulation` maps the bits to symbols (`"none"` → 0/1 amplitude, `"bpsk"` → ±1,
+`"qpsk"` → two bits per symbol, Gray-coded). Each bit is held `sps` samples and
+the pattern **cycles** to fill the requested length, so one pass is
+`Synth.n_samples`.
+
+```python
+from doppler.wfm import Synth, bits
+
+# 8-bit preamble, BPSK, 4 samples/bit → 32 samples for one pass
+s = bits("10110101", sps=4, modulation="bpsk")
+preamble = s.steps(s.n_samples)
+
+# Hex sync word, unmodulated 0/1; direct construction is equivalent
+sync = Synth(type="bits", pattern="0xAA55", modulation="none", sps=8)
+
+# From a numpy array
+import numpy as np
+payload = bits(np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk")
 ```
 
 ### Chirp (LFM sweep)
@@ -224,9 +249,10 @@ mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
 
 The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` /
-`chirp(f_start, f_end)` each return a `Synth` (a `noise(level=…)` is a bare AWGN
-floor at that level in dBFS; a `chirp` is an LFM sweep); or construct
-`Synth(...)` directly. In a `Segment.sum` the per-synth `snr` resolves
+`chirp(f_start, f_end)` / `bits(pattern, modulation)` each return a `Synth` (a
+`noise(level=…)` is a bare AWGN floor at that level in dBFS; a `chirp` is an LFM
+sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
+In a `Segment.sum` the per-synth `snr` resolves
 into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 `Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,

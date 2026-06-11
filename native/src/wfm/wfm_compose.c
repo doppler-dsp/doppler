@@ -17,6 +17,18 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
+
+/* Free a segment's per-source bits patterns and then the sources array. */
+static void
+free_segment_sources (wfm_segment_t *seg)
+{
+  if (seg->sources)
+    for (size_t k = 0; k < seg->n_sources; k++)
+      free (seg->sources[k].bits);
+  free (seg->sources);
+  seg->sources = NULL;
+}
 
 enum
 {
@@ -85,6 +97,11 @@ start_segment (wfm_compose_state_t *s)
           /* Pin a chirp's sweep to the segment's on-time so it sweeps
            * f_start→f_end over exactly num_samples (no-op for non-chirp). */
           wfm_synth_set_chirp_span (s->syn[k], g->num_samples);
+          /* Attach a bits source's pattern (no-op for other types). A NULL
+           * pattern leaves the bits synth emitting 0, never crashing. */
+          if (src->type == WFM_SYNTH_BITS && src->bits)
+            wfm_synth_set_bits (s->syn[k], src->bits, src->n_bits,
+                                src->modulation);
           s->n_syn = k + 1; /* track for stop_synths on partial failure */
         }
     }
@@ -136,29 +153,48 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
       free (s);
       return NULL;
     }
-  /* Deep-copy each segment's source list. */
+  /* Deep-copy each segment's source list, including any bits pattern (so the
+   * composer owns its own copy and the caller keeps theirs). */
   for (size_t i = 0; i < n_segs; i++)
     {
       s->segs[i] = segs[i]; /* scalar fields (the sources ptr is replaced) */
       size_t ns  = segs[i].n_sources;
-      s->segs[i].sources = malloc ((ns ? ns : 1) * sizeof (wfm_source_t));
+      s->segs[i].sources = calloc (ns ? ns : 1, sizeof (wfm_source_t));
       if (!s->segs[i].sources)
         {
           for (size_t j = 0; j < i; j++)
-            free (s->segs[j].sources);
+            free_segment_sources (&s->segs[j]);
           free (s->segs);
           free (s);
           return NULL;
         }
       for (size_t k = 0; k < ns; k++)
-        s->segs[i].sources[k] = segs[i].sources[k];
+        {
+          s->segs[i].sources[k] = segs[i].sources[k]; /* scalars + bits ptr */
+          const wfm_source_t *src = &segs[i].sources[k];
+          if (src->bits && src->n_bits)
+            {
+              uint8_t *copy = malloc (src->n_bits);
+              if (!copy)
+                {
+                  s->segs[i].sources[k].bits = NULL; /* don't free caller's */
+                  for (size_t j = 0; j <= i; j++)
+                    free_segment_sources (&s->segs[j]);
+                  free (s->segs);
+                  free (s);
+                  return NULL;
+                }
+              memcpy (copy, src->bits, src->n_bits);
+              s->segs[i].sources[k].bits = copy;
+            }
+        }
     }
   /* Resolve the per-segment noise model on the copy (may append a noise
    * source) — runs here so every face resolves identically. No-op at 1 src. */
   if (wfm_resolve_noise (s->segs, n_segs) != 0)
     {
       for (size_t i = 0; i < n_segs; i++)
-        free (s->segs[i].sources);
+        free_segment_sources (&s->segs[i]);
       free (s->segs);
       free (s);
       return NULL;
@@ -174,7 +210,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
   if (!s->syn || !s->gain || !s->scratch)
     {
       for (size_t i = 0; i < n_segs; i++)
-        free (s->segs[i].sources);
+        free_segment_sources (&s->segs[i]);
       free (s->segs);
       free (s->syn);
       free (s->gain);
@@ -288,7 +324,7 @@ wfm_compose_destroy (wfm_compose_state_t *state)
     {
       stop_synths (state);
       for (size_t i = 0; i < state->n_segs; i++)
-        free (state->segs[i].sources);
+        free_segment_sources (&state->segs[i]);
       free (state->segs);
       free (state->syn);
       free (state->gain);

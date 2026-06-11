@@ -39,7 +39,7 @@ extra_link_libs = ["lo_core", "awgn_core"]
 # it shadows the raw engine type — the public doppler.wfm.Synth is the wrapper
 # (its get_*/set_* engine accessors stay internal, D9).
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
 readback = ["read_iq"]
 
 [[module.wfm.functions]]

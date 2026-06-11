@@ -8,6 +8,6 @@ del _os, _sys
 
 from .wfm import PN, bpsk_map, qpsk_map, wfm_awgn_amplitude, wfm_ebno_to_snr_db, _SynthEngine  # noqa: E402
 from .readback import read_iq  # noqa: E402
-from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, Writer, Reader, ZmqSink, SampleClock, sigmf_meta, write_blue_header, rrc_taps, dsss_spread, mls_poly, chirp  # noqa: E402
+from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, Writer, Reader, ZmqSink, SampleClock, sigmf_meta, write_blue_header, rrc_taps, dsss_spread, mls_poly, bits, chirp  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly", "chirp", "read_iq"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly", "bits", "chirp", "read_iq"]

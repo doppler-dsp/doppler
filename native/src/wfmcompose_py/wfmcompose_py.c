@@ -18,6 +18,7 @@
 #include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_dsp.h"
@@ -29,36 +30,75 @@
 #include "wfm/wfm_sink.h"
 #endif
 
-/* A 1-source segment crosses as a 14-tuple (the back-compat form, + f_end):
+/* A 1-source segment crosses as a 16-tuple (back-compat form + f_end + bits):
  *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level
- *   f_end */
-#define _SEG_FMT "idddiIiiKinndd"
-#define _SEG_NTUP 14
+ *   f_end modulation bits */
+#define _SEG_FMT "idddiIiiKinnddiO"
+#define _SEG_NTUP 16
 /* A multi-source segment crosses as (num, off, fs, [source, ...]) where each
- * source is an 11-tuple (no fs/num/off — those are segment-level):
- *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level f_end */
-#define _SOURCE_FMT "iddiIiiKidd"
+ * source is a 13-tuple (no fs/num/off — those are segment-level):
+ *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level f_end
+ *   modulation bits */
+#define _SOURCE_FMT "iddiIiiKiddiO"
 
-/* Free a wfm_segment_t[] including each of the first `n` segments' sources. */
+/* Copy a bits pattern (a Python bytes of 0/1, or None) into *src; the source
+ * then owns src->bits (freed via _free_segments). Returns 1 on success. */
+static int
+_attach_bits (wfm_source_t *src, PyObject *bits_obj)
+{
+  src->bits   = NULL;
+  src->n_bits = 0;
+  if (!bits_obj || bits_obj == Py_None)
+    return 1;
+  if (!PyBytes_Check (bits_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "bits must be bytes or None");
+      return 0;
+    }
+  Py_ssize_t nb = PyBytes_GET_SIZE (bits_obj);
+  if (nb <= 0)
+    return 1;
+  uint8_t *copy = (uint8_t *)malloc ((size_t)nb);
+  if (!copy)
+    {
+      PyErr_NoMemory ();
+      return 0;
+    }
+  memcpy (copy, PyBytes_AS_STRING (bits_obj), (size_t)nb);
+  src->bits   = copy;
+  src->n_bits = (size_t)nb;
+  return 1;
+}
+
+/* Free a wfm_segment_t[] including each of the first `n` segments' sources
+ * (and each source's bits pattern). */
 static void
 _free_segments (wfm_segment_t *segs, size_t n)
 {
   if (segs)
     {
       for (size_t i = 0; i < n; i++)
-        free (segs[i].sources);
+        {
+          if (segs[i].sources)
+            for (size_t k = 0; k < segs[i].n_sources; k++)
+              free (segs[i].sources[k].bits);
+          free (segs[i].sources);
+        }
       free (segs);
     }
 }
 
-/* Parse one source 10-tuple into *src. */
+/* Parse one source 12-tuple into *src (incl. modulation + bits). */
 static int
 _parse_source (PyObject *st, wfm_source_t *src)
 {
-  return PyArg_ParseTuple (st, _SOURCE_FMT, &src->type, &src->freq, &src->snr,
-                           &src->snr_mode, &src->seed, &src->sps,
-                           &src->pn_length, &src->pn_poly, &src->lfsr,
-                           &src->level, &src->f_end);
+  PyObject *bits_obj = NULL;
+  if (!PyArg_ParseTuple (
+          st, _SOURCE_FMT, &src->type, &src->freq, &src->snr, &src->snr_mode,
+          &src->seed, &src->sps, &src->pn_length, &src->pn_poly, &src->lfsr,
+          &src->level, &src->f_end, &src->modulation, &bits_obj))
+    return 0;
+  return _attach_bits (src, bits_obj);
 }
 
 /* Parse a Python list of segment tuples into a malloc'd wfm_segment_t[]. A
@@ -89,20 +129,23 @@ _parse_segments (PyObject *list, size_t *n_out)
       wfm_segment_t *s = &segs[i];
       if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == _SEG_NTUP)
         {
-          /* 1-source 14-tuple (back-compat, byte-identical). */
-          wfm_source_t *src = (wfm_source_t *)malloc (sizeof *src);
+          /* 1-source 16-tuple (back-compat for non-chirp/bits, + f_end +
+           * modulation/bits). */
+          wfm_source_t *src = (wfm_source_t *)calloc (1, sizeof *src);
           if (!src)
             {
               _free_segments (segs, (size_t)i);
               return (wfm_segment_t *)PyErr_NoMemory ();
             }
-          s->sources   = src;
-          s->n_sources = 1;
-          if (!PyArg_ParseTuple (t, _SEG_FMT, &src->type, &s->fs, &src->freq,
-                                 &src->snr, &src->snr_mode, &src->seed,
-                                 &src->sps, &src->pn_length, &src->pn_poly,
-                                 &src->lfsr, &s->num_samples, &s->off_samples,
-                                 &src->level, &src->f_end))
+          s->sources         = src;
+          s->n_sources       = 1;
+          PyObject *bits_obj = NULL;
+          if (!PyArg_ParseTuple (
+                  t, _SEG_FMT, &src->type, &s->fs, &src->freq, &src->snr,
+                  &src->snr_mode, &src->seed, &src->sps, &src->pn_length,
+                  &src->pn_poly, &src->lfsr, &s->num_samples, &s->off_samples,
+                  &src->level, &src->f_end, &src->modulation, &bits_obj)
+              || !_attach_bits (src, bits_obj))
             {
               _free_segments (segs, (size_t)i + 1);
               return NULL;
@@ -154,6 +197,16 @@ _parse_segments (PyObject *list, size_t *n_out)
 /* Build a Python list of segment tuples (13-tuple for 1 source, else nested).
  */
 static PyObject *
+_bits_to_obj (const wfm_source_t *src)
+{
+  /* New reference: a bytes of the 0/1 pattern, or None. */
+  if (src->bits && src->n_bits)
+    return PyBytes_FromStringAndSize ((const char *)src->bits,
+                                      (Py_ssize_t)src->n_bits);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 _segments_to_list (const wfm_segment_t *segs, size_t n)
 {
   PyObject *list = PyList_New ((Py_ssize_t)n);
@@ -166,11 +219,19 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
       if (s->n_sources == 1)
         {
           const wfm_source_t *src = &s->sources[0];
-          t                       = Py_BuildValue (
-              "(" _SEG_FMT ")", src->type, s->fs, src->freq, src->snr,
-              src->snr_mode, src->seed, src->sps, src->pn_length, src->pn_poly,
-              src->lfsr, (Py_ssize_t)s->num_samples,
-              (Py_ssize_t)s->off_samples, src->level, src->f_end);
+          PyObject           *bo  = _bits_to_obj (src);
+          if (!bo)
+            {
+              Py_DECREF (list);
+              return NULL;
+            }
+          t = Py_BuildValue ("(" _SEG_FMT ")", src->type, s->fs, src->freq,
+                             src->snr, src->snr_mode, src->seed, src->sps,
+                             src->pn_length, src->pn_poly, src->lfsr,
+                             (Py_ssize_t)s->num_samples,
+                             (Py_ssize_t)s->off_samples, src->level,
+                             src->f_end, src->modulation, bo);
+          Py_DECREF (bo); /* "O" took its own reference */
         }
       else
         {
@@ -183,10 +244,19 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
           for (size_t k = 0; k < s->n_sources; k++)
             {
               const wfm_source_t *src = &s->sources[k];
-              PyObject           *st  = Py_BuildValue (
+              PyObject           *bo  = _bits_to_obj (src);
+              if (!bo)
+                {
+                  Py_DECREF (srclist);
+                  Py_DECREF (list);
+                  return NULL;
+                }
+              PyObject *st = Py_BuildValue (
                   "(" _SOURCE_FMT ")", src->type, src->freq, src->snr,
                   src->snr_mode, src->seed, src->sps, src->pn_length,
-                  src->pn_poly, src->lfsr, src->level, src->f_end);
+                  src->pn_poly, src->lfsr, src->level, src->f_end,
+                  src->modulation, bo);
+              Py_DECREF (bo);
               if (!st)
                 {
                   Py_DECREF (srclist);

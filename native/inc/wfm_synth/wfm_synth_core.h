@@ -32,6 +32,7 @@ enum {
     WFM_SYNTH_BPSK = 3,  /* BPSK over PN-sourced data bits           */
     WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
+    WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -134,6 +135,10 @@ typedef struct {
     double chirp_ph;
     size_t chirp_n;
     size_t chirp_span;
+    uint8_t * bits;
+    size_t n_bits;
+    size_t bit_idx;
+    int bit_mod;
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
@@ -150,8 +155,9 @@ typedef struct {
  * for tone/noise/PN.
  *
  * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
- *              5=chirp.  The Python binding accepts strings "tone"|"noise"|
- *              "pn"|"bpsk"|"qpsk"|"chirp".
+ *              5=chirp, 6=bits.  The Python binding accepts strings "tone"|
+ *              "noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits".  For "bits" attach
+ *              the pattern with wfm_synth_set_bits() after create().
  * @param fs  Sample rate in Hz.  Sets the carrier frequency normalisation
  *              and the noise bandwidth.  Default 1 000 000.0.
  * @param freq  Carrier frequency offset in Hz (−fs/2 … fs/2).  A
@@ -209,6 +215,25 @@ wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr
 void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
 
 /**
+ * @brief Attach a user bit pattern to a type=bits synth (no-op otherwise).
+ *
+ * Copies @p n bits (each 0/1) into the synth; @p modulation maps them to
+ * symbols (0=none → 0/1 amplitude, 1=bpsk → ±1, 2=qpsk → Gray-coded ±1/√2,
+ * two bits per symbol). The pattern is oversampled by the create-time `sps`
+ * and **cycled** to fill whatever length `wfm_synth_steps()` requests, so one
+ * pass is `n * sps` samples (`2*ceil... ` — `n/2 * sps` for qpsk). Replaces any
+ * previous pattern; resets the read position. Safe to call repeatedly.
+ *
+ * @param state  Must be non-NULL.
+ * @param bits   Array of @p n bytes, each 0 or 1.
+ * @param n      Number of bits (> 0).
+ * @param modulation  0=none, 1=bpsk, 2=qpsk.
+ * @return 0 on success; -1 on bad args or allocation failure.
+ */
+int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+                       int modulation);
+
+/**
  * @brief Destroy a synth instance and release all memory.
  * Recursively frees the LO, AWGN, and PN sub-objects, then the struct
  * itself.  Safe to call with NULL (no-op).
@@ -260,7 +285,31 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
-    if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
+    if (state->wtype == WFM_SYNTH_BITS) {
+        /* User bit pattern, oversampled sps and cycled to fill the request. The
+         * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
+         * instead of the LFSR; bit_mod picks the mapping. */
+        if (state->sym_pos == 0 && state->bits && state->n_bits) {
+            if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+                uint8_t b0 = state->bits[state->bit_idx];
+                uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+                const float s = 0.70710678118654752f;
+                state->cur_re = b0 ? -s : s;
+                state->cur_im = b1 ? -s : s;
+                state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+            } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+                state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            } else { /* none: unmodulated 0/1 amplitude */
+                state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+                state->cur_im = 0.0f;
+                state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+            }
+        }
+        if (++state->sym_pos >= state->nsps)
+            state->sym_pos = 0;
+    } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
                 uint8_t b0 = pn_step(state->pn);

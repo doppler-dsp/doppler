@@ -69,11 +69,13 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     type = 4;
   else if (strcmp (type_str, "chirp") == 0)
     type = 5;
+  else if (strcmp (type_str, "bits") == 0)
+    type = 6;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "type must be one of \"tone\", \"noise\", \"pn\", "
-                    "\"bpsk\", \"qpsk\", \"chirp\", got '%s'",
+                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", got '%s'",
                     type_str);
       return -1;
     }
@@ -164,6 +166,39 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
                    (size_t)n);
 
   return out_arr;
+}
+
+/* set_bits(pattern, modulation=1) — attach a user bit pattern to a type=bits
+ * synth. pattern is any array-like of 0/1 (coerced to uint8); modulation is
+ * 0=none, 1=bpsk, 2=qpsk. */
+static PyObject *
+_SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *pat_obj    = NULL;
+  int       modulation = 1;
+  if (!PyArg_ParseTuple (args, "O|i", &pat_obj, &modulation))
+    return NULL;
+  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
+      pat_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+  if (!arr)
+    return NULL;
+  size_t n  = (size_t)PyArray_SIZE (arr);
+  int    rc = wfm_synth_set_bits (
+      self->handle, (const uint8_t *)PyArray_DATA (arr), n, modulation);
+  Py_DECREF (arr);
+  if (rc != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_bits: empty pattern, modulation not in 0..2, or "
+                       "not a bits synth");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -330,61 +365,66 @@ _SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef _SynthEngine_methods[]
-    = { { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
-        { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
-          "step() -> float complex\n"
-          "\n"
-          "Generate one output sample from internal state.\n"
-          "\n"
-          "    >>> from doppler import _SynthEngine\n"
-          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
-          "100.0, 1, 8, 7, "
-          "0)\n"
-          "    >>> obj.step()\n"
-          "    0j\n" },
-        { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
-          "steps(n=1) -> ndarray\n"
-          "\n"
-          "Generate n output samples.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import _SynthEngine\n"
-          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
-          "100.0, 1, 8, 7, "
-          "0)\n"
-          "    >>> y = obj.steps(4)\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
+static PyMethodDef _SynthEngine_methods[] = {
+  { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
+  { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
+    "step() -> float complex\n"
+    "\n"
+    "Generate one output sample from internal state.\n"
+    "\n"
+    "    >>> from doppler import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+    "100.0, 1, 8, 7, "
+    "0)\n"
+    "    >>> obj.step()\n"
+    "    0j\n" },
+  { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
+    "steps(n=1) -> ndarray\n"
+    "\n"
+    "Generate n output samples.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+    "100.0, 1, 8, 7, "
+    "0)\n"
+    "    >>> y = obj.steps(4)\n"
+    "    >>> y.shape\n"
+    "    (4,)\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
 
-        { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
-          "Get wtype." },
-        { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
-          "Set wtype." },
-        { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
-          "Get nsps." },
-        { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
-          "Set nsps." },
-        { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
-          "Get sym_pos." },
-        { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
-          "Set sym_pos." },
-        { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
-          "Get cur_re." },
-        { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
-          "Set cur_re." },
-        { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
-          "Get cur_im." },
-        { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
-          "Set cur_im." },
-        { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
+    "set_bits(pattern, modulation=1) -> None\n"
+    "\n"
+    "Attach a user bit pattern (array of 0/1) to a type='bits' synth.\n"
+    "modulation: 0=none (0/1), 1=bpsk (+-1), 2=qpsk (2 bits/symbol).\n" },
+  { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
+    "Get wtype." },
+  { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
+    "Set wtype." },
+  { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS, "Get nsps." },
+  { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
+    "Set nsps." },
+  { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
+    "Get sym_pos." },
+  { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
+    "Set sym_pos." },
+  { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
+    "Get cur_re." },
+  { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
+    "Set cur_re." },
+  { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
+    "Get cur_im." },
+  { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
+    "Set cur_im." },
+  { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject _SynthEngineType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen._SynthEngine",

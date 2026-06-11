@@ -1,7 +1,7 @@
 """wfmgen_demo.py — the wfmgen waveform engine: four waveforms, four views.
 
 A single declarative engine (`doppler.wfm.Synth`) produces every waveform
-type the `wavegen` / `wfmgen` tools emit. This demo drives it directly from
+type the `wfmgen` tool emits. This demo drives it directly from
 Python and shows each type through the view that makes its structure obvious:
 
 Top-left — **tone** at `fn = 0.10` (relative to `fs`) at 30 dB SNR over the

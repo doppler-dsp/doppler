@@ -165,9 +165,23 @@ if(NOT WIN32)
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     install(TARGETS wfmgen_cli DESTINATION bin)
 
+    # Bundle the wfmgen binary into the Python package so the wheel ships it as
+    # package data (the `wfmgen` console-script is an os.execv shim over it —
+    # see src/doppler/wfm/cli.py, docs/dev/wfmgen/api.md D2/D5). just-buildit's
+    # wheel build copies the whole src/doppler tree, so _bin/wfmgen rides along.
+    if(BUILD_PYTHON)
+        add_custom_command(TARGET wfmgen_cli POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "${PYTHON_PACKAGE_DIR}/wfm/_bin"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:wfmgen_cli>"
+                "${PYTHON_PACKAGE_DIR}/wfm/_bin/wfmgen"
+            VERBATIM
+            COMMENT "Bundle wfmgen CLI binary into the wheel package")
+    endif()
+
     # CLI integration test (drives the built binary, checks byte output).
     add_test(NAME wfmgen_cli COMMAND ${CMAKE_COMMAND}
         -DEXE=$<TARGET_FILE:wfmgen_cli>
-        -DWAVEGEN=$<TARGET_FILE:wavegen>
         -P ${CMAKE_SOURCE_DIR}/native/tests/wfmgen_cli_test.cmake)
 endif()

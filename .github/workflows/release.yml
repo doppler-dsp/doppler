@@ -197,7 +197,10 @@ jobs:
                 echo "::error::$(basename "$whl"): $(basename "$so") has wide SIMD in non-dispatched function '${bad}' — non-portable (built with -march=native?)"
                 fail=1
               fi
-            done < <(find "$tmp/extract" -name '*.cpython-*.so')
+              # The bundled wfmgen CLI binary (wfm/_bin/wfmgen) gets the same
+              # scan — it links the runtime-dispatched AWGN, so wide SIMD is
+              # only legal in *avx512* functions, exactly like the extensions.
+            done < <(find "$tmp/extract" \( -name '*.cpython-*.so' -o -path '*/wfm/_bin/wfmgen' \))
             rm -rf "$tmp/extract"
           done
           rm -rf "$tmp"

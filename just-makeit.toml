@@ -576,9 +576,3 @@ type = "int64_t[]"
 [[module.arith.functions.params]]
 name = "n"
 type = "int"
-
-[app]
-target = "pep723"
-name = "wavegen"
-object = "wfm_synth"
-module = "wfm"

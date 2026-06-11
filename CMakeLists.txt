@@ -320,7 +320,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 
 # ── App ───────────────────────────────────────────────────────────
-add_executable(wavegen native/src/app/wavegen.c)
-target_link_libraries(wavegen PRIVATE wfm_synth_core lo_core awgn_core pn_core $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
-install(TARGETS wavegen DESTINATION bin)
+# The single-shot `wavegen` is gone: a 1-segment `wfmgen` run is byte-for-byte
+# identical to it (see native/tests/wfmgen_cli_test.cmake), so the composer
+# `wfmgen` (native/src/wfmcompose/) is the one CLI. See docs/dev/wfmgen/api.md.
 # ── App end ───────────────────────────────────────────────────────────

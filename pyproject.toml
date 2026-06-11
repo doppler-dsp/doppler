@@ -71,7 +71,7 @@ specan-web = [
 doppler        = "doppler.cli.__main__:main"
 doppler-source = "doppler.cli.source:main"
 doppler-specan = "doppler.specan.__main__:main"
-wavegen        = "doppler.wfm.cli:main"
+wfmgen         = "doppler.wfm.cli:main"
 
 [tool.just-buildit]
 command = "make just-build"
@@ -107,6 +107,6 @@ dev = [
 line-length = 79
 # jm-generated type stubs are owned by just-makeit (manifest-drift gate);
 # never reformat them here. vendored third-party is left as upstream ships it.
-# jm generates the re-export `__init__.py` shims and the pep723 `wavegen.py`
-# CLI face; like the .pyi stubs they are owned by the manifest-drift gate.
-extend-exclude = ["*.pyi", "vendor", "src/doppler/*/__init__.py", "wavegen.py"]
+# jm generates the re-export `__init__.py` shims; like the .pyi stubs they are
+# owned by the manifest-drift gate.
+extend-exclude = ["*.pyi", "vendor", "src/doppler/*/__init__.py"]

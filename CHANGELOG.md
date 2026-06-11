@@ -13,6 +13,20 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **`source` heap overflow on large single-call generation** (#116) —
+    `LO.steps(n)`, `NCO.steps_u32`/`steps_u32_scaled`/`steps_u32_ovf`, and
+    `AWGN.generate(n)` sized their output buffer to a fixed internal cap
+    (`*_MAX_OUT = 65536`) but then wrote `n` samples, overflowing the heap for
+    `n > 65536` — silently corrupting memory, and segfaulting once `n` ran past
+    a page (e.g. `LO.steps(393216)`). The bindings now allocate a NumPy-owned
+    output of exactly `n` per call (the same pattern `Synth.steps` uses), which
+    also makes each returned array independent: concatenating or holding results
+    across calls is now correct (the old shared reuse buffer aliased/overwrote
+    earlier results). Also fixes a leak of the `LO`/`AWGN` reuse buffers at
+    dealloc.
+
 ## [0.11.0] — 2026-06-11
 
 The **waveform composer** and the **`wfm` API cleanup**. doppler can now build a

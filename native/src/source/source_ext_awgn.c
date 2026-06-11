@@ -14,8 +14,6 @@
 typedef struct
 {
   PyObject_HEAD awgn_state_t *handle;
-  float complex *_generate_buf;     /* pre-allocated output for generate */
-  size_t         _generate_buf_cap; /* allocated capacity for generate */
 } AWGNObject;
 
 static void
@@ -78,30 +76,20 @@ AWGNObj_generate (AWGNObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
-  size_t _need = (size_t)n;
-  if (!self->_generate_buf || self->_generate_buf_cap < _need)
+  if (n < 0)
     {
-      size_t _max = awgn_generate_max_out (self->handle);
-      if (!_max || _max < _need)
-        _max = _need;
-      float complex *_tmp
-          = realloc (self->_generate_buf, _max * sizeof (float complex));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      self->_generate_buf     = _tmp;
-      self->_generate_buf_cap = _max;
+      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
+      return NULL;
     }
-  size_t n_out  = awgn_generate (self->handle, (size_t)n, self->_generate_buf);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_generate_buf);
+  /* NumPy owns the output: allocate exactly n and write into it. Each call is
+   * independent — a shared reuse buffer aliased/dangled earlier results across
+   * calls and (sized to a fixed cap) overflowed for large n (#116). */
+  npy_intp  dim = (npy_intp)n;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  awgn_generate (self->handle, (size_t)n,
+                 (float complex *)PyArray_DATA ((PyArrayObject *)arr));
   return arr;
 }
 

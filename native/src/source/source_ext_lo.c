@@ -14,8 +14,6 @@
 typedef struct
 {
   PyObject_HEAD lo_state_t *handle;
-  float complex            *_steps_buf; /* pre-allocated output for steps */
-  float complex *_steps_ctrl_buf; /* pre-allocated output for steps_ctrl */
 } LOObject;
 
 static void
@@ -75,26 +73,21 @@ LOObj_steps (LOObject *self, PyObject *args)
   Py_ssize_t n = 1;
   if (!PyArg_ParseTuple (args, "|n", &n))
     return NULL;
-  if (!self->_steps_buf)
+  if (n < 0)
     {
-      size_t _max = lo_steps_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)n;
-      self->_steps_buf = malloc (_max * sizeof (float complex));
-      if (!self->_steps_buf)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
+      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
+      return NULL;
     }
-  size_t    n_out = lo_steps (self->handle, (size_t)n, self->_steps_buf);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
+  /* NumPy owns the output: allocate exactly n and write into it. Each call
+   * returns an independent array (sizing a shared reuse buffer to a fixed cap
+   * overflowed for large n — #116; and a grown shared buffer aliases/dangles
+   * earlier results across calls). lo_steps writes exactly n samples. */
+  npy_intp  dim = (npy_intp)n;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  lo_steps (self->handle, (size_t)n,
+            (float complex *)PyArray_DATA ((PyArrayObject *)arr));
   return arr;
 }
 
@@ -114,29 +107,17 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args)
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
-  if (!self->_steps_ctrl_buf)
-    {
-      size_t _max = lo_steps_ctrl_max_out (self->handle);
-      if (!_max)
-        _max = (size_t)PyArray_SIZE (ctrl_arr);
-      self->_steps_ctrl_buf = malloc (_max * sizeof (float complex));
-      if (!self->_steps_ctrl_buf)
-        {
-          Py_DECREF (ctrl_arr);
-          PyErr_NoMemory ();
-          return NULL;
-        }
-    }
-  size_t n_out
-      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
-                       (size_t)PyArray_SIZE (ctrl_arr), self->_steps_ctrl_buf);
-  npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
-                                             self->_steps_ctrl_buf);
+  /* Output is one phasor per control sample; NumPy owns it (see steps). */
+  npy_intp  dim = (npy_intp)PyArray_SIZE (ctrl_arr);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (ctrl_arr);
+      return NULL;
+    }
+  lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+                 (size_t)PyArray_SIZE (ctrl_arr),
+                 (float complex *)PyArray_DATA ((PyArrayObject *)arr));
   Py_DECREF (ctrl_arr);
   return arr;
 }

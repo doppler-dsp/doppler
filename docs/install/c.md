@@ -63,3 +63,43 @@ Useful during development — no `cmake --install` required.
 add_subdirectory(path/to/doppler)
 target_link_libraries(my_app PRIVATE doppler::doppler)
 ```
+
+## Embedding the `wfmgen` generator
+
+The `wfmgen` composer CLI is archived into the library as a plain callable, so
+a C program can drive the full generator in-process — same flags, same output
+as the command line — without spawning a subprocess. Include `wfm/wfmgen.h`
+and call `doppler_wfmgen(argc, argv)`:
+
+```c
+#include <stddef.h>
+#include "wfm/wfmgen.h"
+
+int main(void)
+{
+    /* identical to: wfmgen --type qpsk --count 4096 --output out.cf32 */
+    char *av[] = { "wfmgen", "--type", "qpsk", "--count", "4096",
+                   "--output", "out.cf32", NULL };
+    return doppler_wfmgen(7, av);   /* 0 on success; writes out.cf32 */
+}
+```
+
+It is the exact code path the `wfmgen` binary runs (which is itself a one-line
+`main` shim over `doppler_wfmgen`), so the output is byte-identical. The zmq
+PUB sink (`--output zmq://…`) is statically linked into the library, so there
+is **no runtime `libzmq` dependency**.
+
+When linking the **static** library, the archive carries only objects, so add
+the transport dependencies to your own link line:
+
+```sh
+gcc -o app app.c -I path/to/doppler/native/inc \
+    libdoppler.a -lzmq_vendor_static -lpthread -lstdc++ -lm
+```
+
+The **shared** library embeds zmq, so linking `-ldoppler` is sufficient.
+
+!!! note "POSIX only"
+
+    `doppler_wfmgen` is built on the same POSIX surface as the `wfmgen` binary
+    (the zmq sink and `--realtime` pacing), so it is not available on Windows.

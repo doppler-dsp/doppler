@@ -24,6 +24,7 @@
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_sink.h"
 #include "wfm/wfm_writer.h"
+#include "wfm/wfmgen.h"
 
 #define BLK 4096
 
@@ -173,8 +174,11 @@ static const char USAGE[]
       "  [--level DB] [--headroom DB] [--clip-report] [--clip-error]\n"
       "  [--output FILE|zmq://EP] [--record FILE]\n";
 
+/* The CLI's whole body lives here as a plain callable (argv in, exit-code out)
+ * so it can be archived into libdoppler and invoked by a downstream linker —
+ * the `wfmgen` binary is a one-line `main` shim over it (wfmgen_main.c). */
 int
-main (int argc, char *argv[])
+doppler_wfmgen (int argc, char *argv[])
 {
   /* single-segment defaults mirror synth/wavegen: one source in one segment */
   wfm_source_t  src    = { .type       = 0,

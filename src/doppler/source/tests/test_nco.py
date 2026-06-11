@@ -164,3 +164,27 @@ def test_reset_zeroes_phase():
     nco.reset()
     assert nco.phase == 0
     assert nco.phase_inc == 0x80000000  # norm_freq unchanged
+
+
+# ── Large single-call output (#116 regression) ───────────────────────
+
+
+def test_steps_u32_large_n_no_overflow():
+    """All NCO steps_* methods size their output buffer to n, not a fixed cap;
+    a large single call must not overflow (regression for #116)."""
+    n = 393_216  # > NCO_MAX_OUT (65536), the crash size
+    assert NCO(norm_freq=0.1).steps_u32(n).shape == (n,)
+    assert NCO(norm_freq=0.1).steps_u32_scaled(n).shape == (n,)
+    ph, ovf = NCO(norm_freq=0.1).steps_u32_ovf(n)
+    assert ph.shape == (n,) and ovf.shape == (n,)
+
+
+def test_steps_u32_large_matches_chunked():
+    """A large steps_u32 equals the same span pulled in chunks."""
+    n = 200_000
+    big = NCO(norm_freq=0.1).steps_u32(n)
+    nco = NCO(norm_freq=0.1)
+    chunked = np.concatenate(
+        [nco.steps_u32(50_000), nco.steps_u32(n - 50_000)]
+    )
+    assert np.array_equal(big, chunked)

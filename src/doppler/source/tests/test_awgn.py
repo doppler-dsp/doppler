@@ -46,3 +46,15 @@ def test_awgn_function_different_seeds():
     a = awgn(256, seed=1)
     b = awgn(256, seed=2)
     assert not np.array_equal(a, b)
+
+
+def test_generate_large_n_no_overflow():
+    """generate(n) past the internal cap sizes its buffer to n (no overflow).
+    AWGN already grew correctly; this pins the behaviour alongside the LO/NCO
+    fix (#116)."""
+    import numpy as np
+
+    n = 393_216
+    g = AWGN(amplitude=0.5).generate(n)
+    assert g.shape == (n,)
+    assert np.isfinite(g).all()

@@ -178,21 +178,35 @@ If you need the C library, examples, or Rust FFI bindings:
     sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
     ```
 
+=== "Arch"
+
+    ```bash
+    sudo pacman -S --needed base-devel cmake python python-numpy
+    ```
+
+=== "Fedora / RHEL"
+
+    ```bash
+    sudo dnf install gcc gcc-c++ make cmake pkgconf-pkg-config python3-devel python3-numpy
+    ```
+
+=== "openSUSE"
+
+    ```bash
+    sudo zypper install gcc gcc-c++ make cmake pkg-config python3-devel python3-numpy
+    ```
+
 === "macOS"
 
     ```bash
     brew install cmake python numpy
     ```
 
-=== "Windows (MSYS2 UCRT64)"
+!!! info "Windows"
 
-    ```bash
-    pacman -S mingw-w64-ucrt-x86_64-gcc \
-              mingw-w64-ucrt-x86_64-cmake \
-              mingw-w64-ucrt-x86_64-python \
-              mingw-w64-ucrt-x86_64-python-numpy \
-              make pkg-config
-    ```
+    doppler does not target Windows natively — build under
+    [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container
+    and follow the Ubuntu / Debian steps.
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler

@@ -172,3 +172,44 @@ def test_reset_zeroes_phase():
     lo.reset()
     assert lo.phase == 0
     assert lo.phase_inc == 0x80000000  # norm_freq unchanged
+
+
+# ── Large single-call output (#116 regression) ───────────────────────
+
+
+def test_steps_large_n_no_overflow():
+    """steps(n) for n past the internal default cap (65536) must not overflow
+    the reuse buffer — it sizes to n. Regression for #116 (segfault at large n).
+    """
+    n = 393_216  # 96 * 4096; > LO_MAX_OUT, the issue's crash size
+    y = LO(norm_freq=0.1).steps(n)
+    assert y.shape == (n,)
+    assert np.allclose(np.abs(y), 1.0, atol=TOL)  # unit-magnitude phasor
+
+
+def test_steps_large_matches_chunked():
+    """A single large steps() equals the same span pulled in chunks (the buffer
+    grows but the phasor sequence is unchanged)."""
+    n = 200_000
+    big = LO(norm_freq=0.1).steps(n)
+    lo = LO(norm_freq=0.1)
+    chunked = np.concatenate([lo.steps(50_000), lo.steps(n - 50_000)])
+    assert np.array_equal(big, chunked)
+
+
+def test_steps_grows_then_reuses():
+    """The buffer grows on a bigger call and is reused (no re-overflow) on a
+    later smaller one."""
+    lo = LO(norm_freq=0.1)
+    assert lo.steps(100_000).shape == (100_000,)  # grow past the cap
+    assert lo.steps(1024).shape == (1024,)  # smaller: reuse, no overflow
+    assert lo.steps(300_000).shape == (300_000,)  # grow again
+
+
+def test_steps_ctrl_large_n():
+    """steps_ctrl sizes its buffer to the control-array length, not a fixed cap."""
+    n = 200_000
+    ctrl = np.zeros(n, dtype=np.float32)
+    y = LO(norm_freq=0.1).steps_ctrl(ctrl)
+    assert y.shape == (n,)
+    assert np.allclose(np.abs(y), 1.0, atol=TOL)

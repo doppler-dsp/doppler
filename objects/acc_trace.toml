@@ -1,0 +1,72 @@
+# acc_trace — per-bin vector trace accumulator.
+#
+# Block-I/O object (opaque handle): folds a length-n power/magnitude frame into
+# a running trace with one of four reduction modes (linear mean, exponential
+# moving average, max-hold, min-hold).  Reusable for spectral averaging,
+# waterfalls/spectrograms, and video-averaged displays.  Composed by Welch.
+
+[acc_trace]
+arg_type = "float"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "AccTrace"
+
+[[acc_trace.init_params]]
+name = "n"
+type = "size_t"
+default = "1024"
+
+[[acc_trace.init_params]]
+name = "mode"
+type = "string_enum:mean,exp,maxhold,minhold"
+default = "mean"
+
+[[acc_trace.init_params]]
+name = "alpha"
+type = "double"
+default = "0.1"
+
+[[acc_trace.methods]]
+name = "accumulate"
+doc = "Fold one length-n frame into the running trace."
+arg_type = "void"
+return_type = "void"
+nogil = true
+params = [{name = "p", type = "float[]"}]
+
+[[acc_trace.methods]]
+name = "reset"
+doc = "Discard the running trace; the next accumulate re-seeds it."
+arg_type = "void"
+return_type = "void"
+
+[[acc_trace.methods]]
+name = "value"
+doc = "Copy the current averaged trace (None before any accumulate)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+none_on_empty = true
+
+[[acc_trace.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[acc_trace.properties]]
+name = "alpha"
+type = "double"
+field = true
+writable = true
+
+[[acc_trace.properties]]
+name = "count"
+type = "size_t"
+expr = "(size_t)self->handle->count"
+
+[[acc_trace.properties]]
+name = "mode"
+type = "int"
+expr = "(int)self->handle->mode"

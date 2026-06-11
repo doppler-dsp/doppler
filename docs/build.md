@@ -9,15 +9,15 @@ make
 ```
 
 Produces the following artifacts in `build/`, `PY_BUILD=src/doppler/<name>/`,
-and `RUST_BUILD=ffi/rust/target` (extensions differ by platform):
+and `RUST_BUILD=ffi/rust/target`:
 
-| Artifact          | Linux/macOS             | Windows (MinGW)      | Description                  |
-| ----------------- | ----------------------- | -------------------- | ---------------------------- |
-| Shared Library    | `libdoppler.so/dylib`   | `libdoppler.dll`     | DSP + streaming              |
-| Static Library    | `libdoppler.a`          | `libdoppler.a`       | Static link (no runtime dep) |
-| Python extensions | `$PY_BUILD/<name>*.so`  | `<name>*.pyd`        | One per module               |
-| C examples        | `transmitter`, …        | `transmitter.exe`, … | Streaming and DSP demos      |
-| Rust examples     | `$RUST_BUILD/*_demo`, … | same                 | NCO, FFT, SIMD, ...          |
+| Artifact          | Linux/macOS             | Description                  |
+| ----------------- | ----------------------- | ---------------------------- |
+| Shared Library    | `libdoppler.so/dylib`   | DSP + streaming              |
+| Static Library    | `libdoppler.a`          | Static link (no runtime dep) |
+| Python extensions | `$PY_BUILD/<name>*.so`  | One per module               |
+| C examples        | `transmitter`, …        | Streaming and DSP demos      |
+| Rust examples     | `$RUST_BUILD/*_demo`, … | NCO, FFT, SIMD, ...          |
 
 And the Python package is in `dist/`:
 `doppler_dsp-*.whl` (plus `*.tar.gz` sdist)
@@ -101,49 +101,48 @@ All dependencies are available via the standard package manager on each
 platform. Minimum versions are declared in `CMakeLists.txt` (C library) and
 `pyproject.toml` (Python bindings).
 
-| Dependency | Ubuntu/Debian   | macOS (Homebrew) | Windows (MSYS2)                 |
-| ---------- | --------------- | ---------------- | ------------------------------- |
-| ZeroMQ     | `libzmq3-dev`   | `zeromq`         | `mingw-w64-x86_64-zeromq`       |
-| FFTW3      | `libfftw3-dev`  | `fftw`           | `mingw-w64-x86_64-fftw`         |
-| CMake      | `cmake`         | `cmake`          | `mingw-w64-x86_64-cmake`        |
-| Python     | `python3-dev`   | `python`         | `mingw-w64-x86_64-python`       |
-| NumPy      | `python3-numpy` | `numpy`          | `mingw-w64-x86_64-python-numpy` |
+| Dependency | Debian/Ubuntu     | Arch           | Fedora/RHEL        | openSUSE           | macOS     |
+| ---------- | ----------------- | -------------- | ------------------ | ------------------ | --------- |
+| Toolchain  | `build-essential` | `base-devel`   | `gcc gcc-c++ make` | `gcc gcc-c++ make` | Xcode CLT |
+| CMake      | `cmake`           | `cmake`        | `cmake`            | `cmake`            | `cmake`   |
+| Python     | `python3-dev`     | `python`       | `python3-devel`    | `python3-devel`    | `python`  |
+| NumPy      | `python3-numpy`   | `python-numpy` | `python3-numpy`    | `python3-numpy`    | `numpy`   |
+| ZeroMQ     | `libzmq3-dev`     | `zeromq`       | `zeromq-devel`     | `zeromq-devel`     | `zeromq`  |
+| FFTW3      | `libfftw3-dev`    | `fftw`         | `fftw-devel`       | `fftw3-devel`      | `fftw`    |
 
-**Ubuntu/Debian:**
+**Debian / Ubuntu:**
 
-```bash
-sudo apt-get install libzmq3-dev libfftw3-dev cmake pkg-config python3-dev python3-numpy
+```sh
+--8<-- "tests/install/build-apt-deps.sh:install"
 ```
 
-**macOS** (all deps available via [Homebrew](https://brew.sh)):
+**Arch** (Manjaro, EndeavourOS, CachyOS):
+
+```sh
+--8<-- "tests/install/build-pacman-deps.sh:install"
+```
+
+**Fedora / RHEL** (Rocky, AlmaLinux):
+
+```sh
+--8<-- "tests/install/build-dnf-deps.sh:install"
+```
+
+**openSUSE** (Leap / Tumbleweed):
+
+```sh
+--8<-- "tests/install/build-zypper-deps.sh:install"
+```
+
+**macOS** (all deps via [Homebrew](https://brew.sh)):
 
 ```bash
 brew install zeromq fftw cmake python numpy
 ```
 
-**Windows (MSYS2 / UCRT64):**
-
-Install [MSYS2](https://www.msys2.org/) and open the **UCRT64** shell
-(not MSYS2, not MinGW64 — the UCRT64 environment uses the modern
-Universal C Runtime and avoids header-mixing issues).
-
-```bash
-pacman -S mingw-w64-ucrt-x86_64-gcc \
-          mingw-w64-ucrt-x86_64-cmake \
-          mingw-w64-ucrt-x86_64-zeromq \
-          mingw-w64-ucrt-x86_64-fftw \
-          mingw-w64-ucrt-x86_64-python \
-          mingw-w64-ucrt-x86_64-python-numpy \
-          mingw-w64-ucrt-x86_64-rust \
-          make pkg-config
-```
-
-> **Why UCRT64?** The MSYS POSIX environment (`/usr/bin/cc`) and the
-> UCRT64 native environment (`/ucrt64/bin/cc`) have incompatible headers.
-> If cmake picks up the wrong `cc` you'll see errors like
-> `expected ';' before 'extern'` in `stddef.h`. Always launch from the
-> UCRT64 shortcut so `/ucrt64/bin` is first on `PATH`, and clear any
-> stale `build/` directory before reconfiguring.
+**Windows** — not supported natively. Build under
+[WSL2](https://learn.microsoft.com/windows/wsl/), a Linux VM, or a container
+using the Ubuntu / Debian packages above.
 
 ### Python Extension: Vendored Dependencies
 
@@ -225,9 +224,7 @@ runs in the C library.
 
 ### Prerequisites
 
-- Rust toolchain — install via the MSYS2 package manager on Windows
-    (`mingw-w64-ucrt-x86_64-rust`) or via [rustup](https://rustup.rs/)
-    on Linux/macOS
+- Rust toolchain — install via [rustup](https://rustup.rs/)
 - The C library built first: `make build`
 
 ### Build and test
@@ -245,18 +242,6 @@ examples run directly without setting `LD_LIBRARY_PATH`:
 ./ffi/rust/target/debug/examples/fft_demo
 ./ffi/rust/target/debug/examples/acc_demo
 ```
-
-**Windows (UCRT64)** — the Rust crate links `libdoppler.a` statically,
-so there is no `libdoppler.dll` runtime dependency. Examples run
-directly from the UCRT64 shell:
-
-```sh
-./ffi/rust/target/debug/examples/nco_demo.exe
-./ffi/rust/target/debug/examples/fft_demo.exe
-```
-
-`zmq.dll` and `fftw3.dll` are still loaded dynamically; they live in
-`/ucrt64/bin/` which is on `PATH` by default in the UCRT64 shell.
 
 The rpath always points at `build/`. After `make install`, use the
 installed system library by passing `-DCMAKE_SKIP_RPATH=ON` or by

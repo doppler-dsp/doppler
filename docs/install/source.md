@@ -5,12 +5,12 @@
 | Tool         | Minimum | Notes                            |
 | ------------ | ------- | -------------------------------- |
 | CMake        | 3.16    |                                  |
-| C compiler   | C11     | GCC, Clang, or MSVC              |
+| C compiler   | C11     | GCC or Clang                     |
 | C++ compiler | C++17   | Required for pocketfft (bundled) |
 
 !!! note "Python extensions"
 
-    `make pyext` additionally requires Python 3.11+ with development
+    `make pyext` additionally requires Python 3.9+ with development
     headers and NumPy.
 
 ### Ubuntu / Debian
@@ -19,32 +19,35 @@
 --8<-- "tests/install/build-apt-deps.sh:install"
 ```
 
+### Arch (incl. Manjaro, EndeavourOS, CachyOS)
+
+```sh
+--8<-- "tests/install/build-pacman-deps.sh:install"
+```
+
+### Fedora / RHEL (incl. Rocky, AlmaLinux)
+
+```sh
+--8<-- "tests/install/build-dnf-deps.sh:install"
+```
+
+### openSUSE (Leap / Tumbleweed)
+
+```sh
+--8<-- "tests/install/build-zypper-deps.sh:install"
+```
+
 ### macOS
 
 ```sh
 --8<-- "tests/install/build-brew-deps.sh:install"
 ```
 
-### Windows (MSYS2 — UCRT64 shell)
+!!! info "Windows"
 
-Install [MSYS2](https://www.msys2.org/) and open the **UCRT64** shell, then:
-
-```sh
-pacman -S mingw-w64-ucrt-x86_64-gcc \
-          mingw-w64-ucrt-x86_64-cmake \
-          mingw-w64-ucrt-x86_64-python \
-          mingw-w64-ucrt-x86_64-python-numpy \
-          make pkg-config
-```
-
-!!! warning "Use the UCRT64 shell, not MSYS"
-
-    The MSYS POSIX compiler (`/usr/bin/cc`) and the UCRT64 native compiler
-    (`/ucrt64/bin/cc`) have incompatible headers. If CMake picks up the
-    wrong one you'll see errors like `expected ';' before 'extern'` in
-    `stddef.h`. Always launch from the **UCRT64** shortcut so
-    `/ucrt64/bin` is first on `PATH`, and delete any stale `build/`
-    directory before reconfiguring.
+    doppler does not target Windows natively. Build and run under
+    [WSL2](https://learn.microsoft.com/windows/wsl/), a Linux VM, or a
+    container, and follow the Ubuntu / Debian steps above.
 
 ## Build
 

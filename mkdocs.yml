@@ -130,6 +130,7 @@ nav:
       - Gallery: gallery/index.md
       - Waveform Generator: gallery/wfmgen.md
       - Waveform Scenes: gallery/wfm-composition.md
+      - WCDMA Carriers: gallery/wcdma-carriers.md
       - Waveform I/O: gallery/wfm-io.md
       - AGC: gallery/agc.md
       - CIC Decimation: gallery/cic.md

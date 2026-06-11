@@ -67,6 +67,43 @@ for chunk in stream_chunks():                     # any chunk size
 
 ______________________________________________________________________
 
+## Averaging PSD & measurements
+
+`Welch` is a stateful Welch-style averaging power-spectral-density estimator.
+Feed complex baseband frames with `accumulate()`; each length-`n` frame is
+windowed, FFT'd, converted to power, fftshifted to DC-centred order and folded
+into a running average ([`AccTrace`](python-accumulator.md), with the same
+`mode` of `"mean"` / `"exp"` / `"maxhold"` / `"minhold"`). Then read the
+averaged spectrum and derived measurements.
+
+```python
+import numpy as np
+from doppler.spectral import Welch, find_peaks_f32
+
+w = Welch(n=1024, fs=1e6, window="kaiser", beta=8.0, mode="mean")
+for frame in frames:                       # each frame: 1024 complex64 samples
+    w.accumulate(frame)
+
+psd_db = w.psd_db()                        # averaged power spectrum, dB
+psd_dbhz = w.psd_dbhz()                    # PSD, dB/Hz (ENBW / fs normalised)
+per_band = w.band_power(np.array([-2e5, -1e5, 1e5, 2e5]))  # dB per band
+total = w.total_band_power(np.array([-2e5, -1e5, 1e5, 2e5]))
+obw = w.occupied_bw(0.99)                  # occupied bandwidth, Hz
+nf = w.noise_floor()                       # median dB level
+snr = w.snr(-1e5, 1e5)                     # peak-in-band minus noise floor, dB
+sfdr = w.sfdr(min_db=-120.0)               # spurious-free dynamic range, dB
+
+# spectral peaks compose with the free function on the averaged trace:
+peaks = find_peaks_f32(w.psd_db(), n_peaks=5, min_db=-60.0)
+```
+
+All spectra are DC-centred, matching `find_peaks_f32`'s bin → frequency
+convention. The PSD getters return `None` until the first frame is accumulated.
+
+::: doppler.spectral.Welch
+
+______________________________________________________________________
+
 ## Spectral helpers
 
 Window functions (`hann_window`, `kaiser_window` + its `kaiser_enbw` equivalent
@@ -100,3 +137,7 @@ peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 ::: doppler.spectral.magnitude_db_cf64
 
 ::: doppler.spectral.find_peaks_f32
+
+::: doppler.spectral.obw_from_power
+
+::: doppler.spectral.noise_floor_db

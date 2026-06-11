@@ -677,6 +677,218 @@ class Detector2D:
 
     def __exit__(self, *args: object) -> None: ...
 
+class Welch:
+    """Create an averaging PSD estimator.
+
+    Parameters
+    ----------
+    n : int, default 1024
+        n constructor parameter.
+    fs : float, default 1.0
+        fs constructor parameter.
+    window : Literal["hann", "kaiser"], default "hann"
+        window constructor parameter.
+    beta : float, default 0.0
+        beta constructor parameter.
+    mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
+        mode constructor parameter.
+    alpha : float, default 0.1
+        alpha constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.spectral import Welch
+    >>> obj = Welch(n=1024, fs=1.0, window="hann", beta=0.0, mode="mean", alpha=0.1)
+
+    """
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+
+    def accumulate(self, x: NDArray[np.complex64]) -> None:
+        """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Complex baseband samples (cf32).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import Welch
+        >>> n = 64
+        >>> w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+        >>> k = 8
+        >>> x = np.exp(2j*np.pi*k*np.arange(n)/n).astype(np.complex64)
+        >>> for _ in range(4):
+        ...     w.accumulate(x)
+        >>> psd = w.psd_db()
+        >>> psd.shape
+        (64,)
+        >>> int(np.argmax(psd)) == n // 2 + k
+        True
+        >>> w.count
+        4
+
+        """
+
+    def reset(self) -> None:
+        """Discard the running average; counters return to zero.
+        """
+
+    def psd_db(self) -> NDArray[np.float32]:
+        """Averaged power spectrum in dB (None before any accumulate).
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n, or 0 if empty.
+        """
+
+    def psd_dbhz(self) -> NDArray[np.float32]:
+        """Averaged power spectral density in dB/Hz (None before any accumulate).
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import Welch
+        >>> w = Welch(n=32, fs=2.0, window="hann", mode="mean")
+        >>> w.accumulate(np.ones(32, dtype=np.complex64))
+        >>> a = w.psd_db(); b = w.psd_dbhz()
+        >>> bool(np.allclose(a - b, (a - b)[0]))   # offset is a constant
+        True
+
+        """
+
+    def band_power(self, bands: NDArray[np.float64]) -> NDArray[np.float32]:
+        """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
+
+        Parameters
+        ----------
+        bands : NDArray[np.float64]
+            Flat [lo,hi,...] band edges, Hz.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            n_bands, or 0 if empty.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.spectral import Welch
+        >>> w = Welch(n=64, fs=1.0, window="hann", mode="mean")
+        >>> w.accumulate(np.ones(64, dtype=np.complex64))
+        >>> pb = w.band_power(np.array([-0.5, 0.0, 0.0, 0.5]))
+        >>> pb.shape
+        (2,)
+
+        """
+
+    def total_band_power(self, bands: NDArray[np.float64]) -> float:
+        """Total integrated power across all bands in dB.
+
+        Parameters
+        ----------
+        bands : NDArray[np.float64]
+            Flat [lo,hi,...] band edges, Hz.
+
+        Returns
+        -------
+        float
+            Total band power in dB (dB floor if empty).
+        """
+
+    def occupied_bw(self, fraction: float) -> float:
+        """Occupied bandwidth in Hz holding the given fraction of total power.
+
+        Parameters
+        ----------
+        fraction : float
+            Power fraction in (0, 1], e.g. 0.99.
+
+        Returns
+        -------
+        float
+            Occupied bandwidth in Hz (0 if empty or no power).
+        """
+
+    def noise_floor(self) -> float:
+        """Median of the averaged dB trace (noise-floor estimate).
+
+        Returns
+        -------
+        float
+            Median dB level (0 if empty).
+        """
+
+    def snr(self, lo_hz: float, hi_hz: float) -> float:
+        """Peak-in-band level minus noise floor, in dB.
+
+        Parameters
+        ----------
+        lo_hz : float
+            Band lower edge, Hz.
+        hi_hz : float
+            Band upper edge, Hz.
+
+        Returns
+        -------
+        float
+            SNR in dB (0 if empty).
+        """
+
+    def sfdr(self, min_db: float) -> float:
+        """Spurious-free dynamic range in dB from the top two peaks.
+
+        Parameters
+        ----------
+        min_db : float
+            Minimum peak level considered, dB.
+
+        Returns
+        -------
+        float
+            Carrier-minus-highest-spur level in dB (0 if fewer than two peaks).
+        """
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    @property
+    def fs(self) -> float:
+        """Fs."""
+
+    @property
+    def enbw(self) -> float:
+        """Enbw."""
+
+    @property
+    def rbw(self) -> float:
+        """Rbw."""
+
+    @property
+    def count(self) -> int:
+        """Count."""
+
+    @property
+    def mode(self) -> int:
+        """Mode."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Welch": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 def kaiser_enbw(w: NDArray[np.float32]) -> float:
     """Kaiser enbw."""
 
@@ -694,3 +906,9 @@ def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: fl
 
 def find_peaks_f32(db: NDArray[np.float32], n_peaks: int, min_db: float) -> Any:
     """Find peaks f32."""
+
+def obw_from_power(pwr: NDArray[np.float64], fs: float, frac: float) -> float:
+    """Obw from power."""
+
+def noise_floor_db(db: NDArray[np.float32]) -> float:
+    """Noise floor db."""

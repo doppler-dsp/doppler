@@ -1,0 +1,158 @@
+# welch — Welch-style averaging PSD estimator and spectral measurement suite.
+#
+# Block-I/O object (opaque handle).  Composes FFT + the spectral window /
+# magnitude_db / find_peaks_f32 free functions + AccTrace (the per-bin power
+# averager).  Accumulate cf32 baseband frames, then read the averaged PSD
+# (dB or dB/Hz) and derived measurements: band power, occupied bandwidth,
+# peaks/SFDR, noise floor and SNR.  Output spectra are DC-centred (fftshift),
+# matching find_peaks_f32's bin->frequency convention.
+
+[welch]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Welch"
+depends_on = ["fft_core", "spectral_core", "acc_trace_core"]
+
+[[welch.init_params]]
+name = "n"
+type = "size_t"
+default = "1024"
+
+[[welch.init_params]]
+name = "fs"
+type = "double"
+default = "1.0"
+
+[[welch.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser"
+default = "hann"
+
+[[welch.init_params]]
+name = "beta"
+type = "float"
+default = "0.0f"
+
+[[welch.init_params]]
+name = "mode"
+type = "string_enum:mean,exp,maxhold,minhold"
+default = "mean"
+
+[[welch.init_params]]
+name = "alpha"
+type = "double"
+default = "0.1"
+
+# ── accumulation ──────────────────────────────────────────────────────────
+[[welch.methods]]
+name = "accumulate"
+doc = "Window, FFT and fold floor(n_in/n) cf32 frames into the average."
+arg_type = "void"
+return_type = "void"
+nogil = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[welch.methods]]
+name = "reset"
+doc = "Discard the running average; counters return to zero."
+arg_type = "void"
+return_type = "void"
+
+# ── PSD trace getters (variable_output, length n) ─────────────────────────
+[[welch.methods]]
+name = "psd_db"
+doc = "Averaged power spectrum in dB (None before any accumulate)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+none_on_empty = true
+
+[[welch.methods]]
+name = "psd_dbhz"
+doc = "Averaged power spectral density in dB/Hz (None before any accumulate)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+none_on_empty = true
+
+# ── band power (split: per-band array + total scalar) ─────────────────────
+[[welch.methods]]
+name = "band_power"
+doc = "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+params = [{name = "bands", type = "double[]"}]
+
+[[welch.methods]]
+name = "total_band_power"
+doc = "Total integrated power across all bands in dB."
+arg_type = "void"
+return_type = "double"
+params = [{name = "bands", type = "double[]"}]
+
+# ── scalar measurements ───────────────────────────────────────────────────
+[[welch.methods]]
+name = "occupied_bw"
+doc = "Occupied bandwidth in Hz holding the given fraction of total power."
+arg_type = "void"
+return_type = "double"
+params = [{name = "fraction", type = "double"}]
+
+[[welch.methods]]
+name = "noise_floor"
+doc = "Median of the averaged dB trace (noise-floor estimate)."
+arg_type = "void"
+return_type = "double"
+
+[[welch.methods]]
+name = "snr"
+doc = "Peak-in-band level minus noise floor, in dB."
+arg_type = "void"
+return_type = "double"
+params = [{name = "lo_hz", type = "double"}, {name = "hi_hz", type = "double"}]
+
+[[welch.methods]]
+name = "sfdr"
+doc = "Spurious-free dynamic range in dB from the top two peaks."
+arg_type = "void"
+return_type = "double"
+params = [{name = "min_db", type = "float"}]
+
+# NB: spectral peaks are obtained idiomatically by composing the existing free
+# function on the averaged trace: find_peaks_f32(w.psd_db(), n_peaks, min_db).
+# No dedicated method — sfdr() below covers the common top-2-peaks measurement.
+
+# ── properties ────────────────────────────────────────────────────────────
+[[welch.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[welch.properties]]
+name = "fs"
+type = "double"
+field = true
+
+[[welch.properties]]
+name = "enbw"
+type = "double"
+field = true
+
+[[welch.properties]]
+name = "rbw"
+type = "double"
+expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
+
+[[welch.properties]]
+name = "count"
+type = "size_t"
+expr = "(size_t)self->handle->avg->count"
+
+[[welch.properties]]
+name = "mode"
+type = "int"
+expr = "(int)self->handle->avg->mode"

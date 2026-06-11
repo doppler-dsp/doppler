@@ -93,6 +93,7 @@ ______________________________________________________________________
 | Flag                    | Meaning                                                                                       |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
 | `--from-file SPEC.json` | run a multi-segment spec (see [Multi-segment](#multi-segment-specs))                          |
+| `--level DB`            | source level in dBFS (≤0); scales the segment by `10^(DB/20)` (SNR-invariant; default 0)      |
 | `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                     |
 | `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip                    |
 | `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                                    |

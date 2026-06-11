@@ -83,7 +83,7 @@ static const char USAGE[]
       "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type "
       "raw|csv|blue|sigmf]\n"
       "  [--endian le|be] [--detached] [--realtime] [--realtime-resync]\n"
-      "  [--headroom DB] [--clip-report] [--clip-error]\n"
+      "  [--level DB] [--headroom DB] [--clip-report] [--clip-error]\n"
       "  [--output FILE|zmq://EP] [--record FILE]\n";
 
 int
@@ -216,6 +216,10 @@ main (int argc, char *argv[])
       else if (!strcmp (a, "--realtime"))
         {
           realtime = 1;
+        }
+      else if (!strcmp (a, "--level"))
+        {
+          seg.level = strtod (NEXT (), NULL);
         }
       else if (!strcmp (a, "--headroom"))
         {

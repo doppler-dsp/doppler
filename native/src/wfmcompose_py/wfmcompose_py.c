@@ -29,8 +29,8 @@
 #include "wfmgen/wfm_sink.h"
 #endif
 
-/* type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off */
-#define _SEG_FMT "idddiIiiKinn"
+/* type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level */
+#define _SEG_FMT "idddiIiiKinnd"
 
 /* Parse a Python list of 12-tuples into a malloc'd wfm_segment_t[].
  * Returns the array (caller frees) and writes the count to *n_out, or NULL on
@@ -60,7 +60,7 @@ _parse_segments (PyObject *list, size_t *n_out)
       if (!PyArg_ParseTuple (t, _SEG_FMT, &s->type, &s->fs, &s->freq, &s->snr,
                              &s->snr_mode, &s->seed, &s->sps, &s->pn_length,
                              &s->pn_poly, &s->lfsr, &s->num_samples,
-                             &s->off_samples))
+                             &s->off_samples, &s->level))
         {
           free (segs);
           return NULL;
@@ -83,7 +83,7 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
       PyObject            *t = Py_BuildValue (
           "(" _SEG_FMT ")", s->type, s->fs, s->freq, s->snr, s->snr_mode,
           s->seed, s->sps, s->pn_length, s->pn_poly, s->lfsr,
-          (Py_ssize_t)s->num_samples, (Py_ssize_t)s->off_samples);
+          (Py_ssize_t)s->num_samples, (Py_ssize_t)s->off_samples, s->level);
       if (!t)
         {
           Py_DECREF (list);

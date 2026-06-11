@@ -220,7 +220,7 @@ with Reader("capture.blue") as r:          # container auto-detected
     x = r.read_all()                        # or block-wise: r.read(4096)
 ```
 
-For a quick raw-only read with no object, [`read_iq`](#read_iq) still works;
+For a quick raw-only read with no object, `read_iq` still works;
 `Reader` is the full container-aware dual. `Writer` pairs with `read_iq` or
 `Reader`; for SigMF, pair a `Writer(..., file_type="sigmf")` data file with
 `sigmf_meta(...)`, and for detached BLUE use `write_blue_header(...)`. The
@@ -277,3 +277,5 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 ::: doppler.wfm.compose.dsss_spread
 
 ::: doppler.wfm.compose.mls_poly
+
+::: doppler.wfm.readback.read_iq

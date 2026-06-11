@@ -1,26 +1,26 @@
-# Waveform Generator — `wavegen` & `wfmgen`
+# Waveform Generator — `wfmgen`
 
 doppler ships a C-first **waveform generator**: one declarative synth engine
-(every algorithm in C, exactly once) exposed three ways —
+(every algorithm in C, exactly once), exposed two ways —
 
-- **`wavegen`** — a quick, single-waveform CLI (generated in three byte-identical
-    faces: a C binary, a Python console script, and a PEP 723 script).
-- **`wfmgen`** — a hand-written C composer for **multi-segment** scenarios, the
-    **BLUE** / **SigMF** containers, and streaming to **ZMQ**.
-- **`doppler.wfm`** — the same engine as a Python API.
+- **`wfmgen`** — the one command-line tool. A single waveform *or* a
+    multi-segment scene, the **raw / CSV / BLUE / SigMF** containers, and
+    streaming to **ZMQ**. (A one-segment run is the simple single-waveform case.)
+- **`doppler.wfm`** — the same engine as a Python API, one import path:
+    `from doppler.wfm import …`.
 
 ![wfmgen engine](../assets/wfmgen_demo.png)
 
-A single-segment `wfmgen` run is **byte-identical** to the same `wavegen` call —
-they share the engine. Start with `wavegen`; reach for `wfmgen` when you need
-multiple segments, BLUE/SigMF, or a ZMQ stream.
+Reach for `--from-file` (or the Python `Composer`) when you need multiple
+segments, mixing, BLUE/SigMF, or a ZMQ stream — otherwise the flags below
+generate a single waveform.
 
 !!! tip "The 30-second version"
 
     ```sh
-    wavegen --type qpsk --snr 12 --count 100000 -o capture.cf32   # 100k QPSK samples @ 12 dB Es/No
-    wavegen --type tone --freq 1e5 --count 4096                    # a tone → stdout (cf32)
-    wavegen --type pn --pn_length 9 --file_type csv -o pn.csv      # length-9 MLS as text
+    wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32   # 100k QPSK samples @ 12 dB Es/No
+    wfmgen --type tone --freq 1e5 --count 4096                    # a tone → stdout (cf32)
+    wfmgen --type pn --pn_length 9 --file_type csv -o pn.csv      # length-9 MLS as text
     ```
 
 ______________________________________________________________________
@@ -28,17 +28,17 @@ ______________________________________________________________________
 ## Installation
 
 ```sh
-pip install doppler-dsp        # → the `wavegen` command + the doppler.wfm API
+pip install doppler-dsp        # → the `wfmgen` command + the doppler.wfm API
 ```
 
-The `wavegen` console script and the `doppler.wfm` Python module install with
-the wheel. The **`wfmgen`** composer binary is POSIX-only (it links the vendored
-ZMQ) and is built from source:
+The wheel ships the self-contained `wfmgen` binary as package data and a
+`wfmgen` console-script — a thin shim that `exec`s it — alongside the
+`doppler.wfm` Python module. To build from source instead:
 
 ```sh
 git clone https://github.com/doppler-dsp/doppler && cd doppler
-cmake -B build -DBUILD_PYTHON=ON && cmake --build build --target wfmgen_cli wavegen
-# binaries: build/native/src/wfmcompose/wfmgen   and   build/wavegen
+cmake -B build -DBUILD_PYTHON=ON && cmake --build build --target wfmgen_cli
+# binary: build/native/src/wfmcompose/wfmgen
 ```
 
 ______________________________________________________________________
@@ -62,7 +62,7 @@ ______________________________________________________________________
 
 ## Parameter reference
 
-### Engine (shared by `wavegen` and `wfmgen`)
+### Engine
 
 | Flag          | Type                      | Default  | Meaning                                                       |
 | ------------- | ------------------------- | -------- | ------------------------------------------------------------- |
@@ -83,12 +83,12 @@ ______________________________________________________________________
 | Flag              | Values                                   | Default | Meaning                                   |
 | ----------------- | ---------------------------------------- | ------- | ----------------------------------------- |
 | `--sample_type`   | `cf32 cf64 ci32 ci16 ci8`                | `cf32`  | wire type; integers are full-scale ±1.0   |
-| `--file_type`     | `raw csv` *(+ `blue sigmf` in `wfmgen`)* | `raw`   | container (see [Containers](#containers)) |
+| `--file_type`     | `raw csv blue sigmf`                     | `raw`   | container (see [Containers](#containers)) |
 | `--endian`        | `le be`                                  | `le`    | byte order (raw/BLUE only; csv is text)   |
-| `--output` / `-o` | path *(or `zmq://…` in `wfmgen`)*        | stdout  | sink                                      |
+| `--output` / `-o` | path *(or `zmq://…`)*                     | stdout  | sink                                      |
 | `--record`        | path                                     | —       | write a JSON record of the resolved run   |
 
-### `wfmgen`-only (the composer)
+### Composer (multi-segment, `--from-file`)
 
 | Flag                    | Meaning                                                                                       |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
@@ -200,9 +200,9 @@ baseband waveform is pure signal generation.
 !!! example "Same QPSK at three references"
 
     ```sh
-    wavegen --type qpsk --snr 10 --snr_mode esno     # 10 dB Es/No (the auto default)
-    wavegen --type qpsk --snr 7  --snr_mode ebno     # 7 dB Eb/No  (= 10 dB Es/No)
-    wavegen --type qpsk --snr 1  --snr_mode fs        # 1 dB over fs (per-sample)
+    wfmgen --type qpsk --snr 10 --snr_mode esno     # 10 dB Es/No (the auto default)
+    wfmgen --type qpsk --snr 7  --snr_mode ebno     # 7 dB Eb/No  (= 10 dB Es/No)
+    wfmgen --type qpsk --snr 1  --snr_mode fs        # 1 dB over fs (per-sample)
     ```
 
 ______________________________________________________________________
@@ -218,9 +218,9 @@ period, balance, and the thumbtack autocorrelation. Supply `--pn_poly` only to
 force a specific tap set.
 
 ```sh
-wavegen --type pn --pn_length 7   --sps 1 --count 127   # one full period (2⁷−1)
-wavegen --type pn --pn_length 11  --sps 4               # length-11 MLS, 4× oversampled
-wavegen --type pn --pn_length 7   --lfsr fibonacci      # Fibonacci realization
+wfmgen --type pn --pn_length 7   --sps 1 --count 127   # one full period (2⁷−1)
+wfmgen --type pn --pn_length 11  --sps 4               # length-11 MLS, 4× oversampled
+wfmgen --type pn --pn_length 7   --lfsr fibonacci      # Fibonacci realization
 ```
 
 `--lfsr` selects the LFSR realization: **`galois`** (default, internal XOR
@@ -276,7 +276,7 @@ ______________________________________________________________________
 | `zmq://tcp://*:5555` | *(`wfmgen` only)* publish to a **ZMQ PUB** endpoint (SIGS wire format) |
 
 ```sh
-wavegen --type tone --count 1000000 | other-tool          # pipe via stdout
+wfmgen --type tone --count 1000000 | other-tool          # pipe via stdout
 wfmgen  --type tone --continuous --output zmq://tcp://*:5555   # stream forever to ZMQ
 ```
 
@@ -365,14 +365,35 @@ composition verbs are orthogonal:
 - **`.add()` sequences** segments in *time*, back-to-back — the multi-segment
     timeline above, built fluently.
 
+```mermaid
+flowchart LR
+    subgraph SEG["Segment — .sum() mixes at the SAME time, one noise floor"]
+        direction TB
+        y1["Synth qpsk · level −12 dBFS"]
+        y2["Synth tone · interferer"]
+        y3["Synth noise · the floor"]
+    end
+    subgraph TL["Timeline — .add() sequences in TIME ▶"]
+        direction LR
+        sA["Segment A"] --> sB["Segment B<br/>(+ trailing gap)"] --> sC["…"]
+    end
+    SEG -- ".add(B, …)" --> sA
+    TL --> COMP["Composer(…).compose()"] --> IQ[("complex64 I/Q")]
+
+    classDef syn fill:#ede7f6,stroke:#5e35b1,color:#000;
+    classDef seg fill:#e3f2fd,stroke:#1565c0,color:#000;
+    class y1,y2,y3 syn;
+    class sA,sB,sC seg;
+```
+
 ```python
-from doppler.wfm.compose import Composer, Segment, qpsk, tone, noise
+from doppler.wfm import Composer, Segment, qpsk, tone, noise
 
 # A scene: a −12 dB QPSK SoI at +50 kHz over a CW interferer, at 15 dB Es/No.
 scene = Segment.sum(
     qpsk(snr=15, snr_mode="esno", level=-12),  # the anchor sets the floor
     tone(freq=5e4),                             # an interferer (level 0 dBFS)
-    n=65536,
+    num_samples=65536,
 )
 
 # Sequence a clean preamble tone, then the scene:
@@ -380,7 +401,7 @@ timeline = Segment("tone", freq=1e5, num_samples=2000, off_samples=500).add(scen
 iq = Composer(timeline).compose()
 ```
 
-Rules of the floor (resolved per segment): an explicit `noise(nf=N)` source
+Rules of the floor (resolved per segment): an explicit `noise(level=N)` source
 fixes it at `N` dBFS; otherwise the first source carrying `snr` is the anchor
 and the floor is `level(anchor) − SNR_fs(anchor)`. Other sources place
 themselves with `level` (a plain dBFS offset); giving a non-anchor *both* `snr`
@@ -422,16 +443,16 @@ its data, or to pin an exact scenario in a test.
 
 ______________________________________________________________________
 
-## The three faces of `wavegen`
+## The three faces of `wfmgen`
 
-`wavegen` is generated by `just-makeit` in three faces that accept the same flags
+`wfmgen` is generated by `just-makeit` in three faces that accept the same flags
 and produce **byte-identical** output:
 
 ```sh
-wavegen --type qpsk --count 4096 -o out.iq            # 1. installed C-backed console script
+wfmgen --type qpsk --count 4096 -o out.iq            # 1. installed C-backed console script
 python -m doppler.wfm.cli --type qpsk --count 4096 # 1b. same, as a module
-python wavegen.py --type qpsk --count 4096            # 2. PEP 723 script (uv run wavegen.py)
-./build/wavegen --type qpsk --count 4096              # 3. standalone C binary
+python wfmgen.py --type qpsk --count 4096            # 2. PEP 723 script (uv run wfmgen.py)
+./build/wfmgen --type qpsk --count 4096              # 3. standalone C binary
 ```
 
 ______________________________________________________________________
@@ -492,10 +513,10 @@ ______________________________________________________________________
 
 ```sh
 # A clean tone at +100 kHz, 1 Msample, 16-bit I/Q to a file
-wavegen --type tone --freq 1e5 --count 1000000 --sample_type ci16 -o tone.ci16
+wfmgen --type tone --freq 1e5 --count 1000000 --sample_type ci16 -o tone.ci16
 
 # Noisy BPSK at 6 dB Eb/No, as CSV for quick inspection
-wavegen --type bpsk --snr 6 --snr_mode ebno --count 2000 --file_type csv -o bpsk.csv
+wfmgen --type bpsk --snr 6 --snr_mode ebno --count 2000 --file_type csv -o bpsk.csv
 
 # A scenario: tone burst, gap, then QPSK — recorded for reproducibility
 wfmgen --from-file scenario.json --record run.json --file_type blue -o scene.blue

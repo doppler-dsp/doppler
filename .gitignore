@@ -5,6 +5,10 @@ __pycache__/
 *.pyc
 *.so
 *.pyd
+# The wfmgen CLI binary CMake bundles into the package for the wheel — a build
+# artifact (platform-specific, rebuilt every build), never committed. The wheel
+# build copies it in at package time; a source checkout regenerates it.
+src/doppler/wfm/_bin/
 .venv/
 compile_commands.json
 ffi/rust/target/

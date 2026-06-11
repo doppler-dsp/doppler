@@ -63,6 +63,8 @@ _Spectral module — public C API._ [More...](#detailed-description)
 |  void | [**kaiser\_window**](#function-kaiser_window) (float \* w, size\_t w\_len, float beta) <br>_Fill_ `w` _with a Kaiser window of shape parameter_`beta` _. I0 is computed via the converging power-series expansion. Increasing_`beta` _raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is normalised so that w[0] = w[N-1] = I0(0)/I0(beta)._ |
 |  void | [**magnitude\_db\_cf32**](#function-magnitude_db_cf32) (const float complex \* x, size\_t x\_len, float \* out, float lin\_floor, float offset\_db) <br>_Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._ |
 |  void | [**magnitude\_db\_cf64**](#function-magnitude_db_cf64) (const double complex \* x, size\_t x\_len, float \* out, double lin\_floor, float offset\_db) <br>_Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of_ [_**magnitude\_db\_cf32()**_](spectral__core_8h.md#function-magnitude_db_cf32) _. Accepts a CF64 input array and a double_`lin_floor` _; output is still F32 because downstream display code typically works in single precision. The formula and_`offset_db` _semantics are identical._ |
+|  double | [**noise\_floor\_db**](#function-noise_floor_db) (const float \* db, size\_t db\_len) <br> |
+|  double | [**obw\_from\_power**](#function-obw_from_power) (const double \* pwr, size\_t pwr\_len, double fs, double frac) <br> |
 
 
 
@@ -359,6 +361,40 @@ void magnitude_db_cf64 (
 
 
         
+
+<hr>
+
+
+
+### function noise\_floor\_db 
+
+```C++
+double noise_floor_db (
+    const float * db,
+    size_t db_len
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function obw\_from\_power 
+
+```C++
+double obw_from_power (
+    const double * pwr,
+    size_t pwr_len,
+    double fs,
+    double frac
+) 
+```
+
+
+
 
 <hr>
 

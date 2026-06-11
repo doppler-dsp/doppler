@@ -8,6 +8,7 @@
 * [**acc\_f32\_state\_t**](structacc__f32__state__t.md)
 * [**acc\_q15\_state\_t**](structacc__q15__state__t.md)
 * [**acc\_q8\_state\_t**](structacc__q8__state__t.md)
+* [**acc\_trace\_state\_t**](structacc__trace__state__t.md)
 * [**adc\_state\_t**](structadc__state__t.md)
 * [**agc\_state\_t**](structagc__state__t.md)
 * [**awgn\_state\_t**](structawgn__state__t.md)
@@ -79,11 +80,6 @@
 * [**resamp\_state\_t**](structresamp__state__t.md)
 
 
-## s
-
-* [**synth\_state\_t**](structsynth__state__t.md)
-
-
 ## u
 
 * [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md)
@@ -91,7 +87,10 @@
 
 ## w
 
+* [**welch\_state\_t**](structwelch__state__t.md)
 * [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)
 * [**wfm\_segment\_t**](structwfm__segment__t.md)
+* [**wfm\_source\_t**](structwfm__source__t.md)
+* [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md)
 
 

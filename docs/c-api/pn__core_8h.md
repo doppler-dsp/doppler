@@ -178,7 +178,7 @@ Heap-allocated state, or NULL on allocation failure.
 
 Caller must call [**pn\_destroy()**](pn__core_8h.md#function-pn_destroy) when done. 
 ```C++
->>> from doppler.wfmgen import PN
+>>> from doppler.wfm import PN
 >>> import numpy as np
 >>> p = PN(poly=96, seed=1, length=7)
 >>> chips = p.generate(127)
@@ -217,7 +217,7 @@ void pn_destroy (
 
 * `state` Pointer to heap-allocated state; may be NULL (no-op). 
 ```C++
->>> from doppler.wfmgen import PN
+>>> from doppler.wfm import PN
 >>> p = PN(poly=96, seed=1, length=7)
 >>> p.destroy()   # explicit teardown; no exception
 ```
@@ -260,7 +260,7 @@ size_t pn_generate (
 
 `n` (the number of chips written; always equal to the request). 
 ```C++
->>> from doppler.wfmgen import PN
+>>> from doppler.wfm import PN
 >>> import numpy as np
 >>> p = PN(poly=96, seed=1, length=7)
 >>> chips = p.generate(127)
@@ -314,7 +314,7 @@ void pn_reset (
 
 * `state` Must be non-NULL. 
 ```C++
->>> from doppler.wfmgen import PN
+>>> from doppler.wfm import PN
 >>> import numpy as np
 >>> p = PN(poly=96, seed=1, length=7)
 >>> a = p.generate(8).copy()

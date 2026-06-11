@@ -64,7 +64,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | ---: | :--- |
 |  void \* | [**dp\_\_buf\_alloc**](#function-dp__buf_alloc) (size\_t bytes, void \*\* handle\_out) <br>_Allocates a double-mapped ring-buffer region of_ `bytes` _._ |
 |  void | [**dp\_\_buf\_free**](#function-dp__buf_free) (void \* addr, size\_t bytes, void \* handle) <br>_Releases a double-mapped region created by dp\_\_buf\_alloc()._  |
-|  size\_t | [**dp\_\_page\_size**](#function-dp__page_size) (void) <br>_Returns the system page size._  |
+|  size\_t | [**dp\_\_page\_size**](#function-dp__page_size) (void) <br>_Returns the granularity the double-mapped views must align to._  |
 
 
 
@@ -215,7 +215,7 @@ static inline void dp__buf_free (
 
 ### function dp\_\_page\_size 
 
-_Returns the system page size._ 
+_Returns the granularity the double-mapped views must align to._ 
 ```C++
 static inline size_t dp__page_size (
     void
@@ -224,6 +224,10 @@ static inline size_t dp__page_size (
 
 
 
+This is the unit the ring-buffer mirror is rounded up to. On POSIX that is the page size. On Windows it is the _allocation granularity_ (64 KiB), which is ≥ dwPageSize: MapViewOfFileEx requires each view's base address to be a multiple of the allocation granularity, so the second (mirror) view at base + bytes is only placeable when `bytes` is a whole multiple of it. Using dwPageSize (4 KiB) here would let a sub-64-KiB buffer pass the size check and then fail to map. 
+
+
+        
 
 <hr>
 ## Macro Definition Documentation

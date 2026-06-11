@@ -24,6 +24,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**acc\_q15\_core.h**](acc__q15__core_8h.md) _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Internally sums each sample into a 64-bit accumulator, which prevents overflow even for very long block lengths. Use get() to read the running total non-destructively, or dump() to read-and-reset in one call._     
         * **dir** [**acc\_q8**](dir_af45fd7415a1bcf5c13e14c3d63a83bf.md)     
             * **file** [**acc\_q8\_core.h**](acc__q8__core_8h.md) _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Internally sums each sample into a 32-bit accumulator, which can hold up to 2^24 maximum-magnitude Q8 samples before overflow. Use get() for a non-destructive read, or dump() to read-and-reset in one atomic call._     
+        * **dir** [**acc\_trace**](dir_51e33d48c4bde6f60a2f27e75677a784.md)     
+            * **file** [**acc\_trace\_core.h**](acc__trace__core_8h.md) _AccTrace — per-bin vector trace accumulator._     
         * **dir** [**accumulator**](dir_06136a2119985c3c219633f937232576.md)     
             * **file** [**accumulator\_core.h**](accumulator__core_8h.md) _Accumulator module — public C API._ 
         * **dir** [**adc**](dir_a6be6b8cb61d5f2be55c0b2f94afbd88.md)     
@@ -106,20 +108,23 @@ Here is a list of all files with brief descriptions:
         * **dir** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md)     
             * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
             * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
-        * **dir** [**synth**](dir_135e4b6b03fee6eda2308471f560474b.md)     
-            * **file** [**synth\_core.h**](synth__core_8h.md) _Synth component API._     
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     
             * **file** [**timing\_core.h**](timing__core_8h.md)     
         * **dir** [**uq15\_to\_f32**](dir_b44b8aae78dd39801a4344596faf709f.md)     
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
             * **file** [**util\_core.h**](util__core_8h.md) _Util module — public C API._     
-        * **dir** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md)     
+        * **dir** [**welch**](dir_aeb9e26b0edb1fd5fc61c8cd35fcdcfb.md)     
+            * **file** [**welch\_core.h**](welch__core_8h.md) _Welch — averaging PSD estimator and spectral measurement suite._     
+        * **dir** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md)     
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
+            * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     
             * **file** [**wfm\_dsp.h**](wfm__dsp_8h.md) _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._     
             * **file** [**wfm\_reader.h**](wfm__reader_8h.md) _Input containers for generated IQ — the dual of wfm\_writer._     
             * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _ZMQ PUB sink for generated IQ (Phase B)._     
             * **file** [**wfm\_writer.h**](wfm__writer_8h.md) _Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta._     
-            * **file** [**wfmgen\_core.h**](wfmgen__core_8h.md) _Wfmgen module — public C API._     
+            * **file** [**wfmgen.h**](wfmgen_8h.md)     
+        * **dir** [**wfm\_synth**](dir_0493917d169dff974fa9eaf690c8d4c9.md)     
+            * **file** [**wfm\_synth\_core.h**](wfm__synth__core_8h.md) _Synth component API._     
         * **file** [**q15\_mac.h**](q15__mac_8h.md) _Static inline Q15 dot-product primitives: scalar fallback and AVX2._     
 

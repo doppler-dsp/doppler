@@ -1,12 +1,12 @@
 
 
-# File wfmgen\_core.h
+# File wfm\_core.h
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfmgen\_core.h**](wfmgen__core_8h.md)
+[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_core.h**](wfm__core_8h.md)
 
-[Go to the source code of this file](wfmgen__core_8h_source.md)
+[Go to the source code of this file](wfm__core_8h_source.md)
 
 _Wfmgen module — public C API._ 
 
@@ -111,7 +111,7 @@ void bpsk_map (
 * `bits_len` Number of elements in `bits`. 
 * `out` Output buffer of at least `bits_len` cf32 elements. 
 ```C++
->>> from doppler.wfmgen import bpsk_map
+>>> from doppler.wfm import bpsk_map
 >>> import numpy as np
 >>> bits = np.array([0, 1, 0, 1], dtype=np.uint8)
 >>> bpsk_map(bits).tolist()
@@ -150,7 +150,7 @@ void qpsk_map (
 * `syms_len` Number of elements in `syms`. 
 * `out` Output buffer of at least `syms_len` cf32 elements. 
 ```C++
->>> from doppler.wfmgen import qpsk_map
+>>> from doppler.wfm import qpsk_map
 >>> import numpy as np
 >>> idx = np.array([0, 1, 2, 3], dtype=np.uint8)
 >>> out = qpsk_map(idx)
@@ -196,7 +196,7 @@ float wfm_awgn_amplitude (
 
 Per-component AWGN amplitude (sigma for one I or Q channel). 
 ```C++
->>> from doppler.wfmgen import wfm_awgn_amplitude
+>>> from doppler.wfm import wfm_awgn_amplitude
 >>> round(float(wfm_awgn_amplitude(10.0, 1.0)), 6)
 0.223607
 >>> round(float(wfm_awgn_amplitude(0.0, 1.0)), 6)
@@ -242,7 +242,7 @@ float wfm_ebno_to_snr_db (
 
 SNR in dB measured over the full sample-rate bandwidth. 
 ```C++
->>> from doppler.wfmgen import wfm_ebno_to_snr_db
+>>> from doppler.wfm import wfm_ebno_to_snr_db
 >>> round(float(wfm_ebno_to_snr_db(10.0, 2, 8.0)), 4)
 3.9794
 >>> round(float(wfm_ebno_to_snr_db(10.0, 1, 8.0)), 4)
@@ -259,5 +259,5 @@ SNR in dB measured over the full sample-rate bandwidth.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfmgen/wfmgen_core.h`
+The documentation for this class was generated from the following file `native/inc/wfm/wfm_core.h`
 

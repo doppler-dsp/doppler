@@ -199,5 +199,5 @@ int wfm_reader_info_t::sample_type;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfmgen/wfm_reader.h`
+The documentation for this class was generated from the following file `native/inc/wfm/wfm_reader.h`
 

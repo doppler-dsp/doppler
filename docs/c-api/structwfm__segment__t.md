@@ -8,7 +8,7 @@
 
 
 
-_One composer segment: a_ `synth` _config + on/off sample counts._[More...](#detailed-description)
+_One composer segment: one or more sources summed over the same span, then a trailing off-time gap._ [More...](#detailed-description)
 
 * `#include <wfm_compose.h>`
 
@@ -36,18 +36,11 @@ _One composer segment: a_ `synth` _config + on/off sample counts._[More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**freq**](#variable-freq)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  int | [**lfsr**](#variable-lfsr)  <br> |
+|  size\_t | [**n\_sources**](#variable-n_sources)  <br> |
 |  size\_t | [**num\_samples**](#variable-num_samples)  <br> |
 |  size\_t | [**off\_samples**](#variable-off_samples)  <br> |
-|  int | [**pn\_length**](#variable-pn_length)  <br> |
-|  uint64\_t | [**pn\_poly**](#variable-pn_poly)  <br> |
-|  uint32\_t | [**seed**](#variable-seed)  <br> |
-|  double | [**snr**](#variable-snr)  <br> |
-|  int | [**snr\_mode**](#variable-snr_mode)  <br> |
-|  int | [**sps**](#variable-sps)  <br> |
-|  int | [**type**](#variable-type)  <br> |
+|  [**wfm\_source\_t**](structwfm__source__t.md) \* | [**sources**](#variable-sources)  <br> |
 
 
 
@@ -95,25 +88,12 @@ _One composer segment: a_ `synth` _config + on/off sample counts._[More...](#det
 ## Detailed Description
 
 
-The nine synth fields mirror `synth_create()` exactly. `num_samples` is the on-time (samples emitted from the synth); `off_samples` is a trailing gap of zeros inserted after the segment (off-time). Durations in seconds are `round(duration * fs)` — the caller resolves them. 
+A 1-source segment is byte-identical to driving that source's `synth` directly. `num_samples` is the on-time; `off_samples` is a trailing gap of zeros. Durations in seconds are `round(duration * fs)` — the caller resolves. 
 
 
     
 ## Public Attributes Documentation
 
-
-
-
-### variable freq 
-
-```C++
-double wfm_segment_t::freq;
-```
-
-
-
-
-<hr>
 
 
 
@@ -130,10 +110,10 @@ double wfm_segment_t::fs;
 
 
 
-### variable lfsr 
+### variable n\_sources 
 
 ```C++
-int wfm_segment_t::lfsr;
+size_t wfm_segment_t::n_sources;
 ```
 
 
@@ -169,88 +149,10 @@ size_t wfm_segment_t::off_samples;
 
 
 
-### variable pn\_length 
+### variable sources 
 
 ```C++
-int wfm_segment_t::pn_length;
-```
-
-
-
-
-<hr>
-
-
-
-### variable pn\_poly 
-
-```C++
-uint64_t wfm_segment_t::pn_poly;
-```
-
-
-
-
-<hr>
-
-
-
-### variable seed 
-
-```C++
-uint32_t wfm_segment_t::seed;
-```
-
-
-
-
-<hr>
-
-
-
-### variable snr 
-
-```C++
-double wfm_segment_t::snr;
-```
-
-
-
-
-<hr>
-
-
-
-### variable snr\_mode 
-
-```C++
-int wfm_segment_t::snr_mode;
-```
-
-
-
-
-<hr>
-
-
-
-### variable sps 
-
-```C++
-int wfm_segment_t::sps;
-```
-
-
-
-
-<hr>
-
-
-
-### variable type 
-
-```C++
-int wfm_segment_t::type;
+wfm_source_t* wfm_segment_t::sources;
 ```
 
 
@@ -259,5 +161,5 @@ int wfm_segment_t::type;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfmgen/wfm_compose.h`
+The documentation for this class was generated from the following file `native/inc/wfm/wfm_compose.h`
 

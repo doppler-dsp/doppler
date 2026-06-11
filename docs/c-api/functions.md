@@ -49,6 +49,12 @@
 * **acc\_q8\_set\_acc** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
 * **acc\_q8\_step** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
 * **acc\_q8\_steps** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
+* **acc\_trace\_accumulate** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **acc\_trace\_create** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **acc\_trace\_destroy** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **acc\_trace\_reset** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **acc\_trace\_value** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **acc\_trace\_value\_max\_out** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **adc\_create** ([**adc\_core.h**](adc__core_8h.md))
 * **adc\_destroy** ([**adc\_core.h**](adc__core_8h.md))
 * **adc\_reset** ([**adc\_core.h**](adc__core_8h.md))
@@ -77,7 +83,7 @@
 
 ## b
 
-* **bpsk\_map** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
+* **bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
 ## c
@@ -162,6 +168,7 @@
 * **dp\_sample\_clock\_reset** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_resync** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_stamp** ([**timing\_core.h**](timing__core_8h.md))
+* **doppler\_wfmgen** ([**wfmgen.h**](wfmgen_8h.md))
 * **dot\_q15\_scalar** ([**q15\_mac.h**](q15__mac_8h.md))
 
 
@@ -331,6 +338,12 @@
 * **nco\_steps\_u32\_ovf\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
+* **noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
+
+
+## o
+
+* **obw\_from\_power** ([**spectral\_core.h**](spectral__core_8h.md))
 
 
 ## p
@@ -345,7 +358,7 @@
 
 ## q
 
-* **qpsk\_map** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
+* **qpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
 ## r
@@ -395,22 +408,6 @@
 * **shr\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q8** ([**arith\_core.h**](arith__core_8h.md))
-* **synth\_create** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_destroy** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_get\_cur\_im** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_get\_cur\_re** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_get\_nsps** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_get\_sym\_pos** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_get\_wtype** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_mls\_poly** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_reset** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_set\_cur\_im** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_set\_cur\_re** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_set\_nsps** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_set\_sym\_pos** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_set\_wtype** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_step** ([**synth\_core.h**](synth__core_8h.md))
-* **synth\_steps** ([**synth\_core.h**](synth__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 
@@ -425,13 +422,32 @@
 
 ## w
 
+* **welch\_accumulate** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_band\_power** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_band\_power\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_create** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_destroy** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_noise\_floor** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_occupied\_bw** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_psd\_db** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_psd\_db\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_psd\_dbhz** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_psd\_dbhz\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_reset** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_sfdr** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_snr** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_total\_band\_power** ([**welch\_core.h**](welch__core_8h.md))
 * **wfm\_compose\_create** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_execute** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_from\_file** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_from\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_segments** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_resolve\_noise** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_spec\_headroom** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_spec\_to\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_awgn\_amplitude** ([**wfm\_core.h**](wfm__core_8h.md))
+* **wfm\_ebno\_to\_snr\_db** ([**wfm\_core.h**](wfm__core_8h.md))
 * **wfm\_dsss\_spread** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
 * **wfm\_rrc\_ntaps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
 * **wfm\_rrc\_taps** ([**wfm\_dsp.h**](wfm__dsp_8h.md))
@@ -439,16 +455,41 @@
 * **wfm\_reader\_info** ([**wfm\_reader.h**](wfm__reader_8h.md))
 * **wfm\_reader\_open** ([**wfm\_reader.h**](wfm__reader_8h.md))
 * **wfm\_reader\_read** ([**wfm\_reader.h**](wfm__reader_8h.md))
+* **wfm\_zmq\_sink\_clip\_fraction** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_zmq\_sink\_close** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_zmq\_sink\_open** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_zmq\_sink\_peak** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_zmq\_sink\_send** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_zmq\_sink\_set\_gain** ([**wfm\_sink.h**](wfm__sink_8h.md))
+* **wfm\_zmq\_sink\_track\_clipping** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **wfm\_blue\_write\_hcb** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_sigmf\_meta\_json** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_clip\_fraction** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_close** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_open** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_peak** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_set\_gain** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_track\_clipping** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_write** ([**wfm\_writer.h**](wfm__writer_8h.md))
-* **wfm\_awgn\_amplitude** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
-* **wfm\_ebno\_to\_snr\_db** ([**wfmgen\_core.h**](wfmgen__core_8h.md))
+* **wfm\_synth\_create** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_destroy** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_get\_cur\_im** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_get\_cur\_re** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_get\_nsps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_get\_sym\_pos** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_get\_wtype** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_mls\_poly** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_reset** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_bits** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_chirp\_span** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_cur\_im** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_cur\_re** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_nsps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_rrc** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_sym\_pos** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_wtype** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_step** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_steps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 
 
 ## _

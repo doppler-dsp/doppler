@@ -125,7 +125,7 @@ dp__page_size (void)
 #ifdef _WIN32
   SYSTEM_INFO si;
   GetSystemInfo (&si);
-  return (size_t)si.dwPageSize;
+  return (size_t)si.dwAllocationGranularity;
 #else
   return (size_t)sysconf (_SC_PAGESIZE);
 #endif
@@ -295,11 +295,18 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
                                                                          \
   static inline dp_##name##_t *dp_##name##_create (size_t n_samples)          \
   {                                                                           \
-    size_t bytes = n_samples * sizeof (type) * 2;                             \
-    if ((n_samples & (n_samples - 1)) != 0)                                   \
+    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
       return NULL;                                                            \
-    if (bytes % dp__page_size () != 0)                                        \
-      return NULL;                                                            \
+    /* sizeof(type)*2 (bytes per complex sample) and the page size are both   \
+       powers of two, and n_samples is a power of two, so the mirror unit is  \
+       a power of two. Rounding n_samples up until the unit reaches one page  \
+       therefore lands on an exact page multiple — capacity stays a power of  \
+       two. */                                                                \
+    size_t page = dp__page_size ();                                           \
+    size_t elem = sizeof (type) * 2;                                          \
+    while (n_samples * elem < page)                                           \
+      n_samples <<= 1;                                                        \
+    size_t bytes = n_samples * elem;                                          \
     void *handle = NULL;                                                      \
     void *addr = dp__buf_alloc (bytes, &handle);                              \
     if (!addr)                                                                \

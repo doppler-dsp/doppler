@@ -2,7 +2,7 @@
 
 # File wfm\_compose.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfmgen**](dir_2784f51dc2a964fe71c3814677da8805.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
+[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
 
 [Go to the documentation of this file](wfm__compose_8h.md)
 
@@ -13,16 +13,15 @@
 #define WFM_COMPOSE_H
 
 #include "clib_common.h"
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    int type;          /* SYNTH_TONE … SYNTH_QPSK */
-    double fs;         /* sample rate (Hz) */
-    double freq;       /* freq offset (Hz) */
+    int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
+    double freq;       /* freq offset (Hz); chirp: start frequency f_start */
     double snr;        /* dB, per snr_mode */
     int snr_mode;      /* 0 auto, 1 fs, 2 ebno, 3 esno */
     uint32_t seed;     /* PRNG / LFSR seed */
@@ -30,9 +29,25 @@ typedef struct {
     int pn_length;     /* LFSR register length */
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
-    size_t num_samples; /* on-time (samples) */
-    size_t off_samples; /* off-time gap after the segment (samples) */
+    double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+    double f_end;      /* chirp end frequency (Hz); ignored by other types */
+    uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
+    size_t n_bits;     /* type=bits: pattern length */
+    int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */
+    int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
+    double rrc_beta;   /* RRC roll-off (pulse=rrc) */
+    int rrc_span;      /* RRC support in symbols (pulse=rrc) */
+} wfm_source_t;
+
+typedef struct {
+    wfm_source_t *sources; /* n_sources sources summed at the same time */
+    size_t n_sources;
+    double fs;             /* sample rate (Hz) — one per segment */
+    size_t num_samples;    /* on-time (samples) */
+    size_t off_samples;    /* off-time gap after the segment (samples) */
 } wfm_segment_t;
+
+int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 typedef struct wfm_compose_state wfm_compose_state_t;
 
@@ -63,8 +78,10 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
  * fall back to the synth defaults.
  */
 
-char *wfm_spec_to_json(
-    const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
+                       int continuous, double headroom);
+
+double wfm_spec_headroom(const char *json);
 
 wfm_compose_state_t *wfm_compose_from_json(const char *json);
 

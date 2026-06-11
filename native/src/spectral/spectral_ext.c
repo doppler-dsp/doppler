@@ -1,7 +1,7 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D
+ * Objects: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, Welch
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -19,6 +19,7 @@
 #include "spectral_ext_corr2d.c"
 #include "spectral_ext_detector.c"
 #include "spectral_ext_detector2d.c"
+#include "spectral_ext_welch.c"
 
 static PyObject *
 _bind_kaiser_enbw(PyObject *self, PyObject *args)
@@ -146,6 +147,40 @@ _bind_find_peaks_f32(PyObject *self, PyObject *args)
     return _lst;
 }
 
+static PyObject *
+_bind_obw_from_power(PyObject *self, PyObject *args)
+{
+    (void)self;
+    PyObject *pwr_obj = NULL;
+    double fs = 0.0;
+    double frac = 0.0;
+    if (!PyArg_ParseTuple(args, "Odd", &pwr_obj, &fs, &frac))
+        return NULL;
+    PyArrayObject *pwr_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        pwr_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
+    if (!pwr_arr) { return NULL; }
+    const double *pwr = (const double *)PyArray_DATA(pwr_arr);
+    size_t pwr_len = (size_t)PyArray_SIZE(pwr_arr);
+    Py_DECREF(pwr_arr);
+    return PyFloat_FromDouble(obw_from_power(pwr, pwr_len, fs, frac));
+}
+
+static PyObject *
+_bind_noise_floor_db(PyObject *self, PyObject *args)
+{
+    (void)self;
+    PyObject *db_obj = NULL;
+    if (!PyArg_ParseTuple(args, "O", &db_obj))
+        return NULL;
+    PyArrayObject *db_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+    if (!db_arr) { return NULL; }
+    const float *db = (const float *)PyArray_DATA(db_arr);
+    size_t db_len = (size_t)PyArray_SIZE(db_arr);
+    Py_DECREF(db_arr);
+    return PyFloat_FromDouble(noise_floor_db(db, db_len));
+}
+
 
 /* ======================================================== */
 /* Module                                                    */
@@ -158,6 +193,8 @@ static PyMethodDef spectral_module_methods[] = {
     {"magnitude_db_cf32", _bind_magnitude_db_cf32, METH_VARARGS, "magnitude_db_cf32."},
     {"magnitude_db_cf64", _bind_magnitude_db_cf64, METH_VARARGS, "magnitude_db_cf64."},
     {"find_peaks_f32", _bind_find_peaks_f32, METH_VARARGS, "find_peaks_f32."},
+    {"obw_from_power", _bind_obw_from_power, METH_VARARGS, "obw_from_power."},
+    {"noise_floor_db", _bind_noise_floor_db, METH_VARARGS, "noise_floor_db."},
     {NULL, NULL, 0, NULL}
 };
 
@@ -179,6 +216,7 @@ PyInit_spectral(void)
     if (PyType_Ready(&Corr2DObjType) < 0) return NULL;
     if (PyType_Ready(&DetectorObjType) < 0) return NULL;
     if (PyType_Ready(&Detector2DObjType) < 0) return NULL;
+    if (PyType_Ready(&WelchObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&spectral_moduledef);
     if (!m) return NULL;
     Py_INCREF(&FFTObjType);
@@ -204,6 +242,10 @@ PyInit_spectral(void)
     Py_INCREF(&Detector2DObjType);
     if (PyModule_AddObject(m, "Detector2D", (PyObject *)&Detector2DObjType) < 0) {
         Py_DECREF(&Detector2DObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&WelchObjType);
+    if (PyModule_AddObject(m, "Welch", (PyObject *)&WelchObjType) < 0) {
+        Py_DECREF(&WelchObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

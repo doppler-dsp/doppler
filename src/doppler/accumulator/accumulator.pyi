@@ -1,4 +1,5 @@
 # accumulator/accumulator.pyi — type stubs for the accumulator C extension.
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -351,5 +352,107 @@ class AccCf64:
         """Release C resources immediately."""
 
     def __enter__(self) -> "AccCf64": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class AccTrace:
+    """Create a length-@p n trace accumulator.
+
+    Parameters
+    ----------
+    n : int, default 1024
+        n constructor parameter.
+    mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
+        mode constructor parameter.
+    alpha : float, default 0.1
+        alpha constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.accumulator import AccTrace
+    >>> obj = AccTrace(n=1024, mode="mean", alpha=0.1)
+
+    """
+    def __init__(self, n: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+
+    def accumulate(self, p: NDArray[np.float32]) -> None:
+        """Fold one length-n frame into the running trace.
+
+        Parameters
+        ----------
+        p : NDArray[np.float32]
+            Input frame (float32).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccTrace
+        >>> acc = AccTrace(n=4, mode="mean")
+        >>> acc.accumulate(np.array([1, 3, 5, 7], dtype=np.float32))
+        >>> acc.accumulate(np.array([3, 5, 7, 9], dtype=np.float32))
+        >>> acc.value().tolist()
+        [2.0, 4.0, 6.0, 8.0]
+
+        """
+
+    def reset(self) -> None:
+        """Discard the running trace; the next accumulate re-seeds it.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccTrace
+        >>> acc = AccTrace(n=4, mode="mean")
+        >>> acc.accumulate(np.ones(4, dtype=np.float32))
+        >>> acc.reset()
+        >>> acc.count
+        0
+
+        """
+
+    def value(self) -> NDArray[np.float32]:
+        """Copy the current averaged trace (None before any accumulate).
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Number of samples written (n, or 0 if empty).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.accumulator import AccTrace
+        >>> acc = AccTrace(n=3, mode="maxhold")
+        >>> acc.accumulate(np.array([1, 5, 2], dtype=np.float32))
+        >>> acc.accumulate(np.array([4, 3, 6], dtype=np.float32))
+        >>> acc.value().tolist()
+        [4.0, 5.0, 6.0]
+
+        """
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    @property
+    def alpha(self) -> float:
+        """Alpha."""
+    @alpha.setter
+    def alpha(self, value: float) -> None: ...
+
+    @property
+    def count(self) -> int:
+        """Count."""
+
+    @property
+    def mode(self) -> int:
+        """Mode."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "AccTrace": ...
 
     def __exit__(self, *args: object) -> None: ...

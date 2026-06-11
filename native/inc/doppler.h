@@ -41,6 +41,8 @@ extern "C" {
 
 #include "acc_cf64/acc_cf64_core.h"
 
+#include "acc_trace/acc_trace_core.h"
+
 #include "fir/fir_core.h"
 
 #include "hbdecim_q15/hbdecim_q15_core.h"
@@ -68,6 +70,8 @@ extern "C" {
 #include "detector/detector_core.h"
 
 #include "detector2d/detector2d_core.h"
+
+#include "welch/welch_core.h"
 
 #include "ddc/ddc_core.h"
 

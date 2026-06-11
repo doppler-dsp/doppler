@@ -10,7 +10,8 @@ target_include_directories(wfm_cjson PUBLIC ${CMAKE_SOURCE_DIR}/vendor/cjson)
 # ── composer + JSON spec ─────────────────────────────────────────────────────
 add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_compose.c
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_json.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_json.c
+    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_resolve.c)
 target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfmgen

@@ -130,8 +130,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
       free (s);
       return NULL;
     }
-  /* Deep-copy each segment's source list; track the widest for syn/gain. */
-  size_t max_src = 1;
+  /* Deep-copy each segment's source list. */
   for (size_t i = 0; i < n_segs; i++)
     {
       s->segs[i] = segs[i]; /* scalar fields (the sources ptr is replaced) */
@@ -147,9 +146,22 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
         }
       for (size_t k = 0; k < ns; k++)
         s->segs[i].sources[k] = segs[i].sources[k];
-      if (ns > max_src)
-        max_src = ns;
     }
+  /* Resolve the per-segment noise model on the copy (may append a noise
+   * source) — runs here so every face resolves identically. No-op at 1 src. */
+  if (wfm_resolve_noise (s->segs, n_segs) != 0)
+    {
+      for (size_t i = 0; i < n_segs; i++)
+        free (s->segs[i].sources);
+      free (s->segs);
+      free (s);
+      return NULL;
+    }
+  /* Widest (post-resolve) source list sizes the syn/gain arrays. */
+  size_t max_src = 1;
+  for (size_t i = 0; i < n_segs; i++)
+    if (s->segs[i].n_sources > max_src)
+      max_src = s->segs[i].n_sources;
   s->syn     = calloc (max_src, sizeof (*s->syn));
   s->gain    = malloc (max_src * sizeof (*s->gain));
   s->scratch = malloc (SCRATCH_CAP * sizeof (*s->scratch));

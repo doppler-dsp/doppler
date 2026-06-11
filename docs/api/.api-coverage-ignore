@@ -49,3 +49,5 @@ doppler.wfm.qpsk_map
 doppler.wfm.wfm_awgn_amplitude
 doppler.wfm.wfm_ebno_to_snr_db
 doppler.wfm.compose.Timeline
+doppler.wfm._SynthEngine
+doppler.wfm.Timeline

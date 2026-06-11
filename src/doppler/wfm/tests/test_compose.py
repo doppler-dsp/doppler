@@ -610,7 +610,9 @@ def test_segment_level():
 def test_sum_compose_basic():
     """Segment.sum mixes sources over one span; the C resolver adds the floor."""
     seg = Segment.sum(
-        qpsk(snr=15, snr_mode="esno"), tone(freq=2e5, level=-12), n=4096
+        qpsk(snr=15, snr_mode="esno"),
+        tone(freq=2e5, level=-12),
+        num_samples=4096,
     )
     assert len(seg.sources) == 2
     x = Composer([seg]).compose()
@@ -624,7 +626,7 @@ def test_sum_json_roundtrip():
     seg = Segment.sum(
         qpsk(snr=12, snr_mode="esno", seed=3),
         tone(freq=1.5e5, level=-10),
-        n=8192,
+        num_samples=8192,
     )
     js = Composer([seg]).to_json()
     s0 = json.loads(js)["segments"][0]
@@ -643,7 +645,9 @@ def test_sum_one_source_equals_bare():
     byte-identical to the plain Composer(qpsk, snr=15) — the bundled AWGN that
     cannot be split is preserved through the nested-tuple path.
     """
-    a = Composer([Segment.sum(qpsk(snr=15, seed=9), n=4096)]).compose()
+    a = Composer(
+        [Segment.sum(qpsk(snr=15, seed=9), num_samples=4096)]
+    ).compose()
     b = Composer(type="qpsk", snr=15.0, seed=9, num_samples=4096).compose()
     assert np.array_equal(a, b)
 
@@ -657,7 +661,7 @@ def test_sum_floor_power():
     seg = Segment.sum(
         tone(freq=0.0, snr=15.0, snr_mode="fs"),  # anchor → floor at -15 dBFS
         tone(freq=3e5, level=-120),  # negligible 2nd source (forces a sum)
-        n=200_000,
+        num_samples=200_000,
     )
     x = Composer([seg]).compose().astype(np.complex128)
     snr_db = 10 * np.log10(abs(x.mean()) ** 2 / x.var())
@@ -665,11 +669,11 @@ def test_sum_floor_power():
 
 
 def test_sum_explicit_noise_floor():
-    """noise(nf=N) sets the floor directly at N dBFS (no anchor needed)."""
+    """noise(level=N) sets the floor directly at N dBFS (no anchor needed)."""
     seg = Segment.sum(
         tone(freq=0.0, level=-120),  # negligible signal
-        noise(nf=-13.0),  # explicit floor
-        n=200_000,
+        noise(level=-13.0),  # explicit floor
+        num_samples=200_000,
     )
     x = Composer([seg]).compose().astype(np.complex128)
     assert np.isclose(x.var(), 10 ** (-13.0 / 10), rtol=5e-2)
@@ -681,7 +685,7 @@ def test_sum_cli_parity(tmp_path):
     seg = Segment.sum(
         qpsk(snr=12, snr_mode="esno", seed=3),
         tone(freq=1.5e5, level=-10),
-        n=8192,
+        num_samples=8192,
     )
     spec = tmp_path / "sum.json"
     spec.write_text(Composer([seg]).to_json())
@@ -707,7 +711,7 @@ def test_sum_reject_overspecified():
     seg = Segment.sum(
         qpsk(snr=10),  # anchor
         tone(snr=5, level=-3),  # over-specified: snr AND level
-        n=4096,
+        num_samples=4096,
     )
     with pytest.raises(Exception):
         Composer([seg]).compose()
@@ -716,7 +720,7 @@ def test_sum_reject_overspecified():
 def test_sum_needs_a_source():
     """Segment.sum with no sources is rejected up front."""
     with pytest.raises(ValueError):
-        Segment.sum(n=1024)
+        Segment.sum(num_samples=1024)
 
 
 # ── Phase 5: .add() timeline ergonomics ──────────────────────────────────────
@@ -725,7 +729,7 @@ def test_sum_needs_a_source():
 def test_add_builds_timeline_equal_to_list():
     """seg.add(other) composes identically to the explicit segment list."""
     a = Segment("tone", freq=1e5, num_samples=1000, off_samples=500)
-    b = Segment.sum(qpsk(snr=15), tone(level=-12), n=4096)
+    b = Segment.sum(qpsk(snr=15), tone(level=-12), num_samples=4096)
     tl = a.add(b)
     assert isinstance(tl, Timeline) and len(tl) == 2
     assert np.array_equal(Composer(tl).compose(), Composer([a, b]).compose())
@@ -754,7 +758,7 @@ def test_composer_accepts_lone_segment_and_timeline():
 def test_timeline_json_roundtrip():
     """A timeline round-trips through JSON like any segment list."""
     tl = Segment("tone", freq=1e5, num_samples=300).add(
-        Segment.sum(qpsk(snr=12), tone(level=-9), n=512)
+        Segment.sum(qpsk(snr=12), tone(level=-9), num_samples=512)
     )
     js = Composer(tl).to_json()
     assert np.array_equal(

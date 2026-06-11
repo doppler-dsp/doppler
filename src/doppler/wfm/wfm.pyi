@@ -70,7 +70,7 @@ class PN:
 
     def __exit__(self, *args: object) -> None: ...
 
-class Synth:
+class _SynthEngine:
     """Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source.  One call to wfm_synth_step() or wfm_synth_steps() advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When ``snr_mode`` is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
 
     Parameters
@@ -100,8 +100,8 @@ class Synth:
     --------
     Create with defaults:
 
-    >>> from doppler.wfm import Synth
-    >>> obj = Synth(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois")
+    >>> from doppler.wfm import _SynthEngine
+    >>> obj = _SynthEngine(type="tone", fs=1000000.0, freq=0.0, snr=100.0, snr_mode="auto", seed=1, sps=8, pn_length=7, pn_poly=0, lfsr="galois")
     >>> obj.get_wtype()
     0
     >>> obj.get_nsps()
@@ -117,9 +117,9 @@ class Synth:
 
         Examples
         --------
-        >>> from doppler.wfm import Synth
+        >>> from doppler.wfm import _SynthEngine
         >>> import numpy as np
-        >>> s = Synth(type="qpsk", sps=4, seed=1, snr=100.0)
+        >>> s = _SynthEngine(type="qpsk", sps=4, seed=1, snr=100.0)
         >>> a = s.steps(16).copy()
         >>> s.reset()
         >>> np.array_equal(a, s.steps(16))
@@ -145,9 +145,9 @@ class Synth:
 
         Examples
         --------
-        >>> from doppler.wfm import Synth
+        >>> from doppler.wfm import _SynthEngine
         >>> import numpy as np
-        >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
+        >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
         >>> x = s.steps(4)
         >>> x.shape, x.dtype
         ((4,), dtype('complex64'))
@@ -159,7 +159,7 @@ class Synth:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Synth": ...
+    def __enter__(self) -> "_SynthEngine": ...
 
     def __exit__(self, *args: object) -> None: ...
 

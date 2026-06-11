@@ -2,7 +2,7 @@
 arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
-class_name = "Synth"
+class_name = "_SynthEngine"
 depends_on = ["lo", "awgn", "pn"]
 impl = """
 if (state->wtype >= WFM_SYNTH_PN) {

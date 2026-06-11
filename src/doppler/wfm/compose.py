@@ -34,6 +34,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _wfmcompose as _c
+from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
 _TYPES = ("tone", "noise", "pn", "bpsk", "qpsk")
@@ -54,24 +55,33 @@ def _idx(name: str, table: tuple[str, ...], what: str) -> int:
 
 
 @dataclass
-class Source:
-    """One additive source within a :meth:`Segment.sum` segment.
+class Synth:
+    """One waveform — the single object that both **generates** and **composes**.
 
-    Mirrors the C ``wfm_source_t``: a ``synth`` configuration plus a ``level``,
-    but **no** ``fs`` (the sample rate is the segment's — one receiver, one
-    rate) and no on/off counts (those are the segment's too). Build one with the
-    :func:`tone` / :func:`qpsk` / :func:`bpsk` / :func:`pn` / :func:`noise`
-    helpers rather than by hand.
+    A ``Synth`` *is* the configuration of a waveform (tone / noise / PN / BPSK /
+    QPSK). Use it two ways with the same object:
 
-    ``snr`` lives on the source because it is self-referential — ``snr_mode``'s
-    Eb/No needs this source's bits/symbol and samples/symbol. In a multi-source
-    segment the composer resolves all the per-source SNRs into one shared noise
-    floor (see :meth:`Segment.sum`); a lone source keeps its bundled AWGN.
+    - **Generate now:** :meth:`steps` / :meth:`step` lazily spin the C engine and
+      return samples. :meth:`reset` rewinds it.
+    - **Compose:** pass one or more into :meth:`Segment.sum` to mix them over a
+      shared noise floor. Composition reads the config only — it spins **no**
+      engine, so summing N synths allocates nothing extra.
+
+    Build with the :func:`tone` / :func:`qpsk` / :func:`bpsk` / :func:`pn` /
+    :func:`noise` helpers, or construct directly.
+
+    ``snr`` is per-synth because it is self-referential — ``snr_mode``'s Eb/No
+    needs this waveform's bits/symbol and samples/symbol. In a multi-source
+    :meth:`Segment.sum` the composer resolves the per-synth SNRs into one shared
+    floor; a lone synth keeps its bundled AWGN.
 
     Parameters
     ----------
     type : {"tone", "noise", "pn", "bpsk", "qpsk"}
         Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS).
+    fs : float
+        Sample rate (Hz) for standalone generation. Ignored when the synth is
+        used in a :class:`Segment` — the segment owns the rate.
     freq : float
         Carrier/offset frequency (Hz).
     snr : float
@@ -83,11 +93,20 @@ class Source:
     sps, pn_length, pn_poly, lfsr
         PN/PSK data-source parameters (see :class:`Segment`).
     level : float
-        Source level in dBFS (``<= 0``); its output is scaled by
-        ``10 ** (level / 20)``. For a ``noise`` source this *is* the floor.
+        Level in dBFS (``<= 0``) applied **in composition** — the synth's output
+        is scaled by ``10 ** (level / 20)``; for a ``noise`` synth this *is* the
+        floor. Standalone :meth:`steps` generates at unit power (``level`` is a
+        composition concern), so it is byte-identical to the bare engine.
+
+    Examples
+    --------
+    >>> from doppler.wfm import Synth
+    >>> Synth(type="tone", fs=1.0, freq=0.0).steps(4).tolist()
+    [(1+0j), (1+0j), (1+0j), (1+0j)]
     """
 
     type: str = "tone"
+    fs: float = 1e6
     freq: float = 0.0
     snr: float = 100.0
     snr_mode: str = "auto"
@@ -97,6 +116,49 @@ class Source:
     pn_poly: int = 0
     lfsr: str = "galois"
     level: float = 0.0
+
+    def __post_init__(self):
+        # Validate the string-enum fields eagerly (cheap, no engine spun) so a
+        # bad spec fails at construction, not lazily on the first ``steps``.
+        _idx(self.type, _TYPES, "type")
+        _idx(self.snr_mode, _MODES, "snr_mode")
+        _idx(self.lfsr, _LFSRS, "lfsr")
+
+    def _engine(self):
+        """Build the backing C engine (no ``level`` — that is composition)."""
+        return _SynthEngine(
+            type=self.type,
+            fs=self.fs,
+            freq=self.freq,
+            snr=self.snr,
+            snr_mode=self.snr_mode,
+            seed=self.seed,
+            sps=self.sps,
+            pn_length=self.pn_length,
+            pn_poly=self.pn_poly,
+            lfsr=self.lfsr,
+        )
+
+    def _lazy(self):
+        eng = getattr(self, "_eng", None)
+        if eng is None:
+            eng = self._eng = self._engine()
+        return eng
+
+    def steps(self, n: int) -> NDArray[np.complex64]:
+        """Generate ``n`` cf32 samples (spins the engine on first use)."""
+        return self._lazy().steps(n)
+
+    def step(self):
+        """Generate one cf32 sample (spins the engine on first use)."""
+        return self._lazy().step()
+
+    def reset(self) -> None:
+        """Rewind the engine so generation repeats from sample 0 (no-op if it
+        has not generated yet)."""
+        eng = getattr(self, "_eng", None)
+        if eng is not None:
+            eng.reset()
 
     def _tuple(self) -> tuple:
         """Fixed-order 10-tuple consumed by the C binding (enums → ints)."""
@@ -114,7 +176,7 @@ class Source:
         )
 
     @classmethod
-    def _from_tuple(cls, t: tuple) -> "Source":
+    def _from_tuple(cls, t: tuple) -> "Synth":
         return cls(
             type=_TYPES[t[0]],
             freq=t[1],
@@ -129,29 +191,29 @@ class Source:
         )
 
 
-def tone(freq: float = 0.0, **kw) -> Source:
-    """A continuous-wave tone source at ``freq`` Hz (see :class:`Source`)."""
-    return Source(type="tone", freq=freq, **kw)
+def tone(freq: float = 0.0, **kw) -> Synth:
+    """A continuous-wave tone :class:`Synth` at ``freq`` Hz."""
+    return Synth(type="tone", freq=freq, **kw)
 
 
-def bpsk(**kw) -> Source:
-    """A BPSK source (see :class:`Source`)."""
-    return Source(type="bpsk", **kw)
+def bpsk(**kw) -> Synth:
+    """A BPSK :class:`Synth`."""
+    return Synth(type="bpsk", **kw)
 
 
-def qpsk(**kw) -> Source:
-    """A QPSK source (see :class:`Source`)."""
-    return Source(type="qpsk", **kw)
+def qpsk(**kw) -> Synth:
+    """A QPSK :class:`Synth`."""
+    return Synth(type="qpsk", **kw)
 
 
-def pn(**kw) -> Source:
-    """A PN/MLS chip source (see :class:`Source`)."""
-    return Source(type="pn", **kw)
+def pn(**kw) -> Synth:
+    """A PN/MLS chip :class:`Synth`."""
+    return Synth(type="pn", **kw)
 
 
-def noise(nf: float = 0.0, **kw) -> Source:
-    """An AWGN noise-floor source at ``nf`` dBFS (sets the segment floor)."""
-    return Source(type="noise", level=nf, **kw)
+def noise(level: float = 0.0, **kw) -> Synth:
+    """An AWGN noise-floor :class:`Synth` at ``level`` dBFS (the segment floor)."""
+    return Synth(type="noise", level=level, **kw)
 
 
 @dataclass
@@ -189,7 +251,7 @@ class Segment:
     off_samples : int
         Trailing zero gap after the segment (samples).
     level : float
-        Source level in dBFS (``<= 0``); the segment's output is scaled by
+        Segment level in dBFS (``<= 0``); the segment's output is scaled by
         ``10 ** (level / 20)``. Default ``0`` (unit power) is a bit-exact no-op,
         so the segment's internal SNR is preserved.
     """
@@ -207,35 +269,40 @@ class Segment:
     num_samples: int = 1024
     off_samples: int = 0
     level: float = 0.0
-    sources: list[Source] | None = None
+    sources: list[Synth] | None = None
 
     @classmethod
     def sum(
         cls,
-        *sources: Source,
-        n: int,
+        *sources: Synth,
+        num_samples: int,
         off: int = 0,
         fs: float = 1e6,
     ) -> "Segment":
-        """Sum several :class:`Source` together over the same ``n`` samples.
+        """Mix several :class:`Synth` together over the same ``num_samples``.
 
-        The sources mix at the same time (one receiver), so they share one
-        sample rate ``fs`` and one noise floor: per-source ``snr`` resolves to a
-        single AWGN source in C (see :class:`Source`). ``off`` is the trailing
+        The synths mix at the same time (one receiver), so they share one
+        sample rate ``fs`` and one noise floor: per-synth ``snr`` resolves to a
+        single AWGN source in C (see :class:`Synth`). ``off`` is the trailing
         gap. This is the multi-source counterpart of the single-source
         :class:`Segment` constructor.
 
         Examples
         --------
-        >>> from doppler.wfm.compose import Segment, qpsk, tone
-        >>> seg = Segment.sum(qpsk(snr=15), tone(freq=2e5, level=-12), n=4096)
+        >>> from doppler.wfm import Segment, qpsk, tone
+        >>> seg = Segment.sum(
+        ...     qpsk(snr=15), tone(freq=2e5, level=-12), num_samples=4096
+        ... )
         >>> len(seg.sources)
         2
         """
         if not sources:
-            raise ValueError("Segment.sum needs at least one source")
+            raise ValueError("Segment.sum needs at least one synth")
         return cls(
-            num_samples=n, off_samples=off, fs=fs, sources=list(sources)
+            num_samples=num_samples,
+            off_samples=off,
+            fs=fs,
+            sources=list(sources),
         )
 
     def _tuple(self) -> tuple:
@@ -276,7 +343,7 @@ class Segment:
                 num_samples=num,
                 off_samples=off,
                 fs=fs,
-                sources=[Source._from_tuple(st) for st in srclist],
+                sources=[Synth._from_tuple(st) for st in srclist],
             )
         return cls(
             type=_TYPES[t[0]],
@@ -303,9 +370,9 @@ class Segment:
 
         Examples
         --------
-        >>> from doppler.wfm.compose import Composer, Segment, qpsk, tone
+        >>> from doppler.wfm import Composer, Segment, qpsk, tone
         >>> tl = Segment("tone", freq=1e5, num_samples=1000).add(
-        ...     Segment.sum(qpsk(snr=15), tone(level=-12), n=4096)
+        ...     Segment.sum(qpsk(snr=15), tone(level=-12), num_samples=4096)
         ... )
         >>> len(Composer(tl).compose())
         5096

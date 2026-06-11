@@ -30,7 +30,7 @@ objects = ["nco", "lo", "awgn"]
 extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.wfmgen]
-objects = ["pn", "synth"]
+objects = ["pn", "wfm_synth"]
 extra_link_libs = ["lo_core", "awgn_core"]
 
 [[module.wfmgen.functions]]
@@ -580,5 +580,5 @@ type = "int"
 [app]
 target = "pep723"
 name = "wavegen"
-object = "synth"
+object = "wfm_synth"
 module = "wfmgen"

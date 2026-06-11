@@ -10,7 +10,7 @@ import pytest
 
 from doppler.wfmgen import PN
 
-# Right-shift Galois primitive polynomials (the synth_mls_poly table) — each
+# Right-shift Galois primitive polynomials (the wfm_synth_mls_poly table) — each
 # yields a maximum-length sequence for its register length.
 POLY = {5: 0x12, 7: 0x41, 9: 0x108}
 

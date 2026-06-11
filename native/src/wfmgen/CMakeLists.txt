@@ -7,7 +7,7 @@ Python3_add_library(wfmgen MODULE WITH_SOABI wfmgen_ext.c)
 target_link_libraries(wfmgen PRIVATE
     wfmgen_core
     pn_core
-    synth_core
+    wfm_synth_core
     lo_core
     awgn_core
     Python3::NumPy)

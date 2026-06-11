@@ -32,7 +32,7 @@
 #define WFM_COMPOSE_H
 
 #include "clib_common.h"
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,13 +41,13 @@ extern "C" {
 /**
  * @brief One additive source within a segment: a `synth` config + its level.
  *
- * The nine synth fields mirror `synth_create()` (minus `fs`, which is the
+ * The nine synth fields mirror `wfm_synth_create()` (minus `fs`, which is the
  * segment's — one receiver, one sample rate). `level` is the source's average
  * power in dBFS (≤0); the segment sums its sources, each scaled by
  * `10^(level/20)`.
  */
 typedef struct {
-    int type;          /* SYNTH_TONE … SYNTH_QPSK */
+    int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_QPSK */
     double freq;       /* freq offset (Hz) */
     double snr;        /* dB, per snr_mode */
     int snr_mode;      /* 0 auto, 1 fs, 2 ebno, 3 esno */
@@ -80,8 +80,8 @@ typedef struct {
  *
  * No-op for 1-source segments (keeps the bundled-synth path byte-identical).
  * For a multi-source segment it sets one shared noise floor (from an explicit
- * SYNTH_NOISE source, else the first snr-bearing source), cleans the signal
- * sources, and appends a SYNTH_NOISE source at the floor — so the composer's
+ * WFM_SYNTH_NOISE source, else the first snr-bearing source), cleans the signal
+ * sources, and appends a WFM_SYNTH_NOISE source at the floor — so the composer's
  * accumulator just sums. May `realloc` each segment's `sources`. Idempotent.
  *
  * `wfm_compose_create()` calls this on its private copy, so every face (CLI,

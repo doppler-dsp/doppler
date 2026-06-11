@@ -1,4 +1,4 @@
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -34,56 +34,57 @@ _almost_eq_c (float complex a, float complex b, float tol)
 int
 main (void)
 {
-  int            _fails = 0;
-  synth_state_t *obj
-      = synth_create (0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
+  int                _fails = 0;
+  wfm_synth_state_t *obj
+      = wfm_synth_create (0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
   CHECK (obj != NULL);
   if (!obj)
     return 1;
 
   /* step: verify it runs without crashing */
-  (void)synth_step (obj);
+  (void)wfm_synth_step (obj);
 
   /* reset */
-  synth_reset (obj);
+  wfm_synth_reset (obj);
 
-  /* ── clean (snr >= SYNTH_SNR_CLEAN) generates no AWGN; baseband no LO ── */
+  /* ── clean (snr >= WFM_SYNTH_SNR_CLEAN) generates no AWGN; baseband no LO ──
+   */
   {
     /* clean tone with a freq offset: LO present, no AWGN */
-    synth_state_t *c
-        = synth_create (SYNTH_TONE, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0);
+    wfm_synth_state_t *c
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0);
     CHECK (c && c->awgn == NULL && c->lo != NULL);
     if (c)
-      synth_destroy (c);
+      wfm_synth_destroy (c);
 
     /* noisy tone: AWGN present */
-    synth_state_t *nz
-        = synth_create (SYNTH_TONE, 1e6, 1e5, 10.0, 0, 1, 8, 7, 0, 0);
+    wfm_synth_state_t *nz
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 1e5, 10.0, 0, 1, 8, 7, 0, 0);
     CHECK (nz && nz->awgn != NULL);
     if (nz)
-      synth_destroy (nz);
+      wfm_synth_destroy (nz);
 
     /* baseband (freq 0): no LO */
-    synth_state_t *bb
-        = synth_create (SYNTH_TONE, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
+    wfm_synth_state_t *bb
+        = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
     CHECK (bb && bb->lo == NULL && bb->awgn == NULL);
     if (bb)
-      synth_destroy (bb);
+      wfm_synth_destroy (bb);
 
     /* noise type always has AWGN, even at high snr */
-    synth_state_t *ns
-        = synth_create (SYNTH_NOISE, 1e6, 0.0, 100.0, 0, 1, 8, 7, 0, 0);
+    wfm_synth_state_t *ns = wfm_synth_create (WFM_SYNTH_NOISE, 1e6, 0.0, 100.0,
+                                              0, 1, 8, 7, 0, 0);
     CHECK (ns && ns->awgn != NULL);
     if (ns)
-      synth_destroy (ns);
+      wfm_synth_destroy (ns);
   }
 
-  synth_destroy (obj);
+  wfm_synth_destroy (obj);
   if (_fails)
     {
-      fprintf (stderr, "test_synth_core FAILED (%d)\n", _fails);
+      fprintf (stderr, "test_wfm_synth_core FAILED (%d)\n", _fails);
       return 1;
     }
-  printf ("test_synth_core PASSED\n");
+  printf ("test_wfm_synth_core PASSED\n");
   return 0;
 }

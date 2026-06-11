@@ -53,7 +53,7 @@ extern "C" {
 
 #include "pn/pn_core.h"
 
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 
 #include "delay/delay_core.h"
 

@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "synth/synth_core.h" /* synth_mls_poly */
+#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly */
 #include "wfmgen/wfm_compose.h"
 #include "wfmgen/wfm_dsp.h"
 #include "wfmgen/wfm_reader.h"
@@ -1090,7 +1090,7 @@ _fn_mls_poly (PyObject *mod, PyObject *args)
   unsigned int n;
   if (!PyArg_ParseTuple (args, "I", &n))
     return NULL;
-  return PyLong_FromUnsignedLongLong (synth_mls_poly (n));
+  return PyLong_FromUnsignedLongLong (wfm_synth_mls_poly (n));
 }
 
 /* ───────────────────────── module table ───────────────────────────────────

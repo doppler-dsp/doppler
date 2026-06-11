@@ -1,4 +1,4 @@
-/* bench_synth_core.c — synth engine throughput (MSa/s) per waveform type.
+/* bench_wfm_synth_core.c — synth engine throughput (MSa/s) per waveform type.
  *
  * Covers the two axes that dominate cost: AWGN (snr >= 100 dB is "clean" → no
  * noise generated) and the LO (freq 0 → baseband, no NCO). So each type is
@@ -6,7 +6,7 @@
  * bit-manipulation path). Emits pytest-benchmark-compatible JSON via make
  * bench. */
 #include "jm_bench.h"
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,27 +22,27 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
          + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
 }
 
-/* Bench synth_steps for one configuration; print MSa/s and record JSON.
+/* Bench wfm_synth_steps for one configuration; print MSa/s and record JSON.
  * snr >= 100 ⇒ clean (no AWGN); freq == 0 ⇒ baseband (no LO). */
 static void
 bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
            double snr, double freq, float complex *out, jm_bench_t *bench)
 {
-  synth_state_t *obj
-      = synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, lfsr);
+  wfm_synth_state_t *obj
+      = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, lfsr);
   if (!obj)
     {
       printf ("  %-26s   (create failed)\n", name);
       return;
     }
-  synth_steps (obj, out, BENCH_N); /* warm up */
+  wfm_synth_steps (obj, out, BENCH_N); /* warm up */
 
   struct timespec t0, t1;
   double          times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       clock_gettime (CLOCK_MONOTONIC, &t0);
-      synth_steps (obj, out, BENCH_N);
+      wfm_synth_steps (obj, out, BENCH_N);
       clock_gettime (CLOCK_MONOTONIC, &t1);
       times[r] = elapsed_sec (&t0, &t1);
     }
@@ -54,7 +54,7 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
   printf ("  %-26s %8.1f MSa/s  (%.2f GSa/s)\n", name, msas, msas / 1000.0);
   jm_bench_add (bench, name, times, ITERATIONS, BENCH_N);
 
-  synth_destroy (obj);
+  wfm_synth_destroy (obj);
 }
 
 int

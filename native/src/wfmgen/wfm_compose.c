@@ -26,26 +26,27 @@ enum
 };
 
 /* N-source accumulate renders one source at a time into a fixed-size scratch
- * and adds it in. synth_steps() is chunk-invariant, so capping the per-call
- * chunk here does not change the output — and it keeps scratch a fixed
- * allocation regardless of the caller's `max` (the binding can pass millions).
+ * and adds it in. wfm_synth_steps() is chunk-invariant, so capping the
+ * per-call chunk here does not change the output — and it keeps scratch a
+ * fixed allocation regardless of the caller's `max` (the binding can pass
+ * millions).
  */
 #define SCRATCH_CAP 4096
 
 struct wfm_compose_state
 {
-  wfm_segment_t  *segs;
-  size_t          n_segs;
-  int             repeat;
-  int             continuous;
-  size_t          cur;     /* current segment index */
-  int             phase;   /* PHASE_ON / PHASE_OFF / PHASE_DONE */
-  size_t          left;    /* samples remaining in the current phase */
-  synth_state_t **syn;     /* active segment's synths (one per source) */
-  float          *gain;    /* parallel: 10^(level/20) per source */
-  size_t          n_syn;   /* live synth count while ON (0 otherwise) */
-  size_t          syn_cap; /* capacity of syn/gain = max n_sources */
-  float complex  *scratch; /* SCRATCH_CAP render buffer for N-source sum */
+  wfm_segment_t      *segs;
+  size_t              n_segs;
+  int                 repeat;
+  int                 continuous;
+  size_t              cur;     /* current segment index */
+  int                 phase;   /* PHASE_ON / PHASE_OFF / PHASE_DONE */
+  size_t              left;    /* samples remaining in the current phase */
+  wfm_synth_state_t **syn;     /* active segment's synths (one per source) */
+  float              *gain;    /* parallel: 10^(level/20) per source */
+  size_t              n_syn;   /* live synth count while ON (0 otherwise) */
+  size_t              syn_cap; /* capacity of syn/gain = max n_sources */
+  float complex      *scratch; /* SCRATCH_CAP render buffer for N-source sum */
 };
 
 /* Destroy the active segment's synths (the syn[] array stays allocated). */
@@ -55,7 +56,7 @@ stop_synths (wfm_compose_state_t *s)
   for (size_t k = 0; k < s->n_syn; k++)
     if (s->syn[k])
       {
-        synth_destroy (s->syn[k]);
+        wfm_synth_destroy (s->syn[k]);
         s->syn[k] = NULL;
       }
   s->n_syn = 0;
@@ -74,9 +75,9 @@ start_segment (wfm_compose_state_t *s)
     {
       const wfm_source_t *src = &g->sources[k];
       s->gain[k] = (float)pow (10.0, src->level / 20.0); /* level → gain */
-      s->syn[k]  = synth_create (src->type, g->fs, src->freq, src->snr,
-                                 src->snr_mode, src->seed, src->sps,
-                                 src->pn_length, src->pn_poly, src->lfsr);
+      s->syn[k]  = wfm_synth_create (src->type, g->fs, src->freq, src->snr,
+                                     src->snr_mode, src->seed, src->sps,
+                                     src->pn_length, src->pn_poly, src->lfsr);
       if (!s->syn[k])
         ok = 0;
       else
@@ -211,15 +212,16 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
           if (state->n_syn == 1)
             {
               /* ── 1 source: the original single-synth path, VERBATIM ──
-               * Pull the ON run as a block through the *same* synth_steps()
-               * the wavegen CLI uses, so composer and CLI are byte-identical
-               * by construction. (Under -ffast-math a per-sample synth_step()
-               * loop contracts `sym*carrier + noise` to an FMA on arm64 while
-               * the block path rounds separately — QPSK's ±1/√2 leg exposed
-               * that as #67; synth_steps() is chunk-invariant, so block size
-               * is free.) The Phase-3 level gain is a post-multiply here
-               * (no-op at 0 dB). */
-              synth_steps (state->syn[0], out + i, k);
+               * Pull the ON run as a block through the *same*
+               * wfm_synth_steps() the wavegen CLI uses, so composer and CLI
+               * are byte-identical by construction. (Under -ffast-math a
+               * per-sample wfm_synth_step() loop contracts `sym*carrier +
+               * noise` to an FMA on arm64 while the block path rounds
+               * separately — QPSK's ±1/√2 leg exposed that as #67;
+               * wfm_synth_steps() is chunk-invariant, so block size is free.)
+               * The Phase-3 level gain is a post-multiply here (no-op at 0
+               * dB). */
+              wfm_synth_steps (state->syn[0], out + i, k);
               if (state->gain[0] != 1.0f)
                 for (size_t j = 0; j < k; j++)
                   out[i + j] *= state->gain[0];
@@ -232,13 +234,13 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
                */
               if (k > (size_t)SCRATCH_CAP)
                 k = SCRATCH_CAP;
-              synth_steps (state->syn[0], state->scratch, k);
+              wfm_synth_steps (state->syn[0], state->scratch, k);
               float g0 = state->gain[0];
               for (size_t j = 0; j < k; j++)
                 out[i + j] = g0 * state->scratch[j];
               for (size_t sx = 1; sx < state->n_syn; sx++)
                 {
-                  synth_steps (state->syn[sx], state->scratch, k);
+                  wfm_synth_steps (state->syn[sx], state->scratch, k);
                   float gs = state->gain[sx];
                   for (size_t j = 0; j < k; j++)
                     out[i + j] += gs * state->scratch[j];

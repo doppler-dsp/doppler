@@ -14,7 +14,7 @@
 #include "wfmgen/wfmgen_core.h"
 
 #include "wfmgen_ext_pn.c"
-#include "wfmgen_ext_synth.c"
+#include "wfmgen_ext_wfm_synth.c"
 
 static PyObject *
 _bind_bpsk_map(PyObject *self, PyObject *args)

@@ -1,26 +1,26 @@
 /*
- * wfmgen_ext_synth.c — Synth type for the wfmgen module.
+ * wfmgen_ext_wfm_synth.c — Synth type for the wfmgen module.
  *
  * Included by wfmgen_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only wfmgen_ext.c is compiled.
  */
 /* ======================================================== */
-/* SynthObject — wraps synth_state_t *       */
+/* SynthObject — wraps wfm_synth_state_t *       */
 /* ======================================================== */
 
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 
 typedef struct
 {
-  PyObject_HEAD synth_state_t *handle;
+  PyObject_HEAD wfm_synth_state_t *handle;
 } SynthObject;
 
 static void
 Synth_dealloc (SynthObject *self)
 {
   if (self->handle)
-    synth_destroy (self->handle);
+    wfm_synth_destroy (self->handle);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -104,11 +104,11 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     }
   uint32_t seed    = (uint32_t)seed_raw;
   uint64_t pn_poly = (uint64_t)pn_poly_raw;
-  self->handle     = synth_create (type, fs, freq, snr, snr_mode, seed, sps,
+  self->handle = wfm_synth_create (type, fs, freq, snr, snr_mode, seed, sps,
                                    pn_length, pn_poly, lfsr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "synth_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError, "wfm_synth_create returned NULL");
       return -1;
     }
   return 0;
@@ -122,7 +122,7 @@ Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  synth_reset (self->handle);
+  wfm_synth_reset (self->handle);
   Py_RETURN_NONE;
 }
 
@@ -134,7 +134,7 @@ Synth_step (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  float complex y = synth_step (self->handle);
+  float complex y = wfm_synth_step (self->handle);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -155,9 +155,9 @@ Synth_steps (SynthObject *self, PyObject *args)
   if (!out_arr)
     return NULL;
 
-  synth_steps (self->handle,
-               (float complex *)PyArray_DATA ((PyArrayObject *)out_arr),
-               (size_t)n);
+  wfm_synth_steps (self->handle,
+                   (float complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+                   (size_t)n);
 
   return out_arr;
 }
@@ -170,7 +170,7 @@ Synth_get_wtype (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)synth_get_wtype (self->handle));
+  return PyLong_FromLong ((long)wfm_synth_get_wtype (self->handle));
 }
 
 static PyObject *
@@ -184,7 +184,7 @@ Synth_set_wtype (SynthObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  synth_set_wtype (self->handle, v);
+  wfm_synth_set_wtype (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -196,7 +196,7 @@ Synth_get_nsps (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)synth_get_nsps (self->handle));
+  return PyLong_FromLong ((long)wfm_synth_get_nsps (self->handle));
 }
 
 static PyObject *
@@ -210,7 +210,7 @@ Synth_set_nsps (SynthObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  synth_set_nsps (self->handle, v);
+  wfm_synth_set_nsps (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -222,7 +222,7 @@ Synth_get_sym_pos (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromLong ((long)synth_get_sym_pos (self->handle));
+  return PyLong_FromLong ((long)wfm_synth_get_sym_pos (self->handle));
 }
 
 static PyObject *
@@ -236,7 +236,7 @@ Synth_set_sym_pos (SynthObject *self, PyObject *args)
   int v = 0;
   if (!PyArg_ParseTuple (args, "i", &v))
     return NULL;
-  synth_set_sym_pos (self->handle, v);
+  wfm_synth_set_sym_pos (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -248,7 +248,7 @@ Synth_get_cur_re (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)synth_get_cur_re (self->handle));
+  return PyFloat_FromDouble ((double)wfm_synth_get_cur_re (self->handle));
 }
 
 static PyObject *
@@ -262,7 +262,7 @@ Synth_set_cur_re (SynthObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
-  synth_set_cur_re (self->handle, v);
+  wfm_synth_set_cur_re (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -274,7 +274,7 @@ Synth_get_cur_im (SynthObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble ((double)synth_get_cur_im (self->handle));
+  return PyFloat_FromDouble ((double)wfm_synth_get_cur_im (self->handle));
 }
 
 static PyObject *
@@ -288,7 +288,7 @@ Synth_set_cur_im (SynthObject *self, PyObject *args)
   float v = 0.0f;
   if (!PyArg_ParseTuple (args, "f", &v))
     return NULL;
-  synth_set_cur_im (self->handle, v);
+  wfm_synth_set_cur_im (self->handle, v);
   Py_RETURN_NONE;
 }
 
@@ -297,7 +297,7 @@ Synth_destroy (SynthObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      synth_destroy (self->handle);
+      wfm_synth_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -316,7 +316,7 @@ Synth_exit (SynthObject *self, PyObject *args)
   (void)args;
   if (self->handle)
     {
-      synth_destroy (self->handle);
+      wfm_synth_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
@@ -376,8 +376,10 @@ static PyTypeObject SynthType = {
   .tp_doc
   = "Allocate and configure a waveform synthesiser. The synthesiser combines "
     "a local oscillator (LO), optional AWGN, and an optional PN LFSR into a "
-    "single streaming source.  One call to synth_step() or synth_steps() "
-    "advances all sub-components in lock-step. SNR >= SYNTH_SNR_CLEAN (100 "
+    "single streaming source.  One call to wfm_synth_step() or "
+    "wfm_synth_steps() "
+    "advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN "
+    "(100 "
     "dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When "
     "``snr_mode`` is \"auto\" the library picks the natural reference: Es/No "
     "for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.\n",

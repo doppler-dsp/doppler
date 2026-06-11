@@ -22,7 +22,7 @@ add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
 # the composer reuses synth, which pulls in lo/awgn/pn
 target_link_libraries(test_wfm_compose PRIVATE
-    wfm_compose_core wfm_cjson synth_core lo_core awgn_core pn_core m)
+    wfm_compose_core wfm_cjson wfm_synth_core lo_core awgn_core pn_core m)
 target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
@@ -158,7 +158,7 @@ if(NOT WIN32)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
         wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
-        synth_core lo_core awgn_core pn_core
+        wfm_synth_core lo_core awgn_core pn_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static
         Threads::Threads stdc++ m)

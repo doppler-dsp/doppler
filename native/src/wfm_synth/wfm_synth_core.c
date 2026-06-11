@@ -1,23 +1,23 @@
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 
-synth_state_t *
-synth_create (int type, double fs, double freq, double snr, int snr_mode,
-              uint32_t seed, int sps, int pn_length, uint64_t pn_poly,
-              int lfsr)
+wfm_synth_state_t *
+wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
+                  uint32_t seed, int sps, int pn_length, uint64_t pn_poly,
+                  int lfsr)
 {
-  synth_state_t *obj = calloc (1, sizeof (*obj));
+  wfm_synth_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
   obj->wtype   = type;
   obj->nsps    = (sps < 1) ? 1 : sps;
   obj->sym_pos = 0;
-  obj->cur_re  = (type == SYNTH_TONE) ? 1.0f : 0.0f;
+  obj->cur_re  = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   obj->cur_im  = 0.0f;
 
   /* LO carrier only when there is a frequency offset: at freq 0 the carrier
    * is the constant 1, so mixing is a no-op and is skipped entirely (a
    * baseband waveform pays no NCO cost). Pure noise never has an LO. */
-  if (type != SYNTH_NOISE && freq != 0.0)
+  if (type != WFM_SYNTH_NOISE && freq != 0.0)
     {
       obj->lo = lo_create (fs != 0.0 ? freq / fs : 0.0);
       if (!obj->lo)
@@ -28,9 +28,10 @@ synth_create (int type, double fs, double freq, double snr, int snr_mode,
     }
 
   /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
-  if (type >= SYNTH_PN)
+  if (type >= WFM_SYNTH_PN)
     {
-      uint64_t poly = pn_poly ? pn_poly : synth_mls_poly ((uint32_t)pn_length);
+      uint64_t poly
+          = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
       if (poly == 0)
         { /* no MLS table entry for this length */
           if (obj->lo)
@@ -50,19 +51,21 @@ synth_create (int type, double fs, double freq, double snr, int snr_mode,
 
   /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.
    * Noise is generated only when requested: type=noise always; otherwise only
-   * when snr < SYNTH_SNR_CLEAN (so a clean waveform skips AWGN entirely). */
-  int want_noise = (type == SYNTH_NOISE) || (snr < SYNTH_SNR_CLEAN);
-  if (type == SYNTH_NOISE)
+   * when snr < WFM_SYNTH_SNR_CLEAN (so a clean waveform skips AWGN entirely).
+   */
+  int want_noise = (type == WFM_SYNTH_NOISE) || (snr < WFM_SYNTH_SNR_CLEAN);
+  if (type == WFM_SYNTH_NOISE)
     {
       obj->awgn
           = awgn_create ((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
     }
-  else if (snr < SYNTH_SNR_CLEAN)
+  else if (snr < WFM_SYNTH_SNR_CLEAN)
     {
       int mode = snr_mode;
       if (mode == 0)
-        mode = (type >= SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
-      int    bps = (type == SYNTH_QPSK) ? 2 : 1;
+        mode
+            = (type >= WFM_SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
+      int    bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
       double snr_fs;
       if (mode == 2) /* Eb/No → SNR over fs */
         snr_fs = snr + 10.0 * log10 ((double)bps)
@@ -87,7 +90,7 @@ synth_create (int type, double fs, double freq, double snr, int snr_mode,
 }
 
 void
-synth_destroy (synth_state_t *state)
+wfm_synth_destroy (wfm_synth_state_t *state)
 {
   if (state->lo)
     lo_destroy (state->lo);
@@ -99,10 +102,10 @@ synth_destroy (synth_state_t *state)
 }
 
 void
-synth_reset (synth_state_t *state)
+wfm_synth_reset (wfm_synth_state_t *state)
 {
   state->sym_pos = 0;
-  state->cur_re  = (state->wtype == SYNTH_TONE) ? 1.0f : 0.0f;
+  state->cur_re  = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   state->cur_im  = 0.0f;
   if (state->lo)
     lo_reset (state->lo);
@@ -113,18 +116,19 @@ synth_reset (synth_state_t *state)
 }
 
 void
-synth_steps (synth_state_t *state, float complex *output, size_t n)
+wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
 {
   /* Fully batched, no per-sample library calls. Per chunk: the LO carrier
    * (NCO) and AWGN are generated a block at a time (their vectorized paths);
    * PN chips come from the block pn_generate() (kind-hoisted, ~1 GSa/s),
    * never per-sample pn_step(); the symbol map and the LO-mix / noise-add are
    * separate, data-parallel passes. This rounds the symbol*carrier multiply
-   * and the noise-add separately, whereas synth_step() evaluates
+   * and the noise-add separately, whereas wfm_synth_step() evaluates
    * `sym*carrier + noise` as one expression — so under -ffast-math the two can
    * differ by an ULP on FMA targets (arm64) for QPSK's irrational ±1/√2 leg.
    * Callers that need the composer/CLI to agree byte-for-byte must drive a
-   * single path; wfm_compose uses synth_steps() for exactly this reason. */
+   * single path; wfm_compose uses wfm_synth_steps() for exactly this reason.
+   */
   enum
   {
     CH = 2048
@@ -134,8 +138,8 @@ synth_steps (synth_state_t *state, float complex *output, size_t n)
   uint8_t       chips[2 * CH]; /* up to 2 chips/sample (qpsk at sps 1) */
   const int     has_lo    = state->lo != NULL;
   const int     has_awgn  = state->awgn != NULL;
-  const int     modulated = state->wtype >= SYNTH_PN;
-  const int     qpsk      = state->wtype == SYNTH_QPSK;
+  const int     modulated = state->wtype >= WFM_SYNTH_PN;
+  const int     qpsk      = state->wtype == WFM_SYNTH_QPSK;
   const int     nsps      = state->nsps;
   const float   s         = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
   int           sym_pos   = state->sym_pos;
@@ -234,61 +238,61 @@ synth_steps (synth_state_t *state, float complex *output, size_t n)
 }
 
 int
-synth_get_wtype (const synth_state_t *state)
+wfm_synth_get_wtype (const wfm_synth_state_t *state)
 {
   return state->wtype;
 }
 
 void
-synth_set_wtype (synth_state_t *state, int val)
+wfm_synth_set_wtype (wfm_synth_state_t *state, int val)
 {
   state->wtype = val;
 }
 
 int
-synth_get_nsps (const synth_state_t *state)
+wfm_synth_get_nsps (const wfm_synth_state_t *state)
 {
   return state->nsps;
 }
 
 void
-synth_set_nsps (synth_state_t *state, int val)
+wfm_synth_set_nsps (wfm_synth_state_t *state, int val)
 {
   state->nsps = val;
 }
 
 int
-synth_get_sym_pos (const synth_state_t *state)
+wfm_synth_get_sym_pos (const wfm_synth_state_t *state)
 {
   return state->sym_pos;
 }
 
 void
-synth_set_sym_pos (synth_state_t *state, int val)
+wfm_synth_set_sym_pos (wfm_synth_state_t *state, int val)
 {
   state->sym_pos = val;
 }
 
 float
-synth_get_cur_re (const synth_state_t *state)
+wfm_synth_get_cur_re (const wfm_synth_state_t *state)
 {
   return state->cur_re;
 }
 
 void
-synth_set_cur_re (synth_state_t *state, float val)
+wfm_synth_set_cur_re (wfm_synth_state_t *state, float val)
 {
   state->cur_re = val;
 }
 
 float
-synth_get_cur_im (const synth_state_t *state)
+wfm_synth_get_cur_im (const wfm_synth_state_t *state)
 {
   return state->cur_im;
 }
 
 void
-synth_set_cur_im (synth_state_t *state, float val)
+wfm_synth_set_cur_im (wfm_synth_state_t *state, float val)
 {
   state->cur_im = val;
 }

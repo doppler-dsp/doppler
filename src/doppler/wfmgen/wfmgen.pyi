@@ -71,7 +71,7 @@ class PN:
     def __exit__(self, *args: object) -> None: ...
 
 class Synth:
-    """Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source.  One call to synth_step() or synth_steps() advances all sub-components in lock-step. SNR >= SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When ``snr_mode`` is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
+    """Allocate and configure a waveform synthesiser. The synthesiser combines a local oscillator (LO), optional AWGN, and an optional PN LFSR into a single streaming source.  One call to wfm_synth_step() or wfm_synth_steps() advances all sub-components in lock-step. SNR >= WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When ``snr_mode`` is "auto" the library picks the natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.
 
     Parameters
     ----------
@@ -131,7 +131,7 @@ class Synth:
         """Generate one output sample."""
 
     def steps(self, n: int) -> NDArray[np.complex64]:
-        """Generate a block of output samples. Calls synth_step() in a tight loop, writing each cf32 sample into ``output``.  The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller.
+        """Generate a block of output samples. Calls wfm_synth_step() in a tight loop, writing each cf32 sample into ``output``.  The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller.
 
         Parameters
         ----------

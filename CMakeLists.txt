@@ -146,9 +146,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fft2d_core>)
 add_subdirectory(native/src/fft)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:fft_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:fft_core>)
-add_subdirectory(native/src/synth)
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:synth_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:synth_core>)
+add_subdirectory(native/src/wfm_synth)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_synth_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_synth_core>)
 add_subdirectory(native/src/pn)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:pn_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:pn_core>)
@@ -321,6 +321,6 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
 
 # ── App ───────────────────────────────────────────────────────────
 add_executable(wavegen native/src/app/wavegen.c)
-target_link_libraries(wavegen PRIVATE synth_core lo_core awgn_core pn_core $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
+target_link_libraries(wavegen PRIVATE wfm_synth_core lo_core awgn_core pn_core $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
 install(TARGETS wavegen DESTINATION bin)
 # ── App end ───────────────────────────────────────────────────────────

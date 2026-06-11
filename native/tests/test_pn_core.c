@@ -1,5 +1,5 @@
 #include "pn/pn_core.h"
-#include "synth/synth_core.h" /* synth_mls_poly() — the primitive-poly table */
+#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly() — the primitive-poly table */
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -68,7 +68,7 @@ main (void)
 
   /* ── 64-bit register: length up to 64, mask + no truncation ── */
   CHECK (pn_create (0, 1, 65, PN_GALOIS) == NULL); /* length > 64 rejected */
-  pn_state_t *p64 = pn_create (synth_mls_poly (64), 1, 64, PN_GALOIS);
+  pn_state_t *p64 = pn_create (wfm_synth_mls_poly (64), 1, 64, PN_GALOIS);
   CHECK (p64 != NULL);
   if (p64)
     {
@@ -87,19 +87,21 @@ main (void)
     }
 
   /* ── MLS table: maximal period (Galois), incl. the n > 32 path ── */
-  CHECK (pn_period (synth_mls_poly (7), 7, PN_GALOIS) == (1L << 7) - 1);
-  CHECK (pn_period (synth_mls_poly (17), 17, PN_GALOIS) == (1L << 17) - 1);
-  CHECK (pn_period (synth_mls_poly (20), 20, PN_GALOIS) == (1L << 20) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (7), 7, PN_GALOIS) == (1L << 7) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (17), 17, PN_GALOIS) == (1L << 17) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (20), 20, PN_GALOIS) == (1L << 20) - 1);
 
   /* ── Fibonacci: same primitive poly → same maximal period ── */
-  CHECK (pn_period (synth_mls_poly (7), 7, PN_FIBONACCI) == (1L << 7) - 1);
-  CHECK (pn_period (synth_mls_poly (17), 17, PN_FIBONACCI) == (1L << 17) - 1);
-  CHECK (pn_period (synth_mls_poly (20), 20, PN_FIBONACCI) == (1L << 20) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (7), 7, PN_FIBONACCI) == (1L << 7) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (17), 17, PN_FIBONACCI)
+         == (1L << 17) - 1);
+  CHECK (pn_period (wfm_synth_mls_poly (20), 20, PN_FIBONACCI)
+         == (1L << 20) - 1);
 
   /* ── Galois and Fibonacci are distinct realizations (different chips) ── */
   {
-    pn_state_t *g    = pn_create (synth_mls_poly (9), 1, 9, PN_GALOIS);
-    pn_state_t *f    = pn_create (synth_mls_poly (9), 1, 9, PN_FIBONACCI);
+    pn_state_t *g    = pn_create (wfm_synth_mls_poly (9), 1, 9, PN_GALOIS);
+    pn_state_t *f    = pn_create (wfm_synth_mls_poly (9), 1, 9, PN_FIBONACCI);
     int         diff = 0;
     for (int i = 0; i < 511; i++)
       if (pn_step (g) != pn_step (f))
@@ -110,10 +112,10 @@ main (void)
   }
 
   /* ── table coverage: nonzero for 2..64, zero outside ── */
-  CHECK (synth_mls_poly (1) == 0);
-  CHECK (synth_mls_poly (65) == 0);
+  CHECK (wfm_synth_mls_poly (1) == 0);
+  CHECK (wfm_synth_mls_poly (65) == 0);
   for (uint32_t n = 2; n <= 64; n++)
-    CHECK (synth_mls_poly (n) != 0);
+    CHECK (wfm_synth_mls_poly (n) != 0);
 
   /* reset */
   pn_reset (obj);

@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "synth/synth_core.h"
+#include "wfm_synth/wfm_synth_core.h"
 static int
 jm_parse_type (const char *s)
 {
@@ -383,11 +383,11 @@ main (int argc, char *argv[])
     }
 
   /* --- create ---------------------------------------------------------- */
-  synth_state_t *state = synth_create (type, fs, freq, snr, snr_mode, seed,
-                                       sps, pn_length, pn_poly, lfsr);
+  wfm_synth_state_t *state = wfm_synth_create (
+      type, fs, freq, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr);
   if (!state)
     {
-      fprintf (stderr, "error: synth_create() failed\n");
+      fprintf (stderr, "error: wfm_synth_create() failed\n");
       return 1;
     }
 
@@ -425,14 +425,14 @@ main (int argc, char *argv[])
   while (produced < count)
     {
       size_t k = (count - produced) < 4096 ? (count - produced) : (size_t)4096;
-      synth_steps (state, outbuf, k);
+      wfm_synth_steps (state, outbuf, k);
       jm_write_block (out, outbuf, k, sample_type, endian, file_type,
                       jm_bytes);
       produced += k;
     }
 
   /* --- cleanup --------------------------------------------------------- */
-  synth_destroy (state);
+  wfm_synth_destroy (state);
   if (out != stdout)
     fclose (out);
   return 0;

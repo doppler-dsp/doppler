@@ -1,18 +1,18 @@
 /**
- * @file synth_core.h
+ * @file wfm_synth_core.h
  * @brief Synth component API.
  *
  * Lifecycle: create -> [step / steps / reset]* -> destroy
  *
  * Example:
  * @code
- * synth_state_t *obj = synth_create(0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0);
- * float complex y = synth_step(obj);
- * synth_destroy(obj);
+ * wfm_synth_state_t *obj = wfm_synth_create(0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0);
+ * float complex y = wfm_synth_step(obj);
+ * wfm_synth_destroy(obj);
  * @endcode
  */
-#ifndef SYNTH_CORE_H
-#define SYNTH_CORE_H
+#ifndef WFM_SYNTH_CORE_H
+#define WFM_SYNTH_CORE_H
 
 #include "clib_common.h"
 #include "jm_perf.h"
@@ -26,18 +26,18 @@ extern "C" {
 
 /** Waveform type discriminant (the `type` create argument / --type choice). */
 enum {
-    SYNTH_TONE = 0,  /* continuous-wave complex tone (LO)        */
-    SYNTH_NOISE = 1, /* complex AWGN only                        */
-    SYNTH_PN = 2,    /* BPSK-modulated PN m-sequence chips       */
-    SYNTH_BPSK = 3,  /* BPSK over PN-sourced data bits           */
-    SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
+    WFM_SYNTH_TONE = 0,  /* continuous-wave complex tone (LO)        */
+    WFM_SYNTH_NOISE = 1, /* complex AWGN only                        */
+    WFM_SYNTH_PN = 2,    /* BPSK-modulated PN m-sequence chips       */
+    WFM_SYNTH_BPSK = 3,  /* BPSK over PN-sourced data bits           */
+    WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
  * — a clean waveform shouldn't pay the noise cost). 100 dB SNR is the default
  * and is numerically clean anyway. Lower --snr to add noise. (type=noise always
  * generates AWGN regardless.) */
-#define SYNTH_SNR_CLEAN 100.0
+#define WFM_SYNTH_SNR_CLEAN 100.0
 
 /**
  * @brief Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the
@@ -46,7 +46,7 @@ enum {
  * primitive polynomials (period 2^n-1); the n=2..16 values are unchanged.
  */
 JM_FORCEINLINE uint64_t
-synth_mls_poly(uint32_t n)
+wfm_synth_mls_poly(uint32_t n)
 {
     switch (n) {
     case 2: return 0x3u;
@@ -119,7 +119,7 @@ synth_mls_poly(uint32_t n)
 /**
  * @brief Synth state.
  *
- * Allocate with synth_create().
+ * Allocate with wfm_synth_create().
  */
 typedef struct {
     int wtype;
@@ -130,14 +130,14 @@ typedef struct {
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
-} synth_state_t;
+} wfm_synth_state_t;
 
 /**
  * @brief Allocate and configure a waveform synthesiser.
  * The synthesiser combines a local oscillator (LO), optional AWGN, and an
  * optional PN LFSR into a single streaming source.  One call to
- * synth_step() or synth_steps() advances all sub-components in lock-step.
- * SNR >= SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms
+ * wfm_synth_step() or wfm_synth_steps() advances all sub-components in lock-step.
+ * SNR >= WFM_SYNTH_SNR_CLEAN (100 dB) skips AWGN entirely — clean waveforms
  * pay no noise overhead.  When ``snr_mode`` is "auto" the library picks the
  * natural reference: Es/No for modulated types (BPSK, QPSK), fs-band SNR
  * for tone/noise/PN.
@@ -150,7 +150,7 @@ typedef struct {
  * @param freq  Carrier frequency offset in Hz (−fs/2 … fs/2).  A
  *              complex LO is created only when freq != 0.  Default 0.0.
  * @param snr  Target SNR in dB, interpreted per ``snr_mode``.  Values >=
- *              SYNTH_SNR_CLEAN (100) disable AWGN.  Default 100.0.
+ *              WFM_SYNTH_SNR_CLEAN (100) disable AWGN.  Default 100.0.
  * @param snr_mode  SNR reference: 0=auto, 1=fs (full-band), 2=ebno,
  *              3=esno.  The Python binding accepts strings
  *              "auto"|"fs"|"ebno"|"esno".  Default 0.
@@ -161,10 +161,10 @@ typedef struct {
  *              Default 7 (period 127).
  * @param pn_poly  Galois tap polynomial for the LFSR.  0 means "look up
  *              the canonical MLS polynomial for pn_length" from the
- *              synth_mls_poly table.  Default 0.
+ *              wfm_synth_mls_poly table.  Default 0.
  * @param lfsr  LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).
  * @return Heap-allocated state, or NULL on allocation failure.
- * @note Caller must call synth_destroy() when done.
+ * @note Caller must call wfm_synth_destroy() when done.
  * @code
  * >>> from doppler.wfmgen import Synth
  * >>> import numpy as np
@@ -176,7 +176,7 @@ typedef struct {
  * [(1+0j), (1+0j), (1+0j), (1+0j)]
  * @endcode
  */
-synth_state_t *synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr);
+wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr);
 
 /**
  * @brief Destroy a synth instance and release all memory.
@@ -190,7 +190,7 @@ synth_state_t *synth_create(int type, double fs, double freq, double snr, int sn
  * >>> s.destroy()   # explicit teardown; no exception
  * @endcode
  */
-void synth_destroy(synth_state_t *state);
+void wfm_synth_destroy(wfm_synth_state_t *state);
 
 /**
  * @brief Reset Synth to its post-create state.
@@ -209,7 +209,7 @@ void synth_destroy(synth_state_t *state);
  * True
  * @endcode
  */
-void synth_reset(synth_state_t *state);
+void wfm_synth_reset(wfm_synth_state_t *state);
 
 /**
  * @brief Generate one output sample from internal state.
@@ -228,11 +228,11 @@ void synth_reset(synth_state_t *state);
  * @endcode
  */
 JM_FORCEINLINE JM_HOT float complex
-synth_step(synth_state_t *state)
+wfm_synth_step(wfm_synth_state_t *state)
 {
-    if (state->wtype >= SYNTH_PN) {
+    if (state->wtype >= WFM_SYNTH_PN) {
         if (state->sym_pos == 0) {
-            if (state->wtype == SYNTH_QPSK) {
+            if (state->wtype == WFM_SYNTH_QPSK) {
                 uint8_t b0 = pn_step(state->pn);
                 uint8_t b1 = pn_step(state->pn);
                 const float s = 0.70710678118654752f;
@@ -259,11 +259,11 @@ synth_step(synth_state_t *state)
 
 /**
  * @brief Generate a block of output samples.
- * Calls synth_step() in a tight loop, writing each cf32 sample into
+ * Calls wfm_synth_step() in a tight loop, writing each cf32 sample into
  * ``output``.  The Python binding returns a freshly allocated NumPy
  * complex64 array; ownership is transferred to the caller.
  *
- * @param state   Initialised Synth state returned by ``synth_create``.
+ * @param state   Initialised Synth state returned by ``wfm_synth_create``.
  * @param output  Output buffer of at least ``n`` cf32 elements.
  * @param n       Number of samples to generate.
  * @code
@@ -277,18 +277,18 @@ synth_step(synth_state_t *state)
  * [(1+0j), (1+0j), (1+0j), (1+0j)]
  * @endcode
  */
-void synth_steps(
-    synth_state_t *state,
+void wfm_synth_steps(
+    wfm_synth_state_t *state,
     float complex          *output,
     size_t               n);
 
 /**
  * @brief Return the active waveform type discriminant.
- * Maps to the SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
+ * Maps to the WFM_SYNTH_* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk.
  * Use this to inspect which synthesis path is active at runtime.
  *
  * @param state  Must be non-NULL.
- * @return Integer waveform type index (SYNTH_TONE .. SYNTH_QPSK).
+ * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
  * @code
  * >>> from doppler.wfmgen import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
@@ -296,14 +296,14 @@ void synth_steps(
  * 0
  * @endcode
  */
-int synth_get_wtype(const synth_state_t *state);
+int wfm_synth_get_wtype(const wfm_synth_state_t *state);
 
 /**
  * @brief Override the waveform type discriminant in-place.
  * Changing wtype does not reinitialise sub-objects; use with care.
  *
  * @param state  Must be non-NULL.
- * @param val    New wtype value (SYNTH_TONE .. SYNTH_QPSK).
+ * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
  * @code
  * >>> from doppler.wfmgen import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
@@ -312,7 +312,7 @@ int synth_get_wtype(const synth_state_t *state);
  * 1
  * @endcode
  */
-void synth_set_wtype(synth_state_t *state, int val);
+void wfm_synth_set_wtype(wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the samples-per-symbol count.
@@ -329,7 +329,7 @@ void synth_set_wtype(synth_state_t *state, int val);
  * 4
  * @endcode
  */
-int synth_get_nsps(const synth_state_t *state);
+int wfm_synth_get_nsps(const wfm_synth_state_t *state);
 
 /**
  * @brief Override the samples-per-symbol count in-place.
@@ -346,7 +346,7 @@ int synth_get_nsps(const synth_state_t *state);
  * 8
  * @endcode
  */
-void synth_set_nsps(synth_state_t *state, int val);
+void wfm_synth_set_nsps(wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the current position within the current symbol (0..nsps-1).
@@ -363,11 +363,11 @@ void synth_set_nsps(synth_state_t *state, int val);
  * 0
  * @endcode
  */
-int synth_get_sym_pos(const synth_state_t *state);
+int wfm_synth_get_sym_pos(const wfm_synth_state_t *state);
 
 /**
  * @brief Override the symbol-position counter in-place.
- * Injecting 0 forces the next synth_step() to latch a new PN chip; any
+ * Injecting 0 forces the next wfm_synth_step() to latch a new PN chip; any
  * other value fast-forwards into the middle of the current symbol hold.
  *
  * @param state  Must be non-NULL.
@@ -380,7 +380,7 @@ int synth_get_sym_pos(const synth_state_t *state);
  * 0
  * @endcode
  */
-void synth_set_sym_pos(synth_state_t *state, int val);
+void wfm_synth_set_sym_pos(wfm_synth_state_t *state, int val);
 
 /**
  * @brief Return the real part of the current held symbol.
@@ -398,11 +398,11 @@ void synth_set_sym_pos(synth_state_t *state, int val);
  * 1.0
  * @endcode
  */
-float synth_get_cur_re(const synth_state_t *state);
+float wfm_synth_get_cur_re(const wfm_synth_state_t *state);
 
 /**
  * @brief Override the held-symbol real (I) component in-place.
- * Takes effect on the next synth_step() within the current symbol hold.
+ * Takes effect on the next wfm_synth_step() within the current symbol hold.
  *
  * @param state  Must be non-NULL.
  * @param val    New cur_re value.
@@ -414,7 +414,7 @@ float synth_get_cur_re(const synth_state_t *state);
  * 1.0
  * @endcode
  */
-void synth_set_cur_re(synth_state_t *state, float val);
+void wfm_synth_set_cur_re(wfm_synth_state_t *state, float val);
 
 /**
  * @brief Return the imaginary part of the current held symbol.
@@ -430,11 +430,11 @@ void synth_set_cur_re(synth_state_t *state, float val);
  * 0.0
  * @endcode
  */
-float synth_get_cur_im(const synth_state_t *state);
+float wfm_synth_get_cur_im(const wfm_synth_state_t *state);
 
 /**
  * @brief Override the held-symbol imaginary (Q) component in-place.
- * Takes effect on the next synth_step() within the current symbol hold.
+ * Takes effect on the next wfm_synth_step() within the current symbol hold.
  *
  * @param state  Must be non-NULL.
  * @param val    New cur_im value.
@@ -446,7 +446,7 @@ float synth_get_cur_im(const synth_state_t *state);
  * 0.5
  * @endcode
  */
-void synth_set_cur_im(synth_state_t *state, float val);
+void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
 
 
 
@@ -454,4 +454,4 @@ void synth_set_cur_im(synth_state_t *state, float val);
 }
 #endif
 
-#endif /* SYNTH_CORE_H */
+#endif /* WFM_SYNTH_CORE_H */

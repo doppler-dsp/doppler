@@ -1,13 +1,13 @@
-[synth]
+[wfm_synth]
 arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
 class_name = "Synth"
 depends_on = ["lo", "awgn", "pn"]
 impl = """
-if (state->wtype >= SYNTH_PN) {
+if (state->wtype >= WFM_SYNTH_PN) {
     if (state->sym_pos == 0) {
-        if (state->wtype == SYNTH_QPSK) {
+        if (state->wtype == WFM_SYNTH_QPSK) {
             uint8_t b0 = pn_step(state->pn);
             uint8_t b1 = pn_step(state->pn);
             const float s = 0.70710678118654752f;
@@ -35,11 +35,11 @@ create_impl = """
 obj->wtype = type;
 obj->nsps = (sps < 1) ? 1 : sps;
 obj->sym_pos = 0;
-obj->cur_re = (type == SYNTH_TONE) ? 1.0f : 0.0f;
+obj->cur_re = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
 obj->cur_im = 0.0f;
 
 /* LO carrier for everything but pure noise (freq is Hz → cycles/sample) */
-if (type != SYNTH_NOISE && freq != 0.0) {
+if (type != WFM_SYNTH_NOISE && freq != 0.0) {
     obj->lo = lo_create(fs != 0.0 ? freq / fs : 0.0);
     if (!obj->lo) {
         free(obj);
@@ -48,8 +48,8 @@ if (type != SYNTH_NOISE && freq != 0.0) {
 }
 
 /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
-if (type >= SYNTH_PN) {
-    uint64_t poly = pn_poly ? pn_poly : synth_mls_poly((uint32_t)pn_length);
+if (type >= WFM_SYNTH_PN) {
+    uint64_t poly = pn_poly ? pn_poly : wfm_synth_mls_poly((uint32_t)pn_length);
     if (poly == 0) { /* no MLS table entry for this length */
         if (obj->lo)
             lo_destroy(obj->lo);
@@ -67,15 +67,15 @@ if (type >= SYNTH_PN) {
 
 /* AWGN at the resolved SNR. snr_mode: 0 auto, 1 fs, 2 ebno, 3 esno.
  * Noise only when requested: type=noise always; else only when
- * snr < SYNTH_SNR_CLEAN (a clean waveform skips AWGN entirely). */
-int want_noise = (type == SYNTH_NOISE) || (snr < SYNTH_SNR_CLEAN);
-if (type == SYNTH_NOISE) {
+ * snr < WFM_SYNTH_SNR_CLEAN (a clean waveform skips AWGN entirely). */
+int want_noise = (type == WFM_SYNTH_NOISE) || (snr < WFM_SYNTH_SNR_CLEAN);
+if (type == WFM_SYNTH_NOISE) {
     obj->awgn = awgn_create((uint64_t)seed, (float)(1.0 / 1.4142135623730951));
-} else if (snr < SYNTH_SNR_CLEAN) {
+} else if (snr < WFM_SYNTH_SNR_CLEAN) {
     int mode = snr_mode;
     if (mode == 0)
-        mode = (type >= SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
-    int bps = (type == SYNTH_QPSK) ? 2 : 1;
+        mode = (type >= WFM_SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
+    int bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
     double snr_fs;
     if (mode == 2) /* Eb/No → SNR over fs */
         snr_fs = snr + 10.0 * log10((double)bps)
@@ -98,7 +98,7 @@ if (want_noise && !obj->awgn) {
 """
 reset_impl = """
 state->sym_pos = 0;
-state->cur_re = (state->wtype == SYNTH_TONE) ? 1.0f : 0.0f;
+state->cur_re = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
 state->cur_im = 0.0f;
 if (state->lo)
     lo_reset(state->lo);
@@ -116,92 +116,92 @@ if (state->pn)
     pn_destroy(state->pn);
 """
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "lo"
 type = "lo_state_t *"
 opaque = true
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "awgn"
 type = "awgn_state_t *"
 opaque = true
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "pn"
 type = "pn_state_t *"
 opaque = true
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "wtype"
 type = "int"
 default = "0"
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "nsps"
 type = "int"
 default = "8"
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "sym_pos"
 type = "int"
 default = "0"
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "cur_re"
 type = "float"
 default = "1.0f"
 
-[[synth.state]]
+[[wfm_synth.state]]
 name = "cur_im"
 type = "float"
 default = "0.0f"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "type"
 type = "string_enum:tone,noise,pn,bpsk,qpsk"
 default = "tone"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "fs"
 type = "double"
 default = "1000000.0"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "freq"
 type = "double"
 default = "0.0"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "snr"
 type = "double"
 default = "100.0"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "snr_mode"
 type = "string_enum:auto,fs,ebno,esno"
 default = "auto"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "seed"
 type = "uint32_t"
 default = "1"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "sps"
 type = "int"
 default = "8"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "pn_length"
 type = "int"
 default = "7"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "pn_poly"
 type = "uint64_t"
 default = "0"
 
-[[synth.init_params]]
+[[wfm_synth.init_params]]
 name = "lfsr"
 type = "string_enum:galois,fibonacci"
 default = "galois"

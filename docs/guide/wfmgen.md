@@ -54,16 +54,22 @@ ______________________________________________________________________
 | `pn`     | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn_length`, `--pn_poly`, `--sps` |
 | `bpsk`   | BPSK symbols (PN-sourced data), `--sps` samples/symbol     | `--sps`, `--snr`                    |
 | `qpsk`   | Gray-coded QPSK symbols (PN-sourced data)                  | `--sps`, `--snr`                    |
+| `chirp`  | linear-FM sweep `--freq` → `--f_end` over `--count`        | `--freq`, `--f_end`                 |
 | `bits`   | a user bit pattern, oversampled `--sps` and cycled         | `--bits`, `--modulation`, `--sps`   |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
-`--seed`), so output is reproducible and receiver-correlatable. A `bits`
-waveform instead plays back **your** sequence — a preamble, sync word, or test
-vector — given as a 0/1 string (`--bits 10110101`), a hex string (`--bits-hex AA55`, MSB first), or a file (`--bits-file pattern.txt`); `--modulation`
-(`none`/`bpsk`/`qpsk`) maps the bits to symbols. Each bit is held `--sps`
-samples and the pattern cycles to fill `--count`.
+`--seed`), so output is reproducible and receiver-correlatable. A `chirp` sweeps
+its instantaneous frequency linearly from `--freq` (the start) to `--f_end` over
+the `--count` samples, then holds at `--f_end`; `--f_end < --freq` is a
+down-chirp. The phase is continuous across segments, so concatenated chirps join
+seamlessly (radar pulse compression, SAR, sonar). A `bits` waveform instead
+plays back **your** sequence — a preamble, sync word, or test vector — given as
+a 0/1 string (`--bits 10110101`), a hex string (`--bits-hex AA55`, MSB first),
+or a file (`--bits-file pattern.txt`); `--modulation` (`none`/`bpsk`/`qpsk`)
+maps the bits to symbols.
 
 ```sh
+wfmgen --type chirp --freq 100e3 --f_end 300e3 --fs 1e6 --count 10000 -o chirp.cf32
 wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
 wfmgen --type bits --bits-hex AA55 --modulation none --sps 4 -o preamble.cf32
 ```
@@ -74,21 +80,22 @@ ______________________________________________________________________
 
 ### Engine
 
-| Flag           | Type                           | Default  | Meaning                                                          |
-| -------------- | ------------------------------ | -------- | ---------------------------------------------------------------- |
-| `--type`       | `tone noise pn bpsk qpsk bits` | `tone`   | waveform                                                         |
-| `--fs`         | float (Hz)                     | `1e6`    | sample rate                                                      |
-| `--freq`       | float (Hz)                     | `0`      | frequency offset from baseband (mixed by the LO)                 |
-| `--snr`        | float (dB)                     | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)               |
-| `--snr_mode`   | `auto fs ebno esno`            | `auto`   | how `--snr` is interpreted (see below)                           |
-| `--seed`       | uint32                         | `1`      | PRNG / LFSR seed (deterministic)                                 |
-| `--sps`        | int                            | `8`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)             |
-| `--pn_length`  | int (2..64)                    | `7`      | LFSR register length → period `2ⁿ−1`                             |
-| `--pn_poly`    | uint64                         | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial              |
-| `--lfsr`       | `galois fibonacci`             | `galois` | LFSR realization (same polynomial/period, different sequence)    |
-| `--bits`       | 0/1 string                     | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`) |
-| `--modulation` | `none bpsk qpsk`               | `bpsk`   | `bits`: how the pattern maps to symbols                          |
-| `--count`      | int                            | `1024`   | number of complex samples to generate                            |
+| Flag           | Type                                 | Default  | Meaning                                                          |
+| -------------- | ------------------------------------ | -------- | ---------------------------------------------------------------- |
+| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                         |
+| `--fs`         | float (Hz)                           | `1e6`    | sample rate                                                      |
+| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start    |
+| `--f_end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                        |
+| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)               |
+| `--snr_mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                           |
+| `--seed`       | uint32                               | `1`      | PRNG / LFSR seed (deterministic)                                 |
+| `--sps`        | int                                  | `8`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)             |
+| `--pn_length`  | int (2..64)                          | `7`      | LFSR register length → period `2ⁿ−1`                             |
+| `--pn_poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial              |
+| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)    |
+| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`) |
+| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                          |
+| `--count`      | int                                  | `1024`   | number of complex samples to generate                            |
 
 ### Output
 
@@ -136,6 +143,7 @@ current set, **not** a design assumption:
 | `tone`        | `exp(j·2πft)`                         | constant, mag 1    | `1.0`      |
 | `bpsk` / `pn` | `±1` (real axis)                      | constant, mag 1    | `1.0`      |
 | `qpsk`        | `(±1/√2, ±1/√2)`                      | constant, mag 1    | `1.0`      |
+| `chirp`       | `exp(j·φ(t))`, φ′ ramps `freq→f_end`  | constant, mag 1    | `1.0`      |
 | `noise`       | complex Gaussian, `σ = 1/√2` per axis | Gaussian, PAPR > 0 | `1.0`      |
 
 **Don't rely on `|z| = 1`.** A pulse-shaped (RRC), QAM, or OFDM waveform has a

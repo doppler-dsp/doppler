@@ -48,8 +48,23 @@ if (state->wtype == WFM_SYNTH_BITS) {
 }
 float complex sym = state->cur_re + state->cur_im * I;
 float complex carrier = 1.0f + 0.0f * I;
-if (state->lo)
+if (state->lo) {
     lo_steps(state->lo, 1, &carrier);
+} else if (state->wtype == WFM_SYNTH_CHIRP) {
+    /* Sweeping carrier: f(n) = f0 + k*n (normalised cycles/sample), held at
+     * f_end once the span is reached. Phase accumulates in cycles, wrapped to
+     * [0,1) each step so the double keeps precision over a long sweep. The
+     * fused sym*carrier + noise below is the *same* expression the tone path
+     * (and wfm_synth_steps) uses, so step()/steps() stay byte-identical. */
+    double nf = (state->chirp_span && state->chirp_n >= state->chirp_span)
+                    ? (double)state->chirp_span
+                    : (double)state->chirp_n;
+    double w   = state->chirp_f0 + state->chirp_k * nf;
+    carrier    = cexpf((float)(6.283185307179586 * state->chirp_ph) * I);
+    state->chirp_ph += w;
+    state->chirp_ph -= floor(state->chirp_ph);
+    state->chirp_n++;
+}
 float complex noise = 0.0f + 0.0f * I;
 if (state->awgn)
     awgn_generate(state->awgn, 1, &noise);
@@ -59,11 +74,23 @@ create_impl = """
 obj->wtype = type;
 obj->nsps = (sps < 1) ? 1 : sps;
 obj->sym_pos = 0;
-obj->cur_re = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
+obj->cur_re = (type == WFM_SYNTH_TONE || type == WFM_SYNTH_CHIRP) ? 1.0f : 0.0f;
 obj->cur_im = 0.0f;
 
-/* LO carrier for everything but pure noise (freq is Hz → cycles/sample) */
-if (type != WFM_SYNTH_NOISE && freq != 0.0) {
+/* Chirp: store the normalised start/end frequencies (freq is the start, i.e.
+ * the instantaneous frequency at t=0). The per-sample slope chirp_k locks once
+ * the sweep span is known — from wfm_synth_set_chirp_span() (composer/CLI, span
+ * = the segment length) or the first wfm_synth_steps() call (standalone). */
+obj->chirp_f0 = (fs != 0.0) ? freq / fs : 0.0;
+obj->chirp_fend = (fs != 0.0) ? f_end / fs : 0.0;
+obj->chirp_k = 0.0;
+obj->chirp_ph = 0.0;
+obj->chirp_n = 0;
+obj->chirp_span = 0;
+
+/* LO carrier for everything but pure noise (freq is Hz → cycles/sample).
+ * Chirp synthesises its own swept carrier, so it never builds a static LO. */
+if (type != WFM_SYNTH_NOISE && type != WFM_SYNTH_CHIRP && freq != 0.0) {
     obj->lo = lo_create(fs != 0.0 ? freq / fs : 0.0);
     if (!obj->lo) {
         free(obj);
@@ -107,7 +134,7 @@ if (type == WFM_SYNTH_NOISE) {
     if (mode == 0)
         mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK)
                    ? 3
-                   : 1; /* *psk → esno; tone/pn/bits → fs */
+                   : 1; /* *psk → esno; tone/pn/chirp/bits → fs */
     int bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
     double snr_fs;
     if (mode == 2) /* Eb/No → SNR over fs */
@@ -131,9 +158,14 @@ if (want_noise && !obj->awgn) {
 """
 reset_impl = """
 state->sym_pos = 0;
-state->cur_re = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
+state->cur_re = (state->wtype == WFM_SYNTH_TONE
+                || state->wtype == WFM_SYNTH_CHIRP)
+                   ? 1.0f
+                   : 0.0f;
 state->cur_im = 0.0f;
-state->bit_idx = 0; /* rewind the bit pattern to its start */
+state->bit_idx = 0;    /* rewind the bit pattern to its start */
+state->chirp_ph = 0.0; /* rewind the sweep; chirp_span/chirp_k stay locked */
+state->chirp_n = 0;
 if (state->lo)
     lo_reset(state->lo);
 if (state->awgn)
@@ -191,6 +223,39 @@ name = "cur_im"
 type = "float"
 default = "0.0f"
 
+# Chirp (LFM) sweep state — opaque so jm emits the fields verbatim with no
+# getter/setter and no constructor kwarg (the user surface is freq=f_start +
+# f_end; the span/slope are set internally). Reset by reset_impl by hand.
+[[wfm_synth.state]]
+name = "chirp_f0"
+type = "double"
+opaque = true
+
+[[wfm_synth.state]]
+name = "chirp_fend"
+type = "double"
+opaque = true
+
+[[wfm_synth.state]]
+name = "chirp_k"
+type = "double"
+opaque = true
+
+[[wfm_synth.state]]
+name = "chirp_ph"
+type = "double"
+opaque = true
+
+[[wfm_synth.state]]
+name = "chirp_n"
+type = "size_t"
+opaque = true
+
+[[wfm_synth.state]]
+name = "chirp_span"
+type = "size_t"
+opaque = true
+
 # User bit-pattern state (type "bits") — opaque so jm emits the fields verbatim
 # with no getter/setter and no ctor kwarg. The array is attached after create
 # via wfm_synth_set_bits(); reset/destroy handle bit_idx/free by hand.
@@ -216,7 +281,7 @@ opaque = true
 
 [[wfm_synth.init_params]]
 name = "type"
-type = "string_enum:tone,noise,pn,bpsk,qpsk,bits"
+type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits"
 default = "tone"
 
 [[wfm_synth.init_params]]
@@ -263,3 +328,11 @@ default = "0"
 name = "lfsr"
 type = "string_enum:galois,fibonacci"
 default = "galois"
+
+# Chirp end frequency (Hz). Only used when type == "chirp"; the start frequency
+# is `freq`. Appended last so existing positional create() calls just gain one
+# trailing arg. Default 0 → ignored by every non-chirp type.
+[[wfm_synth.init_params]]
+name = "f_end"
+type = "double"
+default = "0.0"

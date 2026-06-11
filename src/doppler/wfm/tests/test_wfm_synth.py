@@ -1,14 +1,19 @@
 """Integration tests for the Synth waveform engine.
 
-Covers the five waveform types, smart defaults (bare construct → clean tone),
-the string ``type``/``snr_mode`` choices, MLS PN behaviour, and the
-auto-resolved SNR (Es/No for the modulated types).
+Covers the six waveform types, smart defaults (bare construct → clean tone),
+the string ``type``/``snr_mode`` choices, MLS PN behaviour, the LFM chirp
+sweep, and the auto-resolved SNR (Es/No for the modulated types).
 """
 
 import numpy as np
 import pytest
 
-from doppler.wfm import Synth, bits
+from doppler.wfm import Synth, bits, chirp
+
+
+def _inst_freq(x, fs):
+    """Per-sample instantaneous frequency (Hz) from the phase increment."""
+    return np.angle(x[1:] * np.conj(x[:-1])) / (2 * np.pi) * fs
 
 
 def _power(x):
@@ -158,3 +163,69 @@ def test_bits_needs_pattern():
 def test_bits_bad_string_rejected():
     with pytest.raises(ValueError):
         bits("10201").steps(4)  # '2' is not a bit
+
+
+# ── chirp (LFM) ──────────────────────────────────────────────────────────────
+
+
+def test_chirp_unit_envelope():
+    """A pure FM sweep has constant (unit) magnitude everywhere."""
+    x = chirp(f_start=1e5, f_end=3e5, fs=1e6).steps(4096)
+    assert np.allclose(np.abs(x), 1.0, atol=1e-4)
+
+
+def test_chirp_up_sweep_linear():
+    """Instantaneous frequency rises linearly from f_start to f_end."""
+    fs, f0, f1, n = 1e6, 1e5, 3e5, 8192
+    x = chirp(f_start=f0, f_end=f1, fs=fs).steps(n)
+    f = _inst_freq(x, fs)
+    assert np.isclose(f[0], f0, atol=2e3)  # starts at f_start
+    assert np.isclose(f[-1], f1, atol=2e3)  # ends at f_end
+    # linear ramp: a straight-line fit explains essentially all the variance
+    coeffs = np.polyfit(np.arange(len(f)), f, 1)
+    resid = f - np.polyval(coeffs, np.arange(len(f)))
+    assert coeffs[0] > 0 and np.std(resid) < 2e3
+
+
+def test_chirp_down_sweep():
+    """f_end < f_start sweeps high → low."""
+    fs, f0, f1, n = 1e6, 3e5, 1e5, 8192
+    f = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(n), fs)
+    assert np.isclose(f[0], f0, atol=2e3)
+    assert np.isclose(f[-1], f1, atol=2e3)
+
+
+def test_chirp_span_is_generation_length():
+    """The sweep fills exactly the requested length: f_end is hit at sample N."""
+    fs, f0, f1 = 1e6, 1e5, 4e5
+    short = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(2000), fs)
+    long = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(8000), fs)
+    # both reach f_end at their own end, so the short sweep ramps ~4x faster
+    assert np.isclose(short[-1], f1, atol=3e3)
+    assert np.isclose(long[-1], f1, atol=3e3)
+    assert (short[1] - short[0]) > 3 * (long[1] - long[0])
+
+
+def test_chirp_reset_reproduces():
+    s = chirp(f_start=1e5, f_end=3e5, fs=1e6)
+    a = s.steps(4096)
+    s.reset()
+    assert np.array_equal(a, s.steps(4096))
+
+
+def test_chirp_respects_snr():
+    """A noisy chirp adds AWGN over fs like a tone (clean chirp is unit power)."""
+    clean = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=100).steps(1 << 16)
+    noisy = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=10, seed=3).steps(
+        1 << 16
+    )
+    assert np.isclose(_power(clean), 1.0, atol=0.02)
+    # signal (1) + noise (1/10) over the band
+    assert np.isclose(_power(noisy), 1 + 1 / 10, atol=0.05)
+
+
+def test_chirp_freq_is_f_start_alias():
+    """``freq`` and ``f_start`` are the same knob for a chirp."""
+    a = Synth(type="chirp", freq=1e5, f_end=2e5, fs=1e6).steps(1024)
+    b = Synth(type="chirp", f_start=1e5, f_end=2e5, fs=1e6).steps(1024)
+    assert np.array_equal(a, b)

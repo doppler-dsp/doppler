@@ -178,6 +178,24 @@ If you need the C library, examples, or Rust FFI bindings:
     sudo apt-get install build-essential cmake pkg-config python3-dev python3-numpy
     ```
 
+=== "Arch"
+
+    ```bash
+    sudo pacman -S --needed base-devel cmake python python-numpy
+    ```
+
+=== "Fedora / RHEL"
+
+    ```bash
+    sudo dnf install gcc gcc-c++ make cmake pkgconf-pkg-config python3-devel python3-numpy
+    ```
+
+=== "openSUSE"
+
+    ```bash
+    sudo zypper install gcc gcc-c++ make cmake pkg-config python3-devel python3-numpy
+    ```
+
 === "macOS"
 
     ```bash

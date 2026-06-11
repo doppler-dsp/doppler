@@ -19,6 +19,24 @@
 --8<-- "tests/install/build-apt-deps.sh:install"
 ```
 
+### Arch (incl. Manjaro, EndeavourOS, CachyOS)
+
+```sh
+--8<-- "tests/install/build-pacman-deps.sh:install"
+```
+
+### Fedora / RHEL (incl. Rocky, AlmaLinux)
+
+```sh
+--8<-- "tests/install/build-dnf-deps.sh:install"
+```
+
+### openSUSE (Leap / Tumbleweed)
+
+```sh
+--8<-- "tests/install/build-zypper-deps.sh:install"
+```
+
 ### macOS
 
 ```sh

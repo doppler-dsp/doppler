@@ -112,6 +112,69 @@ def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
     assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wfmgen"
 
 
+@_needs_wfmgen
+def test_chirp_byte_parity_vs_wfmgen(tmp_path):
+    """A chirp segment is byte-identical between the Composer and the CLI; the
+    sweep span = the segment's num_samples = --count."""
+    n = 4096
+    cli = tmp_path / "cli.iq"
+    subprocess.run(
+        [
+            _WFMGEN,
+            "--type",
+            "chirp",
+            "--fs",
+            "1e6",
+            "--freq",
+            "1e5",
+            "--f_end",
+            "3e5",
+            "--count",
+            str(n),
+            "--sample_type",
+            "cf32",
+            "-o",
+            str(cli),
+        ],
+        check=True,
+    )
+    x = Composer(
+        Segment("chirp", fs=1e6, freq=1e5, f_end=3e5, num_samples=n)
+    ).compose()
+    py = tmp_path / "py.iq"
+    with Writer(py, file_type="raw", sample_type="cf32") as w:
+        w.write(x)
+    assert _md5(py) == _md5(cli)
+
+
+def test_chirp_json_roundtrip():
+    """f_end survives the JSON spec round-trip (and only chirp carries it)."""
+    a = Composer([Segment("chirp", freq=1e5, f_end=4e5, num_samples=1000)])
+    js = a.to_json()
+    assert '"f_end"' in js
+    b = Composer.from_json(js)
+    assert np.array_equal(a.compose(), b.compose())
+    assert b.segments[0].f_end == 4e5
+    # a plain tone spec never grows an f_end key (back-compat / byte-stable)
+    assert '"f_end"' not in Composer([Segment("tone")]).to_json()
+
+
+def test_chirp_in_timeline_and_sum():
+    """A chirp composes both in time (.add) and summed (.sum) with other srcs."""
+    from doppler.wfm import chirp, tone
+
+    tl = Segment("chirp", freq=1e5, f_end=2e5, num_samples=1000).add(
+        Segment("tone", freq=0, num_samples=500)
+    )
+    assert len(Composer(tl).compose()) == 1500
+    mix = Segment.sum(
+        chirp(f_start=1e5, f_end=2e5),
+        tone(freq=-2e5, level=-6),
+        num_samples=2048,
+    )
+    assert len(Composer(mix).compose()) == 2048
+
+
 def test_json_roundtrip():
     """to_json() → from_json() reproduces the samples exactly."""
     spec = [

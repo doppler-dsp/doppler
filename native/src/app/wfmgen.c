@@ -28,7 +28,7 @@
 #define BLK 4096
 
 static const char *const TYPES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "bits" };
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits" };
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
 static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
@@ -157,8 +157,9 @@ slurp_file (const char *path)
 
 static const char USAGE[]
     = "usage: wfmgen [--from-file SPEC.json] [--type "
-      "tone|noise|pn|bpsk|qpsk|bits]\n"
-      "  [--fs HZ] [--freq HZ] [--fc HZ] [--snr DB] [--snr_mode "
+      "tone|noise|pn|bpsk|qpsk|chirp|bits]\n"
+      "  [--fs HZ] [--freq HZ] [--f_end HZ] [--fc HZ] [--snr DB] [--snr_mode "
+
       "auto|fs|ebno|esno]\n"
       "  [--seed N] [--sps N] [--pn_length N] [--pn_poly N] "
       "[--lfsr galois|fibonacci]\n"
@@ -303,6 +304,10 @@ main (int argc, char *argv[])
       else if (!strcmp (a, "--freq"))
         {
           src.freq = strtod (NEXT (), NULL);
+        }
+      else if (!strcmp (a, "--f_end"))
+        {
+          src.f_end = strtod (NEXT (), NULL); /* chirp end frequency */
         }
       else if (!strcmp (a, "--fc"))
         {

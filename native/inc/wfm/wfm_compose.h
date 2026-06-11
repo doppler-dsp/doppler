@@ -48,7 +48,7 @@ extern "C" {
  */
 typedef struct {
     int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
-    double freq;       /* freq offset (Hz) */
+    double freq;       /* freq offset (Hz); chirp: start frequency f_start */
     double snr;        /* dB, per snr_mode */
     int snr_mode;      /* 0 auto, 1 fs, 2 ebno, 3 esno */
     uint32_t seed;     /* PRNG / LFSR seed */
@@ -57,6 +57,7 @@ typedef struct {
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
     double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+    double f_end;      /* chirp end frequency (Hz); ignored by other types */
     uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
     size_t n_bits;     /* type=bits: pattern length */
     int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */

@@ -2,10 +2,10 @@
 
 Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
-| Class   | Output                              | Use when                                                                          |
-| ------- | ----------------------------------- | --------------------------------------------------------------------------------- |
-| `Synth` | CF32 — the six-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / bits, with optional LO offset and AWGN |
-| `PN`    | uint8 — raw LFSR chips (0/1)        | Spreading / ranging codes, scrambling, test vectors                               |
+| Class   | Output                                | Use when                                                                                  |
+| ------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `Synth` | CF32 — the seven-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits, with optional LO offset and AWGN |
+| `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                       |
 
 `Synth` is also the unit of **composition** — pass synths into `Segment.sum`
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-zmq-sink) below).
@@ -70,6 +70,29 @@ sync = Synth(type="bits", pattern="0xAA55", modulation="none", sps=8)
 import numpy as np
 payload = bits(np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk")
 ```
+
+### Chirp (LFM sweep)
+
+A `chirp` is a **linear-FM sweep**: its instantaneous frequency ramps from
+`freq` (the start, also spellable `f_start=`) to `f_end` over the generated
+length, then holds at `f_end`. The phase is continuous, so multi-segment chirps
+join seamlessly — pulse-compression, SAR, sonar, and frequency-response test
+signals all fall out of this one type. `f_end < freq` is a down-chirp; `snr`
+adds AWGN exactly as for a tone.
+
+```python
+from doppler.wfm import Synth, chirp
+
+# Up-chirp 100 kHz → 300 kHz over 10000 samples at 1 MS/s
+up = chirp(f_start=100e3, f_end=300e3, fs=1e6).steps(10000)
+
+# Down-chirp (equivalent direct construction; freq IS the start frequency)
+down = Synth(type="chirp", freq=1e6, f_end=500e3, fs=2e6).steps(50000)
+```
+
+The sweep **span is the length you ask for**: `steps(N)` sweeps over exactly
+`N` samples standalone, and in a `Segment` the sweep fills the segment's
+`num_samples` — so `f_end` is reached at the last sample either way.
 
 ### Clean vs noisy, baseband vs offset
 
@@ -226,9 +249,10 @@ mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
 
 The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` /
-`bits(pattern, modulation)` each return a `Synth` (a `noise(level=…)` is a bare
-AWGN floor at that level in dBFS; a `bits(...)` plays a user pattern); or
-construct `Synth(...)` directly. In a `Segment.sum` the per-synth `snr` resolves
+`chirp(f_start, f_end)` / `bits(pattern, modulation)` each return a `Synth` (a
+`noise(level=…)` is a bare AWGN floor at that level in dBFS; a `chirp` is an LFM
+sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
+In a `Segment.sum` the per-synth `snr` resolves
 into one shared noise floor, and each synth's `level` (dBFS) sets its share.
 
 `Reader` is the **dual of `Writer`** — it reads a capture back to `complex64`,

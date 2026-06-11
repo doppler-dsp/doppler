@@ -129,6 +129,7 @@ nav:
   - Gallery:
       - Gallery: gallery/index.md
       - Waveform Generator: gallery/wfmgen.md
+      - Waveform Scenes: gallery/wfm-composition.md
       - AGC: gallery/agc.md
       - CIC Decimation: gallery/cic.md
       - Q15 vs UQ15: gallery/q15-uq15.md

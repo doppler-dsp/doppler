@@ -271,7 +271,8 @@ GALLERY_SCRIPTS := \
     examples/python/ddc_fn_scaling.py \
     examples/python/adc_demo.py \
     examples/python/hbdecim_q15_demo.py \
-    examples/python/wfmgen_demo.py
+    examples/python/wfmgen_demo.py \
+    examples/python/wfm_composition_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."
@@ -279,7 +280,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png wfm_composition_demo.png docs/assets/
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

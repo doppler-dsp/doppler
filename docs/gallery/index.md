@@ -16,6 +16,18 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](wfmgen.md)
 
+- **[Composing a Scene — sum, add, headroom](wfm-composition.md)**
+
+    ______________________________________________________________________
+
+    [![waveform composition demo](../assets/wfm_composition_demo.png)](wfm-composition.md)
+
+    A QPSK SoI under a CW interferer over one resolved noise floor
+    (`.sum()`), sequenced after a preamble (`.add()`), with PAPR / clip /
+    headroom and the SoI's Es/No.
+
+    [:octicons-arrow-right-24: Walkthrough](wfm-composition.md)
+
 - **[AGC — Step Response](agc.md)**
 
     ______________________________________________________________________

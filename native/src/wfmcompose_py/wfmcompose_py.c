@@ -29,13 +29,15 @@
 #include "wfm/wfm_sink.h"
 #endif
 
-/* A 1-source segment crosses as a 13-tuple (the back-compat form):
- *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level */
-#define _SEG_FMT "idddiIiiKinnd"
+/* A 1-source segment crosses as a 14-tuple (the back-compat form, + f_end):
+ *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level
+ *   f_end */
+#define _SEG_FMT "idddiIiiKinndd"
+#define _SEG_NTUP 14
 /* A multi-source segment crosses as (num, off, fs, [source, ...]) where each
- * source is a 10-tuple (no fs/num/off — those are segment-level):
- *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level */
-#define _SOURCE_FMT "iddiIiiKid"
+ * source is an 11-tuple (no fs/num/off — those are segment-level):
+ *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level f_end */
+#define _SOURCE_FMT "iddiIiiKidd"
 
 /* Free a wfm_segment_t[] including each of the first `n` segments' sources. */
 static void
@@ -56,7 +58,7 @@ _parse_source (PyObject *st, wfm_source_t *src)
   return PyArg_ParseTuple (st, _SOURCE_FMT, &src->type, &src->freq, &src->snr,
                            &src->snr_mode, &src->seed, &src->sps,
                            &src->pn_length, &src->pn_poly, &src->lfsr,
-                           &src->level);
+                           &src->level, &src->f_end);
 }
 
 /* Parse a Python list of segment tuples into a malloc'd wfm_segment_t[]. A
@@ -85,9 +87,9 @@ _parse_segments (PyObject *list, size_t *n_out)
     {
       PyObject      *t = PyList_GET_ITEM (list, i);
       wfm_segment_t *s = &segs[i];
-      if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == 13)
+      if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == _SEG_NTUP)
         {
-          /* 1-source 13-tuple (back-compat, byte-identical). */
+          /* 1-source 14-tuple (back-compat, byte-identical). */
           wfm_source_t *src = (wfm_source_t *)malloc (sizeof *src);
           if (!src)
             {
@@ -100,7 +102,7 @@ _parse_segments (PyObject *list, size_t *n_out)
                                  &src->snr, &src->snr_mode, &src->seed,
                                  &src->sps, &src->pn_length, &src->pn_poly,
                                  &src->lfsr, &s->num_samples, &s->off_samples,
-                                 &src->level))
+                                 &src->level, &src->f_end))
             {
               _free_segments (segs, (size_t)i + 1);
               return NULL;
@@ -164,11 +166,11 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
       if (s->n_sources == 1)
         {
           const wfm_source_t *src = &s->sources[0];
-          t = Py_BuildValue ("(" _SEG_FMT ")", src->type, s->fs, src->freq,
-                             src->snr, src->snr_mode, src->seed, src->sps,
-                             src->pn_length, src->pn_poly, src->lfsr,
-                             (Py_ssize_t)s->num_samples,
-                             (Py_ssize_t)s->off_samples, src->level);
+          t                       = Py_BuildValue (
+              "(" _SEG_FMT ")", src->type, s->fs, src->freq, src->snr,
+              src->snr_mode, src->seed, src->sps, src->pn_length, src->pn_poly,
+              src->lfsr, (Py_ssize_t)s->num_samples,
+              (Py_ssize_t)s->off_samples, src->level, src->f_end);
         }
       else
         {
@@ -184,7 +186,7 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
               PyObject           *st  = Py_BuildValue (
                   "(" _SOURCE_FMT ")", src->type, src->freq, src->snr,
                   src->snr_mode, src->seed, src->sps, src->pn_length,
-                  src->pn_poly, src->lfsr, src->level);
+                  src->pn_poly, src->lfsr, src->level, src->f_end);
               if (!st)
                 {
                   Py_DECREF (srclist);

@@ -75,13 +75,18 @@ start_segment (wfm_compose_state_t *s)
     {
       const wfm_source_t *src = &g->sources[k];
       s->gain[k] = (float)pow (10.0, src->level / 20.0); /* level → gain */
-      s->syn[k]  = wfm_synth_create (src->type, g->fs, src->freq, src->snr,
-                                     src->snr_mode, src->seed, src->sps,
-                                     src->pn_length, src->pn_poly, src->lfsr);
+      s->syn[k]  = wfm_synth_create (
+          src->type, g->fs, src->freq, src->snr, src->snr_mode, src->seed,
+          src->sps, src->pn_length, src->pn_poly, src->lfsr, src->f_end);
       if (!s->syn[k])
         ok = 0;
       else
-        s->n_syn = k + 1; /* track for stop_synths on partial failure */
+        {
+          /* Pin a chirp's sweep to the segment's on-time so it sweeps
+           * f_start→f_end over exactly num_samples (no-op for non-chirp). */
+          wfm_synth_set_chirp_span (s->syn[k], g->num_samples);
+          s->n_syn = k + 1; /* track for stop_synths on partial failure */
+        }
     }
   if (ok)
     {

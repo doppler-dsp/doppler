@@ -14,7 +14,8 @@
 #include "cJSON.h"
 
 static const char *const TYPE_NAMES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk" };
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp" };
+#define N_TYPES 6
 static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
 static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
 
@@ -42,10 +43,12 @@ num (const cJSON *obj, const char *key, double fallback)
 static void
 add_source_obj (cJSON *so, const wfm_source_t *src)
 {
-  int t = (src->type >= 0 && src->type < 5) ? src->type : 0;
+  int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
   int m = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
   cJSON_AddStringToObject (so, "type", TYPE_NAMES[t]);
   cJSON_AddNumberToObject (so, "freq", src->freq);
+  if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
+    cJSON_AddNumberToObject (so, "f_end", src->f_end);
   cJSON_AddNumberToObject (so, "snr", src->snr);
   cJSON_AddStringToObject (so, "snr_mode", MODE_NAMES[m]);
   cJSON_AddNumberToObject (so, "seed", (double)src->seed);
@@ -63,7 +66,7 @@ static int
 parse_source_obj (const cJSON *so, wfm_source_t *out)
 {
   const cJSON *ty = cJSON_GetObjectItemCaseSensitive (so, "type");
-  int          t  = name_index (cJSON_GetStringValue (ty), TYPE_NAMES, 5);
+  int          t = name_index (cJSON_GetStringValue (ty), TYPE_NAMES, N_TYPES);
   if (t < 0)
     return -1;
   const cJSON *md = cJSON_GetObjectItemCaseSensitive (so, "snr_mode");
@@ -84,6 +87,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
                                 ? 1
                                 : 0,
                .level     = num (so, "level", 0.0),
+               .f_end     = num (so, "f_end", 0.0),
   };
   return 0;
 }
@@ -109,12 +113,14 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
         {
           /* 1-source inline form — field order frozen for byte-identity. */
           const wfm_source_t *src = &g->sources[0];
-          int t = (src->type >= 0 && src->type < 5) ? src->type : 0;
+          int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
           int m
               = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
           cJSON_AddStringToObject (s, "type", TYPE_NAMES[t]);
           cJSON_AddNumberToObject (s, "fs", g->fs);
           cJSON_AddNumberToObject (s, "freq", src->freq);
+          if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
+            cJSON_AddNumberToObject (s, "f_end", src->f_end);
           cJSON_AddNumberToObject (s, "snr", src->snr);
           cJSON_AddStringToObject (s, "snr_mode", MODE_NAMES[m]);
           cJSON_AddNumberToObject (s, "seed", (double)src->seed);

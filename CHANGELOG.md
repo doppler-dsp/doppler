@@ -13,6 +13,21 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Chirp (LFM) waveform type** — `Synth(type="chirp", freq=f_start, f_end=…)`
+    and the `chirp(f_start, f_end)` builder generate a linear-FM sweep whose
+    instantaneous frequency ramps from `freq` (the start) to `f_end` over the
+    generated length, then holds at `f_end`; `f_end < freq` is a down-chirp. The
+    phase is continuous across `steps()`/segments, so concatenated chirps join
+    seamlessly (radar pulse compression, SAR, sonar, frequency-response tests).
+    Exposed on every face: the `wfmgen --type chirp --freq … --f_end …` CLI, the
+    JSON spec (`"type":"chirp"`, `"f_end"`), `Segment`/`Composer` (the sweep
+    spans the segment's `num_samples`), and SigMF annotations (the
+    `f_start..f_end` occupied band). Byte-identical CLI ⇄ Composer ⇄ standalone,
+    and the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
+    (#113)
+
 ### Fixed
 
 - **`source` heap overflow on large single-call generation** (#116) —

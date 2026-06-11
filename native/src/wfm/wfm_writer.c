@@ -21,8 +21,8 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-static const char *const TYPE_NAMES[5]
-    = { "tone", "noise", "pn", "bpsk", "qpsk" };
+static const char *const TYPE_NAMES[6]
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp" };
 static const char *const MODE_NAMES[4] = { "auto", "fs", "ebno", "esno" };
 
 struct wfm_writer
@@ -357,15 +357,28 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
           cJSON_AddNumberToObject (a, "core:sample_start", (double)start);
           cJSON_AddNumberToObject (a, "core:sample_count",
                                    (double)s->num_samples);
-          double bw     = (src->type >= 2 && src->sps > 0)
-                              ? s->fs / (double)src->sps
-                              : 0.0;
-          double center = fc + src->freq;
-          cJSON_AddNumberToObject (a, "core:freq_lower_edge",
-                                   center - bw / 2.0);
-          cJSON_AddNumberToObject (a, "core:freq_upper_edge",
-                                   center + bw / 2.0);
-          if (src->type >= 0 && src->type < 5)
+          /* Occupied band: a chirp spans f_start..f_end; a modulated source
+           * (pn/bpsk/qpsk) is ~fs/sps wide about its centre; tone/noise are a
+           * line at the offset. */
+          double bw, center;
+          if (src->type == WFM_SYNTH_CHIRP)
+            {
+              double lo = src->freq < src->f_end ? src->freq : src->f_end;
+              double hi = src->freq < src->f_end ? src->f_end : src->freq;
+              cJSON_AddNumberToObject (a, "core:freq_lower_edge", fc + lo);
+              cJSON_AddNumberToObject (a, "core:freq_upper_edge", fc + hi);
+            }
+          else
+            {
+              bw = (src->type >= 2 && src->sps > 0) ? s->fs / (double)src->sps
+                                                    : 0.0;
+              center = fc + src->freq;
+              cJSON_AddNumberToObject (a, "core:freq_lower_edge",
+                                       center - bw / 2.0);
+              cJSON_AddNumberToObject (a, "core:freq_upper_edge",
+                                       center + bw / 2.0);
+            }
+          if (src->type >= 0 && src->type < 6)
             cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
           cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
           if (src->snr_mode >= 0 && src->snr_mode < 4)

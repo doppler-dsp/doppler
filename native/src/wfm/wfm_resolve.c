@@ -36,8 +36,8 @@ static double
 snr_over_fs (const wfm_source_t *s)
 {
   int mode = s->snr_mode;
-  if (mode == 0) /* auto: *psk → Es/No, tone/noise/pn → over-fs */
-    mode = (s->type >= WFM_SYNTH_BPSK) ? 3 : 1;
+  if (mode == 0) /* auto: *psk → Es/No, tone/noise/pn/chirp → over-fs */
+    mode = (s->type == WFM_SYNTH_BPSK || s->type == WFM_SYNTH_QPSK) ? 3 : 1;
   int nsps = (s->sps < 1) ? 1 : s->sps;
   int bps  = (s->type == WFM_SYNTH_QPSK) ? 2 : 1;
   if (mode == 2) /* Eb/No */

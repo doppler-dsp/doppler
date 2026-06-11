@@ -187,5 +187,6 @@ nav:
       - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md
       - Error Convention: dev/error-convention.md
+      - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
       - Benchmarking: dev/benchmarking.md
       - Release: dev/release.md

@@ -184,15 +184,11 @@ If you need the C library, examples, or Rust FFI bindings:
     brew install cmake python numpy
     ```
 
-=== "Windows (MSYS2 UCRT64)"
+!!! info "Windows"
 
-    ```bash
-    pacman -S mingw-w64-ucrt-x86_64-gcc \
-              mingw-w64-ucrt-x86_64-cmake \
-              mingw-w64-ucrt-x86_64-python \
-              mingw-w64-ucrt-x86_64-python-numpy \
-              make pkg-config
-    ```
+    doppler does not target Windows natively — build under
+    [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container
+    and follow the Ubuntu / Debian steps.
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler

@@ -4,8 +4,9 @@
  *
  * Folds a stream of equal-length frames into a single running trace using one
  * of four reduction modes: linear mean, exponential moving average (EMA),
- * max-hold, or min-hold.  Where ::acc_f32 reduces a frame to one scalar sum,
- * AccTrace keeps a value *per bin*, which is what spectrum averaging,
+ * max-hold, or min-hold.  Where the scalar @c acc_f32 / @c acc_cf64
+ * accumulators reduce a frame to one running sum, AccTrace keeps a value
+ * *per bin*, which is what spectrum averaging,
  * waterfalls/spectrograms, and video-averaged displays need.  Accumulation is
  * done in double precision regardless of the float32 input/output to keep the
  * running mean numerically stable over long captures.

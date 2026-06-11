@@ -90,7 +90,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
 
 char *
 wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
-                  int continuous)
+                  int continuous, double headroom)
 {
   cJSON *root = cJSON_CreateObject ();
   if (!root)
@@ -98,6 +98,8 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   cJSON_AddStringToObject (root, "version", "wfmgen-1");
   cJSON_AddBoolToObject (root, "repeat", repeat != 0);
   cJSON_AddBoolToObject (root, "continuous", continuous != 0);
+  if (headroom != 0.0) /* omit at 0 dB so pre-headroom specs are unchanged */
+    cJSON_AddNumberToObject (root, "headroom", headroom);
   cJSON *arr = cJSON_AddArrayToObject (root, "segments");
   for (size_t i = 0; i < n_segs; i++)
     {
@@ -146,6 +148,17 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   char *out = cJSON_Print (root);
   cJSON_Delete (root);
   return out;
+}
+
+double
+wfm_spec_headroom (const char *json)
+{
+  cJSON *root = cJSON_Parse (json);
+  if (!root)
+    return 0.0;
+  double h = num (root, "headroom", 0.0);
+  cJSON_Delete (root);
+  return h;
 }
 
 wfm_compose_state_t *

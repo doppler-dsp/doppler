@@ -392,7 +392,7 @@ _fn_spec_to_json (PyObject *mod, PyObject *args)
   wfm_segment_t *segs = _parse_segments (seg_list, &n_segs);
   if (!segs)
     return NULL;
-  char *json = wfm_spec_to_json (segs, n_segs, repeat, continuous);
+  char *json = wfm_spec_to_json (segs, n_segs, repeat, continuous, 0.0);
   _free_segments (segs, n_segs);
   if (!json)
     {

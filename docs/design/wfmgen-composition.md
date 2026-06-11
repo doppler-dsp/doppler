@@ -9,8 +9,9 @@
     [Waveform Generator guide](../guide/wfmgen.md)), and the JSON `"sum"` schema
     behind `wfmgen --from-file` is byte-identical to it. Single-source,
     `level = 0`, `--headroom 0` reproduces the pre-0.11 output byte-for-byte.
-    The text below is kept as the design rationale. One deferred item:
-    `--headroom` is not yet folded into `--record`.
+    `--record` captures the resolved sum **and** the `--headroom`, so
+    `--from-file` reproduces a scene exactly. The text below is kept as the
+    design rationale.
 
 ## Motivation
 

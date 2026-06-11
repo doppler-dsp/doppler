@@ -72,6 +72,33 @@ report_clip (double peak, double frac, int stype, double headroom,
   return clip_error ? 1 : 0;
 }
 
+/* Read a whole file into a malloc'd NUL-terminated string (caller frees). */
+static char *
+slurp_file (const char *path)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  fseek (f, 0, SEEK_END);
+  long len = ftell (f);
+  if (len < 0)
+    {
+      fclose (f);
+      return NULL;
+    }
+  rewind (f);
+  char *buf = malloc ((size_t)len + 1);
+  if (!buf)
+    {
+      fclose (f);
+      return NULL;
+    }
+  size_t rd = fread (buf, 1, (size_t)len, f);
+  fclose (f);
+  buf[rd] = '\0';
+  return buf;
+}
+
 static const char USAGE[]
     = "usage: wfmgen [--from-file SPEC.json] [--type "
       "tone|noise|pn|bpsk|qpsk]\n"
@@ -106,7 +133,8 @@ main (int argc, char *argv[])
   int           repeat = 0, continuous = 0, detached = 0;
   int           realtime = 0, realtime_resync = 0;
   int           clip_report = 0, clip_error = 0;
-  double        headroom    = 0.0; /* dB of peak backoff; gain = 10^(-H/20) */
+  double        headroom     = 0.0; /* dB of peak backoff; gain = 10^(-H/20) */
+  int           headroom_set = 0; /* explicit --headroom overrides a record */
   int           sample_type = 0, file_type = 0, endian = 0;
   double        fc        = 0.0;
   const char   *from_file = NULL, *out_path = NULL, *record_path = NULL;
@@ -225,7 +253,8 @@ main (int argc, char *argv[])
         }
       else if (!strcmp (a, "--headroom"))
         {
-          headroom = strtod (NEXT (), NULL);
+          headroom     = strtod (NEXT (), NULL);
+          headroom_set = 1;
         }
       else if (!strcmp (a, "--clip-report"))
         {
@@ -255,10 +284,25 @@ main (int argc, char *argv[])
         }
     }
 
-  /* Build the composer: from a JSON spec, or the single-segment flags. */
-  wfm_compose_state_t *comp
-      = from_file ? wfm_compose_from_file (from_file)
-                  : wfm_compose_create (&seg, 1, repeat, continuous);
+  /* Build the composer: from a JSON spec, or the single-segment flags. A
+     recorded --headroom rides in the spec file and is reapplied here unless
+     an explicit --headroom on this run overrides it. */
+  wfm_compose_state_t *comp;
+  if (from_file)
+    {
+      char *spec = slurp_file (from_file);
+      if (!spec)
+        {
+          fprintf (stderr, "error: could not read %s\n", from_file);
+          return 1;
+        }
+      comp = wfm_compose_from_json (spec);
+      if (!headroom_set)
+        headroom = wfm_spec_headroom (spec);
+      free (spec);
+    }
+  else
+    comp = wfm_compose_create (&seg, 1, repeat, continuous);
   if (!comp)
     {
       fprintf (stderr, "error: could not build the waveform spec\n");
@@ -273,7 +317,7 @@ main (int argc, char *argv[])
 
   if (record_path)
     {
-      char *json = wfm_spec_to_json (segs, n_segs, r, c);
+      char *json = wfm_spec_to_json (segs, n_segs, r, c, headroom);
       if (json)
         {
           FILE *rf = fopen (record_path, "w");

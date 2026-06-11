@@ -50,6 +50,15 @@ ______________________________________________________________________
     `wfmgen --pulse rrc --rrc-beta … --rrc-span …` CLI, the JSON spec, and
     `Segment`/`Composer` (incl. `.sum`). Byte-identical CLI ⇄ Composer ⇄
     standalone. (#115)
+- **`wfmgen` exposed as a callable in libdoppler** — the composer CLI is now
+    the library function `doppler_wfmgen(int argc, char **argv)` (declared in
+    `wfm/wfmgen.h`), archived into `libdoppler.a`/`.so`, so a C program that
+    links the library can drive the full generator in-process without shelling
+    out. The standalone `wfmgen` binary is a one-line `main` shim over it, so
+    the two are the exact same code path (byte-identical output). The zmq sink
+    is statically linked, so there is **no runtime `libzmq` dependency** (the
+    `.so`'s dynamic-dep list is unchanged); the cost is binary size
+    (`libdoppler.a` +~132 KiB, `libdoppler.so` +~1.2 MiB incl. embedded zmq).
 
 ### Fixed
 

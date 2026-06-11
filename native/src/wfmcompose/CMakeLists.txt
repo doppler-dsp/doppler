@@ -153,12 +153,22 @@ if(NOT WIN32)
 
     # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / zmq / record).
     #    Hand-written (a composer is not a single-object jm-app generator); thin
-    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (zmq). Target
-    #    is wfmgen_cli (the module target already owns the name `wfmgen`); the
-    #    binary output is `wfmgen`. ───────────────────────────────────────────
-    add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
+    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (zmq).
+    #
+    #    The CLI body is the callable `doppler_wfmgen()` (wfmgen.c → the
+    #    wfmgen_core OBJECT lib); the `wfmgen` binary is a one-line `main` shim
+    #    (wfmgen_main.c) over it. Splitting the entry point off the body lets
+    #    libdoppler archive the whole generator without a `main`-symbol clash in
+    #    a downstream that links libdoppler.a alongside its own `main`. ────────
+    add_library(wfmgen_core OBJECT ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
+    target_include_directories(wfmgen_core PUBLIC
+        ${CMAKE_SOURCE_DIR}/native/inc
+        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+
+    add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen_main.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
+        wfmgen_core
         wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
@@ -166,6 +176,29 @@ if(NOT WIN32)
         Threads::Threads stdc++ m)
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     install(TARGETS wfmgen_cli DESTINATION bin)
+
+    # Archive the whole generator into libdoppler (.so + .a) so a downstream
+    # linking the library can drive wfmgen in-process via
+    # `doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
+    # install). The synth/lo/awgn/pn/fir/timing cores are already in libdoppler,
+    # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
+    # zmq is statically linked into the .so (~1 MiB, the established pattern —
+    # the stream extension does the same); the .a carries only objects, so a
+    # static consumer inherits zmq transitively (Threads/stdc++ are already
+    # PUBLIC at root) and links it on its own line:
+    #     -ldoppler -lzmq_vendor_static -lpthread -lstdc++ -lm
+    foreach(_dt doppler_lib doppler_lib_static)
+        target_sources(${_dt} PRIVATE
+            $<TARGET_OBJECTS:wfmgen_core>
+            $<TARGET_OBJECTS:wfm_compose_core>
+            $<TARGET_OBJECTS:wfm_writer_core>
+            $<TARGET_OBJECTS:wfm_sink_core>
+            $<TARGET_OBJECTS:wfm_dsp_core>
+            $<TARGET_OBJECTS:wfm_cjson>
+            $<TARGET_OBJECTS:stream_core_obj>)
+    endforeach()
+    target_link_libraries(doppler_lib PRIVATE zmq_vendor_static)
+    target_link_libraries(doppler_lib_static PUBLIC zmq_vendor_static)
 
     # Bundle the wfmgen binary into the Python package so the wheel ships it as
     # package data (the `wfmgen` console-script is an os.execv shim over it —

@@ -150,10 +150,23 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
 
 /**
  * @brief Serialise a spec to a JSON string (for --record).
+ *
+ * `headroom` (dB of output backoff applied at the writer, not the composer) is
+ * emitted as a top-level field only when non-zero, so an unrecorded run and any
+ * pre-headroom spec stay byte-identical. Read it back with wfm_spec_headroom().
+ *
  * @return malloc'd JSON (caller frees), or NULL on allocation failure.
  */
-char *wfm_spec_to_json(
-    const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
+                       int continuous, double headroom);
+
+/**
+ * @brief The top-level `headroom` (dB) from a spec JSON, or 0 if absent.
+ *
+ * Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer
+ * gain, so it lives outside the composer state.
+ */
+double wfm_spec_headroom(const char *json);
 
 /**
  * @brief Build a composer from a JSON spec string (for --from-file).

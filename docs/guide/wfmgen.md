@@ -407,16 +407,18 @@ ______________________________________________________________________
 ## Reproducible runs (`--record`)
 
 `--record run.json` writes the **fully-resolved** spec — every value *after*
-defaulting (the auto-selected MLS polynomial, the resolved SNR mode, …). Feed it
-straight back with `--from-file` and you get a byte-identical stream:
+defaulting (the auto-selected MLS polynomial, the resolved SNR mode, a summed
+segment's cleaned anchor + explicit noise floor) **and** the `--headroom`. Feed
+it straight back with `--from-file` and you get a byte-identical stream:
 
 ```sh
-wfmgen --type bpsk --count 50000 --sps 4 --record run.json -o a.iq
+wfmgen --type bpsk --count 50000 --sps 4 --headroom 6 --record run.json -o a.iq
 wfmgen --from-file run.json -o b.iq      # a.iq and b.iq are identical
 ```
 
-Use it to document a capture next to its data, or to pin an exact scenario in a
-test.
+The recorded `--headroom` is reapplied on replay; an explicit `--headroom` on
+the `--from-file` run overrides it. Use `--record` to document a capture next to
+its data, or to pin an exact scenario in a test.
 
 ______________________________________________________________________
 

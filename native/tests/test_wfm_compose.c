@@ -99,7 +99,7 @@ main (void)
   wfm_compose_destroy (r);
 
   /* ── JSON round-trip: spec → JSON → spec produces identical output ── */
-  char *json = wfm_spec_to_json (segs, 2, 0, 0);
+  char *json = wfm_spec_to_json (segs, 2, 0, 0, 0.0);
   CHECK (json, "to_json");
   CHECK (strstr (json, "\"tone\"") && strstr (json, "\"qpsk\""), "type names");
   CHECK (strstr (json, "wfmgen-1"), "version tag");
@@ -293,7 +293,7 @@ main (void)
     size_t               ns;
     int                  rp, ct;
     const wfm_segment_t *rs   = wfm_compose_segments (c, &ns, &rp, &ct);
-    char                *json = wfm_spec_to_json (rs, ns, rp, ct);
+    char                *json = wfm_spec_to_json (rs, ns, rp, ct, 0.0);
     CHECK (json && strstr (json, "\"sum\""), "sum array emitted");
     /* reparse and compare sample-for-sample. */
     wfm_compose_state_t *jc = wfm_compose_from_json (json);
@@ -311,8 +311,23 @@ main (void)
     wfm_compose_destroy (jc);
   }
 
+  /* ── headroom rides in the record: emitted when set, extracted back ── */
+  {
+    wfm_source_t  src = { .type = 0, .snr = 100.0, .sps = 8, .pn_length = 7 };
+    wfm_segment_t seg
+        = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 16 };
+    char *j6 = wfm_spec_to_json (&seg, 1, 0, 0, 6.0);
+    CHECK (j6 && strstr (j6, "\"headroom\""), "headroom emitted when set");
+    CHECK (fabs (wfm_spec_headroom (j6) - 6.0) < 1e-9, "headroom extracted");
+    free (j6);
+    char *j0 = wfm_spec_to_json (&seg, 1, 0, 0, 0.0);
+    CHECK (j0 && !strstr (j0, "\"headroom\""), "headroom omitted at 0 dB");
+    CHECK (wfm_spec_headroom (j0) == 0.0, "absent headroom → 0");
+    free (j0);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve, sum-json)\n",
+          "resolve, sum-json, headroom)\n",
           total);
   return 0;
 }

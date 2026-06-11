@@ -1,5 +1,5 @@
 # wfmgen_cli_test.cmake — drives the built `wfmgen` composer binary and checks
-# its byte output. Invoked by ctest with -DEXE=<wfmgen> -DWAVEGEN=<wavegen>.
+# its byte output. Invoked by ctest with -DEXE=<wfmgen>.
 # Runs in the test's build directory; scratch files are written relative to it.
 
 function(run)
@@ -28,17 +28,16 @@ endfunction()
 run(--type tone --count 8 --sample_type cf32 -o wg_tone.bin)
 expect_size(wg_tone.bin 64)
 
-# 2. single-segment ≡ wavegen, byte-for-byte (same engine + flags)
+# 2. single-segment output is byte-stable, frozen as an MD5 golden. This value
+#    was the byte-for-byte output of the retired single-shot `wavegen` for the
+#    same flags — wfmgen subsumed it (1 segment == single-shot), so the golden
+#    is the regression anchor now that wavegen is gone.
 run(--type qpsk --count 64 --sample_type ci16 --seed 7 -o wg_q.bin)
-execute_process(COMMAND ${WAVEGEN} --type qpsk --count 64 --sample_type ci16
-    --seed 7 -o wv_q.bin RESULT_VARIABLE wrc)
-if(NOT wrc EQUAL 0)
-    message(FATAL_ERROR "wavegen exited ${wrc}")
-endif()
 file(MD5 wg_q.bin h1)
-file(MD5 wv_q.bin h2)
-if(NOT h1 STREQUAL h2)
-    message(FATAL_ERROR "wfmgen != wavegen for the same single-segment args")
+set(WG_Q_GOLDEN "7ec76510ddd3daeb3bc07e6a51ff2c79")
+if(NOT h1 STREQUAL WG_Q_GOLDEN)
+    message(FATAL_ERROR
+        "wfmgen single-segment output drifted: got ${h1}, want ${WG_Q_GOLDEN}")
 endif()
 
 # 3. BLUE type-1000: 512-byte header + 4*8 bytes, magic "BLUE"

@@ -1,8 +1,8 @@
 """Integration tests for the Python composer (doppler.wfm.compose).
 
-The strong test is **byte-parity against the C ``wavegen`` CLI**: a single-segment
+The strong test is **byte-parity against the C ``wfmgen`` CLI**: a single-segment
 ``Composer`` written through ``Writer`` must produce the exact same file the
-proven CLI does for the same flags. The rest cover the JSON round-trip, the
+one C CLI does for the same flags. The rest cover the JSON round-trip, the
 Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers.
 """
 
@@ -38,9 +38,23 @@ from doppler.wfm.compose import (
 )
 from doppler.wfm.readback import read_iq
 
-_WAVEGEN = shutil.which("wavegen")
-_needs_cli = pytest.mark.skipif(
-    _WAVEGEN is None, reason="wavegen CLI not on PATH"
+
+def _wfmgen_bin():
+    """The one C CLI: on PATH (wheel console-shim or installed), else the
+    CMake build tree, else None (parity tests skip)."""
+    p = shutil.which("wfmgen")
+    if p:
+        return p
+    root = pathlib.Path(__file__).resolve().parents[4]
+    for cand in root.glob("build*/**/wfmgen"):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
+
+
+_WFMGEN = _wfmgen_bin()
+_needs_wfmgen = pytest.mark.skipif(
+    _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
 # ZmqSink is POSIX-only; the C extension omits sink_* off-platform.
 _needs_zmq = pytest.mark.skipif(
@@ -58,16 +72,17 @@ def _md5(path) -> str:
     return hashlib.md5(open(path, "rb").read()).hexdigest()
 
 
-@_needs_cli
+@_needs_wfmgen
 @pytest.mark.parametrize("wtype", ["tone", "noise", "pn", "bpsk", "qpsk"])
 @pytest.mark.parametrize("stype", ["cf32", "ci16", "ci8"])
-def test_byte_parity_vs_wavegen(tmp_path, wtype, stype):
-    """Python Composer+Writer == the wavegen CLI, byte-for-byte (same defaults)."""
+def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
+    """Python Composer+Writer == the wfmgen CLI single-segment run, byte-for-
+    byte (same defaults). A 1-segment wfmgen run is the old single-shot path."""
     n = 1024
     cli = tmp_path / "cli.iq"
     subprocess.run(
         [
-            _WAVEGEN,
+            _WFMGEN,
             "--type",
             wtype,
             "--fs",
@@ -94,7 +109,7 @@ def test_byte_parity_vs_wavegen(tmp_path, wtype, stype):
     py = tmp_path / "py.iq"
     with Writer(py, file_type="raw", sample_type=stype, endian="le") as w:
         w.write(x)
-    assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wavegen"
+    assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wfmgen"
 
 
 def test_json_roundtrip():
@@ -589,24 +604,7 @@ def test_segment_level():
 
 
 # ── Phase 4b: .sum() multi-source segments + noise resolution ─────────────────
-
-
-def _wfmgen_bin():
-    """The composer CLI: on PATH, else the CMake build tree, else None."""
-    p = shutil.which("wfmgen")
-    if p:
-        return p
-    root = pathlib.Path(__file__).resolve().parents[4]
-    for cand in root.glob("build*/**/wfmgen"):
-        if cand.is_file() and os.access(cand, os.X_OK):
-            return str(cand)
-    return None
-
-
-_WFMGEN = _wfmgen_bin()
-_needs_wfmgen = pytest.mark.skipif(
-    _WFMGEN is None, reason="wfmgen composer CLI not built / on PATH"
-)
+# (_WFMGEN / _needs_wfmgen are defined at the top of the module.)
 
 
 def test_sum_compose_basic():

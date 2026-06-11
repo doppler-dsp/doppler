@@ -1,9 +1,11 @@
 """Round-trip tests for read_iq: generate -> read back -> faithful complex64.
 
-Drives the real ``wavegen`` CLI so the on-disk bytes are exactly what users get,
+Drives the real ``wfmgen`` CLI so the on-disk bytes are exactly what users get,
 then checks read_iq reconstructs the signal within the wire type's quantization.
 """
 
+import os
+import pathlib
 import shutil
 import subprocess
 
@@ -12,9 +14,22 @@ import pytest
 
 from doppler.wfm.readback import read_iq
 
-_WAVEGEN = shutil.which("wavegen")
+
+def _wfmgen_bin():
+    """The one C CLI: on PATH, else the CMake build tree, else None."""
+    p = shutil.which("wfmgen")
+    if p:
+        return p
+    root = pathlib.Path(__file__).resolve().parents[4]
+    for cand in root.glob("build*/**/wfmgen"):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
+
+
+_WFMGEN = _wfmgen_bin()
 pytestmark = pytest.mark.skipif(
-    _WAVEGEN is None, reason="wavegen CLI not on PATH"
+    _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
 
 
@@ -22,7 +37,7 @@ def _gen(tmp_path, sample_type, endian="le", n=2000):
     out = tmp_path / f"cap_{sample_type}_{endian}.iq"
     subprocess.run(
         [
-            _WAVEGEN,
+            _WFMGEN,
             "--type",
             "tone",
             "--fs",

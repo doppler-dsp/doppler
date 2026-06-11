@@ -33,6 +33,15 @@ extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 objects = ["pn", "wfm_synth"]
 extra_link_libs = ["lo_core", "awgn_core"]
 
+# Fold the hand-written composition / I/O surface into doppler.wfm so the whole
+# subsystem has one import path (D7). The Python `Synth` (a thin wrapper in
+# compose.py over the C engine) is re-exported AFTER the C-extension import, so
+# it shadows the raw engine type — the public doppler.wfm.Synth is the wrapper
+# (its get_*/set_* engine accessors stay internal, D9).
+[module.wfm.reexports]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
+readback = ["read_iq"]
+
 [[module.wfm.functions]]
 name = "bpsk_map"
 doc = "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."

@@ -1,12 +1,12 @@
 /*
- * wfm_ext_wfm_synth.c — Synth type for the wfmgen module.
+ * wfm_ext_wfm_synth.c — _SynthEngine type for the wfmgen module.
  *
  * Included by wfm_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only wfm_ext.c is compiled.
  */
 /* ======================================================== */
-/* SynthObject — wraps wfm_synth_state_t *       */
+/* _SynthEngineObject — wraps wfm_synth_state_t *       */
 /* ======================================================== */
 
 #include "wfm_synth/wfm_synth_core.h"
@@ -14,10 +14,10 @@
 typedef struct
 {
   PyObject_HEAD wfm_synth_state_t *handle;
-} SynthObject;
+} _SynthEngineObject;
 
 static void
-Synth_dealloc (SynthObject *self)
+_SynthEngine_dealloc (_SynthEngineObject *self)
 {
   if (self->handle)
     wfm_synth_destroy (self->handle);
@@ -25,16 +25,16 @@ Synth_dealloc (SynthObject *self)
 }
 
 static PyObject *
-Synth_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+_SynthEngine_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  SynthObject *self = (SynthObject *)type->tp_alloc (type, 0);
+  _SynthEngineObject *self = (_SynthEngineObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
+_SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "type", "snr_mode",  "fs",      "freq", "snr", "seed",
@@ -115,7 +115,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_reset (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -127,7 +127,7 @@ Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_step (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_step (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -139,7 +139,7 @@ Synth_step (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_steps (SynthObject *self, PyObject *args)
+_SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -163,7 +163,8 @@ Synth_steps (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_get_wtype (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_get_wtype (_SynthEngineObject *self,
+                        PyObject           *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -174,7 +175,7 @@ Synth_get_wtype (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_set_wtype (SynthObject *self, PyObject *args)
+_SynthEngine_set_wtype (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -189,7 +190,7 @@ Synth_set_wtype (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_get_nsps (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_get_nsps (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -200,7 +201,7 @@ Synth_get_nsps (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_set_nsps (SynthObject *self, PyObject *args)
+_SynthEngine_set_nsps (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -215,7 +216,8 @@ Synth_set_nsps (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_get_sym_pos (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_get_sym_pos (_SynthEngineObject *self,
+                          PyObject           *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -226,7 +228,7 @@ Synth_get_sym_pos (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_set_sym_pos (SynthObject *self, PyObject *args)
+_SynthEngine_set_sym_pos (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -241,7 +243,8 @@ Synth_set_sym_pos (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_get_cur_re (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_get_cur_re (_SynthEngineObject *self,
+                         PyObject           *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -252,7 +255,7 @@ Synth_get_cur_re (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_set_cur_re (SynthObject *self, PyObject *args)
+_SynthEngine_set_cur_re (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -267,7 +270,8 @@ Synth_set_cur_re (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_get_cur_im (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_get_cur_im (_SynthEngineObject *self,
+                         PyObject           *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -278,7 +282,7 @@ Synth_get_cur_im (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_set_cur_im (SynthObject *self, PyObject *args)
+_SynthEngine_set_cur_im (_SynthEngineObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -293,7 +297,7 @@ Synth_set_cur_im (SynthObject *self, PyObject *args)
 }
 
 static PyObject *
-Synth_destroy (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_destroy (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -304,14 +308,14 @@ Synth_destroy (SynthObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Synth_enter (SynthObject *self, PyObject *Py_UNUSED (ignored))
+_SynthEngine_enter (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-Synth_exit (SynthObject *self, PyObject *args)
+_SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -322,56 +326,66 @@ Synth_exit (SynthObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef Synth_methods[] = {
-  { "reset", (PyCFunction)Synth_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
-  { "step", (PyCFunction)Synth_step, METH_NOARGS,
-    "step() -> float complex\n"
-    "\n"
-    "Generate one output sample from internal state.\n"
-    "\n"
-    "    >>> from doppler import Synth\n"
-    "    >>> obj = Synth(\"tone\", \"auto\", 1000000.0, 0.0, 100.0, 1, 8, 7, "
-    "0)\n"
-    "    >>> obj.step()\n"
-    "    0j\n" },
-  { "steps", (PyCFunction)Synth_steps, METH_VARARGS,
-    "steps(n=1) -> ndarray\n"
-    "\n"
-    "Generate n output samples.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import Synth\n"
-    "    >>> obj = Synth(\"tone\", \"auto\", 1000000.0, 0.0, 100.0, 1, 8, 7, "
-    "0)\n"
-    "    >>> y = obj.steps(4)\n"
-    "    >>> y.shape\n"
-    "    (4,)\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+static PyMethodDef _SynthEngine_methods[]
+    = { { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
+        { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
+          "step() -> float complex\n"
+          "\n"
+          "Generate one output sample from internal state.\n"
+          "\n"
+          "    >>> from doppler import _SynthEngine\n"
+          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+          "100.0, 1, 8, 7, "
+          "0)\n"
+          "    >>> obj.step()\n"
+          "    0j\n" },
+        { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
+          "steps(n=1) -> ndarray\n"
+          "\n"
+          "Generate n output samples.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import _SynthEngine\n"
+          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+          "100.0, 1, 8, 7, "
+          "0)\n"
+          "    >>> y = obj.steps(4)\n"
+          "    >>> y.shape\n"
+          "    (4,)\n"
+          "    >>> y.dtype\n"
+          "    dtype('complex64')\n" },
 
-  { "get_wtype", (PyCFunction)Synth_get_wtype, METH_NOARGS, "Get wtype." },
-  { "set_wtype", (PyCFunction)Synth_set_wtype, METH_VARARGS, "Set wtype." },
-  { "get_nsps", (PyCFunction)Synth_get_nsps, METH_NOARGS, "Get nsps." },
-  { "set_nsps", (PyCFunction)Synth_set_nsps, METH_VARARGS, "Set nsps." },
-  { "get_sym_pos", (PyCFunction)Synth_get_sym_pos, METH_NOARGS,
-    "Get sym_pos." },
-  { "set_sym_pos", (PyCFunction)Synth_set_sym_pos, METH_VARARGS,
-    "Set sym_pos." },
-  { "get_cur_re", (PyCFunction)Synth_get_cur_re, METH_NOARGS, "Get cur_re." },
-  { "set_cur_re", (PyCFunction)Synth_set_cur_re, METH_VARARGS, "Set cur_re." },
-  { "get_cur_im", (PyCFunction)Synth_get_cur_im, METH_NOARGS, "Get cur_im." },
-  { "set_cur_im", (PyCFunction)Synth_set_cur_im, METH_VARARGS, "Set cur_im." },
-  { "destroy", (PyCFunction)Synth_destroy, METH_NOARGS, "Release resources." },
-  { "__enter__", (PyCFunction)Synth_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)Synth_exit, METH_VARARGS, NULL },
-  { NULL }
-};
+        { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
+          "Get wtype." },
+        { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
+          "Set wtype." },
+        { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
+          "Get nsps." },
+        { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
+          "Set nsps." },
+        { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
+          "Get sym_pos." },
+        { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
+          "Set sym_pos." },
+        { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
+          "Get cur_re." },
+        { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
+          "Set cur_re." },
+        { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
+          "Get cur_im." },
+        { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
+          "Set cur_im." },
+        { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS, NULL },
+        { NULL } };
 
-static PyTypeObject SynthType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen.Synth",
-  .tp_basicsize                           = sizeof (SynthObject),
-  .tp_dealloc                             = (destructor)Synth_dealloc,
+static PyTypeObject _SynthEngineType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen._SynthEngine",
+  .tp_basicsize                           = sizeof (_SynthEngineObject),
+  .tp_dealloc                             = (destructor)_SynthEngine_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Allocate and configure a waveform synthesiser. The synthesiser combines "
@@ -383,7 +397,7 @@ static PyTypeObject SynthType = {
     "dB) skips AWGN entirely — clean waveforms pay no noise overhead.  When "
     "``snr_mode`` is \"auto\" the library picks the natural reference: Es/No "
     "for modulated types (BPSK, QPSK), fs-band SNR for tone/noise/PN.\n",
-  .tp_methods = Synth_methods,
-  .tp_new     = Synth_new,
-  .tp_init    = (initproc)Synth_init,
+  .tp_methods = _SynthEngine_methods,
+  .tp_new     = _SynthEngine_new,
+  .tp_init    = (initproc)_SynthEngine_init,
 };

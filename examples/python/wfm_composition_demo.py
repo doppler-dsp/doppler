@@ -35,7 +35,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.wfm.compose import (
+from doppler.wfm import (
     Composer,
     Segment,
     qpsk,
@@ -71,7 +71,7 @@ def spectrogram_db(x, nfft=256, hop=64):
 # ── the scene: a QPSK SoI under a full-scale CW interferer, one floor ────────
 soi = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)
 interferer = tone(freq=2.0e5, level=-3.0)  # −3 dBFS CW at +200 kHz
-scene = Segment.sum(soi, interferer, n=N)
+scene = Segment.sum(soi, interferer, num_samples=N)
 x = Composer([scene]).compose().astype(np.complex128)
 
 # ── the timeline: a preamble tone burst, then the scene ─────────────────────

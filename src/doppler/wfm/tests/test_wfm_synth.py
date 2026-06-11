@@ -100,6 +100,57 @@ def test_bad_type_rejected():
         Synth(type="not-a-waveform")
 
 
+# ── RRC pulse shaping ────────────────────────────────────────────────────────
+
+
+def _occupied_bw(x):
+    """Fraction of FFT bins within 30 dB of the peak (a crude bandwidth)."""
+    p = np.abs(np.fft.fft(x * np.hanning(len(x)))) ** 2
+    p /= p.max()
+    return float((p > 1e-3).mean())
+
+
+def test_rrc_default_rect_unchanged():
+    """pulse='rect' (the default) is byte-identical to omitting it."""
+    a = Synth(type="qpsk", sps=8, snr=100, seed=3).steps(4096)
+    b = Synth(type="qpsk", sps=8, snr=100, seed=3, pulse="rect").steps(4096)
+    assert np.array_equal(a, b)
+
+
+def test_rrc_is_band_limited():
+    """RRC shaping narrows the occupied bandwidth vs rectangular hold."""
+    rect = Synth(type="qpsk", sps=8, snr=100, seed=3).steps(8192)
+    rrc = Synth(
+        type="qpsk", sps=8, snr=100, seed=3, pulse="rrc", rrc_beta=0.22
+    ).steps(8192)
+    assert _occupied_bw(rrc) < 0.5 * _occupied_bw(rect)
+    assert not np.array_equal(rrc, rect)
+
+
+def test_rrc_unit_power():
+    """The sqrt(sps) tap scaling keeps RRC output at ~unit average power."""
+    rrc = Synth(
+        type="qpsk", sps=8, snr=100, seed=1, pulse="rrc", rrc_beta=0.35
+    ).steps(1 << 15)
+    assert np.isclose(np.mean(np.abs(rrc) ** 2), 1.0, atol=0.1)
+
+
+def test_rrc_reset_reproduces():
+    s = Synth(
+        type="bpsk", sps=4, seed=7, pulse="rrc", rrc_beta=0.3, rrc_span=6
+    )
+    a = s.steps(2048)
+    s.reset()
+    assert np.array_equal(a, s.steps(2048))
+
+
+def test_rrc_only_modulated():
+    """RRC is a no-op for tone/noise (set_rrc only shapes pn/bpsk/qpsk)."""
+    a = Synth(type="tone", freq=1e5, fs=1e6).steps(1024)
+    b = Synth(type="tone", freq=1e5, fs=1e6, pulse="rrc").steps(1024)
+    assert np.array_equal(a, b)
+
+
 # ── bits (user pattern) ──────────────────────────────────────────────────────
 
 

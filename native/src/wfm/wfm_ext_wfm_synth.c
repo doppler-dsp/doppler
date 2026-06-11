@@ -168,6 +168,36 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
   return out_arr;
 }
 
+/* set_rrc(taps) — enable RRC pulse shaping with the given real FIR taps
+ * (e.g. doppler.wfm.rrc_taps(beta, sps, span)); no-op for non-modulated. */
+static PyObject *
+_SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *taps_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O", &taps_obj))
+    return NULL;
+  PyArrayObject *taps = (PyArrayObject *)PyArray_FROM_OTF (
+      taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+  if (!taps)
+    return NULL;
+  size_t n = (size_t)PyArray_SIZE (taps);
+  int rc = wfm_synth_set_rrc (self->handle, (const float *)PyArray_DATA (taps),
+                              n);
+  Py_DECREF (taps);
+  if (rc != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_rrc: empty taps or alloc failed");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* set_bits(pattern, modulation=1) — attach a user bit pattern to a type=bits
  * synth. pattern is any array-like of 0/1 (coerced to uint8); modulation is
  * 0=none, 1=bpsk, 2=qpsk. */
@@ -395,6 +425,10 @@ static PyMethodDef _SynthEngine_methods[] = {
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
 
+  { "set_rrc", (PyCFunction)_SynthEngine_set_rrc, METH_VARARGS,
+    "set_rrc(taps) -> None\n"
+    "\n"
+    "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk only).\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

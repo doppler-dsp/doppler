@@ -39,6 +39,7 @@ from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
 _TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits")
 _MODES = ("auto", "fs", "ebno", "esno")
+_PULSES = ("rect", "rrc")  # PSK pulse shape → C: rect (hold) / rrc (FIR)
 _BITMODS = ("none", "bpsk", "qpsk")  # bits-pattern modulation → C bit_mod
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _FTYPES = ("raw", "csv", "blue", "sigmf")
@@ -158,6 +159,9 @@ class Synth:
     f_start: float | None = None
     pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
     modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
+    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
+    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
+    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
 
     def __post_init__(self):
         # ``f_start`` is sugar for ``freq`` (chirp's start frequency *is* the
@@ -169,6 +173,7 @@ class Synth:
         _idx(self.type, _TYPES, "type")
         _idx(self.snr_mode, _MODES, "snr_mode")
         _idx(self.lfsr, _LFSRS, "lfsr")
+        _idx(self.pulse, _PULSES, "pulse")
         if self.type == "bits":
             _idx(self.modulation, _BITMODS, "modulation")
             if self.pattern is None:
@@ -203,6 +208,11 @@ class Synth:
             eng.set_bits(
                 _parse_bits(self.pattern), _idx(self.modulation, _BITMODS, "")
             )
+        # RRC pulse shaping (pn/bpsk/qpsk only): pass the raw unit-energy taps;
+        # the C set_rrc scales them by sqrt(sps) for unit transmit power, so the
+        # standalone and composer faces are byte-identical.
+        if self.pulse == "rrc" and self.type in ("pn", "bpsk", "qpsk"):
+            eng.set_rrc(rrc_taps(self.rrc_beta, self.sps, self.rrc_span))
         return eng
 
     def _lazy(self):
@@ -229,9 +239,10 @@ class Synth:
     def _tuple(self) -> tuple:
         """Fixed-order 13-tuple consumed by the C binding (enums → ints).
 
-        The trailing ``f_end`` (chirp) + ``modulation``/``bits`` (a
-        ``type="bits"`` pattern as a ``bytes`` of 0/1, else ``None``) default to
-        0/``None`` for other types so the serialisation is byte-stable.
+        The trailing ``f_end`` (chirp), ``modulation``/``bits`` (a bits
+        pattern as a ``bytes`` of 0/1, else ``None``), and ``pulse``/
+        ``rrc_beta``/``rrc_span`` (RRC shaping) default to 0/``None``/rect for
+        other types so the serialisation is byte-stable.
         """
         bits_bytes = (
             _parse_bits(self.pattern).tobytes()
@@ -252,6 +263,9 @@ class Synth:
             float(self.f_end),
             _idx(self.modulation, _BITMODS, "modulation"),
             bits_bytes,
+            _idx(self.pulse, _PULSES, "pulse"),
+            float(self.rrc_beta),
+            int(self.rrc_span),
         )
 
     @classmethod
@@ -273,6 +287,9 @@ class Synth:
             f_end=t[10],
             modulation=_BITMODS[t[11]],
             pattern=pattern,
+            pulse=_PULSES[t[13]],
+            rrc_beta=t[14],
+            rrc_span=t[15],
         )
 
 
@@ -403,6 +420,9 @@ class Segment:
     f_start: float | None = None
     pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
     modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
+    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
+    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
+    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
 
     def __post_init__(self):
         # ``f_start`` is sugar for ``freq`` (a chirp's start frequency).
@@ -448,9 +468,9 @@ class Segment:
 
         A multi-source segment crosses as ``(num, off, fs, [source13tuple, …])``
         (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the flat 16-tuple form (the trailing ``f_end`` + ``modulation``/``bits``
-        default to 0/``None`` for non-chirp/bits → byte-stable).
-
+        the flat 19-tuple form (the trailing ``f_end`` + ``modulation``/``bits``
+        + ``pulse``/``rrc_beta``/``rrc_span`` default to 0/``None``/rect →
+        byte-stable).
         """
         if self.sources is not None:
             return (
@@ -481,11 +501,14 @@ class Segment:
             float(self.f_end),
             _idx(self.modulation, _BITMODS, "modulation"),
             bits_bytes,
+            _idx(self.pulse, _PULSES, "pulse"),
+            float(self.rrc_beta),
+            int(self.rrc_span),
         )
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 16:  # nested multi-source: (num, off, fs, [sources])
+        if len(t) != 19:  # nested multi-source: (num, off, fs, [sources])
             num, off, fs, srclist = t
             return cls(
                 num_samples=num,
@@ -513,6 +536,9 @@ class Segment:
             f_end=t[13],
             modulation=_BITMODS[t[14]],
             pattern=pattern,
+            pulse=_PULSES[t[16]],
+            rrc_beta=t[17],
+            rrc_span=t[18],
         )
 
     def add(self, *others: "Segment") -> "Timeline":

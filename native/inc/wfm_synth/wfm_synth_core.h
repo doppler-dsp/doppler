@@ -16,6 +16,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "fir/fir_core.h"
 #include "lo/lo_core.h"
 #include "awgn/awgn_core.h"
 #include "pn/pn_core.h"
@@ -139,6 +140,7 @@ typedef struct {
     size_t n_bits;
     size_t bit_idx;
     int bit_mod;
+    fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
@@ -234,6 +236,24 @@ int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
 /**
+ * @brief Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk).
+ *
+ * Replaces the default rectangular sample-and-hold with a root-raised-cosine
+ * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
+ * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps
+ * are scaled by sqrt(sps) internally for unit transmit power, so every caller
+ * passes the raw taps and gets byte-identical shaping. No-op for non-modulated
+ * types. Replaces any existing shaper and clears its delay line.
+ *
+ * @param state  Must be non-NULL.
+ * @param taps   Real FIR taps (copied).
+ * @param ntaps  Number of taps (> 0).
+ * @return 0 on success; -1 on bad args / allocation failure.
+ */
+int wfm_synth_set_rrc(wfm_synth_state_t *state, const float *taps,
+                      size_t ntaps);
+
+/**
  * @brief Destroy a synth instance and release all memory.
  * Recursively frees the LO, AWGN, and PN sub-objects, then the struct
  * itself.  Safe to call with NULL (no-op).
@@ -285,6 +305,7 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
+    float complex sym;
     if (state->wtype == WFM_SYNTH_BITS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
          * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
@@ -309,6 +330,7 @@ wfm_synth_step(wfm_synth_state_t *state)
         }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
+        sym = state->cur_re + state->cur_im * I; /* bits: no pulse shaping */
     } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
@@ -323,10 +345,23 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->cur_im = 0.0f;
             }
         }
+        if (state->fir) {
+            /* RRC pulse shaping: feed the symbol-rate impulse train (the held
+             * symbol at a boundary, zero between) through the matched FIR. The
+             * FIR carries its delay line across calls, so this is chunk-invariant
+             * — step() and the block path agree bit-for-bit. */
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
+    } else {
+        sym = state->cur_re + state->cur_im * I;
     }
-    float complex sym = state->cur_re + state->cur_im * I;
     float complex carrier = 1.0f + 0.0f * I;
     if (state->lo) {
         lo_steps(state->lo, 1, &carrier);

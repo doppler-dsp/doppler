@@ -905,3 +905,82 @@ def test_bits_in_sum_scene():
         num_samples=128,
     )
     assert len(Composer(mix).compose()) == 128
+
+
+@_needs_wfmgen
+def test_rrc_byte_parity_vs_wfmgen(tmp_path):
+    """An RRC-shaped segment is byte-identical between the Composer and CLI."""
+    from doppler.wfm import qpsk  # noqa: F401
+
+    n = 4096
+    cli = tmp_path / "cli.cf32"
+    subprocess.run(
+        [
+            _WFMGEN,
+            "--type",
+            "qpsk",
+            "--sps",
+            "8",
+            "--snr",
+            "100",
+            "--seed",
+            "3",
+            "--pulse",
+            "rrc",
+            "--rrc-beta",
+            "0.22",
+            "--rrc-span",
+            "8",
+            "--fs",
+            "1e6",
+            "--count",
+            str(n),
+            "--sample_type",
+            "cf32",
+            "-o",
+            str(cli),
+        ],
+        check=True,
+    )
+    x = Composer(
+        Segment(
+            "qpsk",
+            sps=8,
+            snr=100,
+            seed=3,
+            pulse="rrc",
+            rrc_beta=0.22,
+            rrc_span=8,
+            fs=1e6,
+            num_samples=n,
+        )
+    ).compose()
+    py = tmp_path / "py.cf32"
+    with Writer(py, file_type="raw", sample_type="cf32") as w:
+        w.write(x)
+    assert _md5(py) == _md5(cli)
+
+
+def test_rrc_json_roundtrip():
+    """pulse/rrc_beta/rrc_span survive JSON; a rect spec never grows the keys."""
+    a = Composer(
+        [
+            Segment(
+                "qpsk",
+                sps=8,
+                seed=3,
+                pulse="rrc",
+                rrc_beta=0.3,
+                rrc_span=6,
+                num_samples=2048,
+            )
+        ]
+    )
+    js = a.to_json()
+    assert '"pulse"' in js and '"rrc_beta"' in js
+    b = Composer.from_json(js)
+    assert np.array_equal(a.compose(), b.compose())
+    assert b.segments[0].pulse == "rrc"
+    assert (
+        '"pulse"' not in Composer([Segment("qpsk", num_samples=64)]).to_json()
+    )

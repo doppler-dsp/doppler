@@ -39,18 +39,17 @@ ______________________________________________________________________
     `.sum` scenes), and SigMF. Byte-identical CLI ⇄ Composer ⇄ standalone, and
     the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
     (#114)
-- **Chirp (LFM) waveform type** — `Synth(type="chirp", freq=f_start, f_end=…)`
-    and the `chirp(f_start, f_end)` builder generate a linear-FM sweep whose
-    instantaneous frequency ramps from `freq` (the start) to `f_end` over the
-    generated length, then holds at `f_end`; `f_end < freq` is a down-chirp. The
-    phase is continuous across `steps()`/segments, so concatenated chirps join
-    seamlessly (radar pulse compression, SAR, sonar, frequency-response tests).
-    Exposed on every face: the `wfmgen --type chirp --freq … --f_end …` CLI, the
-    JSON spec (`"type":"chirp"`, `"f_end"`), `Segment`/`Composer` (the sweep
-    spans the segment's `num_samples`), and SigMF annotations (the
-    `f_start..f_end` occupied band). Byte-identical CLI ⇄ Composer ⇄ standalone,
-    and the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
-    (#113)
+- **RRC pulse shaping for the PSK carriers** — `pulse="rrc"` (with `rrc_beta` /
+    `rrc_span`) on a `pn` / `bpsk` / `qpsk` `Synth` replaces the rectangular
+    sample-and-hold with **root-raised-cosine** shaping, so a band-limited
+    carrier (e.g. WCDMA QPSK at roll-off 0.22) comes straight from the generator
+    instead of being hand-filtered. The symbol-rate impulse train is run through
+    the existing `fir` core with `wfm_rrc_taps`, scaled for unit transmit power;
+    the FIR delay line carries across blocks so the per-sample and block paths
+    agree bit-for-bit. Default `pulse="rect"` is byte-stable. On every face: the
+    `wfmgen --pulse rrc --rrc-beta … --rrc-span …` CLI, the JSON spec, and
+    `Segment`/`Composer` (incl. `.sum`). Byte-identical CLI ⇄ Composer ⇄
+    standalone. (#115)
 
 ### Fixed
 

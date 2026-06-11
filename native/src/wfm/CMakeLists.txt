@@ -10,6 +10,7 @@ target_link_libraries(wfm PRIVATE
     wfm_synth_core
     lo_core
     awgn_core
+    fir_core
     Python3::NumPy)
 target_include_directories(wfm PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm PROPERTIES

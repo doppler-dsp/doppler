@@ -66,12 +66,16 @@ seamlessly (radar pulse compression, SAR, sonar). A `bits` waveform instead
 plays back **your** sequence — a preamble, sync word, or test vector — given as
 a 0/1 string (`--bits 10110101`), a hex string (`--bits-hex AA55`, MSB first),
 or a file (`--bits-file pattern.txt`); `--modulation` (`none`/`bpsk`/`qpsk`)
-maps the bits to symbols.
+maps the bits to symbols. The PSK carriers (`pn`/`bpsk`/`qpsk`) default to
+rectangular sample-and-hold chips (a wide `sinc²` spectrum); add `--pulse rrc`
+for **root-raised-cosine** shaping to get a band-limited carrier (e.g. a WCDMA
+QPSK downlink at roll-off 0.22) straight from the generator.
 
 ```sh
 wfmgen --type chirp --freq 100e3 --f_end 300e3 --fs 1e6 --count 10000 -o chirp.cf32
 wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
 wfmgen --type bits --bits-hex AA55 --modulation none --sps 4 -o preamble.cf32
+wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --count 100000 -o wcdma.cf32
 ```
 
 ______________________________________________________________________
@@ -79,6 +83,8 @@ ______________________________________________________________________
 ## Parameter reference
 
 ### Engine
+
+=== ====
 
 | Flag           | Type                                 | Default  | Meaning                                                          |
 | -------------- | ------------------------------------ | -------- | ---------------------------------------------------------------- |
@@ -95,6 +101,9 @@ ______________________________________________________________________
 | `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)    |
 | `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`) |
 | `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                          |
+| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping       |
+| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                     |
+| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                    |
 | `--count`      | int                                  | `1024`   | number of complex samples to generate                            |
 
 ### Output

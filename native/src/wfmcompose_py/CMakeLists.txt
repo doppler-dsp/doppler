@@ -20,13 +20,13 @@ if(WIN32)
     # the sink_* functions out to match.
     target_link_libraries(_wfmcompose PRIVATE
         wfm_compose_core wfm_writer_core wfm_reader_core wfm_dsp_core wfm_cjson
-        wfm_synth_core lo_core awgn_core pn_core
+        wfm_synth_core lo_core awgn_core pn_core fir_core
         m Python3::NumPy)
 else()
     target_link_libraries(_wfmcompose PRIVATE
         wfm_compose_core wfm_writer_core wfm_reader_core wfm_sink_core
         timing_core wfm_dsp_core wfm_cjson
-        wfm_synth_core lo_core awgn_core pn_core
+        wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static
         Threads::Threads stdc++ m

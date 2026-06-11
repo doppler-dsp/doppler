@@ -61,6 +61,23 @@ offset  = Synth(type="pn", pn_length=9, sps=1, freq=2.5e5, fs=1e6).steps(511)
 `snr_mode` (`"auto"`, `"fs"`, `"ebno"`, `"esno"`) sets how `snr` is
 interpreted; `"auto"` uses over-`fs` for tone/noise/PN and Es/No for BPSK/QPSK.
 
+### RRC pulse shaping (band-limited carriers)
+
+By default the modulated types (`pn` / `bpsk` / `qpsk`) emit **rectangular
+sample-and-hold** chips — a wide `sinc²` spectrum. Set `pulse="rrc"` for
+**root-raised-cosine** pulse shaping: the symbol stream is filtered to a
+band-limited channel, so a realistic carrier (e.g. WCDMA QPSK, RRC roll-off
+0.22) comes straight from the generator. `rrc_beta` is the roll-off and
+`rrc_span` the filter support in symbols. The taps are unit-transmit-power
+scaled, so the output stays at unit average power.
+
+```python
+from doppler.wfm import qpsk
+
+shaped = qpsk(sps=8, pulse="rrc", rrc_beta=0.22, rrc_span=8).steps(1 << 16)
+# band-limited: its occupied bandwidth is ~(1+beta)/sps, far below the rect sinc²
+```
+
 ### PN modulation: length, polynomial, realization
 
 ```python

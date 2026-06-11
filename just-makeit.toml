@@ -31,7 +31,7 @@ extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.wfm]
 objects = ["pn", "wfm_synth"]
-extra_link_libs = ["lo_core", "awgn_core"]
+extra_link_libs = ["lo_core", "awgn_core", "fir_core"]
 
 # Fold the hand-written composition / I/O surface into doppler.wfm so the whole
 # subsystem has one import path (D7). The Python `Synth` (a thin wrapper in

@@ -29,13 +29,16 @@
 #include "wfm/wfm_sink.h"
 #endif
 
-/* A 1-source segment crosses as a 13-tuple (the back-compat form):
- *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level */
-#define _SEG_FMT "idddiIiiKinnd"
+/* A 1-source segment crosses as a 16-tuple (back-compat form + RRC fields):
+ *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level
+ *   pulse rrc_beta rrc_span */
+#define _SEG_FMT "idddiIiiKinndidi"
+#define _SEG_NTUP 16
 /* A multi-source segment crosses as (num, off, fs, [source, ...]) where each
- * source is a 10-tuple (no fs/num/off — those are segment-level):
- *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level */
-#define _SOURCE_FMT "iddiIiiKid"
+ * source is a 13-tuple (no fs/num/off — those are segment-level):
+ *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level pulse
+ *   rrc_beta rrc_span */
+#define _SOURCE_FMT "iddiIiiKididi"
 
 /* Free a wfm_segment_t[] including each of the first `n` segments' sources. */
 static void
@@ -53,10 +56,10 @@ _free_segments (wfm_segment_t *segs, size_t n)
 static int
 _parse_source (PyObject *st, wfm_source_t *src)
 {
-  return PyArg_ParseTuple (st, _SOURCE_FMT, &src->type, &src->freq, &src->snr,
-                           &src->snr_mode, &src->seed, &src->sps,
-                           &src->pn_length, &src->pn_poly, &src->lfsr,
-                           &src->level);
+  return PyArg_ParseTuple (
+      st, _SOURCE_FMT, &src->type, &src->freq, &src->snr, &src->snr_mode,
+      &src->seed, &src->sps, &src->pn_length, &src->pn_poly, &src->lfsr,
+      &src->level, &src->pulse, &src->rrc_beta, &src->rrc_span);
 }
 
 /* Parse a Python list of segment tuples into a malloc'd wfm_segment_t[]. A
@@ -85,9 +88,10 @@ _parse_segments (PyObject *list, size_t *n_out)
     {
       PyObject      *t = PyList_GET_ITEM (list, i);
       wfm_segment_t *s = &segs[i];
-      if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == 13)
+      if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == _SEG_NTUP)
         {
-          /* 1-source 13-tuple (back-compat, byte-identical). */
+          /* 1-source 16-tuple (back-compat for non-RRC, + pulse/rrc fields).
+           */
           wfm_source_t *src = (wfm_source_t *)malloc (sizeof *src);
           if (!src)
             {
@@ -96,11 +100,11 @@ _parse_segments (PyObject *list, size_t *n_out)
             }
           s->sources   = src;
           s->n_sources = 1;
-          if (!PyArg_ParseTuple (t, _SEG_FMT, &src->type, &s->fs, &src->freq,
-                                 &src->snr, &src->snr_mode, &src->seed,
-                                 &src->sps, &src->pn_length, &src->pn_poly,
-                                 &src->lfsr, &s->num_samples, &s->off_samples,
-                                 &src->level))
+          if (!PyArg_ParseTuple (
+                  t, _SEG_FMT, &src->type, &s->fs, &src->freq, &src->snr,
+                  &src->snr_mode, &src->seed, &src->sps, &src->pn_length,
+                  &src->pn_poly, &src->lfsr, &s->num_samples, &s->off_samples,
+                  &src->level, &src->pulse, &src->rrc_beta, &src->rrc_span))
             {
               _free_segments (segs, (size_t)i + 1);
               return NULL;
@@ -168,7 +172,8 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
                              src->snr, src->snr_mode, src->seed, src->sps,
                              src->pn_length, src->pn_poly, src->lfsr,
                              (Py_ssize_t)s->num_samples,
-                             (Py_ssize_t)s->off_samples, src->level);
+                             (Py_ssize_t)s->off_samples, src->level,
+                             src->pulse, src->rrc_beta, src->rrc_span);
         }
       else
         {
@@ -184,7 +189,8 @@ _segments_to_list (const wfm_segment_t *segs, size_t n)
               PyObject           *st  = Py_BuildValue (
                   "(" _SOURCE_FMT ")", src->type, src->freq, src->snr,
                   src->snr_mode, src->seed, src->sps, src->pn_length,
-                  src->pn_poly, src->lfsr, src->level);
+                  src->pn_poly, src->lfsr, src->level, src->pulse,
+                  src->rrc_beta, src->rrc_span);
               if (!st)
                 {
                   Py_DECREF (srclist);

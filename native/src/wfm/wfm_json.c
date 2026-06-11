@@ -15,8 +15,21 @@
 
 static const char *const TYPE_NAMES[]
     = { "tone", "noise", "pn", "bpsk", "qpsk" };
-static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
-static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
+static const char *const MODE_NAMES[]  = { "auto", "fs", "ebno", "esno" };
+static const char *const LFSR_NAMES[]  = { "galois", "fibonacci" };
+static const char *const PULSE_NAMES[] = { "rect", "rrc" };
+
+/* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
+ * rect spec stays byte-identical). */
+static void
+add_pulse_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (!src->pulse)
+    return;
+  cJSON_AddStringToObject (o, "pulse", "rrc");
+  cJSON_AddNumberToObject (o, "rrc_beta", src->rrc_beta);
+  cJSON_AddNumberToObject (o, "rrc_span", src->rrc_span);
+}
 
 static int
 name_index (const char *s, const char *const *names, int n)
@@ -55,6 +68,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   cJSON_AddStringToObject (so, "lfsr", LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
   if (src->level != 0.0)
     cJSON_AddNumberToObject (so, "level", src->level);
+  add_pulse_fields (so, src);
 }
 
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
@@ -85,6 +99,15 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
                                 : 0,
                .level     = num (so, "level", 0.0),
   };
+  if (name_index (cJSON_GetStringValue (
+                      cJSON_GetObjectItemCaseSensitive (so, "pulse")),
+                  PULSE_NAMES, 2)
+      == 1)
+    {
+      out->pulse    = 1;
+      out->rrc_beta = num (so, "rrc_beta", 0.35);
+      out->rrc_span = (int)num (so, "rrc_span", 8);
+    }
   return 0;
 }
 
@@ -128,6 +151,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           if (src->level
               != 0.0) /* omit at 0 dBFS so old specs are unchanged */
             cJSON_AddNumberToObject (s, "level", src->level);
+          add_pulse_fields (s, src);
         }
       else
         {

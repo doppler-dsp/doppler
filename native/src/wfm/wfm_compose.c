@@ -14,6 +14,7 @@
  * scale-then-add, so every face (CLI / Python) agrees bit-for-bit.
  */
 #include "wfm/wfm_compose.h"
+#include "wfm/wfm_dsp.h" /* wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
 
 #include <math.h>
 #include <stdlib.h>
@@ -81,7 +82,24 @@ start_segment (wfm_compose_state_t *s)
       if (!s->syn[k])
         ok = 0;
       else
-        s->n_syn = k + 1; /* track for stop_synths on partial failure */
+        {
+          /* RRC pulse shaping: compute the taps here (same wfm_rrc_taps() the
+           * Python/standalone face uses) and attach them. set_rrc scales for
+           * unit TX power and no-ops for non-modulated types, so the composer
+           * and standalone faces are byte-identical. */
+          if (src->pulse && src->sps > 0 && src->rrc_span > 0)
+            {
+              size_t nt   = wfm_rrc_ntaps (src->sps, src->rrc_span);
+              float *taps = malloc (nt * sizeof (float));
+              if (taps)
+                {
+                  wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
+                  wfm_synth_set_rrc (s->syn[k], taps, nt);
+                  free (taps);
+                }
+            }
+          s->n_syn = k + 1; /* track for stop_synths on partial failure */
+        }
     }
   if (ok)
     {

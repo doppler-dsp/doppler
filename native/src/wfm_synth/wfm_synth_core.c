@@ -13,6 +13,7 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   obj->sym_pos = 0;
   obj->cur_re  = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   obj->cur_im  = 0.0f;
+  obj->fir     = NULL; /* RRC FIR attached via wfm_synth_set_rrc() */
 
   /* LO carrier only when there is a frequency offset: at freq 0 the carrier
    * is the constant 1, so mixing is a no-op and is skipped entirely (a
@@ -89,9 +90,39 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   return obj;
 }
 
+int
+wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
+{
+  /* Pulse shaping only applies to the symbol-modulated types. */
+  if (state->wtype < WFM_SYNTH_PN)
+    return 0;
+  if (!taps || ntaps == 0)
+    return -1;
+  /* Scale the (unit-energy) taps by sqrt(sps) here, in one place, so the
+   * symbol-rate impulse train (one impulse per sps samples → mean power
+   * 1/sps) comes out at unit average power — and every caller that passes the
+   * raw wfm_rrc_taps() output gets byte-identical shaping. */
+  float  scale  = (float)sqrt ((double)state->nsps);
+  float *scaled = malloc (ntaps * sizeof (float));
+  if (!scaled)
+    return -1;
+  for (size_t i = 0; i < ntaps; i++)
+    scaled[i] = taps[i] * scale;
+  fir_state_t *fir = fir_create_real (scaled, ntaps);
+  free (scaled);
+  if (!fir)
+    return -1;
+  if (state->fir)
+    fir_destroy (state->fir);
+  state->fir = fir;
+  return 0;
+}
+
 void
 wfm_synth_destroy (wfm_synth_state_t *state)
 {
+  if (state->fir)
+    fir_destroy (state->fir);
   if (state->lo)
     lo_destroy (state->lo);
   if (state->awgn)
@@ -107,6 +138,8 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->sym_pos = 0;
   state->cur_re  = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   state->cur_im  = 0.0f;
+  if (state->fir)
+    fir_reset (state->fir); /* clear the RRC delay line */
   if (state->lo)
     lo_reset (state->lo);
   if (state->awgn)
@@ -181,6 +214,49 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
       size_t    nb    = (first < m) ? 1 + (m - 1 - first) / (size_t)nsps : 0;
       if (nb)
         pn_generate (state->pn, nb * (size_t)bps, chips);
+
+      if (state->fir)
+        {
+          /* RRC: build the symbol-rate impulse train into out, FIR it in place
+           * (fir_execute copies its input first, so in==out is safe, and it
+           * carries the delay line across chunks → chunk-invariant), then mix
+           * with the *same* fused bb*carrier + noise as wfm_synth_step(). */
+          size_t ci = 0;
+          for (size_t i = 0; i < m; i++)
+            {
+              if (sym_pos == 0)
+                {
+                  if (qpsk)
+                    {
+                      uint8_t b0 = chips[ci++], b1 = chips[ci++];
+                      cre = b0 ? -s : s;
+                      cim = b1 ? -s : s;
+                    }
+                  else
+                    {
+                      cre = chips[ci++] ? -1.0f : 1.0f;
+                      cim = 0.0f;
+                    }
+                  out[i] = cre + cim * I; /* impulse at the symbol boundary */
+                }
+              else
+                out[i] = 0.0f + 0.0f * I;
+              if (++sym_pos >= nsps)
+                sym_pos = 0;
+            }
+          fir_execute (state->fir, out, m, out);
+          if (has_lo && has_awgn)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] * carrier[i] + noise[i];
+          else if (has_lo)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] * carrier[i];
+          else if (has_awgn)
+            for (size_t i = 0; i < m; i++)
+              out[i] = out[i] + noise[i];
+          done += m;
+          continue;
+        }
 
       if (nsps == 1)
         {

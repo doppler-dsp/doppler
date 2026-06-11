@@ -6,7 +6,8 @@ target_include_directories(
 target_link_libraries(wfm_synth_core PUBLIC
     lo_core
     awgn_core
-    pn_core)
+    pn_core
+    fir_core)
 
 add_executable(test_wfm_synth_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_synth_core.c)
@@ -14,6 +15,7 @@ target_link_libraries(test_wfm_synth_core
                       PRIVATE wfm_synth_core lo_core
     awgn_core
     pn_core
+    fir_core
     m)
 target_include_directories(test_wfm_synth_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -26,6 +28,7 @@ target_link_libraries(bench_wfm_synth_core
                       PRIVATE wfm_synth_core lo_core
     awgn_core
     pn_core
+    fir_core
     m)
 target_include_directories(
   bench_wfm_synth_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

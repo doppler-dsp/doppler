@@ -56,7 +56,14 @@ ______________________________________________________________________
 | `qpsk`   | Gray-coded QPSK symbols (PN-sourced data)                  | `--sps`, `--snr`                    |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
-`--seed`), so output is reproducible and receiver-correlatable.
+`--seed`), so output is reproducible and receiver-correlatable. By default these
+emit rectangular sample-and-hold chips (a wide `sinc²` spectrum); add
+`--pulse rrc` for **root-raised-cosine** shaping to get a band-limited carrier
+(e.g. a WCDMA QPSK downlink at roll-off 0.22) straight from the generator.
+
+```sh
+wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --count 100000 -o wcdma.cf32
+```
 
 ______________________________________________________________________
 
@@ -76,6 +83,9 @@ ______________________________________________________________________
 | `--pn_length` | int (2..64)               | `7`      | LFSR register length → period `2ⁿ−1`                          |
 | `--pn_poly`   | uint64                    | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial           |
 | `--lfsr`      | `galois fibonacci`        | `galois` | LFSR realization (same polynomial/period, different sequence) |
+| `--pulse`     | `rect rrc`                | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping    |
+| `--rrc-beta`  | float                     | `0.35`   | RRC roll-off (`--pulse rrc`)                                  |
+| `--rrc-span`  | int                       | `8`      | RRC filter support in symbols (`--pulse rrc`)                 |
 | `--count`     | int                       | `1024`   | number of complex samples to generate                         |
 
 ### Output

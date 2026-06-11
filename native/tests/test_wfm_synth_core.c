@@ -79,6 +79,49 @@ main (void)
       wfm_synth_destroy (ns);
   }
 
+  /* ── RRC pulse shaping: step()==steps(), shaping changes the output ────────
+   */
+  {
+    /* a small symmetric low-pass FIR stands in for the RRC taps here */
+    const float        taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    wfm_synth_state_t *rs
+        = wfm_synth_create (WFM_SYNTH_QPSK, 1e6, 0.0, 100.0, 0, 7, 4, 7, 0, 0);
+    CHECK (rs && rs->fir == NULL);
+    CHECK (wfm_synth_set_rrc (rs, taps, 5) == 0);
+    CHECK (rs->fir != NULL);
+    float complex y[256];
+    wfm_synth_steps (rs, y, 256);
+
+    /* step() must reproduce steps() bit-for-bit */
+    wfm_synth_state_t *rs2
+        = wfm_synth_create (WFM_SYNTH_QPSK, 1e6, 0.0, 100.0, 0, 7, 4, 7, 0, 0);
+    wfm_synth_set_rrc (rs2, taps, 5);
+    int match = 1;
+    for (int i = 0; i < 256; i++)
+      if (wfm_synth_step (rs2) != y[i])
+        match = 0;
+    CHECK (match);
+
+    /* shaping changes the output vs the unshaped (rect) synth */
+    wfm_synth_state_t *rect
+        = wfm_synth_create (WFM_SYNTH_QPSK, 1e6, 0.0, 100.0, 0, 7, 4, 7, 0, 0);
+    float complex r[256];
+    wfm_synth_steps (rect, r, 256);
+    int differs = 0;
+    for (int i = 0; i < 256; i++)
+      if (r[i] != y[i])
+        differs = 1;
+    CHECK (differs);
+
+    /* set_rrc is a no-op on a non-modulated synth, and rejects bad args */
+    CHECK (wfm_synth_set_rrc (obj, taps, 5) == 0); /* obj is a tone */
+    CHECK (wfm_synth_set_rrc (rs, NULL, 0) == -1);
+
+    wfm_synth_destroy (rs);
+    wfm_synth_destroy (rs2);
+    wfm_synth_destroy (rect);
+  }
+
   wfm_synth_destroy (obj);
   if (_fails)
     {

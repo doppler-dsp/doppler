@@ -20,6 +20,7 @@
 #include "awgn/awgn_core.h"
 #include "pn/pn_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
+#include "fir/fir_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -127,6 +128,7 @@ typedef struct {
     int sym_pos;
     float cur_re;
     float cur_im;
+    fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
     pn_state_t * pn;
@@ -177,6 +179,25 @@ typedef struct {
  * @endcode
  */
 wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr, int snr_mode, uint32_t seed, int sps, int pn_length, uint64_t pn_poly, int lfsr);
+
+/**
+ * @brief Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk).
+ *
+ * Replaces the default rectangular sample-and-hold with a root-raised-cosine
+ * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
+ * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)` scaled for
+ * unit transmit power). The caller computes the taps because the tap design
+ * lives in the higher-level wfm DSP library; the engine only owns the FIR.
+ * No-op for non-modulated types (tone/noise). Replaces any existing shaper and
+ * clears its delay line.
+ *
+ * @param state  Must be non-NULL.
+ * @param taps   Real FIR taps (copied).
+ * @param ntaps  Number of taps (> 0).
+ * @return 0 on success; -1 on bad args / allocation failure.
+ */
+int wfm_synth_set_rrc(wfm_synth_state_t *state, const float *taps,
+                      size_t ntaps);
 
 /**
  * @brief Destroy a synth instance and release all memory.
@@ -230,6 +251,7 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
+    float complex sym;
     if (state->wtype >= WFM_SYNTH_PN) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
@@ -244,10 +266,23 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->cur_im = 0.0f;
             }
         }
+        if (state->fir) {
+            /* RRC pulse shaping: feed the symbol-rate impulse train (the held
+             * symbol at a boundary, zero between) through the matched FIR. The
+             * FIR carries its delay line across calls, so this is chunk-invariant
+             * — step() and the block path agree bit-for-bit. */
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
+    } else {
+        sym = state->cur_re + state->cur_im * I;
     }
-    float complex sym = state->cur_re + state->cur_im * I;
     float complex carrier = 1.0f + 0.0f * I;
     if (state->lo)
         lo_steps(state->lo, 1, &carrier);

@@ -39,6 +39,7 @@ from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
 _TYPES = ("tone", "noise", "pn", "bpsk", "qpsk")
 _MODES = ("auto", "fs", "ebno", "esno")
+_PULSES = ("rect", "rrc")  # PSK pulse shape → C: rect (hold) / rrc (FIR)
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _FTYPES = ("raw", "csv", "blue", "sigmf")
 _ENDIANS = ("le", "be")
@@ -116,6 +117,9 @@ class Synth:
     pn_poly: int = 0
     lfsr: str = "galois"
     level: float = 0.0
+    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
+    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
+    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
 
     def __post_init__(self):
         # Validate the string-enum fields eagerly (cheap, no engine spun) so a
@@ -123,10 +127,11 @@ class Synth:
         _idx(self.type, _TYPES, "type")
         _idx(self.snr_mode, _MODES, "snr_mode")
         _idx(self.lfsr, _LFSRS, "lfsr")
+        _idx(self.pulse, _PULSES, "pulse")
 
     def _engine(self):
         """Build the backing C engine (no ``level`` — that is composition)."""
-        return _SynthEngine(
+        eng = _SynthEngine(
             type=self.type,
             fs=self.fs,
             freq=self.freq,
@@ -138,6 +143,12 @@ class Synth:
             pn_poly=self.pn_poly,
             lfsr=self.lfsr,
         )
+        # RRC pulse shaping (pn/bpsk/qpsk only): pass the raw unit-energy taps;
+        # the C set_rrc scales them by sqrt(sps) for unit transmit power, so the
+        # standalone and composer faces are byte-identical.
+        if self.pulse == "rrc" and self.type in ("pn", "bpsk", "qpsk"):
+            eng.set_rrc(rrc_taps(self.rrc_beta, self.sps, self.rrc_span))
+        return eng
 
     def _lazy(self):
         eng = getattr(self, "_eng", None)
@@ -161,7 +172,11 @@ class Synth:
             eng.reset()
 
     def _tuple(self) -> tuple:
-        """Fixed-order 10-tuple consumed by the C binding (enums → ints)."""
+        """Fixed-order 13-tuple consumed by the C binding (enums → ints).
+
+        The trailing ``pulse`` / ``rrc_beta`` / ``rrc_span`` carry RRC pulse
+        shaping; ``pulse="rect"`` (the default) is byte-stable.
+        """
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.freq),
@@ -173,6 +188,9 @@ class Synth:
             int(self.pn_poly),
             _idx(self.lfsr, _LFSRS, "lfsr"),
             float(self.level),
+            _idx(self.pulse, _PULSES, "pulse"),
+            float(self.rrc_beta),
+            int(self.rrc_span),
         )
 
     @classmethod
@@ -188,6 +206,9 @@ class Synth:
             pn_poly=t[7],
             lfsr=_LFSRS[t[8]],
             level=t[9],
+            pulse=_PULSES[t[10]],
+            rrc_beta=t[11],
+            rrc_span=t[12],
         )
 
 
@@ -270,6 +291,9 @@ class Segment:
     off_samples: int = 0
     level: float = 0.0
     sources: list[Synth] | None = None
+    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
+    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
+    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
 
     @classmethod
     def sum(
@@ -306,11 +330,12 @@ class Segment:
         )
 
     def _tuple(self) -> tuple:
-        """C-binding tuple: 13-tuple for 1 source, else nested multi-source.
+        """C-binding tuple: 16-tuple for 1 source, else nested multi-source.
 
-        A multi-source segment crosses as ``(num, off, fs, [source10tuple, …])``
+        A multi-source segment crosses as ``(num, off, fs, [source13tuple, …])``
         (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the 13-tuple form so it is byte-identical to the pre-``sum`` path.
+        the flat 16-tuple form (the trailing ``pulse``/``rrc_beta``/``rrc_span``
+        default to rect → byte-stable for non-RRC).
         """
         if self.sources is not None:
             return (
@@ -333,11 +358,14 @@ class Segment:
             int(self.num_samples),
             int(self.off_samples),
             float(self.level),
+            _idx(self.pulse, _PULSES, "pulse"),
+            float(self.rrc_beta),
+            int(self.rrc_span),
         )
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 13:  # nested multi-source: (num, off, fs, [sources])
+        if len(t) != 16:  # nested multi-source: (num, off, fs, [sources])
             num, off, fs, srclist = t
             return cls(
                 num_samples=num,
@@ -359,6 +387,9 @@ class Segment:
             num_samples=t[10],
             off_samples=t[11],
             level=t[12],
+            pulse=_PULSES[t[13]],
+            rrc_beta=t[14],
+            rrc_span=t[15],
         )
 
     def add(self, *others: "Segment") -> "Timeline":

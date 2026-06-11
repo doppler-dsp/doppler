@@ -3,8 +3,9 @@ arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
 class_name = "_SynthEngine"
-depends_on = ["lo", "awgn", "pn"]
+depends_on = ["lo", "awgn", "pn", "fir"]
 impl = """
+float complex sym;
 if (state->wtype >= WFM_SYNTH_PN) {
     if (state->sym_pos == 0) {
         if (state->wtype == WFM_SYNTH_QPSK) {
@@ -19,10 +20,23 @@ if (state->wtype >= WFM_SYNTH_PN) {
             state->cur_im = 0.0f;
         }
     }
+    if (state->fir) {
+        /* RRC pulse shaping: feed the symbol-rate impulse train (the held
+         * symbol at a boundary, zero between) through the matched FIR. The
+         * FIR carries its delay line across calls, so this is chunk-invariant
+         * — step() and the block path agree bit-for-bit. */
+        float complex imp = (state->sym_pos == 0)
+                                ? (state->cur_re + state->cur_im * I)
+                                : (0.0f + 0.0f * I);
+        fir_execute(state->fir, &imp, 1, &sym);
+    } else {
+        sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+    }
     if (++state->sym_pos >= state->nsps)
         state->sym_pos = 0;
+} else {
+    sym = state->cur_re + state->cur_im * I;
 }
-float complex sym = state->cur_re + state->cur_im * I;
 float complex carrier = 1.0f + 0.0f * I;
 if (state->lo)
     lo_steps(state->lo, 1, &carrier);
@@ -37,6 +51,7 @@ obj->nsps = (sps < 1) ? 1 : sps;
 obj->sym_pos = 0;
 obj->cur_re = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
 obj->cur_im = 0.0f;
+obj->fir = NULL; /* RRC pulse-shaping FIR, attached via set_rrc() */
 
 /* LO carrier for everything but pure noise (freq is Hz → cycles/sample) */
 if (type != WFM_SYNTH_NOISE && freq != 0.0) {
@@ -106,6 +121,8 @@ if (state->awgn)
     awgn_reset(state->awgn);
 if (state->pn)
     pn_reset(state->pn);
+if (state->fir)
+    fir_reset(state->fir); /* clear the RRC delay line */
 """
 destroy_impl = """
 if (state->lo)
@@ -114,7 +131,14 @@ if (state->awgn)
     awgn_destroy(state->awgn);
 if (state->pn)
     pn_destroy(state->pn);
+if (state->fir)
+    fir_destroy(state->fir);
 """
+
+[[wfm_synth.state]]
+name = "fir"
+type = "fir_state_t *"
+opaque = true
 
 [[wfm_synth.state]]
 name = "lo"

@@ -162,6 +162,36 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
   return out_arr;
 }
 
+/* set_rrc(taps) — enable RRC pulse shaping with the given real FIR taps
+ * (e.g. doppler.wfm.rrc_taps(beta, sps, span)); no-op for non-modulated. */
+static PyObject *
+_SynthEngine_set_rrc (_SynthEngineObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *taps_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O", &taps_obj))
+    return NULL;
+  PyArrayObject *taps = (PyArrayObject *)PyArray_FROM_OTF (
+      taps_obj, NPY_FLOAT32, NPY_ARRAY_C_CONTIGUOUS);
+  if (!taps)
+    return NULL;
+  size_t n = (size_t)PyArray_SIZE (taps);
+  int rc = wfm_synth_set_rrc (self->handle, (const float *)PyArray_DATA (taps),
+                              n);
+  Py_DECREF (taps);
+  if (rc != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_rrc: empty taps or alloc failed");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyObject *
 _SynthEngine_get_wtype (_SynthEngineObject *self,
                         PyObject           *Py_UNUSED (ignored))
@@ -326,61 +356,65 @@ _SynthEngine_exit (_SynthEngineObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef _SynthEngine_methods[]
-    = { { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
-        { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
-          "step() -> float complex\n"
-          "\n"
-          "Generate one output sample from internal state.\n"
-          "\n"
-          "    >>> from doppler import _SynthEngine\n"
-          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
-          "100.0, 1, 8, 7, "
-          "0)\n"
-          "    >>> obj.step()\n"
-          "    0j\n" },
-        { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
-          "steps(n=1) -> ndarray\n"
-          "\n"
-          "Generate n output samples.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import _SynthEngine\n"
-          "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
-          "100.0, 1, 8, 7, "
-          "0)\n"
-          "    >>> y = obj.steps(4)\n"
-          "    >>> y.shape\n"
-          "    (4,)\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
+static PyMethodDef _SynthEngine_methods[] = {
+  { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
+  { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
+    "step() -> float complex\n"
+    "\n"
+    "Generate one output sample from internal state.\n"
+    "\n"
+    "    >>> from doppler import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+    "100.0, 1, 8, 7, "
+    "0)\n"
+    "    >>> obj.step()\n"
+    "    0j\n" },
+  { "steps", (PyCFunction)_SynthEngine_steps, METH_VARARGS,
+    "steps(n=1) -> ndarray\n"
+    "\n"
+    "Generate n output samples.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(\"tone\", \"auto\", 1000000.0, 0.0, "
+    "100.0, 1, 8, 7, "
+    "0)\n"
+    "    >>> y = obj.steps(4)\n"
+    "    >>> y.shape\n"
+    "    (4,)\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
 
-        { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
-          "Get wtype." },
-        { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
-          "Set wtype." },
-        { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS,
-          "Get nsps." },
-        { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
-          "Set nsps." },
-        { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
-          "Get sym_pos." },
-        { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
-          "Set sym_pos." },
-        { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
-          "Get cur_re." },
-        { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
-          "Set cur_re." },
-        { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
-          "Get cur_im." },
-        { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
-          "Set cur_im." },
-        { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "set_rrc", (PyCFunction)_SynthEngine_set_rrc, METH_VARARGS,
+    "set_rrc(taps) -> None\n"
+    "\n"
+    "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk only).\n" },
+  { "get_wtype", (PyCFunction)_SynthEngine_get_wtype, METH_NOARGS,
+    "Get wtype." },
+  { "set_wtype", (PyCFunction)_SynthEngine_set_wtype, METH_VARARGS,
+    "Set wtype." },
+  { "get_nsps", (PyCFunction)_SynthEngine_get_nsps, METH_NOARGS, "Get nsps." },
+  { "set_nsps", (PyCFunction)_SynthEngine_set_nsps, METH_VARARGS,
+    "Set nsps." },
+  { "get_sym_pos", (PyCFunction)_SynthEngine_get_sym_pos, METH_NOARGS,
+    "Get sym_pos." },
+  { "set_sym_pos", (PyCFunction)_SynthEngine_set_sym_pos, METH_VARARGS,
+    "Set sym_pos." },
+  { "get_cur_re", (PyCFunction)_SynthEngine_get_cur_re, METH_NOARGS,
+    "Get cur_re." },
+  { "set_cur_re", (PyCFunction)_SynthEngine_set_cur_re, METH_VARARGS,
+    "Set cur_re." },
+  { "get_cur_im", (PyCFunction)_SynthEngine_get_cur_im, METH_NOARGS,
+    "Get cur_im." },
+  { "set_cur_im", (PyCFunction)_SynthEngine_set_cur_im, METH_VARARGS,
+    "Set cur_im." },
+  { "destroy", (PyCFunction)_SynthEngine_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)_SynthEngine_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)_SynthEngine_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject _SynthEngineType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen._SynthEngine",

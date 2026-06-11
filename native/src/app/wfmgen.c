@@ -33,6 +33,7 @@ static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
 static const char *const LFSRS[]   = { "galois", "fibonacci" };
+static const char *const PULSES[]  = { "rect", "rrc" };
 
 /* Look name up in a NULL-free table of n entries; -1 if absent. */
 static int
@@ -102,6 +103,7 @@ slurp_file (const char *path)
 static const char USAGE[]
     = "usage: wfmgen [--from-file SPEC.json] [--type "
       "tone|noise|pn|bpsk|qpsk]\n"
+      "  [--pulse rect|rrc] [--rrc-beta R] [--rrc-span N]\n"
       "  [--fs HZ] [--freq HZ] [--fc HZ] [--snr DB] [--snr_mode "
       "auto|fs|ebno|esno]\n"
       "  [--seed N] [--sps N] [--pn_length N] [--pn_poly N] "
@@ -124,7 +126,9 @@ main (int argc, char *argv[])
                            .seed      = 1,
                            .sps       = 8,
                            .pn_length = 7,
-                           .pn_poly   = 0 };
+                           .pn_poly   = 0,
+                           .rrc_beta  = 0.35,
+                           .rrc_span  = 8 };
   wfm_segment_t seg    = { .sources     = &src,
                            .n_sources   = 1,
                            .fs          = 1e6,
@@ -190,6 +194,18 @@ main (int argc, char *argv[])
       else if (!strcmp (a, "--lfsr"))
         {
           CHOICE (src.lfsr, LFSRS);
+        }
+      else if (!strcmp (a, "--pulse"))
+        {
+          CHOICE (src.pulse, PULSES);
+        }
+      else if (!strcmp (a, "--rrc-beta"))
+        {
+          src.rrc_beta = strtod (NEXT (), NULL);
+        }
+      else if (!strcmp (a, "--rrc-span"))
+        {
+          src.rrc_span = (int)strtol (NEXT (), NULL, 10);
         }
       else if (!strcmp (a, "--fs"))
         {

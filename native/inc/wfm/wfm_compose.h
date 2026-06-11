@@ -57,6 +57,9 @@ typedef struct {
     uint64_t pn_poly;  /* 0 → MLS poly for the length */
     int lfsr;          /* 0 galois, 1 fibonacci */
     double level;      /* source level in dBFS (≤0); 0 = unit power, no gain */
+    int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
+    double rrc_beta;   /* RRC roll-off (pulse=rrc) */
+    int rrc_span;      /* RRC support in symbols (pulse=rrc) */
 } wfm_source_t;
 
 /**

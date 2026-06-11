@@ -13,6 +13,20 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **RRC pulse shaping for the PSK carriers** — `pulse="rrc"` (with `rrc_beta` /
+    `rrc_span`) on a `pn` / `bpsk` / `qpsk` `Synth` replaces the rectangular
+    sample-and-hold with **root-raised-cosine** shaping, so a band-limited
+    carrier (e.g. WCDMA QPSK at roll-off 0.22) comes straight from the generator
+    instead of being hand-filtered. The symbol-rate impulse train is run through
+    the existing `fir` core with `wfm_rrc_taps`, scaled for unit transmit power;
+    the FIR delay line carries across blocks so the per-sample and block paths
+    agree bit-for-bit. Default `pulse="rect"` is byte-stable. On every face: the
+    `wfmgen --pulse rrc --rrc-beta … --rrc-span …` CLI, the JSON spec, and
+    `Segment`/`Composer` (incl. `.sum`). Byte-identical CLI ⇄ Composer ⇄
+    standalone. (#115)
+
 ## [0.11.0] — 2026-06-11
 
 The **waveform composer** and the **`wfm` API cleanup**. doppler can now build a

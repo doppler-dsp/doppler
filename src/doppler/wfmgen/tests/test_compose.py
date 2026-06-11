@@ -524,3 +524,27 @@ def test_writer_clip_detection(tmp_path):
     f.write(x)
     assert not f.clipped
     f.close()
+
+
+def test_writer_headroom(tmp_path):
+    """``headroom`` backs the signal off by a common gain: 0 dB is a bit-exact
+    no-op, 6.02 dB halves it, and enough headroom clears clipping."""
+    x = np.array([1.0 + 0j, 0.6 - 0.8j], dtype=np.complex64)
+
+    # 6.0206 dB → gain 0.5
+    with Writer(
+        tmp_path / "hr.cf32", sample_type="cf32", headroom=6.0206
+    ) as w:
+        w.write(x)
+    assert np.allclose(read_iq(str(tmp_path / "hr.cf32"), "cf32"), x * 0.5)
+
+    # 0 dB (default) is verbatim
+    with Writer(tmp_path / "h0.cf32", sample_type="cf32") as w:
+        w.write(x)
+    assert np.allclose(read_iq(str(tmp_path / "h0.cf32"), "cf32"), x)
+
+    # enough headroom clears a clip that would saturate at unity gain
+    with Writer(tmp_path / "c.ci16", sample_type="ci16", headroom=12.0) as w:
+        w.track_clipping(True)
+        w.write(np.array([1.5 + 0j, -2.0 + 0.3j], dtype=np.complex64))
+        assert not w.clipped

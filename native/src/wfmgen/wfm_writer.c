@@ -37,6 +37,7 @@ struct wfm_writer
   float    peak;  /* running max |I|/|Q| (pre-clip); always tracked */
   uint64_t nclip; /* saturated I/Q components (only when `track`) */
   int      track; /* count clips (opt-in); peak is always on */
+  float    gain;  /* output gain (headroom); 1.0 = no-op */
 };
 
 /* Update the running peak (always) and, when opted in for an integer wire
@@ -155,6 +156,7 @@ wfm_writer_open (FILE *fp, wfm_filetype_t ft, int sample_type, int endian,
   w->ft    = ft;
   w->stype = sample_type;
   w->be    = endian ? 1 : 0;
+  w->gain  = 1.0f;
   if (ft == WFM_FT_BLUE
       && wfm_blue_write_hcb (fp, sample_type, w->be, fs, fc, 512.0,
                              total_samples, 0))
@@ -171,7 +173,7 @@ write_csv (wfm_writer_t *w, const float _Complex *iq, size_t n)
 {
   for (size_t i = 0; i < n; i++)
     {
-      float re = crealf (iq[i]), im = cimagf (iq[i]);
+      float re = crealf (iq[i]) * w->gain, im = cimagf (iq[i]) * w->gain;
       int   ok;
       track_sample (w, re, im);
       if (w->stype == 0)
@@ -198,7 +200,7 @@ write_binary (wfm_writer_t *w, const float _Complex *iq, size_t n)
   uint8_t *p = w->buf;
   for (size_t i = 0; i < n; i++)
     {
-      float re = crealf (iq[i]), im = cimagf (iq[i]);
+      float re = crealf (iq[i]) * w->gain, im = cimagf (iq[i]) * w->gain;
       track_sample (w, re, im);
       switch (w->stype)
         {
@@ -284,6 +286,13 @@ wfm_writer_track_clipping (wfm_writer_t *w, int on)
 {
   if (w)
     w->track = on ? 1 : 0;
+}
+
+void
+wfm_writer_set_gain (wfm_writer_t *w, double gain)
+{
+  if (w)
+    w->gain = (float)gain;
 }
 
 double

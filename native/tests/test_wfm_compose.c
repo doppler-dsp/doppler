@@ -218,7 +218,64 @@ main (void)
     CHECK (ok, "2-source sum == s0 + 0.5*s1");
   }
 
-  printf ("test_wfm_compose: OK (total=%zu, json round-trip ok, level, sum)\n",
+  /* ── noise resolve: snr on a source → a SYNTH_NOISE source at the floor ──
+   */
+  {
+    wfm_source_t srcs[2] = {
+      { .type = 0, .snr = 10.0, .snr_mode = 1, .level = 0.0 }, /* anchor, fs */
+      { .type  = 0,
+        .freq  = 2e5,
+        .snr   = 100.0,
+        .level = -20.0 }, /* interferer */
+    };
+    wfm_segment_t seg
+        = { .sources = srcs, .n_sources = 2, .fs = 1e6, .num_samples = 16 };
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    CHECK (c, "resolve create");
+    size_t               nseg;
+    const wfm_segment_t *rs = wfm_compose_segments (c, &nseg, NULL, NULL);
+    CHECK (rs[0].n_sources == 3, "noise source appended (2 → 3)");
+    CHECK (rs[0].sources[0].snr >= SYNTH_SNR_CLEAN, "anchor cleaned");
+    CHECK (rs[0].sources[2].type == SYNTH_NOISE, "appended is SYNTH_NOISE");
+    CHECK (fabs (rs[0].sources[2].level - (-10.0)) < 1e-9,
+           "floor = level - snr_fs = -10 dBFS");
+    wfm_compose_destroy (c);
+  }
+
+  /* ── resolve is idempotent: a clean+explicit-noise spec is a fixed point ──
+   */
+  {
+    wfm_source_t resolved[3] = {
+      { .type = 0, .snr = 100.0, .level = 0.0 },
+      { .type = 0, .freq = 2e5, .snr = 100.0, .level = -20.0 },
+      { .type = SYNTH_NOISE, .level = -10.0 }, /* explicit floor */
+    };
+    wfm_segment_t seg = {
+      .sources = resolved, .n_sources = 3, .fs = 1e6, .num_samples = 16
+    };
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
+    CHECK (c, "idempotent create");
+    size_t               nseg;
+    const wfm_segment_t *rs = wfm_compose_segments (c, &nseg, NULL, NULL);
+    CHECK (rs[0].n_sources == 3, "idempotent: no second noise source");
+    CHECK (fabs (rs[0].sources[2].level - (-10.0)) < 1e-9, "floor preserved");
+    wfm_compose_destroy (c);
+  }
+
+  /* ── reject: a non-anchor source over-specifying snr AND level ── */
+  {
+    wfm_source_t bad[2] = {
+      { .type = 0, .snr = 10.0, .level = 0.0 }, /* anchor */
+      { .type = 0, .snr = 5.0, .level = -3.0 }, /* non-anchor: snr + level */
+    };
+    wfm_segment_t seg
+        = { .sources = bad, .n_sources = 2, .fs = 1e6, .num_samples = 16 };
+    CHECK (!wfm_compose_create (&seg, 1, 0, 0),
+           "reject non-anchor snr + level");
+  }
+
+  printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
+          "resolve)\n",
           total);
   return 0;
 }

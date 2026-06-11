@@ -75,6 +75,23 @@ typedef struct {
     size_t off_samples;    /* off-time gap after the segment (samples) */
 } wfm_segment_t;
 
+/**
+ * @brief Resolve a segment list's noise model in place (Phase 4b).
+ *
+ * No-op for 1-source segments (keeps the bundled-synth path byte-identical).
+ * For a multi-source segment it sets one shared noise floor (from an explicit
+ * SYNTH_NOISE source, else the first snr-bearing source), cleans the signal
+ * sources, and appends a SYNTH_NOISE source at the floor — so the composer's
+ * accumulator just sums. May `realloc` each segment's `sources`. Idempotent.
+ *
+ * `wfm_compose_create()` calls this on its private copy, so every face (CLI,
+ * JSON, Python) resolves identically.
+ *
+ * @return 0 on success; -1 if a non-anchor source over-specifies (snr + level)
+ *         or on allocation failure.
+ */
+int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
+
 /** Opaque composer state. */
 typedef struct wfm_compose_state wfm_compose_state_t;
 

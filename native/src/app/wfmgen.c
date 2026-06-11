@@ -27,8 +27,10 @@
 
 #define BLK 4096
 
-static const char *const TYPES[]   = { "tone", "noise", "pn", "bpsk", "qpsk" };
+static const char *const TYPES[]
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "bits" };
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
+static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
 static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
 static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
@@ -42,6 +44,60 @@ lookup (const char *s, const char *const *tbl, int n)
     if (!strcmp (s, tbl[i]))
       return i;
   return -1;
+}
+
+/* Parse a binary string ("10110101") into a malloc'd 0/1 array; *n gets the
+ * length. Whitespace is skipped; any other char fails (returns NULL). */
+static uint8_t *
+parse_bit_string (const char *s, size_t *n)
+{
+  size_t   cap = strlen (s), len = 0;
+  uint8_t *b = malloc (cap ? cap : 1);
+  if (!b)
+    return NULL;
+  for (; *s; s++)
+    {
+      if (*s == '0' || *s == '1')
+        b[len++] = (uint8_t)(*s - '0');
+      else if (*s != ' ' && *s != '\t' && *s != '\n' && *s != '\r')
+        {
+          free (b);
+          return NULL;
+        }
+    }
+  *n = len;
+  return b;
+}
+
+/* Parse a hex string ("AA55") into a malloc'd 0/1 array (MSB first), 4 bits
+ * per hex digit; *n gets the bit count. Returns NULL on a non-hex char. */
+static uint8_t *
+parse_hex_string (const char *s, size_t *n)
+{
+  size_t   ndig = strlen (s);
+  uint8_t *b    = malloc (ndig ? ndig * 4 : 1);
+  if (!b)
+    return NULL;
+  size_t len = 0;
+  for (; *s; s++)
+    {
+      int v;
+      if (*s >= '0' && *s <= '9')
+        v = *s - '0';
+      else if (*s >= 'a' && *s <= 'f')
+        v = *s - 'a' + 10;
+      else if (*s >= 'A' && *s <= 'F')
+        v = *s - 'A' + 10;
+      else
+        {
+          free (b);
+          return NULL;
+        }
+      for (int bit = 3; bit >= 0; bit--)
+        b[len++] = (uint8_t)((v >> bit) & 1);
+    }
+  *n = len;
+  return b;
 }
 
 /* Warn (and optionally fail) when an integer wire type clipped. peak > 1 means
@@ -101,11 +157,13 @@ slurp_file (const char *path)
 
 static const char USAGE[]
     = "usage: wfmgen [--from-file SPEC.json] [--type "
-      "tone|noise|pn|bpsk|qpsk]\n"
+      "tone|noise|pn|bpsk|qpsk|bits]\n"
       "  [--fs HZ] [--freq HZ] [--fc HZ] [--snr DB] [--snr_mode "
       "auto|fs|ebno|esno]\n"
       "  [--seed N] [--sps N] [--pn_length N] [--pn_poly N] "
       "[--lfsr galois|fibonacci]\n"
+      "  [--bits 0/1-STRING | --bits-hex HEX | --bits-file FILE] "
+      "[--modulation none|bpsk|qpsk]\n"
       "  [--count N] [--off N] [--repeat] [--continuous]\n"
       "  [--sample_type cf32|cf64|ci32|ci16|ci8] [--file_type "
       "raw|csv|blue|sigmf]\n"
@@ -117,14 +175,15 @@ int
 main (int argc, char *argv[])
 {
   /* single-segment defaults mirror synth/wavegen: one source in one segment */
-  wfm_source_t  src    = { .type      = 0,
-                           .freq      = 0.0,
-                           .snr       = 100.0,
-                           .snr_mode  = 0,
-                           .seed      = 1,
-                           .sps       = 8,
-                           .pn_length = 7,
-                           .pn_poly   = 0 };
+  wfm_source_t  src    = { .type       = 0,
+                           .freq       = 0.0,
+                           .snr        = 100.0,
+                           .snr_mode   = 0,
+                           .seed       = 1,
+                           .sps        = 8,
+                           .pn_length  = 7,
+                           .pn_poly    = 0,
+                           .modulation = 1 /* bits: default bpsk */ };
   wfm_segment_t seg    = { .sources     = &src,
                            .n_sources   = 1,
                            .fs          = 1e6,
@@ -190,6 +249,52 @@ main (int argc, char *argv[])
       else if (!strcmp (a, "--lfsr"))
         {
           CHOICE (src.lfsr, LFSRS);
+        }
+      else if (!strcmp (a, "--modulation"))
+        {
+          CHOICE (src.modulation, BITMODS);
+        }
+      else if (!strcmp (a, "--bits"))
+        {
+          const char *v = NEXT ();
+          free (src.bits);
+          src.bits = v ? parse_bit_string (v, &src.n_bits) : NULL;
+          if (!src.bits)
+            {
+              fprintf (stderr, "error: --bits expects a 0/1 string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--bits-hex"))
+        {
+          const char *v = NEXT ();
+          free (src.bits);
+          src.bits = v ? parse_hex_string (v, &src.n_bits) : NULL;
+          if (!src.bits)
+            {
+              fprintf (stderr, "error: --bits-hex expects a hex string\n");
+              return 2;
+            }
+        }
+      else if (!strcmp (a, "--bits-file"))
+        {
+          const char *v    = NEXT ();
+          char       *text = v ? slurp_file (v) : NULL;
+          if (!text)
+            {
+              fprintf (stderr, "error: cannot read --bits-file %s\n",
+                       v ? v : "(none)");
+              return 1;
+            }
+          free (src.bits);
+          src.bits = parse_bit_string (text, &src.n_bits);
+          free (text);
+          if (!src.bits)
+            {
+              fprintf (stderr, "error: --bits-file must contain a 0/1 "
+                               "string\n");
+              return 2;
+            }
         }
       else if (!strcmp (a, "--fs"))
         {
@@ -516,5 +621,6 @@ main (int argc, char *argv[])
              (unsigned long long)clk.underruns, (double)clk.max_late_ns / 1e6);
 
   wfm_compose_destroy (comp);
+  free (src.bits); /* the composer deep-copied it; free our CLI-owned copy */
   return rc;
 }

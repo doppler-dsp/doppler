@@ -764,3 +764,81 @@ def test_timeline_json_roundtrip():
     assert np.array_equal(
         Composer.from_json(js).compose(), Composer(tl).compose()
     )
+
+
+@_needs_wfmgen
+def test_bits_byte_parity_vs_wfmgen(tmp_path):
+    """A bits segment is byte-identical between the Composer and the CLI."""
+
+    n = 64
+    cli = tmp_path / "cli.cf32"
+    subprocess.run(
+        [
+            _WFMGEN,
+            "--type",
+            "bits",
+            "--bits",
+            "10110100",
+            "--modulation",
+            "qpsk",
+            "--sps",
+            "4",
+            "--fs",
+            "1e6",
+            "--count",
+            str(n),
+            "--sample_type",
+            "cf32",
+            "-o",
+            str(cli),
+        ],
+        check=True,
+    )
+    x = Composer(
+        Segment(
+            "bits",
+            pattern="10110100",
+            modulation="qpsk",
+            sps=4,
+            fs=1e6,
+            num_samples=n,
+        )
+    ).compose()
+    py = tmp_path / "py.cf32"
+    with Writer(py, file_type="raw", sample_type="cf32") as w:
+        w.write(x)
+    assert _md5(py) == _md5(cli)
+
+
+def test_bits_json_roundtrip():
+    """pattern + modulation survive the JSON spec round-trip; non-bits don't
+    grow the keys (byte-stable)."""
+
+    a = Composer(
+        [
+            Segment(
+                "bits",
+                pattern="110100",
+                modulation="bpsk",
+                sps=2,
+                num_samples=12,
+            )
+        ]
+    )
+    js = a.to_json()
+    assert '"pattern"' in js and '"modulation"' in js
+    b = Composer.from_json(js)
+    assert np.array_equal(a.compose(), b.compose())
+    assert '"pattern"' not in Composer([Segment("tone")]).to_json()
+
+
+def test_bits_in_sum_scene():
+    """A bits source mixes in a .sum() scene with another waveform."""
+    from doppler.wfm import bits, tone
+
+    mix = Segment.sum(
+        bits("10110101", modulation="bpsk", sps=4),
+        tone(freq=2e5, level=-6),
+        num_samples=128,
+    )
+    assert len(Composer(mix).compose()) == 128

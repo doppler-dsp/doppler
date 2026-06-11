@@ -75,7 +75,7 @@ class _SynthEngine:
 
     Parameters
     ----------
-    type : Literal["tone", "noise", "pn", "bpsk", "qpsk"], default "tone"
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "bits"], default "tone"
         type constructor parameter.
     fs : float, default 1000000.0
         fs constructor parameter.

@@ -14,9 +14,11 @@
 #include "cJSON.h"
 
 static const char *const TYPE_NAMES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk" };
-static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
-static const char *const LFSR_NAMES[] = { "galois", "fibonacci" };
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "bits" };
+#define N_TYPES 6
+static const char *const MODE_NAMES[]   = { "auto", "fs", "ebno", "esno" };
+static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
+static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 
 static int
 name_index (const char *s, const char *const *names, int n)
@@ -26,6 +28,64 @@ name_index (const char *s, const char *const *names, int n)
       if (strcmp (s, names[i]) == 0)
         return i;
   return -1;
+}
+
+/* Render a bits pattern as a malloc'd "0/1" string (caller frees), or NULL. */
+static char *
+bits_to_string (const uint8_t *bits, size_t n)
+{
+  char *s = malloc (n + 1);
+  if (!s)
+    return NULL;
+  for (size_t i = 0; i < n; i++)
+    s[i] = bits[i] ? '1' : '0';
+  s[n] = '\0';
+  return s;
+}
+
+/* Parse a "0/1" string into a malloc'd bit array; *n gets the length. Other
+ * characters are skipped. Returns NULL on allocation failure. */
+static uint8_t *
+string_to_bits (const char *s, size_t *n)
+{
+  size_t   len = strlen (s);
+  uint8_t *b   = malloc (len ? len : 1);
+  if (!b)
+    return NULL;
+  size_t k = 0;
+  for (size_t i = 0; i < len; i++)
+    if (s[i] == '0' || s[i] == '1')
+      b[k++] = (uint8_t)(s[i] - '0');
+  *n = k;
+  return b;
+}
+
+/* Free the bits patterns of `ns` sources (then the caller frees the array). */
+static void
+free_src_bits (wfm_source_t *srcs, size_t ns)
+{
+  if (srcs)
+    for (size_t k = 0; k < ns; k++)
+      free (srcs[k].bits);
+}
+
+/* Emit a bits source's modulation + pattern (no-op for other types). */
+static void
+add_bits_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_BITS)
+    return;
+  int bm = (src->modulation >= 0 && src->modulation < 3) ? src->modulation : 1;
+  cJSON_AddStringToObject (o, "modulation", BITMOD_NAMES[bm]);
+  if (src->bits && src->n_bits)
+    {
+      char *bs = bits_to_string (src->bits, src->n_bits);
+      if (bs)
+        {
+          cJSON_AddStringToObject (o, "pattern", bs);
+          free (bs);
+        }
+    }
 }
 
 /* cJSON number field with a fallback when absent/non-numeric. */
@@ -42,7 +102,7 @@ num (const cJSON *obj, const char *key, double fallback)
 static void
 add_source_obj (cJSON *so, const wfm_source_t *src)
 {
-  int t = (src->type >= 0 && src->type < 5) ? src->type : 0;
+  int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
   int m = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
   cJSON_AddStringToObject (so, "type", TYPE_NAMES[t]);
   cJSON_AddNumberToObject (so, "freq", src->freq);
@@ -55,6 +115,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   cJSON_AddStringToObject (so, "lfsr", LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
   if (src->level != 0.0)
     cJSON_AddNumberToObject (so, "level", src->level);
+  add_bits_fields (so, src);
 }
 
 /* Parse a source object (the inline segment, or a "sum" entry) into *out.
@@ -63,7 +124,7 @@ static int
 parse_source_obj (const cJSON *so, wfm_source_t *out)
 {
   const cJSON *ty = cJSON_GetObjectItemCaseSensitive (so, "type");
-  int          t  = name_index (cJSON_GetStringValue (ty), TYPE_NAMES, 5);
+  int          t = name_index (cJSON_GetStringValue (ty), TYPE_NAMES, N_TYPES);
   if (t < 0)
     return -1;
   const cJSON *md = cJSON_GetObjectItemCaseSensitive (so, "snr_mode");
@@ -85,6 +146,22 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
                                 : 0,
                .level     = num (so, "level", 0.0),
   };
+  if (t == WFM_SYNTH_BITS)
+    {
+      int bm = name_index (
+          cJSON_GetStringValue (
+              cJSON_GetObjectItemCaseSensitive (so, "modulation")),
+          BITMOD_NAMES, 3);
+      out->modulation       = (bm < 0) ? 1 : bm;
+      const cJSON *pat      = cJSON_GetObjectItemCaseSensitive (so, "pattern");
+      const char  *patt_str = cJSON_GetStringValue (pat);
+      if (patt_str)
+        {
+          out->bits = string_to_bits (patt_str, &out->n_bits);
+          if (!out->bits)
+            return -1;
+        }
+    }
   return 0;
 }
 
@@ -109,7 +186,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
         {
           /* 1-source inline form — field order frozen for byte-identity. */
           const wfm_source_t *src = &g->sources[0];
-          int t = (src->type >= 0 && src->type < 5) ? src->type : 0;
+          int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
           int m
               = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
           cJSON_AddStringToObject (s, "type", TYPE_NAMES[t]);
@@ -128,6 +205,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           if (src->level
               != 0.0) /* omit at 0 dBFS so old specs are unchanged */
             cJSON_AddNumberToObject (s, "level", src->level);
+          add_bits_fields (s, src);
         }
       else
         {
@@ -210,6 +288,8 @@ wfm_compose_from_json (const char *json)
         {
           if (parse_source_obj (so, &srcs[k]) != 0)
             {
+              free_src_bits (srcs,
+                             k); /* k sources parsed OK before this one */
               free (srcs);
               goto reject;
             }
@@ -239,7 +319,10 @@ wfm_compose_from_json (const char *json)
     continue;
   reject:
     for (size_t j = 0; j < i; j++)
-      free (segs[j].sources);
+      {
+        free_src_bits (segs[j].sources, segs[j].n_sources);
+        free (segs[j].sources);
+      }
     free (segs);
     cJSON_Delete (root);
     return NULL;
@@ -247,7 +330,10 @@ wfm_compose_from_json (const char *json)
   cJSON_Delete (root);
   wfm_compose_state_t *c = wfm_compose_create (segs, n, repeat, cont);
   for (size_t j = 0; j < n; j++)
-    free (segs[j].sources);
+    {
+      free_src_bits (segs[j].sources, segs[j].n_sources);
+      free (segs[j].sources);
+    }
   free (segs);
   return c;
 }

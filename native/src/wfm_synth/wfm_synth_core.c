@@ -13,6 +13,11 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   obj->sym_pos = 0;
   obj->cur_re  = (type == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   obj->cur_im  = 0.0f;
+  /* Bit-pattern state attached later via wfm_synth_set_bits(). */
+  obj->bits    = NULL;
+  obj->n_bits  = 0;
+  obj->bit_idx = 0;
+  obj->bit_mod = 1; /* default bpsk */
 
   /* LO carrier only when there is a frequency offset: at freq 0 the carrier
    * is the constant 1, so mixing is a no-op and is skipped entirely (a
@@ -28,7 +33,7 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
     }
 
   /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
-  if (type >= WFM_SYNTH_PN)
+  if (type >= WFM_SYNTH_PN && type <= WFM_SYNTH_QPSK)
     {
       uint64_t poly
           = pn_poly ? pn_poly : wfm_synth_mls_poly ((uint32_t)pn_length);
@@ -63,8 +68,9 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
     {
       int mode = snr_mode;
       if (mode == 0)
-        mode
-            = (type >= WFM_SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
+        mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK)
+                   ? 3
+                   : 1; /* *psk → esno; tone/pn/bits → fs */
       int    bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
       double snr_fs;
       if (mode == 2) /* Eb/No → SNR over fs */
@@ -89,9 +95,31 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   return obj;
 }
 
+int
+wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
+                    int modulation)
+{
+  if (state->wtype != WFM_SYNTH_BITS)
+    return 0; /* no-op for every other type */
+  if (!bits || n == 0 || modulation < 0 || modulation > 2)
+    return -1;
+  uint8_t *copy = malloc (n);
+  if (!copy)
+    return -1;
+  for (size_t i = 0; i < n; i++)
+    copy[i] = bits[i] ? 1u : 0u; /* normalise to 0/1 */
+  free (state->bits);
+  state->bits    = copy;
+  state->n_bits  = n;
+  state->bit_idx = 0;
+  state->bit_mod = modulation;
+  return 0;
+}
+
 void
 wfm_synth_destroy (wfm_synth_state_t *state)
 {
+  free (state->bits);
   if (state->lo)
     lo_destroy (state->lo);
   if (state->awgn)
@@ -107,6 +135,7 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->sym_pos = 0;
   state->cur_re  = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
   state->cur_im  = 0.0f;
+  state->bit_idx = 0; /* rewind the bit pattern */
   if (state->lo)
     lo_reset (state->lo);
   if (state->awgn)
@@ -136,14 +165,17 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   float complex carrier[CH];   /* 16 KiB */
   float complex noise[CH];     /* 16 KiB */
   uint8_t       chips[2 * CH]; /* up to 2 chips/sample (qpsk at sps 1) */
-  const int     has_lo    = state->lo != NULL;
-  const int     has_awgn  = state->awgn != NULL;
-  const int     modulated = state->wtype >= WFM_SYNTH_PN;
-  const int     qpsk      = state->wtype == WFM_SYNTH_QPSK;
-  const int     nsps      = state->nsps;
-  const float   s         = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
-  int           sym_pos   = state->sym_pos;
-  float         cre = state->cur_re, cim = state->cur_im;
+  const int     has_lo   = state->lo != NULL;
+  const int     has_awgn = state->awgn != NULL;
+  const int     is_bits  = state->wtype == WFM_SYNTH_BITS;
+  const int     modulated
+      = state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK;
+  const int   qpsk    = state->wtype == WFM_SYNTH_QPSK;
+  const int   nsps    = state->nsps;
+  const float s       = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
+  int         sym_pos = state->sym_pos;
+  size_t      bit_idx = state->bit_idx; /* bits read position (type=bits) */
+  float       cre = state->cur_re, cim = state->cur_im;
 
   for (size_t done = 0; done < n;)
     {
@@ -153,6 +185,49 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
         lo_steps (state->lo, m, carrier);
       if (has_awgn)
         awgn_generate (state->awgn, m, noise);
+
+      if (is_bits)
+        {
+          /* User bit pattern: per-sample symbol latch from bits[], cycled,
+           * with the *same* fused sym*carrier + noise as wfm_synth_step() so
+           * the two paths stay byte-identical. */
+          const uint8_t *bits = state->bits;
+          size_t         nb   = state->n_bits;
+          int            bmod = state->bit_mod;
+          for (size_t i = 0; i < m; i++)
+            {
+              if (sym_pos == 0 && bits && nb)
+                {
+                  if (bmod == 2)
+                    {
+                      uint8_t b0 = bits[bit_idx];
+                      uint8_t b1 = bits[(bit_idx + 1) % nb];
+                      cre        = b0 ? -s : s;
+                      cim        = b1 ? -s : s;
+                      bit_idx    = (bit_idx + 2) % nb;
+                    }
+                  else if (bmod == 1)
+                    {
+                      cre     = bits[bit_idx] ? -1.0f : 1.0f;
+                      cim     = 0.0f;
+                      bit_idx = (bit_idx + 1) % nb;
+                    }
+                  else
+                    {
+                      cre     = bits[bit_idx] ? 1.0f : 0.0f;
+                      cim     = 0.0f;
+                      bit_idx = (bit_idx + 1) % nb;
+                    }
+                }
+              if (++sym_pos >= nsps)
+                sym_pos = 0;
+              float complex sym = cre + cim * I;
+              float complex v   = has_lo ? sym * carrier[i] : sym;
+              out[i]            = has_awgn ? v + noise[i] : v;
+            }
+          done += m;
+          continue;
+        }
 
       if (!modulated)
         {
@@ -235,6 +310,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   state->sym_pos = sym_pos;
   state->cur_re  = cre;
   state->cur_im  = cim;
+  state->bit_idx = bit_idx;
 }
 
 int

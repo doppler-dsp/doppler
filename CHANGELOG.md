@@ -13,6 +13,21 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **User bit-pattern waveform type (`bits`)** — `Synth(type="bits",   pattern=…, modulation=…)` and the `bits(pattern, modulation)` builder play
+    back a specific bit sequence (preambles, sync words, test vectors). The
+    pattern is a 0/1 string (`"10110101"`), a hex string (`"0xAA55"`, MSB
+    first), or any array-like of 0/1; `modulation` maps it to symbols
+    (`"none"` → 0/1 amplitude, `"bpsk"` → ±1, `"qpsk"` → two bits/symbol,
+    Gray-coded). Each bit is held `sps` samples and the pattern **cycles** to
+    fill the requested length (one pass is `Synth.n_samples`). On every face:
+    the `wfmgen --type bits --bits/--bits-hex/--bits-file --modulation …` CLI,
+    the JSON spec (`"pattern"` + `"modulation"`), `Segment`/`Composer` (incl.
+    `.sum` scenes), and SigMF. Byte-identical CLI ⇄ Composer ⇄ standalone, and
+    the C `wfm_synth_step()`/`wfm_synth_steps()` paths agree bit-for-bit.
+    (#114)
+
 ## [0.11.0] — 2026-06-11
 
 The **waveform composer** and the **`wfm` API cleanup**. doppler can now build a

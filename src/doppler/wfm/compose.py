@@ -37,12 +37,35 @@ from . import _wfmcompose as _c
 from .wfm import _SynthEngine  # internal C engine; Synth wraps it
 
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
-_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk")
+_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "bits")
 _MODES = ("auto", "fs", "ebno", "esno")
+_BITMODS = ("none", "bpsk", "qpsk")  # bits-pattern modulation → C bit_mod
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _FTYPES = ("raw", "csv", "blue", "sigmf")
 _ENDIANS = ("le", "be")
 _LFSRS = ("galois", "fibonacci")
+
+
+def _parse_bits(pattern) -> np.ndarray:
+    """Coerce a bit pattern to a uint8 array of 0/1.
+
+    Accepts a binary string (``"10110101"``), a hex string prefixed ``0x``
+    (``"0xAA55"`` → 16 bits, MSB first), or any array-like of 0/1.
+    """
+    if isinstance(pattern, str):
+        s = pattern.strip()
+        if s[:2].lower() == "0x":
+            n = len(s) - 2
+            val = int(s, 16)
+            bits = [(val >> (4 * n - 1 - i)) & 1 for i in range(4 * n)]
+            return np.array(bits, dtype=np.uint8)
+        if set(s) - {"0", "1"}:
+            raise ValueError(
+                "bit string must be 0/1 (or '0x..' hex), got " + repr(pattern)
+            )
+        return np.frombuffer(s.encode(), dtype=np.uint8) - ord("0")
+    arr = np.asarray(pattern, dtype=np.uint8).ravel()
+    return (arr != 0).astype(np.uint8)
 
 
 def _idx(name: str, table: tuple[str, ...], what: str) -> int:
@@ -116,6 +139,8 @@ class Synth:
     pn_poly: int = 0
     lfsr: str = "galois"
     level: float = 0.0
+    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
+    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
 
     def __post_init__(self):
         # Validate the string-enum fields eagerly (cheap, no engine spun) so a
@@ -123,10 +148,24 @@ class Synth:
         _idx(self.type, _TYPES, "type")
         _idx(self.snr_mode, _MODES, "snr_mode")
         _idx(self.lfsr, _LFSRS, "lfsr")
+        if self.type == "bits":
+            _idx(self.modulation, _BITMODS, "modulation")
+            if self.pattern is None:
+                raise ValueError("type='bits' needs a pattern")
+
+    @property
+    def n_samples(self) -> int:
+        """One full pass of a ``bits`` pattern, in samples (``n_bits*sps``,
+        halved for qpsk). 0 for the streaming types (no natural length)."""
+        if self.type != "bits":
+            return 0
+        nb = len(_parse_bits(self.pattern))
+        per_sym = 2 if self.modulation == "qpsk" else 1
+        return (nb // per_sym) * self.sps
 
     def _engine(self):
         """Build the backing C engine (no ``level`` — that is composition)."""
-        return _SynthEngine(
+        eng = _SynthEngine(
             type=self.type,
             fs=self.fs,
             freq=self.freq,
@@ -138,6 +177,11 @@ class Synth:
             pn_poly=self.pn_poly,
             lfsr=self.lfsr,
         )
+        if self.type == "bits":
+            eng.set_bits(
+                _parse_bits(self.pattern), _idx(self.modulation, _BITMODS, "")
+            )
+        return eng
 
     def _lazy(self):
         eng = getattr(self, "_eng", None)
@@ -161,7 +205,17 @@ class Synth:
             eng.reset()
 
     def _tuple(self) -> tuple:
-        """Fixed-order 10-tuple consumed by the C binding (enums → ints)."""
+        """Fixed-order 12-tuple consumed by the C binding (enums → ints).
+
+        The trailing ``modulation`` + ``bits`` carry a ``type="bits"`` pattern
+        (bits as a ``bytes`` of 0/1, else ``None``); every other type sends
+        ``None`` so its serialisation is byte-stable.
+        """
+        bits_bytes = (
+            _parse_bits(self.pattern).tobytes()
+            if self.type == "bits"
+            else None
+        )
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.freq),
@@ -173,10 +227,15 @@ class Synth:
             int(self.pn_poly),
             _idx(self.lfsr, _LFSRS, "lfsr"),
             float(self.level),
+            _idx(self.modulation, _BITMODS, "modulation"),
+            bits_bytes,
         )
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Synth":
+        pattern = (
+            np.frombuffer(t[11], dtype=np.uint8) if t[11] is not None else None
+        )
         return cls(
             type=_TYPES[t[0]],
             freq=t[1],
@@ -188,6 +247,8 @@ class Synth:
             pn_poly=t[7],
             lfsr=_LFSRS[t[8]],
             level=t[9],
+            modulation=_BITMODS[t[10]],
+            pattern=pattern,
         )
 
 
@@ -214,6 +275,28 @@ def pn(**kw) -> Synth:
 def noise(level: float = 0.0, **kw) -> Synth:
     """An AWGN noise-floor :class:`Synth` at ``level`` dBFS (the segment floor)."""
     return Synth(type="noise", level=level, **kw)
+
+
+def bits(pattern, modulation: str = "bpsk", **kw) -> Synth:
+    """A user-bit-pattern :class:`Synth` (preambles / sync words / test vectors).
+
+    ``pattern`` is a binary string (``"10110101"``), a hex string
+    (``"0xAA55"``, MSB first), or any array-like of 0/1. ``modulation`` maps the
+    bits to symbols — ``"none"`` (0/1 amplitude), ``"bpsk"`` (±1), or ``"qpsk"``
+    (two bits per symbol, Gray-coded). Each bit is held ``sps`` samples and the
+    pattern **cycles** to fill the requested length; one pass is
+    :attr:`Synth.n_samples`.
+
+    Examples
+    --------
+    >>> from doppler.wfm import bits
+    >>> s = bits("10110101", sps=4, modulation="bpsk")
+    >>> s.n_samples
+    32
+    >>> s.steps(s.n_samples).shape
+    (32,)
+    """
+    return Synth(type="bits", pattern=pattern, modulation=modulation, **kw)
 
 
 @dataclass
@@ -270,6 +353,8 @@ class Segment:
     off_samples: int = 0
     level: float = 0.0
     sources: list[Synth] | None = None
+    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
+    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
 
     @classmethod
     def sum(
@@ -306,11 +391,12 @@ class Segment:
         )
 
     def _tuple(self) -> tuple:
-        """C-binding tuple: 13-tuple for 1 source, else nested multi-source.
+        """C-binding tuple: 15-tuple for 1 source, else nested multi-source.
 
-        A multi-source segment crosses as ``(num, off, fs, [source10tuple, …])``
+        A multi-source segment crosses as ``(num, off, fs, [source12tuple, …])``
         (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the 13-tuple form so it is byte-identical to the pre-``sum`` path.
+        the flat 15-tuple form (the trailing ``modulation`` + ``bits`` are a
+        ``type="bits"`` pattern, else default/``None`` → byte-stable).
         """
         if self.sources is not None:
             return (
@@ -319,6 +405,11 @@ class Segment:
                 float(self.fs),
                 [s._tuple() for s in self.sources],
             )
+        bits_bytes = (
+            _parse_bits(self.pattern).tobytes()
+            if self.type == "bits"
+            else None
+        )
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.fs),
@@ -333,11 +424,13 @@ class Segment:
             int(self.num_samples),
             int(self.off_samples),
             float(self.level),
+            _idx(self.modulation, _BITMODS, "modulation"),
+            bits_bytes,
         )
 
     @classmethod
     def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 13:  # nested multi-source: (num, off, fs, [sources])
+        if len(t) != 15:  # nested multi-source: (num, off, fs, [sources])
             num, off, fs, srclist = t
             return cls(
                 num_samples=num,
@@ -345,6 +438,9 @@ class Segment:
                 fs=fs,
                 sources=[Synth._from_tuple(st) for st in srclist],
             )
+        pattern = (
+            np.frombuffer(t[14], dtype=np.uint8) if t[14] is not None else None
+        )
         return cls(
             type=_TYPES[t[0]],
             fs=t[1],
@@ -359,6 +455,8 @@ class Segment:
             num_samples=t[10],
             off_samples=t[11],
             level=t[12],
+            modulation=_BITMODS[t[13]],
+            pattern=pattern,
         )
 
     def add(self, *others: "Segment") -> "Timeline":

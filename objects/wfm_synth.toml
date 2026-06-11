@@ -5,7 +5,31 @@ mutable = "true"
 class_name = "_SynthEngine"
 depends_on = ["lo", "awgn", "pn"]
 impl = """
-if (state->wtype >= WFM_SYNTH_PN) {
+if (state->wtype == WFM_SYNTH_BITS) {
+    /* User bit pattern, oversampled sps and cycled to fill the request. The
+     * symbol latch mirrors the PN path but sources bits from bits[bit_idx]
+     * instead of the LFSR; bit_mod picks the mapping. */
+    if (state->sym_pos == 0 && state->bits && state->n_bits) {
+        if (state->bit_mod == 2) { /* qpsk: 2 bits/symbol, Gray-mapped */
+            uint8_t b0 = state->bits[state->bit_idx];
+            uint8_t b1 = state->bits[(state->bit_idx + 1) % state->n_bits];
+            const float s = 0.70710678118654752f;
+            state->cur_re = b0 ? -s : s;
+            state->cur_im = b1 ? -s : s;
+            state->bit_idx = (state->bit_idx + 2) % state->n_bits;
+        } else if (state->bit_mod == 1) { /* bpsk: 0->+1, 1->-1 */
+            state->cur_re = state->bits[state->bit_idx] ? -1.0f : 1.0f;
+            state->cur_im = 0.0f;
+            state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+        } else { /* none: unmodulated 0/1 amplitude */
+            state->cur_re = state->bits[state->bit_idx] ? 1.0f : 0.0f;
+            state->cur_im = 0.0f;
+            state->bit_idx = (state->bit_idx + 1) % state->n_bits;
+        }
+    }
+    if (++state->sym_pos >= state->nsps)
+        state->sym_pos = 0;
+} else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
     if (state->sym_pos == 0) {
         if (state->wtype == WFM_SYNTH_QPSK) {
             uint8_t b0 = pn_step(state->pn);
@@ -47,8 +71,15 @@ if (type != WFM_SYNTH_NOISE && freq != 0.0) {
     }
 }
 
+/* Bit-pattern state — the array itself is attached after create() via
+ * wfm_synth_set_bits() (the pattern is variable-length, not a ctor scalar). */
+obj->bits = NULL;
+obj->n_bits = 0;
+obj->bit_idx = 0;
+obj->bit_mod = 1; /* default bpsk; overridden by set_bits */
+
 /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
-if (type >= WFM_SYNTH_PN) {
+if (type >= WFM_SYNTH_PN && type <= WFM_SYNTH_QPSK) {
     uint64_t poly = pn_poly ? pn_poly : wfm_synth_mls_poly((uint32_t)pn_length);
     if (poly == 0) { /* no MLS table entry for this length */
         if (obj->lo)
@@ -74,7 +105,9 @@ if (type == WFM_SYNTH_NOISE) {
 } else if (snr < WFM_SYNTH_SNR_CLEAN) {
     int mode = snr_mode;
     if (mode == 0)
-        mode = (type >= WFM_SYNTH_BPSK) ? 3 : 1; /* *psk → esno, tone/pn → fs */
+        mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK)
+                   ? 3
+                   : 1; /* *psk → esno; tone/pn/bits → fs */
     int bps = (type == WFM_SYNTH_QPSK) ? 2 : 1;
     double snr_fs;
     if (mode == 2) /* Eb/No → SNR over fs */
@@ -100,6 +133,7 @@ reset_impl = """
 state->sym_pos = 0;
 state->cur_re = (state->wtype == WFM_SYNTH_TONE) ? 1.0f : 0.0f;
 state->cur_im = 0.0f;
+state->bit_idx = 0; /* rewind the bit pattern to its start */
 if (state->lo)
     lo_reset(state->lo);
 if (state->awgn)
@@ -108,6 +142,7 @@ if (state->pn)
     pn_reset(state->pn);
 """
 destroy_impl = """
+free(state->bits);
 if (state->lo)
     lo_destroy(state->lo);
 if (state->awgn)
@@ -156,9 +191,32 @@ name = "cur_im"
 type = "float"
 default = "0.0f"
 
+# User bit-pattern state (type "bits") — opaque so jm emits the fields verbatim
+# with no getter/setter and no ctor kwarg. The array is attached after create
+# via wfm_synth_set_bits(); reset/destroy handle bit_idx/free by hand.
+[[wfm_synth.state]]
+name = "bits"
+type = "uint8_t *"
+opaque = true
+
+[[wfm_synth.state]]
+name = "n_bits"
+type = "size_t"
+opaque = true
+
+[[wfm_synth.state]]
+name = "bit_idx"
+type = "size_t"
+opaque = true
+
+[[wfm_synth.state]]
+name = "bit_mod"
+type = "int"
+opaque = true
+
 [[wfm_synth.init_params]]
 name = "type"
-type = "string_enum:tone,noise,pn,bpsk,qpsk"
+type = "string_enum:tone,noise,pn,bpsk,qpsk,bits"
 default = "tone"
 
 [[wfm_synth.init_params]]

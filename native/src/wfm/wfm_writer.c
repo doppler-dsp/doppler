@@ -21,8 +21,8 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-static const char *const TYPE_NAMES[5]
-    = { "tone", "noise", "pn", "bpsk", "qpsk" };
+static const char *const TYPE_NAMES[6]
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "bits" };
 static const char *const MODE_NAMES[4] = { "auto", "fs", "ebno", "esno" };
 
 struct wfm_writer
@@ -365,7 +365,7 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
                                    center - bw / 2.0);
           cJSON_AddNumberToObject (a, "core:freq_upper_edge",
                                    center + bw / 2.0);
-          if (src->type >= 0 && src->type < 5)
+          if (src->type >= 0 && src->type < 6)
             cJSON_AddStringToObject (a, "core:label", TYPE_NAMES[src->type]);
           cJSON_AddNumberToObject (a, "wfmgen:snr", src->snr);
           if (src->snr_mode >= 0 && src->snr_mode < 4)

@@ -8,8 +8,8 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "jm_bench.h"
-#include "wfmgen/wfm_reader.h"
-#include "wfmgen/wfm_writer.h"
+#include "wfm/wfm_reader.h"
+#include "wfm/wfm_writer.h"
 
 #include <complex.h>
 #include <stdio.h>

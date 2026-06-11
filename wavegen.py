@@ -16,7 +16,7 @@ import sys
 
 import numpy as np
 
-from doppler.wfmgen import WfmSynth
+from doppler.wfm import WfmSynth
 
 
 def _make_parser() -> argparse.ArgumentParser:

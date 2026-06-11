@@ -166,7 +166,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call wfm_synth_destroy() when done.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> import numpy as np
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> x = s.steps(4)
@@ -185,7 +185,7 @@ wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr
  *
  * @param state  Pointer to heap-allocated state; may be NULL.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.destroy()   # explicit teardown; no exception
  * @endcode
@@ -200,7 +200,7 @@ void wfm_synth_destroy(wfm_synth_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> import numpy as np
  * >>> s = Synth(type="qpsk", sps=4, seed=1, snr=100.0)
  * >>> a = s.steps(16).copy()
@@ -221,7 +221,7 @@ void wfm_synth_reset(wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @return Next output sample (float complex).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.step()
  * (1+0j)
@@ -267,7 +267,7 @@ wfm_synth_step(wfm_synth_state_t *state)
  * @param output  Output buffer of at least ``n`` cf32 elements.
  * @param n       Number of samples to generate.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> import numpy as np
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> x = s.steps(4)
@@ -290,7 +290,7 @@ void wfm_synth_steps(
  * @param state  Must be non-NULL.
  * @return Integer waveform type index (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.get_wtype()
  * 0
@@ -305,7 +305,7 @@ int wfm_synth_get_wtype(const wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New wtype value (WFM_SYNTH_TONE .. WFM_SYNTH_QPSK).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.set_wtype(1)
  * >>> s.get_wtype()
@@ -323,7 +323,7 @@ void wfm_synth_set_wtype(wfm_synth_state_t *state, int val);
  * @param state  Must be non-NULL.
  * @return Samples per symbol (nsps >= 1).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="bpsk", sps=4, fs=1.0, snr=100.0)
  * >>> s.get_nsps()
  * 4
@@ -339,7 +339,7 @@ int wfm_synth_get_nsps(const wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New nsps value (>= 1).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="bpsk", sps=4, fs=1.0, snr=100.0)
  * >>> s.set_nsps(8)
  * >>> s.get_nsps()
@@ -357,7 +357,7 @@ void wfm_synth_set_nsps(wfm_synth_state_t *state, int val);
  * @param state  Must be non-NULL.
  * @return Symbol position counter (0 <= sym_pos < nsps).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="bpsk", sps=4, fs=1.0, snr=100.0)
  * >>> s.get_sym_pos()
  * 0
@@ -373,7 +373,7 @@ int wfm_synth_get_sym_pos(const wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New sym_pos value (0 <= val < nsps).
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="bpsk", sps=4, fs=1.0, snr=100.0)
  * >>> s.set_sym_pos(0)
  * >>> s.get_sym_pos()
@@ -392,7 +392,7 @@ void wfm_synth_set_sym_pos(wfm_synth_state_t *state, int val);
  * @param state  Must be non-NULL.
  * @return Current symbol real (I) component.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.get_cur_re()  # tone initialises to 1.0
  * 1.0
@@ -407,7 +407,7 @@ float wfm_synth_get_cur_re(const wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New cur_re value.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.set_cur_re(1.0)
  * >>> s.get_cur_re()
@@ -424,7 +424,7 @@ void wfm_synth_set_cur_re(wfm_synth_state_t *state, float val);
  * @param state  Must be non-NULL.
  * @return Current symbol imaginary (Q) component.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.get_cur_im()
  * 0.0
@@ -439,7 +439,7 @@ float wfm_synth_get_cur_im(const wfm_synth_state_t *state);
  * @param state  Must be non-NULL.
  * @param val    New cur_im value.
  * @code
- * >>> from doppler.wfmgen import Synth
+ * >>> from doppler.wfm import Synth
  * >>> s = Synth(type="tone", fs=1.0, freq=0.0, snr=100.0)
  * >>> s.set_cur_im(0.5)
  * >>> s.get_cur_im()

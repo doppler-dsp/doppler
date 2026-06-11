@@ -5,8 +5,8 @@ if(BUILD_PYTHON)
 #
 # no_generate module: just-makeit only wires this add_subdirectory; the .c, the
 # compose.py wrapper, and the .pyi are hand-owned (like ddc_fn). The extension
-# is named `_wfmcompose` and lands in doppler/wfmgen/, so it imports as
-# doppler.wfmgen._wfmcompose — mirroring the hand-written doppler.wfmgen.readback.
+# is named `_wfmcompose` and lands in doppler/wfm/, so it imports as
+# doppler.wfm._wfmcompose — mirroring the hand-written doppler.wfm.readback.
 # The OBJECT libraries (wfm_*_core, wfm_cjson, stream_core_obj, zmq_vendor_static)
 # come from native/src/wfmcompose (a c_dep added earlier in the Components block).
 
@@ -34,12 +34,12 @@ else()
 endif()
 
 set_target_properties(_wfmcompose PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfmgen"
-    RUNTIME_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfmgen")
+    LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfm"
+    RUNTIME_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfm")
 add_custom_command(TARGET _wfmcompose POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "$<TARGET_FILE:_wfmcompose>"
-        "${PYTHON_PACKAGE_DIR}/wfmgen/$<TARGET_FILE_NAME:_wfmcompose>"
+        "${PYTHON_PACKAGE_DIR}/wfm/$<TARGET_FILE_NAME:_wfmcompose>"
     VERBATIM
     COMMENT "Copy _wfmcompose extension module")
 

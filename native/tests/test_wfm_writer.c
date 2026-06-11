@@ -4,7 +4,7 @@
  * Uses tmpfile() (seekable) so the BLUE data_size patch-on-close is exercised.
  * Host is little-endian (x86), matching the writer's assumption.
  */
-#include "wfmgen/wfm_writer.h"
+#include "wfm/wfm_writer.h"
 
 #include <complex.h>
 #include <stdio.h>

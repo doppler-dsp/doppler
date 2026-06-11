@@ -58,7 +58,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call pn_destroy() when done.
  * @code
- * >>> from doppler.wfmgen import PN
+ * >>> from doppler.wfm import PN
  * >>> import numpy as np
  * >>> p = PN(poly=96, seed=1, length=7)
  * >>> chips = p.generate(127)
@@ -77,7 +77,7 @@ pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
  *
  * @param state  Pointer to heap-allocated state; may be NULL (no-op).
  * @code
- * >>> from doppler.wfmgen import PN
+ * >>> from doppler.wfm import PN
  * >>> p = PN(poly=96, seed=1, length=7)
  * >>> p.destroy()   # explicit teardown; no exception
  * @endcode
@@ -91,7 +91,7 @@ void pn_destroy(pn_state_t *state);
  *
  * @param state  Must be non-NULL.
  * @code
- * >>> from doppler.wfmgen import PN
+ * >>> from doppler.wfm import PN
  * >>> import numpy as np
  * >>> p = PN(poly=96, seed=1, length=7)
  * >>> a = p.generate(8).copy()
@@ -152,7 +152,7 @@ size_t pn_generate_max_out(pn_state_t *state);
  *               receives 0 or 1.
  * @return ``n`` (the number of chips written; always equal to the request).
  * @code
- * >>> from doppler.wfmgen import PN
+ * >>> from doppler.wfm import PN
  * >>> import numpy as np
  * >>> p = PN(poly=96, seed=1, length=7)
  * >>> chips = p.generate(127)

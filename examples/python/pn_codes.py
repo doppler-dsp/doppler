@@ -1,7 +1,7 @@
 """pn_codes.py — PN/LFSR codes: length, realization, and the 64-bit register.
 
 Demonstrates the maximum-length-sequence properties and the two LFSR
-realizations exposed by `doppler.wfmgen.PN`, plus the 64-bit register path
+realizations exposed by `doppler.wfm.PN`, plus the 64-bit register path
 (lengths > 32). Runs in a second with no plotting — every claim is asserted.
 
 Run:
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from doppler.wfmgen import PN
+from doppler.wfm import PN
 
 # Right-shift Galois primitive polynomials (the engine's built-in MLS table).
 POLY = {7: 0x41, 9: 0x108, 15: 0x4001}

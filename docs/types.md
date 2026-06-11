@@ -137,7 +137,7 @@ There is no complex-integer dtype, so integer captures can be a zero-copy
 by default (SIMD path for integers); pass `raw=True` for the zero-copy view:
 
 ```python
-from doppler.wfmgen.readback import read_iq
+from doppler.wfm.readback import read_iq
 
 iq  = read_iq("capture.iq", "ci16")            # complex64, rescaled to ±1.0
 iq  = read_iq("capture.iq", "cf32")            # complex64, zero-copy view

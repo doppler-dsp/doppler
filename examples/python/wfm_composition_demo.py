@@ -35,7 +35,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.wfmgen.compose import (
+from doppler.wfm.compose import (
     Composer,
     Segment,
     qpsk,

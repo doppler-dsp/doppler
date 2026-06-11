@@ -9,12 +9,12 @@ target_include_directories(wfm_cjson PUBLIC ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
 # ── composer + JSON spec ─────────────────────────────────────────────────────
 add_library(wfm_compose_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_compose.c
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_json.c
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_resolve.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_compose.c
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_json.c
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_resolve.c)
 target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 target_link_libraries(wfm_compose_core PUBLIC m)
 
@@ -29,10 +29,10 @@ add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_dsp.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_dsp.c)
 target_include_directories(wfm_dsp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen)
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
 target_link_libraries(wfm_dsp_core PUBLIC m)
 
 add_executable(test_wfm_dsp
@@ -44,10 +44,10 @@ add_test(NAME test_wfm_dsp COMMAND test_wfm_dsp)
 
 # ── output containers: raw/csv/BLUE-1000 + SigMF meta (cJSON) ────────────────
 add_library(wfm_writer_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_writer.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_writer.c)
 target_include_directories(wfm_writer_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 target_link_libraries(wfm_writer_core PUBLIC m)
 
@@ -60,10 +60,10 @@ add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
 
 # ── input containers: the dual of the writer (raw/csv/BLUE/SigMF auto-detect) ─
 add_library(wfm_reader_core OBJECT
-    ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_reader.c)
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_reader.c)
 target_include_directories(wfm_reader_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfmgen
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 target_link_libraries(wfm_reader_core PUBLIC m)
 
@@ -108,7 +108,7 @@ if(NOT WIN32)
 
     add_executable(bench_timing_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
-    target_link_libraries(bench_timing_core PRIVATE timing_core)
+    target_link_libraries(bench_timing_core PRIVATE timing_core m)
     target_include_directories(bench_timing_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
@@ -132,10 +132,10 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
     add_library(wfm_sink_core OBJECT
-        ${CMAKE_SOURCE_DIR}/native/src/wfmgen/wfm_sink.c)
+        ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
     target_include_directories(wfm_sink_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/wfmgen)
+        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
     target_link_libraries(wfm_sink_core PUBLIC m)
 
     add_executable(test_wfm_sink

@@ -1,6 +1,6 @@
 """wfmgen_demo.py — the wfmgen waveform engine: four waveforms, four views.
 
-A single declarative engine (`doppler.wfmgen.Synth`) produces every waveform
+A single declarative engine (`doppler.wfm.Synth`) produces every waveform
 type the `wavegen` / `wfmgen` tools emit. This demo drives it directly from
 Python and shows each type through the view that makes its structure obvious:
 
@@ -32,7 +32,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.wfmgen import Synth
+from doppler.wfm import Synth
 
 # ── tone: spectrum ──────────────────────────────────────────────────────────
 N = 4096

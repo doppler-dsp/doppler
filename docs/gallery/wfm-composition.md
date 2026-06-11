@@ -45,7 +45,7 @@ shared floor was resolved from.
 
 ```python
 import numpy as np
-from doppler.wfmgen.compose import Composer, Segment, Writer, qpsk, tone
+from doppler.wfm.compose import Composer, Segment, Writer, qpsk, tone
 
 # 1. Mix a scene: a QPSK SoI under a CW interferer, over one noise floor.
 soi   = qpsk(snr=15, snr_mode="esno", sps=8, level=-10.0, seed=1)

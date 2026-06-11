@@ -5,7 +5,7 @@
  * and repeat looping — all over the reused Phase-A synth engine.
  */
 #define _GNU_SOURCE
-#include "wfmgen/wfm_compose.h"
+#include "wfm/wfm_compose.h"
 
 #include <complex.h>
 #include <math.h>

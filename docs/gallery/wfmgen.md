@@ -4,7 +4,7 @@
 
 ## What you're seeing
 
-A single declarative engine — `doppler.wfmgen.Synth`, the same C core the
+A single declarative engine — `doppler.wfm.Synth`, the same C core the
 `wavegen` and `wfmgen` command-line tools run — produces every waveform type,
 shown here through the view that makes each one's structure obvious.
 
@@ -28,7 +28,7 @@ them; the cloud size is the symbol-energy SNR made visible.
 ## The engine and its two tools
 
 Every type, SNR mode, and the MLS auto-polynomial live once in C
-(`native/src/wfmgen/synth_core.c`, generated from `objects/synth.toml`). Two
+(`native/src/wfm/synth_core.c`, generated from `objects/synth.toml`). Two
 command-line tools expose it:
 
 |            | `wavegen`                                | `wfmgen`                               |
@@ -122,7 +122,7 @@ wavegen --type pn --pn_length 9  --sps 1 --lfsr fibonacci
 
 ```python
 import numpy as np
-from doppler.wfmgen import PN
+from doppler.wfm import PN
 
 # Galois and Fibonacci realizations of the same length-9 polynomial:
 # identical period (511) and balance, different ordering.
@@ -157,11 +157,11 @@ python examples/python/pn_codes.py       # PN MLS / Galois vs Fibonacci / 64-bit
 
 ## From Python — the composer API
 
-The same composer is available in Python (`doppler.wfmgen.compose`), producing
+The same composer is available in Python (`doppler.wfm.compose`), producing
 byte-identical output to the CLI:
 
 ```python
-from doppler.wfmgen.compose import Composer, Segment, Writer
+from doppler.wfm.compose import Composer, Segment, Writer
 
 spec = [Segment("pn", num_samples=127), Segment("qpsk", num_samples=4096,
                                                 off_samples=512)]

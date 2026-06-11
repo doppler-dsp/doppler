@@ -21,9 +21,9 @@
 #include <string.h>
 
 #include "timing/timing_core.h"
-#include "wfmgen/wfm_compose.h"
-#include "wfmgen/wfm_sink.h"
-#include "wfmgen/wfm_writer.h"
+#include "wfm/wfm_compose.h"
+#include "wfm/wfm_sink.h"
+#include "wfm/wfm_writer.h"
 
 #define BLK 4096
 

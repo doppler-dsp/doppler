@@ -1,7 +1,7 @@
 /*
  * test_wfm_dsp.c — DSSS spreading + RRC taps (Phase B).
  */
-#include "wfmgen/wfm_dsp.h"
+#include "wfm/wfm_dsp.h"
 
 #include <complex.h>
 #include <math.h>

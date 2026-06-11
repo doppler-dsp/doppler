@@ -7,6 +7,8 @@ Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers
 """
 
 import hashlib
+import os
+import pathlib
 import random
 import shutil
 import struct
@@ -26,8 +28,11 @@ from doppler.wfmgen.compose import (
     ZmqSink,
     dsss_spread,
     mls_poly,
+    noise,
+    qpsk,
     rrc_taps,
     sigmf_meta,
+    tone,
     write_blue_header,
 )
 from doppler.wfmgen.readback import read_iq
@@ -580,3 +585,136 @@ def test_segment_level():
     assert np.array_equal(
         Composer.from_json(js).compose(), Composer(spec).compose()
     )
+
+
+# ── Phase 4b: .sum() multi-source segments + noise resolution ─────────────────
+
+
+def _wfmgen_bin():
+    """The composer CLI: on PATH, else the CMake build tree, else None."""
+    p = shutil.which("wfmgen")
+    if p:
+        return p
+    root = pathlib.Path(__file__).resolve().parents[4]
+    for cand in root.glob("build*/**/wfmgen"):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
+
+
+_WFMGEN = _wfmgen_bin()
+_needs_wfmgen = pytest.mark.skipif(
+    _WFMGEN is None, reason="wfmgen composer CLI not built / on PATH"
+)
+
+
+def test_sum_compose_basic():
+    """Segment.sum mixes sources over one span; the C resolver adds the floor."""
+    seg = Segment.sum(
+        qpsk(snr=15, snr_mode="esno"), tone(freq=2e5, level=-12), n=4096
+    )
+    assert len(seg.sources) == 2
+    x = Composer([seg]).compose()
+    assert x.dtype == np.complex64 and len(x) == 4096
+
+
+def test_sum_json_roundtrip():
+    """A summed segment serialises as a "sum" array and round-trips exactly."""
+    import json
+
+    seg = Segment.sum(
+        qpsk(snr=12, snr_mode="esno", seed=3),
+        tone(freq=1.5e5, level=-10),
+        n=8192,
+    )
+    js = Composer([seg]).to_json()
+    s0 = json.loads(js)["segments"][0]
+    assert "sum" in s0 and "type" not in s0  # nested, not inline
+    # resolver made the floor explicit: qpsk (cleaned) + tone + noise
+    assert [src["type"] for src in s0["sum"]] == ["qpsk", "tone", "noise"]
+    assert np.array_equal(
+        Composer.from_json(js).compose(), Composer([seg]).compose()
+    )
+
+
+def test_sum_one_source_equals_bare():
+    """A 1-source sum is the bundled single-source path, bit-for-bit.
+
+    The resolver is a no-op at one source, so Segment.sum(qpsk(snr=15)) must be
+    byte-identical to the plain Composer(qpsk, snr=15) — the bundled AWGN that
+    cannot be split is preserved through the nested-tuple path.
+    """
+    a = Composer([Segment.sum(qpsk(snr=15, seed=9), n=4096)]).compose()
+    b = Composer(type="qpsk", snr=15.0, seed=9, num_samples=4096).compose()
+    assert np.array_equal(a, b)
+
+
+def test_sum_floor_power():
+    """The resolved noise floor reproduces the anchor's snr → measured SNR.
+
+    A DC tone (freq 0) is a constant signal, so |mean|**2 is the signal power
+    and var() is the noise power; their ratio is the SNR the anchor asked for.
+    """
+    seg = Segment.sum(
+        tone(freq=0.0, snr=15.0, snr_mode="fs"),  # anchor → floor at -15 dBFS
+        tone(freq=3e5, level=-120),  # negligible 2nd source (forces a sum)
+        n=200_000,
+    )
+    x = Composer([seg]).compose().astype(np.complex128)
+    snr_db = 10 * np.log10(abs(x.mean()) ** 2 / x.var())
+    assert abs(snr_db - 15.0) < 0.5
+
+
+def test_sum_explicit_noise_floor():
+    """noise(nf=N) sets the floor directly at N dBFS (no anchor needed)."""
+    seg = Segment.sum(
+        tone(freq=0.0, level=-120),  # negligible signal
+        noise(nf=-13.0),  # explicit floor
+        n=200_000,
+    )
+    x = Composer([seg]).compose().astype(np.complex128)
+    assert np.isclose(x.var(), 10 ** (-13.0 / 10), rtol=5e-2)
+
+
+@_needs_wfmgen
+def test_sum_cli_parity(tmp_path):
+    """wfmgen --from-file == the Python composer for a summed spec, byte-exact."""
+    seg = Segment.sum(
+        qpsk(snr=12, snr_mode="esno", seed=3),
+        tone(freq=1.5e5, level=-10),
+        n=8192,
+    )
+    spec = tmp_path / "sum.json"
+    spec.write_text(Composer([seg]).to_json())
+    cli = tmp_path / "cli.cf32"
+    subprocess.run(
+        [
+            _WFMGEN,
+            "--from-file",
+            str(spec),
+            "--sample_type",
+            "cf32",
+            "--output",
+            str(cli),
+        ],
+        check=True,
+    )
+    cli_iq = np.fromfile(cli, dtype=np.complex64)
+    assert np.array_equal(cli_iq, Composer([seg]).compose())
+
+
+def test_sum_reject_overspecified():
+    """A non-anchor source giving both snr and level is a spec error."""
+    seg = Segment.sum(
+        qpsk(snr=10),  # anchor
+        tone(snr=5, level=-3),  # over-specified: snr AND level
+        n=4096,
+    )
+    with pytest.raises(Exception):
+        Composer([seg]).compose()
+
+
+def test_sum_needs_a_source():
+    """Segment.sum with no sources is rejected up front."""
+    with pytest.raises(ValueError):
+        Segment.sum(n=1024)

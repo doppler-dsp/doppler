@@ -130,6 +130,33 @@ main (void)
   CHECK (!wfm_compose_from_json ("{\"segments\":[]}"), "empty rejected");
 
   free (json);
-  printf ("test_wfm_compose: OK (total=%zu, json round-trip ok)\n", total);
+
+  /* ── level: a segment at -6.0206 dBFS is the level-0 stream × 0.5 ── */
+  {
+    wfm_segment_t s0 = { .type        = 0,
+                         .fs          = 1e6,
+                         .snr         = 100.0,
+                         .seed        = 1,
+                         .sps         = 8,
+                         .pn_length   = 7,
+                         .num_samples = 64 };
+    wfm_segment_t s6 = s0;
+    s6.level         = -6.020599913; /* gain 0.5 */
+    float complex        a[64], b[64];
+    wfm_compose_state_t *ca = wfm_compose_create (&s0, 1, 0, 0);
+    wfm_compose_state_t *cb = wfm_compose_create (&s6, 1, 0, 0);
+    CHECK (wfm_compose_execute (ca, a, 64) == 64, "level a");
+    CHECK (wfm_compose_execute (cb, b, 64) == 64, "level b");
+    int ok = 1;
+    for (int i = 0; i < 64; i++)
+      if (cabsf (b[i] - a[i] * 0.5f) > 1e-6f)
+        ok = 0;
+    CHECK (ok, "level -6 dBFS == 0.5 * level-0 stream");
+    wfm_compose_destroy (ca);
+    wfm_compose_destroy (cb);
+  }
+
+  printf ("test_wfm_compose: OK (total=%zu, json round-trip ok, level)\n",
+          total);
   return 0;
 }

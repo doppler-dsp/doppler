@@ -87,6 +87,10 @@ class Segment:
         On-time length of the segment (samples).
     off_samples : int
         Trailing zero gap after the segment (samples).
+    level : float
+        Source level in dBFS (``<= 0``); the segment's output is scaled by
+        ``10 ** (level / 20)``. Default ``0`` (unit power) is a bit-exact no-op,
+        so the segment's internal SNR is preserved.
     """
 
     type: str = "tone"
@@ -101,9 +105,10 @@ class Segment:
     lfsr: str = "galois"
     num_samples: int = 1024
     off_samples: int = 0
+    level: float = 0.0
 
     def _tuple(self) -> tuple:
-        """Fixed-order 12-tuple consumed by the C binding (enums → ints)."""
+        """Fixed-order 13-tuple consumed by the C binding (enums → ints)."""
         return (
             _idx(self.type, _TYPES, "type"),
             float(self.fs),
@@ -117,6 +122,7 @@ class Segment:
             _idx(self.lfsr, _LFSRS, "lfsr"),
             int(self.num_samples),
             int(self.off_samples),
+            float(self.level),
         )
 
     @classmethod
@@ -134,6 +140,7 @@ class Segment:
             lfsr=_LFSRS[t[9]],
             num_samples=t[10],
             off_samples=t[11],
+            level=t[12],
         )
 
 

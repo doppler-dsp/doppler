@@ -9,6 +9,7 @@
  */
 #include "wfmgen/wfm_compose.h"
 
+#include <math.h>
 #include <stdlib.h>
 
 enum
@@ -28,6 +29,7 @@ struct wfm_compose_state
   int            phase; /* PHASE_ON / PHASE_OFF / PHASE_DONE */
   size_t         left;  /* samples remaining in the current phase */
   synth_state_t *syn;   /* active segment's synth (NULL outside ON) */
+  float          gain;  /* 10^(level/20) for the active segment; 1.0 = no-op */
 };
 
 /* Start segment `cur` in its ON phase, creating its synth. On synth failure
@@ -37,6 +39,8 @@ static void
 start_segment (wfm_compose_state_t *s)
 {
   const wfm_segment_t *g = &s->segs[s->cur];
+  s->gain
+      = (float)pow (10.0, g->level / 20.0); /* source level → linear gain */
   s->syn = synth_create (g->type, g->fs, g->freq, g->snr, g->snr_mode, g->seed,
                          g->sps, g->pn_length, g->pn_poly, g->lfsr);
   if (s->syn && g->num_samples > 0)
@@ -139,6 +143,9 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
           if (k > state->left)
             k = state->left;
           synth_steps (state->syn, out + i, k);
+          if (state->gain != 1.0f) /* apply source level (no-op at 0 dBFS) */
+            for (size_t j = 0; j < k; j++)
+              out[i + j] *= state->gain;
           i += k;
           state->left -= k;
         }

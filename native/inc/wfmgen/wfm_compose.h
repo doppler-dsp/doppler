@@ -57,6 +57,7 @@ typedef struct {
     int lfsr;          /* 0 galois, 1 fibonacci */
     size_t num_samples; /* on-time (samples) */
     size_t off_samples; /* off-time gap after the segment (samples) */
+    double level;       /* source level in dBFS (≤0); 0 = unit power, no gain */
 } wfm_segment_t;
 
 /** Opaque composer state. */

@@ -548,3 +548,35 @@ def test_writer_headroom(tmp_path):
         w.track_clipping(True)
         w.write(np.array([1.5 + 0j, -2.0 + 0.3j], dtype=np.complex64))
         assert not w.clipped
+
+
+def test_segment_level():
+    """Per-segment ``level`` (dBFS) scales the segment by 10^(level/20):
+    -6.02 dB halves it, 0 dB is a no-op, it's SNR-invariant, JSON carries it."""
+    base = Composer([Segment("tone", num_samples=256)]).compose()
+    half = Composer(
+        [Segment("tone", num_samples=256, level=-6.020599913)]
+    ).compose()
+    assert np.allclose(half, base * 0.5)
+
+    # level=0 is identical to omitting it
+    a = Composer([Segment("qpsk", num_samples=512, seed=5)]).compose()
+    b = Composer(
+        [Segment("qpsk", num_samples=512, seed=5, level=0.0)]
+    ).compose()
+    assert np.array_equal(a, b)
+
+    # SNR-invariant: noise power scales with level**2, the ratio is preserved
+    n0 = Composer([Segment("noise", num_samples=50000, seed=2)]).compose()
+    n6 = Composer(
+        [Segment("noise", num_samples=50000, seed=2, level=-6.0206)]
+    ).compose()
+    assert np.isclose(np.var(n6) / np.var(n0), 0.25, rtol=2e-2)
+
+    # JSON round-trip carries level (and omits it at 0)
+    spec = [Segment("qpsk", num_samples=256, level=-10.0)]
+    js = Composer(spec).to_json()
+    assert '"level"' in js
+    assert np.array_equal(
+        Composer.from_json(js).compose(), Composer(spec).compose()
+    )

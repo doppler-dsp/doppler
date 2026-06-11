@@ -65,6 +65,8 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
       cJSON_AddStringToObject (s, "lfsr", LFSR_NAMES[(g->lfsr == 1) ? 1 : 0]);
       cJSON_AddNumberToObject (s, "num_samples", (double)g->num_samples);
       cJSON_AddNumberToObject (s, "off_samples", (double)g->off_samples);
+      if (g->level != 0.0) /* omit at 0 dBFS so existing specs are unchanged */
+        cJSON_AddNumberToObject (s, "level", g->level);
       cJSON_AddItemToArray (arr, s);
     }
   char *out = cJSON_Print (root);
@@ -127,6 +129,7 @@ wfm_compose_from_json (const char *json)
                                  : 0,
               .num_samples = (size_t)num (s, "num_samples", 0),
               .off_samples = (size_t)num (s, "off_samples", 0),
+              .level       = num (s, "level", 0.0),
     };
     i++;
   }

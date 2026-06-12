@@ -35,9 +35,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.accumulator import AccTrace
-from doppler.filter import FIR
 from doppler.spectral import FFT, Welch, kaiser_window
-from doppler.wfm import Composer, Segment, noise, qpsk, rrc_taps
+from doppler.wfm import Composer, Segment, noise, qpsk
 
 # ── scene parameters ────────────────────────────────────────────────────────
 FS = 30.72e6  # 8 x 3.84 Mcps — a standard WCDMA capture rate
@@ -63,29 +62,27 @@ FLOOR_DBFS = -70.0  # AWGN floor, well below the weakest (-10 dBFS) carrier
 def _rrc_carrier(fc: float, level: float, seed: int, n: int) -> np.ndarray:
     """One RRC-shaped WCDMA carrier at offset ``fc``, scaled to ``level`` dBFS.
 
-    QPSK chips come straight from doppler's waveform generator (``qpsk`` at
-    1 sample/chip); we zero-stuff to ``SPS`` and pulse-shape with doppler's
-    root-raised-cosine ``rrc_taps`` through a ``FIR`` — the band-limiting the
-    composer's sample-and-hold QPSK does not do — then translate to the channel
-    centre. Each carrier is normalised to unit power before the ``level``
-    scaling so ``band_power`` reads the level directly.
+    Straight from doppler's waveform generator: ``qpsk(pulse="rrc")`` band-limits
+    the QPSK chips with a root-raised-cosine pulse (WCDMA roll-off 0.22) — the
+    shaping the default sample-and-hold QPSK does not do — and ``freq=fc`` mixes
+    the carrier to its channel centre, all in the C engine. The RRC taps are
+    unit-transmit-power scaled, so the carrier is already unit power and the
+    ``level`` factor lets ``band_power`` read the level directly.
     """
-    n_chips = n // SPS
-    chips = qpsk(sps=1, seed=seed).steps(n_chips).astype(np.complex64)
-
-    up = np.zeros(n_chips * SPS, dtype=np.complex64)
-    up[::SPS] = chips  # upsample by zero-stuffing
-
-    taps = (rrc_taps(RRC_BETA, SPS, RRC_SPAN) + 0j).astype(np.complex64)
-    shaped = FIR(taps).execute(up)
-
-    shaped /= np.sqrt(np.mean(np.abs(shaped) ** 2))  # unit power
-    shaped *= 10.0 ** (level / 20.0)  # apply level (dBFS)
-
-    # Translate the baseband carrier to its channel centre fc.
-    t = np.arange(len(shaped), dtype=np.float64)
-    mix = np.exp(2j * np.pi * (fc / FS) * t).astype(np.complex64)
-    return (shaped * mix).astype(np.complex64)
+    sig = (
+        qpsk(
+            sps=SPS,
+            pulse="rrc",
+            rrc_beta=RRC_BETA,
+            rrc_span=RRC_SPAN,
+            freq=fc,
+            fs=FS,
+            seed=seed,
+        )
+        .steps(n)
+        .astype(np.complex64)
+    )
+    return (sig * 10.0 ** (level / 20.0)).astype(np.complex64)
 
 
 def build_scene() -> np.ndarray:

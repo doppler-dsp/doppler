@@ -13,6 +13,16 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`libdoppler.a` is now self-contained** — the vendored `libzmq.a` is folded
+    into the static archive (via an `ar`/`libtool` merge), so a downstream
+    linking the static library needs only `-ldoppler` plus the C/C++ runtime
+    (`-lstdc++ -lpthread -lm`) and never an external `-lzmq`. Previously the
+    archive recorded the zmq requirement but didn't carry its objects, forcing
+    static consumers to supply zmq themselves. The shared `libdoppler.so` was
+    already self-contained (zmq linked in); this brings the `.a` to parity.
+
 ## [0.12.0] — 2026-06-11
 
 ### Added

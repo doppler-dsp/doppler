@@ -281,6 +281,25 @@ set_target_properties(zmq_vendor_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${_ZMQ_SRC}/include")
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
+# Make libdoppler.a self-contained: fold the vendored libzmq.a objects into the
+# archive (the wfmcompose subdir links zmq into the .so via PRIVATE, but a
+# static archive can't embed another archive through link rules). After this a
+# downstream linking the static lib needs only `-ldoppler` plus the C/C++
+# runtime (`-lstdc++ -lpthread -lm`, already propagated PUBLIC) — never `-lzmq`.
+# POSIX-only, like the vendored zmq itself.
+if(NOT WIN32)
+    add_dependencies(doppler_lib_static libzmq_vendor)
+    add_custom_command(TARGET doppler_lib_static POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DDEST=$<TARGET_FILE:doppler_lib_static>
+            -DSRC=${_ZMQ_LIB}
+            -DAR=${CMAKE_AR}
+            -DRANLIB=${CMAKE_RANLIB}
+            -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
+        COMMENT "Folding libzmq.a into libdoppler.a (self-contained static lib)"
+        VERBATIM)
+endif()
+
 add_subdirectory(examples/c)
 
 # ── Install ──────────────────────────────────────────────────────────────────

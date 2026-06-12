@@ -182,11 +182,6 @@ if(NOT WIN32)
     # `doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
     # install). The synth/lo/awgn/pn/fir/timing cores are already in libdoppler,
     # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
-    # zmq is statically linked into the .so (~1 MiB, the established pattern —
-    # the stream extension does the same); the .a carries only objects, so a
-    # static consumer inherits zmq transitively (Threads/stdc++ are already
-    # PUBLIC at root) and links it on its own line:
-    #     -ldoppler -lzmq_vendor_static -lpthread -lstdc++ -lm
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>
@@ -197,8 +192,11 @@ if(NOT WIN32)
             $<TARGET_OBJECTS:wfm_cjson>
             $<TARGET_OBJECTS:stream_core_obj>)
     endforeach()
+    # The .so embeds zmq by linking it PRIVATE. The .a can't embed an archive
+    # through link rules, so its libzmq.a objects are folded in by an ar-merge
+    # in the root CMakeLists (search: "self-contained static lib") — leaving the
+    # static consumer with only `-ldoppler` + the C/C++ runtime, no `-lzmq`.
     target_link_libraries(doppler_lib PRIVATE zmq_vendor_static)
-    target_link_libraries(doppler_lib_static PUBLIC zmq_vendor_static)
 
     # Bundle the wfmgen binary into the Python package so the wheel ships it as
     # package data (the `wfmgen` console-script is an os.execv shim over it —

@@ -89,15 +89,16 @@ It is the exact code path the `wfmgen` binary runs (which is itself a one-line
 PUB sink (`--output zmq://…`) is statically linked into the library, so there
 is **no runtime `libzmq` dependency**.
 
-When linking the **static** library, the archive carries only objects, so add
-the transport dependencies to your own link line:
+`libdoppler` is **self-contained** — the vendored libzmq is built in, so neither
+the shared nor the static library needs an external zmq. The static archive
+links with just the library plus the C/C++ runtime:
 
 ```sh
 gcc -o app app.c -I path/to/doppler/native/inc \
-    libdoppler.a -lzmq_vendor_static -lpthread -lstdc++ -lm
+    libdoppler.a -lstdc++ -lpthread -lm
 ```
 
-The **shared** library embeds zmq, so linking `-ldoppler` is sufficient.
+The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 
 !!! note "POSIX only"
 

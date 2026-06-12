@@ -244,6 +244,9 @@ gen-c-api:
 	rm -rf docs/c-api .mkdoxy
 	uv run mkdocs build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api
+	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
+	# after the regen wipes it (matches the CI docs.yml step).
+	git checkout -- docs/c-api/index.md
 	rm -rf .mkdoxy
 
 # ── doxygen ───────────────────────────────────────────────────────────────────

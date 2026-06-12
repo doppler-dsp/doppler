@@ -13,6 +13,27 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **First-class consumer integration — `find_package` + pkg-config, static and
+    shared.** `find_package(doppler)` now offers a **`doppler::doppler-static`**
+    target alongside `doppler::doppler`; the self-contained static archive links
+    with only the C/C++ runtime (no zmq). `doppler.pc` is now **relocatable**
+    (its prefix derives from the file's own location, so an extracted release
+    tarball works wherever it lands) and carries `Libs.private`, so
+    `pkg-config --static` reports the right link line. A buildable
+    [`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer)
+    project exercises both link modes, and a **post-release smoke test**
+    (`tests/install/release-smoke.sh`, wired into `release.yml`) downloads the
+    published tarball and verifies all four consumer paths build, run, and carry
+    no `libzmq` dependency.
+
+### Fixed
+
+- **`find_package` shared target is now `doppler::doppler`** (was the
+    undocumented `doppler::doppler_lib`, so the `doppler::doppler` shown in the
+    docs never resolved). Set via `EXPORT_NAME`.
+
 ## [0.12.1] — 2026-06-12
 
 ### Changed

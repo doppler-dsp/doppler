@@ -33,29 +33,22 @@ it), and the Welch resolution bandwidth.
 ## Building it
 
 The carriers come from doppler's own waveform generator. WCDMA downlink is
-noise-like QPSK, so each carrier is QPSK chips from `qpsk()` — but the generator
-emits *rectangular* chips
-([doppler#115](https://github.com/doppler-dsp/doppler/issues/115)), so we
-band-limit them with doppler's root-raised-cosine `rrc_taps` (β = 0.22, the
-WCDMA roll-off) through a `FIR`, then translate to the channel centre:
+noise-like QPSK with **root-raised-cosine** pulse shaping (β = 0.22, the WCDMA
+roll-off), and the generator does exactly that — `qpsk(pulse="rrc")`
+([doppler#115](https://github.com/doppler-dsp/doppler/issues/115)) band-limits
+the chips in the C engine at unit transmit power, so each carrier is a single
+generator call; `freq=` places it at the channel centre:
 
 ```python
 import numpy as np
-from doppler.filter import FIR
-from doppler.wfm import qpsk, rrc_taps
+from doppler.wfm import qpsk
 
-FS, SPS = 30.72e6, 8                       # 8 samples / 3.84 Mcps chip
+FS, SPS = 30.72e6, 8                        # 8 samples / 3.84 Mcps chip
 
 def rrc_carrier(fc, level, seed, n):
-    chips = qpsk(sps=1, seed=seed).steps(n // SPS).astype(np.complex64)
-    up = np.zeros(n // SPS * SPS, dtype=np.complex64)
-    up[::SPS] = chips                      # zero-stuff to SPS
-    taps = (rrc_taps(0.22, SPS, 8) + 0j).astype(np.complex64)
-    shaped = FIR(taps).execute(up)         # band-limit to one 5 MHz channel
-    shaped /= np.sqrt(np.mean(np.abs(shaped) ** 2))   # unit power
-    shaped *= 10.0 ** (level / 20.0)       # apply level (dBFS)
-    t = np.arange(len(shaped))
-    return shaped * np.exp(2j * np.pi * (fc / FS) * t).astype(np.complex64)
+    sig = qpsk(sps=SPS, pulse="rrc", rrc_beta=0.22, rrc_span=8,
+               freq=fc, fs=FS, seed=seed).steps(n).astype(np.complex64)
+    return sig * 10.0 ** (level / 20.0)     # unit power -> level (dBFS)
 ```
 
 Sum four of them at 5 MHz spacing over a composed AWGN floor, then measure with

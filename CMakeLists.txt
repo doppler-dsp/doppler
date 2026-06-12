@@ -96,6 +96,10 @@ foreach(_t doppler_lib doppler_lib_static)
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
+# Export the shared lib as `doppler::doppler` (not `doppler::doppler_lib`), so
+# find_package consumers link the obvious target name — matching docs and the
+# `doppler::doppler-static` companion defined in doppler-config.cmake.in.
+set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
 # pocketfft_cxx is an OBJECT library — link it directly so its compiled units
 # are embedded in the shared lib without appearing in the install export set.
 # The static lib gets the same objects via target_sources so libdoppler.a is

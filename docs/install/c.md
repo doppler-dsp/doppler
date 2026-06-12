@@ -19,15 +19,32 @@ Verify the install is visible to your toolchain:
 
 ### CMake — find_package
 
+The package provides two link targets — pick the one matching your linking
+policy:
+
 ```cmake
 find_package(doppler REQUIRED)
+
+# shared: links -ldoppler; smallest binary
 target_link_libraries(my_app PRIVATE doppler::doppler)
+
+# static: the archive is self-contained (vendored zmq folded in), so it needs
+# only the C/C++ runtime — no external zmq
+target_link_libraries(my_app PRIVATE doppler::doppler-static)
 ```
+
+A complete, buildable consumer that exercises both targets lives in
+[`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer).
 
 ### pkg-config
 
 ```sh
+# shared
 gcc -o app main.c $(pkg-config --cflags --libs doppler)
+
+# static — the self-contained archive plus the C/C++ runtime, no zmq
+gcc -o app main.c $(pkg-config --cflags doppler) \
+    "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lstdc++ -lpthread -lm
 ```
 
 !!! tip "Custom install prefix"

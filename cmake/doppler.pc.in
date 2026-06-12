@@ -1,4 +1,7 @@
-prefix=@CMAKE_INSTALL_PREFIX@
+# Relocatable: derive the prefix from this file's own location
+# (<prefix>/<libdir>/pkgconfig/doppler.pc), so an extracted release tarball
+# works wherever it lands — not only the build-time CMAKE_INSTALL_PREFIX.
+prefix=${pcfiledir}/../..
 exec_prefix=${prefix}
 libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
@@ -7,4 +10,8 @@ Name: doppler
 Description: doppler C library
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -ldoppler
+# Static linking pulls libdoppler.a, which is self-contained (the vendored zmq
+# is folded into the archive) but still needs the C/C++ runtime — never an
+# external zmq. `pkg-config --static --libs doppler` appends these.
+Libs.private: -lstdc++ -lpthread -lm
 Cflags: -I${includedir}

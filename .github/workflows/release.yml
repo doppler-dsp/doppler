@@ -434,3 +434,34 @@ jobs:
             **C library:** download the pre-built tarballs from the assets below.
 
             See [CHANGELOG.md](CHANGELOG.md) for details.
+
+  # ------------------------------------------------------------------
+  # Post-release smoke test: download the just-published C-library
+  # tarball and verify a downstream can consume it via find_package and
+  # pkg-config, static and shared, with no libzmq dependency anywhere.
+  # ------------------------------------------------------------------
+  smoke-c:
+    name: Post-release C smoke (${{ matrix.plat }})
+    needs:
+      - verify-version
+      - github-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            plat: linux-x86_64
+          - os: macos-14
+            plat: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pkg-config (macOS)
+        if: runner.os == 'macOS'
+        run: brew install pkg-config
+
+      - name: Smoke-test the published tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tests/install/release-smoke.sh "${{ needs.verify-version.outputs.version }}"

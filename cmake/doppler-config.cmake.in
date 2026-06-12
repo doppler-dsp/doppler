@@ -2,4 +2,30 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/doppler-targets.cmake")
 
+# Link targets offered to consumers:
+#
+#   doppler::doppler         shared (libdoppler.so) — from the export above.
+#   doppler::doppler-static  the self-contained static archive (the vendored
+#                            zmq is folded in), so it links with only the C/C++
+#                            runtime — no external zmq.
+#
+# The archive isn't part of the CMake export set (it's installed as a plain
+# file), so define an imported target for it here. It sits in the same libdir
+# as this config (cmake/doppler/ → ../..), giving consumers a symmetric
+# `target_link_libraries(app doppler::doppler-static)`.
+if(NOT TARGET doppler::doppler-static)
+    get_filename_component(_doppler_libdir
+        "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+    if(EXISTS "${_doppler_libdir}/libdoppler.a")
+        include(CMakeFindDependencyMacro)
+        find_dependency(Threads)
+        add_library(doppler::doppler-static STATIC IMPORTED)
+        set_target_properties(doppler::doppler-static PROPERTIES
+            IMPORTED_LOCATION "${_doppler_libdir}/libdoppler.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+            INTERFACE_LINK_LIBRARIES "stdc++;Threads::Threads;m")
+    endif()
+    unset(_doppler_libdir)
+endif()
+
 check_required_components(doppler)

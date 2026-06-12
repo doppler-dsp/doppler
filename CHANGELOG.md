@@ -13,6 +13,15 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **C-library release tarball installs to `lib/`** (was `lib64/` on Linux, the
+    manylinux/RHEL default). `find_package(doppler)` via `CMAKE_PREFIX_PATH`
+    searches `lib/` on every distro but `lib64/` only where the platform opts
+    in, so a Debian/Ubuntu consumer of the manylinux tarball could not find the
+    package. Both the Linux and macOS tarballs now use one `lib/` layout. (Found
+    by the new post-release C smoke test on its first run.)
+
 ## [0.13.0] — 2026-06-12
 
 ### Added

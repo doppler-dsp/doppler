@@ -309,9 +309,13 @@ jobs:
             quay.io/pypa/manylinux_2_28_x86_64 \
             bash -euxc "
               dnf install -y cmake zeromq-devel fftw-devel pkg-config
+              # lib/ not lib64/ (the manylinux/RHEL default) so the tarball's
+              # cmake config is found by find_package via CMAKE_PREFIX_PATH on
+              # every distro — see the macOS job for the full rationale.
               cmake -B build \
                 -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_PYTHON=OFF
+                -DBUILD_PYTHON=OFF \
+                -DCMAKE_INSTALL_LIBDIR=lib
               cmake --build build --parallel
               cmake --install build --prefix /project/install
             "
@@ -341,9 +345,16 @@ jobs:
 
       - name: Build and install to prefix
         run: |
+          # Install to lib/ (not lib64) so the relocatable tarball's
+          # cmake config is found by find_package via CMAKE_PREFIX_PATH on
+          # every distro — CMake searches lib/ universally, but lib64/ only
+          # where the platform opts in (a Debian/Ubuntu consumer of an
+          # lib64 tarball would not find the package). macOS already uses
+          # lib/; set it explicitly so both tarballs share one layout.
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_PYTHON=OFF
+            -DBUILD_PYTHON=OFF \
+            -DCMAKE_INSTALL_LIBDIR=lib
           cmake --build build --parallel
           cmake --install build \
             --prefix "${{ github.workspace }}/install"

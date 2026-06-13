@@ -287,8 +287,9 @@ ______________________________________________________________________
 ### pre-commit (`.pre-commit-config.yaml`)
 
 `pre-commit run --all-files` lints + formats **hand-written** code and docs
-(ruff, clang-format **pinned v19** to match jm's generator, mdformat, hygiene
-hooks); a CI `pre-commit` job enforces it. The hard rule: **jm-generated glue is
+(ruff, clang-format tracking the **latest** release via `pre-commit autoupdate`,
+mdformat, hygiene hooks); a CI `pre-commit` job enforces it. clang-format only
+ever sees hand-owned C (jm glue is excluded), so its version need not match jm's. The hard rule: **jm-generated glue is
 NOT formatted here** — it is owned by `jm apply` and guarded by the
 `manifest-drift` gate, so a formatter touching it would drift CI. Excluded
 accordingly: `*.pyi` stubs, `native/inc/**` headers (jm injects the public

@@ -8,22 +8,24 @@
 # Everything hand-owned — `_core.c`, `*_ext_<obj>.c` fragments, the app, tests,
 # benchmarks, examples, c_deps, hand Python, and docs — is formatted normally.
 #
-# clang-format is pinned to v19 (the version just-makeit generates against) so
-# the generated C it *does* see stays byte-identical to jm's output.
+# clang-format tracks the latest release (kept in lockstep with the dev-machine
+# version via `pre-commit autoupdate`). jm-generated glue is excluded below, so
+# the formatter only sees hand-owned C — its version need not match jm's, and the
+# manifest-drift gate (which checks jm's own output) is unaffected.
 
 # Shared exclusion of jm-generated C glue + vendored third-party.
 exclude: '^vendor/|^docs/c-api/'
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.10
+    rev: v0.15.17
     hooks:
       - id: ruff
         args: [--fix, --unsafe-fixes]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v19.1.7
+    rev: v22.1.5
     hooks:
       - id: clang-format
         types_or: [c]
@@ -48,7 +50,7 @@ repos:
           - mdformat-mkdocs
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-yaml
         # mkdocs.yml uses mkdocs-material's `!!python/name:` YAML tags; --unsafe

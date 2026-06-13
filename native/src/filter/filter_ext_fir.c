@@ -42,11 +42,11 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &taps_obj))
     return -1;
-  int            want_dtype = (PyArray_Check (taps_obj)
+  int want_dtype = (PyArray_Check (taps_obj)
                     && PyArray_TYPE ((PyArrayObject *)taps_obj) == NPY_FLOAT32)
-                                  ? NPY_FLOAT32
-                                  : NPY_COMPLEX64;
-  PyArrayObject *taps_arr   = (PyArrayObject *)PyArray_FROM_OTF (
+                       ? NPY_FLOAT32
+                       : NPY_COMPLEX64;
+  PyArrayObject *taps_arr = (PyArrayObject *)PyArray_FROM_OTF (
       taps_obj, want_dtype, NPY_ARRAY_C_CONTIGUOUS);
   if (!taps_arr)
     {

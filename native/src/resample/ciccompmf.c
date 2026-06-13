@@ -86,7 +86,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
               uint32_t idx  = u - q + 1;
               double   bval = fabs (_berno[idx - 1]);
               double   term = (double)N * bval / (2.0 * idx)
-                            * (1.0 - pow ((double)R, -2.0 * (double)idx));
+                              * (1.0 - pow ((double)R, -2.0 * (double)idx));
               b[u - 1] += (double)(2 * q - 1) * pow (term, (double)q);
             }
         }
@@ -130,7 +130,7 @@ ciccompmf (double *out, uint32_t N, uint32_t R, uint32_t M)
               uint32_t idx  = u - q;
               double   bval = fabs (_berno[idx - 1]);
               double   term = (double)N * bval / (2.0 * idx)
-                            * (1.0 - pow ((double)R, -2.0 * (double)idx));
+                              * (1.0 - pow ((double)R, -2.0 * (double)idx));
               b[u - 1] += (double)(2 * q - 1) * pow (term, (double)q);
             }
         }

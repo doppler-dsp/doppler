@@ -146,22 +146,22 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
   const cJSON *md = cJSON_GetObjectItemCaseSensitive (so, "snr_mode");
   int          m  = name_index (cJSON_GetStringValue (md), MODE_NAMES, 4);
   *out            = (wfm_source_t){
-               .type      = t,
-               .freq      = num (so, "freq", 0.0),
-               .snr       = num (so, "snr", 100.0),
-               .snr_mode  = (m < 0) ? 0 : m,
-               .seed      = (uint32_t)num (so, "seed", 1),
-               .sps       = (int)num (so, "sps", 8),
-               .pn_length = (int)num (so, "pn_length", 7),
-               .pn_poly   = (uint64_t)num (so, "pn_poly", 0),
-               .lfsr      = (name_index (cJSON_GetStringValue (
-                             cJSON_GetObjectItemCaseSensitive (so, "lfsr")),
-                                         LFSR_NAMES, 2)
-             == 1)
-                                ? 1
-                                : 0,
-               .level     = num (so, "level", 0.0),
-               .f_end     = num (so, "f_end", 0.0),
+    .type      = t,
+    .freq      = num (so, "freq", 0.0),
+    .snr       = num (so, "snr", 100.0),
+    .snr_mode  = (m < 0) ? 0 : m,
+    .seed      = (uint32_t)num (so, "seed", 1),
+    .sps       = (int)num (so, "sps", 8),
+    .pn_length = (int)num (so, "pn_length", 7),
+    .pn_poly   = (uint64_t)num (so, "pn_poly", 0),
+    .lfsr  = (name_index (cJSON_GetStringValue (
+                              cJSON_GetObjectItemCaseSensitive (so, "lfsr")),
+                          LFSR_NAMES, 2)
+              == 1)
+                 ? 1
+                 : 0,
+    .level = num (so, "level", 0.0),
+    .f_end = num (so, "f_end", 0.0),
   };
   if (t == WFM_SYNTH_BITS)
     {

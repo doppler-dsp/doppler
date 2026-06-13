@@ -2,8 +2,8 @@
  * main.c — a minimal downstream consumer of the doppler C library.
  *
  * Drives the in-process waveform generator (doppler_wfmgen, the same engine as
- * the `wfmgen` CLI) to write a small QPSK capture to a file. wfmgen lives in the
- * pure-C core, and its `zmq://` path is a weak seam (resolved only by the
+ * the `wfmgen` CLI) to write a small QPSK capture to a file. wfmgen lives in
+ * the pure-C core, and its `zmq://` path is a weak seam (resolved only by the
  * optional libdoppler_stream component) — so this file-output consumer links
  * against the core alone with just `-lm`, proving the core is C++/zmq-free.
  *

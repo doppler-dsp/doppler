@@ -76,6 +76,15 @@ grow (wfm_zmq_sink_t *s, size_t need)
   return 0;
 }
 
+/* Strong definition — overrides the core's weak stub (wfm_sink_stub.c) when
+ * libdoppler_stream is linked, signalling that the real ZMQ sink is present.
+ */
+int
+wfm_zmq_sink_available (void)
+{
+  return 1;
+}
+
 wfm_zmq_sink_t *
 wfm_zmq_sink_open (const char *endpoint, int sample_type)
 {

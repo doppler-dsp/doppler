@@ -165,6 +165,15 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/inc
         ${CMAKE_SOURCE_DIR}/native/inc/wfm)
 
+    # Weak no-op fallbacks for the wfm_zmq_sink_* symbols wfmgen references, so
+    # the pure-C core is self-contained and links everywhere with no special
+    # flags (ELF + Mach-O). libdoppler_stream provides the strong overrides.
+    add_library(wfm_sink_stub_core OBJECT
+        ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink_stub.c)
+    target_include_directories(wfm_sink_stub_core PUBLIC
+        ${CMAKE_SOURCE_DIR}/native/inc
+        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+
     add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen_main.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
     target_link_libraries(wfmgen_cli PRIVATE
@@ -182,14 +191,16 @@ if(NOT WIN32)
     # `doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
     # install). The synth/lo/awgn/pn/fir/timing cores are already in libdoppler,
     # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
-    # wfmgen stays in the pure-C core (its zmq path uses the weak wfm_zmq_sink_*
-    # seam — see native/inc/wfm/wfm_sink.h).  The ZMQ-dependent objects
-    # (wfm_sink_core, stream_core_obj) and the vendored C++ libzmq are NOT folded
-    # into libdoppler — they live in the optional libdoppler_stream component
-    # (defined in the root CMakeLists) so the core stays C++-free.
+    # wfmgen stays in the pure-C core; its zmq path uses the weak-stub seam
+    # (wfm_sink_stub.c here + the strong override in libdoppler_stream — see
+    # native/inc/wfm/wfm_sink.h).  The ZMQ-dependent objects (wfm_sink_core,
+    # stream_core_obj) and the vendored C++ libzmq are NOT folded into libdoppler
+    # — they live in the optional libdoppler_stream component (defined in the
+    # root CMakeLists) so the core stays C++-free.
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>
+            $<TARGET_OBJECTS:wfm_sink_stub_core>
             $<TARGET_OBJECTS:wfm_compose_core>
             $<TARGET_OBJECTS:wfm_writer_core>
             $<TARGET_OBJECTS:wfm_dsp_core>

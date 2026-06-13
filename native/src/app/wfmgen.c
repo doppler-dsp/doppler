@@ -471,11 +471,13 @@ doppler_wfmgen (int argc, char *argv[])
   float complex buf[BLK];
   size_t        n;
 
-  if (out_path && !strncmp (out_path, "zmq://", 6) && !wfm_zmq_sink_open)
+  if (out_path && !strncmp (out_path, "zmq://", 6)
+      && !wfm_zmq_sink_available ())
     {
       /* The ZMQ sink lives in the optional libdoppler_stream component (it
-         pulls in the vendored C++ libzmq).  Its symbols are weak in the pure-C
-         core, so they resolve to NULL here when the component is absent. */
+         pulls in the vendored C++ libzmq).  The pure-C core links only weak
+         no-op stubs; wfm_zmq_sink_available() reports 0 unless the real
+         component is linked (it provides the strong override). */
       fprintf (stderr,
                "error: zmq output (%s) requires the stream component; this "
                "build was not linked against libdoppler_stream\n",

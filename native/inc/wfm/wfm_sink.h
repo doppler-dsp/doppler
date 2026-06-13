@@ -25,27 +25,28 @@
 extern "C" {
 #endif
 
-/* The ZMQ sink lives in the optional `libdoppler_stream` component (it pulls in
- * the vendored C++ libzmq).  The pure-C core embeds wfmgen, which references
- * these symbols only on the `--output zmq://` path; declaring them WEAK lets the
- * core link with the references unresolved (address 0) so a downstream that does
- * NOT link the stream component still gets a C++-free libdoppler.  wfmgen guards
- * the path with `&wfm_zmq_sink_open == NULL`.  Link `libdoppler_stream` (whole-
- * archive, or the object directly) to supply the definitions and enable zmq. */
-#if defined(__APPLE__)
-/* Mach-O: a plain `weak` symbol is still a hard undefined reference at
- * dylib-link time (ld64 rejects it). weak_import marks it as an optional
- * import that binds to address 0 when the stream component is absent, so the
- * `&wfm_zmq_sink_open == NULL` guard in wfmgen works the same as on ELF. */
-#define WFM_WEAK __attribute__ ((weak_import))
-#elif defined(__GNUC__)
-#define WFM_WEAK __attribute__ ((weak))
-#else
-#define WFM_WEAK
-#endif
+/* The real ZMQ sink lives in the optional `libdoppler_stream` component (it
+ * pulls in the vendored C++ libzmq).  The pure-C core embeds wfmgen, which
+ * references these symbols on the `--output zmq://` path.  So that the core
+ * stays self-contained and links *everywhere* with no special linker flags
+ * (ELF allows undefined symbols in a .so; Mach-O's ld64 does not, neither in a
+ * dylib nor in a downstream's executable that statically links libdoppler.a),
+ * the core ships **weak no-op definitions** of every wfm_zmq_sink_* symbol (see
+ * wfm_sink_stub.c).  Linking `libdoppler_stream` supplies the STRONG real
+ * definitions, which override the weak stubs.  wfmgen gates the path with
+ * `wfm_zmq_sink_available()` (0 from the stub, 1 from the real component).
+ *
+ * NB: when linking the *static* stream archive, pull it whole
+ * (`-Wl,--whole-archive` / `-Wl,-force_load`) or prefer the shared
+ * libdoppler_stream — otherwise the linker keeps the core's weak stubs. */
 
 /** Opaque ZMQ sink. */
 typedef struct wfm_zmq_sink wfm_zmq_sink_t;
+
+/** @brief 1 if the real ZMQ sink (libdoppler_stream) is linked, else 0 (the
+ *  pure-C core links only the weak no-op stubs). wfmgen checks this before the
+ *  `--output zmq://` path. */
+int wfm_zmq_sink_available(void);
 
 /**
  * @brief Open a ZMQ PUB sink.
@@ -55,8 +56,7 @@ typedef struct wfm_zmq_sink wfm_zmq_sink_t;
  * @return Sink handle, or NULL on bad type / publisher-create failure.
  * @note Caller must wfm_zmq_sink_close() when done.
  */
-WFM_WEAK wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint,
-                                           int sample_type);
+wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint, int sample_type);
 
 /**
  * @brief Convert a cf32 block to the wire type and publish it.
@@ -65,29 +65,29 @@ WFM_WEAK wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint,
  * @param fs  sample rate (Hz); @param fc center frequency (Hz) — wire header.
  * @return 0 on success, non-zero on a send/allocation error.
  */
-WFM_WEAK int wfm_zmq_sink_send(wfm_zmq_sink_t *sink, const float _Complex *iq,
-                               size_t n, double fs, double fc);
+int wfm_zmq_sink_send(wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
+                      double fs, double fc);
 
 /** @brief Close the sink and destroy the publisher. @param sink May be NULL. */
-WFM_WEAK void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
+void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
 
 /* Clip detection, mirroring wfm_writer (peak always tracked on the integer
  * paths, where saturation can occur; the per-component fraction is opt-in). The
  * cf32 path is left untouched — it never clips and is the streaming hot path. */
 
 /** Enable the per-component clip counter (off by default; peak always on). */
-WFM_WEAK void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
+void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
 
 /** Set the output gain (linear; default 1.0). For headroom H dB pass
  *  10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). */
-WFM_WEAK void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
+void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
 
 /** Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
  *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
-WFM_WEAK double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
+double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
 
 /** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. */
-WFM_WEAK double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
+double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
 
 #ifdef __cplusplus
 }

@@ -32,7 +32,13 @@ extern "C" {
  * NOT link the stream component still gets a C++-free libdoppler.  wfmgen guards
  * the path with `&wfm_zmq_sink_open == NULL`.  Link `libdoppler_stream` (whole-
  * archive, or the object directly) to supply the definitions and enable zmq. */
-#ifdef __GNUC__
+#if defined(__APPLE__)
+/* Mach-O: a plain `weak` symbol is still a hard undefined reference at
+ * dylib-link time (ld64 rejects it). weak_import marks it as an optional
+ * import that binds to address 0 when the stream component is absent, so the
+ * `&wfm_zmq_sink_open == NULL` guard in wfmgen works the same as on ELF. */
+#define WFM_WEAK __attribute__ ((weak_import))
+#elif defined(__GNUC__)
 #define WFM_WEAK __attribute__ ((weak))
 #else
 #define WFM_WEAK

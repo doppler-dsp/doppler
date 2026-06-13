@@ -59,11 +59,13 @@ for rate in [0.5, 0.25, 0.125, 1/3]:
 ```
 
 ```text
-rate=0.5000  expected fn_out=0.0800  measured=0.0800
-rate=0.2500  expected fn_out=0.1600  measured=0.1600
-rate=0.1250  expected fn_out=0.3200  measured=0.3200
-rate=0.3333  expected fn_out=0.1200  measured=0.1200
+rate=0.5000  expected fn_out=0.0800  measured=0.0802
+rate=0.2500  expected fn_out=0.1600  measured=0.1603
+rate=0.1250  expected fn_out=0.3200  measured=0.3203
+rate=0.3333  expected fn_out=0.1200  measured=0.1203
 ```
+
+(The small offset is FFT-bin resolution, not resampler error.)
 
 ______________________________________________________________________
 
@@ -86,32 +88,6 @@ y2 = rc.execute(x); print(len(y2))   # 256
 
 rc.rate = 2.0
 y3 = rc.execute(x); print(len(y3))   # 2048
-```
-
-______________________________________________________________________
-
-## Streaming — phase-continuous across blocks
-
-`execute()` preserves state between calls, so blocks split at an arbitrary
-boundary produce byte-identical output to a single large call:
-
-```python
-import numpy as np
-from doppler.resample import RateConverter
-
-# Simulate a stream split into 512-sample blocks
-x_full  = np.random.randn(2048).astype(np.complex64)
-rc_full  = RateConverter(0.5)
-rc_split = RateConverter(0.5)
-
-y_full  = rc_full.execute(x_full)
-y_split = np.concatenate([
-    rc_split.execute(x_full[:512]),
-    rc_split.execute(x_full[512:1024]),
-    rc_split.execute(x_full[1024:1536]),
-    rc_split.execute(x_full[1536:]),
-])
-assert np.array_equal(y_full, y_split)   # byte-identical ✓
 ```
 
 ______________________________________________________________________

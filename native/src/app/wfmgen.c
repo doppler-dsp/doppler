@@ -173,7 +173,9 @@ static const char USAGE[]
       "raw|csv|blue|sigmf]\n"
       "  [--endian le|be] [--detached] [--realtime] [--realtime-resync]\n"
       "  [--level DB] [--headroom DB] [--clip-report] [--clip-error]\n"
-      "  [--output FILE|zmq://EP] [--record FILE]\n";
+      "  [--output FILE|zmq://EP] [--record FILE]\n"
+      "       wfmgen json-template [FILE]   "
+      "(dump an editable --from-file spec; default stdout)\n";
 
 /* The CLI's whole body lives here as a plain callable (argv in, exit-code out)
  * so it can be archived into libdoppler and invoked by a downstream linker —
@@ -181,6 +183,35 @@ static const char USAGE[]
 int
 doppler_wfmgen (int argc, char *argv[])
 {
+  /* `wfmgen json-template [FILE]` — emit a ready-to-edit example spec in the
+   * canonical --from-file schema, then exit. Writes to FILE, or to stdout when
+   * FILE is absent or "-". JSON is text, so the binary-to-tty guard below does
+   * not apply (printing it to a terminal is fine). */
+  if (argc >= 2 && !strcmp (argv[1], "json-template"))
+    {
+      const char *tpl_path
+          = (argc >= 3 && strcmp (argv[2], "-")) ? argv[2] : NULL;
+      char *json = wfm_spec_template_json ();
+      if (!json)
+        {
+          fprintf (stderr, "error: out of memory building the template\n");
+          return 1;
+        }
+      FILE *tf = tpl_path ? fopen (tpl_path, "wb") : stdout;
+      if (!tf)
+        {
+          fprintf (stderr, "error: cannot open %s for writing\n", tpl_path);
+          free (json);
+          return 1;
+        }
+      fputs (json, tf);
+      fputc ('\n', tf);
+      if (tpl_path)
+        fclose (tf);
+      free (json);
+      return 0;
+    }
+
   /* single-segment defaults mirror synth/wavegen: one source in one segment */
   wfm_source_t  src    = { .type       = 0,
                            .freq       = 0.0,

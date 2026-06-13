@@ -13,6 +13,15 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`wfmgen json-template [FILE]`** — a subcommand that dumps a ready-to-edit
+    example spec in the canonical `--from-file` (`wfmgen-1`) schema, to a file or
+    stdout. The template (an inline tone, an RRC-shaped QPSK-from-bits burst with
+    a trailing gap, and a two-source `sum` mix) is generated through the same
+    serialiser as `--record`, so it is valid by construction and round-trips
+    through `--from-file` unchanged — a working starting point, not just docs.
+
 ## [0.15.1] — 2026-06-13
 
 ### Fixed

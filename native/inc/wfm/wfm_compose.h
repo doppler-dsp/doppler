@@ -176,6 +176,20 @@ char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
 double wfm_spec_headroom(const char *json);
 
 /**
+ * @brief A ready-to-edit example spec in the canonical --from-file schema.
+ *
+ * Returns a representative multi-segment template — an inline tone, an
+ * RRC-shaped QPSK-from-bits burst with a trailing gap, and a two-source
+ * additive `sum` mix — serialised with wfm_spec_to_json(), so it is valid by
+ * construction and round-trips through wfm_compose_from_json() unchanged. It
+ * therefore doubles as a working starting point for `wfmgen --from-file`, not
+ * just documentation: dump it, edit the fields, feed it back.
+ *
+ * @return malloc'd JSON (caller frees), or NULL on allocation failure.
+ */
+char *wfm_spec_template_json(void);
+
+/**
  * @brief Build a composer from a JSON spec string (for --from-file).
  * @return Composer state, or NULL on parse error / bad type / no segments.
  */

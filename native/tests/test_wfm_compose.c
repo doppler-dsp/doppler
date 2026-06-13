@@ -135,6 +135,23 @@ main (void)
 
   free (json);
 
+  /* ── json-template: the dumped example must parse and compose ── */
+  {
+    char *tpl = wfm_spec_template_json ();
+    CHECK (tpl, "template built");
+    CHECK (strstr (tpl, "wfmgen-1"), "template version tag");
+    CHECK (strstr (tpl, "\"sum\""), "template shows a multi-source segment");
+    wfm_compose_state_t *tc = wfm_compose_from_json (tpl);
+    CHECK (tc, "template round-trips through from_json");
+    size_t tt = 0;
+    while ((n = wfm_compose_execute (tc, buf, 4096)) > 0)
+      tt += n;
+    /* 10000 tone + (8000 on + 2000 off gap) bits + 10000 mix */
+    CHECK (tt == 30000, "template sample count");
+    wfm_compose_destroy (tc);
+    free (tpl);
+  }
+
   /* ── level: a segment at -6.0206 dBFS is the level-0 stream × 0.5 ── */
   {
     wfm_source_t src0

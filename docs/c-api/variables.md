@@ -27,6 +27,13 @@
 * **JM\_VEC\_F64** ([**jm\_simd.h**](jm__simd_8h.md))
 
 
+## p
+
+* **PFFFT\_Setup** ([**pffft.h**](pffft_8h.md))
+* **pffft\_direction\_t** ([**pffft.h**](pffft_8h.md))
+* **pffft\_transform\_t** ([**pffft.h**](pffft_8h.md))
+
+
 ## r
 
 * **rc\_stage\_t** ([**RateConverter\_core.h**](RateConverter__core_8h.md))

@@ -57,13 +57,14 @@ _ZMQ PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) double | [**wfm\_zmq\_sink\_clip\_fraction**](#function-wfm_zmq_sink_clip_fraction) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) void | [**wfm\_zmq\_sink\_close**](#function-wfm_zmq_sink_close) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* | [**wfm\_zmq\_sink\_open**](#function-wfm_zmq_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a ZMQ PUB sink._  |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) double | [**wfm\_zmq\_sink\_peak**](#function-wfm_zmq_sink_peak) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) int | [**wfm\_zmq\_sink\_send**](#function-wfm_zmq_sink_send) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) void | [**wfm\_zmq\_sink\_set\_gain**](#function-wfm_zmq_sink_set_gain) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, double gain) <br> |
-|  [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak) void | [**wfm\_zmq\_sink\_track\_clipping**](#function-wfm_zmq_sink_track_clipping) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, int on) <br> |
+|  int | [**wfm\_zmq\_sink\_available**](#function-wfm_zmq_sink_available) (void) <br>_1 if the real ZMQ sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output zmq://` _path._ |
+|  double | [**wfm\_zmq\_sink\_clip\_fraction**](#function-wfm_zmq_sink_clip_fraction) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
+|  void | [**wfm\_zmq\_sink\_close**](#function-wfm_zmq_sink_close) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br>_Close the sink and destroy the publisher._  |
+|  [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* | [**wfm\_zmq\_sink\_open**](#function-wfm_zmq_sink_open) (const char \* endpoint, int sample\_type) <br>_Open a ZMQ PUB sink._  |
+|  double | [**wfm\_zmq\_sink\_peak**](#function-wfm_zmq_sink_peak) (const [**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink) <br> |
+|  int | [**wfm\_zmq\_sink\_send**](#function-wfm_zmq_sink_send) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, const float \_Complex \* iq, size\_t n, double fs, double fc) <br>_Convert a cf32 block to the wire type and publish it._  |
+|  void | [**wfm\_zmq\_sink\_set\_gain**](#function-wfm_zmq_sink_set_gain) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, double gain) <br> |
+|  void | [**wfm\_zmq\_sink\_track\_clipping**](#function-wfm_zmq_sink_track_clipping) ([**wfm\_zmq\_sink\_t**](wfm__sink_8h.md#typedef-wfm_zmq_sink_t) \* sink, int on) <br> |
 
 
 
@@ -91,11 +92,6 @@ _ZMQ PUB sink for generated IQ (Phase B)._ [More...](#detailed-description)
 
 
 
-## Macros
-
-| Type | Name |
-| ---: | :--- |
-| define  | [**WFM\_WEAK**](wfm__sink_8h.md#define-wfm_weak)  <br> |
 
 ## Detailed Description
 
@@ -140,10 +136,26 @@ Opaque ZMQ sink.
 
 
 
+### function wfm\_zmq\_sink\_available 
+
+_1 if the real ZMQ sink (libdoppler\_stream) is linked, else 0 (the pure-C core links only the weak no-op stubs). wfmgen checks this before the_ `--output zmq://` _path._
+```C++
+int wfm_zmq_sink_available (
+    void
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function wfm\_zmq\_sink\_clip\_fraction 
 
 ```C++
-WFM_WEAK double wfm_zmq_sink_clip_fraction (
+double wfm_zmq_sink_clip_fraction (
     const wfm_zmq_sink_t * sink
 ) 
 ```
@@ -163,7 +175,7 @@ Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked.
 
 _Close the sink and destroy the publisher._ 
 ```C++
-WFM_WEAK void wfm_zmq_sink_close (
+void wfm_zmq_sink_close (
     wfm_zmq_sink_t * sink
 ) 
 ```
@@ -190,7 +202,7 @@ WFM_WEAK void wfm_zmq_sink_close (
 
 _Open a ZMQ PUB sink._ 
 ```C++
-WFM_WEAK  wfm_zmq_sink_t * wfm_zmq_sink_open (
+wfm_zmq_sink_t * wfm_zmq_sink_open (
     const char * endpoint,
     int sample_type
 ) 
@@ -232,7 +244,7 @@ Caller must [**wfm\_zmq\_sink\_close()**](wfm__sink_8h.md#function-wfm_zmq_sink_
 ### function wfm\_zmq\_sink\_peak 
 
 ```C++
-WFM_WEAK double wfm_zmq_sink_peak (
+double wfm_zmq_sink_peak (
     const wfm_zmq_sink_t * sink
 ) 
 ```
@@ -254,7 +266,7 @@ Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
 
 _Convert a cf32 block to the wire type and publish it._ 
 ```C++
-WFM_WEAK int wfm_zmq_sink_send (
+int wfm_zmq_sink_send (
     wfm_zmq_sink_t * sink,
     const float _Complex * iq,
     size_t n,
@@ -295,7 +307,7 @@ WFM_WEAK int wfm_zmq_sink_send (
 ### function wfm\_zmq\_sink\_set\_gain 
 
 ```C++
-WFM_WEAK void wfm_zmq_sink_set_gain (
+void wfm_zmq_sink_set_gain (
     wfm_zmq_sink_t * sink,
     double gain
 ) 
@@ -315,7 +327,7 @@ Set the output gain (linear; default 1.0). For headroom H dB pass 10^(−H/20). 
 ### function wfm\_zmq\_sink\_track\_clipping 
 
 ```C++
-WFM_WEAK void wfm_zmq_sink_track_clipping (
+void wfm_zmq_sink_track_clipping (
     wfm_zmq_sink_t * sink,
     int on
 ) 
@@ -327,22 +339,6 @@ Enable the per-component clip counter (off by default; peak always on).
 
 
         
-
-<hr>
-## Macro Definition Documentation
-
-
-
-
-
-### define WFM\_WEAK 
-
-```C++
-#define WFM_WEAK 
-```
-
-
-
 
 <hr>
 

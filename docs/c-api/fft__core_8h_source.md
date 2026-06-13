@@ -55,6 +55,16 @@ extern "C"
   size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
                                    size_t n_in, float complex *out);
 
+  size_t fft_execute_ci16_max_out (fft_state_t *state);
+
+  size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
+                           float complex *out);
+
+  size_t fft_execute_ci8_max_out (fft_state_t *state);
+
+  size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
+                          float complex *out);
+
 #ifdef __cplusplus
 }
 #endif

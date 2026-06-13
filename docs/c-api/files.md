@@ -94,6 +94,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     
             * **file** [**nco\_core.h**](nco__core_8h.md) _Pure 32-bit phase-accumulator NCO._     
+        * **dir** [**pffft**](dir_2e0e79537247ed1eb65cd0be05071701.md)     
+            * **file** [**pffft.h**](pffft_8h.md)     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     
             * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
         * **dir** [**resamp**](dir_289a9297ce406b952fab973539197d1c.md)     

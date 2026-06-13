@@ -1,13 +1,20 @@
-# pocketfft is now pure C99: the upstream Reinecke core (pocketfft_c99.c,
-# double-precision, libm-only) wrapped by pocketfft.c, which adds out-of-place
-# execution, cf32 promote-to-double, and 2-D row/column passes.  Both are
-# compiled straight into fft_core so the pocketfft symbols travel with it to
-# every consumer (fft2d, corr, welch, ...) — exactly as before, but with no C++
-# and no threads: doppler links only -lm.
-add_library(fft_core OBJECT fft_core.c pocketfft.c pocketfft_c99.c)
+# pocketfft is pure C99 (the upstream Reinecke core pocketfft_c99.c, double,
+# libm-only) wrapped by pocketfft.c.  pffft.c is the vendored PFFFT (Pommier,
+# BSD/FFTPACK) — a native single-precision SIMD FFT (SSE/NEON, scalar fallback)
+# the wrapper routes cf32/integer-IQ through for 5-smooth sizes, falling back to
+# pocketfft otherwise.  All compiled straight into fft_core so their symbols
+# travel to every consumer (fft2d, corr, welch, ...).  Still C++-free, -lm only;
+# PFFFT emits only 128-bit xmm/NEON, so the portable-SIMD gate stays green.
+add_library(fft_core OBJECT fft_core.c pocketfft.c pocketfft_c99.c pffft.c)
 target_include_directories(fft_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/fft)
+# pffft.c does #include "pffft.h" and uses M_PI/M_SQRT2 (not in strict C99); give
+# it the vendored header dir and the math-constant feature macro, TU-scoped so
+# nothing else is affected and the vendored source stays pristine.
+set_source_files_properties(pffft.c PROPERTIES
+    INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/native/inc/pffft
+    COMPILE_DEFINITIONS "_USE_MATH_DEFINES;_DEFAULT_SOURCE")
 target_link_libraries(fft_core PUBLIC m)
 
 add_executable(test_fft_core

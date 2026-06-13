@@ -106,7 +106,7 @@ if command -v pkg-config >/dev/null 2>&1; then
 
     echo ">> pkg-config --static"
     # Link the archive explicitly + the private runtime libs pkg-config reports
-    # (the self-contained .a needs only -lstdc++ -lpthread -lm).
+    # (the pure-C core .a needs only -lm — no C++ runtime, no zmq).
     priv="$(pkg-config --libs-only-l --static doppler | sed 's/-ldoppler//g')"
     # shellcheck disable=SC2086
     $CC "$src" -o "$work/pc_static" $(pkg-config --cflags doppler) \

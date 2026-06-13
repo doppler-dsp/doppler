@@ -36,7 +36,7 @@ cmake --build examples/standalone/build
 # --8<-- [start:gcc-static]
 gcc -o awgn_example examples/standalone/main.c \
     -Inative/inc -Ibuild/native/inc \
-    build/libdoppler.a -lm -lstdc++ -lpthread
+    build/libdoppler.a -lm
 ./awgn_example
 # --8<-- [end:gcc-static]
 

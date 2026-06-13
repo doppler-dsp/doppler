@@ -2,11 +2,11 @@
 
 ## Prerequisites
 
-| Tool         | Minimum | Notes                            |
-| ------------ | ------- | -------------------------------- |
-| CMake        | 3.16    |                                  |
-| C compiler   | C11     | GCC or Clang                     |
-| C++ compiler | C++17   | Required for pocketfft (bundled) |
+| Tool         | Minimum | Notes                                                       |
+| ------------ | ------- | ----------------------------------------------------------- |
+| CMake        | 3.16    |                                                             |
+| C compiler   | C99     | GCC or Clang — builds the entire core library               |
+| C++ compiler | C++17   | **Optional** — only for the ZMQ/stream component (vendored libzmq is C++); the core libdoppler is pure C99 |
 
 !!! note "Python extensions"
 

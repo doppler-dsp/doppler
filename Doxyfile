@@ -1,6 +1,6 @@
 PROJECT_NAME           = "doppler"
 INPUT                  = native/inc native/src
-FILE_PATTERNS          = *.h *.hpp *.c *.cpp
+FILE_PATTERNS          = *.h *.c
 RECURSIVE              = YES
 
 EXCLUDE_PATTERNS       = */pocketfft* \

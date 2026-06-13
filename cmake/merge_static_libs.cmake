@@ -1,7 +1,8 @@
 # merge_static_libs.cmake — fold one static archive's objects into another,
-# in place, at build time. Used to make libdoppler.a self-contained by
-# embedding the vendored libzmq.a, so a downstream linking the static library
-# needs only -ldoppler plus the C/C++ runtime (never -lzmq).
+# in place, at build time. Used to make libdoppler_stream.a self-contained by
+# embedding the vendored libzmq.a, so a downstream linking the stream archive
+# needs only -ldoppler_stream plus the C/C++ runtime (never -lzmq). (The core
+# libdoppler.a is pure C and uses no fold.)
 #
 # A static archive cannot pull in another archive via CMake link rules
 # (target_link_libraries only records a *requirement*), so we merge the object

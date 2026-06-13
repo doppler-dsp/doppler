@@ -75,6 +75,8 @@ packages = [
 [dev.dnf]
 packages = [
     "gcc",
+    # Only for the optional zmq/stream component (vendored libzmq is C++); the
+    # core libdoppler is pure C99 and builds with gcc alone.
     "gcc-c++",
     "make",
     "cmake",
@@ -86,6 +88,8 @@ packages = [
 [dev.zypper]
 packages = [
     "gcc",
+    # Only for the optional zmq/stream component (vendored libzmq is C++); the
+    # core libdoppler is pure C99 and builds with gcc alone.
     "gcc-c++",
     "make",
     "cmake",

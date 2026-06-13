@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h> /* isatty */
 
 #include "timing/timing_core.h"
 #include "wfm/wfm_compose.h"
@@ -595,6 +596,19 @@ doppler_wfmgen (int argc, char *argv[])
         }
       else
         {
+          /* Refuse to spew raw binary IQ onto an interactive terminal (the
+           * footgun when --output is forgotten — `wfmgen` alone defaults to
+           * raw to stdout). CSV is human-readable text so it is allowed;
+           * piping/redirecting stdout (not a tty) is always allowed. */
+          if (!out_path && file_type != WFM_FT_CSV && isatty (fileno (stdout)))
+            {
+              fprintf (stderr,
+                       "error: refusing to write binary IQ to a terminal — "
+                       "pass --output FILE (or redirect/pipe stdout)\n\n");
+              fputs (USAGE, stderr);
+              wfm_compose_destroy (comp);
+              return 1;
+            }
           fp = out_path ? fopen (out_path, "wb") : stdout;
         }
       if (!fp)

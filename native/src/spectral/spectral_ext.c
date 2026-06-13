@@ -46,9 +46,9 @@ _bind_kaiser_window(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "Of", &w_obj, &beta))
         return NULL;
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+        w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
-    const float *w = (const float *)PyArray_DATA(w_arr);
+    float *w = (float *)PyArray_DATA(w_arr);
     size_t w_len = (size_t)PyArray_SIZE(w_arr);
     kaiser_window(w, w_len, beta);
     Py_DECREF(w_arr);
@@ -63,9 +63,9 @@ _bind_hann_window(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O", &w_obj))
         return NULL;
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
-        w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
+        w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
     if (!w_arr) { return NULL; }
-    const float *w = (const float *)PyArray_DATA(w_arr);
+    float *w = (float *)PyArray_DATA(w_arr);
     size_t w_len = (size_t)PyArray_SIZE(w_arr);
     hann_window(w, w_len);
     Py_DECREF(w_arr);

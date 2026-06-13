@@ -112,13 +112,20 @@ DDCObj_execute (DDCObject *self, PyObject *args)
     n_out = ddc_execute (self->handle, _ng0, _ng1, self->_execute_buf,
                          self->_execute_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _execute_buf instead
+   * dangled when a later, larger execute realloc'd it (the view pins self, not
+   * the buffer) — the gh-219 use-after-free.  Matches the numpy-owned source
+   * objects (lo/nco/awgn). */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_execute_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_execute_buf,
+          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }

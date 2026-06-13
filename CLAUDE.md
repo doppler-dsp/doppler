@@ -212,11 +212,35 @@ doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
 runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
 blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
 
+### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
+
+The CI drift gate now pins **0.19.3** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.19.3. **Always drive doppler with
+`uvx --from 'just-makeit==0.19.3' just-makeit …`.**
+
+`jm apply` under 0.19.3 regenerated one aggregator — `spectral_ext.c` — adopting
+**gh-197**: the `kaiser_window`/`hann_window` out-params are now writable
+(`float *w` + `NPY_ARRAY_WRITEABLE`) instead of `const float *`.
+
+Separately, doppler **hand-adopted gh-219's use-after-free fix** in the three
+`variable_output` execute fragments that still grew their output buffer in place
+(`ddc_ext_ddc.c`, `ddc_ext_ddcr.c`, `filter_ext_hbdecim_q15.c`): a `realloc`-grow
+moved the buffer while a previously returned view (which pins `self`, not the
+buffer) dangled. They now return an **independent numpy-owned array per call**
+(`PyArray_SimpleNew` + copy), matching the `lo`/`nco`/`awgn` source objects — the
+fragments are sacred so `jm regenerate` (which would also nuke `_core.c`) was not
+used. Regression test: `test_ddc_execute_result_survives_buffer_grow`.
+
+**Not adopted:** gh-208 `step_delegates_to_steps` — the deferred synth #76 parity
+target is `arg_type="void"` / `variable_output` (gh-208-ineligible) and is already
+byte-identical by hand; the eligible scalar objects show no parity bug, and
+adopting would refactor each hand-written `step()`. gh-225 (`depends_on` link
+line, doppler-filed) is implemented upstream but unreleased — adopt when it ships.
+
 ### 0.19.0 adoptions — Windows boilerplate is opt-in (pin: 0.19.0)
 
-The CI drift gate now pins **0.19.0** (`ci.yml` + `perf-regression.yml`);
-`jm_version` is stamped 0.19.0. **Always drive doppler with
-`uvx --from 'just-makeit==0.19.0' just-makeit …`.**
+The CI drift gate previously pinned **0.19.0** (`ci.yml` + `perf-regression.yml`);
+`jm_version` was stamped 0.19.0.
 
 jm 0.19.0 resolves the doppler-driven [jm#213](https://github.com/just-buildit/just-makeit/issues/213):
 the per-component MinGW runtime-DLL `if(WIN32 …)` block is now gated on

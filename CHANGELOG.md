@@ -13,6 +13,22 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **Use-after-free in `DDC`/`DDCR`/`HalfbandDecimator` (q15) `execute()`** — the
+    grow-on-demand output buffer was `realloc`'d in place, so a previously returned
+    array (which pins `self`, not the buffer) could alias freed memory after a
+    later, larger `execute()` grew it. Each call now returns an independent
+    numpy-owned array, matching the source objects (`lo`/`nco`/`awgn`) and the
+    upstream just-makeit fix (gh-219). (Also plugs an input-array refcount leak on
+    the allocation-failure path.)
+
+### Changed
+
+- **just-makeit pin → 0.19.3.** Picks up gh-197: the generated `kaiser_window`/
+    `hann_window` bindings now take a writable output buffer
+    (`NPY_ARRAY_WRITEABLE`) instead of `const float *`.
+
 ## [0.15.0] — 2026-06-13
 
 ### Added

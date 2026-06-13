@@ -113,13 +113,20 @@ HBDecimQ15Obj_execute (HBDecimQ15Object *self, PyObject *args)
       self->handle, (const int16_t *)PyArray_DATA (x_arr),
       n_in / 2, /* complex sample count */
       self->_execute_buf, self->_execute_buf_cap / 2); /* complex capacity */
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _execute_buf instead
+   * dangled when a later, larger execute realloc'd it (the view pins self, not
+   * the buffer) — the gh-219 use-after-free.  Matches the numpy-owned source
+   * objects (lo/nco/awgn). */
   npy_intp  dim = (npy_intp)(n_out * 2); /* back to int16_t element count */
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_INT16, self->_execute_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_INT16);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_execute_buf,
+          (size_t)dim * sizeof (int16_t));
   Py_DECREF (x_arr);
   return arr;
 }

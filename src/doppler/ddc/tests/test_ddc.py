@@ -141,3 +141,24 @@ def test_tone_shifted_to_dc(f_tone):
     assert abs(dominant) < 0.02, (
         f"f_tone={f_tone}: dominant at {dominant:.4f}, expected near 0"
     )
+
+
+def test_ddc_execute_result_survives_buffer_grow():
+    # gh-219 regression: holding an execute() result across a larger execute()
+    # (which grows the internal buffer) must not dangle. The output is a fresh
+    # numpy-owned array per call, not a view of a realloc'd internal buffer.
+    d = DDC(0.1, 0.25)
+    rng = np.random.default_rng(0)
+    y1 = d.execute(
+        (rng.standard_normal(64) + 1j * rng.standard_normal(64)).astype(
+            np.complex64
+        )
+    )
+    snapshot = y1.copy()
+    big = d.execute(
+        (rng.standard_normal(8192) + 1j * rng.standard_normal(8192)).astype(
+            np.complex64
+        )
+    )
+    assert y1.ctypes.data != big.ctypes.data  # independent buffers
+    assert np.array_equal(y1, snapshot)  # no use-after-free

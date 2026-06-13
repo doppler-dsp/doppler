@@ -1,7 +1,7 @@
 # Spectrum Analyzer
 
 Live spectrum analysis recorded with Doppler's C DSP pipeline:
-NCO → Kaiser window → FFTW → dBm calibration.
+NCO → Kaiser window → FFT (pocketfft) → dBm calibration.
 
 No server. No JavaScript DSP. Pure C output, looped at 30 fps.
 

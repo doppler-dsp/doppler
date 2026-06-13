@@ -77,5 +77,6 @@ Quick Start, Architecture, API Reference, Examples.
 
 ## Licensing
 
-MIT. The default build uses pocketfft (BSD-3-Clause). Build with
-`-DUSE_FFTW=ON` for FFTW (LGPL).
+MIT. The core C library is pure C99 and links only `-lm`; its FFT uses the
+vendored pocketfft (BSD-3-Clause). The optional ZMQ stream component
+(`libdoppler_stream`) vendors libzmq (MPL-2.0).

@@ -14,10 +14,10 @@ ______________________________________________________________________
 
 Pass any dtype — the right C path is chosen automatically:
 
-| Input dtype  | C path       | Speed      |
-| ------------ | ------------ | ---------- |
-| `complex64`  | CF32 (fftwf) | ~2× faster |
-| `complex128` | CF64 (fftw)  | baseline   |
+| Input dtype  | C path                    | Speed                            |
+| ------------ | ------------------------- | -------------------------------- |
+| `complex64`  | CF32 → computed in double | slower (float↔double conversion) |
+| `complex128` | CF64 (native double)      | baseline                         |
 
 ______________________________________________________________________
 

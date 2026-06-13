@@ -104,6 +104,20 @@ jobs:
         fi
         echo "OK — core libdoppler is C++-free (libstdc++/CXXABI absent; links -lm only)."
 
+    # Statically link the core archive into a downstream C program with just -lm
+    # — no -lstdc++, no zmq, no special linker flags — on EVERY platform. This is
+    # the consumer scenario the release C-tarball smoke checks, hoisted into CI
+    # so a regression (e.g. an undefined-symbol seam that only ld64 rejects) is
+    # caught on macOS *before* a release rather than after the PyPI publish. The
+    # consumer drives doppler_wfmgen (file output), exercising the wfm_zmq_sink_*
+    # weak-stub seam that keeps libdoppler.a self-contained.
+    - name: Smoke-test static link (libdoppler.a -lm)
+      run: |
+        cc examples/consumer/main.c -Inative/inc -Ibuild/native/inc \
+           build/libdoppler.a -lm -o "${RUNNER_TEMP}/consumer_smoke"
+        ( cd "${RUNNER_TEMP}" && ./consumer_smoke )
+        echo "OK — libdoppler.a links into a downstream with only -lm on ${{ matrix.os }}."
+
   # ------------------------------------------------------------------
   # Python package build + pytest
   # ------------------------------------------------------------------

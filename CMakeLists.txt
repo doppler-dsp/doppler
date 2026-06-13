@@ -122,18 +122,10 @@ find_package(Threads REQUIRED)
 target_link_libraries(doppler_lib        PRIVATE m)
 target_link_libraries(doppler_lib_static PUBLIC  m)
 
-# The weak wfm_zmq_sink_* seam (native/inc/wfm/wfm_sink.h) lets wfmgen live in
-# the core while the ZMQ sink stays in the optional libdoppler_stream. ELF allows
-# such undefined weak symbols in a shared object by default; Mach-O's ld64 does
-# not, so on Apple allow exactly those 7 imports to be resolved dynamically
-# (they bind to 0 — the weak_import default — when the stream component is
-# absent, so wfmgen's `&wfm_zmq_sink_open == NULL` guard still works). The static
-# archive needs nothing — a .a may carry undefined symbols on every platform.
-if(APPLE)
-    foreach(_sym open close send set_gain track_clipping peak clip_fraction)
-        target_link_options(doppler_lib PRIVATE "-Wl,-U,_wfm_zmq_sink_${_sym}")
-    endforeach()
-endif()
+# The core ships weak no-op stubs for the wfm_zmq_sink_* symbols wfmgen uses
+# (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir), so the
+# core is self-contained and needs no per-platform linker flags; linking
+# libdoppler_stream supplies the strong overrides.
 
 enable_testing()
 

@@ -144,7 +144,7 @@ main (void)
     wfm_compose_state_t *tc = wfm_compose_from_json (tpl);
     CHECK (tc, "template round-trips through from_json");
     size_t tt = 0;
-    while ((n = wfm_compose_execute (tc, buf, 4096)) > 0)
+    while ((n = wfm_compose_execute (tc, buf, 777)) > 0)
       tt += n;
     /* 10000 tone + (8000 on + 2000 off gap) bits + 10000 mix */
     CHECK (tt == 30000, "template sample count");

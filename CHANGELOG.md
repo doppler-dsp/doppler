@@ -24,6 +24,9 @@ ______________________________________________________________________
     the archive dragged in libstdc++/CXXABI symbols stamped at doppler's build
     toolchain version. A CI gate enforces that the core carries no
     libstdc++/CXXABI symbols.
+    - *Performance note:* the **2-D** FFT is slower with the 1-D-only C core
+        (cf64 ≈ +47%, cf32 ≈ +157% via the double-promote); 1-D FFT is unchanged.
+        Tracked in [#139](https://github.com/doppler-dsp/doppler/issues/139).
 
 ### Added
 

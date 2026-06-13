@@ -1,4 +1,4 @@
-# OBJECT library — pocketfft symbols come from fft_core (vendored pocketfft.cc).
+# OBJECT library — pocketfft symbols come from the pocketfft_c object lib.
 add_library(fft2d_core OBJECT fft2d_core.c)
 target_include_directories(fft2d_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc

@@ -25,6 +25,19 @@
 extern "C" {
 #endif
 
+/* The ZMQ sink lives in the optional `libdoppler_stream` component (it pulls in
+ * the vendored C++ libzmq).  The pure-C core embeds wfmgen, which references
+ * these symbols only on the `--output zmq://` path; declaring them WEAK lets the
+ * core link with the references unresolved (address 0) so a downstream that does
+ * NOT link the stream component still gets a C++-free libdoppler.  wfmgen guards
+ * the path with `&wfm_zmq_sink_open == NULL`.  Link `libdoppler_stream` (whole-
+ * archive, or the object directly) to supply the definitions and enable zmq. */
+#ifdef __GNUC__
+#define WFM_WEAK __attribute__ ((weak))
+#else
+#define WFM_WEAK
+#endif
+
 /** Opaque ZMQ sink. */
 typedef struct wfm_zmq_sink wfm_zmq_sink_t;
 
@@ -36,7 +49,8 @@ typedef struct wfm_zmq_sink wfm_zmq_sink_t;
  * @return Sink handle, or NULL on bad type / publisher-create failure.
  * @note Caller must wfm_zmq_sink_close() when done.
  */
-wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint, int sample_type);
+WFM_WEAK wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint,
+                                           int sample_type);
 
 /**
  * @brief Convert a cf32 block to the wire type and publish it.
@@ -45,29 +59,29 @@ wfm_zmq_sink_t *wfm_zmq_sink_open(const char *endpoint, int sample_type);
  * @param fs  sample rate (Hz); @param fc center frequency (Hz) — wire header.
  * @return 0 on success, non-zero on a send/allocation error.
  */
-int wfm_zmq_sink_send(wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
-                      double fs, double fc);
+WFM_WEAK int wfm_zmq_sink_send(wfm_zmq_sink_t *sink, const float _Complex *iq,
+                               size_t n, double fs, double fc);
 
 /** @brief Close the sink and destroy the publisher. @param sink May be NULL. */
-void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
+WFM_WEAK void wfm_zmq_sink_close(wfm_zmq_sink_t *sink);
 
 /* Clip detection, mirroring wfm_writer (peak always tracked on the integer
  * paths, where saturation can occur; the per-component fraction is opt-in). The
  * cf32 path is left untouched — it never clips and is the streaming hot path. */
 
 /** Enable the per-component clip counter (off by default; peak always on). */
-void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
+WFM_WEAK void wfm_zmq_sink_track_clipping(wfm_zmq_sink_t *sink, int on);
 
 /** Set the output gain (linear; default 1.0). For headroom H dB pass
  *  10^(−H/20). gain 1.0 sends cf32 unscaled (the direct path). */
-void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
+WFM_WEAK void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
 
 /** Largest per-axis magnitude seen on an integer path (pre-clip, full-scale 1).
  *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
-double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
+WFM_WEAK double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
 
 /** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. */
-double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
+WFM_WEAK double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
 
 #ifdef __cplusplus
 }

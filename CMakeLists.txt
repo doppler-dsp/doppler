@@ -1,7 +1,14 @@
 cmake_minimum_required(VERSION 3.16)
-project(doppler VERSION 0.13.2 LANGUAGES C CXX)
+project(doppler VERSION 0.13.2 LANGUAGES C)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# doppler is pure C: every first-party source is C99 and the core libdoppler
+# links only -lm.  The sole C++ in the tree is the vendored libzmq, which builds
+# in its own sub-cmake (its own project()) and is confined to the optional
+# libdoppler_stream component — so the top-level project declares no CXX, and a
+# C++ compiler is needed only to build that optional stream component.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Always emit build/compile_commands.json so clangd/IDEs resolve include paths
@@ -102,17 +109,18 @@ endforeach()
 # package config). The objects each archive folds in (pocketfft, wfmcompose,
 # the ar-merged zmq) are baked into the .a/.so via target_sources — they are
 # NOT export-time dependencies, so the static lib exports cleanly; its only
-# interface deps are stdc++ / Threads::Threads / m.
+# interface dep is m — pocketfft is pure C99 and the C++ zmq/stream layer is
+# split into the optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
 set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
-# pocketfft_cxx is an OBJECT library — link it directly so its compiled units
-# are embedded in the shared lib without appearing in the install export set.
-# The static lib gets the same objects via target_sources so libdoppler.a is
-# also self-contained; stdc++ and Threads propagate to consumers via PUBLIC.
+# pocketfft (pure C99) is compiled into fft_core, which is folded into both libs
+# below with every other component — so no separate pocketfft target to wire here.
+# The core is pure C and links only -lm — no C++ runtime, no zmq (the
+# ZMQ/stream layer lives in the optional libdoppler_stream component below).
+# Threads is still located here for that component and the examples.
 find_package(Threads REQUIRED)
-target_link_libraries(doppler_lib PRIVATE pocketfft_cxx m)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:pocketfft_cxx>)
-target_link_libraries(doppler_lib_static PUBLIC stdc++ Threads::Threads m)
+target_link_libraries(doppler_lib        PRIVATE m)
+target_link_libraries(doppler_lib_static PUBLIC  m)
 
 enable_testing()
 
@@ -290,22 +298,48 @@ set_target_properties(zmq_vendor_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${_ZMQ_SRC}/include")
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
-# Make libdoppler.a self-contained: fold the vendored libzmq.a objects into the
-# archive (the wfmcompose subdir links zmq into the .so via PRIVATE, but a
-# static archive can't embed another archive through link rules). After this a
-# downstream linking the static lib needs only `-ldoppler` plus the C/C++
-# runtime (`-lstdc++ -lpthread -lm`, already propagated PUBLIC) — never `-lzmq`.
-# POSIX-only, like the vendored zmq itself.
+# ── Optional stream component (libdoppler_stream) ────────────────────────────
+# The ZMQ-dependent layer is split OUT of the core so libdoppler stays C++-free
+# (-lm only).  libdoppler_stream bundles the stream wire layer (stream_core) and
+# the wfm ZMQ sink (wfm_sink_core) and links the vendored C++ libzmq.  It
+# provides the strong wfm_zmq_sink_* definitions that satisfy the core's weak
+# seam (native/inc/wfm/wfm_sink.h), so a C consumer that wants `--output zmq://`
+# (or the dp_pub_*/dp_sub_* wire layer) links `doppler::stream` alongside
+# `doppler::doppler[-static]`.  POSIX-only, like the vendored zmq.  zmq stays
+# statically embedded — no runtime libzmq.so in either the shared or static
+# form.  This component intentionally carries the C++ runtime (libzmq is C++).
 if(NOT WIN32)
-    add_dependencies(doppler_lib_static libzmq_vendor)
-    add_custom_command(TARGET doppler_lib_static POST_BUILD
+    add_library(doppler_stream        SHARED
+        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:wfm_sink_core>)
+    add_library(doppler_stream_static STATIC
+        $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:wfm_sink_core>)
+    foreach(_s doppler_stream doppler_stream_static)
+        set_target_properties(${_s} PROPERTIES OUTPUT_NAME doppler_stream)
+        target_include_directories(${_s} PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
+            $<INSTALL_INTERFACE:include>)
+    endforeach()
+    set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
+    set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
+    # gcc (C driver) links the C objects; -lstdc++ pulls libstdc++ for the C++
+    # libzmq.  Threads/m propagate to consumers.
+    target_link_libraries(doppler_stream
+        PRIVATE zmq_vendor_static
+        PUBLIC  stdc++ Threads::Threads m)
+    target_link_libraries(doppler_stream_static PUBLIC stdc++ Threads::Threads m)
+    # The static form can't embed an archive through link rules, so fold the
+    # vendored libzmq.a objects in (the ar-merge the core used to use) — leaving
+    # the static consumer with `-ldoppler_stream` + the C/C++ runtime, no -lzmq.
+    add_dependencies(doppler_stream        libzmq_vendor)
+    add_dependencies(doppler_stream_static libzmq_vendor)
+    add_custom_command(TARGET doppler_stream_static POST_BUILD
         COMMAND ${CMAKE_COMMAND}
-            -DDEST=$<TARGET_FILE:doppler_lib_static>
+            -DDEST=$<TARGET_FILE:doppler_stream_static>
             -DSRC=${_ZMQ_LIB}
             -DAR=${CMAKE_AR}
             -DRANLIB=${CMAKE_RANLIB}
             -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
-        COMMENT "Folding libzmq.a into libdoppler.a (self-contained static lib)"
+        COMMENT "Folding libzmq.a into libdoppler_stream.a (self-contained)"
         VERBATIM)
 endif()
 
@@ -321,10 +355,19 @@ install(TARGETS doppler_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 # Static lib is a first-class export member → find_package gives consumers
-# `doppler::doppler-static` (self-contained: only the C/C++ runtime, no zmq).
+# `doppler::doppler-static` (pure C, self-contained: only -lm, no C++, no zmq).
 install(TARGETS doppler_lib_static
     EXPORT doppler-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+# Optional stream component → `doppler::stream` / `doppler::stream-static`.
+# Carries the C++ runtime (libzmq); link it only if you need the ZMQ wire layer.
+if(NOT WIN32)
+    install(TARGETS doppler_stream doppler_stream_static
+        EXPORT doppler-targets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endif()
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}

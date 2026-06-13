@@ -257,6 +257,66 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   return out;
 }
 
+char *
+wfm_spec_template_json (void)
+{
+  /* A representative, ready-to-edit spec exercising the schema surface, built
+   * from in-memory structs and run through the same serialiser as --record so
+   * it is valid by construction.  It parses back through --from-file
+   * unchanged: the two 1-source segments are no-ops for noise resolution, and
+   * the `sum` segment's first snr-bearing source (bpsk) anchors the floor
+   * while the tone is placed above it — neither over-specifies (no snr+level
+   * on a non-anchor), so wfm_resolve_noise() accepts it. */
+  static const uint8_t pattern[] = { 1, 0, 1, 1, 0, 0, 0, 1, 1, 0 };
+  wfm_source_t         tone      = {
+    .type      = WFM_SYNTH_TONE,
+    .freq      = 1e5,
+    .snr       = 20.0,
+    .sps       = 8,
+    .pn_length = 7,
+    .seed      = 1,
+  };
+  wfm_source_t bits = {
+    .type       = WFM_SYNTH_BITS,
+    .snr        = 30.0,
+    .sps        = 8,
+    .pn_length  = 7,
+    .seed       = 1,
+    .modulation = 2, /* qpsk */
+    .bits       = (uint8_t *)pattern,
+    .n_bits     = sizeof (pattern),
+    .pulse      = 1, /* rrc */
+    .rrc_beta   = 0.35,
+    .rrc_span   = 8,
+  };
+  wfm_source_t mix[2] = {
+    { .type      = WFM_SYNTH_BPSK, /* anchor: sets the noise floor */
+      .snr       = 20.0,
+      .sps       = 8,
+      .pn_length = 7,
+      .seed      = 1,
+      .pulse     = 1,
+      .rrc_beta  = 0.35,
+      .rrc_span  = 8 },
+    { .type      = WFM_SYNTH_TONE, /* placed 10 dB above the floor */
+      .freq      = 2e5,
+      .snr       = 10.0,
+      .sps       = 8,
+      .pn_length = 7,
+      .seed      = 2 },
+  };
+  wfm_segment_t segs[3] = {
+    { .sources = &tone, .n_sources = 1, .fs = 1e6, .num_samples = 10000 },
+    { .sources     = &bits,
+      .n_sources   = 1,
+      .fs          = 1e6,
+      .num_samples = 8000,
+      .off_samples = 2000 }, /* a trailing gap of zeros */
+    { .sources = mix, .n_sources = 2, .fs = 1e6, .num_samples = 10000 },
+  };
+  return wfm_spec_to_json (segs, 3, 0, 0, 0.0);
+}
+
 double
 wfm_spec_headroom (const char *json)
 {

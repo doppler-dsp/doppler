@@ -118,19 +118,20 @@ ______________________________________________________________________
 
 ### Composer (multi-segment, `--from-file`)
 
-| Flag                    | Meaning                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------- |
-| `--from-file SPEC.json` | run a multi-segment spec (see [Multi-segment](#multi-segment-specs))                          |
-| `--level DB`            | source level in dBFS (≤0); scales the segment by `10^(DB/20)` (SNR-invariant; default 0)      |
-| `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                     |
-| `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip                    |
-| `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                                    |
-| `--off N`               | trailing off-time (zeros) after the segment                                                   |
-| `--repeat`              | loop the whole sequence                                                                       |
-| `--continuous`          | never stop (implies repeat) — for streaming                                                   |
-| `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data)                                       |
-| `--realtime`            | pace the output to `fs`, mimicking a sample clock (see [Real-time pacing](#real-time-pacing)) |
-| `--realtime-resync`     | like `--realtime`, but re-anchor to "now" on each underrun                                    |
+| Flag                    | Meaning                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `--from-file SPEC.json` | run a multi-segment spec (see [Multi-segment](#multi-segment-specs))                                           |
+| `json-template [FILE]`  | subcommand: dump an editable example spec (to `FILE`, else stdout) — see [Multi-segment](#multi-segment-specs) |
+| `--level DB`            | source level in dBFS (≤0); scales the segment by `10^(DB/20)` (SNR-invariant; default 0)                       |
+| `--headroom DB`         | back the output off to `−DB` dBFS so peaks fit (SNR-invariant; default 0)                                      |
+| `--clip-report`         | print the clipped fraction + peak; `--clip-error` exits non-zero on a clip                                     |
+| `--fc HZ`               | capture center frequency, written into BLUE/SigMF metadata                                                     |
+| `--off N`               | trailing off-time (zeros) after the segment                                                                    |
+| `--repeat`              | loop the whole sequence                                                                                        |
+| `--continuous`          | never stop (implies repeat) — for streaming                                                                    |
+| `--detached`            | BLUE only: write `<out>.hdr` (HCB) + `<out>.det` (data)                                                        |
+| `--realtime`            | pace the output to `fs`, mimicking a sample clock (see [Real-time pacing](#real-time-pacing))                  |
+| `--realtime-resync`     | like `--realtime`, but re-anchor to "now" on each underrun                                                     |
 
 ______________________________________________________________________
 
@@ -378,6 +379,21 @@ to the engine default** if omitted. `num_samples` is the on-time;
 ```sh
 wfmgen --from-file scenario.json -o scenario.cf32
 ```
+
+Rather than write the schema from memory, dump a ready-to-edit example with
+**`wfmgen json-template`** and edit it down:
+
+```sh
+wfmgen json-template > scenario.json   # or: wfmgen json-template scenario.json
+# …edit scenario.json…
+wfmgen --from-file scenario.json -o scenario.cf32
+```
+
+The template is a representative spec — an inline tone, an RRC-shaped
+QPSK-from-bits burst with a trailing gap, and a two-source `sum` mix — that is
+**valid by construction**: it round-trips through `--from-file` unchanged, so
+it doubles as a working starting point, not just documentation. With no path
+(or `-`) it prints to stdout; pass a path to write the file directly.
 
 ______________________________________________________________________
 

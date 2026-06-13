@@ -13,6 +13,18 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **Native single-precision FFT via vendored PFFFT (Pommier/FFTPACK, BSD).** cf32
+    transforms on PFFFT-friendly sizes (multiple of 16, 5-smooth — all powers of
+    two) now run on a SIMD float kernel (SSE/NEON, scalar fallback) instead of
+    promoting to double — **~2.2–3.1× faster** for 1-D cf32 across 1024–65536, and
+    the 2-D cf32 path too, at float accuracy (~1e-7 vs the double result). Other
+    sizes (e.g. odd 2× Gold-code lengths) transparently keep the promote-to-double
+    pocketfft path. cf64 is unchanged. Closes most of
+    [#139](https://github.com/doppler-dsp/doppler/issues/139). The core stays
+    C++-free and `-lm`-only (PFFFT is pure C, 128-bit SIMD only).
+
 ### Changed
 
 - **2-D FFT: recover the cf64 performance regressed by the C99 port.** For

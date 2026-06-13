@@ -22,9 +22,11 @@
  */
 
 #include "pocketfft/pocketfft.h"
+#include "pffft/pffft.h"
 #include "pocketfft/pocketfft_c99.h"
 
 #include <complex.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -47,7 +49,33 @@ struct pocketfft_plan
   double *promote;
   double *colscratch;
   double *tbuf;
+
+  /* Native-float SIMD path (PFFFT) for the cf32/integer-IQ executes, used when
+   * the size is PFFFT-friendly (see pffft_cf32_ok).  NULL ⇒ fall back to the
+   * promote-to-double pocketfft path above.  pf is the 1-D plan; pf_row/pf_col
+   * the 2-D per-axis plans.  fa/fb are 16-byte-aligned interleaved-float work
+   * buffers (2*N each); fw is the PFFFT per-call work buffer (2*max-dim). */
+  PFFFT_Setup *pf, *pf_row, *pf_col;
+  float       *fa, *fb, *fw;
 };
+
+/* PFFFT complex needs N a multiple of 16 (SIMD_SZ²) and 5-smooth (factors
+ * 2/3/5), N ≥ 16.  PFFFT only assert()s these (a no-op in release), so we gate
+ * ourselves and never hand it a bad size. */
+static int
+pffft_cf32_ok (size_t n)
+{
+  if (n < 16 || n % 16 != 0)
+    return 0;
+  size_t m = n;
+  while (m % 2 == 0)
+    m /= 2;
+  while (m % 3 == 0)
+    m /= 3;
+  while (m % 5 == 0)
+    m /= 5;
+  return m == 1;
+}
 
 /* A power-of-two column stride (nx) is the worst case for the strided column
  * pass: consecutive column elements land in conflicting cache sets, so the
@@ -58,6 +86,66 @@ static int
 is_pow2 (size_t n)
 {
   return n != 0 && (n & (n - 1)) == 0;
+}
+
+/* Free any partially-set-up PFFFT state and clear the fields, so execute falls
+ * back to the pocketfft path. */
+static void
+pffft_clear (pocketfft_plan *p)
+{
+  if (p->pf)
+    pffft_destroy_setup (p->pf);
+  if (p->pf_row)
+    pffft_destroy_setup (p->pf_row);
+  if (p->pf_col)
+    pffft_destroy_setup (p->pf_col);
+  if (p->fa)
+    pffft_aligned_free (p->fa);
+  if (p->fb)
+    pffft_aligned_free (p->fb);
+  if (p->fw)
+    pffft_aligned_free (p->fw);
+  p->pf = p->pf_row = p->pf_col = NULL;
+  p->fa = p->fb = p->fw = NULL;
+}
+
+/* Try to set up the native-float PFFFT fast path for the cf32/integer
+ * executes. Non-fatal: on any failure (unsupported size, alloc/setup fail) it
+ * leaves the fields NULL and the executes use the pocketfft promote-to-double
+ * path. */
+static void
+pffft_try_setup (pocketfft_plan *p)
+{
+  size_t data, work; /* complex element counts */
+  if (!p->is2d)
+    {
+      if (!pffft_cf32_ok (p->n))
+        return;
+      p->pf = pffft_new_setup ((int)p->n, PFFFT_COMPLEX);
+      if (!p->pf)
+        return;
+      data = p->n;
+      work = p->n;
+    }
+  else
+    {
+      if (!pffft_cf32_ok (p->nx) || !pffft_cf32_ok (p->ny))
+        return;
+      p->pf_row = pffft_new_setup ((int)p->nx, PFFFT_COMPLEX);
+      p->pf_col = pffft_new_setup ((int)p->ny, PFFFT_COMPLEX);
+      if (!p->pf_row || !p->pf_col)
+        {
+          pffft_clear (p);
+          return;
+        }
+      data = p->ny * p->nx;
+      work = p->nx > p->ny ? p->nx : p->ny;
+    }
+  p->fa = (float *)pffft_aligned_malloc (sizeof (float) * 2 * data);
+  p->fb = (float *)pffft_aligned_malloc (sizeof (float) * 2 * data);
+  p->fw = (float *)pffft_aligned_malloc (sizeof (float) * 2 * work);
+  if (!p->fa || !p->fb || !p->fw)
+    pffft_clear (p);
 }
 
 /* ----------------------------------------------------------------------
@@ -79,6 +167,7 @@ pocketfft_plan_1d (size_t n, int sign)
       pocketfft_destroy_plan (p);
       return NULL;
     }
+  pffft_try_setup (p); /* non-fatal native-float fast path for cf32 */
   return p;
 }
 
@@ -106,6 +195,7 @@ pocketfft_plan_2d (size_t ny, size_t nx, int sign)
       pocketfft_destroy_plan (p);
       return NULL;
     }
+  pffft_try_setup (p); /* non-fatal native-float fast path for cf32 */
   return p;
 }
 
@@ -121,6 +211,7 @@ pocketfft_destroy_plan (pocketfft_plan *p)
   free (p->promote);
   free (p->colscratch);
   free (p->tbuf);
+  pffft_clear (p);
   free (p);
 }
 
@@ -145,9 +236,44 @@ transpose_cplx (const double *s, double *t, size_t ny, size_t nx)
       }
 }
 
+/* Float twin of transpose_cplx, for the PFFFT 2-D path. */
+static void
+transpose_cplx_f (const float *s, float *t, size_t ny, size_t nx)
+{
+  for (size_t i0 = 0; i0 < ny; i0 += DP_TBLK)
+    for (size_t j0 = 0; j0 < nx; j0 += DP_TBLK)
+      {
+        size_t imax = i0 + DP_TBLK < ny ? i0 + DP_TBLK : ny;
+        size_t jmax = j0 + DP_TBLK < nx ? j0 + DP_TBLK : nx;
+        for (size_t i = i0; i < imax; i++)
+          for (size_t j = j0; j < jmax; j++)
+            {
+              t[2 * (j * ny + i)]     = s[2 * (i * nx + j)];
+              t[2 * (j * ny + i) + 1] = s[2 * (i * nx + j) + 1];
+            }
+      }
+}
+
 /* ----------------------------------------------------------------------
  * Internal helpers
  * -------------------------------------------------------------------- */
+
+/* PFFFT direction for our sign convention (sign<0 forward), unscaled —
+ * matching the pocketfft path's unnormalised contract. */
+static pffft_direction_t
+pf_dir (int sign)
+{
+  return sign < 0 ? PFFFT_FORWARD : PFFFT_BACKWARD;
+}
+
+/* PFFFT requires 16-byte-aligned in/out.  numpy's complex64 buffers are
+ * aligned in practice, so we transform straight in→out (no copy); only an
+ * unaligned caller pays the bounce through fa/fb. */
+static int
+aligned16 (const void *p)
+{
+  return ((uintptr_t)p & 15u) == 0;
+}
 
 /* In-place 1-D transform of one interleaved double[2*len] vector. */
 static void
@@ -176,11 +302,30 @@ pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
 void
 pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
 {
+  size_t n = p->n;
+
+  /* Native-float SIMD fast path. Transform straight in→out when both are
+   * aligned (the common case); otherwise bounce the unaligned side through
+   * fa/fb. */
+  if (p->pf)
+    {
+      pffft_direction_t dir = pf_dir (p->sign);
+      if (aligned16 (in) && aligned16 (out))
+        pffft_transform_ordered (p->pf, (const float *)in, (float *)out, p->fw,
+                                 dir);
+      else
+        {
+          memcpy (p->fa, in, sizeof (float complex) * n);
+          pffft_transform_ordered (p->pf, p->fa, p->fb, p->fw, dir);
+          memcpy (out, p->fb, sizeof (float complex) * n);
+        }
+      return;
+    }
+
+  /* Fallback: promote to double, transform, demote. */
   const float complex *fin  = (const float complex *)in;
   float complex       *fout = (float complex *)out;
   double              *d    = p->promote;
-  size_t               n    = p->n;
-
   for (size_t i = 0; i < n; ++i)
     {
       d[2 * i]     = (double)crealf (fin[i]);
@@ -247,11 +392,32 @@ pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out)
 void
 pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
 {
-  const float complex *fin   = (const float complex *)in;
-  float complex       *fout  = (float complex *)out;
-  double              *d     = p->promote;
-  size_t               total = p->ny * p->nx;
+  size_t ny = p->ny, nx = p->nx, total = ny * nx;
 
+  /* Native-float SIMD fast path: rows via pf_row, float transpose, cols via
+   * pf_col, transpose back.  fa/fb are 16-byte-aligned; per-row sub-pointers
+   * stay aligned because nx and ny are multiples of 16 (pffft_cf32_ok). */
+  if (p->pf_row && p->pf_col)
+    {
+      float            *a = p->fa, *b = p->fb;
+      pffft_direction_t dir = pf_dir (p->sign);
+      memcpy (a, in, sizeof (float complex) * total);
+      for (size_t r = 0; r < ny; ++r)
+        pffft_transform_ordered (p->pf_row, a + 2 * r * nx, b + 2 * r * nx,
+                                 p->fw, dir);
+      transpose_cplx_f (b, a, ny, nx); /* b[ny][nx] -> a[nx][ny] */
+      for (size_t r = 0; r < nx; ++r)
+        pffft_transform_ordered (p->pf_col, a + 2 * r * ny, b + 2 * r * ny,
+                                 p->fw, dir);
+      transpose_cplx_f (b, (float *)out, nx,
+                        ny); /* b[nx][ny] -> out[ny][nx] */
+      return;
+    }
+
+  /* Fallback: promote to double, 2-D double transform, demote. */
+  const float complex *fin  = (const float complex *)in;
+  float complex       *fout = (float complex *)out;
+  double              *d    = p->promote;
   for (size_t i = 0; i < total; ++i)
     {
       d[2 * i]     = (double)crealf (fin[i]);

@@ -69,5 +69,5 @@ python examples/python/rate_converter_demo.py
 ```
 
 See
-[`doppler.resample.RateConverter`](../api/python-resample.md#rateconverter)
+[`doppler.resample.RateConverter`](../api/python-resample.md#rateconverter-automatic-cascade)
 for the full API reference.

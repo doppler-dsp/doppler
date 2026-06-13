@@ -170,6 +170,59 @@ extern "C"
   size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
                                    size_t n_in, float complex *out);
 
+  /** @brief Maximum output samples for the ci16 execute (always == n). */
+  size_t fft_execute_ci16_max_out (fft_state_t *state);
+
+  /**
+   * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci16).
+   * @p in is interleaved int16 I/Q (2 ints per complex sample, length 2*n);
+   * the result is float complex (CF32).  The int->float scale (v/32768,
+   * full-scale ±1.0, matching the cvt module) is folded into the transform's
+   * input read, so this is a single fused pass — faster than a separate
+   * i16_to_f32 conversion followed by fft_execute_cf32().  Output is
+   * unnormalised.
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Interleaved int16 I/Q, 2*state->n samples.
+   * @param n_in   Number of complex samples; must equal state->n.
+   * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
+   * @return n (number of complex samples written).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.spectral import FFT
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> iq = np.full(8, 32768 // 4, dtype=np.int16)   # ~0.25 + 0.25j, full-scale
+   * >>> np.round(fft.execute_ci16(iq).real, 3).tolist()
+   * [1.0, 0.0, 0.0, 0.0]
+   * @endcode
+   */
+  size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
+                           float complex *out);
+
+  /** @brief Maximum output samples for the ci8 execute (always == n). */
+  size_t fft_execute_ci8_max_out (fft_state_t *state);
+
+  /**
+   * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci8).
+   * As fft_execute_ci16() but @p in is interleaved int8 I/Q (scale v/128).
+   *
+   * @param state  Allocated FFT engine (non-NULL).
+   * @param in     Interleaved int8 I/Q, 2*state->n samples.
+   * @param n_in   Number of complex samples; must equal state->n.
+   * @param out    Output buffer of length >= state->n (CF32, caller-allocated).
+   * @return n (number of complex samples written).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.spectral import FFT
+   * >>> fft = FFT(n=4, sign=-1)
+   * >>> iq = np.full(8, 32, dtype=np.int8)            # 0.25 + 0.25j, full-scale
+   * >>> np.round(fft.execute_ci8(iq).real, 3).tolist()
+   * [1.0, 0.0, 0.0, 0.0]
+   * @endcode
+   */
+  size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
+                          float complex *out);
+
 #ifdef __cplusplus
 }
 #endif

@@ -29,6 +29,18 @@ extern "C"
   void pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in,
                                   void *out);
 
+  /*
+   * Integer-IQ 1D execute: `in` is interleaved int16 (ci16) or int8 (ci8)
+   * I/Q (2 ints per complex sample, length 2*n); `out` is float complex[n].
+   * The int->float scale (v/32768 for ci16, v/128 for ci8, matching the cvt
+   * module's full-scale ±1.0 convention) is folded into the transform's input
+   * read, so there is no separate conversion pass.  Native-float (PFFFT) on
+   * supported sizes, else promote-to-double pocketfft.
+   */
+  void pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in,
+                                  void *out);
+  void pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out);
+
   /* Destroy plan */
   void pocketfft_destroy_plan (pocketfft_plan *p);
 

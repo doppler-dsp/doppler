@@ -209,3 +209,44 @@ def test_find_peaks_f32_sorted_by_amplitude():
     peaks = find_peaks_f32(db, 2, -60.0)
     assert len(peaks) == 2
     assert peaks[0][1] > peaks[1][1]  # sorted descending
+
+
+# ── integer-IQ FFT (execute_ci16 / execute_ci8) ──────────────────────────────
+
+
+def _ref_fft_from_int(iq, scale):
+    z = (
+        iq[0::2].astype(np.float64) + 1j * iq[1::2].astype(np.float64)
+    ) / scale
+    return np.fft.fft(z)
+
+
+def test_fft_execute_ci16_matches_numpy():
+    rng = np.random.default_rng(0)
+    for n in (1024, 4096, 2046):  # PFFFT sizes + a non-5-smooth fallback size
+        iq = rng.integers(-30000, 30000, size=2 * n).astype(np.int16)
+        y = FFT(n, -1, 1).execute_ci16(iq)
+        assert y.dtype == np.complex64
+        ref = _ref_fft_from_int(iq, 32768.0)
+        assert np.max(np.abs(y - ref)) / np.max(np.abs(ref)) < 1e-5
+
+
+def test_fft_execute_ci8_matches_numpy():
+    rng = np.random.default_rng(1)
+    n = 2048
+    iq = rng.integers(-120, 120, size=2 * n).astype(np.int8)
+    y = FFT(n, -1, 1).execute_ci8(iq)
+    assert y.dtype == np.complex64
+    ref = _ref_fft_from_int(iq, 128.0)
+    assert np.max(np.abs(y - ref)) / np.max(np.abs(ref)) < 1e-5
+
+
+def test_fft_execute_ci16_identical_to_cvt_then_cf32():
+    # The fused integer path must equal i16_to_f32 (v/32768) then execute_cf32.
+    rng = np.random.default_rng(2)
+    n = 4096
+    iq = rng.integers(-30000, 30000, size=2 * n).astype(np.int16)
+    fused = FFT(n, -1, 1).execute_ci16(iq)
+    cf = (iq.astype(np.float32) / 32768.0).view(np.complex64)
+    twostep = FFT(n, -1, 1).execute_cf32(cf)
+    assert np.array_equal(fused, twostep)

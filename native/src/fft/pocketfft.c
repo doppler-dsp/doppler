@@ -336,6 +336,64 @@ pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
     fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
 }
 
+/* Integer-IQ 1-D execute (ci16/ci8).  The int->float scale is folded into the
+ * input read — no separate conversion pass.  is8 selects int8 (/128) vs int16
+ * (/32768); both match the cvt module's full-scale ±1.0 convention. */
+static void
+exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
+{
+  size_t         n = p->n, n2 = 2 * n;
+  const int8_t  *s8  = (const int8_t *)in;
+  const int16_t *s16 = (const int16_t *)in;
+
+  if (p->pf)
+    {
+      float *fa = p->fa;
+      if (is8)
+        for (size_t i = 0; i < n2; ++i)
+          fa[i] = (float)s8[i] * (1.0f / 128.0f);
+      else
+        for (size_t i = 0; i < n2; ++i)
+          fa[i] = (float)s16[i] * (1.0f / 32768.0f);
+
+      pffft_direction_t dir = pf_dir (p->sign);
+      if (aligned16 (out))
+        pffft_transform_ordered (p->pf, fa, (float *)out, p->fw, dir);
+      else
+        {
+          pffft_transform_ordered (p->pf, fa, p->fb, p->fw, dir);
+          memcpy (out, p->fb, sizeof (float complex) * n);
+        }
+      return;
+    }
+
+  /* Fallback: convert straight into the double promote buffer, transform,
+   * demote. */
+  double *d = p->promote;
+  if (is8)
+    for (size_t i = 0; i < n2; ++i)
+      d[i] = (double)s8[i] * (1.0 / 128.0);
+  else
+    for (size_t i = 0; i < n2; ++i)
+      d[i] = (double)s16[i] * (1.0 / 32768.0);
+  xform (p->row, p->sign, d, n);
+  float complex *fout = (float complex *)out;
+  for (size_t i = 0; i < n; ++i)
+    fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
+}
+
+void
+pocketfft_execute_1d_ci16 (pocketfft_plan *p, const void *in, void *out)
+{
+  exec_1d_int (p, in, out, 0);
+}
+
+void
+pocketfft_execute_1d_ci8 (pocketfft_plan *p, const void *in, void *out)
+{
+  exec_1d_int (p, in, out, 1);
+}
+
 /* ----------------------------------------------------------------------
  * 2-D execute (row passes, then column passes)
  * -------------------------------------------------------------------- */

@@ -13,6 +13,15 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`doppler::doppler-static` is now a first-class CMake export target.** The
+    static library joins `install(EXPORT)` (its folded-in objects are baked into
+    the archive, not export-time dependencies), so `find_package(doppler)`
+    generates a fully **relocatable** imported target for it — the previous
+    hand-rolled path computation in `doppler-config.cmake.in` is gone, so it
+    survives any `lib`/`lib64`/multiarch install layout.
+
 ## [0.13.1] — 2026-06-12
 
 ### Fixed

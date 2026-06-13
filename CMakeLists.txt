@@ -96,10 +96,15 @@ foreach(_t doppler_lib doppler_lib_static)
         $<INSTALL_INTERFACE:include>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
-# Export the shared lib as `doppler::doppler` (not `doppler::doppler_lib`), so
-# find_package consumers link the obvious target name — matching docs and the
-# `doppler::doppler-static` companion defined in doppler-config.cmake.in.
+# Export both libs under obvious target names: `doppler::doppler` (shared) and
+# `doppler::doppler-static`. Both go through install(EXPORT) below, so CMake
+# generates fully relocatable imported targets (no hand-rolled paths in the
+# package config). The objects each archive folds in (pocketfft, wfmcompose,
+# the ar-merged zmq) are baked into the .a/.so via target_sources — they are
+# NOT export-time dependencies, so the static lib exports cleanly; its only
+# interface deps are stdc++ / Threads::Threads / m.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
+set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # pocketfft_cxx is an OBJECT library — link it directly so its compiled units
 # are embedded in the shared lib without appearing in the install export set.
 # The static lib gets the same objects via target_sources so libdoppler.a is
@@ -315,10 +320,10 @@ install(TARGETS doppler_lib
     EXPORT doppler-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-# Static lib installed without CMake package integration — no pocketfft_cxx
-# in the export set.  Consumers wanting static linking find libdoppler.a
-# via find_library() and link -lstdc++ -lpthread -lm alongside it.
+# Static lib is a first-class export member → find_package gives consumers
+# `doppler::doppler-static` (self-contained: only the C/C++ runtime, no zmq).
 install(TARGETS doppler_lib_static
+    EXPORT doppler-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/

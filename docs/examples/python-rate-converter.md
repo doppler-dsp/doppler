@@ -97,12 +97,22 @@ ______________________________________________________________________
 `execute()` carries filter state across calls, so a stream split at any block
 boundary is **byte-identical** to one large call.
 
-!!! warning "Copy each block before retaining it"
+!!! warning "The result is a zero-copy view — copy it to keep it"
 
     `execute()` returns a zero-copy **view** into the converter's internal
-    output buffer, which is **reused on the next call**. To hold results across
-    calls (e.g. to concatenate them), `.copy()` each block first — otherwise an
-    earlier block is overwritten by a later one.
+    output buffer. The view stays valid only until you next touch the converter
+    — **`.copy()` it first if you need to keep it**. Two things invalidate it:
+
+    - **The next `execute()`** reuses the buffer in place — so holding/
+      concatenating results without copying gives you the *latest* block's data
+      in every earlier array.
+    - **`reset()`, assigning `.rate`, or a block larger than any seen so far**
+      *reallocates* the buffer — any previously-returned array then points at
+      freed memory (don't read it).
+
+    The common streaming loop (fixed block size, consume each block before the
+    next call) needs no copy and never reallocates — this only matters if you
+    *retain* results across those operations.
 
 ```python
 import numpy as np

@@ -82,6 +82,7 @@
 
 ## w
 
+* **WFM\_WEAK** ([**wfm\_sink.h**](wfm__sink_8h.md))
 * **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 
 

@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-06-13
+
 ### Changed
 
 - **The core `libdoppler` is now C++-free — it links only `-lm`.** pocketfft was
@@ -1251,6 +1253,7 @@ ______________________________________________________________________
 [0.13.0]: https://github.com/doppler-dsp/doppler/compare/v0.12.1...v0.13.0
 [0.13.1]: https://github.com/doppler-dsp/doppler/compare/v0.13.0...v0.13.1
 [0.13.2]: https://github.com/doppler-dsp/doppler/compare/v0.13.1...v0.13.2
+[0.14.0]: https://github.com/doppler-dsp/doppler/compare/v0.13.2...v0.14.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1277,4 +1280,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.13.2...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.14.0...HEAD

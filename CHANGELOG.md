@@ -13,6 +13,18 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **2-D FFT: recover the cf64 performance regressed by the C99 port.** For
+    power-of-two column strides (the common FFT sizes, the worst case for the
+    strided column pass) the 2-D transform now runs both passes contiguously via a
+    cache-blocked transpose instead of a per-column gather/scatter — ~+20%
+    throughput at 64×64, ~1.5–2× at 256²–2048². Non-power-of-two strides keep the
+    gather path (where the double transpose wouldn't pay). cf64 numerics unchanged;
+    the cf32 2-D path still pays the promote-to-double cost (a native single-
+    precision FFT, tracked in [#139](https://github.com/doppler-dsp/doppler/issues/139),
+    is the remaining lever).
+
 ## [0.14.1] — 2026-06-13
 
 ### Fixed

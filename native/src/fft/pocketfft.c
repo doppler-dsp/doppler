@@ -37,13 +37,28 @@ struct pocketfft_plan
   cfft_plan row; /* length nx for 2-D, length n for 1-D. */
   cfft_plan col; /* length ny for 2-D; NULL for 1-D.      */
 
+  int use_transpose; /* 2-D: 1 ⇒ transpose pass, 0 ⇒ column gather/scatter. */
+
   /* Pre-allocated scratch (interleaved doubles), sized at create:
-   *   1-D : promote   = 2*n          (cf32 promote/demote)
-   *   2-D : promote   = 2*ny*nx      (cf32 whole-array promote)
-   *         colscratch = 2*ny        (one gathered column)        */
+   *   1-D : promote    = 2*n         (cf32 promote/demote)
+   *   2-D : promote    = 2*ny*nx     (cf32 whole-array promote)
+   *   2-D transpose    : tbuf        = 2*ny*nx (transposed copy)
+   *   2-D gather       : colscratch  = 2*ny    (one gathered column)  */
   double *promote;
   double *colscratch;
+  double *tbuf;
 };
+
+/* A power-of-two column stride (nx) is the worst case for the strided column
+ * pass: consecutive column elements land in conflicting cache sets, so the
+ * gather/scatter thrashes.  For those (the common FFT sizes) we instead make
+ * both passes contiguous via a blocked transpose; for other strides the gather
+ * is already fine and the double transpose would only add overhead. */
+static int
+is_pow2 (size_t n)
+{
+  return n != 0 && (n & (n - 1)) == 0;
+}
 
 /* ----------------------------------------------------------------------
  * Plan lifecycle
@@ -73,15 +88,20 @@ pocketfft_plan_2d (size_t ny, size_t nx, int sign)
   pocketfft_plan *p = (pocketfft_plan *)calloc (1, sizeof (*p));
   if (!p)
     return NULL;
-  p->ny         = ny;
-  p->nx         = nx;
-  p->sign       = sign;
-  p->is2d       = 1;
-  p->row        = make_cfft_plan (nx);
-  p->col        = make_cfft_plan (ny);
-  p->promote    = (double *)malloc (sizeof (double) * 2 * ny * nx);
-  p->colscratch = (double *)malloc (sizeof (double) * 2 * ny);
-  if (!p->row || !p->col || !p->promote || !p->colscratch)
+  p->ny            = ny;
+  p->nx            = nx;
+  p->sign          = sign;
+  p->is2d          = 1;
+  p->use_transpose = is_pow2 (nx);
+  p->row           = make_cfft_plan (nx);
+  p->col           = make_cfft_plan (ny);
+  p->promote       = (double *)malloc (sizeof (double) * 2 * ny * nx);
+  if (p->use_transpose)
+    p->tbuf = (double *)malloc (sizeof (double) * 2 * ny * nx);
+  else
+    p->colscratch = (double *)malloc (sizeof (double) * 2 * ny);
+  if (!p->row || !p->col || !p->promote
+      || (p->use_transpose ? !p->tbuf : !p->colscratch))
     {
       pocketfft_destroy_plan (p);
       return NULL;
@@ -100,7 +120,29 @@ pocketfft_destroy_plan (pocketfft_plan *p)
     destroy_cfft_plan (p->col);
   free (p->promote);
   free (p->colscratch);
+  free (p->tbuf);
   free (p);
+}
+
+/* Blocked complex transpose: t[j,i] = s[i,j] for an src*[ny][nx] ->
+ * dst*[nx][ny] (interleaved doubles).  Cache-blocked so neither side strides
+ * badly. */
+#define DP_TBLK 16
+static void
+transpose_cplx (const double *s, double *t, size_t ny, size_t nx)
+{
+  for (size_t i0 = 0; i0 < ny; i0 += DP_TBLK)
+    for (size_t j0 = 0; j0 < nx; j0 += DP_TBLK)
+      {
+        size_t imax = i0 + DP_TBLK < ny ? i0 + DP_TBLK : ny;
+        size_t jmax = j0 + DP_TBLK < nx ? j0 + DP_TBLK : nx;
+        for (size_t i = i0; i < imax; i++)
+          for (size_t j = j0; j < jmax; j++)
+            {
+              t[2 * (j * ny + i)]     = s[2 * (i * nx + j)];
+              t[2 * (j * ny + i) + 1] = s[2 * (i * nx + j) + 1];
+            }
+      }
 }
 
 /* ----------------------------------------------------------------------
@@ -153,8 +195,11 @@ pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
  * 2-D execute (row passes, then column passes)
  * -------------------------------------------------------------------- */
 
-/* Transform every row (contiguous) then every column (strided, gathered
- * through colscratch) of an interleaved double[2*ny*nx] array in place. */
+/* Transform an interleaved double[2*ny*nx] array in place: FFT every row
+ * (contiguous), then every column.  The column pass is the only choice point —
+ * see is_pow2()/use_transpose: for a power-of-two column stride we transpose
+ * so the column FFTs run on contiguous data (avoiding cache-conflict thrash);
+ * otherwise we gather each column through colscratch. */
 static void
 xform_2d (pocketfft_plan *p, double *d)
 {
@@ -162,6 +207,16 @@ xform_2d (pocketfft_plan *p, double *d)
 
   for (size_t r = 0; r < ny; ++r)
     xform (p->row, p->sign, d + 2 * r * nx, nx);
+
+  if (p->use_transpose)
+    {
+      double *t = p->tbuf;
+      transpose_cplx (d, t, ny, nx);  /* d[ny][nx] -> t[nx][ny]            */
+      for (size_t r = 0; r < nx; ++r) /* each t-row is an original column */
+        xform (p->col, p->sign, t + 2 * r * ny, ny);
+      transpose_cplx (t, d, nx, ny); /* t[nx][ny] -> d[ny][nx]            */
+      return;
+    }
 
   for (size_t c = 0; c < nx; ++c)
     {

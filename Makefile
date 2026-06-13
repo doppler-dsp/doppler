@@ -235,7 +235,7 @@ rust-test: build
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 docs-build: gen-c-api
-	uv run mkdocs build
+	uv run mkdocs build --strict
 
 docs-serve: gen-c-api
 	uv run mkdocs serve

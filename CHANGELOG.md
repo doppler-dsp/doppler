@@ -15,6 +15,11 @@ ______________________________________________________________________
 
 ### Fixed
 
+- **`wfmgen` no longer prints binary garbage to a terminal.** With no `--output`
+    it defaults to raw IQ on stdout; on an interactive terminal that dumped binary
+    bytes. It now refuses (with a usage message) when stdout is a tty and the
+    format is binary — piping/redirecting (`wfmgen … > out.raw`, `wfmgen … | …`)
+    and the text `--file_type csv` are unaffected.
 - **Use-after-free in `DDC`/`DDCR`/`HalfbandDecimator` (q15) `execute()`** — the
     grow-on-demand output buffer was `realloc`'d in place, so a previously returned
     array (which pins `self`, not the buffer) could alias freed memory after a

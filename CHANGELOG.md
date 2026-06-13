@@ -13,6 +13,27 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **The core `libdoppler` is now C++-free — it links only `-lm`.** pocketfft was
+    ported from the vendored header-only **C++** implementation to the upstream
+    **pure-C99** pocketfft (libm-only) behind the unchanged C wrapper API; the cf32
+    path promotes to double internally (cf64 numerics unchanged). The C++
+    ZMQ/stream layer was split out of the core (see Added). A downstream can now
+    link `libdoppler.a -lm` with **no libstdc++** at link or runtime — previously
+    the archive dragged in libstdc++/CXXABI symbols stamped at doppler's build
+    toolchain version. A CI gate enforces that the core carries no
+    libstdc++/CXXABI symbols.
+
+### Added
+
+- **`libdoppler_stream` — an optional ZMQ/stream component** (`doppler::stream` /
+    `doppler::stream-static`). It carries the `dp_pub_*`/`dp_sub_*` wire layer and
+    the wfm ZMQ sink and embeds the vendored C++ libzmq statically (no runtime
+    `libzmq.so`). `wfmgen` stays in the core via a weak `wfm_zmq_sink_*` seam: its
+    `--output zmq://` path works when `libdoppler_stream` is linked and reports a
+    clear "requires the stream component" error otherwise.
+
 ## [0.13.2] — 2026-06-12
 
 ### Changed

@@ -27,8 +27,10 @@ cmake -B build -DCMAKE_PREFIX_PATH="$HOME/doppler"     # for find_package(dopple
 export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
 ```
 
-The library is self-contained (the vendored zmq is built in), so there is no
-external runtime dependency to install.
+The core library is pure C and links only `-lm`, so there is no external
+runtime dependency to install. The optional stream component
+(`libdoppler_stream`, for the ZMQ wire layer) embeds the vendored zmq
+statically, so it too needs no external runtime zmq.
 
 ## System install
 

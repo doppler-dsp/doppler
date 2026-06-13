@@ -65,8 +65,8 @@ print(rc.stages)               # ['HalfbandDecimator', 'HalfbandDecimator']
 
 State is preserved across `execute()` calls, so splitting a stream at any block
 boundary is byte-identical to one large call. `execute()` returns a zero-copy
-**view** into an internal buffer that is reused on the next call — `process()`
-it (or `.copy()` it) before the next `execute()`:
+**view** into an internal buffer — `process()` it (or `.copy()` it) before the
+next `execute()`:
 
 ```python
 rc = RateConverter(0.5)
@@ -74,6 +74,15 @@ for block in iq_stream:        # CF32 blocks, any length
     y = rc.execute(block)
     process(y)                 # consume now; the next execute() reuses y's buffer
 ```
+
+!!! warning "View lifetime"
+
+    The returned array is valid only until you next touch the converter.
+    **Copy it to retain it.** The next `execute()` reuses the buffer in place;
+    `reset()`, assigning `.rate`, or a block larger than any seen so far
+    *reallocates* it (a previously-returned array then dangles). The fixed-block
+    consume-then-next loop above needs no copy. This is the convention for every
+    `variable_output` execute in doppler (`Resampler`, `FIR`, the DDC chain, …).
 
 ### Functional wrapper
 

@@ -46,7 +46,7 @@ if(DEFINED DOPPLER_BUILD_DIR)
             IMPORTED_LOCATION
                 "${DOPPLER_BUILD_DIR}/libdoppler.a"
             INTERFACE_INCLUDE_DIRECTORIES "${_inc}"
-            INTERFACE_LINK_LIBRARIES      "m;stdc++;pthread")
+            INTERFACE_LINK_LIBRARIES      "m")
     endif()
 else()
     find_package(doppler REQUIRED)

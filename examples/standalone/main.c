@@ -16,10 +16,10 @@
  *   cmake --build examples/standalone/build
  *   ./examples/standalone/build/awgn_example
  *
- * Or with plain gcc against the build tree:
+ * Or with plain gcc against the build tree (the core is pure C — only -lm):
  *   gcc -o awgn_example examples/standalone/main.c \
  *       -Inative/inc -Ibuild/native/inc \
- *       build/libdoppler.a -lm -lstdc++ -lpthread
+ *       build/libdoppler.a -lm
  */
 
 #include <awgn/awgn_core.h>

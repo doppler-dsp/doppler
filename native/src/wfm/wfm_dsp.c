@@ -30,7 +30,7 @@ wfm_rrc_taps (double beta, int sps, int span, float *taps)
         {
           /* limit at t = ±1/(4β) (0/0 in the general form) */
           double a = M_PI / (4.0 * beta);
-          h        = (beta / sqrt (2.0))
+          h = (beta / sqrt (2.0))
               * ((1.0 + 2.0 / M_PI) * sin (a) + (1.0 - 2.0 / M_PI) * cos (a));
         }
       else

@@ -267,17 +267,17 @@ AWGN_AVX512_TARGET static inline __m512i
 xoshiro8_next (__m512i s[4])
 {
   __m512i sum = _mm512_add_epi64 (s[0], s[3]);
-  __m512i r   = _mm512_add_epi64 (_mm512_or_si512 (_mm512_slli_epi64 (sum, 23),
-                                                   _mm512_srli_epi64 (sum, 41)),
-                                  s[0]);
-  __m512i t   = _mm512_slli_epi64 (s[1], 17);
-  s[2]        = _mm512_xor_si512 (s[2], s[0]);
-  s[3]        = _mm512_xor_si512 (s[3], s[1]);
-  s[1]        = _mm512_xor_si512 (s[1], s[2]);
-  s[0]        = _mm512_xor_si512 (s[0], s[3]);
-  s[2]        = _mm512_xor_si512 (s[2], t);
-  s[3]        = _mm512_or_si512 (_mm512_slli_epi64 (s[3], 45),
-                                 _mm512_srli_epi64 (s[3], 19));
+  __m512i r = _mm512_add_epi64 (_mm512_or_si512 (_mm512_slli_epi64 (sum, 23),
+                                                 _mm512_srli_epi64 (sum, 41)),
+                                s[0]);
+  __m512i t = _mm512_slli_epi64 (s[1], 17);
+  s[2]      = _mm512_xor_si512 (s[2], s[0]);
+  s[3]      = _mm512_xor_si512 (s[3], s[1]);
+  s[1]      = _mm512_xor_si512 (s[1], s[2]);
+  s[0]      = _mm512_xor_si512 (s[0], s[3]);
+  s[2]      = _mm512_xor_si512 (s[2], t);
+  s[3]      = _mm512_or_si512 (_mm512_slli_epi64 (s[3], 45),
+                               _mm512_srli_epi64 (s[3], 19));
   return r;
 }
 

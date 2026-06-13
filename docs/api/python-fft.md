@@ -1,8 +1,9 @@
 # Python FFT API
 
-1-D and 2-D FFT backed by `dp_fft_*`, with FFTW or pocketfft backend.
+1-D and 2-D FFT backed by the vendored **pocketfft** (pure C99, libm-only).
 Each `FFT` / `FFT2D` instance owns an independent plan — no global state,
-thread-safe, multiple sizes coexist freely.
+thread-safe, multiple sizes coexist freely. CF64 transforms run natively;
+CF32 transforms are computed in double precision and returned as `complex64`.
 
 Source:
 [`src/doppler/spectral/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/__init__.py)
@@ -13,10 +14,10 @@ ______________________________________________________________________
 
 Pass any dtype — the right C path is chosen automatically:
 
-| Input dtype  | C path       | Speed      |
-| ------------ | ------------ | ---------- |
-| `complex64`  | CF32 (fftwf) | ~2× faster |
-| `complex128` | CF64 (fftw)  | baseline   |
+| Input dtype  | C path                    | Speed                            |
+| ------------ | ------------------------- | -------------------------------- |
+| `complex64`  | CF32 → computed in double | slower (float↔double conversion) |
+| `complex128` | CF64 (native double)      | baseline                         |
 
 ______________________________________________________________________
 

@@ -104,11 +104,11 @@ boundary is **byte-identical** to one large call.
     — **`.copy()` it first if you need to keep it**. Two things invalidate it:
 
     - **The next `execute()`** reuses the buffer in place — so holding/
-      concatenating results without copying gives you the *latest* block's data
-      in every earlier array.
+        concatenating results without copying gives you the *latest* block's data
+        in every earlier array.
     - **`reset()`, assigning `.rate`, or a block larger than any seen so far**
-      *reallocates* the buffer — any previously-returned array then points at
-      freed memory (don't read it).
+        *reallocates* the buffer — any previously-returned array then points at
+        freed memory (don't read it).
 
     The common streaming loop (fixed block size, consume each block before the
     next call) needs no copy and never reallocates — this only matters if you

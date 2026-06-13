@@ -158,7 +158,7 @@ main (void)
         double p1 = 2.0 * M_PI * 6.0 * (double)i / (double)N;
         double p2 = 2.0 * M_PI * 20.0 * (double)i / (double)N;
         x[i]      = (float complex) ((cos (p1) + sin (p1) * I)
-                                + 0.1 * (cos (p2) + sin (p2) * I));
+                                     + 0.1 * (cos (p2) + sin (p2) * I));
       }
     for (int r = 0; r < 8; r++)
       welch_accumulate (w, x, N);

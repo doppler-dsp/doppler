@@ -12,5 +12,5 @@ gcc -o app main.c \
 gcc -o app main.c \
     -Inative/inc \
     build/libdoppler.a \
-    -lm -lstdc++ -lpthread
+    -lm
 # --8<-- [end:static]

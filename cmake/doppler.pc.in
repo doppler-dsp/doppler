@@ -10,8 +10,8 @@ Name: doppler
 Description: doppler C library
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -ldoppler
-# Static linking pulls libdoppler.a, which is self-contained (the vendored zmq
-# is folded into the archive) but still needs the C/C++ runtime — never an
-# external zmq. `pkg-config --static --libs doppler` appends these.
-Libs.private: -lstdc++ -lpthread -lm
+# libdoppler is pure C and links only -lm (no C++ runtime, no zmq). The optional
+# ZMQ/stream layer lives in libdoppler_stream (link -ldoppler_stream -lstdc++
+# -lpthread for it); it is intentionally not part of the core .pc.
+Libs.private: -lm
 Cflags: -I${includedir}

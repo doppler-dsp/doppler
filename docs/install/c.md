@@ -27,8 +27,10 @@ cmake -B build -DCMAKE_PREFIX_PATH="$HOME/doppler"     # for find_package(dopple
 export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
 ```
 
-The library is self-contained (the vendored zmq is built in), so there is no
-external runtime dependency to install.
+The core library is pure C and links only `-lm`, so there is no external
+runtime dependency to install. The optional stream component
+(`libdoppler_stream`, for the ZMQ wire layer) embeds the vendored zmq
+statically, so it too needs no external runtime zmq.
 
 ## System install
 
@@ -55,9 +57,12 @@ find_package(doppler REQUIRED)
 # shared: links -ldoppler; smallest binary
 target_link_libraries(my_app PRIVATE doppler::doppler)
 
-# static: the archive is self-contained (vendored zmq folded in), so it needs
-# only the C/C++ runtime — no external zmq
+# static: pure C, self-contained — links only -lm (no C++ runtime, no zmq)
 target_link_libraries(my_app PRIVATE doppler::doppler-static)
+
+# optional: the ZMQ/stream layer (dp_pub_*/dp_sub_*, wfmgen --output zmq://).
+# Carries the C++ runtime (vendored libzmq, folded in). Link only if needed.
+target_link_libraries(my_app PRIVATE doppler::stream-static)
 ```
 
 A complete, buildable consumer that exercises both targets lives in
@@ -69,9 +74,15 @@ A complete, buildable consumer that exercises both targets lives in
 # shared
 gcc -o app main.c $(pkg-config --cflags --libs doppler)
 
-# static — the self-contained archive plus the C/C++ runtime, no zmq
+# static — pure C, self-contained: only -lm (no C++ runtime, no zmq)
 gcc -o app main.c $(pkg-config --cflags doppler) \
-    "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lstdc++ -lpthread -lm
+    "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lm
+
+# static + the optional ZMQ/stream layer (carries the C++ runtime)
+gcc -o app main.c $(pkg-config --cflags doppler) \
+    "$(pkg-config --variable=libdir doppler)/libdoppler.a" \
+    "$(pkg-config --variable=libdir doppler)/libdoppler_stream.a" \
+    -lstdc++ -lpthread -lm
 ```
 
 !!! tip "Custom install prefix"
@@ -129,18 +140,28 @@ int main(void)
 ```
 
 It is the exact code path the `wfmgen` binary runs (which is itself a one-line
-`main` shim over `doppler_wfmgen`), so the output is byte-identical. The zmq
-PUB sink (`--output zmq://…`) is statically linked into the library, so there
-is **no runtime `libzmq` dependency**.
+`main` shim over `doppler_wfmgen`), so the output is byte-identical. `wfmgen`
+lives in the **pure-C core**, so the file/raw/csv/BLUE/SigMF output paths link
+with just `libdoppler.a -lm`:
 
-`libdoppler` is **self-contained** — the vendored libzmq is built in, so neither
-the shared nor the static library needs an external zmq. The static archive
-links with just the library plus the C/C++ runtime:
+```sh
+gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm
+```
+
+The `--output zmq://…` PUB-sink path additionally needs the optional stream
+component (it carries the vendored C++ libzmq). Link `libdoppler_stream.a`
+alongside the core; zmq is statically embedded, so there is still **no runtime
+`libzmq` dependency**:
 
 ```sh
 gcc -o app app.c -I "$PREFIX/include" \
-    "$PREFIX/lib/libdoppler.a" -lstdc++ -lpthread -lm
+    "$PREFIX/lib/libdoppler.a" "$PREFIX/lib/libdoppler_stream.a" \
+    -lstdc++ -lpthread -lm
 ```
+
+Without the stream component, `doppler_wfmgen()` still builds and runs; only the
+`zmq://` path is unavailable (it reports a clear "requires the stream component"
+error via the weak `wfm_zmq_sink_*` seam).
 
 The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 

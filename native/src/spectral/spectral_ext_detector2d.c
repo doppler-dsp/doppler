@@ -125,9 +125,9 @@ Detector2DObj_push (Detector2DObject *self, PyObject *args)
     return NULL;
   size_t         n_in = (size_t)PyArray_SIZE (in_arr);
   det_result2d_t results[64];
-  size_t         n_out = detector2d_push (self->handle,
-                                          (const float complex *)PyArray_DATA (in_arr),
-                                          n_in, results, 64);
+  size_t n_out = detector2d_push (self->handle,
+                                  (const float complex *)PyArray_DATA (in_arr),
+                                  n_in, results, 64);
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)

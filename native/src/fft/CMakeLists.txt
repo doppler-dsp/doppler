@@ -1,23 +1,14 @@
-# pocketfft is C++ (templates, std::complex).  CXX is declared in the
-# top-level project; CXX_STANDARD is pinned on pocketfft_cxx so it
-# does not bleed into the rest of the project.
-add_library(pocketfft_cxx STATIC pocketfft.cc)
-set_target_properties(pocketfft_cxx PROPERTIES
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF)
-target_include_directories(pocketfft_cxx PUBLIC
-    ${CMAKE_SOURCE_DIR}/native/inc)
-find_package(Threads REQUIRED)
-# pocketfft uses std::thread; glibc < 2.34 requires explicit -lpthread.
-target_link_libraries(pocketfft_cxx PUBLIC stdc++ Threads::Threads)
-
-# OBJECT library — pure C (C11); links the pocketfft_cxx static lib.
-add_library(fft_core OBJECT fft_core.c)
+# pocketfft is now pure C99: the upstream Reinecke core (pocketfft_c99.c,
+# double-precision, libm-only) wrapped by pocketfft.c, which adds out-of-place
+# execution, cf32 promote-to-double, and 2-D row/column passes.  Both are
+# compiled straight into fft_core so the pocketfft symbols travel with it to
+# every consumer (fft2d, corr, welch, ...) — exactly as before, but with no C++
+# and no threads: doppler links only -lm.
+add_library(fft_core OBJECT fft_core.c pocketfft.c pocketfft_c99.c)
 target_include_directories(fft_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/fft)
-target_link_libraries(fft_core PUBLIC m pocketfft_cxx)
+target_link_libraries(fft_core PUBLIC m)
 
 add_executable(test_fft_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_fft_core.c)

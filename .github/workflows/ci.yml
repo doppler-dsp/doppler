@@ -80,6 +80,30 @@ jobs:
         fi
         echo "OK — wide SIMD only in runtime-dispatched *avx512* functions."
 
+    # The core libdoppler is pure C and must link only -lm — no libstdc++/CXXABI.
+    # pocketfft is C99 (no longer C++) and the C++ zmq/stream layer is split into
+    # the optional libdoppler_stream component. This gate catches any C++ creeping
+    # back into the core (a new .cc TU, or zmq re-folded into the core archive),
+    # which would re-break downstreams that cannot supply a matching libstdc++.
+    # NB: __cxa_finalize@GLIBC is a libc symbol (not libstdc++) and is excluded by
+    # matching only GLIBCXX_/CXXABI_/std::/operator new|delete.
+    - name: Verify C++-free core (no libstdc++/CXXABI)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        pat='GLIBCXX_|CXXABI_|std::|operator new|operator delete'
+        bad=$(nm -CD build/libdoppler.so 2>/dev/null | grep -E "$pat" || true)
+        bad="$bad$(nm -C build/libdoppler.a 2>/dev/null | grep -E "$pat" || true)"
+        if [ -n "$bad" ]; then
+          echo "::error::core libdoppler references the C++ runtime — it must be pure C:"
+          echo "$bad" | head -20
+          exit 1
+        fi
+        if ldd build/libdoppler.so | grep -qi 'libstdc++'; then
+          echo "::error::libdoppler.so has a dynamic libstdc++ dependency"
+          exit 1
+        fi
+        echo "OK — core libdoppler is C++-free (libstdc++/CXXABI absent; links -lm only)."
+
   # ------------------------------------------------------------------
   # Python package build + pytest
   # ------------------------------------------------------------------

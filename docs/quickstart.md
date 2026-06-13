@@ -208,6 +208,12 @@ If you need the C library, examples, or Rust FFI bindings:
     [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container
     and follow the Ubuntu / Debian steps.
 
+!!! note "C++ compiler"
+
+    `gcc-c++` above is needed **only** for the optional ZMQ/stream component
+    (the vendored libzmq is C++). The core C library and the rest of the
+    Python package are pure C99 — drop it if you don't need streaming.
+
 ```bash
 git clone https://github.com/doppler-dsp/doppler
 cd doppler

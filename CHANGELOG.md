@@ -15,6 +15,13 @@ ______________________________________________________________________
 
 ### Added
 
+- **Integer-IQ FFT methods `FFT.execute_ci16` / `execute_ci8`** (C:
+    `fft_execute_ci16`/`ci8`). Transform interleaved **int16/int8** I/Q directly to
+    CF32, folding the int→float scale (v/32768, v/128 — the `cvt` full-scale ±1.0
+    convention) into the FFT's input read. So an SDR/ADC integer stream FFTs in one
+    fused pass on the native-float PFFFT backend — **bit-identical** to
+    `i16_to_f32` then `execute_cf32`, at the same speed (the convert is free), and
+    ~10× a scalar int16 FFT.
 - **Native single-precision FFT via vendored PFFFT (Pommier/FFTPACK, BSD).** cf32
     transforms on PFFFT-friendly sizes (multiple of 16, 5-smooth — all powers of
     two) now run on a SIMD float kernel (SSE/NEON, scalar fallback) instead of

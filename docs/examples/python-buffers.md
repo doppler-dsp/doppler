@@ -54,6 +54,12 @@ shared memory and must call `consume()` before the buffer can be reused.
 | `F64Buffer` | `doppler.buffer` | `complex128`         | 256          | CF64 IQ pairs        |
 | `I16Buffer` | `doppler.buffer` | `int16, shape=(n,2)` | 1024         | col 0 = I, col 1 = Q |
 
+!!! note "Min capacity is page-size dependent"
+
+    These are the minima on a 4 KiB-page system (x86_64). The mmap-backed ring
+    sizes to a whole page, so on 16 KiB-page systems (e.g. macOS arm64) the
+    minima double — `F32Buffer` 1024, `F64Buffer` 512, `I16Buffer` 2048.
+
 ```python
 from doppler.buffer import F32Buffer, I16Buffer
 

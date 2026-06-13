@@ -22,7 +22,7 @@ noise = awgn(1024, amplitude=0.3)
 noise = awgn(1024, amplitude=0.3, seed=42)
 ```
 
-Use :class:`AWGN` directly when you need phase-continuous streams,
+Use `AWGN` directly when you need phase-continuous streams,
 reproducible multi-call replay, or per-call amplitude adjustments.
 
 ______________________________________________________________________

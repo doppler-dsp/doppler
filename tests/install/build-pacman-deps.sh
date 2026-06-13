@@ -3,5 +3,5 @@ set -euo pipefail
 
 # Arch Linux and derivatives (Manjaro, EndeavourOS, CachyOS, …).
 # --8<-- [start:install]
-sudo pacman -S --needed base-devel cmake python python-numpy zeromq fftw
+sudo pacman -S --needed base-devel cmake python python-numpy
 # --8<-- [end:install]

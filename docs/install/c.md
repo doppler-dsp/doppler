@@ -1,7 +1,34 @@
 # C Library
 
-Build the library first (see [Build from Source](source.md)), then choose
-one of the integration methods below.
+Get the C library one of two ways — **a pre-built release tarball** (no build)
+or **[building from source](source.md)** — then choose an integration method
+below. Either way you get the headers plus a shared (`libdoppler.so`) and a
+self-contained static (`libdoppler.a`) library.
+
+## Install from a release tarball
+
+Every [GitHub release](https://github.com/doppler-dsp/doppler/releases) ships a
+pre-built C library for Linux (x86_64) and macOS (arm64) — no toolchain or
+build step:
+
+```sh
+VERSION=0.13.1
+curl -L -o doppler.tar.gz \
+  "https://github.com/doppler-dsp/doppler/releases/download/v${VERSION}/doppler-${VERSION}-linux-x86_64.tar.gz"
+mkdir -p "$HOME/doppler" && tar -xzf doppler.tar.gz -C "$HOME/doppler"
+```
+
+Point your build at the extracted prefix — CMake via `CMAKE_PREFIX_PATH`, or
+pkg-config via `PKG_CONFIG_PATH` — then use the **find_package** or
+**pkg-config** method shown below:
+
+```sh
+cmake -B build -DCMAKE_PREFIX_PATH="$HOME/doppler"     # for find_package(doppler)
+export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
+```
+
+The library is self-contained (the vendored zmq is built in), so there is no
+external runtime dependency to install.
 
 ## System install
 
@@ -111,8 +138,8 @@ the shared nor the static library needs an external zmq. The static archive
 links with just the library plus the C/C++ runtime:
 
 ```sh
-gcc -o app app.c -I path/to/doppler/native/inc \
-    libdoppler.a -lstdc++ -lpthread -lm
+gcc -o app app.c -I "$PREFIX/include" \
+    "$PREFIX/lib/libdoppler.a" -lstdc++ -lpthread -lm
 ```
 
 The **shared** library is even simpler — `-ldoppler` alone is sufficient.

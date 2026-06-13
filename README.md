@@ -53,11 +53,11 @@ X = FFT(1024).execute_cf32(x)
 **C**
 
 ```c
-#include "fft/fft_core.h"
+#include <fft/fft_core.h>
 
-dp_fft_t *fft = dp_fft_create(1024, -1, 1);
-dp_fft_execute_cf32(fft, in, 1024, out);
-dp_fft_destroy(fft);
+fft_state_t *fft = fft_create(1024, -1, 1);  /* n, sign, nthreads */
+fft_execute_cf32(fft, in, 1024, out);        /* in,out: float complex[1024] */
+fft_destroy(fft);
 ```
 
 ## Build

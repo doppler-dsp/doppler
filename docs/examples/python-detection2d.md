@@ -57,6 +57,8 @@ ref2d = (np.sqrt(N) * np.fft.ifft2(spec)).astype(np.complex64)
 A = snr_amp * SIGMA / math.sqrt(N)
 
 det = Detector2D(ref2d, dwell=M, noise_lo=1, noise_hi=N-1, threshold=0.0)
+# signal_block: one 2-D acquisition frame (rows × cols) to scan; theta: the
+# CFAR threshold from the curve above. See examples/python/detection2d_demo.py.
 for *_, stat in det.push(signal_block):
     detected = stat > theta
 ```

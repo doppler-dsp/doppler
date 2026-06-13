@@ -184,6 +184,7 @@ nav:
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
+      - Overview: cli/index.md
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
       - Module Layout: dev/module-layout.md

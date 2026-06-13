@@ -418,4 +418,4 @@ ______________________________________________________________________
 - [Benchmarking](benchmarking.md) — C and Python benchmark pipelines, history files, comparisons
 - [just-makeit docs](https://just-buildit.github.io/just-makeit/) — full
     command reference
-- [Build & Install](../build.md) — cmake flags and targets
+- [Build from Source](../install/source.md) — cmake flags and make targets

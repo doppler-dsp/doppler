@@ -116,6 +116,27 @@ std dev : 0.9952 (Re)  1.0090 (Im)  (expect ≈ 1.0)
 
 ______________________________________________________________________
 
+### Consumer project — `find_package`
+
+`examples/standalone/` above links against a doppler **build tree**. For the
+idiomatic *installed*-library setup — `find_package(doppler)` against a system
+install or an extracted [release tarball](../install/c.md#install-from-a-release-tarball) —
+see [`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer).
+One `CMakeLists.txt` builds against **both** link targets:
+`doppler::doppler` (shared) and `doppler::doppler-static` (the self-contained
+static archive — only the C/C++ runtime, no zmq). The
+[C Library install guide](../install/c.md) has the full find_package and
+pkg-config commands.
+
+### Generating waveforms in-process
+
+The `wfmgen` CLI is archived in the library as the callable
+**`doppler_wfmgen(argc, argv)`** (header `wfm/wfmgen.h`), so a C program can
+produce the same captures without spawning a subprocess — see
+[Embedding the `wfmgen` generator](../install/c.md#embedding-the-wfmgen-generator).
+
+______________________________________________________________________
+
 ## LO — complex phasor generator
 
 The `LO` type chains a 32-bit NCO with a 2¹⁶-entry sin/cos LUT to produce
@@ -453,20 +474,22 @@ samples over a ZMQ PUSH/PULL socket; consumer receives and prints power.
 #include <stream/stream.h>
 #include <complex.h>
 
-/* Producer thread */
+/* Producer thread — rate/freq travel in the header the send builds */
 dp_push_t *ctx = dp_push_create("ipc:///tmp/dp.ipc", CF64);
-dp_header_t hdr = { .sample_type = CF64, .num_samples = 1024,
-                    .sample_rate = 1e6, .center_freq = 0 };
-dp_push_send(ctx, &hdr, samples, 1024 * sizeof(double _Complex));
+dp_push_send_cf64(ctx, samples, 1024, 1e6, 0.0);  /* samples, n, fs, fc */
 dp_push_destroy(ctx);
 
-/* Consumer thread */
+/* Consumer thread — recv hands back a library-owned message + header */
 dp_pull_t *rx = dp_pull_create("ipc:///tmp/dp.ipc");
+dp_msg_t *msg;
 dp_header_t rhdr;
-void *buf = malloc(DP_MAX_PAYLOAD);
-dp_pull_recv(rx, &rhdr, buf, DP_MAX_PAYLOAD);
+if (dp_pull_recv(rx, &msg, &rhdr) == DP_OK) {
+    size_t n = dp_msg_num_samples(msg);
+    const double _Complex *cf64 = dp_msg_data(msg);
+    /* ... use cf64[0..n) ... */
+    dp_msg_free(msg);
+}
 dp_pull_destroy(rx);
-free(buf);
 ```
 
 Build and run the in-process demo (producer + consumer threads, 100

@@ -24,7 +24,8 @@ The image contains:
 
 ## Docker Compose — full streaming demo
 
-`docker-compose.yml` wires up a transmitter and two receivers:
+`docker-compose.yml` wires up a transmitter, two receivers, and a spectrum
+analyzer (plus a one-shot `tests` service under the `test` profile):
 
 ```sh
 --8<-- "tests/install/docker-build.sh:compose"

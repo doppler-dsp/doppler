@@ -69,7 +69,7 @@ dp_msg_free(msg);
 dp_pull_destroy(pull);
 ```
 
-For complete, runnable examples see [`examples/c/`](../../examples/c/).
+For complete, runnable examples see [`examples/c/`](https://github.com/doppler-dsp/doppler/tree/main/examples/c).
 
 ______________________________________________________________________
 
@@ -363,4 +363,4 @@ If you're still stuck:
     - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
     - Network topology (same machine, LAN, cloud, containers)
     - Error messages with `ZMQ_VERBOSE=1`
-    - OS and library versions (`uname -a`, `cmake --version`, `pkg-config --modversion libzmq`)
+    - OS and toolchain versions (`uname -a`, `cmake --version`) — note doppler statically embeds zmq, so there is no system `libzmq` to query

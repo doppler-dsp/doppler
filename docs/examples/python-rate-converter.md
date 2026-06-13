@@ -92,6 +92,37 @@ y3 = rc.execute(x); print(len(y3))   # 2048
 
 ______________________________________________________________________
 
+## Streaming — phase-continuous across blocks
+
+`execute()` carries filter state across calls, so a stream split at any block
+boundary is **byte-identical** to one large call.
+
+!!! warning "Copy each block before retaining it"
+
+    `execute()` returns a zero-copy **view** into the converter's internal
+    output buffer, which is **reused on the next call**. To hold results across
+    calls (e.g. to concatenate them), `.copy()` each block first — otherwise an
+    earlier block is overwritten by a later one.
+
+```python
+import numpy as np
+from doppler.resample import RateConverter
+
+x = np.random.randn(2048).astype(np.complex64)
+
+y_full = RateConverter(0.5).execute(x).copy()
+
+rc = RateConverter(0.5)
+y_split = np.concatenate([
+    rc.execute(x[:1024]).copy(),   # copy: the next execute() reuses the buffer
+    rc.execute(x[1024:]).copy(),
+])
+
+assert np.array_equal(y_full, y_split)   # byte-identical ✓
+```
+
+______________________________________________________________________
+
 ## CIC droop compensation
 
 The `compensate=1` flag appends a passband-droop compensating FIR after any

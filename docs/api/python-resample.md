@@ -63,13 +63,16 @@ print(rc.stages)               # ['HalfbandDecimator', 'HalfbandDecimator']
 
 ### Streaming
 
-State is preserved across `execute()` calls; split at any boundary:
+State is preserved across `execute()` calls, so splitting a stream at any block
+boundary is byte-identical to one large call. `execute()` returns a zero-copy
+**view** into an internal buffer that is reused on the next call — `process()`
+it (or `.copy()` it) before the next `execute()`:
 
 ```python
 rc = RateConverter(0.5)
 for block in iq_stream:        # CF32 blocks, any length
     y = rc.execute(block)
-    process(y)
+    process(y)                 # consume now; the next execute() reuses y's buffer
 ```
 
 ### Functional wrapper

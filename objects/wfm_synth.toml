@@ -3,7 +3,7 @@ arg_type = "void"
 return_type = "float _Complex"
 mutable = "true"
 class_name = "_SynthEngine"
-depends_on = ["lo", "awgn", "pn", "fir"]
+depends_on = [{ name = "lo", link = true }, { name = "awgn", link = true }, "pn", { name = "fir", link = true }]
 impl = """
 float complex sym;
 if (state->wtype == WFM_SYNTH_BITS) {

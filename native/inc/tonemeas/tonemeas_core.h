@@ -26,6 +26,7 @@
 #include "measure/measure_core.h"
 #include "fft/fft_core.h"
 #include <complex.h>
+#include "spectral/spectral_core.h"
 
 #ifdef __cplusplus
 extern "C" {

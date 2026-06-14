@@ -16,7 +16,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "ToneMeasure"
-depends_on = ["fft_core", "spectral_core"]
+depends_on = [{ name = "fft", link = true }, { name = "spectral", link = true }]
 
 [[tonemeas.init_params]]
 name = "n"

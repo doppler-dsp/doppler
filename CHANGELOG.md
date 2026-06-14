@@ -15,6 +15,19 @@ ______________________________________________________________________
 
 ### Changed
 
+- **The 11 `cvt` converters and `agc` drop their hand-written `steps(x, out)`
+    bindings for jm-generated ones (jm gh-222/gh-240).** Each `_ext_<obj>.c`
+    fragment hand-rolled the dual-path block method (allocate-or-fill-`out=`);
+    jm now generates that natively, so the fragments were deleted and
+    regenerated. The regenerated `steps()` is a strict improvement — `out=` is
+    now a **keyword** (`obj.steps(x, out=buf)`), where the hand version only
+    accepted it positionally. Signatures are otherwise unchanged. The four
+    `F32To*` converters' sticky `clipped` flag, previously a hand-patched getset,
+    is now a declared `[[<obj>.properties]]` (with its docstring preserved via the
+    `doc =` key). The accumulator objects (`acc_f32`/`acc_cf64`/`acc_trace`) are
+    **not** included — they expose bespoke methods (`madd`/`add2d`/`accumulate`/…)
+    that aren't a generated block-`steps` shape.
+
 - **All composing modules link cross-module cores declaratively (jm gh-225).**
     Every hand-maintained module `extra_link_libs` core list is gone (only the
     non-component libm `m` remains, on `ddc` and `resample`); each composing
@@ -32,10 +45,12 @@ ______________________________________________________________________
     test/bench share one regenerated CMakeLists; that relies on `link=true` being
     **additive** there (jm gh-254, shipped in the 0.19.7 pin bump below) so the
     composed cores stay on `test_ddc_core`/`bench`.
+
 - **jm pin 0.19.6 → 0.19.7** (`just-makeit.toml` + `ci.yml` +
     `perf-regression.yml`). Picks up gh-254 (additive collocated `link=true`,
     above); no codegen drift (`jm apply` reconciled nothing but the hand-owned
     `measure.pyi`).
+
 - **Module-level functions are now keyword-capable** (via the jm 0.19.6 pin bump).
     Free functions such as `doppler.spectral.kaiser_window(w=…, beta=…)` and
     `doppler.measure.measure_min_samples(fs=…, target_rbw=…, …)` accept keyword

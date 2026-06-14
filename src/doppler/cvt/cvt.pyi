@@ -45,6 +45,10 @@ class F32ToI16:
             Output.
         """
 
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 
@@ -246,6 +250,10 @@ class F32ToI16U32:
             Output.
         """
 
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 
@@ -294,6 +302,10 @@ class F32ToI16U64:
         NDArray[np.uint64]
             Output.
         """
+
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -439,6 +451,10 @@ class F32ToUQ15:
         NDArray[np.uint16]
             Output.
         """
+
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

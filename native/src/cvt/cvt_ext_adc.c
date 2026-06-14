@@ -81,16 +81,18 @@ ADC_step (ADCObject *self, PyObject *args)
 }
 
 static PyObject *
-ADC_steps (ADCObject *self, PyObject *args)
+ADC_steps (ADCObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj  = NULL;
-  PyObject *out_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+  static char *kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj   = NULL;
+  PyObject    *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &in_obj,
+                                    &out_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -170,9 +172,9 @@ ADC_getprop_bits (ADCObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef ADC_getset[]
-    = { { "clipped", (getter)ADC_getprop_clipped, NULL, NULL, NULL },
-        { "scale", (getter)ADC_getprop_scale, NULL, NULL, NULL },
-        { "bits", (getter)ADC_getprop_bits, NULL, NULL, NULL },
+    = { { "clipped", (getter)ADC_getprop_clipped, NULL, "Clipped.\n", NULL },
+        { "scale", (getter)ADC_getprop_scale, NULL, "Scale.\n", NULL },
+        { "bits", (getter)ADC_getprop_bits, NULL, "Bits.\n", NULL },
         { NULL } };
 
 static PyObject *
@@ -217,7 +219,8 @@ static PyMethodDef ADCObj_methods[]
           "    >>> obj = ADC(16, -10.0, 0)\n"
           "    >>> obj.step(1.0)\n"
           "    0\n" },
-        { "steps", (PyCFunction)ADC_steps, METH_VARARGS,
+        { "steps", (PyCFunction)(void *)ADC_steps,
+          METH_VARARGS | METH_KEYWORDS,
           "steps(x[, out]) -> ndarray\n"
           "\n"
           "Process a block of float samples to int64.\n"

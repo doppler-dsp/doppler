@@ -1,0 +1,135 @@
+# tonemeas — single-capture ADC / converter spectral measurement suite.
+#
+# Block-I/O object (opaque handle).  Owns window selection + zero-padding + FFT
+# so it controls precision: every component's power is integrated over its
+# window MAIN LOBE (IEEE Std 1241), and the noise/distortion sums exclude the
+# leakage bins around DC, the fundamental and each harmonic.  One time-domain
+# capture in, the full single-tone metric bag out (SNR, SINAD, THD, THD+N,
+# SFDR, ENOB, NPR-elsewhere, worst-spur) plus accuracy/resolution metadata.
+#
+# Composes fft_core + the spectral_core window / find_peaks free functions.
+
+[tonemeas]
+arg_type = "float"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "ToneMeasure"
+depends_on = ["fft_core", "spectral_core"]
+
+[[tonemeas.init_params]]
+name = "n"
+type = "size_t"
+default = "8192"
+
+[[tonemeas.init_params]]
+name = "fs"
+type = "double"
+default = "1.0"
+
+[[tonemeas.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser"
+default = "kaiser"
+
+[[tonemeas.init_params]]
+name = "beta"
+type = "float"
+default = "12.0f"
+
+[[tonemeas.init_params]]
+name = "pad"
+type = "size_t"
+default = "2"
+
+[[tonemeas.init_params]]
+name = "n_harmonics"
+type = "size_t"
+default = "8"
+
+[[tonemeas.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[tonemeas.init_params]]
+name = "dc_guard"
+type = "size_t"
+default = "0"
+
+# ── analysis (bodies hand-owned in measure_ext_tonemeas.c) ─────────────────
+[[tonemeas.methods]]
+name = "analyze"
+doc = "Analyze a real time-domain capture; returns a ToneMetrics result."
+arg_type = "float"
+return_type = "tone_meas_t"
+max_results = 1
+nogil = true
+result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
+
+[[tonemeas.methods]]
+name = "analyze_complex"
+doc = "Analyze a complex baseband capture (two-sided spectrum)."
+arg_type = "float _Complex"
+return_type = "tone_meas_t"
+max_results = 1
+nogil = true
+result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
+
+[[tonemeas.methods]]
+name = "time_stats"
+doc = "Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation."
+arg_type = "float"
+return_type = "time_stats_t"
+max_results = 1
+result_fields = [{name = "rms", type = "double"}, {name = "peak", type = "double"}, {name = "crest_db", type = "double"}, {name = "papr_db", type = "double"}, {name = "dc_offset", type = "double"}, {name = "fs_util_pct", type = "double"}]
+
+[[tonemeas.methods]]
+name = "spectrum_dbfs"
+doc = "DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+params = [{name = "x", type = "float[]"}]
+
+# ── accuracy / resolution properties ──────────────────────────────────────
+[[tonemeas.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[tonemeas.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+
+[[tonemeas.properties]]
+name = "fs"
+type = "double"
+field = true
+
+[[tonemeas.properties]]
+name = "enbw"
+type = "double"
+field = true
+
+[[tonemeas.properties]]
+name = "lobe_bins"
+type = "size_t"
+field = true
+
+[[tonemeas.properties]]
+name = "rbw"
+type = "double"
+expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
+
+[[tonemeas.properties]]
+name = "bin_hz"
+type = "double"
+expr = "self->handle->fs / (double)self->handle->nfft"
+
+[[tonemeas.properties]]
+name = "proc_gain_db"
+type = "double"
+expr = "10.0 * log10((double)self->handle->nfft / 2.0)"

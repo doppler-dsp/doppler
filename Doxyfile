@@ -23,3 +23,8 @@ SORT_MEMBER_DOCS       = NO
 MARKDOWN_SUPPORT       = YES
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = YES
+
+# The "included by" graph for clib_common.h exceeds the default 50-node cap once
+# enough modules include it (each adds a node); raise the ceiling so the graph
+# renders without a warning (the CI gate fails on any Doxygen warning).
+DOT_GRAPH_MAX_NODES    = 100

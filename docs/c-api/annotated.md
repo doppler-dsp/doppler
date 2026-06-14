@@ -38,10 +38,17 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md) _I16U64ToF32 state._     
 * **struct** [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md) _I32ToF32 state._     
 * **struct** [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md) _I8ToF32 state._     
+* **struct** [**imd\_meas\_t**](structimd__meas__t.md) _Two-tone intermodulation result (IMD2/IMD3/TOI)._     
+* **struct** [**imdmeas\_state\_t**](structimdmeas__state__t.md) _IMDMeasure state: owned window, FFT plan and one-sided power scratch._     
 * **struct** [**lo\_state\_t**](structlo__state__t.md) _LO state._     
 * **struct** [**nco\_state\_t**](structnco__state__t.md) _NCO state._     
+* **struct** [**npr\_meas\_t**](structnpr__meas__t.md) _Noise Power Ratio (notched-noise loading) result._     
+* **struct** [**nprmeas\_state\_t**](structnprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._     
 * **struct** [**pn\_state\_t**](structpn__state__t.md)     
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md)     
+* **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
+* **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
+* **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._     
 * **struct** [**welch\_state\_t**](structwelch__state__t.md) _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-welch_create) _._    
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     

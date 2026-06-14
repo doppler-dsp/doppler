@@ -143,6 +143,7 @@ nav:
       - RateConverter: gallery/rate-converter.md
       - Functional DDCR: gallery/ddc-fn.md
       - AWGN: gallery/awgn.md
+      - Measurement Suite: gallery/measure.md
   - Examples:
       - C: examples/c.md
       - Python:
@@ -172,6 +173,7 @@ nav:
       - "Python: Buffer": api/python-buffer.md
       - "Python: Delay": api/python-delay.md
       - "Python: Accumulator": api/python-accumulator.md
+      - "Python: Measurement Suite": api/python-measure.md
       - "Polyphase → Resample": api/python-polyphase.md
   - Type System: types.md
   - Benchmarks: benchmarks.md
@@ -181,6 +183,7 @@ nav:
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Quantization: design/QUANTIZATION.md
+      - Measurement Suite: design/measurement-suite.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:

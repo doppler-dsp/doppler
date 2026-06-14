@@ -57,6 +57,8 @@
 * [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md)
 * [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md)
 * [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md)
+* [**imd\_meas\_t**](structimd__meas__t.md)
+* [**imdmeas\_state\_t**](structimdmeas__state__t.md)
 
 
 ## l
@@ -67,6 +69,8 @@
 ## n
 
 * [**nco\_state\_t**](structnco__state__t.md)
+* [**npr\_meas\_t**](structnpr__meas__t.md)
+* [**nprmeas\_state\_t**](structnprmeas__state__t.md)
 
 
 ## p
@@ -78,6 +82,13 @@
 
 * [**RateConverter\_state\_t**](structRateConverter__state__t.md)
 * [**resamp\_state\_t**](structresamp__state__t.md)
+
+
+## t
+
+* [**time\_stats\_t**](structtime__stats__t.md)
+* [**tone\_meas\_t**](structtone__meas__t.md)
+* [**tonemeas\_state\_t**](structtonemeas__state__t.md)
 
 
 ## u

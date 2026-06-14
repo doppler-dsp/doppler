@@ -269,6 +269,24 @@ three for free on regeneration. Richer containers (**BLUE type-1000**, **SigMF**
 (`wfm_writer.c`, `wfm_sink.c`) — they need sample-rate / segment / transport
 context a generic generator can't know.
 
+### `measure` — ADC/spectral metric suite (structseq returns, jm#244)
+
+`[module.measure]` (`ToneMeasure`/`NPRMeasure`/`IMDMeasure` + capture-planning
+free functions) returns **named `PyStructSequence` results** (`r.enob`,
+`r.sfdr_dbc`) instead of jm's `result_fields` default `list[tuple]`. jm has no
+single-named-record shape, so each `analyze()` body is hand-written in its sacred
+`measure_ext_<obj>.c` fragment to build a lazily-cached structseq; the metric
+kernels live in `*_core.c`. Two jm gaps drove **jm#244** and are hand-patched in
+the fragments until it lands: (1) jm renders the return as `list[tuple]`, so
+`src/doppler/measure/measure.pyi` is **hand-maintained and allowlisted**
+(`status_allow`) — `jm apply` regenerates it, so **re-apply the .pyi edits after
+any apply**; (2) jm drops `size_t` init-param **defaults** from the generated
+`__init__` (only float/double), so `n`/`pad`/`n_harmonics` defaults are set by
+hand in each fragment's init. NPR's `analyze` also hand-parses its 5 geometry
+doubles (jm's `result_fields` codegen ignores extra scalar params). The module
+composes `fft_core` + `spectral_core`; module-level helpers are one TU each. See
+`docs/design/measurement-suite.md`.
+
 ### `ddc_fn` — the functional DDCR API (`no_generate`)
 
 `[module.ddc_fn]` is `no_generate`: a fully hand-written CPython extension

@@ -72,6 +72,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
+|  char \* | [**wfm\_spec\_template\_json**](#function-wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
 
 
@@ -397,6 +398,36 @@ double wfm_spec_headroom (
 
 
 Lets `--from-file` reproduce a recorded `--headroom`; the value is a writer gain, so it lives outside the composer state. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_spec\_template\_json 
+
+_A ready-to-edit example spec in the canonical_  _from-file schema._
+```C++
+char * wfm_spec_template_json (
+    void
+) 
+```
+
+
+
+Returns a representative multi-segment template — an inline tone, an RRC-shaped QPSK-from-bits burst with a trailing gap, and a two-source additive `sum` mix — serialised with [**wfm\_spec\_to\_json()**](wfm__compose_8h.md#function-wfm_spec_to_json), so it is valid by construction and round-trips through [**wfm\_compose\_from\_json()**](wfm__compose_8h.md#function-wfm_compose_from_json) unchanged. It therefore doubles as a working starting point for `wfmgen --from-file`, not just documentation: dump it, edit the fields, feed it back.
+
+
+
+
+**Returns:**
+
+malloc'd JSON (caller frees), or NULL on allocation failure. 
+
+
+
 
 
         

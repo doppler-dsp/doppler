@@ -4,6 +4,20 @@ target_include_directories(
   ddc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/ddc)
 target_link_libraries(ddc_core PUBLIC
+    m
+    lo_core
+    RateConverter_core
+    resamp_core
+    hbdecim_core
+    hbdecim_r2c_core
+    cic_core
+    fir_core
+    resample_core)
+
+add_executable(test_ddc_core
+               ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_core.c)
+target_link_libraries(test_ddc_core
+                      PRIVATE ddc_core m
     lo_core
     RateConverter_core
     resamp_core
@@ -13,20 +27,6 @@ target_link_libraries(ddc_core PUBLIC
     fir_core
     resample_core
     m)
-
-add_executable(test_ddc_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_core.c)
-target_link_libraries(test_ddc_core
-                      PRIVATE ddc_core lo_core
-    RateConverter_core
-    resamp_core
-    hbdecim_core
-    hbdecim_r2c_core
-    cic_core
-    fir_core
-    resample_core
-    m
-    m)
 target_include_directories(test_ddc_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_ddc_core COMMAND test_ddc_core)
@@ -35,7 +35,8 @@ add_executable(
   bench_ddc_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ddc_core.c)
 target_link_libraries(bench_ddc_core
-                      PRIVATE ddc_core lo_core
+                      PRIVATE ddc_core m
+    lo_core
     RateConverter_core
     resamp_core
     hbdecim_core
@@ -43,7 +44,6 @@ target_link_libraries(bench_ddc_core
     cic_core
     fir_core
     resample_core
-    m
     m)
 target_include_directories(
   bench_ddc_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

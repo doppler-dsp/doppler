@@ -69,6 +69,13 @@
 
 #include <complex.h>
 #include <stddef.h>
+#include "lo/lo_core.h"
+#include "RateConverter/RateConverter_core.h"
+#include "resamp/resamp_core.h"
+#include "hbdecim/hbdecim_core.h"
+#include "cic/cic_core.h"
+#include "fir/fir_core.h"
+#include "resample/resample_core.h"
 
 #ifdef __cplusplus
 extern "C"

@@ -22,11 +22,13 @@
 #include "spectral_ext_welch.c"
 
 static PyObject *
-_bind_kaiser_enbw(PyObject *self, PyObject *args)
+_bind_kaiser_enbw(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"w", NULL};
     PyObject *w_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O", &w_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &w_obj))
         return NULL;
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -38,12 +40,14 @@ _bind_kaiser_enbw(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_kaiser_window(PyObject *self, PyObject *args)
+_bind_kaiser_window(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"w", "beta", NULL};
     PyObject *w_obj = NULL;
     float beta = 0.0f;
-    if (!PyArg_ParseTuple(args, "Of", &w_obj, &beta))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Of",
+            _kwlist, &w_obj, &beta))
         return NULL;
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -56,11 +60,13 @@ _bind_kaiser_window(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_hann_window(PyObject *self, PyObject *args)
+_bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"w", NULL};
     PyObject *w_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O", &w_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &w_obj))
         return NULL;
     PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
         w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
@@ -73,13 +79,15 @@ _bind_hann_window(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_magnitude_db_cf32(PyObject *self, PyObject *args)
+_bind_magnitude_db_cf32(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"x", "lin_floor", "offset_db", NULL};
     PyObject *x_obj = NULL;
     float lin_floor = 0.0f;
     float offset_db = 0.0f;
-    if (!PyArg_ParseTuple(args, "Off", &x_obj, &lin_floor, &offset_db))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Off",
+            _kwlist, &x_obj, &lin_floor, &offset_db))
         return NULL;
     PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF(
         x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
@@ -95,13 +103,15 @@ _bind_magnitude_db_cf32(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_magnitude_db_cf64(PyObject *self, PyObject *args)
+_bind_magnitude_db_cf64(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"x", "lin_floor", "offset_db", NULL};
     PyObject *x_obj = NULL;
     double lin_floor = 0.0;
     float offset_db = 0.0f;
-    if (!PyArg_ParseTuple(args, "Odf", &x_obj, &lin_floor, &offset_db))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odf",
+            _kwlist, &x_obj, &lin_floor, &offset_db))
         return NULL;
     PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF(
         x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
@@ -117,13 +127,15 @@ _bind_magnitude_db_cf64(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_find_peaks_f32(PyObject *self, PyObject *args)
+_bind_find_peaks_f32(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"db", "n_peaks", "min_db", NULL};
     PyObject *db_obj = NULL;
     unsigned long long n_peaks_raw = 0ULL;
     float min_db = 0.0f;
-    if (!PyArg_ParseTuple(args, "OKf", &db_obj, &n_peaks_raw, &min_db))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OKf",
+            _kwlist, &db_obj, &n_peaks_raw, &min_db))
         return NULL;
     size_t n_peaks = (size_t)n_peaks_raw;
     PyArrayObject *db_arr = (PyArrayObject *)PyArray_FROM_OTF(
@@ -148,13 +160,15 @@ _bind_find_peaks_f32(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_obw_from_power(PyObject *self, PyObject *args)
+_bind_obw_from_power(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"pwr", "fs", "frac", NULL};
     PyObject *pwr_obj = NULL;
     double fs = 0.0;
     double frac = 0.0;
-    if (!PyArg_ParseTuple(args, "Odd", &pwr_obj, &fs, &frac))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odd",
+            _kwlist, &pwr_obj, &fs, &frac))
         return NULL;
     PyArrayObject *pwr_arr = (PyArrayObject *)PyArray_FROM_OTF(
         pwr_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
@@ -166,11 +180,13 @@ _bind_obw_from_power(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_noise_floor_db(PyObject *self, PyObject *args)
+_bind_noise_floor_db(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"db", NULL};
     PyObject *db_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O", &db_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &db_obj))
         return NULL;
     PyArrayObject *db_arr = (PyArrayObject *)PyArray_FROM_OTF(
         db_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -187,14 +203,14 @@ _bind_noise_floor_db(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef spectral_module_methods[] = {
-    {"kaiser_enbw", _bind_kaiser_enbw, METH_VARARGS, "kaiser_enbw."},
-    {"kaiser_window", _bind_kaiser_window, METH_VARARGS, "kaiser_window."},
-    {"hann_window", _bind_hann_window, METH_VARARGS, "hann_window."},
-    {"magnitude_db_cf32", _bind_magnitude_db_cf32, METH_VARARGS, "magnitude_db_cf32."},
-    {"magnitude_db_cf64", _bind_magnitude_db_cf64, METH_VARARGS, "magnitude_db_cf64."},
-    {"find_peaks_f32", _bind_find_peaks_f32, METH_VARARGS, "find_peaks_f32."},
-    {"obw_from_power", _bind_obw_from_power, METH_VARARGS, "obw_from_power."},
-    {"noise_floor_db", _bind_noise_floor_db, METH_VARARGS, "noise_floor_db."},
+    {"kaiser_enbw", (PyCFunction)(void *)_bind_kaiser_enbw, METH_VARARGS | METH_KEYWORDS, "kaiser_enbw."},
+    {"kaiser_window", (PyCFunction)(void *)_bind_kaiser_window, METH_VARARGS | METH_KEYWORDS, "kaiser_window."},
+    {"hann_window", (PyCFunction)(void *)_bind_hann_window, METH_VARARGS | METH_KEYWORDS, "hann_window."},
+    {"magnitude_db_cf32", (PyCFunction)(void *)_bind_magnitude_db_cf32, METH_VARARGS | METH_KEYWORDS, "magnitude_db_cf32."},
+    {"magnitude_db_cf64", (PyCFunction)(void *)_bind_magnitude_db_cf64, METH_VARARGS | METH_KEYWORDS, "magnitude_db_cf64."},
+    {"find_peaks_f32", (PyCFunction)(void *)_bind_find_peaks_f32, METH_VARARGS | METH_KEYWORDS, "find_peaks_f32."},
+    {"obw_from_power", (PyCFunction)(void *)_bind_obw_from_power, METH_VARARGS | METH_KEYWORDS, "obw_from_power."},
+    {"noise_floor_db", (PyCFunction)(void *)_bind_noise_floor_db, METH_VARARGS | METH_KEYWORDS, "noise_floor_db."},
     {NULL, NULL, 0, NULL}
 };
 

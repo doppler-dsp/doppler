@@ -13,6 +13,21 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **Module-level functions are now keyword-capable** (via the jm 0.19.6 pin bump).
+    Free functions such as `doppler.spectral.kaiser_window(w=…, beta=…)` and
+    `doppler.measure.measure_min_samples(fs=…, target_rbw=…, …)` accept keyword
+    arguments; the per-sample `step()`/`steps()` hot path stays positional.
+
+### Fixed
+
+- **Latent use-after-free in `FIR.execute`.** Its grow-on-demand output buffer
+    was returned as a NumPy *view* (`SimpleNewFromData`), which could dangle after
+    a later, larger `execute()` reallocated the buffer (the gh-219 class of bug
+    that `DDC`/`DDCR`/`HalfbandDecimator` were already hardened against). `execute`
+    now returns an independent NumPy-owned array per call.
+
 ## [0.16.0] — 2026-06-14
 
 ### Added

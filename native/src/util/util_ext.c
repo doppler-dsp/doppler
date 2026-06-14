@@ -16,12 +16,14 @@
 
 
 static PyObject *
-_bind_square_clip(PyObject *self, PyObject *args)
+_bind_square_clip(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"y", "lin", NULL};
     Py_complex y_raw = {0.0, 0.0};
     float lin = 0.0f;
-    if (!PyArg_ParseTuple(args, "Df", &y_raw, &lin))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Df",
+            _kwlist, &y_raw, &lin))
         return NULL;
     float complex y = (float)y_raw.real + (float)y_raw.imag * I;
     return PyComplex_FromDoubles((double)crealf(square_clip(y, lin)), (double)cimagf(square_clip(y, lin)));
@@ -33,7 +35,7 @@ _bind_square_clip(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef util_module_methods[] = {
-    {"square_clip", _bind_square_clip, METH_VARARGS, "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."},
+    {"square_clip", (PyCFunction)(void *)_bind_square_clip, METH_VARARGS | METH_KEYWORDS, "Square-clip a complex sample: clip the real and imaginary parts independently to [-lin, lin] (a square region in the IQ plane)."},
     {NULL, NULL, 0, NULL}
 };
 

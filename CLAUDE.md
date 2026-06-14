@@ -212,6 +212,33 @@ doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
 runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
 blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
 
+### 0.19.6 adoptions — pin bump + the hand-rolled-glue migration campaign (pin: 0.19.6)
+
+The CI drift gate pins **0.19.6** (`ci.yml` + `perf-regression.yml`); `jm_version`
+is stamped 0.19.6. **Drive doppler with `uvx --from 'just-makeit==0.19.6' just-makeit …`.** The bump's `jm apply` reconciled 7 module aggregators — module
+**functions are now keyword-capable** (gh-240; `kaiser_window(w=…, beta=…)`), for
+free; `_core.c` + sacred fragments untouched.
+
+doppler's filed feature issues all shipped (#222 `out=` steps, #223 multi-return,
+#224 ctor dispatch, #225 `depends_on link=true`, #244 `--single` structseq +
+size_t default fix), so the **hand-rolled binding glue is being migrated back to
+declarative jm**, one object per PR. **The migration mechanic** (non-destructive —
+do NOT use `jm regenerate`, which rebuilds `_core.c`): edit the manifest → **delete
+the per-object `native/src/<mod>/<mod>_ext_<obj>.c` fragment** → `jm apply`
+recreates it from the manifest. `apply` only creates missing files + reconciles
+glue; `_core.c`/tests/benches are untouched. (Restore `measure.pyi` after every
+apply — apply regenerates it; it stays `status_allow`-listed until the measure
+`--single` migration.) Regenerating against 0.19.6 also picks up codegen fixes
+free (the pilot fixed a latent gh-219 UAF in `FIR.execute`).
+
+**Migrated so far:** FIR dtype dispatch → declarative `real_type` +
+`real_create_fn` on the `taps` init-param (#224); the hand-coded probe/branch in
+`filter_ext_fir.c` is gone. **Roadmap** (see `~/.claude/plans`): #225 link lines;
+#222 `out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional`
+`bank`; #244 measure structseq `--single` (the one with a return-by-value
+`_core.c` signature reconcile — its own PR, un-allowlists `measure.pyi`); #223
+verify-only. #247 (group module functions into one TU) still open upstream.
+
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 
 The CI drift gate now pins **0.19.3** (`ci.yml` + `perf-regression.yml`);

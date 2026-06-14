@@ -144,6 +144,7 @@ nav:
       - Functional DDCR: gallery/ddc-fn.md
       - AWGN: gallery/awgn.md
       - Measurement Suite: gallery/measure.md
+      - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
   - Examples:
       - C: examples/c.md
       - Python:

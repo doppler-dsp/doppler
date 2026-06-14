@@ -20,13 +20,15 @@
 #include "resample_ext_extra.c"  /* hand-written — jm never modifies */
 
 static PyObject *
-_bind_ciccompmf(PyObject *self, PyObject *args)
+_bind_ciccompmf(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"N", "R", "M", NULL};
     unsigned long N_raw = 0UL;
     unsigned long R_raw = 0UL;
     unsigned long M_raw = 0UL;
-    if (!PyArg_ParseTuple(args, "kkk", &N_raw, &R_raw, &M_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "kkk",
+            _kwlist, &N_raw, &R_raw, &M_raw))
         return NULL;
     uint32_t N = (uint32_t)N_raw;
     uint32_t R = (uint32_t)R_raw;
@@ -39,24 +41,28 @@ _bind_ciccompmf(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_kaiser_beta(PyObject *self, PyObject *args)
+_bind_kaiser_beta(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"atten", NULL};
     double atten = 0.0;
-    if (!PyArg_ParseTuple(args, "d", &atten))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "d",
+            _kwlist, &atten))
         return NULL;
     return PyFloat_FromDouble(kaiser_beta(atten));
 }
 
 static PyObject *
-_bind_kaiser_num_taps(PyObject *self, PyObject *args)
+_bind_kaiser_num_taps(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"num_phases", "atten", "pb", "sb", NULL};
     int num_phases = 0;
     double atten = 0.0;
     double pb = 0.0;
     double sb = 0.0;
-    if (!PyArg_ParseTuple(args, "iddd", &num_phases, &atten, &pb, &sb))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "iddd",
+            _kwlist, &num_phases, &atten, &pb, &sb))
         return NULL;
     return PyLong_FromLong((long)kaiser_num_taps(num_phases, atten, pb, sb));
 }
@@ -67,9 +73,9 @@ _bind_kaiser_num_taps(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef resample_module_methods[] = {
-    {"ciccompmf", _bind_ciccompmf, METH_VARARGS, "ciccompmf."},
-    {"kaiser_beta", _bind_kaiser_beta, METH_VARARGS, "kaiser_beta."},
-    {"kaiser_num_taps", _bind_kaiser_num_taps, METH_VARARGS, "kaiser_num_taps."},
+    {"ciccompmf", (PyCFunction)(void *)_bind_ciccompmf, METH_VARARGS | METH_KEYWORDS, "ciccompmf."},
+    {"kaiser_beta", (PyCFunction)(void *)_bind_kaiser_beta, METH_VARARGS | METH_KEYWORDS, "kaiser_beta."},
+    {"kaiser_num_taps", (PyCFunction)(void *)_bind_kaiser_num_taps, METH_VARARGS | METH_KEYWORDS, "kaiser_num_taps."},
     {NULL, NULL, 0, NULL}
 };
 

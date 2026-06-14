@@ -17,12 +17,14 @@
 #include "arith_ext_acc_q8.c"
 
 static PyObject *
-_bind_add_q15(PyObject *self, PyObject *args)
+_bind_add_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -44,12 +46,14 @@ _bind_add_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_sub_q15(PyObject *self, PyObject *args)
+_bind_sub_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -71,12 +75,14 @@ _bind_sub_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_mul_q15(PyObject *self, PyObject *args)
+_bind_mul_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -98,12 +104,14 @@ _bind_mul_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_dot_q15(PyObject *self, PyObject *args)
+_bind_dot_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -121,12 +129,14 @@ _bind_dot_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shl_q15(PyObject *self, PyObject *args)
+_bind_shl_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -142,12 +152,14 @@ _bind_shl_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shr_q15(PyObject *self, PyObject *args)
+_bind_shr_q15(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -163,12 +175,14 @@ _bind_shr_q15(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_add_q8(PyObject *self, PyObject *args)
+_bind_add_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -190,12 +204,14 @@ _bind_add_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_sub_q8(PyObject *self, PyObject *args)
+_bind_sub_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -217,12 +233,14 @@ _bind_sub_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_mul_q8(PyObject *self, PyObject *args)
+_bind_mul_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -244,12 +262,14 @@ _bind_mul_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_dot_q8(PyObject *self, PyObject *args)
+_bind_dot_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "b", NULL};
     PyObject *a_obj = NULL;
     PyObject *b_obj = NULL;
-    if (!PyArg_ParseTuple(args, "OO", &a_obj, &b_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO",
+            _kwlist, &a_obj, &b_obj))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -267,12 +287,14 @@ _bind_dot_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shl_q8(PyObject *self, PyObject *args)
+_bind_shl_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -288,12 +310,14 @@ _bind_shl_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shr_q8(PyObject *self, PyObject *args)
+_bind_shr_q8(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -309,12 +333,14 @@ _bind_shr_q8(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shl_i64(PyObject *self, PyObject *args)
+_bind_shl_i64(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS);
@@ -330,12 +356,14 @@ _bind_shl_i64(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_shr_i64(PyObject *self, PyObject *args)
+_bind_shr_i64(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"a", "n", NULL};
     PyObject *a_obj = NULL;
     int n = 0;
-    if (!PyArg_ParseTuple(args, "Oi", &a_obj, &n))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Oi",
+            _kwlist, &a_obj, &n))
         return NULL;
     PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF(
         a_obj, NPY_INT64, NPY_ARRAY_C_CONTIGUOUS);
@@ -356,20 +384,20 @@ _bind_shr_i64(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef arith_module_methods[] = {
-    {"add_q15", _bind_add_q15, METH_VARARGS, "Elementwise saturating two's complement add of two Q15 arrays."},
-    {"sub_q15", _bind_sub_q15, METH_VARARGS, "Elementwise saturating two's complement subtract of two Q15 arrays."},
-    {"mul_q15", _bind_mul_q15, METH_VARARGS, "Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15)."},
-    {"dot_q15", _bind_dot_q15, METH_VARARGS, "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar."},
-    {"shl_q15", _bind_shl_q15, METH_VARARGS, "Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point."},
-    {"shr_q15", _bind_shr_q15, METH_VARARGS, "Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n."},
-    {"add_q8", _bind_add_q8, METH_VARARGS, "Elementwise saturating two's complement add of two Q8 arrays."},
-    {"sub_q8", _bind_sub_q8, METH_VARARGS, "Elementwise saturating two's complement subtract of two Q8 arrays."},
-    {"mul_q8", _bind_mul_q8, METH_VARARGS, "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7)."},
-    {"dot_q8", _bind_dot_q8, METH_VARARGS, "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t."},
-    {"shl_q8", _bind_shl_q8, METH_VARARGS, "Elementwise arithmetic left shift of a Q8 array with saturation."},
-    {"shr_q8", _bind_shr_q8, METH_VARARGS, "Elementwise arithmetic right shift of a Q8 array with round-half-up."},
-    {"shl_i64", _bind_shl_i64, METH_VARARGS, "Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow)."},
-    {"shr_i64", _bind_shr_i64, METH_VARARGS, "Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15."},
+    {"add_q15", (PyCFunction)(void *)_bind_add_q15, METH_VARARGS | METH_KEYWORDS, "Elementwise saturating two's complement add of two Q15 arrays."},
+    {"sub_q15", (PyCFunction)(void *)_bind_sub_q15, METH_VARARGS | METH_KEYWORDS, "Elementwise saturating two's complement subtract of two Q15 arrays."},
+    {"mul_q15", (PyCFunction)(void *)_bind_mul_q15, METH_VARARGS | METH_KEYWORDS, "Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15)."},
+    {"dot_q15", (PyCFunction)(void *)_bind_dot_q15, METH_VARARGS | METH_KEYWORDS, "Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar."},
+    {"shl_q15", (PyCFunction)(void *)_bind_shl_q15, METH_VARARGS | METH_KEYWORDS, "Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point."},
+    {"shr_q15", (PyCFunction)(void *)_bind_shr_q15, METH_VARARGS | METH_KEYWORDS, "Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n."},
+    {"add_q8", (PyCFunction)(void *)_bind_add_q8, METH_VARARGS | METH_KEYWORDS, "Elementwise saturating two's complement add of two Q8 arrays."},
+    {"sub_q8", (PyCFunction)(void *)_bind_sub_q8, METH_VARARGS | METH_KEYWORDS, "Elementwise saturating two's complement subtract of two Q8 arrays."},
+    {"mul_q8", (PyCFunction)(void *)_bind_mul_q8, METH_VARARGS | METH_KEYWORDS, "Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7)."},
+    {"dot_q8", (PyCFunction)(void *)_bind_dot_q8, METH_VARARGS | METH_KEYWORDS, "Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t."},
+    {"shl_q8", (PyCFunction)(void *)_bind_shl_q8, METH_VARARGS | METH_KEYWORDS, "Elementwise arithmetic left shift of a Q8 array with saturation."},
+    {"shr_q8", (PyCFunction)(void *)_bind_shr_q8, METH_VARARGS | METH_KEYWORDS, "Elementwise arithmetic right shift of a Q8 array with round-half-up."},
+    {"shl_i64", (PyCFunction)(void *)_bind_shl_i64, METH_VARARGS | METH_KEYWORDS, "Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow)."},
+    {"shr_i64", (PyCFunction)(void *)_bind_shr_i64, METH_VARARGS | METH_KEYWORDS, "Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15."},
     {NULL, NULL, 0, NULL}
 };
 

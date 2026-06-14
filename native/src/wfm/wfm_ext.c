@@ -17,11 +17,13 @@
 #include "wfm_ext_wfm_synth.c"
 
 static PyObject *
-_bind_bpsk_map(PyObject *self, PyObject *args)
+_bind_bpsk_map(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"bits", NULL};
     PyObject *bits_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O", &bits_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &bits_obj))
         return NULL;
     PyArrayObject *bits_arr = (PyArrayObject *)PyArray_FROM_OTF(
         bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -37,11 +39,13 @@ _bind_bpsk_map(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_qpsk_map(PyObject *self, PyObject *args)
+_bind_qpsk_map(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"syms", NULL};
     PyObject *syms_obj = NULL;
-    if (!PyArg_ParseTuple(args, "O", &syms_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &syms_obj))
         return NULL;
     PyArrayObject *syms_arr = (PyArrayObject *)PyArray_FROM_OTF(
         syms_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -57,24 +61,28 @@ _bind_qpsk_map(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_wfm_awgn_amplitude(PyObject *self, PyObject *args)
+_bind_wfm_awgn_amplitude(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"snr_db", "signal_power", NULL};
     float snr_db = 0.0f;
     float signal_power = 0.0f;
-    if (!PyArg_ParseTuple(args, "ff", &snr_db, &signal_power))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ff",
+            _kwlist, &snr_db, &signal_power))
         return NULL;
     return PyFloat_FromDouble((double)wfm_awgn_amplitude(snr_db, signal_power));
 }
 
 static PyObject *
-_bind_wfm_ebno_to_snr_db(PyObject *self, PyObject *args)
+_bind_wfm_ebno_to_snr_db(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"ebno_db", "bits_per_symbol", "samples_per_symbol", NULL};
     float ebno_db = 0.0f;
     int bits_per_symbol = 0;
     float samples_per_symbol = 0.0f;
-    if (!PyArg_ParseTuple(args, "fif", &ebno_db, &bits_per_symbol, &samples_per_symbol))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "fif",
+            _kwlist, &ebno_db, &bits_per_symbol, &samples_per_symbol))
         return NULL;
     return PyFloat_FromDouble((double)wfm_ebno_to_snr_db(ebno_db, bits_per_symbol, samples_per_symbol));
 }
@@ -85,10 +93,10 @@ _bind_wfm_ebno_to_snr_db(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef wfm_module_methods[] = {
-    {"bpsk_map", _bind_bpsk_map, METH_VARARGS, "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."},
-    {"qpsk_map", _bind_qpsk_map, METH_VARARGS, "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."},
-    {"wfm_awgn_amplitude", _bind_wfm_awgn_amplitude, METH_VARARGS, "AWGN amplitude for a target SNR (dB, over fs) given signal power."},
-    {"wfm_ebno_to_snr_db", _bind_wfm_ebno_to_snr_db, METH_VARARGS, "Convert Eb/No (dB) to SNR (dB over fs)."},
+    {"bpsk_map", (PyCFunction)(void *)_bind_bpsk_map, METH_VARARGS | METH_KEYWORDS, "Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."},
+    {"qpsk_map", (PyCFunction)(void *)_bind_qpsk_map, METH_VARARGS | METH_KEYWORDS, "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."},
+    {"wfm_awgn_amplitude", (PyCFunction)(void *)_bind_wfm_awgn_amplitude, METH_VARARGS | METH_KEYWORDS, "AWGN amplitude for a target SNR (dB, over fs) given signal power."},
+    {"wfm_ebno_to_snr_db", (PyCFunction)(void *)_bind_wfm_ebno_to_snr_db, METH_VARARGS | METH_KEYWORDS, "Convert Eb/No (dB) to SNR (dB over fs)."},
     {NULL, NULL, 0, NULL}
 };
 

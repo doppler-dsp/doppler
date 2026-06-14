@@ -18,25 +18,29 @@
 #include "measure_ext_imdmeas.c"
 
 static PyObject *
-_bind_measure_min_samples(PyObject *self, PyObject *args)
+_bind_measure_min_samples(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"fs", "target_rbw", "window", "beta", NULL};
     double fs = 0.0;
     double target_rbw = 0.0;
     int window = 0;
     float beta = 0.0f;
-    if (!PyArg_ParseTuple(args, "ddif", &fs, &target_rbw, &window, &beta))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ddif",
+            _kwlist, &fs, &target_rbw, &window, &beta))
         return NULL;
     return PyLong_FromUnsignedLongLong((unsigned long long)measure_min_samples(fs, target_rbw, window, beta));
 }
 
 static PyObject *
-_bind_measure_rec_nfft(PyObject *self, PyObject *args)
+_bind_measure_rec_nfft(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"n", "pad", NULL};
     unsigned long long n_raw = 0ULL;
     unsigned long long pad_raw = 0ULL;
-    if (!PyArg_ParseTuple(args, "KK", &n_raw, &pad_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "KK",
+            _kwlist, &n_raw, &pad_raw))
         return NULL;
     size_t n = (size_t)n_raw;
     size_t pad = (size_t)pad_raw;
@@ -44,24 +48,28 @@ _bind_measure_rec_nfft(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-_bind_measure_proc_gain(PyObject *self, PyObject *args)
+_bind_measure_proc_gain(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"nfft", NULL};
     unsigned long long nfft_raw = 0ULL;
-    if (!PyArg_ParseTuple(args, "K", &nfft_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "K",
+            _kwlist, &nfft_raw))
         return NULL;
     size_t nfft = (size_t)nfft_raw;
     return PyFloat_FromDouble(measure_proc_gain(nfft));
 }
 
 static PyObject *
-_bind_dp_coherent_freq(PyObject *self, PyObject *args)
+_bind_dp_coherent_freq(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
+    static char *_kwlist[] = {"fs", "f_target", "N", NULL};
     double fs = 0.0;
     double f_target = 0.0;
     unsigned long long N_raw = 0ULL;
-    if (!PyArg_ParseTuple(args, "ddK", &fs, &f_target, &N_raw))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ddK",
+            _kwlist, &fs, &f_target, &N_raw))
         return NULL;
     size_t N = (size_t)N_raw;
     return PyFloat_FromDouble(dp_coherent_freq(fs, f_target, N));
@@ -73,10 +81,10 @@ _bind_dp_coherent_freq(PyObject *self, PyObject *args)
 /* ======================================================== */
 
 static PyMethodDef measure_module_methods[] = {
-    {"measure_min_samples", _bind_measure_min_samples, METH_VARARGS, "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."},
-    {"measure_rec_nfft", _bind_measure_rec_nfft, METH_VARARGS, "Recommended zero-padded transform length: next_pow2(n * pad)."},
-    {"measure_proc_gain", _bind_measure_proc_gain, METH_VARARGS, "FFT processing gain in dB: 10*log10(nfft / 2)."},
-    {"dp_coherent_freq", _bind_dp_coherent_freq, METH_VARARGS, "Nearest leakage-free coherent test frequency (J cycles, J coprime N)."},
+    {"measure_min_samples", (PyCFunction)(void *)_bind_measure_min_samples, METH_VARARGS | METH_KEYWORDS, "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."},
+    {"measure_rec_nfft", (PyCFunction)(void *)_bind_measure_rec_nfft, METH_VARARGS | METH_KEYWORDS, "Recommended zero-padded transform length: next_pow2(n * pad)."},
+    {"measure_proc_gain", (PyCFunction)(void *)_bind_measure_proc_gain, METH_VARARGS | METH_KEYWORDS, "FFT processing gain in dB: 10*log10(nfft / 2)."},
+    {"dp_coherent_freq", (PyCFunction)(void *)_bind_dp_coherent_freq, METH_VARARGS | METH_KEYWORDS, "Nearest leakage-free coherent test frequency (J cycles, J coprime N)."},
     {NULL, NULL, 0, NULL}
 };
 

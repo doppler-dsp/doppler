@@ -73,6 +73,8 @@ extern "C" {
 
 #include "welch/welch_core.h"
 
+#include "tonemeas/tonemeas_core.h"
+
 #include "ddc/ddc_core.h"
 
 #include "ddcr/ddcr_core.h"

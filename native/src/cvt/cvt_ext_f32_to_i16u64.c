@@ -79,16 +79,18 @@ F32ToI16U64_step (F32ToI16U64Object *self, PyObject *args)
 }
 
 static PyObject *
-F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args)
+F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj  = NULL;
-  PyObject *out_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+  static char *kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj   = NULL;
+  PyObject    *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &in_obj,
+                                    &out_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -138,6 +140,24 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args)
 }
 
 static PyObject *
+F32ToI16U64_getprop_clipped (F32ToI16U64Object *self,
+                             void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->clipped));
+}
+
+static PyGetSetDef F32ToI16U64_getset[]
+    = { { "clipped", (getter)F32ToI16U64_getprop_clipped, NULL,
+          "True if any sample has been saturated since the last reset().\n",
+          NULL },
+        { NULL } };
+
+static PyObject *
 F32ToI16U64Obj_destroy (F32ToI16U64Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
@@ -167,23 +187,6 @@ F32ToI16U64Obj_exit (F32ToI16U64Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-F32ToI16U64Obj_get_clipped (F32ToI16U64Object *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong (self->handle->clipped);
-}
-
-static PyGetSetDef F32ToI16U64Obj_getset[]
-    = { { "clipped", (getter)F32ToI16U64Obj_get_clipped, NULL,
-          "True if any sample has been saturated since the last reset().",
-          NULL },
-        { NULL } };
-
 static PyMethodDef F32ToI16U64Obj_methods[]
     = { { "reset", (PyCFunction)F32ToI16U64Obj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -196,7 +199,8 @@ static PyMethodDef F32ToI16U64Obj_methods[]
           "    >>> obj = F32ToI16U64(32768.0)\n"
           "    >>> obj.step(1.0)\n"
           "    0\n" },
-        { "steps", (PyCFunction)F32ToI16U64_steps, METH_VARARGS,
+        { "steps", (PyCFunction)(void *)F32ToI16U64_steps,
+          METH_VARARGS | METH_KEYWORDS,
           "steps(x[, out]) -> ndarray\n"
           "\n"
           "Process a block of float samples to Q15-in-uint64.\n"
@@ -221,9 +225,9 @@ static PyTypeObject F32ToI16U64ObjType = {
   .tp_basicsize                           = sizeof (F32ToI16U64Object),
   .tp_dealloc                             = (destructor)F32ToI16U64Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "F32ToI16U64 type.",
+  .tp_doc                                 = "F32ToI16U64 type.\n",
   .tp_methods                             = F32ToI16U64Obj_methods,
-  .tp_getset                              = F32ToI16U64Obj_getset,
+  .tp_getset                              = F32ToI16U64_getset,
   .tp_new                                 = F32ToI16U64Obj_new,
   .tp_init                                = (initproc)F32ToI16U64Obj_init,
 };

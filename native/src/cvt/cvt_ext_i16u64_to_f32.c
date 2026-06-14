@@ -80,16 +80,18 @@ I16U64ToF32_step (I16U64ToF32Object *self, PyObject *args)
 }
 
 static PyObject *
-I16U64ToF32_steps (I16U64ToF32Object *self, PyObject *args)
+I16U64ToF32_steps (I16U64ToF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj  = NULL;
-  PyObject *out_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+  static char *kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj   = NULL;
+  PyObject    *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &in_obj,
+                                    &out_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -181,7 +183,8 @@ static PyMethodDef I16U64ToF32Obj_methods[]
           "    >>> obj = I16U64ToF32(32768.0)\n"
           "    >>> obj.step(1)\n"
           "    0.0\n" },
-        { "steps", (PyCFunction)I16U64ToF32_steps, METH_VARARGS,
+        { "steps", (PyCFunction)(void *)I16U64ToF32_steps,
+          METH_VARARGS | METH_KEYWORDS,
           "steps(x[, out]) -> ndarray\n"
           "\n"
           "Process a block of Q15-in-uint64 samples to float32.\n"
@@ -206,7 +209,7 @@ static PyTypeObject I16U64ToF32ObjType = {
   .tp_basicsize                           = sizeof (I16U64ToF32Object),
   .tp_dealloc                             = (destructor)I16U64ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "I16U64ToF32 type.",
+  .tp_doc                                 = "I16U64ToF32 type.\n",
   .tp_methods                             = I16U64ToF32Obj_methods,
   .tp_new                                 = I16U64ToF32Obj_new,
   .tp_init                                = (initproc)I16U64ToF32Obj_init,

@@ -73,22 +73,23 @@ F32ToUQ15_step (F32ToUQ15Object *self, PyObject *args)
   float x;
   if (!PyArg_ParseTuple (args, "f", &x))
     return NULL;
-  /* cast away const: step mutates the clipped flag */
   uint16_t y = f32_to_uq15_step (self->handle, x);
   return PyLong_FromUnsignedLong ((unsigned long)y);
 }
 
 static PyObject *
-F32ToUQ15_steps (F32ToUQ15Object *self, PyObject *args)
+F32ToUQ15_steps (F32ToUQ15Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj  = NULL;
-  PyObject *out_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+  static char *kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj   = NULL;
+  PyObject    *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &in_obj,
+                                    &out_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -138,6 +139,23 @@ F32ToUQ15_steps (F32ToUQ15Object *self, PyObject *args)
 }
 
 static PyObject *
+F32ToUQ15_getprop_clipped (F32ToUQ15Object *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->clipped));
+}
+
+static PyGetSetDef F32ToUQ15_getset[]
+    = { { "clipped", (getter)F32ToUQ15_getprop_clipped, NULL,
+          "True if any sample has been saturated since the last reset().\n",
+          NULL },
+        { NULL } };
+
+static PyObject *
 F32ToUQ15Obj_destroy (F32ToUQ15Object *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
@@ -167,55 +185,32 @@ F32ToUQ15Obj_exit (F32ToUQ15Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-F32ToUQ15Obj_get_clipped (F32ToUQ15Object *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong (self->handle->clipped);
-}
-
-static PyGetSetDef F32ToUQ15Obj_getset[]
-    = { { "clipped", (getter)F32ToUQ15Obj_get_clipped, NULL,
-          "True if any sample has been saturated since the last reset().",
-          NULL },
-        { NULL } };
-
 static PyMethodDef F32ToUQ15Obj_methods[]
     = { { "reset", (PyCFunction)F32ToUQ15Obj_reset, METH_NOARGS,
-          "Reset state to post-create defaults (clears clipped)." },
+          "Reset state to post-create defaults." },
         { "step", (PyCFunction)F32ToUQ15_step, METH_VARARGS,
-          "step(x) -> int\n"
+          "step(x) -> uint16_t\n"
           "\n"
           "Process one input sample.\n"
           "\n"
-          "Returns offset-binary uint16: x=-1.0 -> 0, x=0.0 -> 32768, "
-          "x~+1.0 -> 65535.\n"
-          "\n"
-          "    >>> from doppler.cvt import F32ToUQ15\n"
-          "    >>> obj = F32ToUQ15()\n"
-          "    >>> obj.step(0.0)\n"
-          "    32768\n"
-          "    >>> obj.step(-1.0)\n"
+          "    >>> from doppler import F32ToUQ15\n"
+          "    >>> obj = F32ToUQ15(32768.0)\n"
+          "    >>> obj.step(1.0)\n"
           "    0\n" },
-        { "steps", (PyCFunction)F32ToUQ15_steps, METH_VARARGS,
+        { "steps", (PyCFunction)(void *)F32ToUQ15_steps,
+          METH_VARARGS | METH_KEYWORDS,
           "steps(x[, out]) -> ndarray\n"
           "\n"
-          "Process a block of samples in batch.\n"
+          "Process a block of float samples to UQ15 uint16.\n"
           "\n"
           "    >>> import numpy as np\n"
-          "    >>> from doppler.cvt import F32ToUQ15\n"
-          "    >>> obj = F32ToUQ15()\n"
+          "    >>> from doppler import F32ToUQ15\n"
+          "    >>> obj = F32ToUQ15(32768.0)\n"
           "    >>> y = obj.steps(np.zeros(4, dtype=np.float32))\n"
           "    >>> y.shape\n"
           "    (4,)\n"
           "    >>> y.dtype\n"
-          "    dtype('uint16')\n"
-          "    >>> int(y[0])\n"
-          "    32768\n" },
+          "    dtype('uint16')\n" },
 
         { "destroy", (PyCFunction)F32ToUQ15Obj_destroy, METH_NOARGS,
           "Release resources." },
@@ -228,9 +223,9 @@ static PyTypeObject F32ToUQ15ObjType = {
   .tp_basicsize                           = sizeof (F32ToUQ15Object),
   .tp_dealloc                             = (destructor)F32ToUQ15Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "F32ToUQ15 type.",
+  .tp_doc                                 = "F32ToUQ15 type.\n",
   .tp_methods                             = F32ToUQ15Obj_methods,
-  .tp_getset                              = F32ToUQ15Obj_getset,
+  .tp_getset                              = F32ToUQ15_getset,
   .tp_new                                 = F32ToUQ15Obj_new,
   .tp_init                                = (initproc)F32ToUQ15Obj_init,
 };

@@ -79,16 +79,18 @@ UQ15ToF32_step (UQ15ToF32Object *self, PyObject *args)
 }
 
 static PyObject *
-UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args)
+UQ15ToF32_steps (UQ15ToF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj  = NULL;
-  PyObject *out_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O|O", &in_obj, &out_obj))
+  static char *kwlist[] = { "x", "out", NULL };
+  PyObject    *in_obj   = NULL;
+  PyObject    *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &in_obj,
+                                    &out_obj))
     return NULL;
 
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -167,49 +169,45 @@ UQ15ToF32Obj_exit (UQ15ToF32Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef UQ15ToF32Obj_methods[] = {
-  { "reset", (PyCFunction)UQ15ToF32Obj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
-  { "step", (PyCFunction)UQ15ToF32_step, METH_VARARGS,
-    "step(x) -> float\n"
-    "\n"
-    "Process one input sample.\n"
-    "\n"
-    "Decodes UQ15 offset-binary: 0 -> -1.0, 32768 -> 0.0, 65535 -> ~+1.0.\n"
-    "\n"
-    "    >>> from doppler.cvt import UQ15ToF32\n"
-    "    >>> obj = UQ15ToF32()\n"
-    "    >>> obj.step(32768)\n"
-    "    0.0\n"
-    "    >>> obj.step(0)\n"
-    "    -1.0\n" },
-  { "steps", (PyCFunction)UQ15ToF32_steps, METH_VARARGS,
-    "steps(x[, out]) -> ndarray\n"
-    "\n"
-    "Process a block of samples in batch.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler.cvt import UQ15ToF32\n"
-    "    >>> obj = UQ15ToF32()\n"
-    "    >>> y = obj.steps(np.full(4, 32768, dtype=np.uint16))\n"
-    "    >>> y.shape\n"
-    "    (4,)\n"
-    "    >>> y.dtype\n"
-    "    dtype('float32')\n" },
+static PyMethodDef UQ15ToF32Obj_methods[]
+    = { { "reset", (PyCFunction)UQ15ToF32Obj_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
+        { "step", (PyCFunction)UQ15ToF32_step, METH_VARARGS,
+          "step(x) -> float\n"
+          "\n"
+          "Process one input sample.\n"
+          "\n"
+          "    >>> from doppler import UQ15ToF32\n"
+          "    >>> obj = UQ15ToF32(32768.0)\n"
+          "    >>> obj.step(1)\n"
+          "    0.0\n" },
+        { "steps", (PyCFunction)(void *)UQ15ToF32_steps,
+          METH_VARARGS | METH_KEYWORDS,
+          "steps(x[, out]) -> ndarray\n"
+          "\n"
+          "Process a block of UQ15 samples to float32.\n"
+          "\n"
+          "    >>> import numpy as np\n"
+          "    >>> from doppler import UQ15ToF32\n"
+          "    >>> obj = UQ15ToF32(32768.0)\n"
+          "    >>> y = obj.steps(np.zeros(4, dtype=np.uint16))\n"
+          "    >>> y.shape\n"
+          "    (4,)\n"
+          "    >>> y.dtype\n"
+          "    dtype('float32')\n" },
 
-  { "destroy", (PyCFunction)UQ15ToF32Obj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)UQ15ToF32Obj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)UQ15ToF32Obj_exit, METH_VARARGS, NULL },
-  { NULL }
-};
+        { "destroy", (PyCFunction)UQ15ToF32Obj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)UQ15ToF32Obj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)UQ15ToF32Obj_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject UQ15ToF32ObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "cvt.UQ15ToF32",
   .tp_basicsize                           = sizeof (UQ15ToF32Object),
   .tp_dealloc                             = (destructor)UQ15ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "UQ15ToF32 type.",
+  .tp_doc                                 = "UQ15ToF32 type.\n",
   .tp_methods                             = UQ15ToF32Obj_methods,
   .tp_new                                 = UQ15ToF32Obj_new,
   .tp_init                                = (initproc)UQ15ToF32Obj_init,

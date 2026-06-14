@@ -274,11 +274,24 @@ filed as gh-254.) The `link=true` table name is the **component** — jm appends
 `_core`. To avoid `.so` dups when several module-objects share a dep, put
 `link=true` on ONE object; jm does NOT dedup the `.so` list.
 
-**Roadmap** (see `~/.claude/plans`): #225 link lines DONE (all modules). Next:
-#222 `out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional`
-`bank`; #244 measure structseq `--single` (return-by-value `_core.c` reconcile —
-its own PR, un-allowlists `measure.pyi`); #223 verify-only. #247 (group module
-functions into one TU) still open upstream.
+**#222 `out=` steps DONE** (11 `cvt` converters + `agc`): the hand-written
+`steps(x, out)` dual-path in each `_ext_<obj>.c` is now jm-generated (gh-222 +
+gh-240's keyword unification in 0.19.7) — delete the fragment, `jm apply`
+recreates it with a **keyword** `out=` (was positional-only by hand). For the four
+`F32To*` converters the hand-patched `clipped` getset became a declared
+`[[<obj>.properties]]` (`type="bool"`, `field=true`, `doc="…"` to keep the rich
+docstring). **Accumulators excluded** (`acc_f32`/`acc_cf64`/`acc_trace` expose
+bespoke `madd`/`add2d`/`accumulate`/… methods, not a generated block-`steps`).
+NB: after regenerating a fragment, **clang-format it** (jm emits 4-space; doppler
+fragments are GNU 2-space) — `jm status --check` doesn't check fragment bodies
+(sacred), but pre-commit does. And **build for the `.venv`'s Python**
+(`-DPython3_EXECUTABLE=$PWD/.venv/bin/python` → cpython-313 `.so`); a plain
+`cmake -B build` picks system 3.14 and the venv then imports a stale 313 `.so`.
+
+**Roadmap** (see `~/.claude/plans`): #225 link lines DONE; #222 out= steps DONE.
+Next: #224 Resampler `optional` `bank`; #244 measure structseq `--single`
+(return-by-value `_core.c` reconcile — its own PR, un-allowlists `measure.pyi`);
+#223 verify-only. #247 (group module functions into one TU) still open upstream.
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 

@@ -40,7 +40,12 @@ typedef struct {
 
 /**
  * @brief Create an NPRMeasure analyser.
- * @param window 0 = Hann, 1 = Kaiser.
+ * @param n           Capture/frame length (>= 2).
+ * @param fs          Sample rate (Hz, > 0).
+ * @param window      0 = Hann, 1 = Kaiser.
+ * @param beta        Kaiser shape (ignored for Hann).
+ * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n*pad).
+ * @param full_scale  Amplitude that equals 0 dBFS (> 0).
  * @return Heap state, or NULL on bad args / allocation failure.
  */
 nprmeas_state_t *nprmeas_create(size_t n, double fs, int window, float beta,
@@ -54,9 +59,16 @@ void nprmeas_reset(nprmeas_state_t *state);
 
 /**
  * @brief NPR of a notched-noise capture.
- * @param active_lo,active_hi  active noise band edges (Hz).
- * @param notch_lo,notch_hi    notch band edges (Hz).
- * @param guard_hz             keep-out around the notch edges (Hz).
+ * @param state      The analyser.
+ * @param x          Real time-domain capture.
+ * @param n_in       Number of input samples.
+ * @param active_lo  Active noise band lower edge (Hz).
+ * @param active_hi  Active noise band upper edge (Hz).
+ * @param notch_lo   Notch lower edge (Hz).
+ * @param notch_hi   Notch upper edge (Hz).
+ * @param guard_hz   Keep-out around the notch edges (Hz).
+ * @param out        Result destination (out[0]).
+ * @param max_out    Capacity of `out` (must be >= 1).
  * @return 1 (one result in out[0]); 0 if max_out == 0.
  */
 size_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,

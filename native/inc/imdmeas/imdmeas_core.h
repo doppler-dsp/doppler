@@ -41,7 +41,12 @@ typedef struct {
 
 /**
  * @brief Create an IMDMeasure analyser.
- * @param window 0 = Hann, 1 = Kaiser.
+ * @param n           Capture/frame length (>= 2).
+ * @param fs          Sample rate (Hz, > 0).
+ * @param window      0 = Hann, 1 = Kaiser.
+ * @param beta        Kaiser shape (ignored for Hann).
+ * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n*pad).
+ * @param full_scale  Amplitude that equals 0 dBFS (> 0).
  * @return Heap state, or NULL on bad args / allocation failure.
  */
 imdmeas_state_t *imdmeas_create(size_t n, double fs, int window, float beta,

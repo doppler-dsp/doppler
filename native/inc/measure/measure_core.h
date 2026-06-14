@@ -104,7 +104,10 @@ typedef struct {
  * the Kaiser value for `beta` (measured via kaiser_enbw on a reference window)
  * or 1.5 for Hann.
  *
- * @param window 0 = Hann, 1 = Kaiser.
+ * @param fs          Sample rate (Hz).
+ * @param target_rbw  Desired resolution bandwidth (Hz).
+ * @param window      0 = Hann, 1 = Kaiser.
+ * @param beta        Kaiser shape (ignored for Hann).
  * @return Required capture length, or 0 on bad args.
  */
 size_t measure_min_samples(double fs, double target_rbw, int window,

@@ -15,16 +15,25 @@ ______________________________________________________________________
 
 ### Changed
 
-- **`spectral`, `measure`, and `wfm` link cross-module cores declaratively
-    (jm gh-225).** Their hand-maintained module `extra_link_libs` lists are gone;
-    each composing object now owns its `.so` link line via
+- **`spectral`, `measure`, `wfm`, and `ddc` link cross-module cores
+    declaratively (jm gh-225).** Their hand-maintained module `extra_link_libs`
+    lists are gone (only the non-component libm `m` remains on `ddc`); each
+    composing object now owns its link line via
     `depends_on = [{ name = "…", link = true }]` (e.g. `welch` → `acc_trace`,
-    `tonemeas` → `fft`/`spectral`, `wfm_synth` → `lo`/`awgn`/`fir`). `jm status   --check` now covers the link, and no hand-edited `target_link_libraries`
-    remains for these modules. `ddc`/`ddcr` and `resample` keep `extra_link_libs`
-    for now: `ddc` is a *collocated* module-object (module name == object name) so
-    `jm apply` regenerates its combined CMakeLists and `link=true` would strip the
-    composed cores from its own C test/bench targets — see the jm follow-up. Build
-    output is byte-identical for the migrated `.so`s.
+    `tonemeas` → `fft`/`spectral`, `wfm_synth` → `lo`/`awgn`/`fir`, `ddc` →
+    `lo`/`RateConverter`/`resamp`/`hbdecim`/`hbdecim_r2c`/`cic`/`fir`/`resample`).
+    `jm status --check` now covers the link, no hand-edited
+    `target_link_libraries` remains, and the generated link lines are
+    byte-identical. `ddc` is a *collocated* module-object (module name == object
+    name) whose `.so` and C test/bench share one regenerated CMakeLists; this
+    relies on `link=true` being **additive** there (jm gh-254, shipped in the
+    0.19.7 pin bump below) so the composed cores stay on `test_ddc_core`/`bench`.
+    `resample` keeps `extra_link_libs` for now (hand-written `extra_types`, libm,
+    and a self-referential module core make it its own follow-up).
+- **jm pin 0.19.6 → 0.19.7** (`just-makeit.toml` + `ci.yml` +
+    `perf-regression.yml`). Picks up gh-254 (additive collocated `link=true`,
+    above); no codegen drift (`jm apply` reconciled nothing but the hand-owned
+    `measure.pyi`).
 - **Module-level functions are now keyword-capable** (via the jm 0.19.6 pin bump).
     Free functions such as `doppler.spectral.kaiser_window(w=…, beta=…)` and
     `doppler.measure.measure_min_samples(fs=…, target_rbw=…, …)` accept keyword

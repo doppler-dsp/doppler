@@ -212,12 +212,25 @@ doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
 runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
 blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
 
-### 0.19.6 adoptions — pin bump + the hand-rolled-glue migration campaign (pin: 0.19.6)
+### 0.19.7 adoptions — additive collocated `link=true` (gh-254) (pin: 0.19.7)
 
-The CI drift gate pins **0.19.6** (`ci.yml` + `perf-regression.yml`); `jm_version`
-is stamped 0.19.6. **Drive doppler with `uvx --from 'just-makeit==0.19.6' just-makeit …`.** The bump's `jm apply` reconciled 7 module aggregators — module
-**functions are now keyword-capable** (gh-240; `kaiser_window(w=…, beta=…)`), for
-free; `_core.c` + sacred fragments untouched.
+The CI drift gate now pins **0.19.7** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.19.7. **Drive doppler with `uvx --from 'just-makeit==0.19.7' just-makeit …`.** The bump is pure tooling — `jm apply` produced **no
+codegen drift** (only the hand-owned `measure.pyi`, restored as always).
+
+0.19.7 ships **gh-254** (doppler-filed): `depends_on { link = true }` is now
+**additive** for a *collocated* module-object (module name == object name, e.g.
+`ddc`). Previously `link=true` moved the dep core onto the `.so` but stripped it
+from the object's own `test_<obj>_core`/`bench_*` (which `apply` regenerates in the
+same shared CMakeLists), breaking a composing object's C test link. Now the core
+is linked onto the object's test/bench (+ PUBLIC on its `_core`) **and** the `.so`.
+This unblocked the **#225 `ddc` migration** (see below).
+
+### 0.19.6 adoptions — pin bump + the hand-rolled-glue migration campaign (pin: 0.19.7)
+
+(Pin since bumped to 0.19.7 above.) The 0.19.6 `jm apply` reconciled 7 module
+aggregators — module **functions are now keyword-capable** (gh-240;
+`kaiser_window(w=…, beta=…)`), for free; `_core.c` + sacred fragments untouched.
 
 doppler's filed feature issues all shipped (#222 `out=` steps, #223 multi-return,
 #224 ctor dispatch, #225 `depends_on link=true`, #244 `--single` structseq +
@@ -233,34 +246,35 @@ free (the pilot fixed a latent gh-219 UAF in `FIR.execute`).
 
 **Migrated so far:** (1) FIR dtype dispatch → declarative `real_type` +
 `real_create_fn` on the `taps` init-param (#224); the hand-coded probe/branch in
-`filter_ext_fir.c` is gone. (2) **#225 link lines for `spectral`/`measure`/`wfm`**:
-their module `extra_link_libs` lists replaced by per-object
-`depends_on = [{ name="…", link=true }]` (welch→acc_trace, tonemeas→fft/spectral,
-wfm_synth→lo/awgn/fir); `.so` output byte-identical, `jm status --check` covers
-the link.
+`filter_ext_fir.c` is gone. (2) **#225 link lines for `spectral`/`measure`/`wfm`**
+\[PR #154\]: module `extra_link_libs` → per-object `depends_on = [{ name="…", link=true }]` (welch→acc_trace, tonemeas→fft/spectral, wfm_synth→lo/awgn/fir).
+(3) **#225 link lines for `ddc`/`ddcr`** \[this PR, after the 0.19.7 bump\]:
+`ddc.toml` carries all 8 composed cores as `link=true`; `ddcr` keeps bare-string
+`depends_on` (its own core/test/bench, no `.so` contribution → no dup); module
+`extra_link_libs` reduced to the non-component libm `["m"]`. `.so` link
+byte-identical; `jm status --check` covers it.
 
-**#225 KEY LEARNING — `link=true` works ONLY for non-collocated module-objects.**
-`link=true` puts the dep `<name>_core` on the *consuming target's* link line and
-*removes* it from the object-core PUBLIC + that object's `test_*_core`/`bench_*`
-targets (jm-gh-225: "not PUBLIC on `<comp>_core`"). That is fine when the object's
-per-component `native/src/<obj>/CMakeLists.txt` is **surgically** managed (gh-174 —
-`jm apply` never re-renders it, so it keeps the old test/bench links) AND the `.so`
-aggregator is a *separate* file (`native/src/<module>/CMakeLists.txt`). It BREAKS a
-**collocated** module-object (module name == object name, e.g. `ddc`): there the
-`.so` and the object-core/test/bench live in ONE `native/src/ddc/CMakeLists.txt`
-that `apply` fully regenerates, so `link=true` strips the composed cores
-(`lo`/`RateConverter`/…) from `test_ddc_core` → undefined-reference link failure
-(`ddc_core.c` calls those symbols). So `ddc`/`ddcr` KEEP `extra_link_libs`. Worth a
-jm issue: `link=true` and the bare-dep test/bench linkage are mutually exclusive,
-but a composing+tested collocated object needs both.
+**#225 MECHANIC — `link=true` semantics (post-gh-254 / 0.19.7):** `link=true`
+links the dep `<name>_core` directly onto the *consuming target's* link line.
+For a **non-collocated** object (per-component `native/src/<obj>/CMakeLists.txt`
+is surgically managed by gh-174; the `.so` aggregator is a *separate*
+`native/src/<module>/CMakeLists.txt`) it adds to the `.so` only. For a
+**collocated** module-object (module name == object name, e.g. `ddc` — `.so` +
+object-core + test/bench all in ONE regenerated CMakeLists) gh-254 made it
+**additive**: the core lands on the object's test/bench (+ PUBLIC on `_core`)
+**and** the `.so`, so a composing object's C test still links. (Pre-0.19.7 it
+stripped them → `undefined reference` in `test_ddc_core`; that was the bug we
+filed as gh-254.) The `link=true` table name is the **component** — jm appends
+`_core`. To avoid `.so` dups when several module-objects share a dep, put
+`link=true` on ONE object; jm does NOT dedup the `.so` list.
 
-**Roadmap** (see `~/.claude/plans`): #225 `resample` (deferred — its own PR;
-mixes hand-written `extra_types` HalfbandDecimatorR2C→`hbdecim_r2c_core`, literal
-libm `m`, a self-ref `resample_core`, and cross-object link dups); #222 `out=` on
-the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional` `bank`; #244 measure
-structseq `--single` (return-by-value `_core.c` reconcile — its own PR,
-un-allowlists `measure.pyi`); #223 verify-only. #247 (group module functions into
-one TU) still open upstream.
+**Roadmap** (see `~/.claude/plans`): #225 `resample` (the last link-line holdout —
+its own PR; mixes hand-written `extra_types` HalfbandDecimatorR2C→`hbdecim_r2c_core`,
+literal libm `m`, a self-ref `resample_core`, and cross-object link dups); #222
+`out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional` `bank`;
+#244 measure structseq `--single` (return-by-value `_core.c` reconcile — its own
+PR, un-allowlists `measure.pyi`); #223 verify-only. #247 (group module functions
+into one TU) still open upstream.
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 

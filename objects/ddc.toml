@@ -5,7 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "DDC"
-depends_on = ["lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core"]
+depends_on = [{ name = "lo", link = true }, { name = "RateConverter", link = true }, { name = "resamp", link = true }, { name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }, { name = "cic", link = true }, { name = "fir", link = true }, { name = "resample", link = true }]
 
 [[ddc.init_params]]
 name = "norm_freq"

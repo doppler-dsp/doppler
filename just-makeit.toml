@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.6"
+jm_version = "0.19.7"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -280,7 +280,11 @@ no_generate = "true"
 
 [module.ddc]
 objects = ["ddc", "ddcr"]
-extra_link_libs = ["lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core", "m"]
+# ddc.toml's depends_on link=true (gh-225, additive for the collocated ddc object
+# since gh-254/0.19.7) links the composed cores into the ddc .so AND ddc's own C
+# test/bench; ddcr keeps bare-string depends_on for its core/test/bench. Only the
+# non-component libm remains here.
+extra_link_libs = ["m"]
 
 [module.ddc.reexports]
 ddc_fn = ["ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy", "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate"]

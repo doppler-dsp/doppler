@@ -80,6 +80,13 @@
 * [**resamp\_state\_t**](structresamp__state__t.md)
 
 
+## t
+
+* [**time\_stats\_t**](structtime__stats__t.md)
+* [**tone\_meas\_t**](structtone__meas__t.md)
+* [**tonemeas\_state\_t**](structtonemeas__state__t.md)
+
+
 ## u
 
 * [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md)

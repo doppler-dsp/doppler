@@ -92,6 +92,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md) _int8-to-float converter with configurable inverse scale._     
         * **dir** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md)     
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
+        * **dir** [**measure**](dir_4f61a452d1df39cf8c2e8be27f29f1f2.md)     
+            * **file** [**measure\_core.h**](measure__core_8h.md) _Measure module — shared result structs and module-level helpers._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     
             * **file** [**nco\_core.h**](nco__core_8h.md) _Pure 32-bit phase-accumulator NCO._     
         * **dir** [**pffft**](dir_2e0e79537247ed1eb65cd0be05071701.md)     
@@ -112,6 +114,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     
             * **file** [**timing\_core.h**](timing__core_8h.md)     
+        * **dir** [**tonemeas**](dir_78c9bf326243d2be956f1c1b5de2ee56.md)     
+            * **file** [**tonemeas\_core.h**](tonemeas__core_8h.md) _ToneMeasure — single-tone ADC/converter spectral measurement._     
         * **dir** [**uq15\_to\_f32**](dir_b44b8aae78dd39801a4344596faf709f.md)     
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     

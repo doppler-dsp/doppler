@@ -42,6 +42,9 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**nco\_state\_t**](structnco__state__t.md) _NCO state._     
 * **struct** [**pn\_state\_t**](structpn__state__t.md)     
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md)     
+* **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
+* **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
+* **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._     
 * **struct** [**welch\_state\_t**](structwelch__state__t.md) _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-welch_create) _._    
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     

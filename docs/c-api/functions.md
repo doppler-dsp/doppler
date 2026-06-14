@@ -424,6 +424,18 @@
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 
+## t
+
+* **tonemeas\_analyze** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_analyze\_complex** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_create** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_destroy** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_reset** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_spectrum\_dbfs** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_spectrum\_dbfs\_max\_out** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+* **tonemeas\_time\_stats** ([**tonemeas\_core.h**](tonemeas__core_8h.md))
+
+
 ## u
 
 * **uq15\_to\_f32\_create** ([**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md))
@@ -458,6 +470,7 @@
 * **wfm\_compose\_segments** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_resolve\_noise** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_spec\_headroom** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_spec\_template\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_spec\_to\_json** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_awgn\_amplitude** ([**wfm\_core.h**](wfm__core_8h.md))
 * **wfm\_ebno\_to\_snr\_db** ([**wfm\_core.h**](wfm__core_8h.md))

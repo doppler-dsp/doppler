@@ -83,6 +83,8 @@ char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,
 
 double wfm_spec_headroom(const char *json);
 
+char *wfm_spec_template_json(void);
+
 wfm_compose_state_t *wfm_compose_from_json(const char *json);
 
 wfm_compose_state_t *wfm_compose_from_file(const char *path);

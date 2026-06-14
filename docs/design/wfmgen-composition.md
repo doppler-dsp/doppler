@@ -1,6 +1,6 @@
 # Waveform amplitude & composition
 
-!!! success "Status: Implemented — ships in 0.11.0"
+!!! success "Status: Implemented"
 
     This RFC is now built. Per-source `level`, `--headroom`, multi-source
     `Segment.sum()` over one resolved noise floor, and the `.add()` timeline all

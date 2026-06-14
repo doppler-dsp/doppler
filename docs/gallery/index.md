@@ -173,4 +173,38 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](adc.md)
 
+- **[Measurement Suite — ADC Characterisation](measure.md)**
+
+    ______________________________________________________________________
+
+    [![measurement suite demo](../assets/measure_demo.png)](measure.md)
+
+    SNR / SINAD / THD / SFDR / ENOB from `ToneMeasure` with window-main-lobe
+    integration — an annotated spectrum, ENOB-vs-bits recovery, and a
+    dynamic-range sweep.
+
+    [:octicons-arrow-right-24: Walkthrough](measure.md)
+
+- **[AWGN Generator](awgn.md)**
+
+    ______________________________________________________________________
+
+    [![AWGN demo](../assets/awgn_demo.png)](awgn.md)
+
+    Complex AWGN from the Box-Muller generator — the amplitude histogram
+    against the theoretical Gaussian PDF and the flat power spectral density.
+
+    [:octicons-arrow-right-24: Walkthrough](awgn.md)
+
+- **[Waveform I/O — One Capture, Four Containers](wfm-io.md)**
+
+    ______________________________________________________________________
+
+    [![waveform I/O demo](../assets/wfm_io_demo.png)](wfm-io.md)
+
+    The same QPSK capture written to **raw**, **CSV**, **BLUE** and **SigMF**
+    and read back with `read_iq` — the C codec behind `wfmgen --file_type`.
+
+    [:octicons-arrow-right-24: Walkthrough](wfm-io.md)
+
 </div>

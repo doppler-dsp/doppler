@@ -1,0 +1,68 @@
+# imdmeas — two-tone intermodulation (IMD2 / IMD3) and third-order intercept.
+#
+# Drive two equal tones f1<f2; integrate each fundamental and the intermod
+# products (2f1-f2, 2f2-f1 for IMD3; f2-f1 for IMD2) over their window main
+# lobes, all folded into the analysed band.  Composes fft_core + spectral_core.
+
+[imdmeas]
+arg_type = "float"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "IMDMeasure"
+depends_on = ["fft_core", "spectral_core"]
+
+[[imdmeas.init_params]]
+name = "n"
+type = "size_t"
+default = "8192"
+
+[[imdmeas.init_params]]
+name = "fs"
+type = "double"
+default = "1.0"
+
+[[imdmeas.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser"
+default = "kaiser"
+
+[[imdmeas.init_params]]
+name = "beta"
+type = "float"
+default = "12.0f"
+
+[[imdmeas.init_params]]
+name = "pad"
+type = "size_t"
+default = "2"
+
+[[imdmeas.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[imdmeas.methods]]
+name = "analyze"
+doc = "Two-tone IMD/TOI of a real capture (finds the two strongest tones)."
+arg_type = "float"
+return_type = "imd_meas_t"
+max_results = 1
+nogil = true
+result_fields = [{name = "f1", type = "double"}, {name = "f2", type = "double"}, {name = "p1_dbfs", type = "double"}, {name = "p2_dbfs", type = "double"}, {name = "imd2_dbc", type = "double"}, {name = "imd3_dbc", type = "double"}, {name = "imd2_freq", type = "double"}, {name = "imd3_lo_freq", type = "double"}, {name = "imd3_hi_freq", type = "double"}, {name = "toi_dbfs", type = "double"}, {name = "soi_dbfs", type = "double"}, {name = "rbw_hz", type = "double"}]
+
+[[imdmeas.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[imdmeas.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+
+[[imdmeas.properties]]
+name = "fs"
+type = "double"
+field = true

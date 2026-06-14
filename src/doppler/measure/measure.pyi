@@ -50,6 +50,22 @@ class TimeStats(NamedTuple):
     dc_offset: float
     fs_util_pct: float
 
+class IMDMetrics(NamedTuple):
+    """Two-tone intermodulation result (IMD2 / IMD3 / intercepts)."""
+
+    f1: float
+    f2: float
+    p1_dbfs: float
+    p2_dbfs: float
+    imd2_dbc: float
+    imd3_dbc: float
+    imd2_freq: float
+    imd3_lo_freq: float
+    imd3_hi_freq: float
+    toi_dbfs: float
+    soi_dbfs: float
+    rbw_hz: float
+
 class NPRMetrics(NamedTuple):
     """Noise Power Ratio (notched-noise loading) result."""
 
@@ -177,14 +193,54 @@ class ToneMeasure:
     def __enter__(self) -> "ToneMeasure": ...
     def __exit__(self, *args: object) -> None: ...
 
+class IMDMeasure:
+    """Two-tone intermodulation (IMD2 / IMD3) and third-order intercept.
+
+    Drive two equal tones f1<f2; :meth:`analyze` finds them as the two strongest
+    lobes and integrates the IMD2 (f2-f1) and IMD3 (2f1-f2, 2f2-f1) products
+    over their window main lobes.
+
+    Examples
+    --------
+    >>> from doppler.measure import IMDMeasure
+    >>> m = IMDMeasure(n=8192, fs=1.0)
+    >>> m.nfft
+    16384
+
+    """
+
+    def __init__(
+        self,
+        window: Literal["hann", "kaiser"] = "kaiser",
+        n: int = ...,
+        fs: float = ...,
+        beta: float = ...,
+        pad: int = ...,
+        full_scale: float = ...,
+    ) -> None: ...
+    def analyze(self, x: NDArray[np.float32]) -> IMDMetrics:
+        """Two-tone IMD/TOI of a real capture (named :class:`IMDMetrics`)."""
+
+    def reset(self) -> None:
+        """Reset (no-op: each analyse() call is independent)."""
+
+    @property
+    def n(self) -> int: ...
+    @property
+    def nfft(self) -> int: ...
+    @property
+    def fs(self) -> float: ...
+    def destroy(self) -> None: ...
+    def __enter__(self) -> "IMDMeasure": ...
+    def __exit__(self, *args: object) -> None: ...
+
 class NPRMeasure:
     """Notched-noise Noise Power Ratio.
 
     Drive the system with band-limited noise containing a deep notch; NPR is the
     ratio of the mean in-band noise PSD to the mean PSD that folds into the
-    notch (distortion + quantisation + intermodulation).  The band/notch
-    geometry is an :meth:`analyze` argument, so one estimator sweeps several
-    notch placements.
+    notch.  The band/notch geometry is an :meth:`analyze` argument, so one
+    estimator sweeps several notch placements.
 
     Examples
     --------

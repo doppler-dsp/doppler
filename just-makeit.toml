@@ -211,7 +211,7 @@ return_type = "double"
 name = "db"
 type = "float[]"
 [module.measure]
-objects = ["tonemeas", "nprmeas"]
+objects = ["tonemeas", "nprmeas", "imdmeas"]
 # measure objects compose fft_core + the spectral_core window / find_peaks free
 # functions; their OBJECT symbols must be linked into the extension explicitly.
 extra_link_libs = ["fft_core", "spectral_core"]

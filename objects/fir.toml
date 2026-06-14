@@ -9,6 +9,8 @@ class_name = "FIR"
 [[fir.init_params]]
 name = "taps"
 type = "float _Complex[]"
+real_type = "float[]"
+real_create_fn = "fir_create_real"
 
 [[fir.methods]]
 name = "execute"

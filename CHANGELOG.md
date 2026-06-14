@@ -15,6 +15,16 @@ ______________________________________________________________________
 
 ### Changed
 
+- **`spectral`, `measure`, and `wfm` link cross-module cores declaratively
+    (jm gh-225).** Their hand-maintained module `extra_link_libs` lists are gone;
+    each composing object now owns its `.so` link line via
+    `depends_on = [{ name = "…", link = true }]` (e.g. `welch` → `acc_trace`,
+    `tonemeas` → `fft`/`spectral`, `wfm_synth` → `lo`/`awgn`/`fir`). `jm status   --check` now covers the link, and no hand-edited `target_link_libraries`
+    remains for these modules. `ddc`/`ddcr` and `resample` keep `extra_link_libs`
+    for now: `ddc` is a *collocated* module-object (module name == object name) so
+    `jm apply` regenerates its combined CMakeLists and `link=true` would strip the
+    composed cores from its own C test/bench targets — see the jm follow-up. Build
+    output is byte-identical for the migrated `.so`s.
 - **Module-level functions are now keyword-capable** (via the jm 0.19.6 pin bump).
     Free functions such as `doppler.spectral.kaiser_window(w=…, beta=…)` and
     `doppler.measure.measure_min_samples(fs=…, target_rbw=…, …)` accept keyword

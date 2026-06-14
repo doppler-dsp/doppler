@@ -35,7 +35,8 @@ extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 
 [module.wfm]
 objects = ["pn", "wfm_synth"]
-extra_link_libs = ["lo_core", "awgn_core", "fir_core"]
+# wfm_synth.toml's depends_on link=true (gh-225) links lo/awgn/fir _core into the
+# wfm .so; pn is in-module (linked via objects). Replaces extra_link_libs.
 
 # Fold the hand-written composition / I/O surface into doppler.wfm so the whole
 # subsystem has one import path (D7). The Python `Synth` (a thin wrapper in
@@ -98,9 +99,8 @@ objects = ["delay"]
 
 [module.spectral]
 objects = ["fft", "fft2d", "corr", "corr2d", "detector", "detector2d", "welch"]
-# welch_core depends on acc_trace_core (the AccTrace averager it composes); its
-# OBJECT symbols must be linked into the spectral extension module explicitly.
-extra_link_libs = ["acc_trace_core"]
+# welch_core composes acc_trace_core (the AccTrace averager); its OBJECT symbols
+# are linked into the spectral .so via welch.toml's depends_on link=true (gh-225).
 
 [[module.spectral.functions]]
 name = "kaiser_enbw"
@@ -213,8 +213,8 @@ type = "float[]"
 [module.measure]
 objects = ["tonemeas", "nprmeas", "imdmeas"]
 # measure objects compose fft_core + the spectral_core window / find_peaks free
-# functions; their OBJECT symbols must be linked into the extension explicitly.
-extra_link_libs = ["fft_core", "spectral_core"]
+# functions; tonemeas.toml's depends_on link=true (gh-225) links both OBJECT
+# libs into the measure .so (one link=true owner suffices for the module target).
 
 [[module.measure.functions]]
 name = "measure_min_samples"

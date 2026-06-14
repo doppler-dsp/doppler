@@ -14,7 +14,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Welch"
-depends_on = ["fft_core", "spectral_core", "acc_trace_core"]
+depends_on = ["fft_core", "spectral_core", { name = "acc_trace", link = true }]
 
 [[welch.init_params]]
 name = "n"

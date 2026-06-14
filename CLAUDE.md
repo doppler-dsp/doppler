@@ -231,13 +231,36 @@ apply — apply regenerates it; it stays `status_allow`-listed until the measure
 `--single` migration.) Regenerating against 0.19.6 also picks up codegen fixes
 free (the pilot fixed a latent gh-219 UAF in `FIR.execute`).
 
-**Migrated so far:** FIR dtype dispatch → declarative `real_type` +
+**Migrated so far:** (1) FIR dtype dispatch → declarative `real_type` +
 `real_create_fn` on the `taps` init-param (#224); the hand-coded probe/branch in
-`filter_ext_fir.c` is gone. **Roadmap** (see `~/.claude/plans`): #225 link lines;
-#222 `out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional`
-`bank`; #244 measure structseq `--single` (the one with a return-by-value
-`_core.c` signature reconcile — its own PR, un-allowlists `measure.pyi`); #223
-verify-only. #247 (group module functions into one TU) still open upstream.
+`filter_ext_fir.c` is gone. (2) **#225 link lines for `spectral`/`measure`/`wfm`**:
+their module `extra_link_libs` lists replaced by per-object
+`depends_on = [{ name="…", link=true }]` (welch→acc_trace, tonemeas→fft/spectral,
+wfm_synth→lo/awgn/fir); `.so` output byte-identical, `jm status --check` covers
+the link.
+
+**#225 KEY LEARNING — `link=true` works ONLY for non-collocated module-objects.**
+`link=true` puts the dep `<name>_core` on the *consuming target's* link line and
+*removes* it from the object-core PUBLIC + that object's `test_*_core`/`bench_*`
+targets (jm-gh-225: "not PUBLIC on `<comp>_core`"). That is fine when the object's
+per-component `native/src/<obj>/CMakeLists.txt` is **surgically** managed (gh-174 —
+`jm apply` never re-renders it, so it keeps the old test/bench links) AND the `.so`
+aggregator is a *separate* file (`native/src/<module>/CMakeLists.txt`). It BREAKS a
+**collocated** module-object (module name == object name, e.g. `ddc`): there the
+`.so` and the object-core/test/bench live in ONE `native/src/ddc/CMakeLists.txt`
+that `apply` fully regenerates, so `link=true` strips the composed cores
+(`lo`/`RateConverter`/…) from `test_ddc_core` → undefined-reference link failure
+(`ddc_core.c` calls those symbols). So `ddc`/`ddcr` KEEP `extra_link_libs`. Worth a
+jm issue: `link=true` and the bare-dep test/bench linkage are mutually exclusive,
+but a composing+tested collocated object needs both.
+
+**Roadmap** (see `~/.claude/plans`): #225 `resample` (deferred — its own PR;
+mixes hand-written `extra_types` HalfbandDecimatorR2C→`hbdecim_r2c_core`, literal
+libm `m`, a self-ref `resample_core`, and cross-object link dups); #222 `out=` on
+the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional` `bank`; #244 measure
+structseq `--single` (return-by-value `_core.c` reconcile — its own PR,
+un-allowlists `measure.pyi`); #223 verify-only. #247 (group module functions into
+one TU) still open upstream.
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 

@@ -248,11 +248,17 @@ free (the pilot fixed a latent gh-219 UAF in `FIR.execute`).
 `real_create_fn` on the `taps` init-param (#224); the hand-coded probe/branch in
 `filter_ext_fir.c` is gone. (2) **#225 link lines for `spectral`/`measure`/`wfm`**
 \[PR #154\]: module `extra_link_libs` → per-object `depends_on = [{ name="…", link=true }]` (welch→acc_trace, tonemeas→fft/spectral, wfm_synth→lo/awgn/fir).
-(3) **#225 link lines for `ddc`/`ddcr`** \[this PR, after the 0.19.7 bump\]:
+(3) **#225 link lines for `ddc`/`ddcr`** \[PR #155, after the 0.19.7 bump\]:
 `ddc.toml` carries all 8 composed cores as `link=true`; `ddcr` keeps bare-string
 `depends_on` (its own core/test/bench, no `.so` contribution → no dup); module
 `extra_link_libs` reduced to the non-component libm `["m"]`. `.so` link
-byte-identical; `jm status --check` covers it.
+byte-identical; `jm status --check` covers it. (4) **#225 link lines for
+`resample`** \[PR, stacked on #155\]: `RateConverter` → `resamp`/`fir`,
+`HalfbandDecimator` → `hbdecim`/`hbdecim_r2c` (last for the `HalfbandDecimatorR2C`
+extra type) as `link=true`; `cic` is in-module and `resample_core` is the module's
+own core (auto-linked, so a redundant duplicate `resample_core` is dropped from
+the `.so`); `extra_link_libs` → `["m"]`. **#225 link-line migration is now
+COMPLETE** for every composing module.
 
 **#225 MECHANIC — `link=true` semantics (post-gh-254 / 0.19.7):** `link=true`
 links the dep `<name>_core` directly onto the *consuming target's* link line.
@@ -268,13 +274,11 @@ filed as gh-254.) The `link=true` table name is the **component** — jm appends
 `_core`. To avoid `.so` dups when several module-objects share a dep, put
 `link=true` on ONE object; jm does NOT dedup the `.so` list.
 
-**Roadmap** (see `~/.claude/plans`): #225 `resample` (the last link-line holdout —
-its own PR; mixes hand-written `extra_types` HalfbandDecimatorR2C→`hbdecim_r2c_core`,
-literal libm `m`, a self-ref `resample_core`, and cross-object link dups); #222
-`out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional` `bank`;
-#244 measure structseq `--single` (return-by-value `_core.c` reconcile — its own
-PR, un-allowlists `measure.pyi`); #223 verify-only. #247 (group module functions
-into one TU) still open upstream.
+**Roadmap** (see `~/.claude/plans`): #225 link lines DONE (all modules). Next:
+#222 `out=` on the ~8 cvt/agc/accumulator `steps`; #224 Resampler `optional`
+`bank`; #244 measure structseq `--single` (return-by-value `_core.c` reconcile —
+its own PR, un-allowlists `measure.pyi`); #223 verify-only. #247 (group module
+functions into one TU) still open upstream.
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 

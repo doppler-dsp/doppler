@@ -4,7 +4,7 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-depends_on = ["hbdecim"]
+depends_on = [{ name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }]
 
 [[HalfbandDecimator.init_params]]
 name = "h"

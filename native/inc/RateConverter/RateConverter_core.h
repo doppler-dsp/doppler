@@ -32,6 +32,8 @@
 
 #include <complex.h>
 #include <stddef.h>
+#include "resamp/resamp_core.h"
+#include "fir/fir_core.h"
 
 #ifdef __cplusplus
 extern "C"

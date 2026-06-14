@@ -5,7 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "RateConverter"
-depends_on = ["resamp_core", "hbdecim_core", "cic_core", "fir_core", "resample_core"]
+depends_on = [{ name = "resamp", link = true }, "hbdecim_core", "cic_core", { name = "fir", link = true }, "resample_core"]
 
 [[RateConverter.init_params]]
 name = "rate"

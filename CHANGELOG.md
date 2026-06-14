@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **`measure` drops its hand-written structseq fragments for declarative
+    `single = true` (jm gh-244/gh-259, pin → 0.19.8).** `ToneMeasure`/`NPRMeasure`/
+    `IMDMeasure`'s `analyze`/`analyze_complex`/`time_stats` are now generated from
+    the manifest: `single = true` emits the by-value `PyStructSequence` binding,
+    `record_name` preserves the public type names (`ToneMetrics`/`NPRMetrics`/
+    `IMDMetrics`/`TimeStats`), and `NPRMeasure.analyze`'s geometry params are
+    declared (with `guard_hz = 0.0` now an optional keyword). The metric kernels
+    in `*_core.c` were reconciled to **return the record by value**, and
+    `measure.pyi` is now jm-generated (dropped from `status_allow`). The public
+    API is unchanged (`r.enob`, tuple-unpacking, the same fields) **except** the
+    result types' `__module__` is now the C component (`tonemeas`/…) rather than
+    `doppler.measure` (cosmetic; `repr` only).
+
+### Known issues
+
+- The `measure` `analyze` methods **temporarily hold the GIL.** The jm single-
+    record binding does not yet honour `nogil` (jm
+    [#261](https://github.com/just-buildit/just-makeit/issues/261)); the manifest
+    keeps `nogil = true`, so the GIL release the hand fragments had is restored
+    automatically once the pin picks up that fix. Affects only concurrent
+    multi-thread batch analysis; single-threaded use is unchanged.
+
 ## [0.16.1] — 2026-06-14
 
 ### Changed

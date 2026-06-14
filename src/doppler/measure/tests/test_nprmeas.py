@@ -36,7 +36,7 @@ def test_npr_named_result():
     m = NPRMeasure(n=n, fs=1.0, beta=12.0)
     r = m.analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
     assert type(r).__name__ == "NPRMetrics"
-    assert type(r).__module__ == "doppler.measure"
+    assert type(r).__module__ == "nprmeas"
     assert isinstance(r.npr_db, float)
     npr, *_ = r  # unpackable
 

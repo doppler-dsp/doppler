@@ -288,10 +288,36 @@ fragments are GNU 2-space) — `jm status --check` doesn't check fragment bodies
 (`-DPython3_EXECUTABLE=$PWD/.venv/bin/python` → cpython-313 `.so`); a plain
 `cmake -B build` picks system 3.14 and the venv then imports a stale 313 `.so`.
 
-**Roadmap** (see `~/.claude/plans`): #225 link lines DONE; #222 out= steps DONE.
-Next: #224 Resampler `optional` `bank`; #244 measure structseq `--single`
-(return-by-value `_core.c` reconcile — its own PR, un-allowlists `measure.pyi`);
-#223 verify-only. #247 (group module functions into one TU) still open upstream.
+**Roadmap** (see `~/.claude/plans`): #225 link lines DONE; #222 out= steps DONE;
+#244 measure `--single` DONE (pin 0.19.8). Next: #224 Resampler `optional`
+`bank`; #223 verify-only. #247 (group module functions into one TU) still open
+upstream.
+
+### 0.19.8 adoptions — measure `--single` migration unblocked (pin: 0.19.8)
+
+The CI drift gate now pins **0.19.8** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.19.8. **Drive doppler with `uvx --from 'just-makeit==0.19.8' just-makeit …`.** 0.19.8 ships three doppler-driven fixes (issue
+[#257](https://github.com/just-buildit/just-makeit/issues/257) / PRs #258, #259):
+
+- **Manifest → `jm apply` round-trip for `single` + scalar param defaults**
+    (#258) — authoring `single = true` / params with `default` in TOML now
+    generates the same binding + `.pyi` as the CLI, including the
+    `analyze(x, lo, hi, …, guard_hz=0.0) -> record` shape (the NPR case). gh-244
+    had only wired the `jm method` CLI, not the apply path doppler uses.
+- **`record_name`** (#259) — names the `PyStructSequence` (`ToneMetrics`/…)
+    independently of the C struct (`tone_meas_t` would derive `ToneMeas`).
+- **`_dump` preserves unknown method keys** — manifest-authored keys round-trip
+    instead of being silently stripped (the root cause that blocked `record_name`).
+
+**#244 measure migration** \[PR pending\]: the 3 measure objects' `analyze` family
+is now declarative `single = true` (+ `record_name`, + NPR geometry params with
+`guard_hz` default); `*_core.c` `analyze` reconciled to **return-by-value**;
+`measure.pyi` is jm-generated and **dropped from `status_allow`** (0 allowed now);
+the hand structseq fragments are gone. NB: the single binding doesn't yet honour
+`nogil` (jm [#261](https://github.com/just-buildit/just-makeit/issues/261)) so the
+GIL release is temporarily inactive — `nogil = true` is kept in the manifest to
+auto-restore it on the next pin bump. Also filed nit: structseq `__module__` =
+component name (#261).
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 
@@ -350,22 +376,20 @@ three for free on regeneration. Richer containers (**BLUE type-1000**, **SigMF**
 (`wfm_writer.c`, `wfm_sink.c`) — they need sample-rate / segment / transport
 context a generic generator can't know.
 
-### `measure` — ADC/spectral metric suite (structseq returns, jm#244)
+### `measure` — ADC/spectral metric suite (declarative `single` structseq, jm#244)
 
 `[module.measure]` (`ToneMeasure`/`NPRMeasure`/`IMDMeasure` + capture-planning
 free functions) returns **named `PyStructSequence` results** (`r.enob`,
-`r.sfdr_dbc`) instead of jm's `result_fields` default `list[tuple]`. jm has no
-single-named-record shape, so each `analyze()` body is hand-written in its sacred
-`measure_ext_<obj>.c` fragment to build a lazily-cached structseq; the metric
-kernels live in `*_core.c`. Two jm gaps drove **jm#244** and are hand-patched in
-the fragments until it lands: (1) jm renders the return as `list[tuple]`, so
-`src/doppler/measure/measure.pyi` is **hand-maintained and allowlisted**
-(`status_allow`) — `jm apply` regenerates it, so **re-apply the .pyi edits after
-any apply**; (2) jm drops `size_t` init-param **defaults** from the generated
-`__init__` (only float/double), so `n`/`pad`/`n_harmonics` defaults are set by
-hand in each fragment's init. NPR's `analyze` also hand-parses its 5 geometry
-doubles (jm's `result_fields` codegen ignores extra scalar params). The module
-composes `fft_core` + `spectral_core`; module-level helpers are one TU each. See
+`r.sfdr_dbc`). As of the **0.19.8 migration** this is fully declarative: the
+`analyze`/`analyze_complex`/`time_stats` methods set `single = true` (by-value
+record binding) + `record_name = "ToneMetrics"`/… (public type name); NPR's 5
+geometry doubles are declared `params` (with `guard_hz` defaulting to 0.0); the
+`*_core.c` kernels **return the record by value**. `measure.pyi` is jm-generated
+(no longer `status_allow`-listed). The fragments are sacred-but-jm-recreatable
+(delete + `jm apply`). Caveat: the single binding doesn't yet honour `nogil`
+(jm#261) — `nogil = true` stays in the manifest and re-activates the GIL release
+on the pin bump that adopts the fix. The module composes `fft_core` +
+`spectral_core`; module-level helpers are one TU each. See
 `docs/design/measurement-suite.md`.
 
 ### `ddc_fn` — the functional DDCR API (`no_generate`)

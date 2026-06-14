@@ -118,13 +118,11 @@ lobe_at (const imdmeas_state_t *s, size_t nbins, double f, double df,
   return p;
 }
 
-size_t
-imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in,
-                 imd_meas_t *out, size_t max_out)
+imd_meas_t
+imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
 {
-  if (max_out == 0)
-    return 0;
-  memset (out, 0, sizeof (*out));
+  imd_meas_t r;
+  memset (&r, 0, sizeof (r));
   size_t nuse = (n_in < s->n) ? n_in : s->n;
   for (size_t i = 0; i < s->nfft; i++)
     s->frame[i] = (i < nuse) ? (float complex) (s->w[i] * x[i]) : 0.0f;
@@ -164,7 +162,7 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in,
         }
     }
   if (ka < 0 || kb < 0)
-    return 1; /* degenerate */
+    return r; /* degenerate (zeroed) */
   long   k1 = ka < kb ? ka : kb;
   long   k2 = ka < kb ? kb : ka;
   double f1 = (double)k1 * df, f2 = (double)k2 * df;
@@ -176,12 +174,12 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in,
     Pf = IMD_EPS;
 
   long   b;
-  double P_im3lo    = lobe_at (s, nbins, 2 * f1 - f2, df, &b);
-  out->imd3_lo_freq = fold_real (2 * f1 - f2, s->fs);
-  double P_im3hi    = lobe_at (s, nbins, 2 * f2 - f1, df, &b);
-  out->imd3_hi_freq = fold_real (2 * f2 - f1, s->fs);
-  double P_im2      = lobe_at (s, nbins, f2 - f1, df, &b);
-  out->imd2_freq    = fold_real (f2 - f1, s->fs);
+  double P_im3lo = lobe_at (s, nbins, 2 * f1 - f2, df, &b);
+  r.imd3_lo_freq = fold_real (2 * f1 - f2, s->fs);
+  double P_im3hi = lobe_at (s, nbins, 2 * f2 - f1, df, &b);
+  r.imd3_hi_freq = fold_real (2 * f2 - f1, s->fs);
+  double P_im2   = lobe_at (s, nbins, f2 - f1, df, &b);
+  r.imd2_freq    = fold_real (f2 - f1, s->fs);
 
   double P_im3 = P_im3lo > P_im3hi ? P_im3lo : P_im3hi;
   if (P_im3 < IMD_EPS)
@@ -192,15 +190,15 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in,
   double cal = (double)s->nfft / (double)s->n * s->enbw;
   double ref = s->full_scale * s->full_scale / 2.0 * cal;
 
-  out->f1        = f1;
-  out->f2        = f2;
-  out->p1_dbfs   = 10.0 * log10 (P1 / ref);
-  out->p2_dbfs   = 10.0 * log10 (P2 / ref);
-  out->imd2_dbc  = 10.0 * log10 (P_im2 / Pf);
-  out->imd3_dbc  = 10.0 * log10 (P_im3 / Pf);
+  r.f1           = f1;
+  r.f2           = f2;
+  r.p1_dbfs      = 10.0 * log10 (P1 / ref);
+  r.p2_dbfs      = 10.0 * log10 (P2 / ref);
+  r.imd2_dbc     = 10.0 * log10 (P_im2 / Pf);
+  r.imd3_dbc     = 10.0 * log10 (P_im3 / Pf);
   double pf_dbfs = 10.0 * log10 (Pf / ref);
-  out->toi_dbfs  = pf_dbfs + fabs (out->imd3_dbc) / 2.0;
-  out->soi_dbfs  = pf_dbfs + fabs (out->imd2_dbc);
-  out->rbw_hz    = s->enbw * s->fs / (double)s->n;
-  return 1;
+  r.toi_dbfs     = pf_dbfs + fabs (r.imd3_dbc) / 2.0;
+  r.soi_dbfs     = pf_dbfs + fabs (r.imd2_dbc);
+  r.rbw_hz       = s->enbw * s->fs / (double)s->n;
+  return r;
 }

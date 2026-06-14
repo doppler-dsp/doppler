@@ -52,7 +52,7 @@ main (void)
       for (size_t i = 0; i < NCAP; i++)
         x[i] = 0.0f;
       add_cos (x, NCAP, 300.0 + off, 1.0);
-      tonemeas_analyze (m, x, NCAP, &r, 1);
+      r = tonemeas_analyze (m, x, NCAP);
       CHECK (fabs (r.fund_dbfs) < 0.1); /* full-scale -> ~0 dBFS */
       CHECK (fabs (r.fund_freq - (300.0 + off) / NCAP) < 2e-3);
     }
@@ -62,7 +62,7 @@ main (void)
     x[i] = 0.0f;
   add_cos (x, NCAP, 200.0, 1.0);
   add_cos (x, NCAP, 400.0, 0.01); /* 2nd harmonic */
-  tonemeas_analyze (m, x, NCAP, &r, 1);
+  r = tonemeas_analyze (m, x, NCAP);
   CHECK (fabs (r.thd - (-40.0)) < 0.5);
   CHECK (fabs (r.thd_pct - 1.0) < 0.1); /* 100*sqrt(1e-4) = 1% */
 
@@ -71,7 +71,7 @@ main (void)
     x[i] = 0.0f;
   add_cos (x, NCAP, 200.0, 1.0);
   add_cos (x, NCAP, 777.0, 0.001); /* -60 dBc, non-harmonic */
-  tonemeas_analyze (m, x, NCAP, &r, 1);
+  r = tonemeas_analyze (m, x, NCAP);
   CHECK (fabs (r.sfdr_dbc - 60.0) < 1.0);
   CHECK (r.worst_spur_is_harm == 0);
   CHECK (fabs (r.worst_spur_freq - 777.0 / NCAP) < 2e-3);
@@ -85,7 +85,7 @@ main (void)
     add_cos (x, NCAP, 211.0, A);
     for (size_t i = 0; i < NCAP; i++)
       x[i] += (float)(a * urand ());
-    tonemeas_analyze (m, x, NCAP, &r, 1);
+    r                 = tonemeas_analyze (m, x, NCAP);
     double snr_expect = 10.0 * log10 ((A * A / 2.0) / (sigma * sigma));
     CHECK (fabs (r.snr - snr_expect) < 1.5);
     /* ENOB derives from SINAD (~SNR here, no harmonics) */
@@ -99,7 +99,7 @@ main (void)
     for (size_t i = 0; i < NCAP; i++)
       xc[i] = (float complex) (
           1.0 * cexp (-2.0 * I * M_PI * 137.0 * (double)i / (double)NCAP));
-    tonemeas_analyze_complex (m, xc, NCAP, &r, 1);
+    r = tonemeas_analyze_complex (m, xc, NCAP);
     CHECK (fabs (r.fund_freq - (-137.0 / NCAP)) < 2e-3);
     CHECK (fabs (r.fund_dbfs) < 0.2); /* full-scale complex tone -> ~0 dBFS */
     free (xc);
@@ -114,7 +114,7 @@ main (void)
       x[i] = 0.0f;
     add_cos (x, NCAP, n3, 1.0);
     add_cos (x, NCAP, 0.1 * NCAP, 0.01); /* aliased 3rd harmonic, -40 dBc */
-    tonemeas_analyze (m, x, NCAP, &r, 1);
+    r = tonemeas_analyze (m, x, NCAP);
     CHECK (r.thd > -45.0 && r.thd < -35.0); /* folded harmonic detected */
   }
 
@@ -124,7 +124,7 @@ main (void)
       x[i] = 0.0f;
     add_cos (x, NCAP, 50.0, 0.8);
     time_stats_t ts;
-    tonemeas_time_stats (m, x, NCAP, &ts, 1);
+    ts = tonemeas_time_stats (m, x, NCAP);
     CHECK (fabs (ts.crest_db - 3.01) < 0.1);
     CHECK (fabs (ts.fs_util_pct - 80.0) < 1.0);
     CHECK (fabs (ts.dc_offset) < 1e-3);

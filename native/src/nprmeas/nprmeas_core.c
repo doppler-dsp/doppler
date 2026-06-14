@@ -86,14 +86,12 @@ nprmeas_reset (nprmeas_state_t *state)
   (void)state;
 }
 
-size_t
+npr_meas_t
 nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
                  double active_lo, double active_hi, double notch_lo,
-                 double notch_hi, double guard_hz, npr_meas_t *out,
-                 size_t max_out)
+                 double notch_hi, double guard_hz)
 {
-  if (max_out == 0)
-    return 0;
+  npr_meas_t r;
   /* window + zero-pad + FFT -> one-sided cg^2-normalised power */
   size_t nuse = (n_in < s->n) ? n_in : s->n;
   for (size_t i = 0; i < s->nfft; i++)
@@ -140,11 +138,11 @@ nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
   double cal = (double)s->nfft / (double)s->n * s->enbw;
   double ref = s->full_scale * s->full_scale / 2.0 * cal;
 
-  out->npr_db          = 10.0 * log10 (in_mean / nt_mean);
-  out->inband_psd_dbfs = 10.0 * log10 (in_mean / ref);
-  out->notch_psd_dbfs  = 10.0 * log10 (nt_mean / ref);
-  out->n_inband_bins   = in_cnt;
-  out->n_notch_bins    = nt_cnt;
-  out->rbw_hz          = s->enbw * s->fs / (double)s->n;
-  return 1;
+  r.npr_db          = 10.0 * log10 (in_mean / nt_mean);
+  r.inband_psd_dbfs = 10.0 * log10 (in_mean / ref);
+  r.notch_psd_dbfs  = 10.0 * log10 (nt_mean / ref);
+  r.n_inband_bins   = in_cnt;
+  r.n_notch_bins    = nt_cnt;
+  r.rbw_hz          = s->enbw * s->fs / (double)s->n;
+  return r;
 }

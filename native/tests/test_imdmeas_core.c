@@ -42,7 +42,7 @@ main (void)
   imdmeas_state_t *m = imdmeas_create (NCAP, 1.0, 1, 12.0f, 2, 1.0);
   CHECK (m != NULL);
   imd_meas_t r;
-  imdmeas_analyze (m, x, NCAP, &r, 1);
+  r = imdmeas_analyze (m, x, NCAP);
 
   CHECK (fabs (r.f1 - 200.0 / NCAP) < 2e-3);
   CHECK (fabs (r.f2 - 250.0 / NCAP) < 2e-3);

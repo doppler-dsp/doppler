@@ -69,7 +69,7 @@ main (void)
     {
       notched_noise (x, NCAP, -(double)depth);
       npr_meas_t r;
-      nprmeas_analyze (m, x, NCAP, alo, ahi, nlo, nhi, guard, &r, 1);
+      r = nprmeas_analyze (m, x, NCAP, alo, ahi, nlo, nhi, guard);
       /* measured NPR should track the synthesised notch depth (loose: the
        * window skirts and finite bins blur it). */
       CHECK (fabs (r.npr_db - (double)depth) < 8.0);

@@ -60,10 +60,9 @@ void imdmeas_reset(imdmeas_state_t *state);
 
 /**
  * @brief Two-tone IMD/TOI of a real capture (finds the two strongest tones).
- * @return 1 (one result in out[0]); 0 if max_out == 0.
+ * @return the IMD metric record (by value; zeroed if no two tones are found).
  */
-size_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in,
-                       imd_meas_t *out, size_t max_out);
+imd_meas_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in);
 
 #ifdef __cplusplus
 }

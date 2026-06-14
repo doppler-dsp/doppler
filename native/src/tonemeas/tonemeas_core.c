@@ -349,40 +349,35 @@ compute_metrics (tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
   out->floor_uncert_db  = 4.34 / sqrt ((double)n_noise);
 }
 
-size_t
-tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in,
-                  tone_meas_t *out, size_t max_out)
+tone_meas_t
+tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in)
 {
-  if (max_out == 0)
-    return 0;
-  size_t nbins = build_real (state, x, n_in);
-  double df    = state->fs / (double)state->nfft;
-  double ref   = state->full_scale * state->full_scale / 2.0; /* sine power */
-  compute_metrics (state, nbins, 0, df, ref, 1, &out[0]);
-  return 1;
+  tone_meas_t r;
+  size_t      nbins = build_real (state, x, n_in);
+  double      df    = state->fs / (double)state->nfft;
+  double ref = state->full_scale * state->full_scale / 2.0; /* sine power */
+  compute_metrics (state, nbins, 0, df, ref, 1, &r);
+  return r;
 }
 
-size_t
+tone_meas_t
 tonemeas_analyze_complex (tonemeas_state_t *state, const float complex *x,
-                          size_t n_in, tone_meas_t *out, size_t max_out)
+                          size_t n_in)
 {
-  if (max_out == 0)
-    return 0;
-  size_t nbins = build_complex (state, x, n_in);
-  double df    = state->fs / (double)state->nfft;
-  double ref   = state->full_scale * state->full_scale; /* exponential power */
-  compute_metrics (state, nbins, (long)(state->nfft / 2), df, ref, 0, &out[0]);
-  return 1;
+  tone_meas_t r;
+  size_t      nbins = build_complex (state, x, n_in);
+  double      df    = state->fs / (double)state->nfft;
+  double ref = state->full_scale * state->full_scale; /* exponential power */
+  compute_metrics (state, nbins, (long)(state->nfft / 2), df, ref, 0, &r);
+  return r;
 }
 
-size_t
-tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in,
-                     time_stats_t *out, size_t max_out)
+time_stats_t
+tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in)
 {
-  if (max_out == 0)
-    return 0;
-  size_t n   = n_in;
-  double sum = 0.0, sumsq = 0.0, peak_abs = 0.0;
+  time_stats_t r;
+  size_t       n   = n_in;
+  double       sum = 0.0, sumsq = 0.0, peak_abs = 0.0;
   for (size_t i = 0; i < n; i++)
     {
       double v = (double)x[i];
@@ -404,13 +399,13 @@ tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in,
       if (a > peak_ac)
         peak_ac = a;
     }
-  out->rms         = rms;
-  out->peak        = peak_ac;
-  out->crest_db    = (rms_ac > 0.0) ? 20.0 * log10 (peak_ac / rms_ac) : 0.0;
-  out->papr_db     = out->crest_db;
-  out->dc_offset   = dc;
-  out->fs_util_pct = 100.0 * peak_abs / state->full_scale;
-  return 1;
+  r.rms         = rms;
+  r.peak        = peak_ac;
+  r.crest_db    = (rms_ac > 0.0) ? 20.0 * log10 (peak_ac / rms_ac) : 0.0;
+  r.papr_db     = r.crest_db;
+  r.dc_offset   = dc;
+  r.fs_util_pct = 100.0 * peak_abs / state->full_scale;
+  return r;
 }
 
 size_t

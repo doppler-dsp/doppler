@@ -185,6 +185,17 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](measure.md)
 
+- **[Measurement Suite — IMD & NPR](measure-imd-npr.md)**
+
+    ______________________________________________________________________
+
+    [![two-tone IMD and notched-noise NPR demo](../assets/measure_imd_npr_demo.png)](measure-imd-npr.md)
+
+    Two-tone IMD/IM3, the third-order intercept (TOI), and notched-noise NPR
+    with its loading sweet-spot — from `IMDMeasure` and `NPRMeasure`.
+
+    [:octicons-arrow-right-24: Walkthrough](measure-imd-npr.md)
+
 - **[AWGN Generator](awgn.md)**
 
     ______________________________________________________________________

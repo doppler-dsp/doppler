@@ -55,3 +55,6 @@ print(f"SNR {r.snr:.1f} dB  SINAD {r.sinad:.1f} dB  "
 
 `analyze()` returns a named `ToneMetrics` result (attribute access and tuple
 unpacking); `m.rbw`, `m.bin_hz` and `r.lobe_bins` report the analysis grid.
+
+The two-tone IMD/TOI and notched-noise NPR analysers have their own gallery page:
+[Measurement Suite — IMD & NPR](measure-imd-npr.md).

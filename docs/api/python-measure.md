@@ -51,10 +51,60 @@ ts = m.time_stats(x)             # crest_db / papr_db / dc_offset / fs_util_pct
 ```
 
 !!! tip "Resolution vs bin spacing"
+
     `m.rbw` (resolution bandwidth) is derived from the un-padded length `n`;
     `m.bin_hz` is the zero-padded interpolation grid. Padding sharpens the
     frequency estimate and the plot, but does **not** improve resolution.
 
+### Two-tone IMD and notched-noise NPR
+
+```python
+from doppler.measure import IMDMeasure, NPRMeasure
+
+# Two equal tones -> IMD2/IMD3 and the third-order intercept
+imd = IMDMeasure(n=n, fs=fs, beta=12.0)
+r = imd.analyze(two_tone_capture)        # r.imd3_dbc, r.toi_dbfs, ...
+
+# Notched-noise loading -> NPR (band/notch geometry are analyze() args)
+npr = NPRMeasure(n=n, fs=fs)
+g = npr.analyze(noise, active_lo, active_hi, notch_lo, notch_hi, guard_hz)
+print(g.npr_db)
+```
+
+### Capture planning
+
+```python
+from doppler.measure import (
+    dp_coherent_freq,
+    measure_min_samples,
+    measure_proc_gain,
+    measure_rec_nfft,
+)
+
+n = measure_min_samples(fs, target_rbw=1e3, window=1, beta=12.0)  # 1=kaiser
+nfft = measure_rec_nfft(n, pad=2)
+pg = measure_proc_gain(nfft)
+f0 = dp_coherent_freq(fs, 10e6, n)       # leakage-free coherent test tone
+```
+
 ______________________________________________________________________
 
 ::: doppler.measure.ToneMeasure
+
+______________________________________________________________________
+
+::: doppler.measure.IMDMeasure
+
+______________________________________________________________________
+
+::: doppler.measure.NPRMeasure
+
+______________________________________________________________________
+
+::: doppler.measure.measure_min_samples
+
+::: doppler.measure.measure_rec_nfft
+
+::: doppler.measure.measure_proc_gain
+
+::: doppler.measure.dp_coherent_freq

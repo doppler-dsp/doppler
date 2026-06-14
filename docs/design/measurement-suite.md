@@ -25,7 +25,9 @@ The fix, and the method of **IEEE Std 1241**, is to **integrate each component's
 power over its window main lobe** — a band of `±L` bins around the peak — rather
 than read one bin:
 
-$$ P_\text{component} = \sum_{|k-k_0|\le L} P[k] $$
+$$
+P_\text{component} = \sum_{|k-k_0|\le L} P[k]
+$$
 
 The noise/distortion sums then **exclude** those same leakage bins around DC, the
 fundamental and every harmonic, so leakage is never double-counted as noise. The
@@ -38,10 +40,12 @@ suites at sub-bin offsets of 0, ¼ and ½ a bin).
 `L` is the window's null-to-null half-width in un-padded bins, scaled by the
 zero-pad interpolation factor `nfft/n`, plus a guard bin:
 
-$$ L = \Big\lceil \frac{n_\text{fft}}{n}\cdot w_\text{lobe} \Big\rceil + 1,
+$$
+L = \Big\lceil \frac{n_\text{fft}}{n}\cdot w_\text{lobe} \Big\rceil + 1,
 \qquad
 w_\text{lobe} = \begin{cases} 2 & \text{Hann}\\[2pt]
-\sqrt{1+(\beta/\pi)^2} & \text{Kaiser}(\beta)\end{cases} $$
+\sqrt{1+(\beta/\pi)^2} & \text{Kaiser}(\beta)\end{cases}
+$$
 
 It is reported as `lobe_bins`.
 
@@ -52,18 +56,19 @@ ______________________________________________________________________
 The power spectrum is coherent-gain normalised, `P[k] = |X[k]|^2 / c_g^2` with
 `c_g = \sum_i w_i`, so a coherent tone reads its true power at the peak.
 
-| | **Real capture** | **Complex capture** |
-| --- | --- | --- |
-| spectrum | one-sided, ×2 fold on non-DC/non-Nyquist bins | two-sided, DC-centred (`fftshift`) |
-| band | `[0, f_s/2]` | `[-f_s/2, f_s/2)` |
-| 0 dBFS reference | peak-`full_scale` **sine** (power `A^2/2`) | `full_scale` **exponential** (power `A^2`) |
-| harmonic folding | reflects about Nyquist | wraps into the band |
+|                  | **Real capture**                              | **Complex capture**                        |
+| ---------------- | --------------------------------------------- | ------------------------------------------ |
+| spectrum         | one-sided, ×2 fold on non-DC/non-Nyquist bins | two-sided, DC-centred (`fftshift`)         |
+| band             | `[0, f_s/2]`                                  | `[-f_s/2, f_s/2)`                          |
+| 0 dBFS reference | peak-`full_scale` **sine** (power `A^2/2`)    | `full_scale` **exponential** (power `A^2`) |
+| harmonic folding | reflects about Nyquist                        | wraps into the band                        |
 
 `full_scale` is the constructor argument that defines 0 dBFS. Because the **ratio**
 metrics (SNR, SINAD, THD) are independent of this reference, only the absolute
 `*_dbfs` levels depend on the real/complex distinction.
 
 !!! note "dBFS calibration"
+
     A lobe-integrated tone captures the full main-lobe energy, which the window
     ENBW and zero-pad density inflate by `cal = (n_fft/n)·\text{ENBW}` relative
     to the true tone power. The absolute `*_dbfs` levels divide by `cal` so a
@@ -75,11 +80,13 @@ metrics (SNR, SINAD, THD) are independent of this reference, only the absolute
 For harmonic `h = 2 … n_harmonics` at frequency `h·f_0`, fold into the analysed
 band — **real reflects, complex wraps** (a common source of bugs):
 
-$$ g = (h f_0)\bmod f_s,\qquad
+$$
+g = (h f_0)\bmod f_s,\qquad
 f_h = \begin{cases}
 g \le f_s/2\ ?\ g : f_s-g & \text{(real, reflect)}\\[2pt]
 g \ge f_s/2\ ?\ g-f_s : g & \text{(complex, wrap)}
-\end{cases} $$
+\end{cases}
+$$
 
 A harmonic whose lobe overlaps the fundamental or DC is dropped (it cannot be
 separated). The remaining bins partition into **fundamental**, **harmonics** and
@@ -93,16 +100,16 @@ With integrated band powers `P_\text{fund}`, `P_\text{harm}=\sum_h P_h`,
 `P_\text{noise}` (sum over the `n_\text{noise}` unexcluded bins) and `P_\text{spur}`
 (worst single component outside the fundamental lobe):
 
-| Metric | Definition |
-| --- | --- |
-| **SNR** | $10\log_{10}(P_\text{fund}/P_\text{noise})$ |
-| **SINAD** | $10\log_{10}\!\big(P_\text{fund}/(P_\text{noise}+P_\text{harm})\big)$ |
-| **THD** | $10\log_{10}(P_\text{harm}/P_\text{fund})$ (dBc); $\text{THD}\% = 100\sqrt{P_\text{harm}/P_\text{fund}}$ |
-| **THD+N** | $10\log_{10}\!\big((P_\text{noise}+P_\text{harm})/P_\text{fund}\big) = -\text{SINAD}$ |
-| **SFDR** | $\text{dBc} = \text{fund} - \text{spur}$; $\text{dBFS} = 0 - \text{spur}_\text{dBFS}$ |
-| **ENOB** | $(\text{SINAD} - 1.76)/6.02$ |
-| **ENOB (FS)** | $(\text{SINAD} - 1.76 - \text{fund}_\text{dBFS})/6.02$ |
-| **noise floor** | $10\log_{10}\!\big(P_\text{noise}/n_\text{noise}\big)$ referenced to full scale (dBFS) |
+| Metric          | Definition                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| **SNR**         | $10\log_{10}(P_\text{fund}/P_\text{noise})$                                                              |
+| **SINAD**       | $10\log_{10}\!\big(P_\text{fund}/(P_\text{noise}+P_\text{harm})\big)$                                    |
+| **THD**         | $10\log_{10}(P_\text{harm}/P_\text{fund})$ (dBc); $\text{THD}\% = 100\sqrt{P_\text{harm}/P_\text{fund}}$ |
+| **THD+N**       | $10\log_{10}\!\big((P_\text{noise}+P_\text{harm})/P_\text{fund}\big) = -\text{SINAD}$                    |
+| **SFDR**        | $\text{dBc} = \text{fund} - \text{spur}$; $\text{dBFS} = 0 - \text{spur}_\text{dBFS}$                    |
+| **ENOB**        | $(\text{SINAD} - 1.76)/6.02$                                                                             |
+| **ENOB (FS)**   | $(\text{SINAD} - 1.76 - \text{fund}_\text{dBFS})/6.02$                                                   |
+| **noise floor** | $10\log_{10}\!\big(P_\text{noise}/n_\text{noise}\big)$ referenced to full scale (dBFS)                   |
 
 The **worst spur** may be a harmonic or a non-harmonic spur; `worst_spur_is_harm`
 flags which, and `worst_spur_freq` / `worst_spur_dbc` locate it. The **full-scale
@@ -116,7 +123,9 @@ full-scale effective resolution.
 containing a deep notch and measures how much distortion + quantisation noise
 folds into the notch:
 
-$$ \text{NPR} = 10\log_{10}\frac{\overline{P}_\text{in-band}}{\overline{P}_\text{notch}} $$
+$$
+\text{NPR} = 10\log_{10}\frac{\overline{P}_\text{in-band}}{\overline{P}_\text{notch}}
+$$
 
 with a `guard` keep-out around the notch to avoid skirt contamination.
 
@@ -125,16 +134,20 @@ with a `guard` keep-out around the notch to avoid skirt contamination.
 `IMDMeasure` drives two tones `f_1 < f_2` and integrates the intermodulation
 products (folded per the capture type). With `P_f = (P_1+P_2)/2`:
 
-$$ \text{IMD3} = 10\log_{10}\frac{\max(P_{2f_1-f_2}, P_{2f_2-f_1})}{P_f},\qquad
-\text{TOI} = P_{f,\text{dBFS}} + \tfrac{|\text{IMD3}|}{2} $$
+$$
+\text{IMD3} = 10\log_{10}\frac{\max(P_{2f_1-f_2}, P_{2f_2-f_1})}{P_f},\qquad
+\text{TOI} = P_{f,\text{dBFS}} + \tfrac{|\text{IMD3}|}{2}
+$$
 
 (doppler has no absolute power reference, so intercepts are reported in dBFS; add
 your full-scale-to-dBm offset.)
 
 ### Time-domain statistics
 
-$$ \text{crest} = \text{PAPR} = 20\log_{10}\frac{\text{peak}_\text{ac}}{\text{rms}_\text{ac}},
-\qquad \text{FS util} = 100\,\frac{\max|x|}{\text{full\_scale}}\,\% $$
+$$
+\text{crest} = \text{PAPR} = 20\log_{10}\frac{\text{peak}_\text{ac}}{\text{rms}_\text{ac}},
+\qquad \text{FS util} = 100\,\frac{\max|x|}{\text{full\_scale}}\,\%
+$$
 
 ______________________________________________________________________
 
@@ -143,17 +156,18 @@ ______________________________________________________________________
 The analyser reports the analysis grid alongside the metrics so the numbers are
 self-describing:
 
-| Field | Meaning |
-| --- | --- |
-| `bin_hz` | FFT bin spacing `f_s/n_fft` — interpolation grid, **not** resolution |
-| `rbw_hz`, `enbw_hz` | resolution bandwidth `ENBW·f_s/n` — uses **`n`, not `n_fft`** |
-| `lobe_bins` | main-lobe half-width `L` |
-| `n_noise_bins` | bins counted as noise |
-| `proc_gain_db` | FFT processing gain `10\log_{10}(n_\text{fft}/2)` |
-| `floor_uncert_db` | noise-floor standard error `≈ 4.34/\sqrt{n_\text{noise}}` |
-| `amp_uncert_db` | residual amplitude error after lobe integration (window-dependent) |
+| Field               | Meaning                                                              |
+| ------------------- | -------------------------------------------------------------------- |
+| `bin_hz`            | FFT bin spacing `f_s/n_fft` — interpolation grid, **not** resolution |
+| `rbw_hz`, `enbw_hz` | resolution bandwidth `ENBW·f_s/n` — uses **`n`, not `n_fft`**        |
+| `lobe_bins`         | main-lobe half-width `L`                                             |
+| `n_noise_bins`      | bins counted as noise                                                |
+| `proc_gain_db`      | FFT processing gain `10\log_{10}(n_\text{fft}/2)`                    |
+| `floor_uncert_db`   | noise-floor standard error `≈ 4.34/\sqrt{n_\text{noise}}`            |
+| `amp_uncert_db`     | residual amplitude error after lobe integration (window-dependent)   |
 
 !!! warning "Zero-padding interpolates, it does not resolve"
+
     `rbw_hz` is derived from the **un-padded** length `n`. Zero-padding lowers
     `bin_hz` (a finer interpolation grid, smoother plots, better sub-bin
     frequency estimates) but does **not** improve the resolution bandwidth.

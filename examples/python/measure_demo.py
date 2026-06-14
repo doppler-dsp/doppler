@@ -62,37 +62,77 @@ def main():
     codes, fs_amp = adc_capture(
         12, ftone, harmonics=[(2, -62), (3, -70), (5, -78)]
     )
-    m = ToneMeasure(window="kaiser", n=N, fs=FS, beta=12.0, n_harmonics=8,
-                    full_scale=fs_amp)
+    m = ToneMeasure(
+        window="kaiser",
+        n=N,
+        fs=FS,
+        beta=12.0,
+        n_harmonics=8,
+        full_scale=fs_amp,
+    )
     r = m.analyze(codes)
-    spec = m.spectrum_dbfs(codes)          # DC-centred, length nfft
+    spec = m.spectrum_dbfs(codes)  # DC-centred, length nfft
     half = m.nfft // 2
     freqs = np.arange(half) * FS / m.nfft / 1e6  # MHz, DC..just-below-Nyquist
     ax.plot(freqs, spec[half:], color=ACCENT, lw=0.7)
-    ax.axhline(r.noise_floor_dbfs, color=FLOOR, ls="--", lw=1,
-               label=f"noise floor {r.noise_floor_dbfs:.0f} dBFS")
-    ax.plot(r.fund_freq / 1e6, r.fund_dbfs, "v", color=FUND, ms=10,
-            label="fundamental")
+    ax.axhline(
+        r.noise_floor_dbfs,
+        color=FLOOR,
+        ls="--",
+        lw=1,
+        label=f"noise floor {r.noise_floor_dbfs:.0f} dBFS",
+    )
+    ax.plot(
+        r.fund_freq / 1e6,
+        r.fund_dbfs,
+        "v",
+        color=FUND,
+        ms=10,
+        label="fundamental",
+    )
     for k in range(2, 6):
         fk = (k * r.fund_freq) % FS
         fk = fk if fk <= FS / 2 else FS - fk
         ax.axvline(fk / 1e6, color=HARM, ls=":", lw=0.8, alpha=0.7)
-    ax.axvline(r.worst_spur_freq / 1e6, color=SPUR, ls="-", lw=0.8,
-               label="worst spur")
+    ax.axvline(
+        r.worst_spur_freq / 1e6, color=SPUR, ls="-", lw=0.8, label="worst spur"
+    )
     ax.annotate(
-        "", xy=(r.worst_spur_freq / 1e6, r.fund_dbfs - r.sfdr_dbc),
+        "",
+        xy=(r.worst_spur_freq / 1e6, r.fund_dbfs - r.sfdr_dbc),
         xytext=(r.worst_spur_freq / 1e6, r.fund_dbfs),
-        arrowprops=dict(arrowstyle="<->", color=SPUR, lw=1.2))
-    ax.text(r.worst_spur_freq / 1e6 + 1.5, r.fund_dbfs - r.sfdr_dbc / 2,
-            f"SFDR\n{r.sfdr_dbc:.1f} dBc", color=SPUR, fontsize=8, va="center")
-    box = (f"fund   {r.fund_dbfs:+.2f} dBFS\nSNR    {r.snr:.1f} dB\n"
-           f"SINAD  {r.sinad:.1f} dB\nTHD    {r.thd:.1f} dBc\n"
-           f"SFDR   {r.sfdr_dbc:.1f} dBc\nENOB   {r.enob:.2f} bits")
-    ax.text(0.97, 0.95, box, transform=ax.transAxes, ha="right", va="top",
-            family="monospace", fontsize=8,
-            bbox=dict(boxstyle="round", fc="#f8fafc", ec="#cbd5e1"))
-    ax.set(title="(a) 12-bit ADC capture — annotated metrics",
-           xlabel="frequency (MHz)", ylabel="dBFS", ylim=(-130, 5))
+        arrowprops=dict(arrowstyle="<->", color=SPUR, lw=1.2),
+    )
+    ax.text(
+        r.worst_spur_freq / 1e6 + 1.5,
+        r.fund_dbfs - r.sfdr_dbc / 2,
+        f"SFDR\n{r.sfdr_dbc:.1f} dBc",
+        color=SPUR,
+        fontsize=8,
+        va="center",
+    )
+    box = (
+        f"fund   {r.fund_dbfs:+.2f} dBFS\nSNR    {r.snr:.1f} dB\n"
+        f"SINAD  {r.sinad:.1f} dB\nTHD    {r.thd:.1f} dBc\n"
+        f"SFDR   {r.sfdr_dbc:.1f} dBc\nENOB   {r.enob:.2f} bits"
+    )
+    ax.text(
+        0.97,
+        0.95,
+        box,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        family="monospace",
+        fontsize=8,
+        bbox=dict(boxstyle="round", fc="#f8fafc", ec="#cbd5e1"),
+    )
+    ax.set(
+        title="(a) 12-bit ADC capture — annotated metrics",
+        xlabel="frequency (MHz)",
+        ylabel="dBFS",
+        ylim=(-130, 5),
+    )
     ax.legend(loc="lower left", fontsize=7)
 
     # ── (b) ENOB vs ADC resolution ────────────────────────────────────────
@@ -101,13 +141,17 @@ def main():
     enobs = []
     for b in bits_list:
         codes, fs_amp = adc_capture(b, 9.013e6)
-        mb = ToneMeasure(n=N, fs=FS, beta=14.0, n_harmonics=10,
-                         full_scale=fs_amp)
+        mb = ToneMeasure(
+            n=N, fs=FS, beta=14.0, n_harmonics=10, full_scale=fs_amp
+        )
         enobs.append(mb.analyze(codes).enob)
     ax.plot(bits_list, bits_list, color=FLOOR, ls="--", label="ideal (ENOB=N)")
     ax.plot(bits_list, enobs, "o-", color=ACCENT, label="measured")
-    ax.set(title="(b) ENOB recovers the ideal N-bit resolution",
-           xlabel="ADC bits", ylabel="measured ENOB")
+    ax.set(
+        title="(b) ENOB recovers the ideal N-bit resolution",
+        xlabel="ADC bits",
+        ylabel="measured ENOB",
+    )
     ax.legend(fontsize=8)
     ax.grid(alpha=0.3)
 
@@ -124,12 +168,16 @@ def main():
         fk = (k * rc.fund_freq) % FS
         fk = fk if fk <= FS / 2 else FS - fk
         b = int(round(fk / FS * mc.nfft)) + mc.nfft // 2
-        levels.append(float(np.max(spec_c[b - 3:b + 4]) - rc.fund_dbfs))
+        levels.append(float(np.max(spec_c[b - 3 : b + 4]) - rc.fund_dbfs))
     ax.bar([str(k) for k in ks], levels, color=HARM)
-    ax.axhline(rc.thd, color=ACCENT, ls="--",
-               label=f"THD (total) {rc.thd:.1f} dBc")
-    ax.set(title="(c) per-harmonic levels — THD is their power sum",
-           xlabel="harmonic", ylabel="level vs fundamental (dBc)")
+    ax.axhline(
+        rc.thd, color=ACCENT, ls="--", label=f"THD (total) {rc.thd:.1f} dBc"
+    )
+    ax.set(
+        title="(c) per-harmonic levels — THD is their power sum",
+        xlabel="harmonic",
+        ylabel="level vs fundamental (dBc)",
+    )
     ax.legend(fontsize=8)
 
     # ── (d) dynamic-range sweep vs input back-off ─────────────────────────
@@ -139,8 +187,9 @@ def main():
     for bo in backoffs:
         amp = 0.999 * 10 ** (-bo / 20)
         codes, fs_amp = adc_capture(12, 9.013e6, amp=amp)
-        md = ToneMeasure(n=N, fs=FS, beta=14.0, n_harmonics=10,
-                         full_scale=fs_amp)
+        md = ToneMeasure(
+            n=N, fs=FS, beta=14.0, n_harmonics=10, full_scale=fs_amp
+        )
         rd = md.analyze(codes)
         snr.append(rd.snr)
         sinad.append(rd.sinad)
@@ -155,15 +204,22 @@ def main():
     ax2.plot(x, enob, ":", color=HARM, label="ENOB")
     ax2.plot(x, enob_fs, "--", color="#7c3aed", label="ENOB (FS-corrected)")
     ax2.set_ylabel("ENOB (bits)")
-    ax.set(title="(d) dynamic range vs input level",
-           xlabel="input level (dBFS)", ylabel="dB")
+    ax.set(
+        title="(d) dynamic range vs input level",
+        xlabel="input level (dBFS)",
+        ylabel="dB",
+    )
     lines = ax.get_lines() + ax2.get_lines()
-    ax.legend(lines, [ln.get_label() for ln in lines], fontsize=7,
-              loc="center left")
+    ax.legend(
+        lines, [ln.get_label() for ln in lines], fontsize=7, loc="center left"
+    )
     ax.grid(alpha=0.3)
 
-    fig.suptitle("doppler.measure — single-tone ADC characterisation",
-                 fontsize=14, weight="bold")
+    fig.suptitle(
+        "doppler.measure — single-tone ADC characterisation",
+        fontsize=14,
+        weight="bold",
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     fig.savefig("measure_demo.png", dpi=110)
     print("wrote measure_demo.png")

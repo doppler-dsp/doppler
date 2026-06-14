@@ -161,6 +161,7 @@
 * **detector2d\_reset** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **detector2d\_set\_ref** ([**detector2d\_core.h**](detector2d__core_8h.md))
 * **detector2d\_set\_threshold** ([**detector2d\_core.h**](detector2d__core_8h.md))
+* **dp\_coherent\_freq** ([**measure\_core.h**](measure__core_8h.md))
 * **dp\_mono\_ns** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_real\_ns** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_init** ([**timing\_core.h**](timing__core_8h.md))
@@ -289,6 +290,10 @@
 * **i8\_to\_f32\_reset** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
 * **i8\_to\_f32\_step** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
 * **i8\_to\_f32\_steps** ([**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md))
+* **imdmeas\_analyze** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
+* **imdmeas\_create** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
+* **imdmeas\_destroy** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
+* **imdmeas\_reset** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
 
 
 ## k
@@ -320,6 +325,9 @@
 * **mul\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **mul\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **marcum\_q** ([**detection\_core.h**](detection__core_8h.md))
+* **measure\_min\_samples** ([**measure\_core.h**](measure__core_8h.md))
+* **measure\_proc\_gain** ([**measure\_core.h**](measure__core_8h.md))
+* **measure\_rec\_nfft** ([**measure\_core.h**](measure__core_8h.md))
 * **magnitude\_db\_cf32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
 
@@ -342,6 +350,10 @@
 * **nco\_steps\_u32\_ovf\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_steps\_u32\_scaled\_max\_out** ([**nco\_core.h**](nco__core_8h.md))
+* **nprmeas\_analyze** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
+* **nprmeas\_create** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
+* **nprmeas\_destroy** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
+* **nprmeas\_reset** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
 
 

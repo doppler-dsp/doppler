@@ -53,6 +53,43 @@ typedef struct {
     double fs_util_pct;  /* 100 * max|x| / full_scale             */
 } time_stats_t;
 
+typedef struct {
+    double f1;            /* lower tone frequency [Hz]                     */
+    double f2;            /* upper tone frequency [Hz]                     */
+    double p1_dbfs;       /* lower tone level [dBFS]                       */
+    double p2_dbfs;       /* upper tone level [dBFS]                       */
+    double imd2_dbc;      /* 2nd-order product (f2-f1) vs mean tone [dBc]  */
+    double imd3_dbc;      /* worst 3rd-order product vs mean tone [dBc]    */
+    double imd2_freq;     /* 2nd-order product frequency [Hz]              */
+    double imd3_lo_freq;  /* 2f1-f2 product frequency [Hz]                 */
+    double imd3_hi_freq;  /* 2f2-f1 product frequency [Hz]                 */
+    double toi_dbfs;      /* third-order intercept [dBFS]                  */
+    double soi_dbfs;      /* second-order intercept [dBFS]                 */
+    double rbw_hz;        /* resolution bandwidth [Hz]                     */
+} imd_meas_t;
+
+typedef struct {
+    double npr_db;            /* 10log10(mean in-band PSD / mean notch PSD)  */
+    double inband_psd_dbfs;   /* mean in-band noise power per bin (dBFS)      */
+    double notch_psd_dbfs;    /* mean power that folded into the notch (dBFS) */
+    size_t n_inband_bins;     /* bins averaged in the active band             */
+    size_t n_notch_bins;      /* bins averaged inside the notch               */
+    double rbw_hz;            /* resolution bandwidth (Hz)                    */
+} npr_meas_t;
+
+/* ── capture-planning helpers ──────────────────────────────────────────────
+ * Pure functions that answer "how much data, and at what frequency?" for an
+ * IEEE-1241 single-tone test.  See docs/design/measurement-suite.md. */
+
+size_t measure_min_samples(double fs, double target_rbw, int window,
+                           float beta);
+
+size_t measure_rec_nfft(size_t n, size_t pad);
+
+double measure_proc_gain(size_t nfft);
+
+double dp_coherent_freq(double fs, double f_target, size_t N);
+
 #ifdef __cplusplus
 }
 #endif

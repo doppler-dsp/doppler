@@ -78,6 +78,10 @@ extern "C" {
 
 #include "tonemeas/tonemeas_core.h"
 
+#include "nprmeas/nprmeas_core.h"
+
+#include "imdmeas/imdmeas_core.h"
+
 #include "ddc/ddc_core.h"
 
 #include "ddcr/ddcr_core.h"

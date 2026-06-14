@@ -15,6 +15,23 @@ ______________________________________________________________________
 
 ### Added
 
+- **`doppler.measure` — single-tone ADC / spectral measurement suite.** A new
+    module of IEEE Std 1241 windowed-tone analysers that own their window +
+    zero-padded FFT and turn a time-domain capture into figures of merit, with
+    each component's power integrated over its window **main lobe** (so a
+    full-scale tone reads ~0 dBFS regardless of sub-bin placement):
+
+    - **`ToneMeasure`** — SNR, SINAD, THD, THD+N, SFDR (dBc + dBFS), ENOB
+        (+ full-scale-corrected), noise floor and worst spur from one
+        `analyze()` (real or complex), plus `time_stats()` and the accuracy /
+        resolution metadata (RBW vs bin spacing, processing gain, uncertainty).
+    - **`NPRMeasure`** — notched-noise Noise Power Ratio.
+    - **`IMDMeasure`** — two-tone IMD2 / IMD3 and second/third-order intercepts.
+    - Capture-planning helpers: `measure_min_samples`, `measure_rec_nfft`,
+        `measure_proc_gain`, and `dp_coherent_freq` (nearest leakage-free
+        coherent frequency). Results are named tuples (`r.enob`, `r.sfdr_dbc`).
+        See the [Measurement Suite](design/measurement-suite.md) design guide.
+
 - **`wfmgen json-template [FILE]`** — a subcommand that dumps a ready-to-edit
     example spec in the canonical `--from-file` (`wfmgen-1`) schema, to a file or
     stdout. The template (an inline tone, an RRC-shaped QPSK-from-bits burst with

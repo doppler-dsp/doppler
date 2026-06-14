@@ -15,21 +15,23 @@ ______________________________________________________________________
 
 ### Changed
 
-- **`spectral`, `measure`, `wfm`, and `ddc` link cross-module cores
-    declaratively (jm gh-225).** Their hand-maintained module `extra_link_libs`
-    lists are gone (only the non-component libm `m` remains on `ddc`); each
-    composing object now owns its link line via
-    `depends_on = [{ name = "…", link = true }]` (e.g. `welch` → `acc_trace`,
-    `tonemeas` → `fft`/`spectral`, `wfm_synth` → `lo`/`awgn`/`fir`, `ddc` →
-    `lo`/`RateConverter`/`resamp`/`hbdecim`/`hbdecim_r2c`/`cic`/`fir`/`resample`).
-    `jm status --check` now covers the link, no hand-edited
-    `target_link_libraries` remains, and the generated link lines are
-    byte-identical. `ddc` is a *collocated* module-object (module name == object
-    name) whose `.so` and C test/bench share one regenerated CMakeLists; this
-    relies on `link=true` being **additive** there (jm gh-254, shipped in the
-    0.19.7 pin bump below) so the composed cores stay on `test_ddc_core`/`bench`.
-    `resample` keeps `extra_link_libs` for now (hand-written `extra_types`, libm,
-    and a self-referential module core make it its own follow-up).
+- **All composing modules link cross-module cores declaratively (jm gh-225).**
+    Every hand-maintained module `extra_link_libs` core list is gone (only the
+    non-component libm `m` remains, on `ddc` and `resample`); each composing
+    object owns its link line via `depends_on = [{ name = "…", link = true }]`:
+    `welch` → `acc_trace`; `tonemeas` → `fft`/`spectral`; `wfm_synth` →
+    `lo`/`awgn`/`fir`; `ddc` →
+    `lo`/`RateConverter`/`resamp`/`hbdecim`/`hbdecim_r2c`/`cic`/`fir`/`resample`;
+    `resample`'s `RateConverter` → `resamp`/`fir` and `HalfbandDecimator` →
+    `hbdecim`/`hbdecim_r2c` (the latter for the `HalfbandDecimatorR2C` extra
+    type). `jm status --check` now covers the link and no hand-edited
+    `target_link_libraries` remains. Generated link lines are byte-identical
+    except `resample`, which additionally **drops a redundant duplicate
+    `resample_core`** (the module's own core is auto-linked). `ddc` is a
+    *collocated* module-object (module name == object name) whose `.so` and C
+    test/bench share one regenerated CMakeLists; that relies on `link=true` being
+    **additive** there (jm gh-254, shipped in the 0.19.7 pin bump below) so the
+    composed cores stay on `test_ddc_core`/`bench`.
 - **jm pin 0.19.6 → 0.19.7** (`just-makeit.toml` + `ci.yml` +
     `perf-regression.yml`). Picks up gh-254 (additive collocated `link=true`,
     above); no codegen drift (`jm apply` reconciled nothing but the hand-owned

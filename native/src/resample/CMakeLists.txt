@@ -10,10 +10,9 @@ target_link_libraries(resample PRIVATE
     HalfbandDecimator_core
     cic_core
     RateConverter_core
-    resamp_core
     hbdecim_core
     hbdecim_r2c_core
-    resample_core
+    resamp_core
     fir_core
     m
     Python3::NumPy)

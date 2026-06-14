@@ -291,7 +291,12 @@ ddc_fn = ["ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy", "ddcr_get
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
-extra_link_libs = ["resamp_core", "hbdecim_core", "hbdecim_r2c_core", "resample_core", "fir_core", "m"]
+# Composed cores reach the resample .so via per-object depends_on link=true
+# (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c
+# (the latter for the HalfbandDecimatorR2C extra_type). cic is in-module and
+# resample_core is the module's own core (both auto-linked). Only the
+# non-component libm remains here.
+extra_link_libs = ["m"]
 
 [[module.resample.functions]]
 name = "ciccompmf"

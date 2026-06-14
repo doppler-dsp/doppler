@@ -63,6 +63,18 @@ typedef struct {
     double fs_util_pct;  /* 100 * max|x| / full_scale             */
 } time_stats_t;
 
+/**
+ * @brief Noise Power Ratio (notched-noise loading) result.
+ */
+typedef struct {
+    double npr_db;            /* 10log10(mean in-band PSD / mean notch PSD)  */
+    double inband_psd_dbfs;   /* mean in-band noise power per bin (dBFS)      */
+    double notch_psd_dbfs;    /* mean power that folded into the notch (dBFS) */
+    size_t n_inband_bins;     /* bins averaged in the active band             */
+    size_t n_notch_bins;      /* bins averaged inside the notch               */
+    double rbw_hz;            /* resolution bandwidth (Hz)                    */
+} npr_meas_t;
+
 /* ── capture-planning helpers ──────────────────────────────────────────────
  * Pure functions that answer "how much data, and at what frequency?" for an
  * IEEE-1241 single-tone test.  See docs/design/measurement-suite.md. */

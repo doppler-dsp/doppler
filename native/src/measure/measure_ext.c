@@ -1,7 +1,7 @@
 /*
  * measure_ext.c — Python extension module measure
  *
- * Objects: ToneMeasure
+ * Objects: ToneMeasure, NPRMeasure
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 #include "measure/measure_core.h"
 
 #include "measure_ext_tonemeas.c"
+#include "measure_ext_nprmeas.c"
 
 static PyObject *
 _bind_measure_min_samples(PyObject *self, PyObject *args)
@@ -91,11 +92,16 @@ PyInit_measure(void)
 {
     import_array();
     if (PyType_Ready(&ToneMeasureObjType) < 0) return NULL;
+    if (PyType_Ready(&NPRMeasureObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&measure_moduledef);
     if (!m) return NULL;
     Py_INCREF(&ToneMeasureObjType);
     if (PyModule_AddObject(m, "ToneMeasure", (PyObject *)&ToneMeasureObjType) < 0) {
         Py_DECREF(&ToneMeasureObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&NPRMeasureObjType);
+    if (PyModule_AddObject(m, "NPRMeasure", (PyObject *)&NPRMeasureObjType) < 0) {
+        Py_DECREF(&NPRMeasureObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

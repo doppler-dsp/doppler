@@ -2,11 +2,12 @@ add_library(measure_core OBJECT measure_core.c measure_min_samples.c measure_rec
 target_include_directories(measure_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# measure Python module — aggregates: ToneMeasure
+# measure Python module — aggregates: ToneMeasure, NPRMeasure
 Python3_add_library(measure MODULE WITH_SOABI measure_ext.c)
 target_link_libraries(measure PRIVATE
     measure_core
     tonemeas_core
+    nprmeas_core
     fft_core
     spectral_core
     Python3::NumPy)

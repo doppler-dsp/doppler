@@ -1,0 +1,76 @@
+# nprmeas — notched-noise Noise Power Ratio (NPR) measurement.
+#
+# Drive the converter/system with band-limited noise containing a deep notch;
+# NPR is the ratio of the mean in-band noise PSD to the mean PSD that has folded
+# into the notch (distortion + quantisation + intermod).  The band/notch
+# geometry is passed to analyze() (caller-owned), so one estimator can sweep
+# several notch placements.  Composes fft_core + the spectral_core window.
+
+[nprmeas]
+arg_type = "float"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "NPRMeasure"
+depends_on = ["fft_core", "spectral_core"]
+
+[[nprmeas.init_params]]
+name = "n"
+type = "size_t"
+default = "8192"
+
+[[nprmeas.init_params]]
+name = "fs"
+type = "double"
+default = "1.0"
+
+[[nprmeas.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser"
+default = "kaiser"
+
+[[nprmeas.init_params]]
+name = "beta"
+type = "float"
+default = "12.0f"
+
+[[nprmeas.init_params]]
+name = "pad"
+type = "size_t"
+default = "2"
+
+[[nprmeas.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[nprmeas.methods]]
+name = "analyze"
+doc = "NPR of a notched-noise capture over [active_lo,active_hi] with a notch [notch_lo,notch_hi] (Hz) and guard keep-out."
+arg_type = "float"
+return_type = "npr_meas_t"
+max_results = 1
+nogil = true
+result_fields = [{name = "npr_db", type = "double"}, {name = "inband_psd_dbfs", type = "double"}, {name = "notch_psd_dbfs", type = "double"}, {name = "n_inband_bins", type = "size_t"}, {name = "n_notch_bins", type = "size_t"}, {name = "rbw_hz", type = "double"}]
+params = [{name = "active_lo", type = "double"}, {name = "active_hi", type = "double"}, {name = "notch_lo", type = "double"}, {name = "notch_hi", type = "double"}, {name = "guard_hz", type = "double"}]
+
+[[nprmeas.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[nprmeas.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+
+[[nprmeas.properties]]
+name = "fs"
+type = "double"
+field = true
+
+[[nprmeas.properties]]
+name = "rbw"
+type = "double"
+expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"

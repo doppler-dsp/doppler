@@ -13,8 +13,7 @@
  *
  * @code
  * tonemeas_state_t *m = tonemeas_create(8192, 1.0, 1, 12.0f, 2, 8, 1.0, 0);
- * tone_meas_t r;
- * tonemeas_analyze(m, capture, 8192, &r, 1);   // r.enob, r.sfdr_dbc, ...
+ * tone_meas_t r = tonemeas_analyze(m, capture, 8192);  // r.enob, r.sfdr_dbc...
  * tonemeas_destroy(m);
  * @endcode
  */
@@ -86,18 +85,18 @@ void tonemeas_reset(tonemeas_state_t *state);
 
 /**
  * @brief Analyse a real capture into the single-tone metric bag.
- * @return 1 (one result written to out[0]); 0 if max_out == 0.
+ * @return the metric record (by value).
  */
-size_t tonemeas_analyze(tonemeas_state_t *state, const float *x, size_t n_in,
-                        tone_meas_t *out, size_t max_out);
+tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
+                             size_t n_in);
 
 /** @brief Analyse a complex baseband capture (two-sided spectrum). */
-size_t tonemeas_analyze_complex(tonemeas_state_t *state, const float complex *x,
-                                size_t n_in, tone_meas_t *out, size_t max_out);
+tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
+                                     const float complex *x, size_t n_in);
 
 /** @brief Time-domain statistics of a real capture. */
-size_t tonemeas_time_stats(tonemeas_state_t *state, const float *x, size_t n_in,
-                           time_stats_t *out, size_t max_out);
+time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
+                                 size_t n_in);
 
 /** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
 size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);

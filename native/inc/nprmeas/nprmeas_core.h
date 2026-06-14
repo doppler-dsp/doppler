@@ -67,14 +67,11 @@ void nprmeas_reset(nprmeas_state_t *state);
  * @param notch_lo   Notch lower edge (Hz).
  * @param notch_hi   Notch upper edge (Hz).
  * @param guard_hz   Keep-out around the notch edges (Hz).
- * @param out        Result destination (out[0]).
- * @param max_out    Capacity of `out` (must be >= 1).
- * @return 1 (one result in out[0]); 0 if max_out == 0.
+ * @return the NPR metric record (by value).
  */
-size_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
-                       double active_lo, double active_hi, double notch_lo,
-                       double notch_hi, double guard_hz, npr_meas_t *out,
-                       size_t max_out);
+npr_meas_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
+                           double active_lo, double active_hi, double notch_lo,
+                           double notch_hi, double guard_hz);
 
 #ifdef __cplusplus
 }

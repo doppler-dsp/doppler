@@ -16,60 +16,6 @@ typedef struct
   PyObject_HEAD imdmeas_state_t *handle;
 } IMDMeasureObject;
 
-/* Named result (see measure_ext_tonemeas.c for the lazy-structseq rationale).
- */
-static PyStructSequence_Field _imd_fields[]
-    = { { "f1", "lower tone frequency (Hz)" },
-        { "f2", "upper tone frequency (Hz)" },
-        { "p1_dbfs", "lower tone level (dBFS)" },
-        { "p2_dbfs", "upper tone level (dBFS)" },
-        { "imd2_dbc", "2nd-order product (f2-f1) vs mean tone (dBc)" },
-        { "imd3_dbc", "worst 3rd-order product vs mean tone (dBc)" },
-        { "imd2_freq", "2nd-order product frequency (Hz)" },
-        { "imd3_lo_freq", "2f1-f2 product frequency (Hz)" },
-        { "imd3_hi_freq", "2f2-f1 product frequency (Hz)" },
-        { "toi_dbfs", "third-order intercept (dBFS)" },
-        { "soi_dbfs", "second-order intercept (dBFS)" },
-        { "rbw_hz", "resolution bandwidth (Hz)" },
-        { NULL } };
-static PyStructSequence_Desc _imd_desc
-    = { "doppler.measure.IMDMetrics", "Two-tone intermodulation result.",
-        _imd_fields, 12 };
-static PyTypeObject *_IMDMetricsType = NULL;
-
-static PyObject *
-_build_imd_metrics (const imd_meas_t *r)
-{
-  if (!_IMDMetricsType)
-    {
-      _IMDMetricsType = PyStructSequence_NewType (&_imd_desc);
-      if (!_IMDMetricsType)
-        return NULL;
-    }
-  PyObject *o = PyStructSequence_New (_IMDMetricsType);
-  if (!o)
-    return NULL;
-  int i = 0;
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->f1));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->f2));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->p1_dbfs));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->p2_dbfs));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->imd2_dbc));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->imd3_dbc));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->imd2_freq));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->imd3_lo_freq));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->imd3_hi_freq));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->toi_dbfs));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->soi_dbfs));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->rbw_hz));
-  if (PyErr_Occurred ())
-    {
-      Py_DECREF (o);
-      return NULL;
-    }
-  return o;
-}
-
 static void
 IMDMeasureObj_dealloc (IMDMeasureObject *self)
 {
@@ -92,12 +38,11 @@ IMDMeasureObj_init (IMDMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "window", "n", "fs", "beta", "pad", "full_scale", NULL };
-  const char *window_str = "kaiser";
-  /* jm drops size_t init-param defaults (jm#244); apply them by hand. */
-  unsigned long long n_raw      = 8192ULL;
+  const char        *window_str = "kaiser";
+  unsigned long long n_raw      = 8192;
   double             fs         = 1.0;
   float              beta       = 12.0f;
-  unsigned long long pad_raw    = 2ULL;
+  unsigned long long pad_raw    = 2;
   double             full_scale = 1.0;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKdfKd", kwlist, &window_str,
@@ -138,6 +83,17 @@ IMDMeasureObj_reset (IMDMeasureObject *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 
+static PyStructSequence_Field IMDMeasureObj_analyze_fields[] = {
+  { "f1", NULL },        { "f2", NULL },           { "p1_dbfs", NULL },
+  { "p2_dbfs", NULL },   { "imd2_dbc", NULL },     { "imd3_dbc", NULL },
+  { "imd2_freq", NULL }, { "imd3_lo_freq", NULL }, { "imd3_hi_freq", NULL },
+  { "toi_dbfs", NULL },  { "soi_dbfs", NULL },     { "rbw_hz", NULL },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc IMDMeasureObj_analyze_desc
+    = { "imdmeas.IMDMetrics", NULL, IMDMeasureObj_analyze_fields, 12 };
+static PyTypeObject *IMDMeasureObj_analyze_type = NULL;
+
 static PyObject *
 IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
 {
@@ -153,14 +109,36 @@ IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
       in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
     return NULL;
-  size_t       n_in  = (size_t)PyArray_SIZE (in_arr);
-  const float *_data = (const float *)PyArray_DATA (in_arr);
-  imd_meas_t   r;
-  Py_BEGIN_ALLOW_THREADS
-    imdmeas_analyze (self->handle, _data, n_in, &r, 1);
-  Py_END_ALLOW_THREADS
+  size_t n_in = (size_t)PyArray_SIZE (in_arr);
+  if (!IMDMeasureObj_analyze_type)
+    {
+      IMDMeasureObj_analyze_type
+          = PyStructSequence_NewType (&IMDMeasureObj_analyze_desc);
+      if (!IMDMeasureObj_analyze_type)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+    }
+  imd_meas_t _r = imdmeas_analyze (self->handle,
+                                   (const float *)PyArray_DATA (in_arr), n_in);
   Py_DECREF (in_arr);
-  return _build_imd_metrics (&r);
+  PyObject *_o = PyStructSequence_New (IMDMeasureObj_analyze_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyFloat_FromDouble (_r.f1));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.f2));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.p1_dbfs));
+  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.p2_dbfs));
+  PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.imd2_dbc));
+  PyStructSequence_SET_ITEM (_o, 5, PyFloat_FromDouble (_r.imd3_dbc));
+  PyStructSequence_SET_ITEM (_o, 6, PyFloat_FromDouble (_r.imd2_freq));
+  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.imd3_lo_freq));
+  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.imd3_hi_freq));
+  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.toi_dbfs));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.soi_dbfs));
+  PyStructSequence_SET_ITEM (_o, 11, PyFloat_FromDouble (_r.rbw_hz));
+  return _o;
 }
 static PyObject *
 IMDMeasure_getprop_n (IMDMeasureObject *self, void *Py_UNUSED (closure))
@@ -229,23 +207,19 @@ IMDMeasureObj_exit (IMDMeasureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef IMDMeasureObj_methods[] = {
-  { "reset", (PyCFunction)IMDMeasureObj_reset, METH_NOARGS,
-    "Reset state to post-create defaults." },
+static PyMethodDef IMDMeasureObj_methods[]
+    = { { "reset", (PyCFunction)IMDMeasureObj_reset, METH_NOARGS,
+          "Reset state to post-create defaults." },
 
-  { "analyze", (PyCFunction)IMDMeasureObj_analyze, METH_VARARGS,
-    "analyze(x) -> IMDMetrics\n"
-    "\n"
-    "Two-tone IMD/TOI of a real capture: finds the two strongest tones, then\n"
-    "integrates the IMD2 (f2-f1) and IMD3 (2f1-f2, 2f2-f1) products over "
-    "their\n"
-    "window main lobes.  Returns a named IMDMetrics result.\n" },
-  { "destroy", (PyCFunction)IMDMeasureObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)IMDMeasureObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)IMDMeasureObj_exit, METH_VARARGS, NULL },
-  { NULL }
-};
+        { "analyze", (PyCFunction)IMDMeasureObj_analyze, METH_VARARGS,
+          "analyze(x) -> IMDMetrics record (f1, f2, p1_dbfs, p2_dbfs, "
+          "imd2_dbc, imd3_dbc, imd2_freq, imd3_lo_freq, imd3_hi_freq, "
+          "toi_dbfs, soi_dbfs, rbw_hz)." },
+        { "destroy", (PyCFunction)IMDMeasureObj_destroy, METH_NOARGS,
+          "Release resources." },
+        { "__enter__", (PyCFunction)IMDMeasureObj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)IMDMeasureObj_exit, METH_VARARGS, NULL },
+        { NULL } };
 
 static PyTypeObject IMDMeasureObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "measure.IMDMeasure",

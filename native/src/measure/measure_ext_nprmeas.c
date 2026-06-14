@@ -16,52 +16,6 @@ typedef struct
   PyObject_HEAD nprmeas_state_t *handle;
 } NPRMeasureObject;
 
-/* Named result (see measure_ext_tonemeas.c for the lazy-structseq rationale).
- */
-static PyStructSequence_Field _npr_fields[]
-    = { { "npr_db", "in-band / in-notch noise PSD ratio (dB)" },
-        { "inband_psd_dbfs", "mean in-band noise power per bin (dBFS)" },
-        { "notch_psd_dbfs", "mean power folded into the notch (dBFS)" },
-        { "n_inband_bins", "bins averaged in the active band" },
-        { "n_notch_bins", "bins averaged inside the notch" },
-        { "rbw_hz", "resolution bandwidth (Hz)" },
-        { NULL } };
-static PyStructSequence_Desc _npr_desc
-    = { "doppler.measure.NPRMetrics", "Noise Power Ratio result.", _npr_fields,
-        6 };
-static PyTypeObject *_NPRMetricsType = NULL;
-
-static PyObject *
-_build_npr_metrics (const npr_meas_t *r)
-{
-  if (!_NPRMetricsType)
-    {
-      _NPRMetricsType = PyStructSequence_NewType (&_npr_desc);
-      if (!_NPRMetricsType)
-        return NULL;
-    }
-  PyObject *o = PyStructSequence_New (_NPRMetricsType);
-  if (!o)
-    return NULL;
-  int i = 0;
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->npr_db));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->inband_psd_dbfs));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->notch_psd_dbfs));
-  PyStructSequence_SetItem (
-      o, i++,
-      PyLong_FromUnsignedLongLong ((unsigned long long)r->n_inband_bins));
-  PyStructSequence_SetItem (
-      o, i++,
-      PyLong_FromUnsignedLongLong ((unsigned long long)r->n_notch_bins));
-  PyStructSequence_SetItem (o, i++, PyFloat_FromDouble (r->rbw_hz));
-  if (PyErr_Occurred ())
-    {
-      Py_DECREF (o);
-      return NULL;
-    }
-  return o;
-}
-
 static void
 NPRMeasureObj_dealloc (NPRMeasureObject *self)
 {
@@ -84,12 +38,11 @@ NPRMeasureObj_init (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "window", "n", "fs", "beta", "pad", "full_scale", NULL };
-  const char *window_str = "kaiser";
-  /* jm drops size_t init-param defaults (jm#244); apply them by hand. */
-  unsigned long long n_raw      = 8192ULL;
+  const char        *window_str = "kaiser";
+  unsigned long long n_raw      = 8192;
   double             fs         = 1.0;
   float              beta       = 12.0f;
-  unsigned long long pad_raw    = 2ULL;
+  unsigned long long pad_raw    = 2;
   double             full_scale = 1.0;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKdfKd", kwlist, &window_str,
@@ -130,32 +83,72 @@ NPRMeasureObj_reset (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 
+static PyStructSequence_Field NPRMeasureObj_analyze_fields[] = {
+  { "npr_db", NULL },
+  { "inband_psd_dbfs", NULL },
+  { "notch_psd_dbfs", NULL },
+  { "n_inband_bins", NULL },
+  { "n_notch_bins", NULL },
+  { "rbw_hz", NULL },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc NPRMeasureObj_analyze_desc
+    = { "nprmeas.NPRMetrics", NULL, NPRMeasureObj_analyze_fields, 6 };
+static PyTypeObject *NPRMeasureObj_analyze_type = NULL;
+
 static PyObject *
-NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args)
+NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *in_obj = NULL;
-  double    active_lo, active_hi, notch_lo, notch_hi, guard_hz;
-  if (!PyArg_ParseTuple (args, "Oddddd", &in_obj, &active_lo, &active_hi,
-                         &notch_lo, &notch_hi, &guard_hz))
+  PyObject    *in_obj    = NULL;
+  double       active_lo = 0;
+  double       active_hi = 0;
+  double       notch_lo  = 0;
+  double       notch_hi  = 0;
+  double       guard_hz  = 0.0;
+  static char *_kwlist[] = { "x",        "active_lo", "active_hi", "notch_lo",
+                             "notch_hi", "guard_hz",  NULL };
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Odddd|d", _kwlist, &in_obj,
+                                    &active_lo, &active_hi, &notch_lo,
+                                    &notch_hi, &guard_hz))
     return NULL;
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
     return NULL;
-  size_t       n_in  = (size_t)PyArray_SIZE (in_arr);
-  const float *_data = (const float *)PyArray_DATA (in_arr);
-  npr_meas_t   r;
-  Py_BEGIN_ALLOW_THREADS
-    nprmeas_analyze (self->handle, _data, n_in, active_lo, active_hi, notch_lo,
-                     notch_hi, guard_hz, &r, 1);
-  Py_END_ALLOW_THREADS
+  size_t n_in = (size_t)PyArray_SIZE (in_arr);
+  if (!NPRMeasureObj_analyze_type)
+    {
+      NPRMeasureObj_analyze_type
+          = PyStructSequence_NewType (&NPRMeasureObj_analyze_desc);
+      if (!NPRMeasureObj_analyze_type)
+        {
+          Py_DECREF (in_arr);
+          return NULL;
+        }
+    }
+  npr_meas_t _r = nprmeas_analyze (
+      self->handle, (const float *)PyArray_DATA (in_arr), n_in, active_lo,
+      active_hi, notch_lo, notch_hi, guard_hz);
   Py_DECREF (in_arr);
-  return _build_npr_metrics (&r);
+  PyObject *_o = PyStructSequence_New (NPRMeasureObj_analyze_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyFloat_FromDouble (_r.npr_db));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.inband_psd_dbfs));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.notch_psd_dbfs));
+  PyStructSequence_SET_ITEM (
+      _o, 3,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.n_inband_bins));
+  PyStructSequence_SET_ITEM (
+      _o, 4,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.n_notch_bins));
+  PyStructSequence_SET_ITEM (_o, 5, PyFloat_FromDouble (_r.rbw_hz));
+  return _o;
 }
 static PyObject *
 NPRMeasure_getprop_n (NPRMeasureObject *self, void *Py_UNUSED (closure))
@@ -240,16 +233,11 @@ static PyMethodDef NPRMeasureObj_methods[]
     = { { "reset", (PyCFunction)NPRMeasureObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
 
-        { "analyze", (PyCFunction)NPRMeasureObj_analyze, METH_VARARGS,
+        { "analyze", (PyCFunction)(void *)NPRMeasureObj_analyze,
+          METH_VARARGS | METH_KEYWORDS,
           "analyze(x, active_lo, active_hi, notch_lo, notch_hi, guard_hz) -> "
-          "NPRMetrics\n"
-          "\n"
-          "NPR of a notched-noise capture: the mean in-band noise PSD over\n"
-          "[active_lo, active_hi] (Hz) divided by the mean PSD that folded "
-          "into the\n"
-          "notch [notch_lo, notch_hi], with a guard keep-out around the notch "
-          "edges.\n"
-          "Returns a named NPRMetrics result.\n" },
+          "NPRMetrics record (npr_db, inband_psd_dbfs, notch_psd_dbfs, "
+          "n_inband_bins, n_notch_bins, rbw_hz)." },
         { "destroy", (PyCFunction)NPRMeasureObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)NPRMeasureObj_enter, METH_NOARGS, NULL },

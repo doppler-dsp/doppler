@@ -3,7 +3,8 @@
 # NB: analyze()/time_stats() return named PyStructSequence results (built in the
 # hand-owned measure_ext_tonemeas.c fragment), not jm's default list[tuple]; the
 # constructor is window-first to match the binding's keyword list.  This stub is
-# therefore hand-maintained and allowlisted in just-makeit.toml (status_allow).
+# therefore hand-maintained and allowlisted in just-makeit.toml (status_allow);
+# `jm apply` regenerates it, so re-apply these edits after any apply.
 from typing import Literal, NamedTuple
 import numpy as np
 from numpy.typing import NDArray
@@ -186,3 +187,17 @@ class ToneMeasure:
 
     def __enter__(self) -> "ToneMeasure": ...
     def __exit__(self, *args: object) -> None: ...
+
+def measure_min_samples(
+    fs: float, target_rbw: float, window: int, beta: float
+) -> int:
+    """Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."""
+
+def measure_rec_nfft(n: int, pad: int) -> int:
+    """Recommended zero-padded transform length: next_pow2(n * pad)."""
+
+def measure_proc_gain(nfft: int) -> float:
+    """FFT processing gain in dB: 10*log10(nfft / 2)."""
+
+def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
+    """Nearest leakage-free coherent test frequency (J cycles, J coprime N)."""

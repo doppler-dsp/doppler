@@ -63,6 +63,40 @@ typedef struct {
     double fs_util_pct;  /* 100 * max|x| / full_scale             */
 } time_stats_t;
 
+/* ── capture-planning helpers ──────────────────────────────────────────────
+ * Pure functions that answer "how much data, and at what frequency?" for an
+ * IEEE-1241 single-tone test.  See docs/design/measurement-suite.md. */
+
+/**
+ * @brief Samples needed to reach a target resolution bandwidth.
+ *
+ * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).  The window ENBW is
+ * the Kaiser value for `beta` (measured via kaiser_enbw on a reference window)
+ * or 1.5 for Hann.
+ *
+ * @param window 0 = Hann, 1 = Kaiser.
+ * @return Required capture length, or 0 on bad args.
+ */
+size_t measure_min_samples(double fs, double target_rbw, int window,
+                           float beta);
+
+/** @brief Recommended zero-padded transform length: next_pow2(n * max(pad,1)). */
+size_t measure_rec_nfft(size_t n, size_t pad);
+
+/** @brief FFT processing gain in dB: 10*log10(nfft / 2). */
+double measure_proc_gain(size_t nfft);
+
+/**
+ * @brief Nearest leakage-free coherent test frequency.
+ *
+ * Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle count
+ * that is coprime with N — an integer number of cycles in the capture (no
+ * leakage) with J coprime to N (so quantisation-noise correlation is minimised).
+ *
+ * @return The coherent frequency (Hz), or 0 on bad args.
+ */
+double dp_coherent_freq(double fs, double f_target, size_t N);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,4 +1,4 @@
-add_library(measure_core OBJECT measure_core.c)
+add_library(measure_core OBJECT measure_core.c measure_min_samples.c measure_rec_nfft.c measure_proc_gain.c dp_coherent_freq.c)
 target_include_directories(measure_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

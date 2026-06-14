@@ -129,3 +129,29 @@ def test_accuracy_metadata():
     assert r.rbw_hz > r.bin_hz  # ENBW spans several bins
     assert r.n_noise_bins > 0
     assert r.floor_uncert_db > 0
+
+
+def test_capture_planning_helpers():
+    from math import gcd
+
+    from doppler.measure import (
+        dp_coherent_freq,
+        measure_min_samples,
+        measure_proc_gain,
+        measure_rec_nfft,
+    )
+
+    # min_samples reaches the requested RBW once analysed at that length.
+    n = measure_min_samples(1e6, 200.0, 1, 12.0)
+    m = ToneMeasure(window="kaiser", n=n, fs=1e6, beta=12.0)
+    assert m.rbw <= 200.0 * 1.05  # within ~5% of target
+
+    assert measure_rec_nfft(8000, 2) == 16384
+    assert measure_proc_gain(16384) == pytest.approx(10 * np.log10(8192))
+
+    # coherent frequency: integer cycles, coprime with N, near the target.
+    fsr, N = 100e6, 16384
+    f = dp_coherent_freq(fsr, 10e6, N)
+    j = round(f / fsr * N)
+    assert gcd(j, N) == 1
+    assert abs(f - 10e6) < fsr / N  # within one bin of the target

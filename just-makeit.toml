@@ -216,6 +216,56 @@ objects = ["tonemeas"]
 # functions; their OBJECT symbols must be linked into the extension explicitly.
 extra_link_libs = ["fft_core", "spectral_core"]
 
+[[module.measure.functions]]
+name = "measure_min_samples"
+doc = "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."
+return_type = "size_t"
+[[module.measure.functions.params]]
+name = "fs"
+type = "double"
+[[module.measure.functions.params]]
+name = "target_rbw"
+type = "double"
+[[module.measure.functions.params]]
+name = "window"
+type = "int"
+[[module.measure.functions.params]]
+name = "beta"
+type = "float"
+
+[[module.measure.functions]]
+name = "measure_rec_nfft"
+doc = "Recommended zero-padded transform length: next_pow2(n * pad)."
+return_type = "size_t"
+[[module.measure.functions.params]]
+name = "n"
+type = "size_t"
+[[module.measure.functions.params]]
+name = "pad"
+type = "size_t"
+
+[[module.measure.functions]]
+name = "measure_proc_gain"
+doc = "FFT processing gain in dB: 10*log10(nfft / 2)."
+return_type = "double"
+[[module.measure.functions.params]]
+name = "nfft"
+type = "size_t"
+
+[[module.measure.functions]]
+name = "dp_coherent_freq"
+doc = "Nearest leakage-free coherent test frequency (J cycles, J coprime N)."
+return_type = "double"
+[[module.measure.functions.params]]
+name = "fs"
+type = "double"
+[[module.measure.functions.params]]
+name = "f_target"
+type = "double"
+[[module.measure.functions.params]]
+name = "N"
+type = "size_t"
+
 [module.buffer]
 no_generate = "true"
 

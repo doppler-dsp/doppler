@@ -46,8 +46,8 @@ static int
 ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "window",      "n",          "fs",       "beta", "pad",
-          "n_harmonics", "full_scale", "dc_guard", NULL };
+      = { "window",      "n",          "fs",   "beta",     "pad",
+          "n_harmonics", "full_scale", "bits", "dc_guard", NULL };
   const char        *window_str      = "kaiser";
   unsigned long long n_raw           = 8192;
   double             fs              = 1.0;
@@ -55,11 +55,12 @@ ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
   unsigned long long pad_raw         = 2;
   unsigned long long n_harmonics_raw = 8;
   double             full_scale      = 1.0;
+  unsigned long long bits_raw        = 0;
   unsigned long long dc_guard_raw    = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|sKdfKKdK", kwlist, &window_str, &n_raw, &fs, &beta,
-          &pad_raw, &n_harmonics_raw, &full_scale, &dc_guard_raw))
+          args, kwds, "|sKdfKKdKK", kwlist, &window_str, &n_raw, &fs, &beta,
+          &pad_raw, &n_harmonics_raw, &full_scale, &bits_raw, &dc_guard_raw))
     return -1;
   int window = 0;
   if (strcmp (window_str, "hann") == 0)
@@ -76,9 +77,10 @@ ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
   size_t n           = (size_t)n_raw;
   size_t pad         = (size_t)pad_raw;
   size_t n_harmonics = (size_t)n_harmonics_raw;
+  size_t bits        = (size_t)bits_raw;
   size_t dc_guard    = (size_t)dc_guard_raw;
   self->handle       = tonemeas_create (n, fs, window, beta, pad, n_harmonics,
-                                        full_scale, dc_guard);
+                                        full_scale, bits, dc_guard);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "tonemeas_create returned NULL");
@@ -139,7 +141,8 @@ static PyStructSequence_Field ToneMeasureObj_analyze_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_desc
-    = { "tonemeas.ToneMetrics", NULL, ToneMeasureObj_analyze_fields, 23 };
+    = { "doppler.measure.ToneMetrics", NULL, ToneMeasureObj_analyze_fields,
+        23 };
 static PyTypeObject *ToneMeasureObj_analyze_type = NULL;
 
 static PyObject *
@@ -237,8 +240,8 @@ static PyStructSequence_Field ToneMeasureObj_analyze_complex_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_complex_desc
-    = { "tonemeas.ToneMetrics", NULL, ToneMeasureObj_analyze_complex_fields,
-        23 };
+    = { "doppler.measure.ToneMetrics", NULL,
+        ToneMeasureObj_analyze_complex_fields, 23 };
 static PyTypeObject *ToneMeasureObj_analyze_complex_type = NULL;
 
 static PyObject *
@@ -315,7 +318,8 @@ static PyStructSequence_Field ToneMeasureObj_time_stats_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_time_stats_desc
-    = { "tonemeas.TimeStats", NULL, ToneMeasureObj_time_stats_fields, 6 };
+    = { "doppler.measure.TimeStats", NULL, ToneMeasureObj_time_stats_fields,
+        6 };
 static PyTypeObject *ToneMeasureObj_time_stats_type = NULL;
 
 static PyObject *
@@ -582,7 +586,7 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import ToneMeasure\n"
-    "    >>> obj = ToneMeasure(\"kaiser\", 8192, 1.0, 12.0, 2, 8, 1.0, 0)\n"
+    "    >>> obj = ToneMeasure(\"kaiser\", 8192, 1.0, 12.0, 2, 8, 1.0, 0, 0)\n"
     "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },

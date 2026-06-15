@@ -13,6 +13,44 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-06-15
+
+### Added
+
+- **`doppler.analyzer.Specan` — a natural-parameter spectrum analyzer.** Drive a
+    streaming spectrum display with the instrument knobs an operator already
+    knows — **center, span, RBW, reference level** — instead of window length,
+    Kaiser beta and zero-pad. It composes the existing `DDC` (tune + decimate)
+    and the averaging-PSD core in C, so the natural-parameter → DSP mapping lives
+    in C exactly once. `doppler.specan`'s engine is re-based onto it (the
+    pure-Python DDC→window→FFT→dB chain is gone, so the app can no longer drift
+    from the C ABI).
+- **`bits` dBFS scale option** on `spectral.PSD`, the three measurement analyzers
+    and `Specan`: `bits>0` sets the 0-dBFS reference to `2**(bits-1)`, defined
+    once in the PSD core. `bits=B` is identical to `full_scale=2**(B-1)` — one
+    source of truth for dBFS, no more hand-computing the ADC full scale.
+- **`spectrum_dbfs()` on `IMDMeasure` and `NPRMeasure`** (mirrors `ToneMeasure`):
+    the same averaged-PSD dBFS trace the metrics use, for a display backdrop.
+
+### Changed
+
+- **Renamed `spectral.Welch` → `spectral.PSD`** (C `welch_*` → `psd_*`,
+    `native/{inc,src}/welch` → `…/psd`). The shared averaging-PSD core's public
+    name; no behaviour change — every metric, spectrum and test is identical.
+- **`Specan`'s additive dB offset is `offset_db`** (applied on top of the dBFS
+    reference, e.g. a dBm calibration); the dBFS reference itself comes from the
+    PSD core's `bits`/`full_scale`.
+- The `doppler.measure` result structseqs now report
+    `__module__ == "doppler.measure"` (was the C component name, e.g.
+    `"tonemeas"`), so `repr(type(r))` reads
+    `<class 'doppler.measure.ToneMetrics'>` — the import path, not the internal
+    component. Field access / unpacking are unchanged (jm `record_module`,
+    gh-261).
+- The `measure_demo` / `measure_imd_npr` gallery demos are now doppler-native:
+    tones via `source.LO`, noise via `source.AWGN`, transforms via
+    `spectral.FFT`, the spectrum backdrop via the analyzers' `spectrum_dbfs`,
+    ADC dBFS via `bits` — no hand-rolled periodogram, FFT or RNG.
+
 ## [0.16.2] — 2026-06-14
 
 ### Changed
@@ -1437,6 +1475,7 @@ ______________________________________________________________________
 [0.16.0]: https://github.com/doppler-dsp/doppler/compare/v0.15.1...v0.16.0
 [0.16.1]: https://github.com/doppler-dsp/doppler/compare/v0.16.0...v0.16.1
 [0.16.2]: https://github.com/doppler-dsp/doppler/compare/v0.16.1...v0.16.2
+[0.17.0]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...v0.17.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1463,4 +1502,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.17.0...HEAD

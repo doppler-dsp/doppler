@@ -2,7 +2,7 @@ add_library(spectral_core OBJECT spectral_core.c kaiser_enbw.c kaiser_window.c h
 target_include_directories(spectral_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# spectral Python module — aggregates: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, Welch
+# spectral Python module — aggregates: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, PSD
 Python3_add_library(spectral MODULE WITH_SOABI spectral_ext.c)
 target_link_libraries(spectral PRIVATE
     spectral_core
@@ -12,7 +12,7 @@ target_link_libraries(spectral PRIVATE
     corr2d_core
     detector_core
     detector2d_core
-    welch_core
+    psd_core
     acc_trace_core
     Python3::NumPy)
 target_include_directories(spectral PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

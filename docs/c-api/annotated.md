@@ -45,12 +45,13 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**npr\_meas\_t**](structnpr__meas__t.md) _Noise Power Ratio (notched-noise loading) result._     
 * **struct** [**nprmeas\_state\_t**](structnprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._     
 * **struct** [**pn\_state\_t**](structpn__state__t.md)     
+* **struct** [**psd\_state\_t**](structpsd__state__t.md) _PSD state. Allocate with_ [_**psd\_create()**_](psd__core_8h.md#function-psd_create) _._    
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md)     
+* **struct** [**specan\_state\_t**](structspecan__state__t.md) _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._    
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     
 * **struct** [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md) _UQ15ToF32 state._     
-* **struct** [**welch\_state\_t**](structwelch__state__t.md) _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-welch_create) _._    
 * **struct** [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)     
 * **struct** [**wfm\_segment\_t**](structwfm__segment__t.md) _One composer segment: one or more sources summed over the same span, then a trailing off-time gap._     
 * **struct** [**wfm\_source\_t**](structwfm__source__t.md) _One additive source within a segment: a_ `synth` _config + its level._    

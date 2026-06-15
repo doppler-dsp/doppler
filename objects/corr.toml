@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Corr"
+depends_on = ["fft_core"]
 
 [[corr.init_params]]
 name = "ref"

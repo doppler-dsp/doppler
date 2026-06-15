@@ -8,61 +8,43 @@
  */
 #include "nprmeas/nprmeas_core.h"
 
-#include "spectral/spectral_core.h"
-
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define NPR_EPS 1e-30
 
-static size_t
-next_pow2 (size_t x)
-{
-  size_t p = 1;
-  while (p < x)
-    p <<= 1;
-  return p;
-}
-
 nprmeas_state_t *
 nprmeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                double full_scale)
+                double full_scale, size_t bits)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1) || full_scale <= 0.0)
+  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
     return NULL;
   if (pad < 1)
     pad = 1;
   nprmeas_state_t *s = (nprmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->n          = n;
-  s->fs         = fs;
-  s->full_scale = full_scale;
-  s->nfft       = next_pow2 (n * pad);
-  s->w          = (float *)malloc (n * sizeof (float));
-  s->frame      = (float complex *)malloc (s->nfft * sizeof (float complex));
-  s->spec       = (float complex *)malloc (s->nfft * sizeof (float complex));
-  s->pwr        = (float *)malloc (s->nfft * sizeof (float));
-  s->fft        = fft_create (s->nfft, -1, 1);
-  if (!s->w || !s->frame || !s->spec || !s->pwr || !s->fft)
+  /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
+   * s->psd->full_scale so it is defined exactly once. */
+  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
+                       ACC_TRACE_MEAN, 0.0);
+  if (!s->psd)
     {
       nprmeas_destroy (s);
       return NULL;
     }
-  if (window == 1)
-    kaiser_window (s->w, n, beta);
-  else
-    hann_window (s->w, n);
-  double cg = 0.0, s2 = 0.0;
-  for (size_t i = 0; i < n; i++)
+  s->n    = n;
+  s->nfft = s->psd->nfft;
+  s->fs   = fs;
+  s->enbw = s->psd->enbw;
+  s->pwr  = (float *)malloc (s->nfft * sizeof (float));
+  if (!s->pwr)
     {
-      cg += (double)s->w[i];
-      s2 += (double)s->w[i] * (double)s->w[i];
+      nprmeas_destroy (s);
+      return NULL;
     }
-  s->cg   = cg;
-  s->s2   = s2;
-  s->enbw = (double)n * s2 / (cg * cg);
   return s;
 }
 
@@ -71,11 +53,8 @@ nprmeas_destroy (nprmeas_state_t *state)
 {
   if (!state)
     return;
-  if (state->fft)
-    fft_destroy (state->fft);
-  free (state->w);
-  free (state->frame);
-  free (state->spec);
+  if (state->psd)
+    psd_destroy (state->psd);
   free (state->pwr);
   free (state);
 }
@@ -92,20 +71,14 @@ nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
                  double notch_hi, double guard_hz)
 {
   npr_meas_t r;
-  /* window + zero-pad + FFT -> one-sided cg^2-normalised power */
-  size_t nuse = (n_in < s->n) ? n_in : s->n;
-  for (size_t i = 0; i < s->nfft; i++)
-    s->frame[i] = (i < nuse) ? (float complex) (s->w[i] * x[i]) : 0.0f;
-  fft_execute_cf32 (s->fft, s->frame, s->nfft, s->spec);
-  size_t half    = s->nfft / 2;
-  double inv_cg2 = 1.0 / (s->cg * s->cg);
-  for (size_t k = 0; k <= half; k++)
-    {
-      double re = crealf (s->spec[k]);
-      double im = cimagf (s->spec[k]);
-      double p  = (re * re + im * im) * inv_cg2;
-      s->pwr[k] = (float)((k == 0 || k == half) ? p : 2.0 * p);
-    }
+  memset (&r, 0, sizeof (r));
+  /* average the capture's segments -> one-sided cg^2-normalised power */
+  psd_reset (s->psd);
+  psd_accumulate_real (s->psd, x, n_in);
+  size_t nbins = psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  if (nbins == 0)
+    return r; /* capture holds no full frame */
+  size_t half = s->nfft / 2;
 
   double df    = s->fs / (double)s->nfft;
   double in_lo = active_lo, in_hi = active_hi;
@@ -136,7 +109,7 @@ nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
 
   /* per-bin power referenced to a full-scale tone (same cal as tonemeas) */
   double cal = (double)s->nfft / (double)s->n * s->enbw;
-  double ref = s->full_scale * s->full_scale / 2.0 * cal;
+  double ref = s->psd->full_scale * s->psd->full_scale / 2.0 * cal;
 
   r.npr_db          = 10.0 * log10 (in_mean / nt_mean);
   r.inband_psd_dbfs = 10.0 * log10 (in_mean / ref);
@@ -145,4 +118,27 @@ nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
   r.n_notch_bins    = nt_cnt;
   r.rbw_hz          = s->enbw * s->fs / (double)s->n;
   return r;
+}
+
+size_t
+nprmeas_spectrum_dbfs_max_out (nprmeas_state_t *state)
+{
+  return state->nfft;
+}
+
+size_t
+nprmeas_spectrum_dbfs (nprmeas_state_t *state, const float *x, size_t x_len,
+                       float *out)
+{
+  /* DC-centred two-sided dBFS view of the capture (analyzer display): the same
+   * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
+  psd_reset (state->psd);
+  psd_accumulate_real (state->psd, x, x_len);
+  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
+  if (nfft == 0)
+    return 0;
+  double ref = state->psd->full_scale * state->psd->full_scale;
+  for (size_t i = 0; i < nfft; i++)
+    out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + NPR_EPS));
+  return nfft;
 }

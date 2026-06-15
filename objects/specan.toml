@@ -1,0 +1,160 @@
+# specan — natural-parameter streaming spectrum analyzer.
+#
+# Composes the Ddc tuner/decimator and the PSD averaging-PSD core so an
+# operator drives it with instrument parameters (center, span, RBW, ref level)
+# instead of DSP knobs (window length, Kaiser beta, zero-pad).  cf32 in,
+# real dB display band out.  Peaks are obtained idiomatically by composing the
+# find_peaks_f32 free function on the returned trace.
+
+[specan]
+arg_type = "float _Complex"
+return_type = "float"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Specan"
+depends_on = [
+    { name = "ddc", link = true },
+    { name = "lo", link = true },
+    { name = "RateConverter", link = true },
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "hbdecim_r2c", link = true },
+    { name = "cic", link = true },
+    { name = "fir", link = true },
+    { name = "resample", link = true },
+    { name = "psd", link = true },
+    { name = "acc_trace", link = true },
+    { name = "fft", link = true },
+    { name = "spectral", link = true },
+]
+
+# Required instrument params (jm 0.19.10 gh-266): hoisted ahead of the
+# defaulted ones as positionals, so Specan() / Specan(0, 0, 0) raises a clear
+# TypeError instead of returning NULL → opaque MemoryError.
+[[specan.init_params]]
+name = "fs"
+type = "double"
+required = true
+default = "2.048e6"
+
+[[specan.init_params]]
+name = "span"
+type = "double"
+required = true
+default = "200e3"
+
+[[specan.init_params]]
+name = "rbw"
+type = "double"
+required = true
+default = "500.0"
+
+[[specan.init_params]]
+name = "src_center"
+type = "double"
+default = "0.0"
+
+[[specan.init_params]]
+name = "center"
+type = "double"
+default = "0.0"
+
+# offset_db is an additive dB offset applied on top of dBFS (e.g. a dBm
+# calibration); full_scale / bits set the 0-dBFS reference in the shared PSD
+# core (bits>0 -> 2^(bits-1)), so dBFS is single-sourced.
+[[specan.init_params]]
+name = "offset_db"
+type = "double"
+default = "0.0"
+
+[[specan.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[specan.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
+
+[[specan.init_params]]
+name = "window"
+type = "string_enum:hann,kaiser"
+default = "kaiser"
+
+[[specan.init_params]]
+name = "navg"
+type = "size_t"
+default = "1"
+
+# ── streaming display ─────────────────────────────────────────────────────
+[[specan.methods]]
+name = "execute"
+doc = "Mix, decimate, average; return one DC-centred dB display frame, or None."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+pass_capacity = true
+nogil = true
+none_on_empty = true
+params = [{name = "x", type = "float _Complex[]"}]
+
+[[specan.methods]]
+name = "retune"
+doc = "Move the display center frequency (seamless LO retune; no rebuild)."
+arg_type = "void"
+return_type = "void"
+params = [{name = "center", type = "double"}]
+
+[[specan.methods]]
+name = "reset"
+doc = "Drop pending samples and the running average; zero LO/filter history."
+arg_type = "void"
+return_type = "void"
+
+# ── properties (read-only) ────────────────────────────────────────────────
+[[specan.properties]]
+name = "fs_out"
+type = "double"
+field = true
+
+[[specan.properties]]
+name = "span"
+type = "double"
+field = true
+
+[[specan.properties]]
+name = "rbw"
+type = "double"
+expr = "self->handle->psd->enbw * self->handle->fs_out / (double)self->handle->n"
+
+[[specan.properties]]
+name = "center"
+type = "double"
+field = true
+
+[[specan.properties]]
+name = "beta"
+type = "double"
+field = true
+
+[[specan.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[specan.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+
+[[specan.properties]]
+name = "navg"
+type = "size_t"
+field = true
+
+[[specan.properties]]
+name = "display_size"
+type = "size_t"
+expr = "self->handle->disp_n"

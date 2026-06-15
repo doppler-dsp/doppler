@@ -99,14 +99,16 @@ def test_demo_tone_is_detected_as_a_peak():
     assert top.freq_hz == pytest.approx(50e3, abs=frame.rbw * 4)
 
 
-def test_retune_uses_the_norm_freq_setter():
-    """retune() must move the DDC mix frequency without raising.
+def test_retune_propagates_to_the_c_specan():
+    """retune() must move the C Specan's center without raising or rebuilding.
 
-    Guards the ``set_freq`` → ``norm_freq`` property migration.
+    Guards the engine → ``doppler.analyzer.Specan`` re-base: a retune is a cheap
+    C-level LO change, so the same Specan instance carries the new center.
     """
     cfg = SpecanConfig(source="demo", span=200e3)
     eng, _frame = _first_frame(cfg)
-    eng.retune(25e3)  # would AttributeError on the old set_freq() call
-    assert eng._ddc.norm_freq == pytest.approx(
-        (25e3 - eng._center_freq) / eng._fs_in
-    )
+    sa_before = eng._specan
+    eng.retune(25e3)
+    assert eng._specan is sa_before  # retune, not rebuild
+    assert eng._specan.center == pytest.approx(25e3)
+    assert eng._cfg.center == pytest.approx(25e3)

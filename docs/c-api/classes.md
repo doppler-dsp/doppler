@@ -76,12 +76,18 @@
 ## p
 
 * [**pn\_state\_t**](structpn__state__t.md)
+* [**psd\_state\_t**](structpsd__state__t.md)
 
 
 ## r
 
 * [**RateConverter\_state\_t**](structRateConverter__state__t.md)
 * [**resamp\_state\_t**](structresamp__state__t.md)
+
+
+## s
+
+* [**specan\_state\_t**](structspecan__state__t.md)
 
 
 ## t
@@ -98,7 +104,6 @@
 
 ## w
 
-* [**welch\_state\_t**](structwelch__state__t.md)
 * [**wfm\_reader\_info\_t**](structwfm__reader__info__t.md)
 * [**wfm\_segment\_t**](structwfm__segment__t.md)
 * [**wfm\_source\_t**](structwfm__source__t.md)

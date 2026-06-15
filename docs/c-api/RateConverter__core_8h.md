@@ -13,6 +13,8 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 * `#include "clib_common.h"`
 * `#include <complex.h>`
 * `#include <stddef.h>`
+* `#include "resamp/resamp_core.h"`
+* `#include "fir/fir_core.h"`
 
 
 

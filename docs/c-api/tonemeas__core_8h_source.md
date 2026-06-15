@@ -15,50 +15,47 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "fft/fft_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
+#include "fft/fft_core.h"
+#include "spectral/spectral_core.h"
+#include "acc_trace/acc_trace_core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    fft_state_t   *fft;     /* forward cf32 plan, length nfft              */
-    float         *w;       /* analysis window, length n                   */
-    float complex *frame;   /* windowed + zero-padded input, length nfft   */
-    float complex *spec;    /* FFT output, length nfft                     */
-    float         *pwr;     /* cg^2-normalised power, length nfft          */
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
-    double cg;              /* coherent gain  = sum(w)                     */
-    double s2;              /* sum(w^2)                                    */
-    double enbw;            /* equivalent noise bandwidth (bins)           */
+    double enbw;            /* window equivalent noise bandwidth (bins)    */
     size_t lobe_bins;       /* main-lobe half-width L (nfft bins)          */
     size_t n;               /* capture / frame length                      */
     size_t nfft;            /* zero-padded transform length                */
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              /* sample rate (Hz)                            */
-    double full_scale;      /* amplitude that equals 0 dBFS                */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
-    int    window;          /* 0 hann, 1 kaiser                            */
-    float  beta;            /* Kaiser shape                                */
+    int    window;          /* 0 hann, 1 kaiser (for amp_uncert_db)        */
 } tonemeas_state_t;
 
 tonemeas_state_t *tonemeas_create(size_t n, double fs, int window, float beta,
                                   size_t pad, size_t n_harmonics,
-                                  double full_scale, size_t dc_guard);
+                                  double full_scale, size_t bits,
+                                  size_t dc_guard);
 
 void tonemeas_destroy(tonemeas_state_t *state);
 
 void tonemeas_reset(tonemeas_state_t *state);
 
-size_t tonemeas_analyze(tonemeas_state_t *state, const float *x, size_t n_in,
-                        tone_meas_t *out, size_t max_out);
+tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
+                             size_t n_in);
 
-size_t tonemeas_analyze_complex(tonemeas_state_t *state, const float complex *x,
-                                size_t n_in, tone_meas_t *out, size_t max_out);
+tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
+                                     const float complex *x, size_t n_in);
 
-size_t tonemeas_time_stats(tonemeas_state_t *state, const float *x, size_t n_in,
-                           time_stats_t *out, size_t max_out);
+time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
+                                 size_t n_in);
 
 size_t tonemeas_spectrum_dbfs_max_out(tonemeas_state_t *state);
 

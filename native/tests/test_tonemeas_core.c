@@ -44,7 +44,7 @@ main (void)
 
   /* ── 1. lobe-integration invariance: a full-scale tone reads ~0 dBFS at
    *       any sub-bin offset (the headline correctness property) ── */
-  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 1, 12.0f, 2, 8, 1.0, 0);
+  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 1, 12.0f, 2, 8, 1.0, 0, 0);
   CHECK (m != NULL);
   for (int t = 0; t < 3; t++)
     {
@@ -130,7 +130,43 @@ main (void)
     CHECK (fabs (ts.dc_offset) < 1e-3);
   }
 
-  /* ── 8. accuracy metadata sanity ── */
+  /* ── 8. multi-frame averaging (the averaged-spectrum path) ──
+   *  A capture longer than n is split into floor(len/n) segments whose power
+   *  spectra are averaged before the metric kernel runs. */
+  {
+    const size_t K  = 8;
+    float       *xk = (float *)malloc (K * NCAP * sizeof (float));
+
+    /* (a) K identical noiseless frames reduce to the single-frame result. */
+    for (size_t i = 0; i < NCAP; i++)
+      x[i] = 0.0f;
+    add_cos (x, NCAP, 211.0, 0.5);
+    tone_meas_t r1 = tonemeas_analyze (m, x, NCAP);
+    for (size_t f = 0; f < K; f++)
+      for (size_t i = 0; i < NCAP; i++)
+        xk[f * NCAP + i] = x[i];
+    tone_meas_t rk = tonemeas_analyze (m, xk, K * NCAP);
+    CHECK (fabs (rk.fund_dbfs - r1.fund_dbfs) < 1e-4);
+    CHECK (fabs (rk.fund_freq - r1.fund_freq) < 1e-9);
+
+    /* (b) K frames of tone + independent white noise: SNR ~ analytic. */
+    double A = 0.5, sigma = 1e-3, a = sigma * sqrt (3.0);
+    for (size_t f = 0; f < K; f++)
+      {
+        for (size_t i = 0; i < NCAP; i++)
+          xk[f * NCAP + i] = 0.0f;
+        add_cos (xk + f * NCAP, NCAP, 211.0, A);
+        for (size_t i = 0; i < NCAP; i++)
+          xk[f * NCAP + i] += (float)(a * urand ());
+      }
+    tone_meas_t rn         = tonemeas_analyze (m, xk, K * NCAP);
+    double      snr_expect = 10.0 * log10 ((A * A / 2.0) / (sigma * sigma));
+    CHECK (fabs (rn.snr - snr_expect) < 1.5);
+    CHECK (fabs (rn.fund_freq - 211.0 / NCAP) < 2e-3);
+    free (xk);
+  }
+
+  /* ── 9. accuracy metadata sanity ── */
   CHECK (r.bin_hz > 0.0 && r.rbw_hz > 0.0);
   CHECK (r.lobe_bins == m->lobe_bins);
   CHECK (r.n_noise_bins > 0);

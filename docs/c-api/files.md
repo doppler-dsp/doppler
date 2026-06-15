@@ -32,6 +32,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**adc\_core.h**](adc__core_8h.md) _Signed two's-complement ADC model._     
         * **dir** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md)     
             * **file** [**agc\_core.h**](agc__core_8h.md) _Log-domain automatic gain control (AGC)._     
+        * **dir** [**analyzer**](dir_1d8187026dc08a4fbbc894d9c056e51f.md)     
+            * **file** [**analyzer\_core.h**](analyzer__core_8h.md) _Analyzer module — public C API._ 
         * **dir** [**arith**](dir_51d42af7a43550d997314136379d62d2.md)     
             * **file** [**arith\_core.h**](arith__core_8h.md) _Arith module — public C API for fixed-point arithmetic on Q15 (int16\_t) and Q8 (int8\_t) arrays. All elementwise operations write into a caller-supplied output buffer of the same length as the shorter input. Saturation clamps results to the representable range rather than wrapping, matching the two's-complement DSP convention._     
         * **dir** [**awgn**](dir_b535f71dd6c18f769df9e4bf89a97331.md)     
@@ -104,6 +106,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**pffft.h**](pffft_8h.md)     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     
             * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
+        * **dir** [**psd**](dir_1f3d46873d925f2e533983763479900d.md)     
+            * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._     
         * **dir** [**resamp**](dir_289a9297ce406b952fab973539197d1c.md)     
             * **file** [**resamp\_core.h**](resamp__core_8h.md) _Continuously-variable polyphase resampler for CF32 IQ._     
             * **file** [**resamp\_impl.h**](resamp__impl_8h.md) _Resamp implementation header._ 
@@ -111,6 +115,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**resample\_core.h**](resample__core_8h.md) _Resample module — public C API._     
         * **dir** [**source**](dir_ce1f95460e483b5f4e7af3e87d9b090c.md)     
             * **file** [**source\_core.h**](source__core_8h.md) _Source module — public C API._ 
+        * **dir** [**specan**](dir_6d702d949620e4073485867cfd9038e4.md)     
+            * **file** [**specan\_core.h**](specan__core_8h.md) _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._     
         * **dir** [**spectral**](dir_2aadf81c4f49e887d76ad198d657298d.md)     
             * **file** [**spectral\_core.h**](spectral__core_8h.md) _Spectral module — public C API._     
         * **dir** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md)     
@@ -124,8 +130,6 @@ Here is a list of all files with brief descriptions:
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
             * **file** [**util\_core.h**](util__core_8h.md) _Util module — public C API._     
-        * **dir** [**welch**](dir_aeb9e26b0edb1fd5fc61c8cd35fcdcfb.md)     
-            * **file** [**welch\_core.h**](welch__core_8h.md) _Welch — averaging PSD estimator and spectral measurement suite._     
         * **dir** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md)     
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
             * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     

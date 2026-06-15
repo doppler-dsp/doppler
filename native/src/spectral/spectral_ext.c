@@ -1,7 +1,7 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, Welch
+ * Objects: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, PSD
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -19,7 +19,7 @@
 #include "spectral_ext_corr2d.c"
 #include "spectral_ext_detector.c"
 #include "spectral_ext_detector2d.c"
-#include "spectral_ext_welch.c"
+#include "spectral_ext_psd.c"
 
 static PyObject *
 _bind_kaiser_enbw(PyObject *self, PyObject *args, PyObject *kwds)
@@ -232,7 +232,7 @@ PyInit_spectral(void)
     if (PyType_Ready(&Corr2DObjType) < 0) return NULL;
     if (PyType_Ready(&DetectorObjType) < 0) return NULL;
     if (PyType_Ready(&Detector2DObjType) < 0) return NULL;
-    if (PyType_Ready(&WelchObjType) < 0) return NULL;
+    if (PyType_Ready(&PSDObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&spectral_moduledef);
     if (!m) return NULL;
     Py_INCREF(&FFTObjType);
@@ -259,9 +259,9 @@ PyInit_spectral(void)
     if (PyModule_AddObject(m, "Detector2D", (PyObject *)&Detector2DObjType) < 0) {
         Py_DECREF(&Detector2DObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&WelchObjType);
-    if (PyModule_AddObject(m, "Welch", (PyObject *)&WelchObjType) < 0) {
-        Py_DECREF(&WelchObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&PSDObjType);
+    if (PyModule_AddObject(m, "PSD", (PyObject *)&PSDObjType) < 0) {
+        Py_DECREF(&PSDObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

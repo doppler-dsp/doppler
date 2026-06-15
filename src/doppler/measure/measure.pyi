@@ -22,6 +22,8 @@ class ToneMeasure:
         n_harmonics constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
     dc_guard : int, default 0
         dc_guard constructor parameter.
 
@@ -30,10 +32,10 @@ class ToneMeasure:
     Create with defaults:
 
     >>> from doppler.measure import ToneMeasure
-    >>> obj = ToneMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, n_harmonics=8, full_scale=1.0, dc_guard=0)
+    >>> obj = ToneMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, n_harmonics=8, full_scale=1.0, bits=0, dc_guard=0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., n_harmonics: int = ..., full_scale: float = ..., dc_guard: int = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., n_harmonics: int = ..., full_scale: float = ..., bits: int = ..., dc_guard: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: the analyser is stateless between calls).
@@ -151,16 +153,18 @@ class NPRMeasure:
         pad constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import NPRMeasure
-    >>> obj = NPRMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0)
+    >>> obj = NPRMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0, bits=0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: each analyze() call is independent).
@@ -188,6 +192,20 @@ class NPRMeasure:
         -------
         tuple[float, float, float, int, int, float]
             the NPR metric record (by value).
+        """
+
+    def spectrum_dbfs(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
+        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Output.
         """
 
     @property
@@ -230,16 +248,18 @@ class IMDMeasure:
         pad constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import IMDMeasure
-    >>> obj = IMDMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0)
+    >>> obj = IMDMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0, bits=0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: each analyze() call is independent).
@@ -257,6 +277,20 @@ class IMDMeasure:
         -------
         tuple[float, float, float, float, float, float, float, float, float, float, float, float]
             the IMD metric record (by value; zeroed if no two tones are found).
+        """
+
+    def spectrum_dbfs(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
+        """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Output.
         """
 
     @property

@@ -38,12 +38,13 @@
 * `#include "corr2d/corr2d_core.h"`
 * `#include "detector/detector_core.h"`
 * `#include "detector2d/detector2d_core.h"`
-* `#include "welch/welch_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include "tonemeas/tonemeas_core.h"`
 * `#include "nprmeas/nprmeas_core.h"`
 * `#include "imdmeas/imdmeas_core.h"`
 * `#include "ddc/ddc_core.h"`
 * `#include "ddcr/ddcr_core.h"`
+* `#include "specan/specan_core.h"`
 * `#include "Resampler/Resampler_core.h"`
 * `#include "HalfbandDecimator/HalfbandDecimator_core.h"`
 * `#include "cic/cic_core.h"`

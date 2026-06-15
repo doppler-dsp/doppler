@@ -3,7 +3,7 @@
 # BSD/FFTPACK) — a native single-precision SIMD FFT (SSE/NEON, scalar fallback)
 # the wrapper routes cf32/integer-IQ through for 5-smooth sizes, falling back to
 # pocketfft otherwise.  All compiled straight into fft_core so their symbols
-# travel to every consumer (fft2d, corr, welch, ...).  Still C++-free, -lm only;
+# travel to every consumer (fft2d, corr, psd, ...).  Still C++-free, -lm only;
 # PFFFT emits only 128-bit xmm/NEON, so the portable-SIMD gate stays green.
 add_library(fft_core OBJECT fft_core.c pocketfft.c pocketfft_c99.c pffft.c)
 target_include_directories(fft_core PUBLIC

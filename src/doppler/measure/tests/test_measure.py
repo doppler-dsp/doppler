@@ -66,6 +66,31 @@ def test_snr_white_noise():
     assert abs(r.enob - (r.sinad - 1.76) / 6.02) < 1e-6
 
 
+def test_multiframe_averaging():
+    # A capture longer than n is split into floor(len/n) segments whose power
+    # spectra are averaged before the metric kernel runs (the PSD path).
+    m = ToneMeasure(n=4096, beta=12.0)
+    one = _cos(211, 0.5)
+    r1 = m.analyze(one)
+
+    # (a) K identical frames reduce to the single-frame result.
+    rk = m.analyze(np.tile(one, 8))
+    assert abs(rk.fund_dbfs - r1.fund_dbfs) < 1e-4
+    assert abs(rk.fund_freq - r1.fund_freq) < 1e-9
+
+    # (b) K frames of tone + independent white noise still recover SNR.
+    rng = np.random.default_rng(1)
+    a, sigma = 0.5, 1e-3
+    frames = [
+        _cos(211, a) + (sigma * rng.standard_normal(4096)).astype(np.float32)
+        for _ in range(8)
+    ]
+    r = m.analyze(np.concatenate(frames))
+    expect = 10 * np.log10((a * a / 2) / (sigma * sigma))
+    assert abs(r.snr - expect) < 1.5
+    assert abs(r.fund_freq - 211 / 4096) < 2e-3
+
+
 def test_complex_negative_frequency():
     m = ToneMeasure(n=4096, beta=12.0)
     i = np.arange(4096)
@@ -92,6 +117,13 @@ def test_enob_of_ideal_adc(bits):
     assert abs(r.enob - bits) < 0.3
     assert abs(r.sinad - (6.02 * bits + 1.76)) < 1.0
 
+    # bits=B is sugar for full_scale=2**(B-1): the single dBFS source of truth.
+    rb = ToneMeasure(
+        window="kaiser", n=n, beta=14.0, n_harmonics=10, bits=bits
+    ).analyze(codes)
+    assert rb.fund_dbfs == pytest.approx(r.fund_dbfs, abs=1e-6)
+    assert rb.enob == pytest.approx(r.enob, abs=1e-6)
+
 
 def test_time_stats():
     m = ToneMeasure(n=4096)
@@ -106,7 +138,7 @@ def test_named_result_fields_and_unpacking():
     m = ToneMeasure(n=4096, beta=12.0)
     r = m.analyze(_cos(300, 1.0))
     assert type(r).__name__ == "ToneMetrics"
-    assert type(r).__module__ == "tonemeas"
+    assert type(r).__module__ == "doppler.measure"
     # attribute access and tuple unpacking both work
     assert isinstance(r.snr, float)
     assert len(tuple(r)) == 23

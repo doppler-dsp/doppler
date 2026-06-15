@@ -677,7 +677,7 @@ class Detector2D:
 
     def __exit__(self, *args: object) -> None: ...
 
-class Welch:
+class PSD:
     """Create an averaging PSD estimator.
 
     Parameters
@@ -690,6 +690,12 @@ class Welch:
         window constructor parameter.
     beta : float, default 0.0
         beta constructor parameter.
+    pad : int, default 1
+        pad constructor parameter.
+    full_scale : float, default 1.0
+        full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         mode constructor parameter.
     alpha : float, default 0.1
@@ -699,11 +705,11 @@ class Welch:
     --------
     Create with defaults:
 
-    >>> from doppler.spectral import Welch
-    >>> obj = Welch(n=1024, fs=1.0, window="hann", beta=0.0, mode="mean", alpha=0.1)
+    >>> from doppler.spectral import PSD
+    >>> obj = PSD(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, bits=0, mode="mean", alpha=0.1)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
 
     def accumulate(self, x: NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
@@ -716,9 +722,9 @@ class Welch:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.spectral import Welch
+        >>> from doppler.spectral import PSD
         >>> n = 64
-        >>> w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+        >>> w = PSD(n=n, fs=1.0, window="hann", mode="mean")
         >>> k = 8
         >>> x = np.exp(2j*np.pi*k*np.arange(n)/n).astype(np.complex64)
         >>> for _ in range(4):
@@ -731,6 +737,15 @@ class Welch:
         >>> w.count
         4
 
+        """
+
+    def accumulate_real(self, x: NDArray[np.float32]) -> None:
+        """Window, zero-pad, FFT and fold floor(n_in/n) real frames into the average.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Real samples (f32).
         """
 
     def reset(self) -> None:
@@ -757,13 +772,31 @@ class Welch:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.spectral import Welch
-        >>> w = Welch(n=32, fs=2.0, window="hann", mode="mean")
+        >>> from doppler.spectral import PSD
+        >>> w = PSD(n=32, fs=2.0, window="hann", mode="mean")
         >>> w.accumulate(np.ones(32, dtype=np.complex64))
         >>> a = w.psd_db(); b = w.psd_dbhz()
         >>> bool(np.allclose(a - b, (a - b)[0]))   # offset is a constant
         True
 
+        """
+
+    def power_twosided(self) -> NDArray[np.float32]:
+        """Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            nfft, or 0 if empty.
+        """
+
+    def power_onesided(self) -> NDArray[np.float32]:
+        """Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            nfft/2 + 1, or 0 if empty.
         """
 
     def band_power(self, bands: NDArray[np.float64]) -> NDArray[np.float32]:
@@ -782,8 +815,8 @@ class Welch:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.spectral import Welch
-        >>> w = Welch(n=64, fs=1.0, window="hann", mode="mean")
+        >>> from doppler.spectral import PSD
+        >>> w = PSD(n=64, fs=1.0, window="hann", mode="mean")
         >>> w.accumulate(np.ones(64, dtype=np.complex64))
         >>> pb = w.band_power(np.array([-0.5, 0.0, 0.0, 0.5]))
         >>> pb.shape
@@ -863,8 +896,20 @@ class Welch:
         """N."""
 
     @property
+    def nfft(self) -> int:
+        """Nfft."""
+
+    @property
     def fs(self) -> float:
         """Fs."""
+
+    @property
+    def full_scale(self) -> float:
+        """Full scale."""
+
+    @property
+    def bits(self) -> int:
+        """Bits."""
 
     @property
     def enbw(self) -> float:
@@ -885,7 +930,7 @@ class Welch:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Welch": ...
+    def __enter__(self) -> "PSD": ...
 
     def __exit__(self, *args: object) -> None: ...
 

@@ -36,18 +36,12 @@ _NPRMeasure state: owned window, FFT plan and one-sided power scratch._
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**cg**](#variable-cg)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
-|  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
-|  float complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
+|  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
-|  double | [**s2**](#variable-s2)  <br> |
-|  float complex \* | [**spec**](#variable-spec)  <br> |
-|  float \* | [**w**](#variable-w)  <br> |
 
 
 
@@ -97,19 +91,6 @@ _NPRMeasure state: owned window, FFT plan and one-sided power scratch._
 
 
 
-### variable cg 
-
-```C++
-double nprmeas_state_t::cg;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable enbw 
 
 ```C++
@@ -123,49 +104,10 @@ double nprmeas_state_t::enbw;
 
 
 
-### variable fft 
-
-```C++
-fft_state_t* nprmeas_state_t::fft;
-```
-
-
-
-
-<hr>
-
-
-
-### variable frame 
-
-```C++
-float complex* nprmeas_state_t::frame;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable fs 
 
 ```C++
 double nprmeas_state_t::fs;
-```
-
-
-
-
-<hr>
-
-
-
-### variable full\_scale 
-
-```C++
-double nprmeas_state_t::full_scale;
 ```
 
 
@@ -201,49 +143,23 @@ size_t nprmeas_state_t::nfft;
 
 
 
+### variable psd 
+
+```C++
+psd_state_t* nprmeas_state_t::psd;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable pwr 
 
 ```C++
 float* nprmeas_state_t::pwr;
-```
-
-
-
-
-<hr>
-
-
-
-### variable s2 
-
-```C++
-double nprmeas_state_t::s2;
-```
-
-
-
-
-<hr>
-
-
-
-### variable spec 
-
-```C++
-float complex* nprmeas_state_t::spec;
-```
-
-
-
-
-<hr>
-
-
-
-### variable w 
-
-```C++
-float* nprmeas_state_t::w;
 ```
 
 

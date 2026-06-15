@@ -1,16 +1,16 @@
 
 
-# Struct welch\_state\_t
+# Struct psd\_state\_t
 
 
 
-[**ClassList**](annotated.md) **>** [**welch\_state\_t**](structwelch__state__t.md)
+[**ClassList**](annotated.md) **>** [**psd\_state\_t**](structpsd__state__t.md)
 
 
 
-_Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-welch_create) _._
+_PSD state. Allocate with_ [_**psd\_create()**_](psd__core_8h.md#function-psd_create) _._
 
-* `#include <welch_core.h>`
+* `#include <psd_core.h>`
 
 
 
@@ -37,13 +37,16 @@ _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-
 | Type | Name |
 | ---: | :--- |
 |  [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* | [**avg**](#variable-avg)  <br> |
+|  size\_t | [**bits**](#variable-bits)  <br> |
 |  double | [**cg**](#variable-cg)  <br> |
 |  float \* | [**dbbuf**](#variable-dbbuf)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
 |  float complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
+|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  double | [**s2**](#variable-s2)  <br> |
 |  float complex \* | [**spec**](#variable-spec)  <br> |
@@ -100,12 +103,29 @@ _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-
 ### variable avg 
 
 ```C++
-acc_trace_state_t* welch_state_t::avg;
+acc_trace_state_t* psd_state_t::avg;
 ```
 
 
 
-Per-bin power averager (AccTrace). 
+Per-bin power averager, length nfft. 
+
+
+        
+
+<hr>
+
+
+
+### variable bits 
+
+```C++
+size_t psd_state_t::bits;
+```
+
+
+
+ADC depth that set full\_scale, else 0. 
 
 
         
@@ -117,7 +137,7 @@ Per-bin power averager (AccTrace).
 ### variable cg 
 
 ```C++
-double welch_state_t::cg;
+double psd_state_t::cg;
 ```
 
 
@@ -134,12 +154,12 @@ Window coherent gain, sum(w).
 ### variable dbbuf 
 
 ```C++
-float* welch_state_t::dbbuf;
+float* psd_state_t::dbbuf;
 ```
 
 
 
-dB-trace scratch, length n. 
+dB-trace scratch, length nfft. 
 
 
         
@@ -151,7 +171,7 @@ dB-trace scratch, length n.
 ### variable enbw 
 
 ```C++
-double welch_state_t::enbw;
+double psd_state_t::enbw;
 ```
 
 
@@ -168,12 +188,12 @@ Equivalent noise bandwidth, bins.
 ### variable fft 
 
 ```C++
-fft_state_t* welch_state_t::fft;
+fft_state_t* psd_state_t::fft;
 ```
 
 
 
-Forward cf32 plan, size n. 
+Forward cf32 plan, size nfft. 
 
 
         
@@ -185,12 +205,12 @@ Forward cf32 plan, size n.
 ### variable frame 
 
 ```C++
-float complex* welch_state_t::frame;
+float complex* psd_state_t::frame;
 ```
 
 
 
-Windowed input scratch, length n. 
+Windowed + zero-padded, length nfft. 
 
 
         
@@ -202,7 +222,7 @@ Windowed input scratch, length n.
 ### variable fs 
 
 ```C++
-double welch_state_t::fs;
+double psd_state_t::fs;
 ```
 
 
@@ -216,15 +236,49 @@ Sample rate, Hz.
 
 
 
-### variable n 
+### variable full\_scale 
 
 ```C++
-size_t welch_state_t::n;
+double psd_state_t::full_scale;
 ```
 
 
 
-FFT length / frame size. 
+Amplitude that reads 0 dBFS. 
+
+
+        
+
+<hr>
+
+
+
+### variable n 
+
+```C++
+size_t psd_state_t::n;
+```
+
+
+
+Window / frame length (samples). 
+
+
+        
+
+<hr>
+
+
+
+### variable nfft 
+
+```C++
+size_t psd_state_t::nfft;
+```
+
+
+
+Zero-padded transform length. 
 
 
         
@@ -236,12 +290,12 @@ FFT length / frame size.
 ### variable pwr 
 
 ```C++
-float* welch_state_t::pwr;
+float* psd_state_t::pwr;
 ```
 
 
 
-DC-centred power scratch, length n. 
+DC-centred power scratch, length nfft. 
 
 
         
@@ -253,7 +307,7 @@ DC-centred power scratch, length n.
 ### variable s2 
 
 ```C++
-double welch_state_t::s2;
+double psd_state_t::s2;
 ```
 
 
@@ -270,12 +324,12 @@ Window power, sum(w^2).
 ### variable spec 
 
 ```C++
-float complex* welch_state_t::spec;
+float complex* psd_state_t::spec;
 ```
 
 
 
-FFT output scratch, length n. 
+FFT output scratch, length nfft. 
 
 
         
@@ -287,7 +341,7 @@ FFT output scratch, length n.
 ### variable w 
 
 ```C++
-float* welch_state_t::w;
+float* psd_state_t::w;
 ```
 
 
@@ -300,5 +354,5 @@ Window, length n.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/welch/welch_core.h`
+The documentation for this class was generated from the following file `native/inc/psd/psd_core.h`
 

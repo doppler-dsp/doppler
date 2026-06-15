@@ -71,7 +71,7 @@ extern "C" {
 
 #include "detector2d/detector2d_core.h"
 
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 
 #include "tonemeas/tonemeas_core.h"
 
@@ -82,6 +82,8 @@ extern "C" {
 #include "ddc/ddc_core.h"
 
 #include "ddcr/ddcr_core.h"
+
+#include "specan/specan_core.h"
 
 #include "Resampler/Resampler_core.h"
 

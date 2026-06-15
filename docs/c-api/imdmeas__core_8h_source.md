@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "fft/fft_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 
 #ifdef __cplusplus
@@ -23,30 +23,28 @@ extern "C" {
 #endif
 
 typedef struct {
-    fft_state_t   *fft;
-    float         *w;
-    float complex *frame;
-    float complex *spec;
-    float         *pwr;
-    double cg;
-    double s2;
-    double enbw;
-    size_t lobe_bins;
-    size_t n;
-    size_t nfft;
-    double fs;
-    double full_scale;
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    float         *pwr;     /* metric working buffer, one-sided power       */
+    double enbw;            /* window equivalent noise bandwidth (bins)     */
+    size_t lobe_bins;       /* main-lobe half-width L                       */
+    size_t n;               /* capture / frame length                      */
+    size_t nfft;            /* zero-padded transform length                */
+    double fs;              /* sample rate (Hz)                            */
 } imdmeas_state_t;
 
 imdmeas_state_t *imdmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale);
+                                size_t pad, double full_scale, size_t bits);
 
 void imdmeas_destroy(imdmeas_state_t *state);
 
 void imdmeas_reset(imdmeas_state_t *state);
 
-size_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in,
-                       imd_meas_t *out, size_t max_out);
+imd_meas_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in);
+
+size_t imdmeas_spectrum_dbfs_max_out(imdmeas_state_t *state);
+
+size_t imdmeas_spectrum_dbfs(imdmeas_state_t *state, const float *x,
+                             size_t x_len, float *out);
 
 #ifdef __cplusplus
 }

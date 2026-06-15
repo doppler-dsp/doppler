@@ -28,14 +28,14 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](wfm-composition.md)
 
-- **[Four WCDMA Carriers — Welch & AccTrace](wcdma-carriers.md)**
+- **[Four WCDMA Carriers — PSD & AccTrace](wcdma-carriers.md)**
 
     ______________________________________________________________________
 
-    [![four WCDMA carriers measured with Welch and AccTrace](../assets/wcdma_carriers_demo.png)](wcdma-carriers.md)
+    [![four WCDMA carriers measured with PSD and AccTrace](../assets/wcdma_carriers_demo.png)](wcdma-carriers.md)
 
     Four RRC-shaped WCDMA channels at 0 / -3 / -6 / -10 dBFS, measured with
-    `Welch` — averaged PSD, per-channel `band_power`, occupied bandwidth, SNR,
+    `PSD` — averaged PSD, per-channel `band_power`, occupied bandwidth, SNR,
     ACLR — and `AccTrace` mean vs. max-hold.
 
     [:octicons-arrow-right-24: Walkthrough](wcdma-carriers.md)

@@ -39,7 +39,7 @@ main (void)
   add_cos (x, NCAP, 300.0, 0.01);
   add_cos (x, NCAP, 50.0, 0.003);
 
-  imdmeas_state_t *m = imdmeas_create (NCAP, 1.0, 1, 12.0f, 2, 1.0);
+  imdmeas_state_t *m = imdmeas_create (NCAP, 1.0, 1, 12.0f, 2, 1.0, 0);
   CHECK (m != NULL);
   imd_meas_t r;
   r = imdmeas_analyze (m, x, NCAP);

@@ -20,6 +20,11 @@ analysers in ``doppler.measure``, driven on synthesised captures.
       ideal and peaks at the optimal loading (~-13 dBFS RMS, ~52 dB for 10
       bits). NPR loading is RMS-to-full-scale by convention.
 
+Every measurement feeds an `M = NAVG * N` capture, so `analyze()` averages
+`NAVG = 8` segments (Welch's method) — a smoother spectrum and a lower-variance
+notch/floor estimate than a single periodogram, at the same resolution
+bandwidth.
+
 Run:
     python examples/python/measure_imd_npr_demo.py
 """
@@ -36,58 +41,46 @@ import numpy as np
 
 from doppler.cvt import ADC
 from doppler.measure import IMDMeasure, NPRMeasure
+from doppler.source import AWGN, LO
+from doppler.spectral import FFT
 
 FS = 100e6  # 100 MHz sample rate
-N = 1 << 14  # 16384-sample capture
-ACCENT, FUND, IM3, IM2, FLOOR = (
-    "#2563eb",
-    "#16a34a",
-    "#dc2626",
-    "#f97316",
-    "#94a3b8",
-)
-
-
-def periodogram_dbfs(x, fs_amp, beta=12.0):
-    """A one-sided Kaiser-windowed periodogram in dBFS (0 dBFS = a peak-fs_amp
-    sine), for the spectrum backdrop. The *metrics* come from doppler; this is
-    only the trace they annotate."""
-    n = len(x)
-    w = np.kaiser(n, beta)
-    cg = w.sum()
-    p = np.abs(np.fft.rfft(x * w)) ** 2 / cg**2
-    p[1:-1] *= 2.0  # one-sided fold
-    return 10.0 * np.log10(np.maximum(p / (fs_amp**2 / 2.0), 1e-30))
+N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
+NAVG = 8  # segments averaged per measurement (Welch's method)
+M = NAVG * N  # total capture length fed to analyze()
+# matplotlib standard palette (tab10) by role
+ACCENT, FUND, IM3, IM2, FLOOR = "C0", "C2", "C3", "C1", "C7"
 
 
 def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
-    """Two equal tones through y = x + a2 x^2 + a3 x^3 (a memoryless weak
-    nonlinearity → controlled IM2/IM3 products)."""
-    t = np.arange(N)
-    x = amp * (
-        np.sin(2 * np.pi * f1 * t / FS) + np.sin(2 * np.pi * f2 * t / FS)
-    )
+    """Two doppler-NCO (`source.LO`) tones through a weak memoryless
+    nonlinearity y = x + a2 x^2 + a3 x^3 — the DUT model that creates the
+    controlled IM2/IM3 products.  The spectrum backdrop the demo plots comes
+    from the analyzer's own `spectrum_dbfs`, not a hand-rolled periodogram.
+    The capture spans `M = NAVG * N` so `analyze()` averages `NAVG` segments."""
+    x = amp * (LO(f1 / FS).steps(M).real + LO(f2 / FS).steps(M).real)
     return (x + a2 * x**2 + a3 * x**3).astype(np.float32)
 
 
 def notched_noise(rms, active_lo, active_hi, notch_lo, notch_hi, seed=0):
-    """Band-limited white noise over [active_lo, active_hi] with a spectral
-    notch carved out, scaled to an **RMS** level `rms` relative to full scale
-    (= 1.0). NPR loading is specified RMS-to-full-scale by convention — the
-    Gaussian peak is ~12-13 dB above this (the crest factor), and clipping
-    therefore sets in well before the RMS reaches 0 dBFS."""
-    rng = np.random.default_rng(seed)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS)
-    band = (
+    """Band-limited noise with a carved notch, scaled to an **RMS** level
+    `rms` relative to full scale (= 1.0) — the NPR test stimulus.
+
+    doppler-native: white noise from `source.AWGN`, shaped in the frequency
+    domain with `spectral.FFT` (forward + inverse).  The band/notch geometry is
+    the device-under-test model.  NPR loading is RMS-to-full-scale by
+    convention — the Gaussian peak is ~12-13 dB above the RMS (the crest
+    factor), so clipping sets in well before the RMS reaches 0 dBFS."""
+    k = np.arange(M)
+    freqs = np.abs(np.where(k < M // 2, k, k - M)) * (FS / M)  # |Hz| per bin
+    keep = (
         (freqs >= active_lo)
         & (freqs <= active_hi)
         & ~((freqs >= notch_lo) & (freqs <= notch_hi))
     )
-    spec = np.zeros(len(freqs), dtype=complex)
-    spec[band] = rng.standard_normal(band.sum()) + 1j * rng.standard_normal(
-        band.sum()
-    )
-    x = np.fft.irfft(spec, N)
+    white = AWGN(seed, 1.0).generate(M)  # M = NAVG*N complex white samples
+    spec = FFT(M, -1).execute_cf32(white) * keep  # FFT, mask band + notch
+    x = (FFT(M, 1).execute_cf32(spec.astype(np.complex64)) / M).real
     return (x / np.sqrt(np.mean(x**2)) * rms).astype(np.float32)
 
 
@@ -123,9 +116,10 @@ def main():
     y = two_tone(f1, f2, amp=0.35)
     imd = IMDMeasure(n=N, fs=FS, beta=12.0)
     r = imd.analyze(y)
-    db = periodogram_dbfs(y, fs_amp=1.0)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS) / 1e6  # MHz
-    ax.plot(freqs, db, color=ACCENT, lw=0.7)
+    db = imd.spectrum_dbfs(y)  # the same averaged PSD the metrics use
+    half = imd.nfft // 2
+    freqs = np.arange(half) * FS / imd.nfft / 1e6  # MHz (one-sided)
+    ax.plot(freqs, db[half:], color=ACCENT, lw=0.7)
     for f, c, lbl in (
         (r.f1, FUND, "fundamentals"),
         (r.f2, FUND, None),
@@ -181,14 +175,14 @@ def main():
     ax.plot(xe, np.polyval(cf, xe), "-", color=FUND, lw=1, alpha=0.6)
     ax.plot(xe, np.polyval(ci, xe), "-", color=IM3, lw=1, alpha=0.6)
     toi = float(np.polyval(cf, xe[1]))
-    ax.plot(xe[1], toi, "*", color="#7c3aed", ms=16, label="TOI")
+    ax.plot(xe[1], toi, "*", color="C4", ms=16, label="TOI")
     ax.annotate(
         f"TOI ≈ {r.toi_dbfs:+.1f} dBFS",
         xy=(xe[1], toi),
         xytext=(-8, -12),
         textcoords="offset points",
         fontsize=8,
-        color="#7c3aed",
+        color="C4",
         ha="right",
     )
     ax.set(
@@ -205,18 +199,18 @@ def main():
     # NPR test, so the measured ratio matches the MT-005 ideal directly.
     alo, ahi, nlo, nhi = 1e6, 49e6, 24e6, 26e6
     guard = 0.5e6
-    fs_code = 2.0**9  # 10-bit ADC full-scale code
     load_dbfs = -12.4  # RMS loading near the 10-bit optimum (MT-005)
     codes = (
         ADC(10, 0.0, 0)
         .steps(notched_noise(10 ** (load_dbfs / 20), alo, ahi, nlo, nhi))
         .astype(np.float32)
     )
-    npr = NPRMeasure(n=N, fs=FS, full_scale=fs_code)
+    npr = NPRMeasure(n=N, fs=FS, bits=10)  # bits sets the dBFS reference
     g = npr.analyze(codes, alo, ahi, nlo, nhi, guard)
-    db = periodogram_dbfs(codes, fs_amp=fs_code)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS) / 1e6
-    ax.plot(freqs, db, color=ACCENT, lw=0.5)
+    db = npr.spectrum_dbfs(codes)  # the same averaged PSD the metrics use
+    half = npr.nfft // 2
+    freqs = np.arange(half) * FS / npr.nfft / 1e6  # MHz (one-sided)
+    ax.plot(freqs, db[half:], color=ACCENT, lw=0.5)
     ax.axvspan(
         alo / 1e6, ahi / 1e6, color=FUND, alpha=0.06, label="active band"
     )
@@ -241,13 +235,13 @@ def main():
         "",
         xy=((nlo + nhi) / 2e6, g.notch_psd_dbfs),
         xytext=((nlo + nhi) / 2e6, g.inband_psd_dbfs),
-        arrowprops=dict(arrowstyle="<->", color="#7c3aed", lw=1.4),
+        arrowprops=dict(arrowstyle="<->", color="C4", lw=1.4),
     )
     ax.text(
         (nlo + nhi) / 2e6 + 1.0,
         (g.inband_psd_dbfs + g.notch_psd_dbfs) / 2,
         f"NPR\n{g.npr_db:.1f} dB",
-        color="#7c3aed",
+        color="C4",
         fontsize=8,
         va="center",
     )
@@ -281,21 +275,21 @@ def main():
     ax.plot(
         loadings,
         theory,
-        "--",
+        "-",
         color=FLOOR,
         lw=1.6,
         label="ideal 10-bit (MT-005)",
     )
-    ax.plot(loadings, nprs, "o-", color=ACCENT, ms=4, label="measured")
+    ax.plot(loadings, nprs, "o", color=ACCENT, ms=4, label="measured")
     ax.plot(
         loadings[kpeak],
         nprs[kpeak],
         "*",
-        color="#7c3aed",
+        color="C4",
         ms=16,
         label=f"sweet spot {nprs[kpeak]:.0f} dB @ {loadings[kpeak]:.0f} dBFS",
     )
-    ax.axvline(loadings[kpeak], color="#7c3aed", ls=":", lw=1)
+    ax.axvline(loadings[kpeak], color="C4", ls=":", lw=1)
     ax.set(
         title="(d) NPR vs loading — quantisation floor vs clipping",
         xlabel="noise loading (dBFS RMS)",

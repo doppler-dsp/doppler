@@ -69,23 +69,34 @@ ______________________________________________________________________
 
 ## Averaging PSD & measurements
 
-`Welch` is a stateful Welch-style averaging power-spectral-density estimator.
-Feed complex baseband frames with `accumulate()`; each length-`n` frame is
-windowed, FFT'd, converted to power, fftshifted to DC-centred order and folded
-into a running average ([`AccTrace`](python-accumulator.md), with the same
-`mode` of `"mean"` / `"exp"` / `"maxhold"` / `"minhold"`). Then read the
-averaged spectrum and derived measurements.
+`PSD` is a stateful Welch-method (averaging) power-spectral-density estimator —
+the single PSD core the [measurement suite](python-measure.md) also consumes (see
+the [Power Spectra & Measurements guide](../guide/spectral-psd.md) for the usage
+walk-through). A capture longer than `n` is split into `floor(len/n)` segments;
+each is windowed, **zero-padded to `nfft = next_pow2(n·pad)`**, FFT'd, converted
+to power, fftshifted to DC-centred order and folded into a running average
+([`AccTrace`](python-accumulator.md), `mode` of `"mean"` / `"exp"` / `"maxhold"`
+/ `"minhold"`). Feed complex baseband with `accumulate()` or real input with
+`accumulate_real()`.
 
 ```python
 import numpy as np
-from doppler.spectral import Welch, find_peaks_f32
+from doppler.spectral import PSD, find_peaks_f32
 
-w = Welch(n=1024, fs=1e6, window="kaiser", beta=8.0, mode="mean")
-for frame in frames:                       # each frame: 1024 complex64 samples
-    w.accumulate(frame)
+w = PSD(n=1024, fs=1e6, window="kaiser", beta=8.0,
+          pad=2, full_scale=1.0, bits=0, mode="mean")   # bits>0 -> 2**(bits-1)
+w.accumulate(cf32_capture)                 # or w.accumulate_real(f32_capture)
+w.n, w.nfft                                # 1024, 2048 (= next_pow2(1024 * 2))
 
+# display spectra (DC-centred, dBFS w.r.t. full_scale)
 psd_db = w.psd_db()                        # averaged power spectrum, dB
 psd_dbhz = w.psd_dbhz()                    # PSD, dB/Hz (ENBW / fs normalised)
+
+# raw linear power (cg²-normalised; full_scale NOT applied)
+two = w.power_twosided()                   # length nfft, DC-centred
+one = w.power_onesided()                   # length nfft//2 + 1, folded to [0, fs/2]
+
+# band / level statistics
 per_band = w.band_power(np.array([-2e5, -1e5, 1e5, 2e5]))  # dB per band
 total = w.total_band_power(np.array([-2e5, -1e5, 1e5, 2e5]))
 obw = w.occupied_bw(0.99)                  # occupied bandwidth, Hz
@@ -97,10 +108,13 @@ sfdr = w.sfdr(min_db=-120.0)               # spurious-free dynamic range, dB
 peaks = find_peaks_f32(w.psd_db(), n_peaks=5, min_db=-60.0)
 ```
 
-All spectra are DC-centred, matching `find_peaks_f32`'s bin → frequency
-convention. The PSD getters return `None` until the first frame is accumulated.
+The `pad` factor interpolates the spectrum (finer bin spacing, not finer
+resolution); `full_scale` sets the 0-dBFS reference for the dB getters only — the
+linear `power_*` accessors are unaffected. All spectra are DC-centred, matching
+`find_peaks_f32`'s bin → frequency convention. The PSD getters return `None`
+until the first frame is accumulated.
 
-::: doppler.spectral.Welch
+::: doppler.spectral.PSD
 
 ______________________________________________________________________
 

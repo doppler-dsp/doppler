@@ -13,8 +13,11 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
 * `#include "measure/measure_core.h"`
-* `#include "fft/fft_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include <complex.h>`
+* `#include "fft/fft_core.h"`
+* `#include "spectral/spectral_core.h"`
+* `#include "acc_trace/acc_trace_core.h"`
 
 
 
@@ -61,14 +64,14 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**tonemeas\_analyze**](#function-tonemeas_analyze) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in, [**tone\_meas\_t**](structtone__meas__t.md) \* out, size\_t max\_out) <br>_Analyse a real capture into the single-tone metric bag._  |
-|  size\_t | [**tonemeas\_analyze\_complex**](#function-tonemeas_analyze_complex) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float complex \* x, size\_t n\_in, [**tone\_meas\_t**](structtone__meas__t.md) \* out, size\_t max\_out) <br>_Analyse a complex baseband capture (two-sided spectrum)._  |
-|  [**tonemeas\_state\_t**](structtonemeas__state__t.md) \* | [**tonemeas\_create**](#function-tonemeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, size\_t n\_harmonics, double full\_scale, size\_t dc\_guard) <br>_Create a ToneMeasure analyser._  |
+|  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze**](#function-tonemeas_analyze) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Analyse a real capture into the single-tone metric bag._  |
+|  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze\_complex**](#function-tonemeas_analyze_complex) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float complex \* x, size\_t n\_in) <br>_Analyse a complex baseband capture (two-sided spectrum)._  |
+|  [**tonemeas\_state\_t**](structtonemeas__state__t.md) \* | [**tonemeas\_create**](#function-tonemeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, size\_t n\_harmonics, double full\_scale, size\_t bits, size\_t dc\_guard) <br>_Create a ToneMeasure analyser._  |
 |  void | [**tonemeas\_destroy**](#function-tonemeas_destroy) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Destroy a ToneMeasure analyser._  |
 |  void | [**tonemeas\_reset**](#function-tonemeas_reset) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Reset (no-op: the analyser is stateless between calls)._  |
 |  size\_t | [**tonemeas\_spectrum\_dbfs**](#function-tonemeas_spectrum_dbfs) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a real capture (length nfft)._  |
 |  size\_t | [**tonemeas\_spectrum\_dbfs\_max\_out**](#function-tonemeas_spectrum_dbfs_max_out) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
-|  size\_t | [**tonemeas\_time\_stats**](#function-tonemeas_time_stats) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in, [**time\_stats\_t**](structtime__stats__t.md) \* out, size\_t max\_out) <br>_Time-domain statistics of a real capture._  |
+|  [**time\_stats\_t**](structtime__stats__t.md) | [**tonemeas\_time\_stats**](#function-tonemeas_time_stats) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Time-domain statistics of a real capture._  |
 
 
 
@@ -109,8 +112,7 @@ Lifecycle: create -&gt; [analyze / analyze\_complex / time\_stats]\* -&gt; destr
 
 ```C++
 tonemeas_state_t *m = tonemeas_create(8192, 1.0, 1, 12.0f, 2, 8, 1.0, 0);
-tone_meas_t r;
-tonemeas_analyze(m, capture, 8192, &r, 1);   // r.enob, r.sfdr_dbc, ...
+tone_meas_t r = tonemeas_analyze(m, capture, 8192);  // r.enob, r.sfdr_dbc...
 tonemeas_destroy(m);
 ```
  
@@ -126,12 +128,10 @@ tonemeas_destroy(m);
 
 _Analyse a real capture into the single-tone metric bag._ 
 ```C++
-size_t tonemeas_analyze (
+tone_meas_t tonemeas_analyze (
     tonemeas_state_t * state,
     const float * x,
-    size_t n_in,
-    tone_meas_t * out,
-    size_t max_out
+    size_t n_in
 ) 
 ```
 
@@ -141,7 +141,7 @@ size_t tonemeas_analyze (
 
 **Returns:**
 
-1 (one result written to out[0]); 0 if max\_out == 0. 
+the metric record (by value). 
 
 
 
@@ -157,12 +157,10 @@ size_t tonemeas_analyze (
 
 _Analyse a complex baseband capture (two-sided spectrum)._ 
 ```C++
-size_t tonemeas_analyze_complex (
+tone_meas_t tonemeas_analyze_complex (
     tonemeas_state_t * state,
     const float complex * x,
-    size_t n_in,
-    tone_meas_t * out,
-    size_t max_out
+    size_t n_in
 ) 
 ```
 
@@ -185,6 +183,7 @@ tonemeas_state_t * tonemeas_create (
     size_t pad,
     size_t n_harmonics,
     double full_scale,
+    size_t bits,
     size_t dc_guard
 ) 
 ```
@@ -202,7 +201,8 @@ tonemeas_state_t * tonemeas_create (
 * `beta` Kaiser shape (ignored for Hann). 
 * `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
 * `n_harmonics` Harmonics to track (k = 2..n\_harmonics). 
-* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). 
+* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) (resolved in the shared PSD core). 
 * `dc_guard` Extra bins excluded beyond L around DC. 
 
 
@@ -321,12 +321,10 @@ size_t tonemeas_spectrum_dbfs_max_out (
 
 _Time-domain statistics of a real capture._ 
 ```C++
-size_t tonemeas_time_stats (
+time_stats_t tonemeas_time_stats (
     tonemeas_state_t * state,
     const float * x,
-    size_t n_in,
-    time_stats_t * out,
-    size_t max_out
+    size_t n_in
 ) 
 ```
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from doppler.spectral import Welch, find_peaks_f32
+from doppler.spectral import PSD, find_peaks_f32
 
 
 def _tone(n, k):
@@ -9,7 +9,7 @@ def _tone(n, k):
 
 
 def test_create_props():
-    w = Welch(n=1024, fs=1e6, window="kaiser", beta=8.0, mode="mean")
+    w = PSD(n=1024, fs=1e6, window="kaiser", beta=8.0, mode="mean")
     assert w.n == 1024
     assert w.fs == 1e6
     assert w.enbw > 1.0  # any non-rectangular window widens the bin
@@ -20,7 +20,7 @@ def test_create_props():
 
 def test_dc_tone_centre():
     n = 64
-    w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
     w.accumulate(np.ones(n, dtype=np.complex64))
     psd = w.psd_db()
     assert psd.shape == (n,)
@@ -30,7 +30,7 @@ def test_dc_tone_centre():
 
 def test_tone_bin_and_count():
     n, k = 64, 8
-    w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
     for _ in range(3):
         w.accumulate(_tone(n, k))
     assert w.count == 3
@@ -39,7 +39,7 @@ def test_tone_bin_and_count():
 
 def test_psd_dbhz_constant_offset():
     n = 32
-    w = Welch(n=n, fs=2.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=2.0, window="hann", mode="mean")
     w.accumulate(_tone(n, 5))
     a = w.psd_db()
     b = w.psd_dbhz()
@@ -48,7 +48,7 @@ def test_psd_dbhz_constant_offset():
 
 def test_band_power_partition():
     n = 64
-    w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
     for _ in range(4):
         w.accumulate(_tone(n, 10))
     bands = np.array([-0.5, 0.0, 0.0, 0.5])
@@ -61,7 +61,7 @@ def test_band_power_partition():
 
 def test_band_outside_span_is_floor():
     n = 64
-    w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
     w.accumulate(_tone(n, 4))
     far = w.band_power(np.array([10.0, 11.0]))
     assert far[0] < -150.0
@@ -69,7 +69,7 @@ def test_band_outside_span_is_floor():
 
 def test_measurements_finite():
     n = 64
-    w = Welch(n=n, fs=1.0, window="kaiser", beta=8.0, mode="mean")
+    w = PSD(n=n, fs=1.0, window="kaiser", beta=8.0, mode="mean")
     t = np.arange(n)
     x = (
         np.exp(2j * np.pi * 6 * t / n) + 0.1 * np.exp(2j * np.pi * 20 * t / n)
@@ -85,7 +85,7 @@ def test_measurements_finite():
 def test_peaks_via_free_function():
     # spectral peaks are obtained idiomatically by composing find_peaks_f32
     n, k = 64, 8
-    w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
     for _ in range(4):
         w.accumulate(_tone(n, k))
     pk = find_peaks_f32(w.psd_db(), 4, -60.0)
@@ -98,7 +98,7 @@ def test_all_modes_and_reset():
     n = 32
     w = None
     for mode in ["mean", "exp", "maxhold", "minhold"]:
-        w = Welch(n=n, fs=1.0, mode=mode)
+        w = PSD(n=n, fs=1.0, mode=mode)
         w.accumulate(np.ones(n, dtype=np.complex64))
         assert w.psd_db() is not None
         assert w.mode in (0, 1, 2, 3)
@@ -109,10 +109,24 @@ def test_all_modes_and_reset():
 
 def test_bad_window_raises():
     with pytest.raises(ValueError):
-        Welch(n=64, window="triangle")
+        PSD(n=64, window="triangle")
 
 
 def test_context_manager():
-    with Welch(n=64, fs=1.0, mode="mean") as w:
+    with PSD(n=64, fs=1.0, mode="mean") as w:
         w.accumulate(np.ones(64, dtype=np.complex64))
         assert w.psd_db() is not None
+
+
+def test_bits_is_the_single_dbfs_reference():
+    """bits=B sets full_scale = 2**(B-1); identical to passing full_scale."""
+    wb = PSD(n=256, fs=1.0, window="hann", bits=12)
+    wf = PSD(n=256, fs=1.0, window="hann", full_scale=2**11)
+    assert wb.full_scale == 2**11 == wf.full_scale
+    assert wb.bits == 12
+    x = (3.0 * np.exp(2j * np.pi * 8 * np.arange(256) / 256)).astype(
+        np.complex64
+    )
+    wb.accumulate(x)
+    wf.accumulate(x)
+    assert np.allclose(wb.psd_db(), wf.psd_db())

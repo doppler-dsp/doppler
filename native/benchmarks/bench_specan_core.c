@@ -1,6 +1,6 @@
-/* bench_welch_core.c — no step() to benchmark */
+/* bench_specan_core.c — no step() to benchmark */
 #include "jm_bench.h"
-#include "welch/welch_core.h"
+#include "specan/specan_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,15 +18,16 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  welch_state_t  *obj = welch_create (1024, 1.0, 0, 0.0f, 0, 0.1);
+  specan_state_t *obj
+      = specan_create (1.0e6, 200e3, 1500.0, 0.0, 0.0, 0.0, 1.0, 0, 1, 1);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  printf ("=== welch benchmark ===\n");
+  printf ("=== specan benchmark ===\n");
   printf ("  (no step(); methods below)\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  jm_bench_write_json (&_bench, "welch");
-  welch_destroy (obj);
+  jm_bench_write_json (&_bench, "specan");
+  specan_destroy (obj);
   return 0;
 }

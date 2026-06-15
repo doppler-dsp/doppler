@@ -158,7 +158,10 @@ RBW = ENBW \* fs / n, so n = ceil(ENBW \* fs / target\_rbw). The window ENBW is 
 **Parameters:**
 
 
+* `fs` Sample rate (Hz). 
+* `target_rbw` Desired resolution bandwidth (Hz). 
 * `window` 0 = Hann, 1 = Kaiser. 
+* `beta` Kaiser shape (ignored for Hann). 
 
 
 

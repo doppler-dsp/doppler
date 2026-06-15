@@ -1,8 +1,8 @@
-"""wcdma_carriers_demo.py — 4 WCDMA carriers, measured with Welch + AccTrace.
+"""wcdma_carriers_demo.py — 4 WCDMA carriers, measured with PSD + AccTrace.
 
 A multi-carrier monitoring scene built entirely with doppler's own waveform
 generator (``doppler.wfm``) and analysed with the new spectral-measurement
-suite (``doppler.spectral.Welch`` and ``doppler.accumulator.AccTrace``).
+suite (``doppler.spectral.PSD`` and ``doppler.accumulator.AccTrace``).
 
 The scene: four WCDMA-like downlink carriers — QPSK at the 3.84 Mcps chip rate,
 one per 5 MHz channel — placed at -7.5, -2.5, +2.5 and +7.5 MHz over a single
@@ -12,13 +12,13 @@ monitor answers.
 
 Four panels:
 
-  1. The averaged PSD (Welch, Kaiser window, linear/mean trace). Channel edges
+  1. The averaged PSD (PSD, Kaiser window, linear/mean trace). Channel edges
      shaded; the measured per-channel power and the noise floor annotated.
   2. Trace averaging, shown with AccTrace directly: one raw periodogram (noisy)
-     vs. the mean trace (variance collapses) vs. the max-hold envelope. Welch
+     vs. the mean trace (variance collapses) vs. the max-hold envelope. PSD
      wraps exactly this — window -> FFT -> power -> AccTrace — so the panel is
-     also a peek under Welch's hood.
-  3. Per-channel band power: ``Welch.band_power(edges)`` vs. the nominal levels,
+     also a peek under PSD's hood.
+  3. Per-channel band power: ``PSD.band_power(edges)`` vs. the nominal levels,
      with ``total_band_power`` for the whole occupied span.
   4. Per-channel measurements: occupied bandwidth (99 %), in-channel SNR, and
      adjacent-channel leakage (ACLR) derived from the band powers.
@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.accumulator import AccTrace
-from doppler.spectral import FFT, Welch, kaiser_window
+from doppler.spectral import FFT, PSD, kaiser_window
 from doppler.wfm import Composer, Segment, noise, qpsk
 
 # ── scene parameters ────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ SPS = int(round(FS / CHIP_RATE))  # 8 samples/chip
 RRC_BETA = 0.22  # WCDMA root-raised-cosine roll-off
 RRC_SPAN = 8  # RRC support, ±8 symbols
 CH_BW = 5.0e6  # nominal 5 MHz channel spacing
-NFFT = 4096  # FFT / Welch frame size
+NFFT = 4096  # FFT / PSD frame size
 N_FRAMES = 96  # frames to average
 KAISER_BETA = 12.0  # ~ -90 dB sidelobes: resolves the -10 dB carrier
 
@@ -115,10 +115,10 @@ def channel_edges() -> np.ndarray:
 def main() -> None:
     x = build_scene()
 
-    # ── Welch: averaged PSD + all measurements ──────────────────────────────
-    w = Welch(n=NFFT, fs=FS, window="kaiser", beta=KAISER_BETA, mode="mean")
+    # ── PSD: averaged PSD + all measurements ──────────────────────────────
+    w = PSD(n=NFFT, fs=FS, window="kaiser", beta=KAISER_BETA, mode="mean")
     w.accumulate(x)
-    # psd_db() / band_power() return zero-copy views into Welch's internal
+    # psd_db() / band_power() return zero-copy views into PSD's internal
     # buffers, so np.array(...) snapshots them before a later call to the same
     # method (e.g. the ACLR band_power below) reuses that buffer.
     psd = np.array(w.psd_db())
@@ -132,7 +132,7 @@ def main() -> None:
     # ── AccTrace directly: raw vs mean vs max-hold (panel 2) ────────────────
     win = np.empty(NFFT, dtype=np.float32)
     kaiser_window(win, KAISER_BETA)
-    cg2 = float(win.sum()) ** 2  # coherent-gain normalisation (matches Welch)
+    cg2 = float(win.sum()) ** 2  # coherent-gain normalisation (matches PSD)
     fft = FFT(NFFT, -1)
     acc_mean = AccTrace(n=NFFT, mode="mean")
     acc_max = AccTrace(n=NFFT, mode="maxhold")
@@ -197,7 +197,7 @@ def main() -> None:
     a.axhline(
         nf, color="crimson", ls="--", lw=0.8, label=f"noise floor {nf:.1f} dB"
     )
-    a.set_title("Welch averaged PSD — 4 WCDMA carriers")
+    a.set_title("PSD averaged PSD — 4 WCDMA carriers")
     a.set_xlabel("frequency (MHz)")
     a.set_ylabel("power (dB)")
     a.legend(loc="upper right", fontsize=8)
@@ -255,7 +255,7 @@ def main() -> None:
         f"  noise floor        {nf:>6.1f} dB",
         f"  occupied BW (99%)  {w.occupied_bw(0.99) / 1e6:>6.2f} MHz",
         f"  ACLR (ch0->ch1)    {aclr:>6.1f} dB",
-        f"  Welch RBW          {w.rbw / 1e3:>6.1f} kHz",
+        f"  PSD RBW          {w.rbw / 1e3:>6.1f} kHz",
         f"  frames averaged    {w.count:>6d}",
     ]
     a.text(
@@ -271,7 +271,7 @@ def main() -> None:
 
     fig.suptitle(
         "Four WCDMA carriers at 0 / -3 / -6 / -10 dBFS — "
-        "doppler.wfm + Welch / AccTrace",
+        "doppler.wfm + PSD / AccTrace",
         fontsize=12,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.96])

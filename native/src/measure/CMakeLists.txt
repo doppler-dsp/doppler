@@ -11,7 +11,7 @@ target_link_libraries(measure PRIVATE
     imdmeas_core
     fft_core
     spectral_core
-    welch_core
+    psd_core
     acc_trace_core
     Python3::NumPy)
 target_include_directories(measure PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

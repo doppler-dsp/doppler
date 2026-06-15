@@ -12,7 +12,7 @@
  *
  * ```
  * cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
- *                  →  Welch (window → zero-pad FFT → cg²-normalised power,
+ *                  →  PSD (window → zero-pad FFT → cg²-normalised power,
  *                            averaged over `navg` segments)
  *                  →  crop to the central ±span/2 display band
  *                  →  dB + ref offset  →  float display spectrum
@@ -20,7 +20,7 @@
  *
  * - ::ddc_state_t is the tuner/decimator (LO mix + RateConverter cascade);
  *   retuning the center is a cheap, seamless LO phase change.
- * - ::welch_state_t is the one averaging-PSD core shared with the measurement
+ * - ::psd_state_t is the one averaging-PSD core shared with the measurement
  *   suite; `navg = 1` gives a responsive single-periodogram frame, larger
  *   `navg` trades update rate for a smoother, lower-variance trace.
  *
@@ -44,7 +44,7 @@
 #define SPECAN_CORE_H
 
 #include "ddc/ddc_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 #include <stddef.h>
 #include "lo/lo_core.h"
@@ -69,7 +69,7 @@ extern "C"
   typedef struct
   {
     ddc_state_t   *ddc;      /**< Tuner + decimator (mix to DC, resample).   */
-    welch_state_t *psd;      /**< Averaging PSD at the decimated rate.       */
+    psd_state_t *psd;      /**< Averaging PSD at the decimated rate.       */
     float complex *scratch;  /**< Ddc output scratch, capacity scratch_cap.  */
     size_t scratch_cap;      /**< Elements allocated in @ref scratch.        */
     float complex *pend;     /**< Decimated samples awaiting a frame.        */

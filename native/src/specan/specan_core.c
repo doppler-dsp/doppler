@@ -4,7 +4,7 @@
  *
  * See specan_core.h for the design.  This file owns only the natural-parameter
  * arithmetic (RBW → window length + Kaiser beta, span → decimation rate, the
- * display crop) and the per-call plumbing between the Ddc and the Welch core;
+ * display crop) and the per-call plumbing between the Ddc and the PSD core;
  * the signal processing itself lives in those composed objects.
  */
 #include "specan/specan_core.h"
@@ -78,7 +78,7 @@ specan_create (double fs, double span, double rbw, double src_center,
     target_enbw = 1.0;
   double beta = (window == 1) ? kaiser_beta_for_enbw (target_enbw, n) : 0.0;
 
-  /* Zero-padded transform length (must match welch_create's nfft) and the
+  /* Zero-padded transform length (must match psd_create's nfft) and the
    * central display crop covering ±span/2. */
   size_t nfft = next_pow2 (n * SPECAN_PAD);
   size_t half = (size_t)lround ((double)nfft / 2.56);
@@ -96,7 +96,7 @@ specan_create (double fs, double span, double rbw, double src_center,
   double norm_freq = -(center - src_center) / fs;
   s->ddc           = ddc_create (norm_freq, rate);
   s->psd
-      = welch_create (n, fs_out, window, (float)beta, SPECAN_PAD, 1.0, 0, 0.1);
+      = psd_create (n, fs_out, window, (float)beta, SPECAN_PAD, 1.0, 0, 0.1);
   s->pwr = malloc (nfft * sizeof *s->pwr);
   if (!s->ddc || !s->psd || !s->pwr)
     {
@@ -128,7 +128,7 @@ specan_destroy (specan_state_t *state)
   if (state->ddc)
     ddc_destroy (state->ddc);
   if (state->psd)
-    welch_destroy (state->psd);
+    psd_destroy (state->psd);
   free (state->scratch);
   free (state->pend);
   free (state->pwr);
@@ -139,7 +139,7 @@ void
 specan_reset (specan_state_t *state)
 {
   ddc_reset (state->ddc);
-  welch_reset (state->psd);
+  psd_reset (state->psd);
   state->pend_len = 0;
 }
 
@@ -188,13 +188,13 @@ specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
 
   /* Fresh frame: average navg segments, then read the linear two-sided power.
    */
-  welch_reset (state->psd);
-  welch_accumulate (state->psd, state->pend, need);
+  psd_reset (state->psd);
+  psd_accumulate (state->psd, state->pend, need);
   state->pend_len -= need;
   memmove (state->pend, state->pend + need,
            state->pend_len * sizeof *state->pend);
 
-  welch_power_twosided (state->psd, state->nfft, state->pwr);
+  psd_power_twosided (state->psd, state->nfft, state->pwr);
 
   /* Crop the central display band and convert to dB (+ ref offset). */
   size_t cnt = state->disp_n;
@@ -210,7 +210,6 @@ void
 specan_retune (specan_state_t *state, double center)
 {
   state->center = center;
-  ddc_set_norm_freq (state->ddc,
-                     -(center - state->src_center) / state->fs_in);
+  ddc_set_norm_freq (state->ddc, -(center - state->src_center) / state->fs_in);
   state->pend_len = 0; /* drop stale-tune samples; next frame is single-tune */
 }

@@ -1,6 +1,6 @@
 /**
- * @file welch_core.c
- * @brief Welch averaging PSD estimator and spectral measurement suite.
+ * @file psd_core.c
+ * @brief PSD averaging PSD estimator and spectral measurement suite.
  *
  * Composition over reimplementation: each accumulated frame is windowed, run
  * through the shared ::fft_state_t plan, converted to power, fftshifted to
@@ -13,12 +13,12 @@
  * fs*sum(w^2) yields PSD in dB/Hz (psd_dbhz).  The two differ only by the
  * constant 10*log10(cg^2 / (fs*s2)).
  */
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include "spectral/spectral_core.h"
 #include <math.h>
 
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */
-#define WELCH_FLOOR 1e-20
+#define PSD_FLOOR 1e-20
 
 /* Smallest power of two >= x. */
 static size_t
@@ -32,9 +32,9 @@ next_pow2 (size_t x)
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
-welch_state_t *
-welch_create (size_t n, double fs, int window, float beta, size_t pad,
-              double full_scale, int mode, double alpha)
+psd_state_t *
+psd_create (size_t n, double fs, int window, float beta, size_t pad,
+            double full_scale, int mode, double alpha)
 {
   if (n < 2 || fs <= 0.0 || window < 0 || window > 1 || full_scale <= 0.0)
     return NULL;
@@ -43,7 +43,7 @@ welch_create (size_t n, double fs, int window, float beta, size_t pad,
   if (pad < 1)
     pad = 1;
 
-  welch_state_t *s = (welch_state_t *)calloc (1, sizeof (*s));
+  psd_state_t *s = (psd_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
@@ -59,7 +59,7 @@ welch_create (size_t n, double fs, int window, float beta, size_t pad,
   s->dbbuf          = (float *)malloc (nfft * sizeof (float));
   if (!s->w || !s->frame || !s->spec || !s->pwr || !s->dbbuf)
     {
-      welch_destroy (s);
+      psd_destroy (s);
       return NULL;
     }
 
@@ -82,14 +82,14 @@ welch_create (size_t n, double fs, int window, float beta, size_t pad,
   s->avg = acc_trace_create (nfft, mode, alpha);
   if (!s->fft || !s->avg)
     {
-      welch_destroy (s);
+      psd_destroy (s);
       return NULL;
     }
   return s;
 }
 
 void
-welch_destroy (welch_state_t *state)
+psd_destroy (psd_state_t *state)
 {
   if (!state)
     return;
@@ -106,7 +106,7 @@ welch_destroy (welch_state_t *state)
 }
 
 void
-welch_reset (welch_state_t *state)
+psd_reset (psd_state_t *state)
 {
   acc_trace_reset (state->avg);
 }
@@ -116,7 +116,7 @@ welch_reset (welch_state_t *state)
 /* Transform the already-windowed-and-zero-padded state->frame, convert to
  * DC-centred two-sided power and fold one frame into the running average. */
 static void
-welch_fold_frame (welch_state_t *state)
+psd_fold_frame (psd_state_t *state)
 {
   const size_t nfft = state->nfft;
   const size_t half = nfft / 2; /* fftshift roll: bin 0 -> index nfft/2 */
@@ -137,14 +137,14 @@ welch_fold_frame (welch_state_t *state)
 
 /* Zero the zero-pad tail frame[n..nfft-1] (no-op when nfft == n). */
 static void
-welch_zero_pad (welch_state_t *state)
+psd_zero_pad (psd_state_t *state)
 {
   for (size_t i = state->n; i < state->nfft; i++)
     state->frame[i] = 0.0f;
 }
 
 void
-welch_accumulate (welch_state_t *state, const float complex *x, size_t x_len)
+psd_accumulate (psd_state_t *state, const float complex *x, size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
@@ -154,13 +154,13 @@ welch_accumulate (welch_state_t *state, const float complex *x, size_t x_len)
       const float complex *xf = x + f * n;
       for (size_t i = 0; i < n; i++)
         state->frame[i] = state->w[i] * xf[i];
-      welch_zero_pad (state);
-      welch_fold_frame (state);
+      psd_zero_pad (state);
+      psd_fold_frame (state);
     }
 }
 
 void
-welch_accumulate_real (welch_state_t *state, const float *x, size_t x_len)
+psd_accumulate_real (psd_state_t *state, const float *x, size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
@@ -170,8 +170,8 @@ welch_accumulate_real (welch_state_t *state, const float *x, size_t x_len)
       const float *xf = x + f * n;
       for (size_t i = 0; i < n; i++)
         state->frame[i] = (float complex) (state->w[i] * xf[i]);
-      welch_zero_pad (state);
-      welch_fold_frame (state);
+      psd_zero_pad (state);
+      psd_fold_frame (state);
     }
 }
 
@@ -179,7 +179,7 @@ welch_accumulate_real (welch_state_t *state, const float *x, size_t x_len)
 
 /* Pull the averaged power trace into state->pwr; 0 if nothing accumulated. */
 static size_t
-welch_pull_power (welch_state_t *s)
+psd_pull_power (psd_state_t *s)
 {
   if (s->avg->count == 0)
     return 0;
@@ -190,22 +190,22 @@ welch_pull_power (welch_state_t *s)
  * full_scale == 1.0 (the default) reduces this to the bare cg^2 normalisation,
  * so every dB getter is byte-identical to the un-scaled estimator. */
 static double
-welch_db_ref (const welch_state_t *s)
+psd_db_ref (const psd_state_t *s)
 {
   return s->cg * s->cg * s->full_scale * s->full_scale;
 }
 
 /* Fill out[0..nfft-1] with the averaged power spectrum in dBFS. */
 static int
-welch_fill_db (welch_state_t *s, float *out)
+psd_fill_db (psd_state_t *s, float *out)
 {
-  if (!welch_pull_power (s))
+  if (!psd_pull_power (s))
     return 0;
-  const double ref = welch_db_ref (s);
+  const double ref = psd_db_ref (s);
   for (size_t i = 0; i < s->nfft; i++)
     {
       double p = (double)s->pwr[i] / ref;
-      out[i]   = (float)(10.0 * log10 (fmax (p, WELCH_FLOOR)));
+      out[i]   = (float)(10.0 * log10 (fmax (p, PSD_FLOOR)));
     }
   return 1;
 }
@@ -213,16 +213,16 @@ welch_fill_db (welch_state_t *s, float *out)
 /* ── linear-power accessors (raw spectral estimate for measurement) ────── */
 
 size_t
-welch_power_twosided_max_out (welch_state_t *state)
+psd_power_twosided_max_out (psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-welch_power_twosided (welch_state_t *state, size_t cap, float *out)
+psd_power_twosided (psd_state_t *state, size_t cap, float *out)
 {
   (void)cap;
-  if (!welch_pull_power (state))
+  if (!psd_pull_power (state))
     return 0;
   const double cg2 = state->cg * state->cg;
   for (size_t i = 0; i < state->nfft; i++)
@@ -231,16 +231,16 @@ welch_power_twosided (welch_state_t *state, size_t cap, float *out)
 }
 
 size_t
-welch_power_onesided_max_out (welch_state_t *state)
+psd_power_onesided_max_out (psd_state_t *state)
 {
   return state->nfft / 2 + 1;
 }
 
 size_t
-welch_power_onesided (welch_state_t *state, size_t cap, float *out)
+psd_power_onesided (psd_state_t *state, size_t cap, float *out)
 {
   (void)cap;
-  if (!welch_pull_power (state))
+  if (!psd_pull_power (state))
     return 0;
   const double cg2  = state->cg * state->cg;
   const size_t nfft = state->nfft;
@@ -259,8 +259,8 @@ welch_power_onesided (welch_state_t *state, size_t cap, float *out)
 /* Map a [lo,hi] Hz band to inclusive DC-centred bin indices.  Returns 0 if the
  * band lies entirely outside the analysed span [-fs/2, fs/2). */
 static int
-welch_band_bins (const welch_state_t *s, double lo, double hi, size_t *ilo_out,
-                 size_t *ihi_out)
+psd_band_bins (const psd_state_t *s, double lo, double hi, size_t *ilo_out,
+               size_t *ihi_out)
 {
   if (hi < lo)
     {
@@ -284,12 +284,12 @@ welch_band_bins (const welch_state_t *s, double lo, double hi, size_t *ilo_out,
 
 /* Linear power integrated over a [lo,hi] Hz band (dBFS reference). */
 static double
-welch_band_lin (const welch_state_t *s, double lo, double hi)
+psd_band_lin (const psd_state_t *s, double lo, double hi)
 {
   size_t ilo, ihi;
-  if (!welch_band_bins (s, lo, hi, &ilo, &ihi))
+  if (!psd_band_bins (s, lo, hi, &ilo, &ihi))
     return 0.0;
-  const double ref = welch_db_ref (s);
+  const double ref = psd_db_ref (s);
   double       sum = 0.0;
   for (size_t i = ilo; i <= ihi; i++)
     sum += (double)s->pwr[i] / ref;
@@ -299,30 +299,30 @@ welch_band_lin (const welch_state_t *s, double lo, double hi)
 /* ── PSD trace getters ─────────────────────────────────────────────────── */
 
 size_t
-welch_psd_db_max_out (welch_state_t *state)
+psd_psd_db_max_out (psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-welch_psd_db (welch_state_t *state, size_t n, float *out)
+psd_psd_db (psd_state_t *state, size_t n, float *out)
 {
   (void)n;
-  if (!welch_fill_db (state, out))
+  if (!psd_fill_db (state, out))
     return 0;
   return state->nfft;
 }
 
 size_t
-welch_psd_dbhz_max_out (welch_state_t *state)
+psd_psd_dbhz_max_out (psd_state_t *state)
 {
   return state->nfft;
 }
 
 size_t
-welch_psd_dbhz (welch_state_t *state, size_t n, float *out)
+psd_psd_dbhz (psd_state_t *state, size_t n, float *out)
 {
-  if (!welch_psd_db (state, n, out))
+  if (!psd_psd_db (state, n, out))
     return 0;
   /* dB/Hz differs from the dBFS spectrum by a constant. */
   const double off
@@ -335,46 +335,46 @@ welch_psd_dbhz (welch_state_t *state, size_t n, float *out)
 /* ── band power ────────────────────────────────────────────────────────── */
 
 size_t
-welch_band_power_max_out (welch_state_t *state)
+psd_band_power_max_out (psd_state_t *state)
 {
   (void)state;
   return 0; /* the binding grows the buffer to the bands length */
 }
 
 size_t
-welch_band_power (welch_state_t *state, const double *bands, size_t bands_len,
-                  float *out)
+psd_band_power (psd_state_t *state, const double *bands, size_t bands_len,
+                float *out)
 {
-  if (!welch_pull_power (state))
+  if (!psd_pull_power (state))
     return 0;
   const size_t nb = bands_len / 2;
   for (size_t b = 0; b < nb; b++)
     {
-      double lp = welch_band_lin (state, bands[2 * b], bands[2 * b + 1]);
-      out[b]    = (float)(10.0 * log10 (fmax (lp, WELCH_FLOOR)));
+      double lp = psd_band_lin (state, bands[2 * b], bands[2 * b + 1]);
+      out[b]    = (float)(10.0 * log10 (fmax (lp, PSD_FLOOR)));
     }
   return nb;
 }
 
 double
-welch_total_band_power (welch_state_t *state, const double *bands,
-                        size_t bands_len)
+psd_total_band_power (psd_state_t *state, const double *bands,
+                      size_t bands_len)
 {
-  if (!welch_pull_power (state))
-    return 10.0 * log10 (WELCH_FLOOR);
+  if (!psd_pull_power (state))
+    return 10.0 * log10 (PSD_FLOOR);
   const size_t nb  = bands_len / 2;
   double       sum = 0.0;
   for (size_t b = 0; b < nb; b++)
-    sum += welch_band_lin (state, bands[2 * b], bands[2 * b + 1]);
-  return 10.0 * log10 (fmax (sum, WELCH_FLOOR));
+    sum += psd_band_lin (state, bands[2 * b], bands[2 * b + 1]);
+  return 10.0 * log10 (fmax (sum, PSD_FLOOR));
 }
 
 /* ── scalar measurements ───────────────────────────────────────────────── */
 
 double
-welch_occupied_bw (welch_state_t *state, double fraction)
+psd_occupied_bw (psd_state_t *state, double fraction)
 {
-  if (!welch_pull_power (state))
+  if (!psd_pull_power (state))
     return 0.0;
   const size_t n   = state->nfft;
   const double cg2 = state->cg * state->cg;
@@ -410,22 +410,22 @@ welch_occupied_bw (welch_state_t *state, double fraction)
 }
 
 double
-welch_noise_floor (welch_state_t *state)
+psd_noise_floor (psd_state_t *state)
 {
-  if (!welch_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf))
     return 0.0;
   return noise_floor_db (state->dbbuf, state->nfft);
 }
 
 double
-welch_snr (welch_state_t *state, double lo_hz, double hi_hz)
+psd_snr (psd_state_t *state, double lo_hz, double hi_hz)
 {
-  if (!welch_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf))
     return 0.0;
   const double floor = noise_floor_db (state->dbbuf, state->nfft);
 
   size_t ilo, ihi;
-  if (!welch_band_bins (state, lo_hz, hi_hz, &ilo, &ihi))
+  if (!psd_band_bins (state, lo_hz, hi_hz, &ilo, &ihi))
     return 0.0;
   double peak = -INFINITY;
   for (size_t i = ilo; i <= ihi; i++)
@@ -435,9 +435,9 @@ welch_snr (welch_state_t *state, double lo_hz, double hi_hz)
 }
 
 double
-welch_sfdr (welch_state_t *state, float min_db)
+psd_sfdr (psd_state_t *state, float min_db)
 {
-  if (!welch_fill_db (state, state->dbbuf))
+  if (!psd_fill_db (state, state->dbbuf))
     return 0.0;
   dp_peak_t    pk[16];
   const size_t np = find_peaks_f32 (state->dbbuf, state->nfft, 16, min_db, pk);

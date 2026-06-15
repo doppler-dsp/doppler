@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 
 #ifdef __cplusplus
@@ -24,7 +24,7 @@ extern "C" {
 
 /** @brief IMDMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    welch_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, one-sided power       */
     double enbw;            /* window equivalent noise bandwidth (bins)     */
     size_t lobe_bins;       /* main-lobe half-width L                       */

@@ -68,7 +68,7 @@ def test_snr_white_noise():
 
 def test_multiframe_averaging():
     # A capture longer than n is split into floor(len/n) segments whose power
-    # spectra are averaged before the metric kernel runs (the Welch path).
+    # spectra are averaged before the metric kernel runs (the PSD path).
     m = ToneMeasure(n=4096, beta=12.0)
     one = _cos(211, 0.5)
     r1 = m.analyze(one)

@@ -19,7 +19,7 @@ class_name = "ToneMeasure"
 depends_on = [
     { name = "fft", link = true },
     { name = "spectral", link = true },
-    { name = "welch", link = true },
+    { name = "psd", link = true },
     { name = "acc_trace", link = true },
 ]
 

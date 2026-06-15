@@ -23,7 +23,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
@@ -42,7 +42,7 @@ extern "C" {
  * main-lobe half-width L over which component power is integrated.
  */
 typedef struct {
-    welch_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
     double enbw;            /* window equivalent noise bandwidth (bins)    */

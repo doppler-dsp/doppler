@@ -1,7 +1,7 @@
 """Integration tests for the C ``Specan`` natural-parameter analyzer.
 
 These drive the real ``doppler.analyzer`` extension end to end — the DDC
-mix/decimate, the Welch averaging PSD, and the display crop — through its
+mix/decimate, the PSD averaging PSD, and the display crop — through its
 instrument-parameter API (fs / span / rbw / center / ref_db), the C-first home
 for the mapping ``doppler.specan``'s engine used to hand-roll in Python.
 """
@@ -57,7 +57,9 @@ def test_tone_lands_at_its_offset_near_0_dbfs():
     assert len(frame) == sa.display_size
     peak = int(np.argmax(frame))
     assert _bin_hz(sa, peak) == pytest.approx(30e3, abs=sa.fs_out / sa.nfft)
-    assert frame.max() == pytest.approx(0.0, abs=1.0)  # unit amplitude → 0 dBFS
+    assert frame.max() == pytest.approx(
+        0.0, abs=1.0
+    )  # unit amplitude → 0 dBFS
     assert frame.max() - np.median(frame) > 30.0
     sa.destroy()
 

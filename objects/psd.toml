@@ -1,4 +1,5 @@
-# welch — Welch-style averaging PSD estimator and spectral measurement suite.
+# psd — averaging power-spectral-density estimator (Welch's method) and
+# spectral measurement suite.
 #
 # Block-I/O object (opaque handle).  Composes FFT + the spectral window /
 # magnitude_db / find_peaks_f32 free functions + AccTrace (the per-bin power
@@ -7,57 +8,57 @@
 # peaks/SFDR, noise floor and SNR.  Output spectra are DC-centred (fftshift),
 # matching find_peaks_f32's bin->frequency convention.
 
-[welch]
+[psd]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-class_name = "Welch"
+class_name = "PSD"
 depends_on = ["fft_core", "spectral_core", { name = "acc_trace", link = true }]
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "n"
 type = "size_t"
 default = "1024"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "fs"
 type = "double"
 default = "1.0"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "window"
 type = "string_enum:hann,kaiser"
 default = "hann"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "beta"
 type = "float"
 default = "0.0f"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "pad"
 type = "size_t"
 default = "1"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "full_scale"
 type = "double"
 default = "1.0"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "mode"
 type = "string_enum:mean,exp,maxhold,minhold"
 default = "mean"
 
-[[welch.init_params]]
+[[psd.init_params]]
 name = "alpha"
 type = "double"
 default = "0.1"
 
 # ── accumulation ──────────────────────────────────────────────────────────
-[[welch.methods]]
+[[psd.methods]]
 name = "accumulate"
 doc = "Window, FFT and fold floor(n_in/n) cf32 frames into the average."
 arg_type = "void"
@@ -65,7 +66,7 @@ return_type = "void"
 nogil = true
 params = [{name = "x", type = "float _Complex[]"}]
 
-[[welch.methods]]
+[[psd.methods]]
 name = "accumulate_real"
 doc = "Window, zero-pad, FFT and fold floor(n_in/n) real frames into the average."
 arg_type = "void"
@@ -73,14 +74,14 @@ return_type = "void"
 nogil = true
 params = [{name = "x", type = "float[]"}]
 
-[[welch.methods]]
+[[psd.methods]]
 name = "reset"
 doc = "Discard the running average; counters return to zero."
 arg_type = "void"
 return_type = "void"
 
 # ── PSD trace getters (variable_output, length n) ─────────────────────────
-[[welch.methods]]
+[[psd.methods]]
 name = "psd_db"
 doc = "Averaged power spectrum in dB (None before any accumulate)."
 arg_type = "void"
@@ -88,7 +89,7 @@ return_type = "float"
 variable_output = true
 none_on_empty = true
 
-[[welch.methods]]
+[[psd.methods]]
 name = "psd_dbhz"
 doc = "Averaged power spectral density in dB/Hz (None before any accumulate)."
 arg_type = "void"
@@ -97,7 +98,7 @@ variable_output = true
 none_on_empty = true
 
 # ── linear-power accessors (raw spectral estimate for measurement) ────────
-[[welch.methods]]
+[[psd.methods]]
 name = "power_twosided"
 doc = "Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised."
 arg_type = "void"
@@ -105,7 +106,7 @@ return_type = "float"
 variable_output = true
 none_on_empty = true
 
-[[welch.methods]]
+[[psd.methods]]
 name = "power_onesided"
 doc = "Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised."
 arg_type = "void"
@@ -114,7 +115,7 @@ variable_output = true
 none_on_empty = true
 
 # ── band power (split: per-band array + total scalar) ─────────────────────
-[[welch.methods]]
+[[psd.methods]]
 name = "band_power"
 doc = "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz."
 arg_type = "void"
@@ -122,7 +123,7 @@ return_type = "float"
 variable_output = true
 params = [{name = "bands", type = "double[]"}]
 
-[[welch.methods]]
+[[psd.methods]]
 name = "total_band_power"
 doc = "Total integrated power across all bands in dB."
 arg_type = "void"
@@ -130,27 +131,27 @@ return_type = "double"
 params = [{name = "bands", type = "double[]"}]
 
 # ── scalar measurements ───────────────────────────────────────────────────
-[[welch.methods]]
+[[psd.methods]]
 name = "occupied_bw"
 doc = "Occupied bandwidth in Hz holding the given fraction of total power."
 arg_type = "void"
 return_type = "double"
 params = [{name = "fraction", type = "double"}]
 
-[[welch.methods]]
+[[psd.methods]]
 name = "noise_floor"
 doc = "Median of the averaged dB trace (noise-floor estimate)."
 arg_type = "void"
 return_type = "double"
 
-[[welch.methods]]
+[[psd.methods]]
 name = "snr"
 doc = "Peak-in-band level minus noise floor, in dB."
 arg_type = "void"
 return_type = "double"
 params = [{name = "lo_hz", type = "double"}, {name = "hi_hz", type = "double"}]
 
-[[welch.methods]]
+[[psd.methods]]
 name = "sfdr"
 doc = "Spurious-free dynamic range in dB from the top two peaks."
 arg_type = "void"
@@ -162,37 +163,37 @@ params = [{name = "min_db", type = "float"}]
 # No dedicated method — sfdr() below covers the common top-2-peaks measurement.
 
 # ── properties ────────────────────────────────────────────────────────────
-[[welch.properties]]
+[[psd.properties]]
 name = "n"
 type = "size_t"
 field = true
 
-[[welch.properties]]
+[[psd.properties]]
 name = "nfft"
 type = "size_t"
 field = true
 
-[[welch.properties]]
+[[psd.properties]]
 name = "fs"
 type = "double"
 field = true
 
-[[welch.properties]]
+[[psd.properties]]
 name = "enbw"
 type = "double"
 field = true
 
-[[welch.properties]]
+[[psd.properties]]
 name = "rbw"
 type = "double"
 expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
 
-[[welch.properties]]
+[[psd.properties]]
 name = "count"
 type = "size_t"
 expr = "(size_t)self->handle->avg->count"
 
-[[welch.properties]]
+[[psd.properties]]
 name = "mode"
 type = "int"
 expr = "(int)self->handle->avg->mode"

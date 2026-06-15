@@ -57,7 +57,7 @@ tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
   /* The shared PSD core owns the window, the zero-padded FFT and the (single-
    * frame mean) averager; full_scale stays 1.0 there so its linear accessors
    * return bare cg^2-normalised power — this core applies its own dBFS ref. */
-  s->psd = welch_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
+  s->psd = psd_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       tonemeas_destroy (s);
@@ -97,7 +97,7 @@ tonemeas_destroy (tonemeas_state_t *state)
   if (!state)
     return;
   if (state->psd)
-    welch_destroy (state->psd);
+    psd_destroy (state->psd);
   free (state->pwr);
   free (state->excl);
   free (state);
@@ -115,9 +115,9 @@ tonemeas_reset (tonemeas_state_t *state)
 static size_t
 build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 {
-  welch_reset (s->psd);
-  welch_accumulate_real (s->psd, x, n_in);
-  return welch_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  psd_reset (s->psd);
+  psd_accumulate_real (s->psd, x, n_in);
+  return psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
 }
 
 /* Average a complex capture over its segments, return the DC-centred two-sided
@@ -125,9 +125,9 @@ build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 static size_t
 build_complex (tonemeas_state_t *s, const float complex *x, size_t n_in)
 {
-  welch_reset (s->psd);
-  welch_accumulate (s->psd, x, n_in);
-  return welch_power_twosided (s->psd, s->nfft, s->pwr);
+  psd_reset (s->psd);
+  psd_accumulate (s->psd, x, n_in);
+  return psd_power_twosided (s->psd, s->nfft, s->pwr);
 }
 
 /* Fold harmonic frequency k*f0 into the analysed band.
@@ -374,9 +374,9 @@ tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
 {
   /* DC-centred two-sided dBFS view of a real capture (analyzer display):
    * the same averaged PSD the metrics use, scaled to the 0-dBFS reference. */
-  welch_reset (state->psd);
-  welch_accumulate_real (state->psd, x, x_len);
-  size_t nfft = welch_power_twosided (state->psd, state->nfft, state->pwr);
+  psd_reset (state->psd);
+  psd_accumulate_real (state->psd, x, x_len);
+  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
   if (nfft == 0)
     return 0;
   double ref = state->full_scale * state->full_scale;

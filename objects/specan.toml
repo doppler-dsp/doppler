@@ -1,6 +1,6 @@
 # specan — natural-parameter streaming spectrum analyzer.
 #
-# Composes the Ddc tuner/decimator and the Welch averaging-PSD core so an
+# Composes the Ddc tuner/decimator and the PSD averaging-PSD core so an
 # operator drives it with instrument parameters (center, span, RBW, ref level)
 # instead of DSP knobs (window length, Kaiser beta, zero-pad).  cf32 in,
 # real dB display band out.  Peaks are obtained idiomatically by composing the
@@ -23,7 +23,7 @@ depends_on = [
     { name = "cic", link = true },
     { name = "fir", link = true },
     { name = "resample", link = true },
-    { name = "welch", link = true },
+    { name = "psd", link = true },
     { name = "acc_trace", link = true },
     { name = "fft", link = true },
     { name = "spectral", link = true },

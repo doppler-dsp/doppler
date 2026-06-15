@@ -11,7 +11,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "IMDMeasure"
-depends_on = ["fft_core", "spectral_core", "welch_core", "acc_trace_core"]
+depends_on = ["fft_core", "spectral_core", "psd_core", "acc_trace_core"]
 
 [[imdmeas.init_params]]
 name = "n"

@@ -33,7 +33,7 @@ imdmeas_create (size_t n, double fs, int window, float beta, size_t pad,
   imdmeas_state_t *s = (imdmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->psd = welch_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
+  s->psd = psd_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       imdmeas_destroy (s);
@@ -63,7 +63,7 @@ imdmeas_destroy (imdmeas_state_t *state)
   if (!state)
     return;
   if (state->psd)
-    welch_destroy (state->psd);
+    psd_destroy (state->psd);
   free (state->pwr);
   free (state);
 }
@@ -99,9 +99,9 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
 {
   imd_meas_t r;
   memset (&r, 0, sizeof (r));
-  welch_reset (s->psd);
-  welch_accumulate_real (s->psd, x, n_in);
-  size_t nbins = welch_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
+  psd_reset (s->psd);
+  psd_accumulate_real (s->psd, x, n_in);
+  size_t nbins = psd_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
   if (nbins == 0)
     return r; /* capture holds no full frame */
   double df = s->fs / (double)s->nfft;

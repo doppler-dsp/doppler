@@ -16,7 +16,7 @@ target_link_libraries(analyzer PRIVATE
     cic_core
     fir_core
     resample_core
-    welch_core
+    psd_core
     acc_trace_core
     fft_core
     spectral_core

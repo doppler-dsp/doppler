@@ -6,7 +6,7 @@ target_include_directories(
 target_link_libraries(nprmeas_core PUBLIC
     fft_core
     spectral_core
-    welch_core
+    psd_core
     acc_trace_core)
 
 add_executable(test_nprmeas_core
@@ -14,7 +14,7 @@ add_executable(test_nprmeas_core
 target_link_libraries(test_nprmeas_core
                       PRIVATE nprmeas_core fft_core
     spectral_core
-    welch_core
+    psd_core
     acc_trace_core
     m)
 target_include_directories(test_nprmeas_core
@@ -27,7 +27,7 @@ add_executable(
 target_link_libraries(bench_nprmeas_core
                       PRIVATE nprmeas_core fft_core
     spectral_core
-    welch_core
+    psd_core
     acc_trace_core
     m)
 target_include_directories(

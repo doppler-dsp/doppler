@@ -1,22 +1,23 @@
 /**
- * @file welch_core.h
- * @brief Welch — averaging PSD estimator and spectral measurement suite.
+ * @file psd_core.h
+ * @brief PSD — averaging power-spectral-density estimator (Welch's method)
+ *        and spectral measurement suite.
  *
- * A stateful, C-first periodogram averager.  It composes the existing pieces of
+ * A stateful, C-first periodogram averager (Welch's method).  It composes the existing pieces of
  * the library rather than re-implementing them: an ::fft_state_t forward plan, a
  * spectral window (Hann or Kaiser) with its coherent gain and ENBW, an
  * ::acc_trace_state_t per-bin power averager (mean / EMA / max-hold / min-hold),
  * and the spectral free functions (::magnitude_db_cf32, ::find_peaks_f32,
  * ::obw_from_power, ::noise_floor_db) for the derived measurements.
  *
- * Feed complex baseband frames with welch_accumulate(); each length-n frame is
+ * Feed complex baseband frames with psd_accumulate(); each length-n frame is
  * windowed, FFT'd, converted to power, fftshifted to DC-centred order and
  * folded into the running average.  Then read:
- *   - welch_psd_db()   : averaged power spectrum, dB   (peak reads tone power)
- *   - welch_psd_dbhz() : averaged PSD, dB/Hz           (ENBW / fs normalised)
- *   - welch_band_power() / welch_total_band_power() : integrated band power, dB
- *   - welch_occupied_bw() : occupied bandwidth, Hz
- *   - welch_noise_floor() / welch_snr() / welch_sfdr() : level statistics, dB
+ *   - psd_psd_db()   : averaged power spectrum, dB   (peak reads tone power)
+ *   - psd_psd_dbhz() : averaged PSD, dB/Hz           (ENBW / fs normalised)
+ *   - psd_band_power() / psd_total_band_power() : integrated band power, dB
+ *   - psd_occupied_bw() : occupied bandwidth, Hz
+ *   - psd_noise_floor() / psd_snr() / psd_sfdr() : level statistics, dB
  *
  * All spectra are DC-centred (fftshift), matching find_peaks_f32's bin ->
  * frequency convention (bin i maps to (i - n/2)/n in normalised frequency, so
@@ -25,8 +26,8 @@
  *
  * Lifecycle: create -> (accumulate / reset)* -> (measurement getters)* -> destroy
  */
-#ifndef WELCH_CORE_H
-#define WELCH_CORE_H
+#ifndef PSD_CORE_H
+#define PSD_CORE_H
 
 #include "clib_common.h"
 #include "jm_perf.h"
@@ -37,7 +38,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Welch state.  Allocate with welch_create().
+ * @brief PSD state.  Allocate with psd_create().
  */
 typedef struct {
     fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
@@ -54,7 +55,7 @@ typedef struct {
     size_t nfft;               /**< Zero-padded transform length.         */
     double fs;                 /**< Sample rate, Hz.                      */
     double full_scale;         /**< Amplitude that reads 0 dBFS.          */
-} welch_state_t;
+} psd_state_t;
 
 /**
  * @brief Create an averaging PSD estimator.
@@ -68,32 +69,32 @@ typedef struct {
  * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
  * @param alpha       EMA smoothing factor (exp mode only).
  * @return Heap-allocated state, or NULL on invalid argument or OOM.
- * @note Caller must call welch_destroy() when done.
+ * @note Caller must call psd_destroy() when done.
  *
  * @code
- * >>> from doppler.spectral import Welch
- * >>> w = Welch(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
+ * >>> from doppler.spectral import PSD
+ * >>> w = PSD(n=1024, fs=1.0e6, window="kaiser", beta=8.0, mode="mean")
  * >>> w.n, w.fs
  * (1024, 1000000.0)
  * >>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)
  * True
  * @endcode
  */
-welch_state_t *welch_create(size_t n, double fs, int window, float beta,
+psd_state_t *psd_create(size_t n, double fs, int window, float beta,
                             size_t pad, double full_scale, int mode,
                             double alpha);
 
 /**
- * @brief Destroy a Welch instance and release all memory.
+ * @brief Destroy a PSD instance and release all memory.
  * @param state  May be NULL (no-op).
  */
-void welch_destroy(welch_state_t *state);
+void psd_destroy(psd_state_t *state);
 
 /**
  * @brief Discard the running average; the next accumulate re-seeds it.
  * @param state  Must be non-NULL.
  */
-void welch_reset(welch_state_t *state);
+void psd_reset(psd_state_t *state);
 
 /**
  * @brief Window, FFT and fold complex baseband frames into the average.
@@ -105,9 +106,9 @@ void welch_reset(welch_state_t *state);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.spectral import Welch
+ * >>> from doppler.spectral import PSD
  * >>> n = 64
- * >>> w = Welch(n=n, fs=1.0, window="hann", mode="mean")
+ * >>> w = PSD(n=n, fs=1.0, window="hann", mode="mean")
  * >>> k = 8
  * >>> x = np.exp(2j*np.pi*k*np.arange(n)/n).astype(np.complex64)
  * >>> for _ in range(4):
@@ -121,25 +122,25 @@ void welch_reset(welch_state_t *state);
  * 4
  * @endcode
  */
-void welch_accumulate(welch_state_t *state, const float complex *x,
+void psd_accumulate(psd_state_t *state, const float complex *x,
                       size_t x_len);
 
 /**
  * @brief Window, zero-pad, FFT and fold real frames into the average.
- * The real-input counterpart to welch_accumulate(): each length-n frame is
+ * The real-input counterpart to psd_accumulate(): each length-n frame is
  * windowed, zero-padded to nfft, transformed and folded as a DC-centred
  * two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins
- * carry equal power).  Read the one-sided fold with welch_power_onesided().
+ * carry equal power).  Read the one-sided fold with psd_power_onesided().
  * Processes floor(n_in / n) full frames.
  *
  * @param state  Must be non-NULL.
  * @param x      Real samples (f32).
  * @param x_len  Number of samples in @p x.
  */
-void welch_accumulate_real(welch_state_t *state, const float *x, size_t x_len);
+void psd_accumulate_real(psd_state_t *state, const float *x, size_t x_len);
 
-/** @brief Output capacity hint for welch_power_twosided(); equals nfft. */
-size_t welch_power_twosided_max_out(welch_state_t *state);
+/** @brief Output capacity hint for psd_power_twosided(); equals nfft. */
+size_t psd_power_twosided_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged linear power, DC-centred two-sided (length nfft).
@@ -153,10 +154,10 @@ size_t welch_power_twosided_max_out(welch_state_t *state);
  * @param out    Destination, at least nfft float32 elements.
  * @return nfft, or 0 if empty.
  */
-size_t welch_power_twosided(welch_state_t *state, size_t cap, float *out);
+size_t psd_power_twosided(psd_state_t *state, size_t cap, float *out);
 
-/** @brief Output capacity hint for welch_power_onesided(); equals nfft/2+1. */
-size_t welch_power_onesided_max_out(welch_state_t *state);
+/** @brief Output capacity hint for psd_power_onesided(); equals nfft/2+1. */
+size_t psd_power_onesided_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged linear power, one-sided (length nfft/2 + 1).
@@ -170,10 +171,10 @@ size_t welch_power_onesided_max_out(welch_state_t *state);
  * @param out    Destination, at least nfft/2 + 1 float32 elements.
  * @return nfft/2 + 1, or 0 if empty.
  */
-size_t welch_power_onesided(welch_state_t *state, size_t cap, float *out);
+size_t psd_power_onesided(psd_state_t *state, size_t cap, float *out);
 
 /** @brief Output capacity hint for psd_db(); equals nfft. */
-size_t welch_psd_db_max_out(welch_state_t *state);
+size_t psd_psd_db_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged power spectrum in dB, DC-centred.
@@ -186,10 +187,10 @@ size_t welch_psd_db_max_out(welch_state_t *state);
  * @param out    Destination, at least n float32 elements.
  * @return n, or 0 if empty.
  */
-size_t welch_psd_db(welch_state_t *state, size_t n, float *out);
+size_t psd_psd_db(psd_state_t *state, size_t n, float *out);
 
 /** @brief Output capacity hint for psd_dbhz(); equals n. */
-size_t welch_psd_dbhz_max_out(welch_state_t *state);
+size_t psd_psd_dbhz_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged power spectral density in dB/Hz, DC-centred.
@@ -199,18 +200,18 @@ size_t welch_psd_dbhz_max_out(welch_state_t *state);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.spectral import Welch
- * >>> w = Welch(n=32, fs=2.0, window="hann", mode="mean")
+ * >>> from doppler.spectral import PSD
+ * >>> w = PSD(n=32, fs=2.0, window="hann", mode="mean")
  * >>> w.accumulate(np.ones(32, dtype=np.complex64))
  * >>> a = w.psd_db(); b = w.psd_dbhz()
  * >>> bool(np.allclose(a - b, (a - b)[0]))   # offset is a constant
  * True
  * @endcode
  */
-size_t welch_psd_dbhz(welch_state_t *state, size_t n, float *out);
+size_t psd_psd_dbhz(psd_state_t *state, size_t n, float *out);
 
 /** @brief Output capacity hint for band_power(); 0 (binding sizes from bands). */
-size_t welch_band_power_max_out(welch_state_t *state);
+size_t psd_band_power_max_out(psd_state_t *state);
 
 /**
  * @brief Integrated power per band in dB.
@@ -227,15 +228,15 @@ size_t welch_band_power_max_out(welch_state_t *state);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.spectral import Welch
- * >>> w = Welch(n=64, fs=1.0, window="hann", mode="mean")
+ * >>> from doppler.spectral import PSD
+ * >>> w = PSD(n=64, fs=1.0, window="hann", mode="mean")
  * >>> w.accumulate(np.ones(64, dtype=np.complex64))
  * >>> pb = w.band_power(np.array([-0.5, 0.0, 0.0, 0.5]))
  * >>> pb.shape
  * (2,)
  * @endcode
  */
-size_t welch_band_power(welch_state_t *state, const double *bands,
+size_t psd_band_power(psd_state_t *state, const double *bands,
                         size_t bands_len, float *out);
 
 /**
@@ -245,7 +246,7 @@ size_t welch_band_power(welch_state_t *state, const double *bands,
  * @param bands_len  Number of edge values (2 * n_bands).
  * @return Total band power in dB (dB floor if empty).
  */
-double welch_total_band_power(welch_state_t *state, const double *bands,
+double psd_total_band_power(psd_state_t *state, const double *bands,
                               size_t bands_len);
 
 /**
@@ -254,13 +255,13 @@ double welch_total_band_power(welch_state_t *state, const double *bands,
  * @param fraction  Power fraction in (0, 1], e.g. 0.99.
  * @return Occupied bandwidth in Hz (0 if empty or no power).
  */
-double welch_occupied_bw(welch_state_t *state, double fraction);
+double psd_occupied_bw(psd_state_t *state, double fraction);
 
 /**
  * @brief Noise-floor estimate: median of the averaged dB spectrum.
  * @return Median dB level (0 if empty).
  */
-double welch_noise_floor(welch_state_t *state);
+double psd_noise_floor(psd_state_t *state);
 
 /**
  * @brief In-band SNR in dB: peak level in [lo_hz, hi_hz] minus the noise floor.
@@ -269,7 +270,7 @@ double welch_noise_floor(welch_state_t *state);
  * @param hi_hz  Band upper edge, Hz.
  * @return SNR in dB (0 if empty).
  */
-double welch_snr(welch_state_t *state, double lo_hz, double hi_hz);
+double psd_snr(psd_state_t *state, double lo_hz, double hi_hz);
 
 /**
  * @brief Spurious-free dynamic range in dB from the two strongest peaks.
@@ -277,9 +278,9 @@ double welch_snr(welch_state_t *state, double lo_hz, double hi_hz);
  * @param min_db  Minimum peak level considered, dB.
  * @return Carrier-minus-highest-spur level in dB (0 if fewer than two peaks).
  */
-double welch_sfdr(welch_state_t *state, float min_db);
+double psd_sfdr(psd_state_t *state, float min_db);
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* WELCH_CORE_H */
+#endif /* PSD_CORE_H */

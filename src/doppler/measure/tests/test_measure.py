@@ -138,7 +138,7 @@ def test_named_result_fields_and_unpacking():
     m = ToneMeasure(n=4096, beta=12.0)
     r = m.analyze(_cos(300, 1.0))
     assert type(r).__name__ == "ToneMetrics"
-    assert type(r).__module__ == "tonemeas"
+    assert type(r).__module__ == "doppler.measure"
     # attribute access and tuple unpacking both work
     assert isinstance(r.snr, float)
     assert len(tuple(r)) == 23

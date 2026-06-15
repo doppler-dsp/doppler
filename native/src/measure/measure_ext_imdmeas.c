@@ -116,7 +116,7 @@ static PyStructSequence_Field IMDMeasureObj_analyze_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc IMDMeasureObj_analyze_desc
-    = { "imdmeas.IMDMetrics", NULL, IMDMeasureObj_analyze_fields, 12 };
+    = { "doppler.measure.IMDMetrics", NULL, IMDMeasureObj_analyze_fields, 12 };
 static PyTypeObject *IMDMeasureObj_analyze_type = NULL;
 
 static PyObject *

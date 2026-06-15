@@ -30,7 +30,7 @@ def test_imd_named_result():
     m = IMDMeasure(n=N, fs=1.0, beta=12.0)
     r = m.analyze(x.astype(np.float32))
     assert type(r).__name__ == "IMDMetrics"
-    assert type(r).__module__ == "imdmeas"
+    assert type(r).__module__ == "doppler.measure"
     f1, f2, *_ = r  # unpackable
     assert isinstance(r.toi_dbfs, float)
 

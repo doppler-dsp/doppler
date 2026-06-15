@@ -60,6 +60,7 @@ return_type = "npr_meas_t"
 single = true
 nogil = true
 record_name = "NPRMetrics"
+record_module = "doppler.measure"
 result_fields = [{name = "npr_db", type = "double"}, {name = "inband_psd_dbfs", type = "double"}, {name = "notch_psd_dbfs", type = "double"}, {name = "n_inband_bins", type = "size_t"}, {name = "n_notch_bins", type = "size_t"}, {name = "rbw_hz", type = "double"}]
 params = [{name = "active_lo", type = "double"}, {name = "active_hi", type = "double"}, {name = "notch_lo", type = "double"}, {name = "notch_hi", type = "double"}, {name = "guard_hz", type = "double", default = "0.0"}]
 

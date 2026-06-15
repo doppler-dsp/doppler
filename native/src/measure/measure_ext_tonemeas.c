@@ -141,7 +141,8 @@ static PyStructSequence_Field ToneMeasureObj_analyze_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_desc
-    = { "tonemeas.ToneMetrics", NULL, ToneMeasureObj_analyze_fields, 23 };
+    = { "doppler.measure.ToneMetrics", NULL, ToneMeasureObj_analyze_fields,
+        23 };
 static PyTypeObject *ToneMeasureObj_analyze_type = NULL;
 
 static PyObject *
@@ -239,8 +240,8 @@ static PyStructSequence_Field ToneMeasureObj_analyze_complex_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_complex_desc
-    = { "tonemeas.ToneMetrics", NULL, ToneMeasureObj_analyze_complex_fields,
-        23 };
+    = { "doppler.measure.ToneMetrics", NULL,
+        ToneMeasureObj_analyze_complex_fields, 23 };
 static PyTypeObject *ToneMeasureObj_analyze_complex_type = NULL;
 
 static PyObject *
@@ -317,7 +318,8 @@ static PyStructSequence_Field ToneMeasureObj_time_stats_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_time_stats_desc
-    = { "tonemeas.TimeStats", NULL, ToneMeasureObj_time_stats_fields, 6 };
+    = { "doppler.measure.TimeStats", NULL, ToneMeasureObj_time_stats_fields,
+        6 };
 static PyTypeObject *ToneMeasureObj_time_stats_type = NULL;
 
 static PyObject *

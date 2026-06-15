@@ -38,6 +38,11 @@ ______________________________________________________________________
 - **`Specan`'s additive dB offset is `offset_db`** (applied on top of the dBFS
     reference, e.g. a dBm calibration); the dBFS reference itself comes from the
     PSD core's `bits`/`full_scale`.
+- The `doppler.measure` result structseqs now report `__module__ ==
+    "doppler.measure"` (was the C component name, e.g. `"tonemeas"`), so
+    `repr(type(r))` reads `<class 'doppler.measure.ToneMetrics'>` — the import
+    path, not the internal component. Field access / unpacking are unchanged
+    (jm `record_module`, gh-261).
 - The `measure_demo` / `measure_imd_npr` gallery demos are now doppler-native:
     tones via `source.LO`, noise via `source.AWGN`, transforms via
     `spectral.FFT`, the spectrum backdrop via the analyzers' `spectrum_dbfs`,

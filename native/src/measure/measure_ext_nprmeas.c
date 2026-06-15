@@ -118,7 +118,7 @@ static PyStructSequence_Field NPRMeasureObj_analyze_fields[] = {
   { NULL, NULL },
 };
 static PyStructSequence_Desc NPRMeasureObj_analyze_desc
-    = { "nprmeas.NPRMetrics", NULL, NPRMeasureObj_analyze_fields, 6 };
+    = { "doppler.measure.NPRMetrics", NULL, NPRMeasureObj_analyze_fields, 6 };
 static PyTypeObject *NPRMeasureObj_analyze_type = NULL;
 
 static PyObject *

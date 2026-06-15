@@ -694,6 +694,8 @@ class PSD:
         pad constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         mode constructor parameter.
     alpha : float, default 0.1
@@ -704,10 +706,10 @@ class PSD:
     Create with defaults:
 
     >>> from doppler.spectral import PSD
-    >>> obj = PSD(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, mode="mean", alpha=0.1)
+    >>> obj = PSD(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, bits=0, mode="mean", alpha=0.1)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
 
     def accumulate(self, x: NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
@@ -900,6 +902,14 @@ class PSD:
     @property
     def fs(self) -> float:
         """Fs."""
+
+    @property
+    def full_scale(self) -> float:
+        """Full scale."""
+
+    @property
+    def bits(self) -> int:
+        """Bits."""
 
     @property
     def enbw(self) -> float:

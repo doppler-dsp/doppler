@@ -55,6 +55,7 @@ typedef struct {
     size_t nfft;               /**< Zero-padded transform length.         */
     double fs;                 /**< Sample rate, Hz.                      */
     double full_scale;         /**< Amplitude that reads 0 dBFS.          */
+    size_t bits;               /**< ADC depth that set full_scale, else 0.*/
 } psd_state_t;
 
 /**
@@ -66,6 +67,10 @@ typedef struct {
  * @param beta        Kaiser beta (ignored for Hann).
  * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n * pad).
  * @param full_scale  Amplitude that reads 0 dBFS in the dB getters (> 0).
+ *                    Ignored when @p bits > 0.
+ * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the
+ *                    single definition of the dBFS reference); 0 = use
+ *                    @p full_scale directly.
  * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
  * @param alpha       EMA smoothing factor (exp mode only).
  * @return Heap-allocated state, or NULL on invalid argument or OOM.
@@ -81,8 +86,8 @@ typedef struct {
  * @endcode
  */
 psd_state_t *psd_create(size_t n, double fs, int window, float beta,
-                            size_t pad, double full_scale, int mode,
-                            double alpha);
+                            size_t pad, double full_scale, size_t bits,
+                            int mode, double alpha);
 
 /**
  * @brief Destroy a PSD instance and release all memory.

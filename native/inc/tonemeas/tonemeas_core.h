@@ -51,7 +51,6 @@ typedef struct {
     size_t nfft;            /* zero-padded transform length                */
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              /* sample rate (Hz)                            */
-    double full_scale;      /* amplitude that equals 0 dBFS                */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
     int    window;          /* 0 hann, 1 kaiser (for amp_uncert_db)        */
 } tonemeas_state_t;
@@ -64,14 +63,17 @@ typedef struct {
  * @param beta         Kaiser shape (ignored for Hann).
  * @param pad          Zero-pad factor (>= 1); nfft = next_pow2(n*pad).
  * @param n_harmonics  Harmonics to track (k = 2..n_harmonics).
- * @param full_scale   Amplitude that equals 0 dBFS (> 0).
+ * @param full_scale   Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
+ * @param bits         ADC depth: bits>0 sets the 0-dBFS reference to
+ *                     2^(bits-1) (resolved in the shared PSD core).
  * @param dc_guard     Extra bins excluded beyond L around DC.
  * @return Heap state, or NULL on bad args / allocation failure.
  * @note Caller must tonemeas_destroy() when done.
  */
 tonemeas_state_t *tonemeas_create(size_t n, double fs, int window, float beta,
                                   size_t pad, size_t n_harmonics,
-                                  double full_scale, size_t dc_guard);
+                                  double full_scale, size_t bits,
+                                  size_t dc_guard);
 
 /** @brief Destroy a ToneMeasure analyser. @param state May be NULL. */
 void tonemeas_destroy(tonemeas_state_t *state);

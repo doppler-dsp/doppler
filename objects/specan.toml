@@ -60,10 +60,23 @@ name = "center"
 type = "double"
 default = "0.0"
 
+# offset_db is an additive dB offset applied on top of dBFS (e.g. a dBm
+# calibration); full_scale / bits set the 0-dBFS reference in the shared PSD
+# core (bits>0 -> 2^(bits-1)), so dBFS is single-sourced.
 [[specan.init_params]]
-name = "ref_db"
+name = "offset_db"
 type = "double"
 default = "0.0"
+
+[[specan.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[specan.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
 
 [[specan.init_params]]
 name = "window"

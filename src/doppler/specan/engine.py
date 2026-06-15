@@ -97,15 +97,16 @@ class SpecanEngine:
 
         if self._specan is not None:
             self._specan.destroy()
-        # ref_db folds the dBm calibration and the ref-level offset into the
-        # single additive dB offset the C core applies to the display trace.
+        # offset_db carries the dBm calibration / ref-level offset, applied on
+        # top of the core's dBFS reference (full_scale = 1.0 here: the demo and
+        # IQ sources are amplitude-normalised, not ADC codes).
         self._specan = Specan(
             fs=fs_in,
             span=span,
             rbw=rbw,
             src_center=center_freq,
             center=cfg.center,
-            ref_db=_DBM_OFFSET - cfg.level,
+            offset_db=_DBM_OFFSET - cfg.level,
             window="kaiser",
             navg=1,
         )

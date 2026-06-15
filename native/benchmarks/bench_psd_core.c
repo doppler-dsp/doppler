@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  psd_state_t    *obj = psd_create (1024, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+  psd_state_t    *obj = psd_create (1024, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

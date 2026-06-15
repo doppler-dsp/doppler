@@ -47,6 +47,13 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
+# bits>0 sets full_scale = 2^(bits-1) (ADC dBFS reference) — the single
+# definition of the dBFS reference shared by the measure analyzers and Specan.
+[[psd.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
+
 [[psd.init_params]]
 name = "mode"
 type = "string_enum:mean,exp,maxhold,minhold"
@@ -176,6 +183,16 @@ field = true
 [[psd.properties]]
 name = "fs"
 type = "double"
+field = true
+
+[[psd.properties]]
+name = "full_scale"
+type = "double"
+field = true
+
+[[psd.properties]]
+name = "bits"
+type = "size_t"
 field = true
 
 [[psd.properties]]

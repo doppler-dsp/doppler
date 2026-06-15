@@ -194,6 +194,7 @@ nav:
   - Design:
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
+      - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:

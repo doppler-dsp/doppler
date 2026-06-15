@@ -43,6 +43,13 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
+# bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the
+# single source of truth); full_scale is the analog/general alternative.
+[[imdmeas.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
+
 [[imdmeas.methods]]
 name = "analyze"
 doc = "Two-tone IMD/TOI of a real capture (finds the two strongest tones)."
@@ -52,6 +59,14 @@ single = true
 nogil = true
 record_name = "IMDMetrics"
 result_fields = [{name = "f1", type = "double"}, {name = "f2", type = "double"}, {name = "p1_dbfs", type = "double"}, {name = "p2_dbfs", type = "double"}, {name = "imd2_dbc", type = "double"}, {name = "imd3_dbc", type = "double"}, {name = "imd2_freq", type = "double"}, {name = "imd3_lo_freq", type = "double"}, {name = "imd3_hi_freq", type = "double"}, {name = "toi_dbfs", type = "double"}, {name = "soi_dbfs", type = "double"}, {name = "rbw_hz", type = "double"}]
+
+[[imdmeas.methods]]
+name = "spectrum_dbfs"
+doc = "DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+params = [{name = "x", type = "float[]"}]
 
 [[imdmeas.properties]]
 name = "n"

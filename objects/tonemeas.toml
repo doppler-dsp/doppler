@@ -58,6 +58,13 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
+# bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the
+# single source of truth); full_scale is the analog/general alternative.
+[[tonemeas.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
+
 [[tonemeas.init_params]]
 name = "dc_guard"
 type = "size_t"

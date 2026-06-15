@@ -75,14 +75,14 @@ main (void)
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    CHECK (psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* n<2  */
-    CHECK (psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* fs   */
-    CHECK (psd_create (N, 1.0, 2, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* win  */
-    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0.1) == NULL); /* fscl */
-    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 9, 0.1) == NULL); /* mode */
-    psd_destroy (NULL);                                           /* ok   */
+    CHECK (psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* n<2  */
+    CHECK (psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* fs   */
+    CHECK (psd_create (N, 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* win  */
+    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1) == NULL); /* fscl */
+    CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1) == NULL); /* mode */
+    psd_destroy (NULL);                                              /* ok   */
 
-    psd_state_t *w = psd_create (N, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0.1);
+    psd_state_t *w = psd_create (N, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
     CHECK (w != NULL);
     CHECK (w->n == N);
     CHECK (w->fs == 1.0e6);
@@ -96,7 +96,7 @@ main (void)
 
   /* ── DC tone lands at the centre bin after fftshift ─────────────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[64];
     for (size_t i = 0; i < N; i++)
       x[i] = 1.0f + 0.0f * I;
@@ -109,7 +109,7 @@ main (void)
 
   /* ── tone at bin k maps to index n/2 + k; counts frames ─────────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     const int     k = 8;
     float complex x[64];
     fill_tone (x, N, k);
@@ -130,7 +130,7 @@ main (void)
 
   /* ── psd_dbhz differs from psd_db by a constant offset ──────────────── */
   {
-    psd_state_t  *w = psd_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[32];
     fill_tone (x, 32, 5);
     psd_accumulate (w, x, 32);
@@ -145,7 +145,7 @@ main (void)
 
   /* ── band power: a partition sums (in power) to the total ───────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[64];
     fill_tone (x, N, 10);
     for (int r = 0; r < 4; r++)
@@ -171,7 +171,7 @@ main (void)
 
   /* ── occupied bandwidth: narrow for a tone, ~full for flat noise ────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[64];
     fill_tone (x, N, 4);
     for (int r = 0; r < 4; r++)
@@ -183,7 +183,7 @@ main (void)
 
   /* ── noise floor / SNR / SFDR are finite on a two-tone signal ───────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0.1);
+    psd_state_t  *w = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
     float complex x[64];
     for (size_t i = 0; i < N; i++)
       {
@@ -219,7 +219,7 @@ main (void)
     /* exact and pad-invariant: X[DC] = A*sum(w), so |X[DC]|^2/cg^2 = A^2 */
     for (size_t pad = 1; pad <= 2; pad++)
       {
-        psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0.1);
+        psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
         psd_accumulate_real (w, x, N);
         float  two[128];
         size_t nfft = psd_power_twosided (w, w->nfft, two);
@@ -234,8 +234,8 @@ main (void)
 
   /* ── ENBW: Hann ~1.5 bins; Kaiser(beta=8) wider ─────────────────────── */
   {
-    psd_state_t *h = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
-    psd_state_t *k = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0.1);
+    psd_state_t *h = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    psd_state_t *k = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
     CHECK (fabs (h->enbw - 1.5) < 0.05);
     CHECK (k->enbw > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
     psd_destroy (h);
@@ -244,7 +244,7 @@ main (void)
 
   /* ── one-sided fold conserves energy: sum(one) == sum(two) ──────────── */
   {
-    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     float        x[64];
     fill_real_tone (x, N, 7, 0.5);
     psd_accumulate_real (w, x, N);
@@ -268,7 +268,7 @@ main (void)
     double tot[3] = { 0 };
     for (size_t pad = 1; pad <= 2; pad++)
       {
-        psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0.1);
+        psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0, 0.1);
         psd_accumulate_real (w, x, N);
         float  two[128];
         size_t nfft = psd_power_twosided (w, w->nfft, two);
@@ -284,7 +284,7 @@ main (void)
   {
     float x[64];
     fill_real_tone (x, N, 11, 0.4);
-    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     psd_accumulate_real (w, x, N);
     float a[33];
     psd_power_onesided (w, N / 2 + 1, a);
@@ -313,9 +313,9 @@ main (void)
       buf[N + i] = f2[i];
 
     psd_state_t *mx
-        = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, ACC_TRACE_MAXHOLD, 0.1);
+        = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_MAXHOLD, 0.1);
     psd_state_t *mn
-        = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, ACC_TRACE_MINHOLD, 0.1);
+        = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, ACC_TRACE_MINHOLD, 0.1);
     psd_accumulate_real (mx, buf, 2 * N);
     psd_accumulate_real (mn, buf, 2 * N);
     float pmx[64], pmn[64];
@@ -335,8 +335,8 @@ main (void)
     for (size_t i = 0; i < K * N; i++)
       buf[i] = lcg_unit (&rng);
 
-    psd_state_t *w1 = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
-    psd_state_t *wK = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    psd_state_t *w1 = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    psd_state_t *wK = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
     psd_accumulate_real (w1, buf, N);     /* 1 frame  */
     psd_accumulate_real (wK, buf, K * N); /* K frames */
     float p1[64], pK[64];

@@ -45,6 +45,13 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
+# bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the
+# single source of truth); full_scale is the analog/general alternative.
+[[nprmeas.init_params]]
+name = "bits"
+type = "size_t"
+default = "0"
+
 [[nprmeas.methods]]
 name = "analyze"
 doc = "NPR of a notched-noise capture over [active_lo,active_hi] with a notch [notch_lo,notch_hi] (Hz) and guard keep-out."
@@ -55,6 +62,14 @@ nogil = true
 record_name = "NPRMetrics"
 result_fields = [{name = "npr_db", type = "double"}, {name = "inband_psd_dbfs", type = "double"}, {name = "notch_psd_dbfs", type = "double"}, {name = "n_inband_bins", type = "size_t"}, {name = "n_notch_bins", type = "size_t"}, {name = "rbw_hz", type = "double"}]
 params = [{name = "active_lo", type = "double"}, {name = "active_hi", type = "double"}, {name = "notch_lo", type = "double"}, {name = "notch_hi", type = "double"}, {name = "guard_hz", type = "double", default = "0.0"}]
+
+[[nprmeas.methods]]
+name = "spectrum_dbfs"
+doc = "DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+params = [{name = "x", type = "float[]"}]
 
 [[nprmeas.properties]]
 name = "n"

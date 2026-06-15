@@ -44,7 +44,7 @@ main (void)
 
   /* ── 1. lobe-integration invariance: a full-scale tone reads ~0 dBFS at
    *       any sub-bin offset (the headline correctness property) ── */
-  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 1, 12.0f, 2, 8, 1.0, 0);
+  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 1, 12.0f, 2, 8, 1.0, 0, 0);
   CHECK (m != NULL);
   for (int t = 0; t < 3; t++)
     {

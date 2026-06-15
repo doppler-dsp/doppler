@@ -18,7 +18,8 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  specan_state_t *obj = specan_create (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 1);
+  specan_state_t *obj
+      = specan_create (1.0e6, 200e3, 1500.0, 0.0, 0.0, 0.0, 1.0, 0, 1, 1);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

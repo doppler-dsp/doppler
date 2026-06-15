@@ -116,3 +116,17 @@ def test_context_manager():
     with PSD(n=64, fs=1.0, mode="mean") as w:
         w.accumulate(np.ones(64, dtype=np.complex64))
         assert w.psd_db() is not None
+
+
+def test_bits_is_the_single_dbfs_reference():
+    """bits=B sets full_scale = 2**(B-1); identical to passing full_scale."""
+    wb = PSD(n=256, fs=1.0, window="hann", bits=12)
+    wf = PSD(n=256, fs=1.0, window="hann", full_scale=2**11)
+    assert wb.full_scale == 2**11 == wf.full_scale
+    assert wb.bits == 12
+    x = (3.0 * np.exp(2j * np.pi * 8 * np.arange(256) / 256)).astype(
+        np.complex64
+    )
+    wb.accumulate(x)
+    wf.accumulate(x)
+    assert np.allclose(wb.psd_db(), wf.psd_db())

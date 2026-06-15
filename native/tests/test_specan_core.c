@@ -74,13 +74,17 @@ main (void)
     return 1;
 
   /* 1. Invalid arguments are rejected (no opaque NULL surprises). */
-  CHECK (specan_create (0.0, span, rbw, 0, 0, 0, 1, 1) == NULL); /* fs   */
-  CHECK (specan_create (fs, 0.0, rbw, 0, 0, 0, 1, 1) == NULL);   /* span */
-  CHECK (specan_create (fs, span, 0.0, 0, 0, 0, 1, 1) == NULL);  /* rbw  */
-  CHECK (specan_create (fs, span, rbw, 0, 0, 0, 1, 0) == NULL);  /* navg */
+  CHECK (specan_create (0.0, span, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+         == NULL); /* fs   */
+  CHECK (specan_create (fs, 0.0, rbw, 0, 0, 0, 1.0, 0, 1, 1)
+         == NULL); /* span */
+  CHECK (specan_create (fs, span, 0.0, 0, 0, 0, 1.0, 0, 1, 1)
+         == NULL); /* rbw  */
+  CHECK (specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 0)
+         == NULL); /* navg */
 
   /* 2. The natural params derive a sane DSP grid. */
-  specan_state_t *sa = specan_create (fs, span, rbw, 0, 0, 0, 1, 1);
+  specan_state_t *sa = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 1);
   CHECK (sa != NULL);
   if (!sa)
     return 1;
@@ -114,7 +118,7 @@ main (void)
   specan_destroy (sa);
 
   /* 5. navg buffers a full averaging window before emitting a frame. */
-  specan_state_t *sb = specan_create (fs, span, rbw, 0, 0, 0, 1, 2);
+  specan_state_t *sb = specan_create (fs, span, rbw, 0, 0, 0, 1.0, 0, 1, 2);
   CHECK (sb != NULL);
   if (sb)
     {

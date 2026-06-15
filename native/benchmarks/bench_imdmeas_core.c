@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  imdmeas_state_t *obj = imdmeas_create (8192, 1.0, 0, 12.0f, 2, 1.0);
+  imdmeas_state_t *obj = imdmeas_create (8192, 1.0, 0, 12.0f, 2, 1.0, 0);
   struct timespec  t0, t1;
   jm_bench_t       _bench = { 0 };
 

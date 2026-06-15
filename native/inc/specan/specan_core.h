@@ -81,7 +81,7 @@ extern "C"
     double center;        /**< Display center frequency, Hz.             */
     double span;          /**< Display span, Hz.                         */
     double rbw;           /**< Requested resolution bandwidth, Hz.       */
-    double ref_db;        /**< dB offset added to the display spectrum.  */
+    double offset_db;     /**< Additive dB offset on the display (dBm cal).*/
     double fs_out;        /**< Decimated rate, Hz (= span·1.28, ≤ fs_in).*/
     double beta;          /**< Kaiser beta realising @ref rbw.           */
     size_t n;             /**< Segment / window length (samples).        */
@@ -106,8 +106,13 @@ extern "C"
    *                    here, so the analyzer mixes (center − src_center) to
    * DC.
    * @param center      Desired display center frequency (Hz).
-   * @param ref_db      dB offset added to the display spectrum (e.g. a dBm
-   *                    calibration the application computes from a ref level).
+   * @param offset_db   Additive dB offset on the display spectrum, applied on
+   *                    top of dBFS (e.g. a dBm calibration the application
+   *                    computes from a reference level).
+   * @param full_scale  Amplitude that reads 0 dBFS (> 0).  Ignored if bits > 0.
+   * @param bits        ADC depth: bits>0 sets the 0-dBFS reference to
+   *                    2^(bits-1) in the shared PSD core (the single source of
+   *                    truth for the dBFS reference).
    * @param window      Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).
    * @param navg        Segments averaged per emitted frame (>= 1).
    * @return Heap-allocated state, or NULL on invalid argument or OOM.
@@ -126,7 +131,8 @@ extern "C"
    */
   specan_state_t *specan_create (double fs, double span, double rbw,
                                  double src_center, double center,
-                                 double ref_db, int window, size_t navg);
+                                 double offset_db, double full_scale,
+                                 size_t bits, int window, size_t navg);
 
   /**
    * @brief Destroy a Specan instance and release all memory.

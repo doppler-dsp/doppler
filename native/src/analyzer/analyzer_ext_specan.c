@@ -45,20 +45,23 @@ SpecanObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "fs",     "span",   "rbw",  "window", "src_center",
-                            "center", "ref_db", "navg", NULL };
-  double       fs       = 0.0;
-  double       span     = 0.0;
-  double       rbw      = 0.0;
-  const char  *window_str     = "kaiser";
-  double       src_center     = 0.0;
-  double       center         = 0.0;
-  double       ref_db         = 0.0;
-  unsigned long long navg_raw = 1;
+  static char *kwlist[]
+      = { "fs",        "span",       "rbw",  "window", "src_center", "center",
+          "offset_db", "full_scale", "bits", "navg",   NULL };
+  double             fs         = 2.048e6;
+  double             span       = 200e3;
+  double             rbw        = 500.0;
+  const char        *window_str = "kaiser";
+  double             src_center = 0.0;
+  double             center     = 0.0;
+  double             offset_db  = 0.0;
+  double             full_scale = 1.0;
+  unsigned long long bits_raw   = 0;
+  unsigned long long navg_raw   = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "ddd|sdddK", kwlist, &fs,
-                                    &span, &rbw, &window_str, &src_center,
-                                    &center, &ref_db, &navg_raw))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "ddd|sddddKK", kwlist, &fs, &span, &rbw, &window_str,
+          &src_center, &center, &offset_db, &full_scale, &bits_raw, &navg_raw))
     return -1;
   int window = 0;
   if (strcmp (window_str, "hann") == 0)
@@ -72,9 +75,10 @@ SpecanObj_init (SpecanObject *self, PyObject *args, PyObject *kwds)
                     window_str);
       return -1;
     }
+  size_t bits  = (size_t)bits_raw;
   size_t navg  = (size_t)navg_raw;
-  self->handle = specan_create (fs, span, rbw, src_center, center, ref_db,
-                                window, navg);
+  self->handle = specan_create (fs, span, rbw, src_center, center, offset_db,
+                                full_scale, bits, window, navg);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "specan_create returned NULL");
@@ -345,7 +349,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(0.0, 0.0, 0.0, \"kaiser\", 0.0, 0.0, 0.0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
+    "1.0, 0, 1)\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -357,7 +362,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(0.0, 0.0, 0.0, \"kaiser\", 0.0, 0.0, 0.0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
+    "1.0, 0, 1)\n"
     "    >>> obj.retune(0.0)\n" },
   { "reset", (PyCFunction)SpecanObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -365,7 +371,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "Drop pending samples and the running average; zero LO/filter history.\n"
     "\n"
     "    >>> from doppler import Specan\n"
-    "    >>> obj = Specan(0.0, 0.0, 0.0, \"kaiser\", 0.0, 0.0, 0.0, 1)\n"
+    "    >>> obj = Specan(2.048e6, 200e3, 500.0, \"kaiser\", 0.0, 0.0, 0.0, "
+    "1.0, 0, 1)\n"
     "    >>> obj.reset()\n" },
   { "destroy", (PyCFunction)SpecanObj_destroy, METH_NOARGS,
     "Release resources." },

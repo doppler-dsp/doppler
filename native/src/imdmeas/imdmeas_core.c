@@ -24,27 +24,29 @@ fold_real (double f, double fs)
 
 imdmeas_state_t *
 imdmeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                double full_scale)
+                double full_scale, size_t bits)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1) || full_scale <= 0.0)
+  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
     return NULL;
   if (pad < 1)
     pad = 1;
   imdmeas_state_t *s = (imdmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->psd = psd_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
+  /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
+   * s->psd->full_scale so it is defined exactly once. */
+  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
+                       ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       imdmeas_destroy (s);
       return NULL;
     }
-  s->n          = n;
-  s->nfft       = s->psd->nfft;
-  s->fs         = fs;
-  s->enbw       = s->psd->enbw;
-  s->full_scale = full_scale;
-  s->pwr        = (float *)malloc (s->nfft * sizeof (float));
+  s->n    = n;
+  s->nfft = s->psd->nfft;
+  s->fs   = fs;
+  s->enbw = s->psd->enbw;
+  s->pwr  = (float *)malloc (s->nfft * sizeof (float));
   if (!s->pwr)
     {
       imdmeas_destroy (s);
@@ -155,7 +157,7 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
     P_im2 = IMD_EPS;
 
   double cal = (double)s->nfft / (double)s->n * s->enbw;
-  double ref = s->full_scale * s->full_scale / 2.0 * cal;
+  double ref = s->psd->full_scale * s->psd->full_scale / 2.0 * cal;
 
   r.f1           = f1;
   r.f2           = f2;
@@ -168,4 +170,27 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
   r.soi_dbfs     = pf_dbfs + fabs (r.imd2_dbc);
   r.rbw_hz       = s->enbw * s->fs / (double)s->n;
   return r;
+}
+
+size_t
+imdmeas_spectrum_dbfs_max_out (imdmeas_state_t *state)
+{
+  return state->nfft;
+}
+
+size_t
+imdmeas_spectrum_dbfs (imdmeas_state_t *state, const float *x, size_t x_len,
+                       float *out)
+{
+  /* DC-centred two-sided dBFS view of the capture (analyzer display): the same
+   * averaged PSD the metrics use, scaled to the shared 0-dBFS reference. */
+  psd_reset (state->psd);
+  psd_accumulate_real (state->psd, x, x_len);
+  size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
+  if (nfft == 0)
+    return 0;
+  double ref = state->psd->full_scale * state->psd->full_scale;
+  for (size_t i = 0; i < nfft; i++)
+    out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + IMD_EPS));
+  return nfft;
 }

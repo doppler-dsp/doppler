@@ -59,7 +59,8 @@ kaiser_beta_for_enbw (double target_enbw, size_t n)
 
 specan_state_t *
 specan_create (double fs, double span, double rbw, double src_center,
-               double center, double ref_db, int window, size_t navg)
+               double center, double offset_db, double full_scale, size_t bits,
+               int window, size_t navg)
 {
   if (fs <= 0.0 || span <= 0.0 || rbw <= 0.0 || navg < 1)
     return NULL;
@@ -95,8 +96,10 @@ specan_create (double fs, double span, double rbw, double src_center,
    * (matching ddc_core's "norm_freq = -f_carrier shifts f_carrier to DC"). */
   double norm_freq = -(center - src_center) / fs;
   s->ddc           = ddc_create (norm_freq, rate);
-  s->psd
-      = psd_create (n, fs_out, window, (float)beta, SPECAN_PAD, 1.0, 0, 0.1);
+  /* The PSD core owns the 0-dBFS reference (full_scale / bits); the display
+   * reads it back as s->psd->full_scale, so dBFS is single-sourced. */
+  s->psd = psd_create (n, fs_out, window, (float)beta, SPECAN_PAD, full_scale,
+                       bits, 0, 0.1);
   s->pwr = malloc (nfft * sizeof *s->pwr);
   if (!s->ddc || !s->psd || !s->pwr)
     {
@@ -109,7 +112,7 @@ specan_create (double fs, double span, double rbw, double src_center,
   s->center     = center;
   s->span       = span;
   s->rbw        = rbw;
-  s->ref_db     = ref_db;
+  s->offset_db  = offset_db;
   s->fs_out     = fs_out;
   s->beta       = beta;
   s->n          = n;
@@ -196,13 +199,17 @@ specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
 
   psd_power_twosided (state->psd, state->nfft, state->pwr);
 
-  /* Crop the central display band and convert to dB (+ ref offset). */
+  /* Crop the central display band and convert to dBFS (+ application offset).
+   * The 0-dBFS reference is the PSD core's full_scale (single source). */
+  double fs2 = state->psd->full_scale * state->psd->full_scale;
   size_t cnt = state->disp_n;
   if (cnt > max_out)
     cnt = max_out;
   for (size_t i = 0; i < cnt; i++)
-    out[i] = 10.0f * log10f (state->pwr[state->disp_lo + i] + SPECAN_EPS)
-             + (float)state->ref_db;
+    out[i] = 10.0f
+                 * log10f (state->pwr[state->disp_lo + i] / (float)fs2
+                           + SPECAN_EPS)
+             + (float)state->offset_db;
   return cnt;
 }
 

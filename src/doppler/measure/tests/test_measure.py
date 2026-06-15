@@ -117,6 +117,13 @@ def test_enob_of_ideal_adc(bits):
     assert abs(r.enob - bits) < 0.3
     assert abs(r.sinad - (6.02 * bits + 1.76)) < 1.0
 
+    # bits=B is sugar for full_scale=2**(B-1): the single dBFS source of truth.
+    rb = ToneMeasure(
+        window="kaiser", n=n, beta=14.0, n_harmonics=10, bits=bits
+    ).analyze(codes)
+    assert rb.fund_dbfs == pytest.approx(r.fund_dbfs, abs=1e-6)
+    assert rb.enob == pytest.approx(r.enob, abs=1e-6)
+
 
 def test_time_stats():
     m = ToneMeasure(n=4096)

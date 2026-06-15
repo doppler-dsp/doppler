@@ -18,8 +18,12 @@ class Specan:
         src_center constructor parameter.
     center : float, default 0.0
         center constructor parameter.
-    ref_db : float, default 0.0
-        ref_db constructor parameter.
+    offset_db : float, default 0.0
+        offset_db constructor parameter.
+    full_scale : float, default 1.0
+        full_scale constructor parameter.
+    bits : int, default 0
+        bits constructor parameter.
     window : Literal["hann", "kaiser"], default "kaiser"
         window constructor parameter.
     navg : int, default 1
@@ -30,10 +34,10 @@ class Specan:
     Create with defaults:
 
     >>> from doppler.analyzer import Specan
-    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, center=0.0, ref_db=0.0, window="kaiser", navg=1)
+    >>> obj = Specan(fs=2.048e6, span=200e3, rbw=500.0, src_center=0.0, center=0.0, offset_db=0.0, full_scale=1.0, bits=0, window="kaiser", navg=1)
 
     """
-    def __init__(self, fs: float, span: float, rbw: float, src_center: float = ..., center: float = ..., ref_db: float = ..., window: Literal["hann", "kaiser"] = "kaiser", navg: int = ...) -> None: ...
+    def __init__(self, fs: float, span: float, rbw: float, src_center: float = ..., center: float = ..., offset_db: float = ..., full_scale: float = ..., bits: int = ..., window: Literal["hann", "kaiser"] = "kaiser", navg: int = ...) -> None: ...
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.float32]:
         """Mix, decimate, average; return one DC-centred dB display frame, or None.

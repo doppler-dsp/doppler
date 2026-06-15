@@ -2,7 +2,7 @@
 
 These drive the real ``doppler.analyzer`` extension end to end — the DDC
 mix/decimate, the PSD averaging PSD, and the display crop — through its
-instrument-parameter API (fs / span / rbw / center / ref_db), the C-first home
+instrument-parameter API (fs / span / rbw / center / offset_db), the C-first home
 for the mapping ``doppler.specan``'s engine used to hand-roll in Python.
 """
 
@@ -64,15 +64,30 @@ def test_tone_lands_at_its_offset_near_0_dbfs():
     sa.destroy()
 
 
-def test_ref_db_offsets_the_trace():
+def test_offset_db_shifts_the_trace():
     base = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0)
-    shifted = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0, ref_db=-20.0)
+    shifted = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0, offset_db=-20.0)
     x = _tone(30e3 / FS)
     fb = _first_frame(base, x)
     fs_ = _first_frame(shifted, x)
     assert fs_.max() == pytest.approx(fb.max() - 20.0, abs=0.5)
     base.destroy()
     shifted.destroy()
+
+
+def test_bits_sets_the_dbfs_reference():
+    """bits=B reads the same as full_scale=2**(B-1) (one source of truth)."""
+    bits = 12
+    x = _tone(30e3 / FS, amp=10.0)  # below an amplitude-2048 full scale
+    fb = _first_frame(Specan(fs=FS, span=SPAN, rbw=RBW, bits=bits), x)
+    ffs = _first_frame(
+        Specan(fs=FS, span=SPAN, rbw=RBW, full_scale=2 ** (bits - 1)), x
+    )
+    assert fb.max() == pytest.approx(ffs.max(), abs=1e-3)
+    # amplitude 10 against full scale 2048 -> about -46 dBFS peak
+    assert fb.max() == pytest.approx(
+        20.0 * np.log10(10.0 / 2 ** (bits - 1)), abs=1.0
+    )
 
 
 def test_retune_moves_the_tone_to_dc():

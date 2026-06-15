@@ -43,9 +43,10 @@ parabolic_delta (double ym1, double y0, double yp1)
 
 tonemeas_state_t *
 tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                 size_t n_harmonics, double full_scale, size_t dc_guard)
+                 size_t n_harmonics, double full_scale, size_t bits,
+                 size_t dc_guard)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1) || full_scale <= 0.0)
+  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
     return NULL;
   if (pad < 1)
     pad = 1;
@@ -54,24 +55,26 @@ tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
   if (!s)
     return NULL;
 
-  /* The shared PSD core owns the window, the zero-padded FFT and the (single-
-   * frame mean) averager; full_scale stays 1.0 there so its linear accessors
-   * return bare cg^2-normalised power — this core applies its own dBFS ref. */
-  s->psd = psd_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
+  /* The shared PSD core owns the window, the zero-padded FFT, the (single-
+   * frame mean) averager AND the dBFS reference (full_scale / bits): the
+   * metric kernels read it back as s->psd->full_scale, so the 0-dBFS
+   * reference is defined exactly once, in the core.  (The linear accessors
+   * stay cg^2-normalised; the kernels apply full_scale^2 themselves.) */
+  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
+                       ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       tonemeas_destroy (s);
       return NULL;
     }
 
-  s->n          = n;
-  s->nfft       = s->psd->nfft;
-  s->fs         = fs;
-  s->enbw       = s->psd->enbw;
-  s->window     = window;
-  s->n_harm     = n_harmonics;
-  s->full_scale = full_scale;
-  s->dc_guard   = dc_guard;
+  s->n        = n;
+  s->nfft     = s->psd->nfft;
+  s->fs       = fs;
+  s->enbw     = s->psd->enbw;
+  s->window   = window;
+  s->n_harm   = n_harmonics;
+  s->dc_guard = dc_guard;
 
   s->pwr  = (float *)malloc (s->nfft * sizeof (float));
   s->excl = (unsigned char *)malloc (s->nfft * sizeof (unsigned char));
@@ -309,7 +312,8 @@ tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in)
   tone_meas_t r;
   size_t      nbins = build_real (state, x, n_in);
   double      df    = state->fs / (double)state->nfft;
-  double ref = state->full_scale * state->full_scale / 2.0; /* sine power */
+  double      ref
+      = state->psd->full_scale * state->psd->full_scale / 2.0; /* sine power */
   compute_metrics (state, nbins, 0, df, ref, 1, &r);
   return r;
 }
@@ -321,7 +325,8 @@ tonemeas_analyze_complex (tonemeas_state_t *state, const float complex *x,
   tone_meas_t r;
   size_t      nbins = build_complex (state, x, n_in);
   double      df    = state->fs / (double)state->nfft;
-  double ref = state->full_scale * state->full_scale; /* exponential power */
+  double      ref   = state->psd->full_scale
+                      * state->psd->full_scale; /* exponential power */
   compute_metrics (state, nbins, (long)(state->nfft / 2), df, ref, 0, &r);
   return r;
 }
@@ -358,7 +363,7 @@ tonemeas_time_stats (tonemeas_state_t *state, const float *x, size_t n_in)
   r.crest_db    = (rms_ac > 0.0) ? 20.0 * log10 (peak_ac / rms_ac) : 0.0;
   r.papr_db     = r.crest_db;
   r.dc_offset   = dc;
-  r.fs_util_pct = 100.0 * peak_abs / state->full_scale;
+  r.fs_util_pct = 100.0 * peak_abs / state->psd->full_scale;
   return r;
 }
 
@@ -379,7 +384,7 @@ tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
   size_t nfft = psd_power_twosided (state->psd, state->nfft, state->pwr);
   if (nfft == 0)
     return 0;
-  double ref = state->full_scale * state->full_scale;
+  double ref = state->psd->full_scale * state->psd->full_scale;
   for (size_t i = 0; i < nfft; i++)
     out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + TM_EPS));
   return nfft;

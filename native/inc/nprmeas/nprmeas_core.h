@@ -30,7 +30,6 @@ typedef struct {
     size_t n;               /* capture / frame length                     */
     size_t nfft;            /* zero-padded transform length               */
     double fs;              /* sample rate (Hz)                           */
-    double full_scale;      /* amplitude that equals 0 dBFS               */
 } nprmeas_state_t;
 
 /**
@@ -40,11 +39,13 @@ typedef struct {
  * @param window      0 = Hann, 1 = Kaiser.
  * @param beta        Kaiser shape (ignored for Hann).
  * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n*pad).
- * @param full_scale  Amplitude that equals 0 dBFS (> 0).
+ * @param full_scale  Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
+ * @param bits        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1)
+ *                    (resolved in the shared PSD core).
  * @return Heap state, or NULL on bad args / allocation failure.
  */
 nprmeas_state_t *nprmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale);
+                                size_t pad, double full_scale, size_t bits);
 
 /** @brief Destroy an NPRMeasure analyser. @param state May be NULL. */
 void nprmeas_destroy(nprmeas_state_t *state);
@@ -67,6 +68,16 @@ void nprmeas_reset(nprmeas_state_t *state);
 npr_meas_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
                            double active_lo, double active_hi, double notch_lo,
                            double notch_hi, double guard_hz);
+
+/** @brief Capacity (== nfft) of the spectrum_dbfs output buffer. */
+size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
+
+/**
+ * @brief DC-centred dBFS magnitude spectrum of a capture (length nfft).
+ * The same averaged PSD the metrics use, for an analyzer-display backdrop.
+ */
+size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
+                             size_t x_len, float *out);
 
 #ifdef __cplusplus
 }

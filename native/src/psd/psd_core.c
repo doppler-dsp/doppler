@@ -1,6 +1,6 @@
 /**
  * @file psd_core.c
- * @brief PSD averaging PSD estimator and spectral measurement suite.
+ * @brief PSD — averaging power-spectral-density estimator (Welch's method).
  *
  * Composition over reimplementation: each accumulated frame is windowed, run
  * through the shared ::fft_state_t plan, converted to power, fftshifted to
@@ -34,8 +34,13 @@ next_pow2 (size_t x)
 
 psd_state_t *
 psd_create (size_t n, double fs, int window, float beta, size_t pad,
-            double full_scale, int mode, double alpha)
+            double full_scale, size_t bits, int mode, double alpha)
 {
+  /* The single definition of the dBFS reference: bits>0 selects an ADC
+   * full scale (2^(bits-1)); otherwise full_scale is the analog/general ref.
+   */
+  if (bits > 0)
+    full_scale = ldexp (1.0, (int)bits - 1);
   if (n < 2 || fs <= 0.0 || window < 0 || window > 1 || full_scale <= 0.0)
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
@@ -52,6 +57,7 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   s->nfft           = nfft;
   s->fs             = fs;
   s->full_scale     = full_scale;
+  s->bits           = bits;
   s->w              = (float *)malloc (n * sizeof (float));
   s->frame          = (float complex *)malloc (nfft * sizeof (float complex));
   s->spec           = (float complex *)malloc (nfft * sizeof (float complex));

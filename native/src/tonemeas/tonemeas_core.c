@@ -19,23 +19,12 @@
  */
 #include "tonemeas/tonemeas_core.h"
 
-#include "spectral/spectral_core.h"
-
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define TM_EPS 1e-30 /* power floor: keeps log10 finite on clean tones */
-
-static size_t
-next_pow2 (size_t x)
-{
-  size_t p = 1;
-  while (p < x)
-    p <<= 1;
-  return p;
-}
 
 /* Sub-bin peak offset in [-0.5, 0.5] from a 3-point parabola on dB values. */
 static double
@@ -64,41 +53,33 @@ tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
   tonemeas_state_t *s = (tonemeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->n          = n;
-  s->fs         = fs;
-  s->window     = window;
-  s->beta       = beta;
-  s->n_harm     = n_harmonics;
-  s->full_scale = full_scale;
-  s->dc_guard   = dc_guard;
-  s->nfft       = next_pow2 (n * pad);
 
-  s->w     = (float *)malloc (n * sizeof (float));
-  s->frame = (float complex *)malloc (s->nfft * sizeof (float complex));
-  s->spec  = (float complex *)malloc (s->nfft * sizeof (float complex));
-  s->pwr   = (float *)malloc (s->nfft * sizeof (float));
-  s->excl  = (unsigned char *)malloc (s->nfft * sizeof (unsigned char));
-  s->fft   = fft_create (s->nfft, -1, 1);
-  if (!s->w || !s->frame || !s->spec || !s->pwr || !s->excl || !s->fft)
+  /* The shared PSD core owns the window, the zero-padded FFT and the (single-
+   * frame mean) averager; full_scale stays 1.0 there so its linear accessors
+   * return bare cg^2-normalised power — this core applies its own dBFS ref. */
+  s->psd = welch_create (n, fs, window, beta, pad, 1.0, ACC_TRACE_MEAN, 0.0);
+  if (!s->psd)
     {
       tonemeas_destroy (s);
       return NULL;
     }
 
-  if (window == 1)
-    kaiser_window (s->w, n, beta);
-  else
-    hann_window (s->w, n);
+  s->n          = n;
+  s->nfft       = s->psd->nfft;
+  s->fs         = fs;
+  s->enbw       = s->psd->enbw;
+  s->window     = window;
+  s->n_harm     = n_harmonics;
+  s->full_scale = full_scale;
+  s->dc_guard   = dc_guard;
 
-  double cg = 0.0, s2 = 0.0;
-  for (size_t i = 0; i < n; i++)
+  s->pwr  = (float *)malloc (s->nfft * sizeof (float));
+  s->excl = (unsigned char *)malloc (s->nfft * sizeof (unsigned char));
+  if (!s->pwr || !s->excl)
     {
-      cg += (double)s->w[i];
-      s2 += (double)s->w[i] * (double)s->w[i];
+      tonemeas_destroy (s);
+      return NULL;
     }
-  s->cg   = cg;
-  s->s2   = s2;
-  s->enbw = (double)n * s2 / (cg * cg);
 
   /* Main-lobe half-width: window null-to-null half-width (un-padded bins)
    * scaled by the zero-pad interpolation factor nfft/n, plus a guard bin. */
@@ -115,11 +96,8 @@ tonemeas_destroy (tonemeas_state_t *state)
 {
   if (!state)
     return;
-  if (state->fft)
-    fft_destroy (state->fft);
-  free (state->w);
-  free (state->frame);
-  free (state->spec);
+  if (state->psd)
+    welch_destroy (state->psd);
   free (state->pwr);
   free (state->excl);
   free (state);
@@ -131,49 +109,25 @@ tonemeas_reset (tonemeas_state_t *state)
   (void)state; /* each analyze() is independent; nothing to reset */
 }
 
-/* Window + zero-pad a real capture, FFT, fold to one-sided power P[0..nfft/2].
- * Returns the number of one-sided bins (nfft/2 + 1). */
+/* Average a real capture over its segments, return the one-sided power into
+ * s->pwr[0..nfft/2].  Returns the bin count (nfft/2 + 1), or 0 if the capture
+ * holds no full frame. */
 static size_t
 build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 {
-  size_t nuse = (n_in < s->n) ? n_in : s->n;
-  for (size_t i = 0; i < s->nfft; i++)
-    s->frame[i] = (i < nuse) ? (float complex) (s->w[i] * x[i]) : 0.0f;
-  fft_execute_cf32 (s->fft, s->frame, s->nfft, s->spec);
-
-  size_t half    = s->nfft / 2;
-  double inv_cg2 = 1.0 / (s->cg * s->cg);
-  for (size_t k = 0; k <= half; k++)
-    {
-      double re = crealf (s->spec[k]);
-      double im = cimagf (s->spec[k]);
-      double p  = (re * re + im * im) * inv_cg2;
-      /* one-sided fold: double the non-DC, non-Nyquist bins */
-      s->pwr[k] = (float)((k == 0 || k == half) ? p : 2.0 * p);
-    }
-  return half + 1;
+  welch_reset (s->psd);
+  welch_accumulate_real (s->psd, x, n_in);
+  return welch_power_onesided (s->psd, s->nfft / 2 + 1, s->pwr);
 }
 
-/* Window + zero-pad a complex capture, FFT, DC-centred two-sided power.
- * Returns nfft. */
+/* Average a complex capture over its segments, return the DC-centred two-sided
+ * power into s->pwr[0..nfft).  Returns nfft, or 0 if no full frame. */
 static size_t
 build_complex (tonemeas_state_t *s, const float complex *x, size_t n_in)
 {
-  size_t nuse = (n_in < s->n) ? n_in : s->n;
-  for (size_t i = 0; i < s->nfft; i++)
-    s->frame[i] = (i < nuse) ? (s->w[i] * x[i]) : 0.0f;
-  fft_execute_cf32 (s->fft, s->frame, s->nfft, s->spec);
-
-  size_t half    = s->nfft / 2;
-  double inv_cg2 = 1.0 / (s->cg * s->cg);
-  for (size_t k = 0; k < s->nfft; k++)
-    {
-      double re   = crealf (s->spec[k]);
-      double im   = cimagf (s->spec[k]);
-      size_t idx  = (k + half) % s->nfft; /* fftshift: DC -> centre */
-      s->pwr[idx] = (float)((re * re + im * im) * inv_cg2);
-    }
-  return s->nfft;
+  welch_reset (s->psd);
+  welch_accumulate (s->psd, x, n_in);
+  return welch_power_twosided (s->psd, s->nfft, s->pwr);
 }
 
 /* Fold harmonic frequency k*f0 into the analysed band.
@@ -418,22 +372,15 @@ size_t
 tonemeas_spectrum_dbfs (tonemeas_state_t *state, const float *x, size_t x_len,
                         float *out)
 {
-  /* DC-centred two-sided dBFS view of a real capture (analyzer display). */
-  size_t nuse = (x_len < state->n) ? x_len : state->n;
-  for (size_t i = 0; i < state->nfft; i++)
-    state->frame[i] = (i < nuse) ? (float complex) (state->w[i] * x[i]) : 0.0f;
-  fft_execute_cf32 (state->fft, state->frame, state->nfft, state->spec);
-
-  size_t half    = state->nfft / 2;
-  double inv_cg2 = 1.0 / (state->cg * state->cg);
-  double ref     = state->full_scale * state->full_scale;
-  for (size_t k = 0; k < state->nfft; k++)
-    {
-      double re  = crealf (state->spec[k]);
-      double im  = cimagf (state->spec[k]);
-      size_t idx = (k + half) % state->nfft;
-      double p   = (re * re + im * im) * inv_cg2;
-      out[idx]   = (float)(10.0 * log10 (p / ref + TM_EPS));
-    }
-  return state->nfft;
+  /* DC-centred two-sided dBFS view of a real capture (analyzer display):
+   * the same averaged PSD the metrics use, scaled to the 0-dBFS reference. */
+  welch_reset (state->psd);
+  welch_accumulate_real (state->psd, x, x_len);
+  size_t nfft = welch_power_twosided (state->psd, state->nfft, state->pwr);
+  if (nfft == 0)
+    return 0;
+  double ref = state->full_scale * state->full_scale;
+  for (size_t i = 0; i < nfft; i++)
+    out[i] = (float)(10.0 * log10 ((double)state->pwr[i] / ref + TM_EPS));
+  return nfft;
 }

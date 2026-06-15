@@ -66,6 +66,31 @@ def test_snr_white_noise():
     assert abs(r.enob - (r.sinad - 1.76) / 6.02) < 1e-6
 
 
+def test_multiframe_averaging():
+    # A capture longer than n is split into floor(len/n) segments whose power
+    # spectra are averaged before the metric kernel runs (the Welch path).
+    m = ToneMeasure(n=4096, beta=12.0)
+    one = _cos(211, 0.5)
+    r1 = m.analyze(one)
+
+    # (a) K identical frames reduce to the single-frame result.
+    rk = m.analyze(np.tile(one, 8))
+    assert abs(rk.fund_dbfs - r1.fund_dbfs) < 1e-4
+    assert abs(rk.fund_freq - r1.fund_freq) < 1e-9
+
+    # (b) K frames of tone + independent white noise still recover SNR.
+    rng = np.random.default_rng(1)
+    a, sigma = 0.5, 1e-3
+    frames = [
+        _cos(211, a) + (sigma * rng.standard_normal(4096)).astype(np.float32)
+        for _ in range(8)
+    ]
+    r = m.analyze(np.concatenate(frames))
+    expect = 10 * np.log10((a * a / 2) / (sigma * sigma))
+    assert abs(r.snr - expect) < 1.5
+    assert abs(r.fund_freq - 211 / 4096) < 2e-3
+
+
 def test_complex_negative_frequency():
     m = ToneMeasure(n=4096, beta=12.0)
     i = np.arange(4096)

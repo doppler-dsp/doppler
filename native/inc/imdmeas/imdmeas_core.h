@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "fft/fft_core.h"
+#include "welch/welch_core.h"
 #include <complex.h>
 
 #ifdef __cplusplus
@@ -24,19 +24,14 @@ extern "C" {
 
 /** @brief IMDMeasure state: owned window, FFT plan and one-sided power scratch. */
 typedef struct {
-    fft_state_t   *fft;
-    float         *w;
-    float complex *frame;
-    float complex *spec;
-    float         *pwr;
-    double cg;
-    double s2;
-    double enbw;
-    size_t lobe_bins;
-    size_t n;
-    size_t nfft;
-    double fs;
-    double full_scale;
+    welch_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    float         *pwr;     /* metric working buffer, one-sided power       */
+    double enbw;            /* window equivalent noise bandwidth (bins)     */
+    size_t lobe_bins;       /* main-lobe half-width L                       */
+    size_t n;               /* capture / frame length                      */
+    size_t nfft;            /* zero-padded transform length                */
+    double fs;              /* sample rate (Hz)                            */
+    double full_scale;      /* amplitude that equals 0 dBFS                */
 } imdmeas_state_t;
 
 /**

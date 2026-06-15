@@ -51,11 +51,12 @@ re-derive it.
 
 The `measure_demo.py` / `measure_imd_npr_demo.py` gallery demos drive the
 analyzers with `bits=`, draw their spectrum backdrop from the analyzer's own
-`spectrum_dbfs()` (no hand-rolled periodogram), generate tones with the
-`source.LO` NCO, and quantise with `cvt.ADC`. Only the device-under-test models
-that have no doppler primitive stay explicit numpy — the two-tone polynomial
-nonlinearity, the carved-notch noise shaping, and the analytic Gray-Zeoli /
-MT-005 NPR reference curve — and they are labelled as such.
+`spectrum_dbfs()` (no hand-rolled periodogram), generate tones with `source.LO`,
+noise with `source.AWGN`, transform with `spectral.FFT`, and quantise with
+`cvt.ADC`. Only the device-under-test models that have no doppler primitive stay
+explicit numpy — the two-tone polynomial nonlinearity, the notch band-mask
+geometry, and the analytic Gray-Zeoli / MT-005 NPR reference curve — and they are
+labelled as such.
 
 ## See also
 

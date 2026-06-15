@@ -39,8 +39,9 @@ ______________________________________________________________________
     reference, e.g. a dBm calibration); the dBFS reference itself comes from the
     PSD core's `bits`/`full_scale`.
 - The `measure_demo` / `measure_imd_npr` gallery demos are now doppler-native:
-    tones via `source.LO`, the spectrum backdrop via the analyzers'
-    `spectrum_dbfs`, ADC dBFS via `bits` — no hand-rolled periodogram.
+    tones via `source.LO`, noise via `source.AWGN`, transforms via
+    `spectral.FFT`, the spectrum backdrop via the analyzers' `spectrum_dbfs`,
+    ADC dBFS via `bits` — no hand-rolled periodogram, FFT or RNG.
 
 ## [0.16.2] — 2026-06-14
 

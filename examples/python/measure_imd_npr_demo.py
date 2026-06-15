@@ -36,7 +36,8 @@ import numpy as np
 
 from doppler.cvt import ADC
 from doppler.measure import IMDMeasure, NPRMeasure
-from doppler.source import LO
+from doppler.source import AWGN, LO
+from doppler.spectral import FFT
 
 FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample capture
@@ -59,23 +60,24 @@ def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
 
 
 def notched_noise(rms, active_lo, active_hi, notch_lo, notch_hi, seed=0):
-    """Band-limited white noise over [active_lo, active_hi] with a spectral
-    notch carved out, scaled to an **RMS** level `rms` relative to full scale
-    (= 1.0). NPR loading is specified RMS-to-full-scale by convention — the
-    Gaussian peak is ~12-13 dB above this (the crest factor), and clipping
-    therefore sets in well before the RMS reaches 0 dBFS."""
-    rng = np.random.default_rng(seed)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS)
-    band = (
+    """Band-limited noise with a carved notch, scaled to an **RMS** level
+    `rms` relative to full scale (= 1.0) — the NPR test stimulus.
+
+    doppler-native: white noise from `source.AWGN`, shaped in the frequency
+    domain with `spectral.FFT` (forward + inverse).  The band/notch geometry is
+    the device-under-test model.  NPR loading is RMS-to-full-scale by
+    convention — the Gaussian peak is ~12-13 dB above the RMS (the crest
+    factor), so clipping sets in well before the RMS reaches 0 dBFS."""
+    k = np.arange(N)
+    freqs = np.abs(np.where(k < N // 2, k, k - N)) * (FS / N)  # |Hz| per bin
+    keep = (
         (freqs >= active_lo)
         & (freqs <= active_hi)
         & ~((freqs >= notch_lo) & (freqs <= notch_hi))
     )
-    spec = np.zeros(len(freqs), dtype=complex)
-    spec[band] = rng.standard_normal(band.sum()) + 1j * rng.standard_normal(
-        band.sum()
-    )
-    x = np.fft.irfft(spec, N)
+    white = AWGN(seed, 1.0).generate(N)  # complex white noise
+    spec = FFT(N, -1).execute_cf32(white) * keep  # FFT, mask band + notch
+    x = (FFT(N, 1).execute_cf32(spec.astype(np.complex64)) / N).real
     return (x / np.sqrt(np.mean(x**2)) * rms).astype(np.float32)
 
 

@@ -27,7 +27,7 @@ import numpy as np
 
 from doppler.cvt import ADC
 from doppler.measure import ToneMeasure
-from doppler.source import LO
+from doppler.source import AWGN, LO
 
 FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample coherent capture
@@ -53,8 +53,7 @@ def adc_capture(bits, ftone, amp=0.999, harmonics=(), noise=0.0, seed=0):
     for k, dbc in harmonics:
         x = x + real_tone(k * ftone, N, amp * 10 ** (dbc / 20))
     if noise:
-        rng = np.random.default_rng(seed)  # generic test floor (no DSP here)
-        x = x + (noise * rng.standard_normal(N)).astype(np.float32)
+        x = x + (noise * AWGN(seed, 1.0).generate(N).real).astype(np.float32)
     return ADC(bits, 0.0, 0).steps(x).astype(np.float32)
 
 

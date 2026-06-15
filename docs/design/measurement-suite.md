@@ -53,8 +53,8 @@ ______________________________________________________________________
 
 ## Spectrum model and conventions
 
-The power spectrum is coherent-gain normalised, `P[k] = |X[k]|^2 / c_g^2` with
-`c_g = \sum_i w_i`, so a coherent tone reads its true power at the peak.
+The power spectrum is coherent-gain normalised, $P[k] = |X[k]|^2 / c_g^2$ with
+$c_g = \sum_i w_i$, so a coherent tone reads its true power at the peak.
 
 |                  | **Real capture**                              | **Complex capture**                        |
 | ---------------- | --------------------------------------------- | ------------------------------------------ |
@@ -70,7 +70,7 @@ metrics (SNR, SINAD, THD) are independent of this reference, only the absolute
 !!! note "dBFS calibration"
 
     A lobe-integrated tone captures the full main-lobe energy, which the window
-    ENBW and zero-pad density inflate by `cal = (n_fft/n)·\text{ENBW}` relative
+    ENBW and zero-pad density inflate by $cal = (n_\text{fft}/n)\cdot\text{ENBW}$ relative
     to the true tone power. The absolute `*_dbfs` levels divide by `cal` so a
     full-scale tone reads 0 dBFS; the ratio metrics use the raw lobe powers,
     where `cal` cancels.
@@ -96,8 +96,8 @@ ______________________________________________________________________
 
 ## Measurement equations
 
-With integrated band powers `P_\text{fund}`, `P_\text{harm}=\sum_h P_h`,
-`P_\text{noise}` (sum over the `n_\text{noise}` unexcluded bins) and `P_\text{spur}`
+With integrated band powers $P_\text{fund}$, $P_\text{harm}=\sum_h P_h$,
+$P_\text{noise}$ (sum over the $n_\text{noise}$ unexcluded bins) and $P_\text{spur}$
 (worst single component outside the fundamental lobe):
 
 | Metric          | Definition                                                                                               |
@@ -162,8 +162,8 @@ self-describing:
 | `rbw_hz`, `enbw_hz` | resolution bandwidth `ENBW·f_s/n` — uses **`n`, not `n_fft`**        |
 | `lobe_bins`         | main-lobe half-width `L`                                             |
 | `n_noise_bins`      | bins counted as noise                                                |
-| `proc_gain_db`      | FFT processing gain `10\log_{10}(n_\text{fft}/2)`                    |
-| `floor_uncert_db`   | noise-floor standard error `≈ 4.34/\sqrt{n_\text{noise}}`            |
+| `proc_gain_db`      | FFT processing gain $10\log_{10}(n_\text{fft}/2)$                    |
+| `floor_uncert_db`   | noise-floor standard error $\approx 4.34/\sqrt{n_\text{noise}}$      |
 | `amp_uncert_db`     | residual amplitude error after lobe integration (window-dependent)   |
 
 !!! warning "Zero-padding interpolates, it does not resolve"
@@ -177,7 +177,7 @@ self-describing:
 
 To resolve a target RBW, the helper functions give the required length and a
 recommended transform size (see the API reference): `measure_min_samples` returns
-`⌈ENBW·f_s/\text{RBW}⌉`, and `dp_coherent_freq` snaps a test tone to the nearest
+$\lceil \text{ENBW}\cdot f_s/\text{RBW} \rceil$, and `dp_coherent_freq` snaps a test tone to the nearest
 leakage-free coherent frequency (integer cycles in the capture, coprime with `N`)
 — the right way to set up an ADC test so the tone sits on a bin and quantisation
 noise decorrelates.

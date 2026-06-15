@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-06-14
+
 ### Changed
 
 - **`measure` drops its hand-written structseq fragments for declarative
@@ -28,6 +30,14 @@ ______________________________________________________________________
     API is unchanged (`r.enob`, tuple-unpacking, the same fields) **except** the
     result types' `__module__` is now the C component (`tonemeas`/…) rather than
     `doppler.measure` (cosmetic; `repr` only).
+
+### Docs
+
+- **Measurement-suite docs round out.** A new IMD/NPR gallery example
+    (`measure_imd_npr_demo.py`) — two-tone IMD/TOI and notched-noise NPR with the
+    measured curve against the ideal-quantiser model (ADI MT-005). The
+    measurement-suite design guide now **renders its LaTeX** (added MathJax via
+    `pymdownx.arithmatex`).
 
 ## [0.16.1] — 2026-06-14
 
@@ -1426,6 +1436,7 @@ ______________________________________________________________________
 [0.15.1]: https://github.com/doppler-dsp/doppler/compare/v0.15.0...v0.15.1
 [0.16.0]: https://github.com/doppler-dsp/doppler/compare/v0.15.1...v0.16.0
 [0.16.1]: https://github.com/doppler-dsp/doppler/compare/v0.16.0...v0.16.1
+[0.16.2]: https://github.com/doppler-dsp/doppler/compare/v0.16.1...v0.16.2
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1452,4 +1463,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.16.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...HEAD

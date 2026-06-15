@@ -43,7 +43,9 @@ _Welch state. Allocate with_ [_**welch\_create()**_](welch__core_8h.md#function-
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
 |  float complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
+|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  double | [**s2**](#variable-s2)  <br> |
 |  float complex \* | [**spec**](#variable-spec)  <br> |
@@ -105,7 +107,7 @@ acc_trace_state_t* welch_state_t::avg;
 
 
 
-Per-bin power averager (AccTrace). 
+Per-bin power averager, length nfft. 
 
 
         
@@ -139,7 +141,7 @@ float* welch_state_t::dbbuf;
 
 
 
-dB-trace scratch, length n. 
+dB-trace scratch, length nfft. 
 
 
         
@@ -173,7 +175,7 @@ fft_state_t* welch_state_t::fft;
 
 
 
-Forward cf32 plan, size n. 
+Forward cf32 plan, size nfft. 
 
 
         
@@ -190,7 +192,7 @@ float complex* welch_state_t::frame;
 
 
 
-Windowed input scratch, length n. 
+Windowed + zero-padded, length nfft. 
 
 
         
@@ -216,6 +218,23 @@ Sample rate, Hz.
 
 
 
+### variable full\_scale 
+
+```C++
+double welch_state_t::full_scale;
+```
+
+
+
+Amplitude that reads 0 dBFS. 
+
+
+        
+
+<hr>
+
+
+
 ### variable n 
 
 ```C++
@@ -224,7 +243,24 @@ size_t welch_state_t::n;
 
 
 
-FFT length / frame size. 
+Window / frame length (samples). 
+
+
+        
+
+<hr>
+
+
+
+### variable nfft 
+
+```C++
+size_t welch_state_t::nfft;
+```
+
+
+
+Zero-padded transform length. 
 
 
         
@@ -241,7 +277,7 @@ float* welch_state_t::pwr;
 
 
 
-DC-centred power scratch, length n. 
+DC-centred power scratch, length nfft. 
 
 
         
@@ -275,7 +311,7 @@ float complex* welch_state_t::spec;
 
 
 
-FFT output scratch, length n. 
+FFT output scratch, length nfft. 
 
 
         

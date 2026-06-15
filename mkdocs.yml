@@ -171,6 +171,7 @@ nav:
       - C API: c-api/files.md
       - "Python: FFT": api/python-fft.md
       - "Python: Correlation & Detection": api/python-spectral.md
+      - "Python: Spectrum Analyzer (Specan)": api/python-analyzer.md
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md

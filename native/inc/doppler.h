@@ -83,6 +83,8 @@ extern "C" {
 
 #include "ddcr/ddcr_core.h"
 
+#include "specan/specan_core.h"
+
 #include "Resampler/Resampler_core.h"
 
 #include "HalfbandDecimator/HalfbandDecimator_core.h"

@@ -84,6 +84,11 @@
 * [**resamp\_state\_t**](structresamp__state__t.md)
 
 
+## s
+
+* [**specan\_state\_t**](structspecan__state__t.md)
+
+
 ## t
 
 * [**time\_stats\_t**](structtime__stats__t.md)

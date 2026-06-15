@@ -32,11 +32,14 @@ typedef struct {
     double s2;                 
     double enbw;               
     size_t n;                  
+    size_t nfft;               
     double fs;                 
+    double full_scale;         
 } welch_state_t;
 
 welch_state_t *welch_create(size_t n, double fs, int window, float beta,
-                            int mode, double alpha);
+                            size_t pad, double full_scale, int mode,
+                            double alpha);
 
 void welch_destroy(welch_state_t *state);
 
@@ -44,6 +47,16 @@ void welch_reset(welch_state_t *state);
 
 void welch_accumulate(welch_state_t *state, const float complex *x,
                       size_t x_len);
+
+void welch_accumulate_real(welch_state_t *state, const float *x, size_t x_len);
+
+size_t welch_power_twosided_max_out(welch_state_t *state);
+
+size_t welch_power_twosided(welch_state_t *state, size_t cap, float *out);
+
+size_t welch_power_onesided_max_out(welch_state_t *state);
+
+size_t welch_power_onesided(welch_state_t *state, size_t cap, float *out);
 
 size_t welch_psd_db_max_out(welch_state_t *state);
 

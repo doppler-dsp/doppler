@@ -61,14 +61,19 @@ _Welch — averaging PSD estimator and spectral measurement suite._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  void | [**welch\_accumulate**](#function-welch_accumulate) ([**welch\_state\_t**](structwelch__state__t.md) \* state, const float complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._  |
+|  void | [**welch\_accumulate\_real**](#function-welch_accumulate_real) ([**welch\_state\_t**](structwelch__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**welch\_accumulate()**_](welch__core_8h.md#function-welch_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**welch\_power\_onesided()**_](welch__core_8h.md#function-welch_power_onesided) _. Processes floor(n\_in / n) full frames._ |
 |  size\_t | [**welch\_band\_power**](#function-welch_band_power) ([**welch\_state\_t**](structwelch__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out) <br>_Integrated power per band in dB._ `bands` _is a flat array of [lo0, hi0, lo1, hi1, ...] band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 before any frame is accumulated._ |
 |  size\_t | [**welch\_band\_power\_max\_out**](#function-welch_band_power_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
-|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**welch\_create**](#function-welch_create) (size\_t n, double fs, int window, float beta, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
+|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**welch\_create**](#function-welch_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  void | [**welch\_destroy**](#function-welch_destroy) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Destroy a Welch instance and release all memory._  |
 |  double | [**welch\_noise\_floor**](#function-welch_noise_floor) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**welch\_occupied\_bw**](#function-welch_occupied_bw) ([**welch\_state\_t**](structwelch__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
+|  size\_t | [**welch\_power\_onesided**](#function-welch_power_onesided) ([**welch\_state\_t**](structwelch__state__t.md) \* state, size\_t cap, float \* out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto [0, fs/2]: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|X[k]\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._  |
+|  size\_t | [**welch\_power\_onesided\_max\_out**](#function-welch_power_onesided_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for_ [_**welch\_power\_onesided()**_](welch__core_8h.md#function-welch_power_onesided) _; equals nfft/2+1._ |
+|  size\_t | [**welch\_power\_twosided**](#function-welch_power_twosided) ([**welch\_state\_t**](structwelch__state__t.md) \* state, size\_t cap, float \* out) <br>_Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normalised (out[k] = avg\|X[k]\|^2 / cg^2); full\_scale is NOT applied (callers that want a dBFS reference divide by full\_scale^2). This is the raw spectral estimate the measurement kernels integrate over. Returns 0 (and writes nothing) before any frame is accumulated._  |
+|  size\_t | [**welch\_power\_twosided\_max\_out**](#function-welch_power_twosided_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for_ [_**welch\_power\_twosided()**_](welch__core_8h.md#function-welch_power_twosided) _; equals nfft._ |
 |  size\_t | [**welch\_psd\_db**](#function-welch_psd_db) ([**welch\_state\_t**](structwelch__state__t.md) \* state, size\_t n, float \* out) <br>_Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._  |
-|  size\_t | [**welch\_psd\_db\_max\_out**](#function-welch_psd_db_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals n._  |
+|  size\_t | [**welch\_psd\_db\_max\_out**](#function-welch_psd_db_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for psd\_db(); equals nfft._  |
 |  size\_t | [**welch\_psd\_dbhz**](#function-welch_psd_dbhz) ([**welch\_state\_t**](structwelch__state__t.md) \* state, size\_t n, float \* out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
 |  size\_t | [**welch\_psd\_dbhz\_max\_out**](#function-welch_psd_dbhz_max_out) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals n._  |
 |  void | [**welch\_reset**](#function-welch_reset) ([**welch\_state\_t**](structwelch__state__t.md) \* state) <br>_Discard the running average; the next accumulate re-seeds it._  |
@@ -180,6 +185,37 @@ True
 
 
 
+### function welch\_accumulate\_real 
+
+_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**welch\_accumulate()**_](welch__core_8h.md#function-welch_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**welch\_power\_onesided()**_](welch__core_8h.md#function-welch_power_onesided) _. Processes floor(n\_in / n) full frames._
+```C++
+void welch_accumulate_real (
+    welch_state_t * state,
+    const float * x,
+    size_t x_len
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `x` Real samples (f32). 
+* `x_len` Number of samples in `x`. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function welch\_band\_power 
 
 _Integrated power per band in dB._ `bands` _is a flat array of [lo0, hi0, lo1, hi1, ...] band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 before any frame is accumulated._
@@ -255,6 +291,8 @@ welch_state_t * welch_create (
     double fs,
     int window,
     float beta,
+    size_t pad,
+    double full_scale,
     int mode,
     double alpha
 ) 
@@ -267,10 +305,12 @@ welch_state_t * welch_create (
 **Parameters:**
 
 
-* `n` FFT / frame length in samples. Must be &gt;= 2. 
+* `n` Window / frame length in samples. Must be &gt;= 2. 
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies). 
 * `window` Window index: 0 = Hann, 1 = Kaiser. 
 * `beta` Kaiser beta (ignored for Hann). 
+* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n \* pad). 
+* `full_scale` Amplitude that reads 0 dBFS in the dB getters (&gt; 0). 
 * `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 
 * `alpha` EMA smoothing factor (exp mode only). 
 
@@ -396,6 +436,114 @@ Occupied bandwidth in Hz (0 if empty or no power).
 
 
 
+### function welch\_power\_onesided 
+
+_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto [0, fs/2]: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|X[k]\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ 
+```C++
+size_t welch_power_onesided (
+    welch_state_t * state,
+    size_t cap,
+    float * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `cap` Caller buffer capacity (must be &gt;= nfft/2 + 1). 
+* `out` Destination, at least nfft/2 + 1 float32 elements. 
+
+
+
+**Returns:**
+
+nfft/2 + 1, or 0 if empty. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function welch\_power\_onesided\_max\_out 
+
+_Output capacity hint for_ [_**welch\_power\_onesided()**_](welch__core_8h.md#function-welch_power_onesided) _; equals nfft/2+1._
+```C++
+size_t welch_power_onesided_max_out (
+    welch_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function welch\_power\_twosided 
+
+_Averaged linear power, DC-centred two-sided (length nfft). Coherent-gain normalised (out[k] = avg\|X[k]\|^2 / cg^2); full\_scale is NOT applied (callers that want a dBFS reference divide by full\_scale^2). This is the raw spectral estimate the measurement kernels integrate over. Returns 0 (and writes nothing) before any frame is accumulated._ 
+```C++
+size_t welch_power_twosided (
+    welch_state_t * state,
+    size_t cap,
+    float * out
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `cap` Caller buffer capacity (must be &gt;= nfft). 
+* `out` Destination, at least nfft float32 elements. 
+
+
+
+**Returns:**
+
+nfft, or 0 if empty. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function welch\_power\_twosided\_max\_out 
+
+_Output capacity hint for_ [_**welch\_power\_twosided()**_](welch__core_8h.md#function-welch_power_twosided) _; equals nfft._
+```C++
+size_t welch_power_twosided_max_out (
+    welch_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function welch\_psd\_db 
 
 _Averaged power spectrum in dB, DC-centred. Normalised by window coherent gain so a full-scale tone reads its true power (a unit-amplitude tone peaks near 0 dB). Returns 0 (Python None) before any frame is accumulated._ 
@@ -436,7 +584,7 @@ n, or 0 if empty.
 
 ### function welch\_psd\_db\_max\_out 
 
-_Output capacity hint for psd\_db(); equals n._ 
+_Output capacity hint for psd\_db(); equals nfft._ 
 ```C++
 size_t welch_psd_db_max_out (
     welch_state_t * state

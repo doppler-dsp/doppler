@@ -13,7 +13,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
 * `#include "measure/measure_core.h"`
-* `#include "fft/fft_core.h"`
+* `#include "welch/welch_core.h"`
 * `#include <complex.h>`
 
 
@@ -61,7 +61,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in, [**imd\_meas\_t**](structimd__meas__t.md) \* out, size\_t max\_out) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
+|  [**imd\_meas\_t**](structimd__meas__t.md) | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
 |  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale) <br>_Create an IMDMeasure analyser._  |
 |  void | [**imdmeas\_destroy**](#function-imdmeas_destroy) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
 |  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
@@ -112,12 +112,10 @@ Lifecycle: create -&gt; [analyze]\* -&gt; destroy
 
 _Two-tone IMD/TOI of a real capture (finds the two strongest tones)._ 
 ```C++
-size_t imdmeas_analyze (
+imd_meas_t imdmeas_analyze (
     imdmeas_state_t * state,
     const float * x,
-    size_t n_in,
-    imd_meas_t * out,
-    size_t max_out
+    size_t n_in
 ) 
 ```
 
@@ -127,7 +125,7 @@ size_t imdmeas_analyze (
 
 **Returns:**
 
-1 (one result in out[0]); 0 if max\_out == 0. 
+the IMD metric record (by value; zeroed if no two tones are found). 
 
 
 
@@ -160,7 +158,12 @@ imdmeas_state_t * imdmeas_create (
 **Parameters:**
 
 
+* `n` Capture/frame length (&gt;= 2). 
+* `fs` Sample rate (Hz, &gt; 0). 
 * `window` 0 = Hann, 1 = Kaiser. 
+* `beta` Kaiser shape (ignored for Hann). 
+* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
+* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). 
 
 
 

@@ -46,6 +46,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**nprmeas\_state\_t**](structnprmeas__state__t.md) _NPRMeasure state: owned window, FFT plan and one-sided power scratch._     
 * **struct** [**pn\_state\_t**](structpn__state__t.md)     
 * **struct** [**resamp\_state\_t**](structresamp__state__t.md)     
+* **struct** [**specan\_state\_t**](structspecan__state__t.md) _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#function-specan_create) _._    
 * **struct** [**time\_stats\_t**](structtime__stats__t.md) _Time-domain capture statistics (AC-coupled crest/PAPR)._     
 * **struct** [**tone\_meas\_t**](structtone__meas__t.md) _Single-tone dynamic-measurement bag._     
 * **struct** [**tonemeas\_state\_t**](structtonemeas__state__t.md) _ToneMeasure state: owned window, FFT plan and analysis scratch._     

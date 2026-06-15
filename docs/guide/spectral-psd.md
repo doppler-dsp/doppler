@@ -205,6 +205,43 @@ r.npr_db, r.inband_psd_dbfs, r.notch_psd_dbfs
 
 ______________________________________________________________________
 
+## Natural parameters — the `Specan`
+
+`Welch` and the measurement analyzers speak **DSP** parameters — segment length
+`n`, Kaiser `beta`, zero-pad. A spectrum-analyzer operator speaks **instrument**
+parameters — **center, span, RBW, reference level**. `doppler.analyzer.Specan`
+is the C-first bridge: it composes the [`DDC`](../api/python-ddc.md)
+tuner/decimator and the same `Welch` PSD core, takes the instrument knobs, and
+emits a ready-to-plot dB display band.
+
+```python
+import numpy as np
+from doppler.analyzer import Specan
+from doppler.spectral import find_peaks_f32
+
+sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, center=0.0)
+sa.n, sa.beta, sa.rbw          # the DSP grid it derived from span/rbw
+
+for chunk in iq_stream:                       # any cf32 block size
+    db = sa.execute(chunk.astype(np.complex64))
+    if db is None:                            # not enough samples yet
+        continue
+    peaks = find_peaks_f32(db, 5, -60.0)      # bin i → center + (i−mid)·fs_out/nfft
+
+sa.retune(50e3)                # seamless LO retune; no rebuild
+```
+
+The mapping is the one a spec-an makes for you: the **span** picks the
+decimation rate (`fs_out = span·1.28`), the **RBW** picks the window length
+(coarse) and the Kaiser `beta` (fine, solved so the window ENBW *is* the
+requested RBW), and the display is cropped to the central ±span/2 band. So you
+ask for "500 Hz RBW over a 200 kHz span" and never touch `beta` or `n`. This is
+the same C object that backs the [`doppler.specan`](../specan/index.md) live
+display — see the [analyzer API page](../api/python-analyzer.md) for the full
+reference.
+
+______________________________________________________________________
+
 ## Choosing parameters
 
 | Goal                                       | Lever                                      |
@@ -215,6 +252,7 @@ ______________________________________________________________________
 | Read ADC codes directly in dBFS            | **`full_scale = 2**(bits-1)`**             |
 | Lower sidelobes (catch small spurs)        | **`window="kaiser"`** with larger `beta`   |
 | Peak-hold / min-hold display               | `mode="maxhold"` / `"minhold"`             |
+| Drive by center / span / RBW, not `n`/beta | **`doppler.analyzer.Specan`** (above)      |
 
 ______________________________________________________________________
 

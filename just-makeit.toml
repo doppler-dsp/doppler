@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.9"
+jm_version = "0.19.10"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -286,6 +286,15 @@ extra_link_libs = ["m"]
 
 [module.ddc.reexports]
 ddc_fn = ["ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy", "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate"]
+
+[module.analyzer]
+objects = ["specan"]
+# Specan composes the Ddc cascade + the Welch averaging-PSD core; specan.toml's
+# depends_on link=true (gh-225) links every composed OBJECT core into the
+# analyzer .so (and, after the jm#271 CMakeLists reconcile, specan's own C
+# test/bench). Only the non-component libm remains here.
+extra_link_libs = ["m"]
+
 [module.resample]
 objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]

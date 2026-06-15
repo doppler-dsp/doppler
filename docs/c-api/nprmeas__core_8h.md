@@ -13,7 +13,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
 * `#include "measure/measure_core.h"`
-* `#include "fft/fft_core.h"`
+* `#include "welch/welch_core.h"`
 * `#include <complex.h>`
 
 
@@ -61,7 +61,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz, [**npr\_meas\_t**](structnpr__meas__t.md) \* out, size\_t max\_out) <br>_NPR of a notched-noise capture._  |
+|  [**npr\_meas\_t**](structnpr__meas__t.md) | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
 |  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale) <br>_Create an NPRMeasure analyser._  |
 |  void | [**nprmeas\_destroy**](#function-nprmeas_destroy) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
 |  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
@@ -112,7 +112,7 @@ Lifecycle: create -&gt; [analyze]\* -&gt; destroy
 
 _NPR of a notched-noise capture._ 
 ```C++
-size_t nprmeas_analyze (
+npr_meas_t nprmeas_analyze (
     nprmeas_state_t * state,
     const float * x,
     size_t n_in,
@@ -120,9 +120,7 @@ size_t nprmeas_analyze (
     double active_hi,
     double notch_lo,
     double notch_hi,
-    double guard_hz,
-    npr_meas_t * out,
-    size_t max_out
+    double guard_hz
 ) 
 ```
 
@@ -133,15 +131,20 @@ size_t nprmeas_analyze (
 **Parameters:**
 
 
-* `active_lo` active noise band edges (Hz). 
-* `notch_lo` notch band edges (Hz). 
-* `guard_hz` keep-out around the notch edges (Hz). 
+* `state` The analyser. 
+* `x` Real time-domain capture. 
+* `n_in` Number of input samples. 
+* `active_lo` Active noise band lower edge (Hz). 
+* `active_hi` Active noise band upper edge (Hz). 
+* `notch_lo` Notch lower edge (Hz). 
+* `notch_hi` Notch upper edge (Hz). 
+* `guard_hz` Keep-out around the notch edges (Hz). 
 
 
 
 **Returns:**
 
-1 (one result in out[0]); 0 if max\_out == 0. 
+the NPR metric record (by value). 
 
 
 
@@ -174,7 +177,12 @@ nprmeas_state_t * nprmeas_create (
 **Parameters:**
 
 
+* `n` Capture/frame length (&gt;= 2). 
+* `fs` Sample rate (Hz, &gt; 0). 
 * `window` 0 = Hann, 1 = Kaiser. 
+* `beta` Kaiser shape (ignored for Hann). 
+* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
+* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). 
 
 
 

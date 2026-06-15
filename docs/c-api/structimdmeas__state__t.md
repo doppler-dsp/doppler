@@ -36,19 +36,14 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**cg**](#variable-cg)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
-|  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
-|  float complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**lobe\_bins**](#variable-lobe_bins)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
+|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
-|  double | [**s2**](#variable-s2)  <br> |
-|  float complex \* | [**spec**](#variable-spec)  <br> |
-|  float \* | [**w**](#variable-w)  <br> |
 
 
 
@@ -98,49 +93,10 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 
 
 
-### variable cg 
-
-```C++
-double imdmeas_state_t::cg;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable enbw 
 
 ```C++
 double imdmeas_state_t::enbw;
-```
-
-
-
-
-<hr>
-
-
-
-### variable fft 
-
-```C++
-fft_state_t* imdmeas_state_t::fft;
-```
-
-
-
-
-<hr>
-
-
-
-### variable frame 
-
-```C++
-float complex* imdmeas_state_t::frame;
 ```
 
 
@@ -215,49 +171,23 @@ size_t imdmeas_state_t::nfft;
 
 
 
+### variable psd 
+
+```C++
+welch_state_t* imdmeas_state_t::psd;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable pwr 
 
 ```C++
 float* imdmeas_state_t::pwr;
-```
-
-
-
-
-<hr>
-
-
-
-### variable s2 
-
-```C++
-double imdmeas_state_t::s2;
-```
-
-
-
-
-<hr>
-
-
-
-### variable spec 
-
-```C++
-float complex* imdmeas_state_t::spec;
-```
-
-
-
-
-<hr>
-
-
-
-### variable w 
-
-```C++
-float* imdmeas_state_t::w;
 ```
 
 

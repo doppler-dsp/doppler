@@ -433,6 +433,12 @@
 * **shr\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **sub\_q8** ([**arith\_core.h**](arith__core_8h.md))
+* **specan\_create** ([**specan\_core.h**](specan__core_8h.md))
+* **specan\_destroy** ([**specan\_core.h**](specan__core_8h.md))
+* **specan\_execute** ([**specan\_core.h**](specan__core_8h.md))
+* **specan\_execute\_max\_out** ([**specan\_core.h**](specan__core_8h.md))
+* **specan\_reset** ([**specan\_core.h**](specan__core_8h.md))
+* **specan\_retune** ([**specan\_core.h**](specan__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 
@@ -460,12 +466,17 @@
 ## w
 
 * **welch\_accumulate** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_accumulate\_real** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_band\_power** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_band\_power\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_create** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_destroy** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_noise\_floor** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_occupied\_bw** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_power\_onesided** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_power\_onesided\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_power\_twosided** ([**welch\_core.h**](welch__core_8h.md))
+* **welch\_power\_twosided\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_psd\_db** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_psd\_db\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
 * **welch\_psd\_dbhz** ([**welch\_core.h**](welch__core_8h.md))

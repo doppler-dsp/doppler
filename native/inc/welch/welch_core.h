@@ -40,29 +40,33 @@ extern "C" {
  * @brief Welch state.  Allocate with welch_create().
  */
 typedef struct {
-    fft_state_t *fft;          /**< Forward cf32 plan, size n.            */
-    acc_trace_state_t *avg;    /**< Per-bin power averager (AccTrace).    */
+    fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
+    acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
     float *w;                  /**< Window, length n.                     */
-    float complex *frame;      /**< Windowed input scratch, length n.     */
-    float complex *spec;       /**< FFT output scratch, length n.         */
-    float *pwr;                /**< DC-centred power scratch, length n.   */
-    float *dbbuf;              /**< dB-trace scratch, length n.           */
+    float complex *frame;      /**< Windowed + zero-padded, length nfft.  */
+    float complex *spec;       /**< FFT output scratch, length nfft.      */
+    float *pwr;                /**< DC-centred power scratch, length nfft.*/
+    float *dbbuf;              /**< dB-trace scratch, length nfft.        */
     double cg;                 /**< Window coherent gain, sum(w).         */
     double s2;                 /**< Window power, sum(w^2).               */
     double enbw;               /**< Equivalent noise bandwidth, bins.     */
-    size_t n;                  /**< FFT length / frame size.              */
+    size_t n;                  /**< Window / frame length (samples).      */
+    size_t nfft;               /**< Zero-padded transform length.         */
     double fs;                 /**< Sample rate, Hz.                      */
+    double full_scale;         /**< Amplitude that reads 0 dBFS.          */
 } welch_state_t;
 
 /**
  * @brief Create an averaging PSD estimator.
  *
- * @param n       FFT / frame length in samples.  Must be >= 2.
- * @param fs      Sample rate in Hz (used for dB/Hz and band frequencies).
- * @param window  Window index: 0 = Hann, 1 = Kaiser.
- * @param beta    Kaiser beta (ignored for Hann).
- * @param mode    Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
- * @param alpha   EMA smoothing factor (exp mode only).
+ * @param n           Window / frame length in samples.  Must be >= 2.
+ * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies).
+ * @param window      Window index: 0 = Hann, 1 = Kaiser.
+ * @param beta        Kaiser beta (ignored for Hann).
+ * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n * pad).
+ * @param full_scale  Amplitude that reads 0 dBFS in the dB getters (> 0).
+ * @param mode        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
+ * @param alpha       EMA smoothing factor (exp mode only).
  * @return Heap-allocated state, or NULL on invalid argument or OOM.
  * @note Caller must call welch_destroy() when done.
  *
@@ -76,7 +80,8 @@ typedef struct {
  * @endcode
  */
 welch_state_t *welch_create(size_t n, double fs, int window, float beta,
-                            int mode, double alpha);
+                            size_t pad, double full_scale, int mode,
+                            double alpha);
 
 /**
  * @brief Destroy a Welch instance and release all memory.
@@ -119,7 +124,55 @@ void welch_reset(welch_state_t *state);
 void welch_accumulate(welch_state_t *state, const float complex *x,
                       size_t x_len);
 
-/** @brief Output capacity hint for psd_db(); equals n. */
+/**
+ * @brief Window, zero-pad, FFT and fold real frames into the average.
+ * The real-input counterpart to welch_accumulate(): each length-n frame is
+ * windowed, zero-padded to nfft, transformed and folded as a DC-centred
+ * two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins
+ * carry equal power).  Read the one-sided fold with welch_power_onesided().
+ * Processes floor(n_in / n) full frames.
+ *
+ * @param state  Must be non-NULL.
+ * @param x      Real samples (f32).
+ * @param x_len  Number of samples in @p x.
+ */
+void welch_accumulate_real(welch_state_t *state, const float *x, size_t x_len);
+
+/** @brief Output capacity hint for welch_power_twosided(); equals nfft. */
+size_t welch_power_twosided_max_out(welch_state_t *state);
+
+/**
+ * @brief Averaged linear power, DC-centred two-sided (length nfft).
+ * Coherent-gain normalised (out[k] = avg|X[k]|^2 / cg^2); full_scale is NOT
+ * applied (callers that want a dBFS reference divide by full_scale^2).  This is
+ * the raw spectral estimate the measurement kernels integrate over.  Returns 0
+ * (and writes nothing) before any frame is accumulated.
+ *
+ * @param state  Must be non-NULL.
+ * @param cap    Caller buffer capacity (must be >= nfft).
+ * @param out    Destination, at least nfft float32 elements.
+ * @return nfft, or 0 if empty.
+ */
+size_t welch_power_twosided(welch_state_t *state, size_t cap, float *out);
+
+/** @brief Output capacity hint for welch_power_onesided(); equals nfft/2+1. */
+size_t welch_power_onesided_max_out(welch_state_t *state);
+
+/**
+ * @brief Averaged linear power, one-sided (length nfft/2 + 1).
+ * Folds the DC-centred two-sided estimate onto [0, fs/2]: the DC and Nyquist
+ * bins are kept as-is, every interior bin is the sum of its +k and -k halves
+ * (so a real-input tone reads 2*avg|X[k]|^2 / cg^2 there).  Coherent-gain
+ * normalised; full_scale is NOT applied.  Returns 0 before any accumulate.
+ *
+ * @param state  Must be non-NULL.
+ * @param cap    Caller buffer capacity (must be >= nfft/2 + 1).
+ * @param out    Destination, at least nfft/2 + 1 float32 elements.
+ * @return nfft/2 + 1, or 0 if empty.
+ */
+size_t welch_power_onesided(welch_state_t *state, size_t cap, float *out);
+
+/** @brief Output capacity hint for psd_db(); equals nfft. */
 size_t welch_psd_db_max_out(welch_state_t *state);
 
 /**

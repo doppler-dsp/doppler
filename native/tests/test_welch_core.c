@@ -1,6 +1,7 @@
 #include "welch/welch_core.h"
 #include <complex.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #define CHECK(cond)                                                           \
@@ -36,6 +37,36 @@ fill_tone (float complex *x, size_t n, int k)
     }
 }
 
+/* Fill x[0..n-1] with a real cosine of amplitude A at FFT bin k. */
+static void
+fill_real_tone (float *x, size_t n, int k, double a)
+{
+  for (size_t i = 0; i < n; i++)
+    x[i] = (float)(a * cos (2.0 * M_PI * (double)k * (double)i / (double)n));
+}
+
+/* Deterministic [-1,1] sample from a tiny LCG (portable, seeded). */
+static float
+lcg_unit (uint64_t *st)
+{
+  *st = *st * 6364136223846793005ULL + 1442695040888963407ULL;
+  return (float)((double)(*st >> 33) / (double)(1ULL << 31) - 1.0);
+}
+
+/* Population standard deviation of a[lo..hi). */
+static double
+stddev (const float *a, size_t lo, size_t hi)
+{
+  double mean = 0.0;
+  for (size_t i = lo; i < hi; i++)
+    mean += a[i];
+  mean /= (double)(hi - lo);
+  double var = 0.0;
+  for (size_t i = lo; i < hi; i++)
+    var += (a[i] - mean) * (a[i] - mean);
+  return sqrt (var / (double)(hi - lo));
+}
+
 int
 main (void)
 {
@@ -44,13 +75,14 @@ main (void)
 
   /* ── lifecycle + invalid args ───────────────────────────────────────── */
   {
-    CHECK (welch_create (1, 1.0, 0, 0.0f, 0, 0.1) == NULL); /* n < 2   */
-    CHECK (welch_create (N, 0.0, 0, 0.0f, 0, 0.1) == NULL); /* fs <= 0 */
-    CHECK (welch_create (N, 1.0, 2, 0.0f, 0, 0.1) == NULL); /* window  */
-    CHECK (welch_create (N, 1.0, 0, 0.0f, 9, 0.1) == NULL); /* mode    */
-    welch_destroy (NULL);                                   /* no crash */
+    CHECK (welch_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* n<2  */
+    CHECK (welch_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* fs   */
+    CHECK (welch_create (N, 1.0, 2, 0.0f, 1, 1.0, 0, 0.1) == NULL); /* win  */
+    CHECK (welch_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0.1) == NULL); /* fscl */
+    CHECK (welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 9, 0.1) == NULL); /* mode */
+    welch_destroy (NULL);                                           /* ok   */
 
-    welch_state_t *w = welch_create (N, 1.0e6, 1, 8.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0.1);
     CHECK (w != NULL);
     CHECK (w->n == N);
     CHECK (w->fs == 1.0e6);
@@ -64,7 +96,7 @@ main (void)
 
   /* ── DC tone lands at the centre bin after fftshift ─────────────────── */
   {
-    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
     float complex  x[64];
     for (size_t i = 0; i < N; i++)
       x[i] = 1.0f + 0.0f * I;
@@ -77,7 +109,7 @@ main (void)
 
   /* ── tone at bin k maps to index n/2 + k; counts frames ─────────────── */
   {
-    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
     const int      k = 8;
     float complex  x[64];
     fill_tone (x, N, k);
@@ -98,7 +130,7 @@ main (void)
 
   /* ── psd_dbhz differs from psd_db by a constant offset ──────────────── */
   {
-    welch_state_t *w = welch_create (32, 2.0, 0, 0.0f, 0, 0.1);
+    welch_state_t *w = welch_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0.1);
     float complex  x[32];
     fill_tone (x, 32, 5);
     welch_accumulate (w, x, 32);
@@ -113,7 +145,7 @@ main (void)
 
   /* ── band power: a partition sums (in power) to the total ───────────── */
   {
-    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
     float complex  x[64];
     fill_tone (x, N, 10);
     for (int r = 0; r < 4; r++)
@@ -139,7 +171,7 @@ main (void)
 
   /* ── occupied bandwidth: narrow for a tone, ~full for flat noise ────── */
   {
-    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
     float complex  x[64];
     fill_tone (x, N, 4);
     for (int r = 0; r < 4; r++)
@@ -151,7 +183,7 @@ main (void)
 
   /* ── noise floor / SNR / SFDR are finite on a two-tone signal ───────── */
   {
-    welch_state_t *w = welch_create (N, 1.0, 1, 8.0f, 0, 0.1);
+    welch_state_t *w = welch_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0.1);
     float complex  x[64];
     for (size_t i = 0; i < N; i++)
       {
@@ -176,6 +208,145 @@ main (void)
     float db[64];
     CHECK (welch_psd_db (w, N, db) == 0);
     welch_destroy (w);
+  }
+
+  /* ── cg^2 normalisation: a constant of amplitude A reads A^2 at DC ──── */
+  {
+    const double A = 3.0;
+    float        x[64];
+    for (size_t i = 0; i < N; i++)
+      x[i] = (float)A;
+    /* exact and pad-invariant: X[DC] = A*sum(w), so |X[DC]|^2/cg^2 = A^2 */
+    for (size_t pad = 1; pad <= 2; pad++)
+      {
+        welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0.1);
+        welch_accumulate_real (w, x, N);
+        float  two[128];
+        size_t nfft = welch_power_twosided (w, w->nfft, two);
+        CHECK (nfft == w->nfft);
+        CHECK (fabs (two[w->nfft / 2] - A * A) < 1e-3); /* DC bin */
+        float one[65];
+        welch_power_onesided (w, w->nfft / 2 + 1, one);
+        CHECK (fabs (one[0] - A * A) < 1e-3); /* one-sided DC */
+        welch_destroy (w);
+      }
+  }
+
+  /* ── ENBW: Hann ~1.5 bins; Kaiser(beta=8) wider ─────────────────────── */
+  {
+    welch_state_t *h = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    welch_state_t *k = welch_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0.1);
+    CHECK (fabs (h->enbw - 1.5) < 0.05);
+    CHECK (k->enbw > h->enbw); /* a Kaiser(8) main lobe is wider than Hann */
+    welch_destroy (h);
+    welch_destroy (k);
+  }
+
+  /* ── one-sided fold conserves energy: sum(one) == sum(two) ──────────── */
+  {
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    float          x[64];
+    fill_real_tone (x, N, 7, 0.5);
+    welch_accumulate_real (w, x, N);
+    float two[64], one[33];
+    welch_power_twosided (w, N, two);
+    size_t no = welch_power_onesided (w, N / 2 + 1, one);
+    CHECK (no == N / 2 + 1);
+    double st = 0.0, so = 0.0;
+    for (size_t i = 0; i < N; i++)
+      st += two[i];
+    for (size_t i = 0; i < no; i++)
+      so += one[i];
+    CHECK (fabs (st - so) < 1e-4 * st);
+    welch_destroy (w);
+  }
+
+  /* ── zero-padding scales total power by nfft/n (the cal cores correct) ─ */
+  {
+    float x[64];
+    fill_real_tone (x, N, 9, 0.7);
+    double tot[3] = { 0 };
+    for (size_t pad = 1; pad <= 2; pad++)
+      {
+        welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, pad, 1.0, 0, 0.1);
+        welch_accumulate_real (w, x, N);
+        float  two[128];
+        size_t nfft = welch_power_twosided (w, w->nfft, two);
+        for (size_t i = 0; i < nfft; i++)
+          tot[pad] += two[i];
+        welch_destroy (w);
+      }
+    /* nfft doubles from pad=1 (64) to pad=2 (128): total scales ~2x */
+    CHECK (fabs (tot[2] / tot[1] - 2.0) < 0.05);
+  }
+
+  /* ── mean of K identical frames equals a single frame (exact) ───────── */
+  {
+    float x[64];
+    fill_real_tone (x, N, 11, 0.4);
+    welch_state_t *w = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    welch_accumulate_real (w, x, N);
+    float a[33];
+    welch_power_onesided (w, N / 2 + 1, a);
+    welch_reset (w);
+    float buf[64 * 5];
+    for (size_t f = 0; f < 5; f++)
+      for (size_t i = 0; i < N; i++)
+        buf[f * N + i] = x[i];
+    welch_accumulate_real (w, buf, 5 * N);
+    float b[33];
+    welch_power_onesided (w, N / 2 + 1, b);
+    for (size_t i = 0; i < N / 2 + 1; i++)
+      CHECK (fabsf (a[i] - b[i]) < 1e-6f * (fabsf (a[i]) + 1e-6f));
+    welch_destroy (w);
+  }
+
+  /* ── maxhold >= minhold per bin over differing frames ───────────────── */
+  {
+    float f1[64], f2[64];
+    fill_real_tone (f1, N, 8, 1.0);
+    fill_real_tone (f2, N, 16, 1.0);
+    float buf[128];
+    for (size_t i = 0; i < N; i++)
+      buf[i] = f1[i];
+    for (size_t i = 0; i < N; i++)
+      buf[N + i] = f2[i];
+
+    welch_state_t *mx
+        = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, ACC_TRACE_MAXHOLD, 0.1);
+    welch_state_t *mn
+        = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, ACC_TRACE_MINHOLD, 0.1);
+    welch_accumulate_real (mx, buf, 2 * N);
+    welch_accumulate_real (mn, buf, 2 * N);
+    float pmx[64], pmn[64];
+    welch_power_twosided (mx, N, pmx);
+    welch_power_twosided (mn, N, pmn);
+    for (size_t i = 0; i < N; i++)
+      CHECK (pmx[i] >= pmn[i] - 1e-6f);
+    welch_destroy (mx);
+    welch_destroy (mn);
+  }
+
+  /* ── averaging tightens the noise-floor estimate (deterministic) ────── */
+  {
+    const size_t K   = 64;
+    uint64_t     rng = 0x1234567890abcdefULL;
+    float       *buf = (float *)malloc (K * N * sizeof (float));
+    for (size_t i = 0; i < K * N; i++)
+      buf[i] = lcg_unit (&rng);
+
+    welch_state_t *w1 = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    welch_state_t *wK = welch_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
+    welch_accumulate_real (w1, buf, N);     /* 1 frame  */
+    welch_accumulate_real (wK, buf, K * N); /* K frames */
+    float p1[64], pK[64];
+    welch_power_twosided (w1, N, p1);
+    welch_power_twosided (wK, N, pK);
+    /* white noise: the K-averaged spectrum is flatter (smaller spread). */
+    CHECK (stddev (pK, 1, N) < stddev (p1, 1, N));
+    free (buf);
+    welch_destroy (w1);
+    welch_destroy (wK);
   }
 
   if (_fails)

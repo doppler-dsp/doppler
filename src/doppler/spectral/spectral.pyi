@@ -690,6 +690,10 @@ class Welch:
         window constructor parameter.
     beta : float, default 0.0
         beta constructor parameter.
+    pad : int, default 1
+        pad constructor parameter.
+    full_scale : float, default 1.0
+        full_scale constructor parameter.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
         mode constructor parameter.
     alpha : float, default 0.1
@@ -700,10 +704,10 @@ class Welch:
     Create with defaults:
 
     >>> from doppler.spectral import Welch
-    >>> obj = Welch(n=1024, fs=1.0, window="hann", beta=0.0, mode="mean", alpha=0.1)
+    >>> obj = Welch(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, mode="mean", alpha=0.1)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
 
     def accumulate(self, x: NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
@@ -731,6 +735,15 @@ class Welch:
         >>> w.count
         4
 
+        """
+
+    def accumulate_real(self, x: NDArray[np.float32]) -> None:
+        """Window, zero-pad, FFT and fold floor(n_in/n) real frames into the average.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Real samples (f32).
         """
 
     def reset(self) -> None:
@@ -764,6 +777,24 @@ class Welch:
         >>> bool(np.allclose(a - b, (a - b)[0]))   # offset is a constant
         True
 
+        """
+
+    def power_twosided(self) -> NDArray[np.float32]:
+        """Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            nfft, or 0 if empty.
+        """
+
+    def power_onesided(self) -> NDArray[np.float32]:
+        """Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            nfft/2 + 1, or 0 if empty.
         """
 
     def band_power(self, bands: NDArray[np.float64]) -> NDArray[np.float32]:
@@ -861,6 +892,10 @@ class Welch:
     @property
     def n(self) -> int:
         """N."""
+
+    @property
+    def nfft(self) -> int:
+        """Nfft."""
 
     @property
     def fs(self) -> float:

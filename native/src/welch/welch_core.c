@@ -20,28 +20,43 @@
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */
 #define WELCH_FLOOR 1e-20
 
+/* Smallest power of two >= x. */
+static size_t
+next_pow2 (size_t x)
+{
+  size_t p = 1;
+  while (p < x)
+    p <<= 1;
+  return p;
+}
+
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
 welch_state_t *
-welch_create (size_t n, double fs, int window, float beta, int mode,
-              double alpha)
+welch_create (size_t n, double fs, int window, float beta, size_t pad,
+              double full_scale, int mode, double alpha)
 {
-  if (n < 2 || fs <= 0.0 || window < 0 || window > 1)
+  if (n < 2 || fs <= 0.0 || window < 0 || window > 1 || full_scale <= 0.0)
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
+  if (pad < 1)
+    pad = 1;
 
   welch_state_t *s = (welch_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
 
-  s->n     = n;
-  s->fs    = fs;
-  s->w     = (float *)malloc (n * sizeof (float));
-  s->frame = (float complex *)malloc (n * sizeof (float complex));
-  s->spec  = (float complex *)malloc (n * sizeof (float complex));
-  s->pwr   = (float *)malloc (n * sizeof (float));
-  s->dbbuf = (float *)malloc (n * sizeof (float));
+  const size_t nfft = next_pow2 (n * pad);
+  s->n              = n;
+  s->nfft           = nfft;
+  s->fs             = fs;
+  s->full_scale     = full_scale;
+  s->w              = (float *)malloc (n * sizeof (float));
+  s->frame          = (float complex *)malloc (nfft * sizeof (float complex));
+  s->spec           = (float complex *)malloc (nfft * sizeof (float complex));
+  s->pwr            = (float *)malloc (nfft * sizeof (float));
+  s->dbbuf          = (float *)malloc (nfft * sizeof (float));
   if (!s->w || !s->frame || !s->spec || !s->pwr || !s->dbbuf)
     {
       welch_destroy (s);
@@ -63,8 +78,8 @@ welch_create (size_t n, double fs, int window, float beta, int mode,
   s->s2   = s2;
   s->enbw = (double)n * s2 / (cg * cg);
 
-  s->fft = fft_create (n, -1, 1);
-  s->avg = acc_trace_create (n, mode, alpha);
+  s->fft = fft_create (nfft, -1, 1);
+  s->avg = acc_trace_create (nfft, mode, alpha);
   if (!s->fft || !s->avg)
     {
       welch_destroy (s);
@@ -98,31 +113,65 @@ welch_reset (welch_state_t *state)
 
 /* ── accumulation ──────────────────────────────────────────────────────── */
 
+/* Transform the already-windowed-and-zero-padded state->frame, convert to
+ * DC-centred two-sided power and fold one frame into the running average. */
+static void
+welch_fold_frame (welch_state_t *state)
+{
+  const size_t nfft = state->nfft;
+  const size_t half = nfft / 2; /* fftshift roll: bin 0 -> index nfft/2 */
+
+  fft_execute_cf32 (state->fft, state->frame, nfft, state->spec);
+
+  for (size_t k = 0; k < nfft; k++)
+    {
+      const float re  = crealf (state->spec[k]);
+      const float im  = cimagf (state->spec[k]);
+      size_t      idx = k + half;
+      if (idx >= nfft)
+        idx -= nfft;
+      state->pwr[idx] = re * re + im * im;
+    }
+  acc_trace_accumulate (state->avg, state->pwr, nfft);
+}
+
+/* Zero the zero-pad tail frame[n..nfft-1] (no-op when nfft == n). */
+static void
+welch_zero_pad (welch_state_t *state)
+{
+  for (size_t i = state->n; i < state->nfft; i++)
+    state->frame[i] = 0.0f;
+}
+
 void
 welch_accumulate (welch_state_t *state, const float complex *x, size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
-  const size_t half   = n / 2; /* fftshift roll: bin 0 -> index n/2 */
 
   for (size_t f = 0; f < nframe; f++)
     {
       const float complex *xf = x + f * n;
       for (size_t i = 0; i < n; i++)
         state->frame[i] = state->w[i] * xf[i];
+      welch_zero_pad (state);
+      welch_fold_frame (state);
+    }
+}
 
-      fft_execute_cf32 (state->fft, state->frame, n, state->spec);
+void
+welch_accumulate_real (welch_state_t *state, const float *x, size_t x_len)
+{
+  const size_t n      = state->n;
+  const size_t nframe = x_len / n;
 
-      for (size_t k = 0; k < n; k++)
-        {
-          const float re  = crealf (state->spec[k]);
-          const float im  = cimagf (state->spec[k]);
-          size_t      idx = k + half;
-          if (idx >= n)
-            idx -= n;
-          state->pwr[idx] = re * re + im * im;
-        }
-      acc_trace_accumulate (state->avg, state->pwr, n);
+  for (size_t f = 0; f < nframe; f++)
+    {
+      const float *xf = x + f * n;
+      for (size_t i = 0; i < n; i++)
+        state->frame[i] = (float complex) (state->w[i] * xf[i]);
+      welch_zero_pad (state);
+      welch_fold_frame (state);
     }
 }
 
@@ -134,23 +183,77 @@ welch_pull_power (welch_state_t *s)
 {
   if (s->avg->count == 0)
     return 0;
-  return acc_trace_value (s->avg, s->n, s->pwr);
+  return acc_trace_value (s->avg, s->nfft, s->pwr);
 }
 
-/* Fill out[0..n-1] with the averaged power spectrum in dB (cg^2 normalised).
- */
+/* dBFS reference: cg^2 (coherent gain) times the 0-dBFS amplitude squared.
+ * full_scale == 1.0 (the default) reduces this to the bare cg^2 normalisation,
+ * so every dB getter is byte-identical to the un-scaled estimator. */
+static double
+welch_db_ref (const welch_state_t *s)
+{
+  return s->cg * s->cg * s->full_scale * s->full_scale;
+}
+
+/* Fill out[0..nfft-1] with the averaged power spectrum in dBFS. */
 static int
 welch_fill_db (welch_state_t *s, float *out)
 {
   if (!welch_pull_power (s))
     return 0;
-  const double cg2 = s->cg * s->cg;
-  for (size_t i = 0; i < s->n; i++)
+  const double ref = welch_db_ref (s);
+  for (size_t i = 0; i < s->nfft; i++)
     {
-      double p = (double)s->pwr[i] / cg2;
+      double p = (double)s->pwr[i] / ref;
       out[i]   = (float)(10.0 * log10 (fmax (p, WELCH_FLOOR)));
     }
   return 1;
+}
+
+/* ── linear-power accessors (raw spectral estimate for measurement) ────── */
+
+size_t
+welch_power_twosided_max_out (welch_state_t *state)
+{
+  return state->nfft;
+}
+
+size_t
+welch_power_twosided (welch_state_t *state, size_t cap, float *out)
+{
+  (void)cap;
+  if (!welch_pull_power (state))
+    return 0;
+  const double cg2 = state->cg * state->cg;
+  for (size_t i = 0; i < state->nfft; i++)
+    out[i] = (float)((double)state->pwr[i] / cg2);
+  return state->nfft;
+}
+
+size_t
+welch_power_onesided_max_out (welch_state_t *state)
+{
+  return state->nfft / 2 + 1;
+}
+
+size_t
+welch_power_onesided (welch_state_t *state, size_t cap, float *out)
+{
+  (void)cap;
+  if (!welch_pull_power (state))
+    return 0;
+  const double cg2  = state->cg * state->cg;
+  const size_t nfft = state->nfft;
+  const size_t half = nfft / 2; /* DC sits at index half in pwr[] */
+
+  /* DC and Nyquist have no mirror partner; interior bins fold +k with -k. */
+  out[0]    = (float)((double)state->pwr[half] / cg2);
+  out[half] = (float)((double)state->pwr[0] / cg2);
+  for (size_t m = 1; m < half; m++)
+    out[m]
+        = (float)(((double)state->pwr[half + m] + (double)state->pwr[half - m])
+                  / cg2);
+  return half + 1;
 }
 
 /* Map a [lo,hi] Hz band to inclusive DC-centred bin indices.  Returns 0 if the
@@ -165,31 +268,31 @@ welch_band_bins (const welch_state_t *s, double lo, double hi, size_t *ilo_out,
       lo             = hi;
       hi             = t;
     }
-  const double half = (double)(s->n / 2);
-  long         ilo  = (long)lround (lo / s->fs * (double)s->n + half);
-  long         ihi  = (long)lround (hi / s->fs * (double)s->n + half);
-  if (ihi < 0 || ilo > (long)s->n - 1)
+  const double half = (double)(s->nfft / 2);
+  long         ilo  = (long)lround (lo / s->fs * (double)s->nfft + half);
+  long         ihi  = (long)lround (hi / s->fs * (double)s->nfft + half);
+  if (ihi < 0 || ilo > (long)s->nfft - 1)
     return 0;
   if (ilo < 0)
     ilo = 0;
-  if (ihi > (long)s->n - 1)
-    ihi = (long)s->n - 1;
+  if (ihi > (long)s->nfft - 1)
+    ihi = (long)s->nfft - 1;
   *ilo_out = (size_t)ilo;
   *ihi_out = (size_t)ihi;
   return 1;
 }
 
-/* Linear power integrated over a [lo,hi] Hz band (cg^2 normalised). */
+/* Linear power integrated over a [lo,hi] Hz band (dBFS reference). */
 static double
 welch_band_lin (const welch_state_t *s, double lo, double hi)
 {
   size_t ilo, ihi;
   if (!welch_band_bins (s, lo, hi, &ilo, &ihi))
     return 0.0;
-  const double cg2 = s->cg * s->cg;
+  const double ref = welch_db_ref (s);
   double       sum = 0.0;
   for (size_t i = ilo; i <= ihi; i++)
-    sum += (double)s->pwr[i] / cg2;
+    sum += (double)s->pwr[i] / ref;
   return sum;
 }
 
@@ -198,7 +301,7 @@ welch_band_lin (const welch_state_t *s, double lo, double hi)
 size_t
 welch_psd_db_max_out (welch_state_t *state)
 {
-  return state->n;
+  return state->nfft;
 }
 
 size_t
@@ -207,13 +310,13 @@ welch_psd_db (welch_state_t *state, size_t n, float *out)
   (void)n;
   if (!welch_fill_db (state, out))
     return 0;
-  return state->n;
+  return state->nfft;
 }
 
 size_t
 welch_psd_dbhz_max_out (welch_state_t *state)
 {
-  return state->n;
+  return state->nfft;
 }
 
 size_t
@@ -221,12 +324,12 @@ welch_psd_dbhz (welch_state_t *state, size_t n, float *out)
 {
   if (!welch_psd_db (state, n, out))
     return 0;
-  /* dB/Hz differs from the cg^2-normalised dB spectrum by a constant. */
+  /* dB/Hz differs from the dBFS spectrum by a constant. */
   const double off
       = 10.0 * log10 (state->fs * state->s2 / (state->cg * state->cg));
-  for (size_t i = 0; i < state->n; i++)
+  for (size_t i = 0; i < state->nfft; i++)
     out[i] = (float)((double)out[i] - off);
-  return state->n;
+  return state->nfft;
 }
 
 /* ── band power ────────────────────────────────────────────────────────── */
@@ -273,7 +376,7 @@ welch_occupied_bw (welch_state_t *state, double fraction)
 {
   if (!welch_pull_power (state))
     return 0.0;
-  const size_t n   = state->n;
+  const size_t n   = state->nfft;
   const double cg2 = state->cg * state->cg;
 
   double total = 0.0;
@@ -311,7 +414,7 @@ welch_noise_floor (welch_state_t *state)
 {
   if (!welch_fill_db (state, state->dbbuf))
     return 0.0;
-  return noise_floor_db (state->dbbuf, state->n);
+  return noise_floor_db (state->dbbuf, state->nfft);
 }
 
 double
@@ -319,7 +422,7 @@ welch_snr (welch_state_t *state, double lo_hz, double hi_hz)
 {
   if (!welch_fill_db (state, state->dbbuf))
     return 0.0;
-  const double floor = noise_floor_db (state->dbbuf, state->n);
+  const double floor = noise_floor_db (state->dbbuf, state->nfft);
 
   size_t ilo, ihi;
   if (!welch_band_bins (state, lo_hz, hi_hz, &ilo, &ihi))
@@ -337,7 +440,7 @@ welch_sfdr (welch_state_t *state, float min_db)
   if (!welch_fill_db (state, state->dbbuf))
     return 0.0;
   dp_peak_t    pk[16];
-  const size_t np = find_peaks_f32 (state->dbbuf, state->n, 16, min_db, pk);
+  const size_t np = find_peaks_f32 (state->dbbuf, state->nfft, 16, min_db, pk);
   if (np < 2)
     return 0.0;
   /* find_peaks_f32 returns peaks sorted by descending amplitude. */

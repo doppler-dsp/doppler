@@ -37,6 +37,16 @@ type = "float"
 default = "0.0f"
 
 [[welch.init_params]]
+name = "pad"
+type = "size_t"
+default = "1"
+
+[[welch.init_params]]
+name = "full_scale"
+type = "double"
+default = "1.0"
+
+[[welch.init_params]]
 name = "mode"
 type = "string_enum:mean,exp,maxhold,minhold"
 default = "mean"
@@ -56,6 +66,14 @@ nogil = true
 params = [{name = "x", type = "float _Complex[]"}]
 
 [[welch.methods]]
+name = "accumulate_real"
+doc = "Window, zero-pad, FFT and fold floor(n_in/n) real frames into the average."
+arg_type = "void"
+return_type = "void"
+nogil = true
+params = [{name = "x", type = "float[]"}]
+
+[[welch.methods]]
 name = "reset"
 doc = "Discard the running average; counters return to zero."
 arg_type = "void"
@@ -73,6 +91,23 @@ none_on_empty = true
 [[welch.methods]]
 name = "psd_dbhz"
 doc = "Averaged power spectral density in dB/Hz (None before any accumulate)."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+none_on_empty = true
+
+# ── linear-power accessors (raw spectral estimate for measurement) ────────
+[[welch.methods]]
+name = "power_twosided"
+doc = "Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised."
+arg_type = "void"
+return_type = "float"
+variable_output = true
+none_on_empty = true
+
+[[welch.methods]]
+name = "power_onesided"
+doc = "Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised."
 arg_type = "void"
 return_type = "float"
 variable_output = true
@@ -129,6 +164,11 @@ params = [{name = "min_db", type = "float"}]
 # ── properties ────────────────────────────────────────────────────────────
 [[welch.properties]]
 name = "n"
+type = "size_t"
+field = true
+
+[[welch.properties]]
+name = "nfft"
 type = "size_t"
 field = true
 

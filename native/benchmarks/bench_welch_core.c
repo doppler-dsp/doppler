@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  welch_state_t  *obj = welch_create (1024, 1.0, 0, 0.0f, 0, 0.1);
+  welch_state_t  *obj = welch_create (1024, 1.0, 0, 0.0f, 1, 1.0, 0, 0.1);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

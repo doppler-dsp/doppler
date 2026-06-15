@@ -13,6 +13,10 @@ and each harmonic):
       showing how the full-scale-corrected ENOB stays flat as the tone backs
       off while raw ENOB falls.
 
+Every panel feeds an `M = NAVG * N` capture, so `analyze()` averages `NAVG = 8`
+segments (Welch's method) — a smoother backdrop and a lower-variance floor than
+a single periodogram, at the same resolution bandwidth.
+
 Run:
     python examples/python/measure_demo.py
 """
@@ -30,7 +34,9 @@ from doppler.measure import ToneMeasure
 from doppler.source import AWGN, LO
 
 FS = 100e6  # 100 MHz sample rate
-N = 1 << 14  # 16384-sample coherent capture
+N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
+NAVG = 8  # segments averaged per measurement (Welch's method)
+M = NAVG * N  # total capture length fed to analyze()
 ACCENT, FUND, HARM, SPUR, FLOOR = (
     "#2563eb",
     "#16a34a",
@@ -48,12 +54,14 @@ def real_tone(freq, n, amp):
 def adc_capture(bits, ftone, amp=0.999, harmonics=(), noise=0.0, seed=0):
     """A real ADC capture: a doppler-NCO tone (+ optional harmonics and a
     seeded noise floor) quantised to `bits` by `doppler.cvt.ADC`.  The analyzer
-    is told the depth via `bits=`, so it derives the 0-dBFS reference itself."""
-    x = real_tone(ftone, N, amp)
+    is told the depth via `bits=`, so it derives the 0-dBFS reference itself.
+    The capture spans `M = NAVG * N` samples, so `analyze()` averages `NAVG`
+    segments (Welch's method)."""
+    x = real_tone(ftone, M, amp)
     for k, dbc in harmonics:
-        x = x + real_tone(k * ftone, N, amp * 10 ** (dbc / 20))
+        x = x + real_tone(k * ftone, M, amp * 10 ** (dbc / 20))
     if noise:
-        x = x + (noise * AWGN(seed, 1.0).generate(N).real).astype(np.float32)
+        x = x + (noise * AWGN(seed, 1.0).generate(M).real).astype(np.float32)
     return ADC(bits, 0.0, 0).steps(x).astype(np.float32)
 
 

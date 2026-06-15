@@ -20,6 +20,11 @@ analysers in ``doppler.measure``, driven on synthesised captures.
       ideal and peaks at the optimal loading (~-13 dBFS RMS, ~52 dB for 10
       bits). NPR loading is RMS-to-full-scale by convention.
 
+Every measurement feeds an `M = NAVG * N` capture, so `analyze()` averages
+`NAVG = 8` segments (Welch's method) — a smoother spectrum and a lower-variance
+notch/floor estimate than a single periodogram, at the same resolution
+bandwidth.
+
 Run:
     python examples/python/measure_imd_npr_demo.py
 """
@@ -40,7 +45,9 @@ from doppler.source import AWGN, LO
 from doppler.spectral import FFT
 
 FS = 100e6  # 100 MHz sample rate
-N = 1 << 14  # 16384-sample capture
+N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
+NAVG = 8  # segments averaged per measurement (Welch's method)
+M = NAVG * N  # total capture length fed to analyze()
 ACCENT, FUND, IM3, IM2, FLOOR = (
     "#2563eb",
     "#16a34a",
@@ -54,8 +61,9 @@ def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
     """Two doppler-NCO (`source.LO`) tones through a weak memoryless
     nonlinearity y = x + a2 x^2 + a3 x^3 — the DUT model that creates the
     controlled IM2/IM3 products.  The spectrum backdrop the demo plots comes
-    from the analyzer's own `spectrum_dbfs`, not a hand-rolled periodogram."""
-    x = amp * (LO(f1 / FS).steps(N).real + LO(f2 / FS).steps(N).real)
+    from the analyzer's own `spectrum_dbfs`, not a hand-rolled periodogram.
+    The capture spans `M = NAVG * N` so `analyze()` averages `NAVG` segments."""
+    x = amp * (LO(f1 / FS).steps(M).real + LO(f2 / FS).steps(M).real)
     return (x + a2 * x**2 + a3 * x**3).astype(np.float32)
 
 
@@ -68,16 +76,16 @@ def notched_noise(rms, active_lo, active_hi, notch_lo, notch_hi, seed=0):
     the device-under-test model.  NPR loading is RMS-to-full-scale by
     convention — the Gaussian peak is ~12-13 dB above the RMS (the crest
     factor), so clipping sets in well before the RMS reaches 0 dBFS."""
-    k = np.arange(N)
-    freqs = np.abs(np.where(k < N // 2, k, k - N)) * (FS / N)  # |Hz| per bin
+    k = np.arange(M)
+    freqs = np.abs(np.where(k < M // 2, k, k - M)) * (FS / M)  # |Hz| per bin
     keep = (
         (freqs >= active_lo)
         & (freqs <= active_hi)
         & ~((freqs >= notch_lo) & (freqs <= notch_hi))
     )
-    white = AWGN(seed, 1.0).generate(N)  # complex white noise
-    spec = FFT(N, -1).execute_cf32(white) * keep  # FFT, mask band + notch
-    x = (FFT(N, 1).execute_cf32(spec.astype(np.complex64)) / N).real
+    white = AWGN(seed, 1.0).generate(M)  # M = NAVG*N complex white samples
+    spec = FFT(M, -1).execute_cf32(white) * keep  # FFT, mask band + notch
+    x = (FFT(M, 1).execute_cf32(spec.astype(np.complex64)) / M).real
     return (x / np.sqrt(np.mean(x**2)) * rms).astype(np.float32)
 
 

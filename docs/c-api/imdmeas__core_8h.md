@@ -13,7 +13,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
 * `#include "measure/measure_core.h"`
-* `#include "welch/welch_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include <complex.h>`
 
 
@@ -62,9 +62,11 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 | Type | Name |
 | ---: | :--- |
 |  [**imd\_meas\_t**](structimd__meas__t.md) | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
-|  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale) <br>_Create an IMDMeasure analyser._  |
+|  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits) <br>_Create an IMDMeasure analyser._  |
 |  void | [**imdmeas\_destroy**](#function-imdmeas_destroy) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
 |  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
+|  size\_t | [**imdmeas\_spectrum\_dbfs**](#function-imdmeas_spectrum_dbfs) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
+|  size\_t | [**imdmeas\_spectrum\_dbfs\_max\_out**](#function-imdmeas_spectrum_dbfs_max_out) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
 
@@ -147,7 +149,8 @@ imdmeas_state_t * imdmeas_create (
     int window,
     float beta,
     size_t pad,
-    double full_scale
+    double full_scale,
+    size_t bits
 ) 
 ```
 
@@ -163,7 +166,8 @@ imdmeas_state_t * imdmeas_create (
 * `window` 0 = Hann, 1 = Kaiser. 
 * `beta` Kaiser shape (ignored for Hann). 
 * `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
-* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). 
+* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) (resolved in the shared PSD core). 
 
 
 
@@ -213,6 +217,41 @@ void imdmeas_destroy (
 _Reset (no-op: each analyze() call is independent)._ 
 ```C++
 void imdmeas_reset (
+    imdmeas_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function imdmeas\_spectrum\_dbfs 
+
+_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._ 
+```C++
+size_t imdmeas_spectrum_dbfs (
+    imdmeas_state_t * state,
+    const float * x,
+    size_t x_len,
+    float * out
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function imdmeas\_spectrum\_dbfs\_max\_out 
+
+_Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
+```C++
+size_t imdmeas_spectrum_dbfs_max_out (
     imdmeas_state_t * state
 ) 
 ```

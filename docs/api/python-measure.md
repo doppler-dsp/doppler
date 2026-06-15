@@ -35,9 +35,15 @@ snr, sinad, *_ = r               # ...and tuple unpacking
 from doppler.cvt import ADC
 
 codes = ADC(12, 0.0, 0).steps(x).astype(np.float32)
-m = ToneMeasure(n=n, fs=fs, beta=14.0, full_scale=2.0**11)
+m = ToneMeasure(n=n, fs=fs, beta=14.0, bits=12)   # bits sets the dBFS reference
 print(round(m.analyze(codes).enob, 2))   # ≈ 12.0 for an ideal 12-bit ADC
 ```
+
+All three analyzers take the **`bits`** (ADC depth → `2**(bits-1)`) or
+**`full_scale`** dBFS knob and read it back from the shared [`PSD`](python-spectral.md)
+core, so `bits=B` is identical to `full_scale=2**(B-1)` — one source of truth.
+Each also exposes **`spectrum_dbfs(x)`**: the same averaged-PSD dBFS trace its
+metrics use, for a display backdrop (no hand-rolled periodogram needed).
 
 ### Complex baseband, accuracy metadata, and the spectrum
 
@@ -66,9 +72,13 @@ imd = IMDMeasure(n=n, fs=fs, beta=12.0)
 r = imd.analyze(two_tone_capture)        # r.imd3_dbc, r.toi_dbfs, ...
 
 # Notched-noise loading -> NPR (band/notch geometry are analyze() args)
-npr = NPRMeasure(n=n, fs=fs)
+npr = NPRMeasure(n=n, fs=fs, bits=10)
 g = npr.analyze(noise, active_lo, active_hi, notch_lo, notch_hi, guard_hz)
 print(g.npr_db)
+
+# both expose the same display-spectrum method as ToneMeasure
+imd_spec = imd.spectrum_dbfs(two_tone_capture)   # DC-centred dBFS, length nfft
+npr_spec = npr.spectrum_dbfs(noise)
 ```
 
 ### Capture planning

@@ -13,7 +13,7 @@
 #define SPECAN_CORE_H
 
 #include "ddc/ddc_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 #include <stddef.h>
 #include "lo/lo_core.h"
@@ -35,7 +35,7 @@ extern "C"
   typedef struct
   {
     ddc_state_t   *ddc;      
-    welch_state_t *psd;      
+    psd_state_t *psd;      
     float complex *scratch;  
     size_t scratch_cap;      
     float complex *pend;     
@@ -47,7 +47,7 @@ extern "C"
     double center;        
     double span;          
     double rbw;           
-    double ref_db;        
+    double offset_db;     
     double fs_out;        
     double beta;          
     size_t n;             
@@ -59,7 +59,8 @@ extern "C"
 
   specan_state_t *specan_create (double fs, double span, double rbw,
                                  double src_center, double center,
-                                 double ref_db, int window, size_t navg);
+                                 double offset_db, double full_scale,
+                                 size_t bits, int window, size_t navg);
 
   void specan_destroy (specan_state_t *state);
 

@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 typedef struct {
-    welch_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
     double enbw;            /* window equivalent noise bandwidth (bins)    */
@@ -35,14 +35,14 @@ typedef struct {
     size_t nfft;            /* zero-padded transform length                */
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              /* sample rate (Hz)                            */
-    double full_scale;      /* amplitude that equals 0 dBFS                */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
     int    window;          /* 0 hann, 1 kaiser (for amp_uncert_db)        */
 } tonemeas_state_t;
 
 tonemeas_state_t *tonemeas_create(size_t n, double fs, int window, float beta,
                                   size_t pad, size_t n_harmonics,
-                                  double full_scale, size_t dc_guard);
+                                  double full_scale, size_t bits,
+                                  size_t dc_guard);
 
 void tonemeas_destroy(tonemeas_state_t *state);
 

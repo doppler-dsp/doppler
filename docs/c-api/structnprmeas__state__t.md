@@ -38,10 +38,9 @@ _NPRMeasure state: owned window, FFT plan and one-sided power scratch._
 | ---: | :--- |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
-|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**psd**](#variable-psd)  <br> |
+|  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 
 
@@ -118,19 +117,6 @@ double nprmeas_state_t::fs;
 
 
 
-### variable full\_scale 
-
-```C++
-double nprmeas_state_t::full_scale;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable n 
 
 ```C++
@@ -160,7 +146,7 @@ size_t nprmeas_state_t::nfft;
 ### variable psd 
 
 ```C++
-welch_state_t* nprmeas_state_t::psd;
+psd_state_t* nprmeas_state_t::psd;
 ```
 
 

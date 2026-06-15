@@ -294,6 +294,8 @@
 * **imdmeas\_create** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
 * **imdmeas\_destroy** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
 * **imdmeas\_reset** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
+* **imdmeas\_spectrum\_dbfs** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
+* **imdmeas\_spectrum\_dbfs\_max\_out** ([**imdmeas\_core.h**](imdmeas__core_8h.md))
 
 
 ## k
@@ -354,6 +356,8 @@
 * **nprmeas\_create** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_destroy** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_reset** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
+* **nprmeas\_spectrum\_dbfs** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
+* **nprmeas\_spectrum\_dbfs\_max\_out** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
 
 
@@ -379,6 +383,26 @@
 * **pn\_generate\_max\_out** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_reset** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_step** ([**pn\_core.h**](pn__core_8h.md))
+* **psd\_accumulate** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_accumulate\_real** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_band\_power** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_band\_power\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_create** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_destroy** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_noise\_floor** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_occupied\_bw** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_power\_onesided** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_power\_onesided\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_power\_twosided** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_power\_twosided\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_psd\_db** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_psd\_db\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_psd\_dbhz** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_psd\_dbhz\_max\_out** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_reset** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_sfdr** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_snr** ([**psd\_core.h**](psd__core_8h.md))
+* **psd\_total\_band\_power** ([**psd\_core.h**](psd__core_8h.md))
 
 
 ## q
@@ -465,26 +489,6 @@
 
 ## w
 
-* **welch\_accumulate** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_accumulate\_real** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_band\_power** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_band\_power\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_create** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_destroy** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_noise\_floor** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_occupied\_bw** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_power\_onesided** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_power\_onesided\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_power\_twosided** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_power\_twosided\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_psd\_db** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_psd\_db\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_psd\_dbhz** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_psd\_dbhz\_max\_out** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_reset** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_sfdr** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_snr** ([**welch\_core.h**](welch__core_8h.md))
-* **welch\_total\_band\_power** ([**welch\_core.h**](welch__core_8h.md))
 * **wfm\_compose\_create** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_destroy** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_execute** ([**wfm\_compose.h**](wfm__compose_8h.md))

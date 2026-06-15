@@ -40,12 +40,11 @@ _ToneMeasure state: owned window, FFT plan and analysis scratch._ [More...](#det
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  unsigned char \* | [**excl**](#variable-excl)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**lobe\_bins**](#variable-lobe_bins)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_harm**](#variable-n_harm)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
-|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**psd**](#variable-psd)  <br> |
+|  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  int | [**window**](#variable-window)  <br> |
 
@@ -156,19 +155,6 @@ double tonemeas_state_t::fs;
 
 
 
-### variable full\_scale 
-
-```C++
-double tonemeas_state_t::full_scale;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable lobe\_bins 
 
 ```C++
@@ -224,7 +210,7 @@ size_t tonemeas_state_t::nfft;
 ### variable psd 
 
 ```C++
-welch_state_t* tonemeas_state_t::psd;
+psd_state_t* tonemeas_state_t::psd;
 ```
 
 

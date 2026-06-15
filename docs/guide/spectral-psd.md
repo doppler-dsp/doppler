@@ -6,7 +6,7 @@ doppler computes spectral metrics through **one pipeline**:
 time data  →  averaging PSD (one core)  →  measurements
 ```
 
-A single FFT-and-window-and-average implementation — the **`Welch`** estimator in
+A single FFT-and-window-and-average implementation — the **`PSD`** estimator in
 `doppler.spectral` — produces the power spectrum, and every measurement analyzer
 in `doppler.measure` (`ToneMeasure`, `IMDMeasure`, `NPRMeasure`) consumes that
 same averaged spectrum. There is no second copy of the window→FFT→power maths.
@@ -21,14 +21,14 @@ pages.
 
     ```python
     import numpy as np
-    from doppler.spectral import Welch
+    from doppler.spectral import PSD
     from doppler.measure import ToneMeasure
 
     fs, n = 100e6, 1 << 14
     x = np.cos(2 * np.pi * 10.017e6 * np.arange(8 * n) / fs).astype(np.float32)
 
     # display spectrum: 8 averaged segments, one-sided, in dBFS
-    w = Welch(n=n, fs=fs, window="kaiser", beta=12.0)
+    w = PSD(n=n, fs=fs, window="kaiser", beta=12.0)
     w.accumulate_real(x)
     psd = w.psd_db()                       # averaged power spectrum, dB
 
@@ -39,24 +39,25 @@ pages.
 
 ______________________________________________________________________
 
-## The averaging PSD — `Welch`
+## The averaging PSD — `PSD`
 
-`Welch` is a stateful Welch-style power-spectral-density estimator. It owns a
-window, a zero-padded FFT and a per-bin averager; you feed it frames and read the
-averaged spectrum.
+`PSD` is a stateful Welch-method (averaging) power-spectral-density estimator. It
+owns a window, a zero-padded FFT and a per-bin averager; you feed it frames and
+read the averaged spectrum.
 
 ### Create
 
 ```python
-from doppler.spectral import Welch
+from doppler.spectral import PSD
 
-w = Welch(
+w = PSD(
     n=4096,            # segment / window length (samples)
     fs=100e6,          # sample rate (Hz)
     window="kaiser",   # "hann" or "kaiser"
     beta=12.0,         # Kaiser shape (ignored for Hann)
     pad=2,             # zero-pad factor → nfft = next_pow2(n * pad)
     full_scale=1.0,    # amplitude that reads 0 dBFS in the dB getters
+    bits=0,            # bits>0 sets full_scale = 2**(bits-1) (ADC dBFS)
     mode="mean",       # "mean" | "exp" | "maxhold" | "minhold"
     alpha=0.1,         # EMA factor (exp mode only)
 )
@@ -70,9 +71,12 @@ w.nfft     # 8192   — zero-padded transform length (sets the bin spacing)
     interpolates the spectrum (finer bin spacing, smoother peaks) without
     improving resolution — it does **not** sharpen two close tones, it just draws
     the lobe with more points.
-- **`full_scale`** is the 0-dBFS reference for the **dB** getters only. With the
-    default `1.0`, a unit-amplitude tone peaks at 0 dB; set it to the converter
-    full-scale (e.g. `2**(bits-1)`) to read ADC codes directly in dBFS.
+- **`full_scale`** / **`bits`** set the 0-dBFS reference for the **dB** getters.
+    With the default `full_scale=1.0`, a unit-amplitude tone peaks at 0 dB. For an
+    ADC, pass **`bits=B`** — it sets `full_scale = 2**(B-1)` so codes read
+    directly in dBFS. `bits` is the single definition of that conversion: the
+    measurement analyzers and [`Specan`](../api/python-analyzer.md) take the same
+    `bits`/`full_scale` and read the reference back from this core.
 
 ### Feed data — real or complex, segmented and averaged
 
@@ -128,7 +132,7 @@ peaks = find_peaks_f32(w.psd_db(), n_peaks=5, min_db=-60.0)
     `psd_db`/`psd_dbhz`/`band_power`/… apply `full_scale` (they read in dBFS).
     `power_onesided`/`power_twosided` return the **raw** coherent-gain-normalised
     linear power — they ignore `full_scale`. The measurement analyzers consume
-    the linear accessors and apply their own references, which is why one `Welch`
+    the linear accessors and apply their own references, which is why one `PSD`
     engine serves both the display and the metrics.
 
 ______________________________________________________________________
@@ -136,7 +140,7 @@ ______________________________________________________________________
 ## The measurement suite
 
 `ToneMeasure`, `IMDMeasure` and `NPRMeasure` are **single-shot in API** — you
-call `analyze(capture)` once — but each one drives the same `Welch` engine
+call `analyze(capture)` once — but each one drives the same `PSD` engine
 internally, so **they consume an averaged spectrum**. The capture you pass sets
 how much averaging happens:
 
@@ -176,7 +180,7 @@ bits = 12
 adc = ADC(bits, 0.0, 0)                         # 0 dBFS at amplitude 1.0
 codes = adc.steps((0.999 * np.sin(2 * np.pi * 1234.567 * np.arange(n) / n))
                   .astype(np.float32)).astype(np.float32)
-r = ToneMeasure(n=n, beta=14.0, full_scale=2 ** (bits - 1)).analyze(codes)
+r = ToneMeasure(n=n, beta=14.0, bits=bits).analyze(codes)   # bits sets dBFS
 assert abs(r.enob - bits) < 0.3
 ```
 
@@ -196,7 +200,7 @@ r.f1, r.f2, r.imd3_lo_freq, r.imd3_hi_freq
 ```python
 from doppler.measure import NPRMeasure
 
-m = NPRMeasure(n=n, fs=fs, beta=12.0, full_scale=2 ** (bits - 1))
+m = NPRMeasure(n=n, fs=fs, beta=12.0, bits=bits)
 # band/notch geometry (Hz) is an analyze() argument, so one estimator sweeps notches
 r = m.analyze(codes, active_lo=1e6, active_hi=49e6,
               notch_lo=24e6, notch_hi=26e6, guard_hz=0.5e6)
@@ -207,11 +211,11 @@ ______________________________________________________________________
 
 ## Natural parameters — the `Specan`
 
-`Welch` and the measurement analyzers speak **DSP** parameters — segment length
+`PSD` and the measurement analyzers speak **DSP** parameters — segment length
 `n`, Kaiser `beta`, zero-pad. A spectrum-analyzer operator speaks **instrument**
 parameters — **center, span, RBW, reference level**. `doppler.analyzer.Specan`
 is the C-first bridge: it composes the [`DDC`](../api/python-ddc.md)
-tuner/decimator and the same `Welch` PSD core, takes the instrument knobs, and
+tuner/decimator and the same `PSD` PSD core, takes the instrument knobs, and
 emits a ready-to-plot dB display band.
 
 ```python
@@ -244,21 +248,21 @@ ______________________________________________________________________
 
 ## Choosing parameters
 
-| Goal                                       | Lever                                      |
-| ------------------------------------------ | ------------------------------------------ |
-| Resolve two close tones                    | larger **`n`** (finer `rbw`) — *not* `pad` |
-| Smoother lobes / sub-bin peak reads        | **`pad = 2`** (or more)                    |
-| Lower-variance noise floor, stable SNR/NPR | feed **more segments** (`len = k·n`)       |
-| Read ADC codes directly in dBFS            | **`full_scale = 2**(bits-1)`**             |
-| Lower sidelobes (catch small spurs)        | **`window="kaiser"`** with larger `beta`   |
-| Peak-hold / min-hold display               | `mode="maxhold"` / `"minhold"`             |
-| Drive by center / span / RBW, not `n`/beta | **`doppler.analyzer.Specan`** (above)      |
+| Goal                                       | Lever                                       |
+| ------------------------------------------ | ------------------------------------------- |
+| Resolve two close tones                    | larger **`n`** (finer `rbw`) — *not* `pad`  |
+| Smoother lobes / sub-bin peak reads        | **`pad = 2`** (or more)                     |
+| Lower-variance noise floor, stable SNR/NPR | feed **more segments** (`len = k·n`)        |
+| Read ADC codes directly in dBFS            | **`bits = B`** (sets `full_scale=2**(B-1)`) |
+| Lower sidelobes (catch small spurs)        | **`window="kaiser"`** with larger `beta`    |
+| Peak-hold / min-hold display               | `mode="maxhold"` / `"minhold"`              |
+| Drive by center / span / RBW, not `n`/beta | **`doppler.analyzer.Specan`** (above)       |
 
 ______________________________________________________________________
 
 ## See also
 
-- [Python: spectral API](../api/python-spectral.md) — full `Welch` + helper reference
+- [Python: spectral API](../api/python-spectral.md) — full `PSD` + helper reference
 - [Python: measurement API](../api/python-measure.md) — `ToneMeasure` reference
 - [Measurement Suite design guide](../design/measurement-suite.md) — metric equations
 - [Gallery: Measurement Suite](../gallery/measure.md) and

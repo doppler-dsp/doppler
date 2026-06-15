@@ -7,7 +7,7 @@ already knows (**center, span, RBW, reference level**) instead of the DSP knobs
 
 It is the C-first home for the natural-parameter → DSP mapping: a `Specan`
 composes the [`DDC`](python-ddc.md) tuner/decimator and the
-[`Welch`](python-spectral.md#averaging-psd-measurements) averaging-PSD core,
+[`PSD`](python-spectral.md#averaging-psd-measurements) averaging-PSD core,
 so the whole chain lives in C exactly once and the
 [`doppler.specan`](../specan/index.md) application is a thin display/transport
 shell over it.
@@ -47,9 +47,12 @@ filter history); changing the **span** or **RBW** alters the decimation rate and
 window length, so build a new `Specan`.
 
 `fs`, `span` and `rbw` are **required** — omitting them raises `TypeError`
-rather than constructing an unusable analyzer. `ref_db` is an additive dB offset
-applied to the returned trace (the application folds its dBm / reference-level
-calibration into it); `navg` averages that many segments per emitted frame
+rather than constructing an unusable analyzer. The display reads in **dBFS**
+against the [`PSD`](python-spectral.md) core's 0-dBFS reference — set it with
+`bits` (an ADC depth → `2**(bits-1)`) or `full_scale`, the same single-source
+knob the measurement analyzers use. `offset_db` is an additive offset applied on
+top (e.g. a dBm calibration the application computes from a reference level).
+`navg` averages that many segments per emitted frame
 (`navg=1` is a responsive single periodogram, larger `navg` trades update rate
 for a smoother, lower-variance floor). Peaks are intentionally *not* computed in
 the core — compose `find_peaks_f32` on the returned dB band.
@@ -62,8 +65,8 @@ ______________________________________________________________________
 
 - [Power Spectra & Measurements guide](../guide/spectral-psd.md) — the
     `time → PSD → measurements` pipeline and the natural-parameter section.
-- [Python: spectral API](python-spectral.md) — the `Welch` PSD core a `Specan`
-    composes, plus `find_peaks_f32`.
+- [Python: spectral API](python-spectral.md) — the `PSD` averaging core a
+    `Specan` composes, plus `find_peaks_f32`.
 - [Python: DDC](python-ddc.md) — the tuner/decimator front end.
 - [Spectrum Analyzer app](../specan/index.md) — the `doppler.specan` display
     shell built on `Specan`.

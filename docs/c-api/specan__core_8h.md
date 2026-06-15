@@ -11,7 +11,7 @@
 _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...](#detailed-description)
 
 * `#include "ddc/ddc_core.h"`
-* `#include "welch/welch_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include <complex.h>`
 * `#include <stddef.h>`
 * `#include "lo/lo_core.h"`
@@ -70,7 +70,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  [**specan\_state\_t**](structspecan__state__t.md) \* | [**specan\_create**](#function-specan_create) (double fs, double span, double rbw, double src\_center, double center, double ref\_db, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
+|  [**specan\_state\_t**](structspecan__state__t.md) \* | [**specan\_create**](#function-specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
 |  void | [**specan\_destroy**](#function-specan_destroy) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
 |  size\_t | [**specan\_execute**](#function-specan_execute) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const float complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
 |  size\_t | [**specan\_execute\_max\_out**](#function-specan_execute_max_out) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function-specan_execute) _; equals disp\_n._ |
@@ -116,7 +116,7 @@ It composes the existing library, re-implementing nothing:
 
 ```C++
 cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
-                 →  Welch (window → zero-pad FFT → cg²-normalised power,
+                 →  PSD (window → zero-pad FFT → cg²-normalised power,
                            averaged over `navg` segments)
                  →  crop to the central ±span/2 display band
                  →  dB + ref offset  →  float display spectrum
@@ -126,7 +126,7 @@ cf32 in (fs_in)  →  Ddc  (mix center→DC, decimate to fs_out = span·1.28)
 
 
 * [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) is the tuner/decimator (LO mix + RateConverter cascade); retuning the center is a cheap, seamless LO phase change.
-* [**welch\_state\_t**](structwelch__state__t.md) is the one averaging-PSD core shared with the measurement suite; `navg = 1` gives a responsive single-periodogram frame, larger `navg` trades update rate for a smoother, lower-variance trace.
+* [**psd\_state\_t**](structpsd__state__t.md) is the one averaging-PSD core shared with the measurement suite; `navg = 1` gives a responsive single-periodogram frame, larger `navg` trades update rate for a smoother, lower-variance trace.
 
 
 
@@ -165,7 +165,9 @@ specan_state_t * specan_create (
     double rbw,
     double src_center,
     double center,
-    double ref_db,
+    double offset_db,
+    double full_scale,
+    size_t bits,
     int window,
     size_t navg
 ) 
@@ -186,7 +188,9 @@ Derives the DSP from the instrument parameters: `fs_out = min(span·1.28, fs)`, 
 * `rbw` Resolution bandwidth (Hz). Must be &gt; 0. 
 * `src_center` Source center frequency (Hz); the input band is centred here, so the analyzer mixes (center − src\_center) to DC. 
 * `center` Desired display center frequency (Hz). 
-* `ref_db` dB offset added to the display spectrum (e.g. a dBm calibration the application computes from a ref level). 
+* `offset_db` Additive dB offset on the display spectrum, applied on top of dBFS (e.g. a dBm calibration the application computes from a reference level). 
+* `full_scale` Amplitude that reads 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the single source of truth for the dBFS reference). 
 * `window` Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable). 
 * `navg` Segments averaged per emitted frame (&gt;= 1). 
 

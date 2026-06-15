@@ -69,7 +69,7 @@ ______________________________________________________________________
 
 ## Averaging PSD & measurements
 
-`Welch` is a stateful Welch-style averaging power-spectral-density estimator —
+`PSD` is a stateful Welch-method (averaging) power-spectral-density estimator —
 the single PSD core the [measurement suite](python-measure.md) also consumes (see
 the [Power Spectra & Measurements guide](../guide/spectral-psd.md) for the usage
 walk-through). A capture longer than `n` is split into `floor(len/n)` segments;
@@ -81,10 +81,10 @@ to power, fftshifted to DC-centred order and folded into a running average
 
 ```python
 import numpy as np
-from doppler.spectral import Welch, find_peaks_f32
+from doppler.spectral import PSD, find_peaks_f32
 
-w = Welch(n=1024, fs=1e6, window="kaiser", beta=8.0,
-          pad=2, full_scale=1.0, mode="mean")
+w = PSD(n=1024, fs=1e6, window="kaiser", beta=8.0,
+          pad=2, full_scale=1.0, bits=0, mode="mean")   # bits>0 -> 2**(bits-1)
 w.accumulate(cf32_capture)                 # or w.accumulate_real(f32_capture)
 w.n, w.nfft                                # 1024, 2048 (= next_pow2(1024 * 2))
 
@@ -114,7 +114,7 @@ linear `power_*` accessors are unaffected. All spectra are DC-centred, matching
 `find_peaks_f32`'s bin → frequency convention. The PSD getters return `None`
 until the first frame is accumulated.
 
-::: doppler.spectral.Welch
+::: doppler.spectral.PSD
 
 ______________________________________________________________________
 

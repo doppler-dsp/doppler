@@ -38,11 +38,10 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 | ---: | :--- |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
-|  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**lobe\_bins**](#variable-lobe_bins)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
-|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**psd**](#variable-psd)  <br> |
+|  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 
 
@@ -119,19 +118,6 @@ double imdmeas_state_t::fs;
 
 
 
-### variable full\_scale 
-
-```C++
-double imdmeas_state_t::full_scale;
-```
-
-
-
-
-<hr>
-
-
-
 ### variable lobe\_bins 
 
 ```C++
@@ -174,7 +160,7 @@ size_t imdmeas_state_t::nfft;
 ### variable psd 
 
 ```C++
-welch_state_t* imdmeas_state_t::psd;
+psd_state_t* imdmeas_state_t::psd;
 ```
 
 

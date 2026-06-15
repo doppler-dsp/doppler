@@ -46,13 +46,13 @@ _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#functi
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**navg**](#variable-navg)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
+|  double | [**offset\_db**](#variable-offset_db)  <br> |
 |  float complex \* | [**pend**](#variable-pend)  <br> |
 |  size\_t | [**pend\_cap**](#variable-pend_cap)  <br> |
 |  size\_t | [**pend\_len**](#variable-pend_len)  <br> |
-|  [**welch\_state\_t**](structwelch__state__t.md) \* | [**psd**](#variable-psd)  <br> |
+|  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  double | [**rbw**](#variable-rbw)  <br> |
-|  double | [**ref\_db**](#variable-ref_db)  <br> |
 |  float complex \* | [**scratch**](#variable-scratch)  <br> |
 |  size\_t | [**scratch\_cap**](#variable-scratch_cap)  <br> |
 |  double | [**span**](#variable-span)  <br> |
@@ -276,6 +276,23 @@ Zero-padded transform length.
 
 
 
+### variable offset\_db 
+
+```C++
+double specan_state_t::offset_db;
+```
+
+
+
+Additive dB offset on the display (dBm cal). 
+
+
+        
+
+<hr>
+
+
+
 ### variable pend 
 
 ```C++
@@ -330,7 +347,7 @@ Valid samples in [**pend**](structspecan__state__t.md#variable-pend).
 ### variable psd 
 
 ```C++
-welch_state_t* specan_state_t::psd;
+psd_state_t* specan_state_t::psd;
 ```
 
 
@@ -370,23 +387,6 @@ double specan_state_t::rbw;
 
 
 Requested resolution bandwidth, Hz. 
-
-
-        
-
-<hr>
-
-
-
-### variable ref\_db 
-
-```C++
-double specan_state_t::ref_db;
-```
-
-
-
-dB offset added to the display spectrum. 
 
 
         

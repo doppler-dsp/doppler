@@ -38,7 +38,7 @@
 * `#include "corr2d/corr2d_core.h"`
 * `#include "detector/detector_core.h"`
 * `#include "detector2d/detector2d_core.h"`
-* `#include "welch/welch_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include "tonemeas/tonemeas_core.h"`
 * `#include "nprmeas/nprmeas_core.h"`
 * `#include "imdmeas/imdmeas_core.h"`

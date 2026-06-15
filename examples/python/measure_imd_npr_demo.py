@@ -36,6 +36,7 @@ import numpy as np
 
 from doppler.cvt import ADC
 from doppler.measure import IMDMeasure, NPRMeasure
+from doppler.source import LO
 
 FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample capture
@@ -48,25 +49,12 @@ ACCENT, FUND, IM3, IM2, FLOOR = (
 )
 
 
-def periodogram_dbfs(x, fs_amp, beta=12.0):
-    """A one-sided Kaiser-windowed periodogram in dBFS (0 dBFS = a peak-fs_amp
-    sine), for the spectrum backdrop. The *metrics* come from doppler; this is
-    only the trace they annotate."""
-    n = len(x)
-    w = np.kaiser(n, beta)
-    cg = w.sum()
-    p = np.abs(np.fft.rfft(x * w)) ** 2 / cg**2
-    p[1:-1] *= 2.0  # one-sided fold
-    return 10.0 * np.log10(np.maximum(p / (fs_amp**2 / 2.0), 1e-30))
-
-
 def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
-    """Two equal tones through y = x + a2 x^2 + a3 x^3 (a memoryless weak
-    nonlinearity → controlled IM2/IM3 products)."""
-    t = np.arange(N)
-    x = amp * (
-        np.sin(2 * np.pi * f1 * t / FS) + np.sin(2 * np.pi * f2 * t / FS)
-    )
+    """Two doppler-NCO (`source.LO`) tones through a weak memoryless
+    nonlinearity y = x + a2 x^2 + a3 x^3 — the DUT model that creates the
+    controlled IM2/IM3 products.  The spectrum backdrop the demo plots comes
+    from the analyzer's own `spectrum_dbfs`, not a hand-rolled periodogram."""
+    x = amp * (LO(f1 / FS).steps(N).real + LO(f2 / FS).steps(N).real)
     return (x + a2 * x**2 + a3 * x**3).astype(np.float32)
 
 
@@ -123,9 +111,10 @@ def main():
     y = two_tone(f1, f2, amp=0.35)
     imd = IMDMeasure(n=N, fs=FS, beta=12.0)
     r = imd.analyze(y)
-    db = periodogram_dbfs(y, fs_amp=1.0)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS) / 1e6  # MHz
-    ax.plot(freqs, db, color=ACCENT, lw=0.7)
+    db = imd.spectrum_dbfs(y)  # the same averaged PSD the metrics use
+    half = imd.nfft // 2
+    freqs = np.arange(half) * FS / imd.nfft / 1e6  # MHz (one-sided)
+    ax.plot(freqs, db[half:], color=ACCENT, lw=0.7)
     for f, c, lbl in (
         (r.f1, FUND, "fundamentals"),
         (r.f2, FUND, None),
@@ -205,18 +194,18 @@ def main():
     # NPR test, so the measured ratio matches the MT-005 ideal directly.
     alo, ahi, nlo, nhi = 1e6, 49e6, 24e6, 26e6
     guard = 0.5e6
-    fs_code = 2.0**9  # 10-bit ADC full-scale code
     load_dbfs = -12.4  # RMS loading near the 10-bit optimum (MT-005)
     codes = (
         ADC(10, 0.0, 0)
         .steps(notched_noise(10 ** (load_dbfs / 20), alo, ahi, nlo, nhi))
         .astype(np.float32)
     )
-    npr = NPRMeasure(n=N, fs=FS, full_scale=fs_code)
+    npr = NPRMeasure(n=N, fs=FS, bits=10)  # bits sets the dBFS reference
     g = npr.analyze(codes, alo, ahi, nlo, nhi, guard)
-    db = periodogram_dbfs(codes, fs_amp=fs_code)
-    freqs = np.fft.rfftfreq(N, 1.0 / FS) / 1e6
-    ax.plot(freqs, db, color=ACCENT, lw=0.5)
+    db = npr.spectrum_dbfs(codes)  # the same averaged PSD the metrics use
+    half = npr.nfft // 2
+    freqs = np.arange(half) * FS / npr.nfft / 1e6  # MHz (one-sided)
+    ax.plot(freqs, db[half:], color=ACCENT, lw=0.5)
     ax.axvspan(
         alo / 1e6, ahi / 1e6, color=FUND, alpha=0.06, label="active band"
     )

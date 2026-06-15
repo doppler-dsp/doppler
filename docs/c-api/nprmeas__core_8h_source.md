@@ -15,7 +15,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "measure/measure_core.h"
-#include "welch/welch_core.h"
+#include "psd/psd_core.h"
 #include <complex.h>
 
 #ifdef __cplusplus
@@ -23,17 +23,16 @@ extern "C" {
 #endif
 
 typedef struct {
-    welch_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
+    psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
     float         *pwr;     /* metric working buffer, one-sided power     */
     double enbw;            /* window equivalent noise bandwidth (bins)   */
     size_t n;               /* capture / frame length                     */
     size_t nfft;            /* zero-padded transform length               */
     double fs;              /* sample rate (Hz)                           */
-    double full_scale;      /* amplitude that equals 0 dBFS               */
 } nprmeas_state_t;
 
 nprmeas_state_t *nprmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale);
+                                size_t pad, double full_scale, size_t bits);
 
 void nprmeas_destroy(nprmeas_state_t *state);
 
@@ -42,6 +41,11 @@ void nprmeas_reset(nprmeas_state_t *state);
 npr_meas_t nprmeas_analyze(nprmeas_state_t *state, const float *x, size_t n_in,
                            double active_lo, double active_hi, double notch_lo,
                            double notch_hi, double guard_hz);
+
+size_t nprmeas_spectrum_dbfs_max_out(nprmeas_state_t *state);
+
+size_t nprmeas_spectrum_dbfs(nprmeas_state_t *state, const float *x,
+                             size_t x_len, float *out);
 
 #ifdef __cplusplus
 }

@@ -13,7 +13,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
 * `#include "measure/measure_core.h"`
-* `#include "welch/welch_core.h"`
+* `#include "psd/psd_core.h"`
 * `#include <complex.h>`
 
 
@@ -62,9 +62,11 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 | Type | Name |
 | ---: | :--- |
 |  [**npr\_meas\_t**](structnpr__meas__t.md) | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
-|  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale) <br>_Create an NPRMeasure analyser._  |
+|  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits) <br>_Create an NPRMeasure analyser._  |
 |  void | [**nprmeas\_destroy**](#function-nprmeas_destroy) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
 |  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
+|  size\_t | [**nprmeas\_spectrum\_dbfs**](#function-nprmeas_spectrum_dbfs) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
+|  size\_t | [**nprmeas\_spectrum\_dbfs\_max\_out**](#function-nprmeas_spectrum_dbfs_max_out) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Capacity (== nfft) of the spectrum\_dbfs output buffer._  |
 
 
 
@@ -166,7 +168,8 @@ nprmeas_state_t * nprmeas_create (
     int window,
     float beta,
     size_t pad,
-    double full_scale
+    double full_scale,
+    size_t bits
 ) 
 ```
 
@@ -182,7 +185,8 @@ nprmeas_state_t * nprmeas_create (
 * `window` 0 = Hann, 1 = Kaiser. 
 * `beta` Kaiser shape (ignored for Hann). 
 * `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
-* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). 
+* `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) (resolved in the shared PSD core). 
 
 
 
@@ -232,6 +236,41 @@ void nprmeas_destroy (
 _Reset (no-op: each analyze() call is independent)._ 
 ```C++
 void nprmeas_reset (
+    nprmeas_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function nprmeas\_spectrum\_dbfs 
+
+_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._ 
+```C++
+size_t nprmeas_spectrum_dbfs (
+    nprmeas_state_t * state,
+    const float * x,
+    size_t x_len,
+    float * out
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function nprmeas\_spectrum\_dbfs\_max\_out 
+
+_Capacity (== nfft) of the spectrum\_dbfs output buffer._ 
+```C++
+size_t nprmeas_spectrum_dbfs_max_out (
     nprmeas_state_t * state
 ) 
 ```

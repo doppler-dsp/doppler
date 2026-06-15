@@ -106,6 +106,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**pffft.h**](pffft_8h.md)     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     
             * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
+        * **dir** [**psd**](dir_1f3d46873d925f2e533983763479900d.md)     
+            * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._     
         * **dir** [**resamp**](dir_289a9297ce406b952fab973539197d1c.md)     
             * **file** [**resamp\_core.h**](resamp__core_8h.md) _Continuously-variable polyphase resampler for CF32 IQ._     
             * **file** [**resamp\_impl.h**](resamp__impl_8h.md) _Resamp implementation header._ 
@@ -128,8 +130,6 @@ Here is a list of all files with brief descriptions:
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
             * **file** [**util\_core.h**](util__core_8h.md) _Util module — public C API._     
-        * **dir** [**welch**](dir_aeb9e26b0edb1fd5fc61c8cd35fcdcfb.md)     
-            * **file** [**welch\_core.h**](welch__core_8h.md) _Welch — averaging PSD estimator and spectral measurement suite._     
         * **dir** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md)     
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
             * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     

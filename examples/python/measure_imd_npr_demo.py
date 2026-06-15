@@ -48,13 +48,8 @@ FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
 NAVG = 8  # segments averaged per measurement (Welch's method)
 M = NAVG * N  # total capture length fed to analyze()
-ACCENT, FUND, IM3, IM2, FLOOR = (
-    "#2563eb",
-    "#16a34a",
-    "#dc2626",
-    "#f97316",
-    "#94a3b8",
-)
+# matplotlib standard palette (tab10) by role
+ACCENT, FUND, IM3, IM2, FLOOR = "C0", "C2", "C3", "C1", "C7"
 
 
 def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
@@ -180,14 +175,14 @@ def main():
     ax.plot(xe, np.polyval(cf, xe), "-", color=FUND, lw=1, alpha=0.6)
     ax.plot(xe, np.polyval(ci, xe), "-", color=IM3, lw=1, alpha=0.6)
     toi = float(np.polyval(cf, xe[1]))
-    ax.plot(xe[1], toi, "*", color="#7c3aed", ms=16, label="TOI")
+    ax.plot(xe[1], toi, "*", color="C4", ms=16, label="TOI")
     ax.annotate(
         f"TOI ≈ {r.toi_dbfs:+.1f} dBFS",
         xy=(xe[1], toi),
         xytext=(-8, -12),
         textcoords="offset points",
         fontsize=8,
-        color="#7c3aed",
+        color="C4",
         ha="right",
     )
     ax.set(
@@ -240,13 +235,13 @@ def main():
         "",
         xy=((nlo + nhi) / 2e6, g.notch_psd_dbfs),
         xytext=((nlo + nhi) / 2e6, g.inband_psd_dbfs),
-        arrowprops=dict(arrowstyle="<->", color="#7c3aed", lw=1.4),
+        arrowprops=dict(arrowstyle="<->", color="C4", lw=1.4),
     )
     ax.text(
         (nlo + nhi) / 2e6 + 1.0,
         (g.inband_psd_dbfs + g.notch_psd_dbfs) / 2,
         f"NPR\n{g.npr_db:.1f} dB",
-        color="#7c3aed",
+        color="C4",
         fontsize=8,
         va="center",
     )
@@ -280,21 +275,21 @@ def main():
     ax.plot(
         loadings,
         theory,
-        "--",
+        "-",
         color=FLOOR,
         lw=1.6,
         label="ideal 10-bit (MT-005)",
     )
-    ax.plot(loadings, nprs, "o-", color=ACCENT, ms=4, label="measured")
+    ax.plot(loadings, nprs, "o", color=ACCENT, ms=4, label="measured")
     ax.plot(
         loadings[kpeak],
         nprs[kpeak],
         "*",
-        color="#7c3aed",
+        color="C4",
         ms=16,
         label=f"sweet spot {nprs[kpeak]:.0f} dB @ {loadings[kpeak]:.0f} dBFS",
     )
-    ax.axvline(loadings[kpeak], color="#7c3aed", ls=":", lw=1)
+    ax.axvline(loadings[kpeak], color="C4", ls=":", lw=1)
     ax.set(
         title="(d) NPR vs loading — quantisation floor vs clipping",
         xlabel="noise loading (dBFS RMS)",

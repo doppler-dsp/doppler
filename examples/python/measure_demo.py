@@ -37,13 +37,8 @@ FS = 100e6  # 100 MHz sample rate
 N = 1 << 14  # 16384-sample segment (sets the resolution bandwidth)
 NAVG = 8  # segments averaged per measurement (Welch's method)
 M = NAVG * N  # total capture length fed to analyze()
-ACCENT, FUND, HARM, SPUR, FLOOR = (
-    "#2563eb",
-    "#16a34a",
-    "#f97316",
-    "#dc2626",
-    "#94a3b8",
-)
+# matplotlib standard palette (tab10) by role
+ACCENT, FUND, HARM, SPUR, FLOOR = "C0", "C2", "C1", "C3", "C7"
 
 
 def real_tone(freq, n, amp):
@@ -153,8 +148,8 @@ def main():
         codes = adc_capture(b, 9.013e6)
         mb = ToneMeasure(n=N, fs=FS, beta=14.0, n_harmonics=10, bits=b)
         enobs.append(mb.analyze(codes).enob)
-    ax.plot(bits_list, bits_list, color=FLOOR, ls="--", label="ideal (ENOB=N)")
-    ax.plot(bits_list, enobs, "o-", color=ACCENT, label="measured")
+    ax.plot(bits_list, bits_list, color=FLOOR, ls="-", label="ideal (ENOB=N)")
+    ax.plot(bits_list, enobs, "o", color=ACCENT, label="measured")
     ax.set(
         title="(b) ENOB recovers the ideal N-bit resolution",
         xlabel="ADC bits",
@@ -208,7 +203,7 @@ def main():
     ax.plot(x, sfdr, "-", color=SPUR, label="SFDR (dBFS)")
     ax2 = ax.twinx()
     ax2.plot(x, enob, ":", color=HARM, label="ENOB")
-    ax2.plot(x, enob_fs, "--", color="#7c3aed", label="ENOB (FS-corrected)")
+    ax2.plot(x, enob_fs, "--", color="C4", label="ENOB (FS-corrected)")
     ax2.set_ylabel("ENOB (bits)")
     ax.set(
         title="(d) dynamic range vs input level",

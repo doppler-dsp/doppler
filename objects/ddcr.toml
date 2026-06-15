@@ -6,10 +6,10 @@ no_state = "true"
 no_step = "true"
 class_name = "DDCR"
 # ddcr_create / reset / destroy / execute live in ddc_core.c (shared with the
-# Ddc object); ddcr_core.c only carries the execute_max_out hook. So the ddcr
-# core/test/bench must link ddc_core. Bare string: ddcr's own targets only —
-# the ddc .so already links ddc_core as the module core.
-depends_on = ["ddc_core", "lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core"]
+# Ddc object); ddcr_core.c only carries the execute_max_out hook. The direct dep
+# is ddc_core — jm flattens its transitive closure (lo/RateConverter/… cores)
+# onto the test/bench link line (gh-280, jm >= 0.19.15).
+depends_on = ["ddc_core"]
 
 [[ddcr.init_params]]
 name = "norm_freq"

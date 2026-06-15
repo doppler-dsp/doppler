@@ -11,10 +11,10 @@ target_link_libraries(analyzer PRIVATE
     lo_core
     RateConverter_core
     resamp_core
+    fir_core
     hbdecim_core
     hbdecim_r2c_core
     cic_core
-    fir_core
     resample_core
     psd_core
     acc_trace_core

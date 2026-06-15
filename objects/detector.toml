@@ -5,7 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Detector"
-depends_on = ["corr_core", "fft_core"]
+depends_on = ["corr_core"]
 
 [[detector.init_params]]
 name = "ref"

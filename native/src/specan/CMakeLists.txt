@@ -14,9 +14,9 @@ target_link_libraries(specan_core PUBLIC
     fir_core
     resample_core
     psd_core
-    acc_trace_core
     fft_core
-    spectral_core)
+    spectral_core
+    acc_trace_core)
 
 add_executable(test_specan_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_specan_core.c)
@@ -31,9 +31,9 @@ target_link_libraries(test_specan_core
     fir_core
     resample_core
     psd_core
-    acc_trace_core
     fft_core
     spectral_core
+    acc_trace_core
     m)
 target_include_directories(test_specan_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -53,9 +53,9 @@ target_link_libraries(bench_specan_core
     fir_core
     resample_core
     psd_core
-    acc_trace_core
     fft_core
     spectral_core
+    acc_trace_core
     m)
 target_include_directories(
   bench_specan_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

@@ -131,9 +131,15 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
     }
-  npr_meas_t _r = nprmeas_analyze (
-      self->handle, (const float *)PyArray_DATA (in_arr), n_in, active_lo,
-      active_hi, notch_lo, notch_hi, guard_hz);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  const float *_ng0 = (const float *)PyArray_DATA (in_arr);
+  npr_meas_t   _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = nprmeas_analyze (self->handle, _ng0, n_in, active_lo, active_hi,
+                          notch_lo, notch_hi, guard_hz);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (NPRMeasureObj_analyze_type);
   if (!_o)

@@ -168,8 +168,14 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
-  tone_meas_t _r = tonemeas_analyze (
-      self->handle, (const float *)PyArray_DATA (in_arr), n_in);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  const float *_ng0 = (const float *)PyArray_DATA (in_arr);
+  tone_meas_t  _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = tonemeas_analyze (self->handle, _ng0, n_in);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (ToneMeasureObj_analyze_type);
   if (!_o)
@@ -261,8 +267,14 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
-  tone_meas_t _r = tonemeas_analyze_complex (
-      self->handle, (const float complex *)PyArray_DATA (in_arr), n_in);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  const float complex *_ng0 = (const float complex *)PyArray_DATA (in_arr);
+  tone_meas_t          _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = tonemeas_analyze_complex (self->handle, _ng0, n_in);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (ToneMeasureObj_analyze_complex_type);
   if (!_o)

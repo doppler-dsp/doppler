@@ -289,14 +289,27 @@ fragments are GNU 2-space) — `jm status --check` doesn't check fragment bodies
 `cmake -B build` picks system 3.14 and the venv then imports a stale 313 `.so`.
 
 **Roadmap** (see `~/.claude/plans`): #225 link lines DONE; #222 out= steps DONE;
-#244 measure `--single` DONE (pin 0.19.8). Next: #224 Resampler `optional`
-`bank`; #223 verify-only. #247 (group module functions into one TU) still open
-upstream.
+#244 measure `--single` DONE (pin 0.19.9). Next: #224 Resampler `optional`
+`bank`; #223 verify-only. #247 (group module functions into one TU) **shipped**
+in jm 0.19.9 as `functions_in_core` — optional, **not adopted** (doppler's
+module functions stay one-TU-per-function; adopt later if desired).
 
-### 0.19.8 adoptions — measure `--single` migration unblocked (pin: 0.19.8)
+### 0.19.9 adoptions — measure `nogil` restored (pin: 0.19.9)
 
-The CI drift gate now pins **0.19.8** (`ci.yml` + `perf-regression.yml`);
-`jm_version` is stamped 0.19.8. **Drive doppler with `uvx --from 'just-makeit==0.19.8' just-makeit …`.** 0.19.8 ships three doppler-driven fixes (issue
+The CI drift gate now pins **0.19.9**; `jm_version` stamped 0.19.9. **Drive
+doppler with `uvx --from 'just-makeit==0.19.9' just-makeit …`.** 0.19.9 ships
+**gh-261** (#263): the single-record binding now honours `nogil` — wraps the
+by-value kernel in `Py_BEGIN/END_ALLOW_THREADS`. So re-applying the measure
+fragments **restores the GIL release** the `--single` migration had temporarily
+lost (4/2/2 `ALLOW_THREADS` on tonemeas/nprmeas/imdmeas, matching the old hand
+fragments). The remaining jm#261 sub-item — structseq `__module__` = component
+name (`tonemeas` vs `doppler.measure`) — is cosmetic and left as-is (doppler's
+measure tests assert the component-name `__module__`). Also in 0.19.9:
+`functions_in_core` (gh-247, off by default — not adopted).
+
+### 0.19.8 adoptions — measure `--single` migration unblocked (superseded by 0.19.9)
+
+0.19.8 ships three doppler-driven fixes (issue
 [#257](https://github.com/just-buildit/just-makeit/issues/257) / PRs #258, #259):
 
 - **Manifest → `jm apply` round-trip for `single` + scalar param defaults**
@@ -309,15 +322,12 @@ The CI drift gate now pins **0.19.8** (`ci.yml` + `perf-regression.yml`);
 - **`_dump` preserves unknown method keys** — manifest-authored keys round-trip
     instead of being silently stripped (the root cause that blocked `record_name`).
 
-**#244 measure migration** \[PR pending\]: the 3 measure objects' `analyze` family
-is now declarative `single = true` (+ `record_name`, + NPR geometry params with
+**#244 measure migration** \[PR #160, merged\]: the 3 measure objects' `analyze`
+family is declarative `single = true` (+ `record_name`, + NPR geometry params with
 `guard_hz` default); `*_core.c` `analyze` reconciled to **return-by-value**;
-`measure.pyi` is jm-generated and **dropped from `status_allow`** (0 allowed now);
-the hand structseq fragments are gone. NB: the single binding doesn't yet honour
-`nogil` (jm [#261](https://github.com/just-buildit/just-makeit/issues/261)) so the
-GIL release is temporarily inactive — `nogil = true` is kept in the manifest to
-auto-restore it on the next pin bump. Also filed nit: structseq `__module__` =
-component name (#261).
+`measure.pyi` jm-generated and **dropped from `status_allow`** (0 allowed); hand
+structseq fragments gone. The `nogil` GIL release was briefly inactive on 0.19.8
+and is **restored on the 0.19.9 bump** (gh-261, above).
 
 ### 0.19.3 adoptions — gh-197 window fix + the gh-219 UAF (pin: 0.19.3)
 
@@ -380,17 +390,15 @@ context a generic generator can't know.
 
 `[module.measure]` (`ToneMeasure`/`NPRMeasure`/`IMDMeasure` + capture-planning
 free functions) returns **named `PyStructSequence` results** (`r.enob`,
-`r.sfdr_dbc`). As of the **0.19.8 migration** this is fully declarative: the
+`r.sfdr_dbc`). As of the **0.19.x migration** this is fully declarative: the
 `analyze`/`analyze_complex`/`time_stats` methods set `single = true` (by-value
 record binding) + `record_name = "ToneMetrics"`/… (public type name); NPR's 5
-geometry doubles are declared `params` (with `guard_hz` defaulting to 0.0); the
+geometry doubles are declared `params` (with `guard_hz` defaulting to 0.0);
+`nogil = true` releases the GIL across the kernel (jm gh-261, 0.19.9); the
 `*_core.c` kernels **return the record by value**. `measure.pyi` is jm-generated
 (no longer `status_allow`-listed). The fragments are sacred-but-jm-recreatable
-(delete + `jm apply`). Caveat: the single binding doesn't yet honour `nogil`
-(jm#261) — `nogil = true` stays in the manifest and re-activates the GIL release
-on the pin bump that adopts the fix. The module composes `fft_core` +
-`spectral_core`; module-level helpers are one TU each. See
-`docs/design/measurement-suite.md`.
+(delete + `jm apply`). The module composes `fft_core` + `spectral_core`;
+module-level helpers are one TU each. See `docs/design/measurement-suite.md`.
 
 ### `ddc_fn` — the functional DDCR API (`no_generate`)
 

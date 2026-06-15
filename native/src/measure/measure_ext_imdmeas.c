@@ -120,8 +120,14 @@ IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
           return NULL;
         }
     }
-  imd_meas_t _r = imdmeas_analyze (self->handle,
-                                   (const float *)PyArray_DATA (in_arr), n_in);
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream). */
+  const float *_ng0 = (const float *)PyArray_DATA (in_arr);
+  imd_meas_t   _r;
+  Py_BEGIN_ALLOW_THREADS
+    _r = imdmeas_analyze (self->handle, _ng0, n_in);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *_o = PyStructSequence_New (IMDMeasureObj_analyze_type);
   if (!_o)

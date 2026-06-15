@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Detector2D"
+depends_on = ["corr2d_core", "fft2d_core", "fft_core"]
 
 [[detector2d.init_params]]
 name = "ref"

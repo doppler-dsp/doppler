@@ -5,7 +5,11 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "DDCR"
-depends_on = ["lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core"]
+# ddcr_create / reset / destroy / execute live in ddc_core.c (shared with the
+# Ddc object); ddcr_core.c only carries the execute_max_out hook. So the ddcr
+# core/test/bench must link ddc_core. Bare string: ddcr's own targets only —
+# the ddc .so already links ddc_core as the module core.
+depends_on = ["ddc_core", "lo_core", "RateConverter_core", "resamp_core", "hbdecim_core", "hbdecim_r2c_core", "cic_core", "fir_core", "resample_core"]
 
 [[ddcr.init_params]]
 name = "norm_freq"

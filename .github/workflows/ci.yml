@@ -393,4 +393,4 @@ jobs:
     - name: Check manifest drift
       # --refresh: ignore setup-uv's cached PyPI index so a just-published jm
       # pin resolves on the first run after a release (no stale-cache race).
-      run: uvx --refresh --from 'just-makeit==0.19.10' just-makeit status --check
+      run: uvx --refresh --from 'just-makeit==0.19.13' just-makeit status --check

@@ -33,6 +33,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from doppler.spectral import PSD
 from doppler.wfm import Composer, Reader, Segment, Writer, sigmf_meta
 
 FS = 1e6
@@ -40,15 +41,15 @@ FC = 2.4e9
 N = 1 << 14
 
 
-def welch_db(x, nfft=1024):
-    """Averaged periodogram (dB, fftshifted), normalised to its own peak."""
-    win = np.hanning(nfft)
-    acc, nseg = np.zeros(nfft), 0
-    for i in range(0, len(x) - nfft, nfft // 2):
-        seg = x[i : i + nfft] * win
-        acc += np.abs(np.fft.fftshift(np.fft.fft(seg))) ** 2
-        nseg += 1
-    p = 10 * np.log10(acc / nseg + 1e-12)
+def psd_db(x, nfft=1024):
+    """Averaged PSD (dB, DC-centred), normalised to its own peak.
+
+    Thin call to the C-backed ``doppler.spectral.PSD`` — Welch averaging with
+    a Hann window, the same estimator the analyzer/measure suite is built on.
+    """
+    est = PSD(n=nfft, fs=FS, window="hann", mode="mean")
+    est.accumulate(np.asarray(x, dtype=np.complex64))
+    p = est.psd_db()
     return p - p.max()
 
 
@@ -93,7 +94,7 @@ for file_type, name, read_kw in formats:
 
 # ── plot: one panel per container, round-trip overlaid + metadata recovered ──
 f = np.linspace(-0.5, 0.5, 1024) * FS / 1e3  # kHz
-orig_db = welch_db(x)
+orig_db = psd_db(x)
 fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 fig.suptitle(
     "wfm I/O — one waveform, four containers, lossless round-trip",
@@ -102,7 +103,7 @@ fig.suptitle(
 )
 for ax, (file_type, y, size, meta, err) in zip(axes.ravel(), results):
     ax.plot(f, orig_db, lw=1.6, color="#bbbbbb", label="original")
-    ax.plot(f, welch_db(y), lw=0.8, color="#1f77b4", label="read back")
+    ax.plot(f, psd_db(y), lw=0.8, color="#1f77b4", label="read back")
     ax.set_title(f"{file_type}  ·  {size / 1024:.0f} KiB on disk")
     ax.set_xlabel("frequency (kHz)")
     ax.set_ylabel("dB (rel. peak)")

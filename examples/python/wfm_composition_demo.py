@@ -35,6 +35,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from doppler.spectral import PSD
 from doppler.wfm import (
     Composer,
     Segment,
@@ -46,18 +47,20 @@ FS = 1e6
 N = 1 << 16
 
 
-def welch_db(x, nfft=1024):
-    """Averaged periodogram (dB, fftshifted), normalised to its own peak."""
-    win = np.hanning(nfft)
-    acc, nseg = np.zeros(nfft), 0
-    for i in range(0, len(x) - nfft, nfft // 2):
-        seg = x[i : i + nfft] * win
-        acc += np.abs(np.fft.fftshift(np.fft.fft(seg))) ** 2
-        nseg += 1
-    p = 10 * np.log10(acc / nseg + 1e-12)
+def psd_db(x, nfft=1024):
+    """Averaged PSD (dB, DC-centred), normalised to its own peak.
+
+    Thin call to the C-backed ``doppler.spectral.PSD`` — Welch averaging with
+    a Hann window, the same estimator the analyzer/measure suite is built on.
+    """
+    est = PSD(n=nfft, fs=FS, window="hann", mode="mean")
+    est.accumulate(np.asarray(x, dtype=np.complex64))
+    p = est.psd_db()
     return p - p.max()
 
 
+# A short-time spectrogram has no single-shot PSD analogue, so this STFT helper
+# stays explicit (per-frame FFT magnitude, not an averaged power estimate).
 def spectrogram_db(x, nfft=256, hop=64):
     win = np.hanning(nfft)
     cols = [
@@ -108,7 +111,7 @@ fig.suptitle(
 
 # A: scene spectrum
 f = np.linspace(-0.5, 0.5, 1024) * FS / 1e3  # kHz
-ax[0, 0].plot(f, welch_db(x), lw=0.8, color="#1f77b4")
+ax[0, 0].plot(f, psd_db(x), lw=0.8, color="#1f77b4")
 ax[0, 0].set_title("Scene spectrum — .sum() of SoI + interferer + floor")
 ax[0, 0].set_xlabel("frequency (kHz)")
 ax[0, 0].set_ylabel("dB (rel. peak)")

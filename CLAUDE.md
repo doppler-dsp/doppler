@@ -22,7 +22,6 @@ native/benchmarks/bench_<obj>_core.c
 
 objects/<obj>.toml              — jm fragment: the interface declaration (source)
 templates/                      — starter fragments for the two non-default patterns
-scaffold/                       — legacy CLI scripts (historical; do not re-run)
 
 src/doppler/<module>/__init__.py    — re-export only; no logic
 src/doppler/<module>/tests/         — Python integration tests

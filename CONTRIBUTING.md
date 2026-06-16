@@ -268,7 +268,7 @@ class Foo:
         Examples
         --------
         >>> import numpy as np
-        >>> from doppler.dp_foo import Foo
+        >>> from doppler.foo import Foo
         >>> f = Foo(param=0.5)
         >>> y = f.execute(np.ones(64, dtype=np.complex64))
         >>> y.dtype
@@ -306,16 +306,15 @@ Source: [`src/doppler/<module>/<module>.pyi`](https://github.com/doppler-dsp/dop
 
 ---
 
-::: doppler.dp_foo.Foo
+::: doppler.foo.Foo
 ```
 
-Then add it to the nav in `zensical.toml`:
+Then add it to the nav in `mkdocs.yml`:
 
-```toml
-nav = [
+```yaml
+nav:
   ...
-  { "API: Foo" = "api/python-foo.md" },
-]
+  - "Python: Foo": api/python-foo.md
 ```
 
 Run `make docs-build` to verify it renders. No hand-written API table

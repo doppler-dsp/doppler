@@ -29,6 +29,10 @@ site/
 benchmarks/history/*
 !benchmarks/history/.gitkeep
 
+# pytest-benchmark's default --benchmark-save store (the project keeps its own
+# numbers under benchmarks/; this tool cache is never committed).
+.benchmarks/
+
 # doxygen local output (CI generates these; never commit)
 html/
 xml/

@@ -57,9 +57,6 @@ repos:
         # checks syntax only (the custom constructors aren't resolvable here).
         args: [--unsafe]
       - id: check-toml
-        # jm starter templates carry `<<placeholder>>` tokens — not valid TOML
-        # until rendered.
-        exclude: '^templates/'
       - id: check-merge-conflict
       - id: end-of-file-fixer
         # generated glue is byte-owned by jm; don't let whitespace fixers drift it

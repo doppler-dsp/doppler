@@ -61,7 +61,7 @@ doppler/
 ├── cmake/                               install exports: find_package + pkg-config templates
 ├── Makefile                             test-all, docs-build, gallery, bump-version, tag-release
 ├── pyproject.toml                       Python package metadata (uv_build)
-├── Dockerfile / docker-compose.yml      reproducible build env
+├── Dockerfile / docker-compose.yml      multi-container streaming demo (zmq PUB/SUB tx → rx/spectrum)
 ├── Doxyfile / mkdocs.yml                docs toolchain (mkdocs-material + mkdoxy)
 ├── .pre-commit-config.yaml              lints/formats hand-written code only (jm glue excluded)
 ├── jb.toml                              just-buildit packaging config

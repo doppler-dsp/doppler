@@ -392,6 +392,9 @@ clean:
 	rm -rf site/
 	find $(PYEXT_DIR) -name '*.cpython-*.so' -delete
 	find $(PYEXT_DIR) -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+	# stray artifacts demo/bench scripts and jm leave in the repo root
+	rm -f *.png bench_*.json zensical.toml
+	rm -rf __pycache__
 
 # ── help ──────────────────────────────────────────────────────────────────────
 help:

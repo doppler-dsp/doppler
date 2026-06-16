@@ -102,8 +102,6 @@ Here is a list of all files with brief descriptions:
             * **file** [**nco\_core.h**](nco__core_8h.md) _Pure 32-bit phase-accumulator NCO._     
         * **dir** [**nprmeas**](dir_2ffe7a00bca5d7665b823d0b8c1040c3.md)     
             * **file** [**nprmeas\_core.h**](nprmeas__core_8h.md) _NPRMeasure — notched-noise Noise Power Ratio._     
-        * **dir** [**pffft**](dir_2e0e79537247ed1eb65cd0be05071701.md)     
-            * **file** [**pffft.h**](pffft_8h.md)     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     
             * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
         * **dir** [**psd**](dir_1f3d46873d925f2e533983763479900d.md)     

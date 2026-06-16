@@ -15,7 +15,8 @@ doppler/                          C-first DSP library — algorithms live in C o
 │   ├── src/<obj>/<obj>_core.c       algorithm implementation (hand-written; source of truth)
 │   ├── src/<module>/<mod>_ext.c     CPython aggregator (jm-generated — do not edit)
 │   ├── src/<module>/<mod>_ext_<obj>.c   per-object binding fragment (jm-generated — free to edit)
-│   ├── src/fft/                     vendored PFFFT + pocketfft backends (cf32 / integer FFT)
+│   ├── src/fft/                     doppler's fft_core + pocketfft.c wrapper over the
+│   │                                vendored backends (cf32 / integer FFT)
 │   ├── tests/test_<obj>_core.c      C-level unit tests (CTest)
 │   └── benchmarks/bench_<obj>_core.c   C microbenchmarks
 │       └── ~60 component dirs: fir, cic, fft, ddc/ddcr, resamp, lo/nco/awgn/pn,
@@ -59,7 +60,8 @@ doppler/                          C-first DSP library — algorithms live in C o
 ├── tests/install/                install smoke tests (apt/dnf/pacman/brew/source, cmake-link, pip)
 ├── scripts/                      bench_interleaved.py, bench_report.py, check_api_docs.py,
 │                                 capture_specan.py (standalone specan capture utility)
-├── vendor/                       statically-compiled deps: cjson, libzmq (zmq is opt-in)
+├── vendor/                       third-party sources compiled in: cjson, libzmq (zmq
+│                                 opt-in), pffft + pocketfft (the FFT backends)
 │
 ├── CMakeLists.txt / cmake/       C + Python extension build
 ├── Makefile                      test-all, docs-build, gallery, bump-version, tag-release …

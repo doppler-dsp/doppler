@@ -57,7 +57,8 @@ doppler/
 ├── scripts/                             repo tooling (benchmarking, API-doc coverage, capture)
 ├── vendor/                              third-party sources compiled straight in
 │
-├── CMakeLists.txt / cmake/              C + Python extension build
+├── CMakeLists.txt                       C + Python extension build
+├── cmake/                               install exports: find_package + pkg-config templates
 ├── Makefile                             test-all, docs-build, gallery, bump-version, tag-release
 ├── pyproject.toml                       Python package metadata (uv_build)
 ├── Dockerfile / docker-compose.yml      reproducible build env

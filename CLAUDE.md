@@ -21,7 +21,6 @@ native/tests/test_<obj>_core.c  — C-level unit tests
 native/benchmarks/bench_<obj>_core.c
 
 objects/<obj>.toml              — jm fragment: the interface declaration (source)
-templates/                      — starter fragments for the two non-default patterns
 
 src/doppler/<module>/__init__.py    — re-export only; no logic
 src/doppler/<module>/tests/         — Python integration tests
@@ -38,10 +37,10 @@ Ask one question:
 
 > Can a single input sample be processed independently with small fixed state?
 
-- **Yes** → use the CLI default (`jm object name --state ...`). No template needed.
-- **No** → the C API owns block I/O. Pick a template:
-    - Block processor / decimator / resampler / FFT / correlator → `templates/block_nostate.toml`
-    - Signal generator (void input, array output) → `templates/void_source.toml`
+- **Yes** → use the CLI default (`jm object name --state ...`). A plain step/steps object.
+- **No** → the C API owns block I/O. Use a `jm object --preset` (jm ≥ 0.19):
+    - Block processor / decimator / resampler / FFT / correlator → `--preset blockwise`
+    - Signal generator (void input, array output) → `--preset generator`
 
 ### Step 1 — declare the interface
 
@@ -54,12 +53,28 @@ jm property myobj gain --module mymodule --type double --writable --field
 # CLI mutations route to objects/myobj.toml automatically (split layout)
 ```
 
-**Entry point B: template (block I/O objects)**
+**Entry point B: CLI presets (block I/O objects)**
+
+A block-I/O object owns its output buffer (`no_state`/`no_step`, opaque heap
+state jm can't infer), so it's a `--preset` for the object shape **plus** an
+explicit `variable_output` method — `jm method … --variable-output` is what
+adds the lazy-alloc, grow-on-demand output buffer. (Add `--pass-capacity` for
+the 5-arg `(…, out, max_out)` form.)
 
 ```sh
-cp templates/block_nostate.toml objects/myobj.toml  # or void_source.toml
-# Edit objects/myobj.toml — replace <<OBJ>> and <<CLASS>>, tune init_params,
-# methods, and properties for the algorithm.
+# Block processor (decimator / resampler / FFT / correlator):
+jm object myobj --preset blockwise --module mymodule \
+  --no-state --no-step --class-name MyObj --init-param n:size_t:1024
+jm method myobj execute --module mymodule \
+  --arg-type "float _Complex" --return-type "float _Complex" --variable-output
+jm property myobj n --module mymodule --type size_t --field
+
+# Signal generator (void input, array output: NCO, LO, tone/PN gen):
+jm object mysrc --preset generator --module mymodule \
+  --no-state --no-step --class-name MySrc --init-param norm_freq:double:0.0
+jm method mysrc steps --module mymodule \
+  --arg-type void --return-type "float _Complex" --variable-output
+# CLI mutations route to objects/<obj>.toml automatically (split layout).
 ```
 
 ### Step 2 — register in the module manifest
@@ -117,7 +132,7 @@ ______________________________________________________________________
 
 ## Known post-apply patches
 
-These apply to all block-I/O objects (template users):
+These apply to all block-I/O objects (`--preset blockwise`/`generator`):
 
 | Issue                                                      | Fix                                                                                                      |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |

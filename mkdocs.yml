@@ -192,6 +192,7 @@ nav:
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
+      - Repository Map: design/repository-map.md
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
       - Spectral & Measurement API Map: design/spectral-api-map.md

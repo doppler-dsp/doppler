@@ -13,6 +13,15 @@ so a capture is fully reproducible.
 The samples come back as ``complex64`` arrays; pair :class:`Writer` with
 :func:`doppler.wfm.readback.read_iq` to round-trip a file.
 
+The ``Synth`` / ``Segment`` / ``Timeline`` / ``Composer`` ergonomic types are the
+**jm-generated** CPython types in ``doppler.wfm.wfm_compose`` (the composer lives
+in the ``.so``; ``jm`` owns the binding). The classes here are thin Python
+**subclasses** that add only what the generic generator cannot express: standalone
+sample generation (:meth:`Synth.steps`), the ``pattern`` / ``f_start`` input sugar,
+the flat single-source :class:`Segment` view, and :meth:`Composer.stream`. The
+container writers/readers (BLUE / SigMF / ZMQ / sample-clock) stay hand-written
+here, over the transport binding ``_wfmcompose``.
+
 Examples
 --------
 >>> from doppler.wfm.compose import Composer, Segment
@@ -27,14 +36,16 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import dataclass
 from typing import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
+# _wfmcompose: transport binding (writers/readers/sink/clock/sigmf/DSP helpers).
+# wfm_compose: the jm-generated composer OO types (Synth/Segment/…), in the .so.
 from . import _wfmcompose as _c
-from .wfm import _SynthEngine  # internal C engine; Synth wraps it
+from . import wfm_compose as _g
+from .wfm import _SynthEngine  # internal C engine; Synth uses it standalone
 
 # ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
 _TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits")
@@ -78,8 +89,12 @@ def _idx(name: str, table: tuple[str, ...], what: str) -> int:
         ) from None
 
 
-@dataclass
-class Synth:
+def _bits_to_pattern(b):
+    """A generated source's ``bits`` buffer (``bytes`` | ``None``) → pattern."""
+    return np.frombuffer(b, dtype=np.uint8) if b else None
+
+
+class Synth(_g.Synth):
     """One waveform — the single object that both **generates** and **composes**.
 
     A ``Synth`` *is* the configuration of a waveform (tone / noise / PN / BPSK /
@@ -91,17 +106,17 @@ class Synth:
       shared noise floor. Composition reads the config only — it spins **no**
       engine, so summing N synths allocates nothing extra.
 
+    The composition half (the field marshalling, the ``Composer`` that drives the
+    C kernel) is the jm-generated :class:`doppler.wfm.wfm_compose.Synth` this
+    subclasses; the standalone-generation half (:meth:`steps`) and the
+    ``pattern`` / ``f_start`` input sugar are added here.
+
     Build with the :func:`tone` / :func:`qpsk` / :func:`bpsk` / :func:`pn` /
     :func:`noise` helpers, or construct directly.
 
-    ``snr`` is per-synth because it is self-referential — ``snr_mode``'s Eb/No
-    needs this waveform's bits/symbol and samples/symbol. In a multi-source
-    :meth:`Segment.sum` the composer resolves the per-synth SNRs into one shared
-    floor; a lone synth keeps its bundled AWGN.
-
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"}
         Waveform kind (``"noise"`` is a bare AWGN floor at ``level`` dBFS;
         ``"chirp"`` is a linear-FM sweep — see ``f_end``).
     fs : float
@@ -109,14 +124,9 @@ class Synth:
         used in a :class:`Segment` — the segment owns the rate.
     freq : float
         Carrier/offset frequency (Hz). For a ``chirp`` this is the **start**
-        frequency f_start (the instantaneous frequency at t=0); ``f_start=`` is
-        accepted as an alias.
+        frequency f_start; ``f_start=`` is accepted as an alias.
     f_end : float
-        Chirp **end** frequency (Hz); used only when ``type="chirp"``. The
-        instantaneous frequency sweeps linearly ``freq → f_end`` over the
-        generated length (``steps(n)`` standalone, or the segment's
-        ``num_samples`` in composition), then holds at ``f_end``. ``f_end <
-        freq`` is a down-chirp.
+        Chirp **end** frequency (Hz); used only when ``type="chirp"``.
     f_start : float, optional
         Readable alias for ``freq`` (chirp start frequency); folded into
         ``freq`` at construction when given.
@@ -129,10 +139,11 @@ class Synth:
     sps, pn_length, pn_poly, lfsr
         PN/PSK data-source parameters (see :class:`Segment`).
     level : float
-        Level in dBFS (``<= 0``) applied **in composition** — the synth's output
-        is scaled by ``10 ** (level / 20)``; for a ``noise`` synth this *is* the
-        floor. Standalone :meth:`steps` generates at unit power (``level`` is a
-        composition concern), so it is byte-identical to the bare engine.
+        Level in dBFS (``<= 0``) applied **in composition**; standalone
+        :meth:`steps` generates at unit power, byte-identical to the bare engine.
+    pattern : str or array-like, optional
+        For ``type="bits"``: a binary string (``"10110101"``), a hex string
+        (``"0xAA55"``, MSB first), or any array-like of 0/1.
 
     Examples
     --------
@@ -144,40 +155,61 @@ class Synth:
     (4096,)
     """
 
-    type: str = "tone"
-    fs: float = 1e6
-    freq: float = 0.0
-    f_end: float = 0.0
-    snr: float = 100.0
-    snr_mode: str = "auto"
-    seed: int = 1
-    sps: int = 8
-    pn_length: int = 7
-    pn_poly: int = 0
-    lfsr: str = "galois"
-    level: float = 0.0
-    f_start: float | None = None
-    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
-    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
-    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
-    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
-    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
-
-    def __post_init__(self):
-        # ``f_start`` is sugar for ``freq`` (chirp's start frequency *is* the
+    def __init__(
+        self,
+        type: str = "tone",
+        fs: float = 1e6,
+        freq: float = 0.0,
+        f_end: float = 0.0,
+        snr: float = 100.0,
+        snr_mode: str = "auto",
+        seed: int = 1,
+        sps: int = 8,
+        pn_length: int = 7,
+        pn_poly: int = 0,
+        lfsr: str = "galois",
+        level: float = 0.0,
+        f_start: float | None = None,
+        pattern: object = None,
+        modulation: str = "bpsk",
+        pulse: str = "rect",
+        rrc_beta: float = 0.35,
+        rrc_span: int = 8,
+    ) -> None:
+        # ``f_start`` is sugar for ``freq`` (a chirp's start frequency *is* the
         # carrier offset at t=0); fold it in so there is one stored value.
-        if self.f_start is not None:
-            self.freq = self.f_start
-        # Validate the string-enum fields eagerly (cheap, no engine spun) so a
-        # bad spec fails at construction, not lazily on the first ``steps``.
-        _idx(self.type, _TYPES, "type")
-        _idx(self.snr_mode, _MODES, "snr_mode")
-        _idx(self.lfsr, _LFSRS, "lfsr")
-        _idx(self.pulse, _PULSES, "pulse")
-        if self.type == "bits":
-            _idx(self.modulation, _BITMODS, "modulation")
-            if self.pattern is None:
-                raise ValueError("type='bits' needs a pattern")
+        if f_start is not None:
+            freq = f_start
+        if type == "bits" and pattern is None:
+            raise ValueError("type='bits' needs a pattern")
+        # ``pattern`` (str / hex / array) → the generated type's ``bits`` bytes.
+        bits = (
+            _parse_bits(pattern).tobytes()
+            if (type == "bits" and pattern is not None)
+            else None
+        )
+        # The generated tp_init validates the enum fields and populates the C
+        # source struct that Composer reads.
+        super().__init__(
+            type=type,
+            freq=freq,
+            f_end=f_end,
+            snr=snr,
+            snr_mode=snr_mode,
+            seed=seed,
+            sps=sps,
+            pn_length=pn_length,
+            pn_poly=pn_poly,
+            lfsr=lfsr,
+            level=level,
+            bits=bits,
+            modulation=modulation,
+            pulse=pulse,
+            rrc_beta=rrc_beta,
+            rrc_span=rrc_span,
+            fs=fs,
+        )
+        self._eng = None
 
     @property
     def n_samples(self) -> int:
@@ -185,7 +217,7 @@ class Synth:
         halved for qpsk). 0 for the streaming types (no natural length)."""
         if self.type != "bits":
             return 0
-        nb = len(_parse_bits(self.pattern))
+        nb = len(self.bits) if self.bits else 0
         per_sym = 2 if self.modulation == "qpsk" else 1
         return (nb // per_sym) * self.sps
 
@@ -206,7 +238,8 @@ class Synth:
         )
         if self.type == "bits":
             eng.set_bits(
-                _parse_bits(self.pattern), _idx(self.modulation, _BITMODS, "")
+                np.frombuffer(self.bits, dtype=np.uint8),
+                _idx(self.modulation, _BITMODS, ""),
             )
         # RRC pulse shaping (pn/bpsk/qpsk only): pass the raw unit-energy taps;
         # the C set_rrc scales them by sqrt(sps) for unit transmit power, so the
@@ -235,62 +268,6 @@ class Synth:
         eng = getattr(self, "_eng", None)
         if eng is not None:
             eng.reset()
-
-    def _tuple(self) -> tuple:
-        """Fixed-order 13-tuple consumed by the C binding (enums → ints).
-
-        The trailing ``f_end`` (chirp), ``modulation``/``bits`` (a bits
-        pattern as a ``bytes`` of 0/1, else ``None``), and ``pulse``/
-        ``rrc_beta``/``rrc_span`` (RRC shaping) default to 0/``None``/rect for
-        other types so the serialisation is byte-stable.
-        """
-        bits_bytes = (
-            _parse_bits(self.pattern).tobytes()
-            if self.type == "bits"
-            else None
-        )
-        return (
-            _idx(self.type, _TYPES, "type"),
-            float(self.freq),
-            float(self.snr),
-            _idx(self.snr_mode, _MODES, "snr_mode"),
-            int(self.seed),
-            int(self.sps),
-            int(self.pn_length),
-            int(self.pn_poly),
-            _idx(self.lfsr, _LFSRS, "lfsr"),
-            float(self.level),
-            float(self.f_end),
-            _idx(self.modulation, _BITMODS, "modulation"),
-            bits_bytes,
-            _idx(self.pulse, _PULSES, "pulse"),
-            float(self.rrc_beta),
-            int(self.rrc_span),
-        )
-
-    @classmethod
-    def _from_tuple(cls, t: tuple) -> "Synth":
-        pattern = (
-            np.frombuffer(t[12], dtype=np.uint8) if t[12] is not None else None
-        )
-        return cls(
-            type=_TYPES[t[0]],
-            freq=t[1],
-            snr=t[2],
-            snr_mode=_MODES[t[3]],
-            seed=t[4],
-            sps=t[5],
-            pn_length=t[6],
-            pn_poly=t[7],
-            lfsr=_LFSRS[t[8]],
-            level=t[9],
-            f_end=t[10],
-            modulation=_BITMODS[t[11]],
-            pattern=pattern,
-            pulse=_PULSES[t[13]],
-            rrc_beta=t[14],
-            rrc_span=t[15],
-        )
 
 
 def tone(freq: float = 0.0, **kw) -> Synth:
@@ -323,8 +300,7 @@ def chirp(f_start: float = 0.0, f_end: float = 1e5, **kw) -> Synth:
 
     The instantaneous frequency rises (or falls, if ``f_end < f_start``)
     linearly across the generated length — ``steps(n)`` standalone, or the
-    segment's ``num_samples`` in composition — then holds at ``f_end``. The
-    phase is continuous, so multi-segment chirps connect seamlessly.
+    segment's ``num_samples`` in composition — then holds at ``f_end``.
 
     Examples
     --------
@@ -358,76 +334,108 @@ def bits(pattern, modulation: str = "bpsk", **kw) -> Synth:
     return Synth(type="bits", pattern=pattern, modulation=modulation, **kw)
 
 
-@dataclass
-class Segment:
+class Segment(_g.Segment):
     """One waveform segment of a composed stream.
 
     Fields mirror the C ``wfm_segment_t`` and the ``wfmgen`` CLI flags; the
     string fields (``type``, ``snr_mode``, ``lfsr``) are mapped to the C enums.
     Defaults match the CLI: a clean 1024-sample baseband tone at 1 MS/s.
 
+    A single-source segment carries its one source's fields inline (so
+    ``segment.freq`` / ``segment.f_end`` / … read through to the source); a
+    multi-source segment is built with :meth:`sum`. This subclasses the
+    jm-generated :class:`doppler.wfm.wfm_compose.Segment`, adding the flat
+    single-source view plus the ``pattern`` / ``f_start`` input sugar.
+
     Parameters
     ----------
-    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp"}
+    type : {"tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"}
         Waveform kind.
     fs : float
         Sample rate (Hz).
-    freq : float
-        Carrier/offset frequency (Hz); normalised by ``fs`` internally. For a
-        ``chirp`` this is the start frequency (``f_start=`` is an alias).
-    f_end : float
-        Chirp end frequency (Hz); used only when ``type="chirp"``. The sweep
-        ``freq → f_end`` spans the segment's ``num_samples``.
-    snr : float
-        SNR in dB under ``snr_mode``; the default (100 dB) is numerically clean.
-    snr_mode : {"auto", "fs", "ebno", "esno"}
-        How ``snr`` is interpreted; ``auto`` resolves per ``type``.
-    seed : int
-        PRNG / LFSR seed (reproducible by default).
-    sps : int
-        Samples per symbol (PSK) or per chip (PN).
-    pn_length : int
-        LFSR register length (PN/PSK data source).
-    pn_poly : int
-        LFSR polynomial; ``0`` selects the maximal-length poly for ``pn_length``.
-    lfsr : {"galois", "fibonacci"}
-        LFSR topology.
+    freq, f_end, snr, snr_mode, seed, sps, pn_length, pn_poly, lfsr
+        Source parameters (see :class:`Synth`).
     num_samples : int
         On-time length of the segment (samples).
     off_samples : int
         Trailing zero gap after the segment (samples).
     level : float
-        Segment level in dBFS (``<= 0``); the segment's output is scaled by
-        ``10 ** (level / 20)``. Default ``0`` (unit power) is a bit-exact no-op,
-        so the segment's internal SNR is preserved.
+        Segment level in dBFS (``<= 0``); the output is scaled by
+        ``10 ** (level / 20)``. Default ``0`` is a bit-exact no-op.
+    pattern : str or array-like, optional
+        For ``type="bits"`` (see :class:`Synth`).
     """
 
-    type: str = "tone"
-    fs: float = 1e6
-    freq: float = 0.0
-    f_end: float = 0.0
-    snr: float = 100.0
-    snr_mode: str = "auto"
-    seed: int = 1
-    sps: int = 8
-    pn_length: int = 7
-    pn_poly: int = 0
-    lfsr: str = "galois"
-    num_samples: int = 1024
-    off_samples: int = 0
-    level: float = 0.0
-    sources: list[Synth] | None = None
-    f_start: float | None = None
-    pattern: object = None  # type="bits": 0/1 string / "0x.." hex / array
-    modulation: str = "bpsk"  # type="bits": "none" | "bpsk" | "qpsk"
-    pulse: str = "rect"  # pn/bpsk/qpsk pulse shape: "rect" | "rrc"
-    rrc_beta: float = 0.35  # RRC roll-off (pulse="rrc")
-    rrc_span: int = 8  # RRC support in symbols (pulse="rrc")
+    def __init__(
+        self,
+        type: str = "tone",
+        fs: float = 1e6,
+        freq: float = 0.0,
+        f_end: float = 0.0,
+        snr: float = 100.0,
+        snr_mode: str = "auto",
+        seed: int = 1,
+        sps: int = 8,
+        pn_length: int = 7,
+        pn_poly: int = 0,
+        lfsr: str = "galois",
+        num_samples: int = 1024,
+        off_samples: int = 0,
+        level: float = 0.0,
+        sources: list | None = None,
+        f_start: float | None = None,
+        pattern: object = None,
+        modulation: str = "bpsk",
+        pulse: str = "rect",
+        rrc_beta: float = 0.35,
+        rrc_span: int = 8,
+    ) -> None:
+        if sources is not None:
+            raise TypeError(
+                "build a multi-source segment with Segment.sum(), not sources="
+            )
+        if f_start is not None:
+            freq = f_start
+        if type == "bits" and pattern is None:
+            raise ValueError("type='bits' needs a pattern")
+        bits = (
+            _parse_bits(pattern).tobytes()
+            if (type == "bits" and pattern is not None)
+            else None
+        )
+        # The generated single-source ctor forwards the source fields to build
+        # one internal Synth and stores the segment scalars (fs/on/off).
+        super().__init__(
+            type=type,
+            freq=freq,
+            f_end=f_end,
+            snr=snr,
+            snr_mode=snr_mode,
+            seed=seed,
+            sps=sps,
+            pn_length=pn_length,
+            pn_poly=pn_poly,
+            lfsr=lfsr,
+            level=level,
+            bits=bits,
+            modulation=modulation,
+            pulse=pulse,
+            rrc_beta=rrc_beta,
+            rrc_span=rrc_span,
+            fs=fs,
+            num_samples=num_samples,
+            off_samples=off_samples,
+        )
 
-    def __post_init__(self):
-        # ``f_start`` is sugar for ``freq`` (a chirp's start frequency).
-        if self.f_start is not None:
-            self.freq = self.f_start
+    def __getattr__(self, name):
+        # Flat back-compat: a single-source segment exposes its source's fields
+        # (type / freq / f_end / pulse / …) directly. Only fires for names not
+        # on the base type (fs / num_samples / off_samples / sources resolve
+        # normally, so no recursion).
+        srcs = self.sources
+        if len(srcs) == 1:
+            return getattr(srcs[0], name)
+        raise AttributeError(name)
 
     @classmethod
     def sum(
@@ -436,14 +444,11 @@ class Segment:
         num_samples: int,
         off: int = 0,
         fs: float = 1e6,
-    ) -> "Segment":
+    ) -> _g.Segment:
         """Mix several :class:`Synth` together over the same ``num_samples``.
 
         The synths mix at the same time (one receiver), so they share one
-        sample rate ``fs`` and one noise floor: per-synth ``snr`` resolves to a
-        single AWGN source in C (see :class:`Synth`). ``off`` is the trailing
-        gap. This is the multi-source counterpart of the single-source
-        :class:`Segment` constructor.
+        sample rate ``fs`` and one noise floor. ``off`` is the trailing gap.
 
         Examples
         --------
@@ -456,144 +461,122 @@ class Segment:
         """
         if not sources:
             raise ValueError("Segment.sum needs at least one synth")
-        return cls(
-            num_samples=num_samples,
-            off_samples=off,
-            fs=fs,
-            sources=list(sources),
+        return _g.Segment.sum(
+            *sources, fs=fs, num_samples=num_samples, off_samples=off
         )
 
-    def _tuple(self) -> tuple:
-        """C-binding tuple: 16-tuple for 1 source, else nested multi-source.
 
-        A multi-source segment crosses as ``(num, off, fs, [source13tuple, …])``
-        (the ``fs``/on/off live on the segment); a single-source segment keeps
-        the flat 19-tuple form (the trailing ``f_end`` + ``modulation``/``bits``
-        + ``pulse``/``rrc_beta``/``rrc_span`` default to 0/``None``/rect →
-        byte-stable).
-        """
-        if self.sources is not None:
-            return (
-                int(self.num_samples),
-                int(self.off_samples),
-                float(self.fs),
-                [s._tuple() for s in self.sources],
-            )
-        bits_bytes = (
-            _parse_bits(self.pattern).tobytes()
-            if self.type == "bits"
-            else None
-        )
-        return (
-            _idx(self.type, _TYPES, "type"),
-            float(self.fs),
-            float(self.freq),
-            float(self.snr),
-            _idx(self.snr_mode, _MODES, "snr_mode"),
-            int(self.seed),
-            int(self.sps),
-            int(self.pn_length),
-            int(self.pn_poly),
-            _idx(self.lfsr, _LFSRS, "lfsr"),
-            int(self.num_samples),
-            int(self.off_samples),
-            float(self.level),
-            float(self.f_end),
-            _idx(self.modulation, _BITMODS, "modulation"),
-            bits_bytes,
-            _idx(self.pulse, _PULSES, "pulse"),
-            float(self.rrc_beta),
-            int(self.rrc_span),
-        )
-
-    @classmethod
-    def _from_tuple(cls, t: tuple) -> "Segment":
-        if len(t) != 19:  # nested multi-source: (num, off, fs, [sources])
-            num, off, fs, srclist = t
-            return cls(
-                num_samples=num,
-                off_samples=off,
-                fs=fs,
-                sources=[Synth._from_tuple(st) for st in srclist],
-            )
-        pattern = (
-            np.frombuffer(t[15], dtype=np.uint8) if t[15] is not None else None
-        )
-        return cls(
-            type=_TYPES[t[0]],
-            fs=t[1],
-            freq=t[2],
-            snr=t[3],
-            snr_mode=_MODES[t[4]],
-            seed=t[5],
-            sps=t[6],
-            pn_length=t[7],
-            pn_poly=t[8],
-            lfsr=_LFSRS[t[9]],
-            num_samples=t[10],
-            off_samples=t[11],
-            level=t[12],
-            f_end=t[13],
-            modulation=_BITMODS[t[14]],
-            pattern=pattern,
-            pulse=_PULSES[t[16]],
-            rrc_beta=t[17],
-            rrc_span=t[18],
-        )
-
-    def add(self, *others: "Segment") -> "Timeline":
-        """Sequence this segment then ``others`` in time → a :class:`Timeline`.
-
-        The time-sequence counterpart of :meth:`sum` (which mixes sources at the
-        *same* time): ``a.add(b)`` plays ``a`` then ``b`` back-to-back. Chain
-        with :meth:`Timeline.add`, then hand the result to :class:`Composer`.
-
-        Examples
-        --------
-        >>> from doppler.wfm import Composer, Segment, qpsk, tone
-        >>> tl = Segment("tone", freq=1e5, num_samples=1000).add(
-        ...     Segment.sum(qpsk(snr=15), tone(level=-12), num_samples=4096)
-        ... )
-        >>> len(Composer(tl).compose())
-        5096
-        """
-        return Timeline([self, *others])
+# The generated Timeline (an ordered, iterable run of segments built by
+# Segment.add / Timeline.add) is already complete — re-export it directly.
+Timeline = _g.Timeline
 
 
-@dataclass
-class Timeline:
-    """An ordered run of :class:`Segment` played back-to-back in time.
+def _flat_segment(seg):
+    """Wrap a resolved generated segment in a flat (single-source) Segment.
 
-    The composer already sequences a segment list; :class:`Timeline` is the
-    fluent face of that list, built by :meth:`Segment.add` / :meth:`add`. It is
-    a plain sequence — iterate it, index it, or pass it straight to
-    :class:`Composer`.
+    A single-source segment becomes a :class:`Segment` whose source fields read
+    inline (``.f_end``, ``.pulse``, …); a multi-source segment is returned as-is
+    (it has no single waveform to flatten).
     """
+    srcs = list(seg.sources)
+    if len(srcs) != 1:
+        return seg
+    s = srcs[0]
+    return Segment(
+        type=s.type,
+        fs=seg.fs,
+        freq=s.freq,
+        f_end=s.f_end,
+        snr=s.snr,
+        snr_mode=s.snr_mode,
+        seed=s.seed,
+        sps=s.sps,
+        pn_length=s.pn_length,
+        pn_poly=s.pn_poly,
+        lfsr=s.lfsr,
+        num_samples=seg.num_samples,
+        off_samples=seg.off_samples,
+        level=s.level,
+        modulation=s.modulation,
+        pulse=s.pulse,
+        rrc_beta=s.rrc_beta,
+        rrc_span=s.rrc_span,
+        pattern=_bits_to_pattern(s.bits),
+    )
 
-    segments: list[Segment]
 
-    def add(self, *segments: Segment) -> "Timeline":
-        """Append more segments to the end of the timeline (chainable)."""
-        self.segments.extend(segments)
-        return self
+def _src_tuple(s) -> tuple:
+    """A source's 16-field ``_SOURCE_FMT`` tuple for the transport marshal."""
+    return (
+        _idx(s.type, _TYPES, "type"),
+        float(s.freq),
+        float(s.snr),
+        _idx(s.snr_mode, _MODES, "snr_mode"),
+        int(s.seed),
+        int(s.sps),
+        int(s.pn_length),
+        int(s.pn_poly),
+        _idx(s.lfsr, _LFSRS, "lfsr"),
+        float(s.level),
+        float(s.f_end),
+        _idx(s.modulation, _BITMODS, "modulation"),
+        s.bits,
+        _idx(s.pulse, _PULSES, "pulse"),
+        float(s.rrc_beta),
+        int(s.rrc_span),
+    )
 
-    def __iter__(self):
-        return iter(self.segments)
 
-    def __len__(self) -> int:
-        return len(self.segments)
+def _seg_tuple(seg) -> tuple:
+    """A segment's transport tuple: flat ``_SEG_FMT`` (1 source) else nested.
 
-    def __getitem__(self, i):
-        return self.segments[i]
+    Mirrors the C round-trip (``wfmcompose_py.c``): ``n_sources == 1`` is the
+    flat single-source form, otherwise ``(num, off, fs, [source-tuples])``.
+    """
+    srcs = list(seg.sources)
+    if len(srcs) == 1:
+        s = srcs[0]
+        return (
+            _idx(s.type, _TYPES, "type"),
+            float(seg.fs),
+            float(s.freq),
+            float(s.snr),
+            _idx(s.snr_mode, _MODES, "snr_mode"),
+            int(s.seed),
+            int(s.sps),
+            int(s.pn_length),
+            int(s.pn_poly),
+            _idx(s.lfsr, _LFSRS, "lfsr"),
+            int(seg.num_samples),
+            int(seg.off_samples),
+            float(s.level),
+            float(s.f_end),
+            _idx(s.modulation, _BITMODS, "modulation"),
+            s.bits,
+            _idx(s.pulse, _PULSES, "pulse"),
+            float(s.rrc_beta),
+            int(s.rrc_span),
+        )
+    return (
+        int(seg.num_samples),
+        int(seg.off_samples),
+        float(seg.fs),
+        [_src_tuple(s) for s in srcs],
+    )
 
 
-class Composer:
+class Composer(_g.Composer):
     """A multi-segment waveform generator over a list of :class:`Segment`.
 
     Construct from an explicit segment list, from a single segment's keyword
     arguments, or from a JSON spec (:meth:`from_json` / :meth:`from_file`). Pull
     samples a block at a time with :meth:`execute`, or drain a finite spec to one
     array with :meth:`compose`. Usable as a context manager.
+
+    The composer itself (the C kernel driver, ``execute`` / ``compose`` /
+    ``to_json``) is the jm-generated :class:`doppler.wfm.wfm_compose.Composer`
+    this subclasses; :meth:`stream` and the flat :attr:`segments` view are added
+    here.
 
     Parameters
     ----------
@@ -616,60 +599,33 @@ class Composer:
     (dtype('complex64'), 1024)
     """
 
-    def __init__(
-        self,
-        segments: Sequence[Segment] | Timeline | Segment | None = None,
-        *,
-        repeat: bool = False,
-        continuous: bool = False,
-        **segment_kwargs,
-    ) -> None:
-        if segments is None:
-            segments = [Segment(**segment_kwargs)]
-        elif segment_kwargs:
-            raise TypeError(
-                "pass either a segments list or single-segment kwargs, not both"
-            )
-        elif isinstance(segments, Segment):
-            segments = [
-                segments
-            ]  # a lone segment (Timeline is iterable as-is)
-        tuples = [s._tuple() for s in segments]
-        self._cap = _c.composer_create(tuples, bool(repeat), bool(continuous))
+    # __init__ / execute / compose / to_json / close / __enter__ / __exit__ /
+    # repeat / continuous are inherited from the generated Composer unchanged.
+
+    @property
+    def segments(self) -> list:
+        """The resolved segment list (defaults filled in), as flat Segments."""
+        return [_flat_segment(s) for s in _g.Composer.segments.__get__(self)]
 
     @classmethod
     def from_json(cls, json: str) -> "Composer":
         """Build a composer from a JSON spec string (the ``--from-file`` schema)."""
-        self = cls.__new__(cls)
-        self._cap = _c.composer_from_json(json)
-        return self
+        base = _g.Composer.from_json(json)
+        return cls(
+            list(_g.Composer.segments.__get__(base)),
+            repeat=base.repeat,
+            continuous=base.continuous,
+        )
 
     @classmethod
     def from_file(cls, path: str | os.PathLike) -> "Composer":
         """Build a composer from a JSON spec file."""
-        self = cls.__new__(cls)
-        self._cap = _c.composer_from_file(os.fspath(path))
-        return self
-
-    def execute(self, n: int) -> NDArray[np.complex64]:
-        """Generate up to ``n`` samples; a shorter (or empty) array marks the end."""
-        return _c.composer_execute(self._cap, int(n))
-
-    def compose(self, block: int = 4096) -> NDArray[np.complex64]:
-        """Drain a finite spec into a single array (raises if ``continuous``)."""
-        if self.continuous:
-            raise ValueError(
-                "cannot compose() a continuous spec; use execute()"
-            )
-        chunks = []
-        while True:
-            blk = self.execute(block)
-            if len(blk) == 0:
-                break
-            chunks.append(blk)
-        if not chunks:
-            return np.empty(0, dtype=np.complex64)
-        return np.concatenate(chunks)
+        base = _g.Composer.from_file(os.fspath(path))
+        return cls(
+            list(_g.Composer.segments.__get__(base)),
+            repeat=base.repeat,
+            continuous=base.continuous,
+        )
 
     def stream(self, block: int = 4096, *, realtime: bool | float = False):
         """Yield successive blocks — a generator over :meth:`execute`.
@@ -681,11 +637,7 @@ class Composer:
         This is the Python equivalent of the ``wfmgen --realtime`` flag: pass
         ``realtime`` to pace each block to real time (the same `timing_core`
         clock the CLI uses). ``realtime=True`` paces at the first segment's
-        ``fs``; pass a float to override the rate. Each block is emitted, then
-        the generator sleeps until the next block's deadline before producing
-        it — so the first block is immediate and the long-run rate is exactly
-        ``fs`` (POSIX only; raises ``NotImplementedError`` off-platform, like
-        :class:`SampleClock`).
+        ``fs``; pass a float to override the rate.
 
         Parameters
         ----------
@@ -693,8 +645,7 @@ class Composer:
             Samples per yielded array (the last finite block may be shorter).
         realtime : bool or float, optional
             Pace to real time. ``True`` uses ``segments[0].fs``; a float sets
-            the sample-clock rate explicitly. Default ``False`` (as fast as
-            possible).
+            the sample-clock rate explicitly. Default ``False``.
 
         Yields
         ------
@@ -720,39 +671,6 @@ class Composer:
             yield blk
             if clk is not None:
                 clk.pace(len(blk))  # sleep to the next block's deadline
-
-    @property
-    def _resolved(self) -> tuple[list[Segment], bool, bool]:
-        segs, repeat, continuous = _c.composer_segments(self._cap)
-        return [Segment._from_tuple(t) for t in segs], repeat, continuous
-
-    @property
-    def segments(self) -> list[Segment]:
-        """The resolved segment list (defaults filled in)."""
-        return self._resolved[0]
-
-    @property
-    def repeat(self) -> bool:
-        return self._resolved[1]
-
-    @property
-    def continuous(self) -> bool:
-        return self._resolved[2]
-
-    def to_json(self) -> str:
-        """Serialise the resolved spec to JSON (round-trips via :meth:`from_json`)."""
-        segs, repeat, continuous = self._resolved
-        return _c.spec_to_json([s._tuple() for s in segs], repeat, continuous)
-
-    def close(self) -> None:
-        """Release the underlying C state (idempotent)."""
-        _c.composer_destroy(self._cap)
-
-    def __enter__(self) -> "Composer":
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self.close()
 
 
 class Writer:
@@ -1025,16 +943,7 @@ class SampleClock:
     The schedule is anchored, not incremental: every deadline is recomputed
     from the cumulative sample count against a fixed epoch, so an over- or
     under-sleep on one block is corrected on the next — the long-run rate is
-    exactly ``fs``, with only bounded per-block jitter. Software on a
-    non-realtime OS gives drift-free *average* rate, never true sample-clock
-    fidelity; keep blocks large enough (period ``N/fs`` ≫ scheduler jitter,
-    say ≥ 1 ms) and let the consumer's buffer absorb the jitter.
-
-    When the producer can't keep up — a block takes longer than its ``N/fs``
-    period — that's an *underrun*: :meth:`pace` doesn't sleep (it's already
-    behind), counts it (:attr:`underruns`, :attr:`max_lateness`), and, if
-    ``resync=True``, re-anchors the timeline to now instead of keeping the
-    (now unreachable) absolute schedule.
+    exactly ``fs``, with only bounded per-block jitter.
 
     Parameters
     ----------
@@ -1124,7 +1033,7 @@ def sigmf_meta(
         _idx(endian, _ENDIANS, "endian"),
         float(fs),
         float(fc),
-        [s._tuple() for s in segments],
+        [_seg_tuple(s) for s in segments],
     )
 
 

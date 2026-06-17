@@ -1,15 +1,20 @@
 /*
- * wfmcompose_ext.c — hand-written CPython binding for the wfmgen composer
- * subsystem (multi-segment composition, file writers, ZMQ sink, DSP helpers).
+ * wfmcompose_ext.c — hand-written CPython binding for the wfmgen *transport*
+ * subsystem (file writers, container readers, SigMF metadata, ZMQ sink,
+ * sample-clock pacing, DSP helpers).
  *
  * This is a `no_generate` module (just-makeit only wires the CMake
  * add_subdirectory): the whole file is hand-owned, like ddc_fn_ext.c. It
- * exposes the low-level primitives over opaque PyCapsules; the ergonomic
- * Segment/Composer/Writer/ZmqSink API lives in src/doppler/wfm/compose.py.
+ * exposes the low-level transport primitives over opaque PyCapsules; the
+ * Writer/Reader/ZmqSink/SampleClock ergonomic API lives in
+ * src/doppler/wfm/compose.py.
  *
- * Segments cross the boundary as fixed-order 12-tuples (see _SEG_FMT) built by
- * the Python wrapper from its Segment dataclass — keeps parsing trivial and
- * the field order in one place.
+ * The composer itself (Synth/Segment/Timeline/Composer) is now the
+ * jm-generated `doppler.wfm.wfm_compose` module (kind = "composer");
+ * compose.py's classes subclass those. The only composer-shaped surface still
+ * here is sigmf_meta_json, which takes the resolved segment list as
+ * fixed-order tuples (see _SEG_FMT) built by compose.py — keeping the SigMF
+ * annotation marshalling and the field order in one place.
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -194,289 +199,6 @@ _parse_segments (PyObject *list, size_t *n_out)
     }
   *n_out = (size_t)n;
   return segs;
-}
-
-/* Build a Python list of segment tuples (13-tuple for 1 source, else nested).
- */
-static PyObject *
-_bits_to_obj (const wfm_source_t *src)
-{
-  /* New reference: a bytes of the 0/1 pattern, or None. */
-  if (src->bits && src->n_bits)
-    return PyBytes_FromStringAndSize ((const char *)src->bits,
-                                      (Py_ssize_t)src->n_bits);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-_segments_to_list (const wfm_segment_t *segs, size_t n)
-{
-  PyObject *list = PyList_New ((Py_ssize_t)n);
-  if (!list)
-    return NULL;
-  for (size_t i = 0; i < n; i++)
-    {
-      const wfm_segment_t *s = &segs[i];
-      PyObject            *t;
-      if (s->n_sources == 1)
-        {
-          const wfm_source_t *src = &s->sources[0];
-          PyObject           *bo  = _bits_to_obj (src);
-          if (!bo)
-            {
-              Py_DECREF (list);
-              return NULL;
-            }
-          t = Py_BuildValue (
-              "(" _SEG_FMT ")", src->type, s->fs, src->freq, src->snr,
-              src->snr_mode, src->seed, src->sps, src->pn_length, src->pn_poly,
-              src->lfsr, (Py_ssize_t)s->num_samples,
-              (Py_ssize_t)s->off_samples, src->level, src->f_end,
-              src->modulation, bo, src->pulse, src->rrc_beta, src->rrc_span);
-          Py_DECREF (bo); /* "O" took its own reference */
-        }
-      else
-        {
-          PyObject *srclist = PyList_New ((Py_ssize_t)s->n_sources);
-          if (!srclist)
-            {
-              Py_DECREF (list);
-              return NULL;
-            }
-          for (size_t k = 0; k < s->n_sources; k++)
-            {
-              const wfm_source_t *src = &s->sources[k];
-              PyObject           *bo  = _bits_to_obj (src);
-              if (!bo)
-                {
-                  Py_DECREF (srclist);
-                  Py_DECREF (list);
-                  return NULL;
-                }
-              PyObject *st = Py_BuildValue (
-                  "(" _SOURCE_FMT ")", src->type, src->freq, src->snr,
-                  src->snr_mode, src->seed, src->sps, src->pn_length,
-                  src->pn_poly, src->lfsr, src->level, src->f_end,
-                  src->modulation, bo, src->pulse, src->rrc_beta,
-                  src->rrc_span);
-              Py_DECREF (bo);
-              if (!st)
-                {
-                  Py_DECREF (srclist);
-                  Py_DECREF (list);
-                  return NULL;
-                }
-              PyList_SET_ITEM (srclist, (Py_ssize_t)k, st);
-            }
-          t = Py_BuildValue ("(nndN)", (Py_ssize_t)s->num_samples,
-                             (Py_ssize_t)s->off_samples, s->fs, srclist);
-        }
-      if (!t)
-        {
-          Py_DECREF (list);
-          return NULL;
-        }
-      PyList_SET_ITEM (list, (Py_ssize_t)i, t); /* steals ref */
-    }
-  return list;
-}
-
-/* ───────────────────────── composer capsule ───────────────────────────────
- */
-
-static const char _COMP_CAPS[] = "doppler.wfm.compose.composer";
-
-typedef struct
-{
-  wfm_compose_state_t *state;
-  int                  destroyed;
-} _comp_wrap_t;
-
-static void
-_comp_destructor (PyObject *cap)
-{
-  _comp_wrap_t *w = (_comp_wrap_t *)PyCapsule_GetPointer (cap, _COMP_CAPS);
-  if (!w)
-    return;
-  if (!w->destroyed)
-    wfm_compose_destroy (w->state);
-  free (w);
-}
-
-static _comp_wrap_t *
-_comp_get (PyObject *cap)
-{
-  _comp_wrap_t *w = (_comp_wrap_t *)PyCapsule_GetPointer (cap, _COMP_CAPS);
-  if (!w)
-    return NULL;
-  if (w->destroyed)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "composer already destroyed");
-      return NULL;
-    }
-  return w;
-}
-
-static PyObject *
-_wrap_compose (wfm_compose_state_t *state)
-{
-  if (!state)
-    return PyErr_NoMemory ();
-  _comp_wrap_t *w = (_comp_wrap_t *)malloc (sizeof *w);
-  if (!w)
-    {
-      wfm_compose_destroy (state);
-      return PyErr_NoMemory ();
-    }
-  w->state      = state;
-  w->destroyed  = 0;
-  PyObject *cap = PyCapsule_New (w, _COMP_CAPS, _comp_destructor);
-  if (!cap)
-    {
-      wfm_compose_destroy (state);
-      free (w);
-      return NULL;
-    }
-  return cap;
-}
-
-static PyObject *
-_fn_composer_create (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject *seg_list;
-  int       repeat = 0, continuous = 0;
-  if (!PyArg_ParseTuple (args, "Opp", &seg_list, &repeat, &continuous))
-    return NULL;
-  size_t         n_segs;
-  wfm_segment_t *segs = _parse_segments (seg_list, &n_segs);
-  if (!segs)
-    return NULL;
-  wfm_compose_state_t *st
-      = wfm_compose_create (segs, n_segs, repeat, continuous);
-  _free_segments (segs, n_segs);
-  return _wrap_compose (st);
-}
-
-static PyObject *
-_fn_composer_from_json (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  const char *json;
-  if (!PyArg_ParseTuple (args, "s", &json))
-    return NULL;
-  return _wrap_compose (wfm_compose_from_json (json));
-}
-
-static PyObject *
-_fn_composer_from_file (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  const char *path;
-  if (!PyArg_ParseTuple (args, "s", &path))
-    return NULL;
-  return _wrap_compose (wfm_compose_from_file (path));
-}
-
-static PyObject *
-_fn_composer_execute (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject  *cap;
-  Py_ssize_t max;
-  if (!PyArg_ParseTuple (args, "On", &cap, &max))
-    return NULL;
-  _comp_wrap_t *w = _comp_get (cap);
-  if (!w)
-    return NULL;
-  if (max < 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "max must be >= 0");
-      return NULL;
-    }
-  npy_intp  dims[] = { max };
-  PyObject *arr    = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
-  if (!arr)
-    return NULL;
-  float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
-  size_t          n;
-  Py_BEGIN_ALLOW_THREADS
-    n = wfm_compose_execute (w->state, out, (size_t)max);
-  Py_END_ALLOW_THREADS
-
-  /* return out[:n] */
-  PyObject *stop  = PyLong_FromSsize_t ((Py_ssize_t)n);
-  PyObject *slice = stop ? PySlice_New (NULL, stop, NULL) : NULL;
-  Py_XDECREF (stop);
-  PyObject *view = slice ? PyObject_GetItem (arr, slice) : NULL;
-  Py_XDECREF (slice);
-  Py_DECREF (arr);
-  return view;
-}
-
-static PyObject *
-_fn_composer_segments (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject *cap;
-  if (!PyArg_ParseTuple (args, "O", &cap))
-    return NULL;
-  _comp_wrap_t *w = _comp_get (cap);
-  if (!w)
-    return NULL;
-  size_t               n;
-  int                  repeat, continuous;
-  const wfm_segment_t *segs
-      = wfm_compose_segments (w->state, &n, &repeat, &continuous);
-  PyObject *list = _segments_to_list (segs, n);
-  if (!list)
-    return NULL;
-  /* Py_BuildValue has no 'p' (bool) code — that's parse-only; build the
-   * bools explicitly with 'O' (which INCREFs the immortal Py_True/False). */
-  return Py_BuildValue ("(NOO)", list, repeat ? Py_True : Py_False,
-                        continuous ? Py_True : Py_False);
-}
-
-static PyObject *
-_fn_composer_destroy (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject *cap;
-  if (!PyArg_ParseTuple (args, "O", &cap))
-    return NULL;
-  _comp_wrap_t *w = (_comp_wrap_t *)PyCapsule_GetPointer (cap, _COMP_CAPS);
-  if (!w)
-    return NULL;
-  if (!w->destroyed)
-    {
-      wfm_compose_destroy (w->state);
-      w->destroyed = 1;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-_fn_spec_to_json (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject *seg_list;
-  int       repeat = 0, continuous = 0;
-  if (!PyArg_ParseTuple (args, "Opp", &seg_list, &repeat, &continuous))
-    return NULL;
-  size_t         n_segs;
-  wfm_segment_t *segs = _parse_segments (seg_list, &n_segs);
-  if (!segs)
-    return NULL;
-  char *json = wfm_spec_to_json (segs, n_segs, repeat, continuous, 0.0);
-  _free_segments (segs, n_segs);
-  if (!json)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "wfm_spec_to_json failed");
-      return NULL;
-    }
-  PyObject *s = PyUnicode_FromString (json);
-  free (json);
-  return s;
 }
 
 /* ───────────────────────── writer capsule ─────────────────────────────────
@@ -1172,20 +894,6 @@ _fn_mls_poly (PyObject *mod, PyObject *args)
  */
 
 static PyMethodDef _methods[] = {
-  { "composer_create", _fn_composer_create, METH_VARARGS,
-    "composer_create(segments, repeat, continuous) -> capsule" },
-  { "composer_from_json", _fn_composer_from_json, METH_VARARGS,
-    "composer_from_json(json) -> capsule" },
-  { "composer_from_file", _fn_composer_from_file, METH_VARARGS,
-    "composer_from_file(path) -> capsule" },
-  { "composer_execute", _fn_composer_execute, METH_VARARGS,
-    "composer_execute(state, max) -> ndarray[complex64]" },
-  { "composer_segments", _fn_composer_segments, METH_VARARGS,
-    "composer_segments(state) -> (segments, repeat, continuous)" },
-  { "composer_destroy", _fn_composer_destroy, METH_VARARGS,
-    "composer_destroy(state) -> None" },
-  { "spec_to_json", _fn_spec_to_json, METH_VARARGS,
-    "spec_to_json(segments, repeat, continuous) -> str" },
   { "writer_open", _fn_writer_open, METH_VARARGS,
     "writer_open(path, file_type, sample_type, endian, fs, fc, total)"
     " -> capsule" },

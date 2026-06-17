@@ -156,7 +156,7 @@ struct    = "wfm_source_t"
 type_name = "Synth"
 fields = [
     { name = "type", type = "int", enum = "wfm_type", default = "tone" },
-    { name = "freq", type = "double", default = "0.0" },
+    { name = "freq", type = "double", default = "0.0", aliases = ["f_start"] },
     { name = "snr", type = "double", default = "100.0" },
     { name = "snr_mode", type = "int", enum = "snr_mode", default = "auto" },
     { name = "seed", type = "uint32_t", default = "1" },
@@ -166,17 +166,28 @@ fields = [
     { name = "lfsr", type = "int", enum = "wfm_lfsr", default = "galois" },
     { name = "level", type = "double", default = "0.0" },
     { name = "f_end", type = "double", default = "0.0" },
-    { name = "bits", type = "uint8_t*", bytes = true },
+    { name = "bits", type = "uint8_t*", bytes = true, aliases = ["pattern"], coerce = "bit_pattern" },
     { name = "modulation", type = "int", enum = "bitmod", default = "bpsk" },
     { name = "pulse", type = "int", enum = "wfm_pulse", default = "rect" },
     { name = "rrc_beta", type = "double", default = "0.35" },
     { name = "rrc_span", type = "int", default = "8" },
 ]
 
+# Standalone generation: a Synth generates samples on its own (Synth(...).steps(n))
+# by delegating to the composed wfm_synth generator, built from the source config
+# by the straight-C bridge `wfm_source_to_synth` (native/src/wfm/wfm_synth_bridge.c
+# — no CPython; jm generates the steps/step/reset plumbing that calls it).
+[module.wfm_compose.source.generates]
+generator = "wfm_synth"
+bridge_fn = "wfm_source_to_synth"
+
 [module.wfm_compose.segment]
 type_name = "Segment"
 struct    = "wfm_segment_t"
 sources   = "multi"
+# Round 3 feature 4: a single-source segment proxies its source's fields as
+# read-only attributes (segment.freq -> segment.sources[0].freq).
+flat_sources = true
 fields = [
     { name = "fs", type = "double", default = "1e6" },
     { name = "num_samples", type = "size_t", default = "1024" },
@@ -192,6 +203,13 @@ factories          = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
 emit               = "ctypes"
 discriminant       = "type"
 composer_type_name = "Composer"
+
+# Generated Composer.stream(block) iterator (drains execute into blocks) +
+# to_dict() (resolved repeat/continuous/segments as a plain nested dict — the
+# generic introspection primitive SigMF/BLUE sidecars are built from).
+[module.wfm_compose.composer]
+stream  = true
+to_dict = true
 
 # Delegated JSON: call the backing wfm_spec_to_json (trailing headroom arg = 0.0)
 # and wfm_compose_from_json / wfm_compose_from_file so the wire format is

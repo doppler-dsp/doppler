@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.15"
+jm_version = "0.19.16"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -17,6 +17,31 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # measure.pyi is now jm-generated: the analyze() methods use single=true (gh-244),
 # so jm emits the PyStructSequence binding + the stub itself — no hand-maintenance.
 status_allow = ["zensical.toml"]
+
+# ── Waveform enum single-source-of-truth (gh-285) ────────────────────────────
+# One string↔int table per synth enum; list order IS the C enum value
+# (append-only — never reorder). The wfm_compose composer (below) emits its C
+# lookup tables from these, collapsing the string tables historically duplicated
+# across wfmgen.c / wfm_json.c / wfmcompose_py.c / compose.py to this one source.
+[[enum]]
+name = "wfm_type"
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
+
+[[enum]]
+name = "snr_mode"
+values = ["auto", "fs", "ebno", "esno"]
+
+[[enum]]
+name = "wfm_lfsr"
+values = ["galois", "fibonacci"]
+
+[[enum]]
+name = "bitmod"
+values = ["none", "bpsk", "qpsk"]
+
+[[enum]]
+name = "wfm_pulse"
+values = ["rect", "rrc"]
 
 [module.cvt]
 objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
@@ -92,6 +117,91 @@ type = "int"
 [[module.wfm.functions.params]]
 name = "samples_per_symbol"
 type = "float"
+
+# ── Multi-segment waveform composer (gh-287, additive adoption) ──────────────
+# The OO surface (Synth/Segment/Timeline/Composer + factories) generated INTO
+# the .so as CPython types over the wfm_compose backing. Dual-runs alongside the
+# hand-written compose.py / _wfmcompose during adoption; the cutover that retires
+# the hand glue is a later PR. JSON is DELEGATED to the backing
+# wfm_spec_to_json / wfm_compose_from_json|from_file so the wire format stays
+# byte-identical to the existing wfmgen / --from-file schema.
+[module.wfm_compose]
+kind         = "composer"
+backing      = "wfm_compose"
+capsule_name = "doppler.wfm.compose_state"
+package      = "wfm"
+header       = "wfm/wfm_compose.h"
+composes     = ["wfm_synth"]
+sample_type  = true
+# link=true cores (jm appends _core): wfm_compose (composer + wfm_json + resolve),
+# wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
+# vendored cJSON OBJECT lib (wfm_cjson) + libm go in extra_link_libs. This mirrors
+# native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
+depends_on = [
+    { name = "wfm_compose", link = true },
+    { name = "wfm_dsp", link = true },
+    { name = "wfm_synth", link = true },
+    { name = "lo", link = true },
+    { name = "awgn", link = true },
+    { name = "pn", link = true },
+    { name = "fir", link = true },
+]
+extra_link_libs = ["wfm_cjson", "m"]
+
+# The source type wraps wfm_source_t field-for-field (struct order); enum fields
+# cross as validated strings via the SSOT, `bits` as an owned bytes buffer.
+[module.wfm_compose.source]
+object    = "wfm_synth"
+struct    = "wfm_source_t"
+type_name = "Synth"
+fields = [
+    { name = "type", type = "int", enum = "wfm_type", default = "tone" },
+    { name = "freq", type = "double", default = "0.0" },
+    { name = "snr", type = "double", default = "100.0" },
+    { name = "snr_mode", type = "int", enum = "snr_mode", default = "auto" },
+    { name = "seed", type = "uint32_t", default = "1" },
+    { name = "sps", type = "int", default = "8" },
+    { name = "pn_length", type = "int", default = "7" },
+    { name = "pn_poly", type = "uint64_t", default = "0" },
+    { name = "lfsr", type = "int", enum = "wfm_lfsr", default = "galois" },
+    { name = "level", type = "double", default = "0.0" },
+    { name = "f_end", type = "double", default = "0.0" },
+    { name = "bits", type = "uint8_t*", bytes = true },
+    { name = "modulation", type = "int", enum = "bitmod", default = "bpsk" },
+    { name = "pulse", type = "int", enum = "wfm_pulse", default = "rect" },
+    { name = "rrc_beta", type = "double", default = "0.35" },
+    { name = "rrc_span", type = "int", default = "8" },
+]
+
+[module.wfm_compose.segment]
+type_name = "Segment"
+struct    = "wfm_segment_t"
+sources   = "multi"
+fields = [
+    { name = "fs", type = "double", default = "1e6" },
+    { name = "num_samples", type = "size_t", default = "1024" },
+    { name = "off_samples", type = "size_t", default = "0" },
+]
+
+[module.wfm_compose.timeline]
+type_name = "Timeline"
+loop = ["once", "repeat", "continuous"]
+
+[module.wfm_compose.oo]
+factories          = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
+emit               = "ctypes"
+discriminant       = "type"
+composer_type_name = "Composer"
+
+# Delegated JSON: call the backing wfm_spec_to_json (trailing headroom arg = 0.0)
+# and wfm_compose_from_json / wfm_compose_from_file so the wire format is
+# byte-identical to the hand-written schema. (from_json_fn/from_file_fn default to
+# <backing>_from_json/_from_file, which match the real symbols.)
+[module.wfm_compose.json]
+enabled          = true
+to_json_fn       = "wfm_spec_to_json"
+to_json_trailing = ["0.0"]
+
 [module.delay]
 objects = ["delay"]
 

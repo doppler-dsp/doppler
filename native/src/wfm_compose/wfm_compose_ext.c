@@ -482,7 +482,7 @@ static PyTypeObject SynthType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "doppler.wfm.Synth",
     .tp_basicsize = sizeof(SynthObject),
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new       = PyType_GenericNew,
     .tp_init      = (initproc)Synth_init,
     .tp_dealloc   = (destructor)Synth_dealloc,
@@ -781,7 +781,7 @@ static PyTypeObject SegmentType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "doppler.wfm.Segment",
     .tp_basicsize = sizeof(SegmentObject),
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new       = PyType_GenericNew,
     .tp_init      = (initproc)Segment_init,
     .tp_dealloc   = (destructor)Segment_dealloc,
@@ -874,7 +874,7 @@ static PyTypeObject TimelineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "doppler.wfm.Timeline",
     .tp_basicsize = sizeof(TimelineObject),
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new       = PyType_GenericNew,
     .tp_init      = (initproc)Timeline_init,
     .tp_dealloc   = (destructor)Timeline_dealloc,
@@ -1389,7 +1389,7 @@ static PyTypeObject ComposerType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "doppler.wfm.Composer",
     .tp_basicsize = sizeof(ComposerObject),
-    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_flags     = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new       = PyType_GenericNew,
     .tp_init      = (initproc)Composer_init,
     .tp_dealloc   = (destructor)Composer_dealloc,

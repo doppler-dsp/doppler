@@ -1,4 +1,4 @@
-# wfmgen/__init__.py — re-export all types from the C extension.
+# wfm/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys
 

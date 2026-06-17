@@ -368,15 +368,6 @@
 
 ## p
 
-* **pffft\_aligned\_free** ([**pffft.h**](pffft_8h.md))
-* **pffft\_aligned\_malloc** ([**pffft.h**](pffft_8h.md))
-* **pffft\_destroy\_setup** ([**pffft.h**](pffft_8h.md))
-* **pffft\_new\_setup** ([**pffft.h**](pffft_8h.md))
-* **pffft\_simd\_size** ([**pffft.h**](pffft_8h.md))
-* **pffft\_transform** ([**pffft.h**](pffft_8h.md))
-* **pffft\_transform\_ordered** ([**pffft.h**](pffft_8h.md))
-* **pffft\_zconvolve\_accumulate** ([**pffft.h**](pffft_8h.md))
-* **pffft\_zreorder** ([**pffft.h**](pffft_8h.md))
 * **pn\_create** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_destroy** ([**pn\_core.h**](pn__core_8h.md))
 * **pn\_generate** ([**pn\_core.h**](pn__core_8h.md))

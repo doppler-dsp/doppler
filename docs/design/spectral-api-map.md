@@ -8,6 +8,7 @@ reference is defined exactly once, in that core.
 ## Core data flow
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '24px'}, 'flowchart': {'subGraphTitleMargin': {'top': 8, 'bottom': 16}}}%%
 flowchart TD
     T["time-domain capture<br/>(cf32 / f32)"] --> W
 
@@ -25,7 +26,7 @@ flowchart TD
     NPR["measure.NPRMeasure<br/>bits / full_scale<br/>spectrum_dbfs()"]
     SA["analyzer.Specan (streaming display)<br/>DDC tune+decimate &rarr; PSD &rarr; dBFS<br/>bits / full_scale + additive offset_db"]
 
-    classDef ok fill:#dcfce7,stroke:#16a34a,color:#111;
+    classDef ok stroke:#16a34a,stroke-width:3px;
     class TM,IMD,NPR,SA ok;
 ```
 

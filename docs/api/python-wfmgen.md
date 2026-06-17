@@ -60,15 +60,17 @@ the pattern **cycles** to fill the requested length, so one pass is
 from doppler.wfm import Synth, bits
 
 # 8-bit preamble, BPSK, 4 samples/bit → 32 samples for one pass
-s = bits("10110101", sps=4, modulation="bpsk")
-preamble = s.steps(s.n_samples)
+s = bits(pattern="10110101", sps=4, modulation="bpsk")
+preamble = s.steps(32)  # 8 bits * 4 sps
 
 # Hex sync word, unmodulated 0/1; direct construction is equivalent
 sync = Synth(type="bits", pattern="0xAA55", modulation="none", sps=8)
 
 # From a numpy array
 import numpy as np
-payload = bits(np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk")
+payload = bits(
+    pattern=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk"
+)
 ```
 
 ### Chirp (LFM sweep)
@@ -266,7 +268,7 @@ mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
 
 The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` /
-`chirp(f_start, f_end)` / `bits(pattern, modulation)` each return a `Synth` (a
+`chirp(f_start=…, f_end=…)` / `bits(pattern=…, modulation=…)` each return a `Synth` (a
 `noise(level=…)` is a bare AWGN floor at that level in dBFS; a `chirp` is an LFM
 sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
 In a `Segment.sum` the per-synth `snr` resolves
@@ -333,6 +335,8 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 ::: doppler.wfm.compose.SampleClock
 
 ### Module-level helpers
+
+::: doppler.wfm.compose.paced
 
 ::: doppler.wfm.compose.sigmf_meta
 

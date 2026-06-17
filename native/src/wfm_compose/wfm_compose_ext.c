@@ -13,6 +13,9 @@
 #include <string.h>
 
 #include "wfm/wfm_compose.h"
+#include "wfm_synth/wfm_synth_core.h"
+/* project bridge (straight C, no CPython): build the generator. */
+extern wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -66,16 +69,18 @@ typedef struct {
     PyObject_HEAD
     wfm_source_t src;
     double   fs;
+    wfm_synth_state_t *_gen;
 } SynthObject;
 
 static void
 Synth_dealloc(SynthObject *self)
 {
+    if (self->_gen) wfm_synth_destroy(self->_gen);
     free(self->src.bits);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-/* Copy a Python bytes (0/1 pattern) or None into src->bits (owned). */
+/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence) (owned). */
 static int
 _attach_bytes(wfm_source_t *src, PyObject *obj)
 {
@@ -84,22 +89,82 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
     src->n_bits = 0;
     if (!obj || obj == Py_None)
         return 1;
-    if (!PyBytes_Check(obj)) {
-        PyErr_SetString(PyExc_TypeError, "bits must be bytes or None");
-        return 0;
-    }
-    Py_ssize_t nb = PyBytes_GET_SIZE(obj);
-    if (nb <= 0)
-        return 1;
-    uint8_t *buf = (uint8_t *)malloc((size_t)nb);
-    if (!buf) {
-        PyErr_NoMemory();
-        return 0;
-    }
-    memcpy(buf, PyBytes_AS_STRING(obj), (size_t)nb);
+    if (PyBytes_Check(obj)) {
+        Py_ssize_t nb = PyBytes_GET_SIZE(obj);
+        if (nb <= 0)
+            return 1;
+        uint8_t *buf = (uint8_t *)malloc((size_t)nb);
+        if (!buf) { PyErr_NoMemory(); return 0; }
+        memcpy(buf, PyBytes_AS_STRING(obj), (size_t)nb);
     src->bits   = buf;
     src->n_bits = (size_t)nb;
     return 1;
+    }
+    if (PyUnicode_Check(obj)) {
+        Py_ssize_t slen;
+        const char *s = PyUnicode_AsUTF8AndSize(obj, &slen);
+        if (!s)
+            return 0;
+        if (slen >= 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            Py_ssize_t nd = slen - 2, nb = nd * 4; /* hex digit -> 4 bits MSB */
+            uint8_t *buf = (uint8_t *)malloc(nb ? (size_t)nb : 1);
+            if (!buf) { PyErr_NoMemory(); return 0; }
+            for (Py_ssize_t i = 0; i < nd; i++) {
+                char c = s[2 + i];
+                int v = (c >= '0' && c <= '9')   ? c - '0'
+                        : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                        : (c >= 'A' && c <= 'F') ? c - 'A' + 10
+                                                 : -1;
+                if (v < 0) {
+                    free(buf);
+                    PyErr_SetString(PyExc_ValueError, "invalid hex digit");
+                    return 0;
+                }
+                for (int b = 0; b < 4; b++)
+                    buf[i * 4 + b] = (uint8_t)((v >> (3 - b)) & 1);
+            }
+    src->bits   = buf;
+    src->n_bits = (size_t)nb;
+    return 1;
+        }
+        uint8_t *buf = (uint8_t *)malloc(slen ? (size_t)slen : 1);
+        if (!buf) { PyErr_NoMemory(); return 0; }
+        for (Py_ssize_t i = 0; i < slen; i++) {
+            if (s[i] != '0' && s[i] != '1') {
+                free(buf);
+                PyErr_SetString(PyExc_ValueError,
+                                "bit string must be 0/1 or '0x..' hex");
+                return 0;
+            }
+            buf[i] = (uint8_t)(s[i] - '0');
+        }
+        Py_ssize_t nb = slen;
+    src->bits   = buf;
+    src->n_bits = (size_t)nb;
+    return 1;
+    }
+    {
+        PyObject *seq = PySequence_Fast(
+            obj, "bits must be bytes, a 0/1 string, or a sequence of ints");
+        if (!seq)
+            return 0;
+        Py_ssize_t nb = PySequence_Fast_GET_SIZE(seq);
+        uint8_t *buf = (uint8_t *)malloc(nb ? (size_t)nb : 1);
+        if (!buf) { Py_DECREF(seq); PyErr_NoMemory(); return 0; }
+        for (Py_ssize_t i = 0; i < nb; i++) {
+            long v = PyLong_AsLong(PySequence_Fast_GET_ITEM(seq, i));
+            if (v == -1 && PyErr_Occurred()) {
+                free(buf);
+                Py_DECREF(seq);
+                return 0;
+            }
+            buf[i] = (uint8_t)(v != 0);
+        }
+        Py_DECREF(seq);
+    src->bits   = buf;
+    src->n_bits = (size_t)nb;
+    return 1;
+    }
 }
 
 static int
@@ -123,11 +188,60 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     double rrc_beta = 0.35;
     int rrc_span = 8;
     double fs = 1e6;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sddsIiiKsddOssdid", kwlist,
+    PyObject *_kw = kwds;
+    int _kw_owned = 0;
+    if (kwds) {
+        {
+            PyObject *_a = PyDict_GetItemString(kwds, "f_start");
+            if (_a) {
+                if (!_kw_owned) {
+                    _kw = PyDict_Copy(kwds);
+                    if (!_kw) return -1;
+                    _kw_owned = 1;
+                }
+                if (PyDict_GetItemString(_kw, "freq")) {
+                    PyErr_SetString(PyExc_TypeError,
+                        "freq and f_start are aliases — pass only one");
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+                if (PyDict_SetItemString(_kw, "freq", _a) < 0
+                    || PyDict_DelItemString(_kw, "f_start") < 0) {
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+            }
+        }
+        {
+            PyObject *_a = PyDict_GetItemString(kwds, "pattern");
+            if (_a) {
+                if (!_kw_owned) {
+                    _kw = PyDict_Copy(kwds);
+                    if (!_kw) return -1;
+                    _kw_owned = 1;
+                }
+                if (PyDict_GetItemString(_kw, "bits")) {
+                    PyErr_SetString(PyExc_TypeError,
+                        "bits and pattern are aliases — pass only one");
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+                if (PyDict_SetItemString(_kw, "bits", _a) < 0
+                    || PyDict_DelItemString(_kw, "pattern") < 0) {
+                    Py_DECREF(_kw);
+                    return -1;
+                }
+            }
+        }
+    }
+    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sddsIiiKsddOssdid", kwlist,
             &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &fs)) {
+        if (_kw_owned) Py_DECREF(_kw);
         return -1;
     }
+    if (_kw_owned) Py_DECREF(_kw);
     self->fs = fs;
+    if (self->_gen) { wfm_synth_destroy(self->_gen); self->_gen = NULL; }
     {
         int _i = _enum_index(_enum_wfm_type, type);
         if (_i < 0) {
@@ -479,6 +593,71 @@ static PyGetSetDef Synth_getset[] = {
     {NULL, NULL, NULL, NULL, NULL}
 };
 
+/* Lazily build the composed generator from this source's config. */
+static int
+Synth_ensure_gen(SynthObject *self)
+{
+    if (!self->_gen) {
+        self->_gen = wfm_source_to_synth(&self->src, self->fs);
+        if (!self->_gen) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "wfm_source_to_synth returned NULL");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static PyObject *
+Synth_steps(SynthObject *self, PyObject *args)
+{
+    Py_ssize_t n;
+    if (!PyArg_ParseTuple(args, "n", &n))
+        return NULL;
+    if (n < 0) {
+        PyErr_SetString(PyExc_ValueError, "n must be >= 0");
+        return NULL;
+    }
+    if (Synth_ensure_gen(self) < 0)
+        return NULL;
+    npy_intp dims[1] = { n };
+    PyObject *arr = PyArray_SimpleNew(1, dims, NPY_COMPLEX64);
+    if (!arr)
+        return NULL;
+    float complex *out = (float complex *)PyArray_DATA((PyArrayObject *)arr);
+    Py_BEGIN_ALLOW_THREADS
+    wfm_synth_steps(self->_gen, out, (size_t)n);
+    Py_END_ALLOW_THREADS
+    return arr;
+}
+
+static PyObject *
+Synth_step(SynthObject *self, PyObject *Py_UNUSED(ignored))
+{
+    if (Synth_ensure_gen(self) < 0)
+        return NULL;
+    float complex y = wfm_synth_step(self->_gen);
+    return PyComplex_FromDoubles(crealf(y), cimagf(y));
+}
+
+static PyObject *
+Synth_reset(SynthObject *self, PyObject *Py_UNUSED(ignored))
+{
+    if (self->_gen)
+        wfm_synth_reset(self->_gen);
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef Synth_methods[] = {
+    {"steps", (PyCFunction)Synth_steps, METH_VARARGS,
+     "steps(n) -> complex64[n] — generate n samples standalone."},
+    {"step", (PyCFunction)Synth_step, METH_NOARGS,
+     "step() -> complex — generate one sample standalone."},
+    {"reset", (PyCFunction)Synth_reset, METH_NOARGS,
+     "reset() -> None — rewind the generator to sample 0."},
+    {NULL, NULL, 0, NULL}
+};
+
 static PyTypeObject SynthType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name      = "doppler.wfm.Synth",
@@ -488,6 +667,7 @@ static PyTypeObject SynthType = {
     .tp_init      = (initproc)Synth_init,
     .tp_dealloc   = (destructor)Synth_dealloc,
     .tp_getset    = Synth_getset,
+    .tp_methods   = Synth_methods,
     .tp_doc       = PyDoc_STR("Synth — one composable source configuration."),
 };
 
@@ -739,6 +919,182 @@ Segment_set_off_samples(SegmentObject *self, PyObject *value, void *closure)
     if (PyErr_Occurred()) return -1;
     return 0;
 }
+static PyObject *
+Segment_flat_type(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "type is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "type");
+}
+static PyObject *
+Segment_flat_freq(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "freq is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "freq");
+}
+static PyObject *
+Segment_flat_snr(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "snr is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "snr");
+}
+static PyObject *
+Segment_flat_snr_mode(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "snr_mode is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "snr_mode");
+}
+static PyObject *
+Segment_flat_seed(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "seed is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "seed");
+}
+static PyObject *
+Segment_flat_sps(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "sps is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "sps");
+}
+static PyObject *
+Segment_flat_pn_length(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "pn_length is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "pn_length");
+}
+static PyObject *
+Segment_flat_pn_poly(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "pn_poly is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "pn_poly");
+}
+static PyObject *
+Segment_flat_lfsr(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "lfsr is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "lfsr");
+}
+static PyObject *
+Segment_flat_level(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "level is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "level");
+}
+static PyObject *
+Segment_flat_f_end(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "f_end is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "f_end");
+}
+static PyObject *
+Segment_flat_bits(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "bits is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "bits");
+}
+static PyObject *
+Segment_flat_modulation(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "modulation is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "modulation");
+}
+static PyObject *
+Segment_flat_pulse(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "pulse is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "pulse");
+}
+static PyObject *
+Segment_flat_rrc_beta(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "rrc_beta is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "rrc_beta");
+}
+static PyObject *
+Segment_flat_rrc_span(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "rrc_span is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "rrc_span");
+}
 
 static PyObject *
 Segment_add(SegmentObject *self, PyObject *args)
@@ -766,6 +1122,22 @@ static PyGetSetDef Segment_getset[] = {
     {"fs", (getter)Segment_get_fs, (setter)Segment_set_fs, NULL, NULL},
     {"num_samples", (getter)Segment_get_num_samples, (setter)Segment_set_num_samples, NULL, NULL},
     {"off_samples", (getter)Segment_get_off_samples, (setter)Segment_set_off_samples, NULL, NULL},
+    {"type", (getter)Segment_flat_type, NULL, NULL, NULL},
+    {"freq", (getter)Segment_flat_freq, NULL, NULL, NULL},
+    {"snr", (getter)Segment_flat_snr, NULL, NULL, NULL},
+    {"snr_mode", (getter)Segment_flat_snr_mode, NULL, NULL, NULL},
+    {"seed", (getter)Segment_flat_seed, NULL, NULL, NULL},
+    {"sps", (getter)Segment_flat_sps, NULL, NULL, NULL},
+    {"pn_length", (getter)Segment_flat_pn_length, NULL, NULL, NULL},
+    {"pn_poly", (getter)Segment_flat_pn_poly, NULL, NULL, NULL},
+    {"lfsr", (getter)Segment_flat_lfsr, NULL, NULL, NULL},
+    {"level", (getter)Segment_flat_level, NULL, NULL, NULL},
+    {"f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL},
+    {"bits", (getter)Segment_flat_bits, NULL, NULL, NULL},
+    {"modulation", (getter)Segment_flat_modulation, NULL, NULL, NULL},
+    {"pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL},
+    {"rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL},
+    {"rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
@@ -1369,6 +1741,151 @@ static PyGetSetDef Composer_getset[] = {
     {NULL, NULL, NULL, NULL, NULL}
 };
 
+/* Iterator returned by Composer.stream(): drains execute() into blocks. */
+typedef struct {
+    PyObject_HEAD
+    PyObject  *composer; /* strong ref to the Composer */
+    Py_ssize_t block;
+} ComposerStreamObject;
+
+static PyTypeObject ComposerStreamType;
+
+static void
+ComposerStream_dealloc(ComposerStreamObject *self)
+{
+    Py_XDECREF(self->composer);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *
+ComposerStream_iter(PyObject *self)
+{
+    Py_INCREF(self);
+    return self;
+}
+
+static PyObject *
+ComposerStream_next(ComposerStreamObject *self)
+{
+    PyObject *blk =
+        PyObject_CallMethod(self->composer, "execute", "n", self->block);
+    if (!blk)
+        return NULL;
+    Py_ssize_t n = PyObject_Length(blk);
+    if (n < 0) { /* error from execute */
+        Py_DECREF(blk);
+        return NULL;
+    }
+    if (n == 0) { /* finite spec drained -> StopIteration (NULL, no exception) */
+        Py_DECREF(blk);
+        return NULL;
+    }
+    return blk;
+}
+
+static PyTypeObject ComposerStreamType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name      = "doppler.wfm.ComposerStream",
+    .tp_basicsize = sizeof(ComposerStreamObject),
+    .tp_flags     = Py_TPFLAGS_DEFAULT,
+    .tp_dealloc   = (destructor)ComposerStream_dealloc,
+    .tp_iter      = ComposerStream_iter,
+    .tp_iternext  = (iternextfunc)ComposerStream_next,
+    .tp_doc       = PyDoc_STR("Iterator over Composer.stream() blocks."),
+};
+
+static PyObject *
+Composer_stream(ComposerObject *self, PyObject *args, PyObject *kwds)
+{
+    static char *kwlist[] = {"block", NULL};
+    Py_ssize_t block = 4096;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|n", kwlist, &block))
+        return NULL;
+    if (block <= 0) {
+        PyErr_SetString(PyExc_ValueError, "block must be > 0");
+        return NULL;
+    }
+    ComposerStreamObject *it =
+        PyObject_New(ComposerStreamObject, &ComposerStreamType);
+    if (!it)
+        return NULL;
+    Py_INCREF(self);
+    it->composer = (PyObject *)self;
+    it->block = block;
+    return (PyObject *)it;
+}
+
+/* Serialize one resolved object's named fields into a dict via its getsets
+ * (enums → str, bits → bytes) — generic over the SSOT field list. */
+static PyObject *
+_Composer_obj_to_dict(PyObject *o, const char *const *keys)
+{
+    PyObject *d = PyDict_New();
+    if (!d)
+        return NULL;
+    for (Py_ssize_t i = 0; keys[i]; i++) {
+        PyObject *v = PyObject_GetAttrString(o, keys[i]);
+        if (!v) { Py_DECREF(d); return NULL; }
+        int rc = PyDict_SetItemString(d, keys[i], v);
+        Py_DECREF(v);
+        if (rc < 0) { Py_DECREF(d); return NULL; }
+    }
+    return d;
+}
+
+static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", NULL };
+static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", NULL };
+
+static PyObject *
+Composer_to_dict(ComposerObject *self, PyObject *Py_UNUSED(ignored))
+{
+    PyObject *r = _Composer_resolved(self);
+    if (!r)
+        return NULL;
+    PyObject *seglist = PyTuple_GET_ITEM(r, 0); /* borrowed */
+    Py_ssize_t nseg = PyList_GET_SIZE(seglist);
+    PyObject *segs_out = PyList_New(nseg);
+    if (!segs_out)
+        goto fail;
+    for (Py_ssize_t i = 0; i < nseg; i++) {
+        PyObject *seg = PyList_GET_ITEM(seglist, i); /* borrowed */
+        PyObject *sd = _Composer_obj_to_dict(seg, _Composer_seg_keys);
+        if (!sd)
+            goto fail_segs;
+        PyObject *srcs = PyObject_GetAttrString(seg, "sources");
+        if (!srcs) { Py_DECREF(sd); goto fail_segs; }
+        Py_ssize_t nsrc = PyList_GET_SIZE(srcs);
+        PyObject *src_out = PyList_New(nsrc);
+        if (!src_out) { Py_DECREF(srcs); Py_DECREF(sd); goto fail_segs; }
+        for (Py_ssize_t k = 0; k < nsrc; k++) {
+            PyObject *kd = _Composer_obj_to_dict(
+                PyList_GET_ITEM(srcs, k), _Composer_src_keys);
+            if (!kd) {
+                Py_DECREF(src_out); Py_DECREF(srcs); Py_DECREF(sd);
+                goto fail_segs;
+            }
+            PyList_SET_ITEM(src_out, k, kd); /* steals */
+        }
+        Py_DECREF(srcs);
+        int rc = PyDict_SetItemString(sd, "sources", src_out);
+        Py_DECREF(src_out);
+        if (rc < 0) { Py_DECREF(sd); goto fail_segs; }
+        PyList_SET_ITEM(segs_out, i, sd); /* steals */
+    }
+    {
+        PyObject *out = Py_BuildValue(
+            "{s:O,s:O,s:N}", "repeat", PyTuple_GET_ITEM(r, 1),
+            "continuous", PyTuple_GET_ITEM(r, 2), "segments", segs_out);
+        Py_DECREF(r);
+        return out; /* Py_BuildValue stole segs_out via N */
+    }
+fail_segs:
+    Py_DECREF(segs_out);
+fail:
+    Py_DECREF(r);
+    return NULL;
+}
+
 static PyMethodDef Composer_methods[] = {
     {"execute", (PyCFunction)Composer_execute, METH_VARARGS,
      "execute(n) -> ndarray[complex64]"},
@@ -1377,6 +1894,11 @@ static PyMethodDef Composer_methods[] = {
     {"close", (PyCFunction)Composer_close, METH_NOARGS, "close() -> None"},
     {"__enter__", (PyCFunction)Composer_enter, METH_NOARGS, NULL},
     {"__exit__", (PyCFunction)Composer_exit, METH_VARARGS, NULL},
+    {"stream", (PyCFunction)(void (*)(void))Composer_stream,
+     METH_VARARGS | METH_KEYWORDS,
+     "stream(block=4096) -> iterator of complex64 blocks"},
+    {"to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
+     "to_dict() -> dict (resolved repeat/continuous/segments)"},
     {"from_json", (PyCFunction)Composer_from_json,
      METH_VARARGS | METH_CLASS, "from_json(json) -> Composer"},
     {"from_file", (PyCFunction)Composer_from_file,
@@ -1430,6 +1952,7 @@ PyInit_wfm_compose(void)
     if (PyType_Ready(&SegmentType) < 0) return NULL;
     if (PyType_Ready(&TimelineType) < 0) return NULL;
     if (PyType_Ready(&ComposerType) < 0) return NULL;
+    if (PyType_Ready(&ComposerStreamType) < 0) return NULL;
     PyObject *m = PyModule_Create(&_moduledef);
     if (!m) return NULL;
     Py_INCREF(&SynthType);

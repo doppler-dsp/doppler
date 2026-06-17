@@ -156,22 +156,23 @@ def test_rrc_only_modulated():
 
 def test_bits_bpsk_mapping():
     """bpsk: bit 0 -> +1, bit 1 -> -1; each bit held sps samples."""
-    s = bits("10110101", sps=4, modulation="bpsk")
-    assert s.n_samples == 32  # 8 bits * 4
-    y = s.steps(32)
+    s = bits(pattern="10110101", sps=4, modulation="bpsk")
+    y = s.steps(32)  # 8 bits * 4 sps = 32 samples / pass
     centers = y[2::4].real.round().astype(int).tolist()
     assert centers == [-1, 1, -1, -1, 1, -1, 1, -1]  # 1->-1, 0->+1
 
 
 def test_bits_none_amplitude():
     """none: bit 0 -> 0, bit 1 -> 1 amplitude."""
-    y = bits("1100", sps=1, modulation="none").steps(4)
+    y = bits(pattern="1100", sps=1, modulation="none").steps(4)
     assert y.real.round().astype(int).tolist() == [1, 1, 0, 0]
 
 
 def test_bits_qpsk_four_points():
     """qpsk consumes 2 bits/symbol → 4 Gray-mapped constellation points."""
-    q = bits([0, 0, 0, 1, 1, 0, 1, 1], sps=1, modulation="qpsk").steps(4)
+    q = bits(pattern=[0, 0, 0, 1, 1, 0, 1, 1], sps=1, modulation="qpsk").steps(
+        4
+    )
     assert np.allclose(np.abs(q), 1.0, atol=1e-3)  # unit power
     quad = {(int(np.sign(c.real)), int(np.sign(c.imag))) for c in q}
     assert len(quad) == 4
@@ -179,41 +180,46 @@ def test_bits_qpsk_four_points():
 
 def test_bits_hex_pattern():
     """A 0x.. hex string expands MSB-first to bits."""
-    y = bits("0xA5", sps=1, modulation="none").steps(8)  # 1010 0101
+    y = bits(pattern="0xA5", sps=1, modulation="none").steps(8)  # 1010 0101
     assert y.real.astype(int).tolist() == [1, 0, 1, 0, 0, 1, 0, 1]
 
 
 def test_bits_cycles_to_fill():
     """The pattern repeats to fill a request longer than one pass."""
-    s = bits("101", sps=2, modulation="none")
-    one = s.steps(s.n_samples)  # 6 samples
+    s = bits(pattern="101", sps=2, modulation="none")
+    period = 3 * 2  # 3 bits * 2 sps = 6 samples / pass
+    one = s.steps(period)
     s.reset()
-    two = s.steps(2 * s.n_samples)
+    two = s.steps(2 * period)
     assert np.array_equal(two, np.tile(one, 2))
 
 
 def test_bits_reset_reproduces():
-    s = bits("11010010", sps=3, modulation="bpsk", seed=5)
-    a = s.steps(s.n_samples)
+    s = bits(pattern="11010010", sps=3, modulation="bpsk", seed=5)
+    period = 8 * 3  # 8 bits * 3 sps
+    a = s.steps(period)
     s.reset()
-    assert np.array_equal(a, s.steps(s.n_samples))
+    assert np.array_equal(a, s.steps(period))
 
 
 def test_bits_array_input():
     """A numpy 0/1 array is accepted directly."""
     arr = np.array([1, 0, 1, 1], dtype=np.uint8)
-    y = bits(arr, sps=1, modulation="bpsk").steps(4)
+    y = bits(pattern=arr, sps=1, modulation="bpsk").steps(4)
     assert y.real.round().astype(int).tolist() == [-1, 1, -1, -1]
 
 
 def test_bits_needs_pattern():
-    with pytest.raises(ValueError):
-        Synth(type="bits")  # no pattern
+    # A pattern-less bits Synth has nothing to transmit. Standalone generation
+    # is lazy, so the guard (in the C bridge) surfaces at first steps(): the
+    # generated ensure_gen raises when wfm_source_to_synth returns NULL.
+    with pytest.raises(RuntimeError):
+        Synth(type="bits").steps(4)
 
 
 def test_bits_bad_string_rejected():
     with pytest.raises(ValueError):
-        bits("10201").steps(4)  # '2' is not a bit
+        bits(pattern="10201").steps(4)  # '2' is not a bit
 
 
 # ── chirp (LFM) ──────────────────────────────────────────────────────────────

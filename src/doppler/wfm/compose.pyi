@@ -6,144 +6,26 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import Iterator, Sequence
+from typing import Iterable, Iterator, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
 
-@dataclass
-class Segment:
-    """One waveform segment of a composed stream (mirrors the C ``wfm_segment_t``).
-
-    The string fields ``type`` ({"tone","noise","pn","bpsk","qpsk"}), ``snr_mode``
-    ({"auto","fs","ebno","esno"}) and ``lfsr`` ({"galois","fibonacci"}) map to the
-    C enums; defaults match the ``wfmgen`` CLI (a clean 1024-sample 1 MS/s tone).
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import Segment
-    >>> Segment("pn", num_samples=127).type
-    'pn'
-
-    """
-
-    type: str = ...
-    fs: float = ...
-    freq: float = ...
-    snr: float = ...
-    snr_mode: str = ...
-    seed: int = ...
-    sps: int = ...
-    pn_length: int = ...
-    pn_poly: int = ...
-    lfsr: str = ...
-    num_samples: int = ...
-    off_samples: int = ...
-
-class Composer:
-    """Multi-segment waveform generator over a list of :class:`Segment`.
-
-    Build from an explicit segment list, a single segment's keyword arguments, or
-    a JSON spec (:meth:`from_json` / :meth:`from_file`). Pull blocks with
-    :meth:`execute` or drain a finite spec with :meth:`compose`. Context manager.
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import Composer, Segment
-    >>> spec = [Segment("pn", num_samples=127), Segment("tone", num_samples=256,
-    ...                                                 off_samples=64)]
-    >>> x = Composer(spec).compose()
-    >>> x.dtype, len(x)
-    (dtype('complex64'), 447)
-
-    """
-
-    def __init__(
-        self,
-        segments: Sequence[Segment] | None = ...,
-        *,
-        repeat: bool = ...,
-        continuous: bool = ...,
-        **segment_kwargs: object,
-    ) -> None: ...
-    @classmethod
-    def from_json(cls, json: str) -> Composer:
-        """Build a composer from a JSON spec string."""
-        ...
-
-    @classmethod
-    def from_file(cls, path: str | os.PathLike) -> Composer:
-        """Build a composer from a JSON spec file."""
-        ...
-
-    def execute(self, n: int) -> NDArray[np.complex64]:
-        """Generate up to ``n`` samples; a short/empty array marks the end.
-
-        Examples
-        --------
-        >>> from doppler.wfm.compose import Composer
-        >>> with Composer(type="noise", snr=10.0, num_samples=4096) as c:
-        ...     blk = c.execute(1024)
-        >>> blk.dtype, len(blk)
-        (dtype('complex64'), 1024)
-
-        """
-        ...
-
-    def compose(self, block: int = ...) -> NDArray[np.complex64]:
-        """Drain a finite spec into one array (raises if ``continuous``)."""
-        ...
-
-    def stream(
-        self, block: int = ..., *, realtime: bool | float = ...
-    ) -> Iterator[NDArray[np.complex64]]:
-        """Yield successive blocks (a generator over :meth:`execute`).
-
-        The Python equivalent of ``wfmgen --realtime``: ``realtime`` paces each
-        block to real time (``True`` = ``segments[0].fs``, or a float rate).
-
-        Examples
-        --------
-        >>> from doppler.wfm.compose import Composer
-        >>> c = Composer(type="tone", freq=1e5, num_samples=1000)
-        >>> sum(len(b) for b in c.stream(256))
-        1000
-
-        """
-        ...
-
-    @property
-    def segments(self) -> list[Segment]:
-        """The resolved segment list (defaults filled in)."""
-        ...
-
-    @property
-    def repeat(self) -> bool: ...
-    @property
-    def continuous(self) -> bool: ...
-    def to_json(self) -> str:
-        """Serialise the resolved spec to JSON (round-trips via :meth:`from_json`).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from doppler.wfm.compose import Composer, Segment
-        >>> spec = [Segment("bpsk", num_samples=200), Segment("tone", freq=2e5)]
-        >>> a = Composer(spec)
-        >>> b = Composer.from_json(a.to_json())
-        >>> bool(np.array_equal(a.compose(), b.compose()))
-        True
-
-        """
-        ...
-
-    def close(self) -> None:
-        """Release the underlying C state (idempotent)."""
-        ...
-
-    def __enter__(self) -> Composer: ...
-    def __exit__(self, *exc: object) -> None: ...
+# The composer OO surface is the generated .so type (stubs in
+# wfm_compose.pyi) — re-exported verbatim, no Python wrapper.
+from .wfm_compose import (
+    Composer as Composer,
+    Segment as Segment,
+    Synth as Synth,
+    Timeline as Timeline,
+    bits as bits,
+    bpsk as bpsk,
+    chirp as chirp,
+    noise as noise,
+    pn as pn,
+    qpsk as qpsk,
+    tone as tone,
+)
 
 class Writer:
     """Stream ``complex64`` samples to a container (raw / csv / blue / sigmf).
@@ -311,6 +193,22 @@ class SampleClock:
     def underruns(self) -> int: ...
     @property
     def max_lateness(self) -> float: ...
+
+def paced(
+    blocks: Iterable[NDArray[np.complex64]], fs: float
+) -> Iterator[NDArray[np.complex64]]:
+    """Pace an iterable of sample blocks to real time against an ``fs``-Hz clock.
+
+    The transport-side equivalent of ``wfmgen --realtime``: wrap any block
+    iterator (typically :meth:`Composer.stream`) so each block is yielded
+    unchanged, then sleeps to its real-time deadline via :class:`SampleClock`.
+
+    >>> from doppler.wfm.compose import Composer, paced
+    >>> comp = Composer(type="tone", freq=1e5, num_samples=512)
+    >>> sum(len(b) for b in paced(comp.stream(256), fs=1e6))
+    512
+
+    """
 
 def sigmf_meta(
     *,

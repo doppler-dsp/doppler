@@ -91,13 +91,13 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
     Py_ssize_t nb = PyBytes_GET_SIZE(obj);
     if (nb <= 0)
         return 1;
-    uint8_t *copy = (uint8_t *)malloc((size_t)nb);
-    if (!copy) {
+    uint8_t *buf = (uint8_t *)malloc((size_t)nb);
+    if (!buf) {
         PyErr_NoMemory();
         return 0;
     }
-    memcpy(copy, PyBytes_AS_STRING(obj), (size_t)nb);
-    src->bits   = copy;
+    memcpy(buf, PyBytes_AS_STRING(obj), (size_t)nb);
+    src->bits   = buf;
     src->n_bits = (size_t)nb;
     return 1;
 }
@@ -124,8 +124,9 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     int rrc_span = 8;
     double fs = 1e6;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|sddsIiiKsddOssdid", kwlist,
-            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &fs))
+            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &fs)) {
         return -1;
+    }
     self->fs = fs;
     {
         int _i = _enum_index(_enum_wfm_type, type);
@@ -1298,7 +1299,7 @@ Composer_exit(ComposerObject *self, PyObject *args)
 static PyObject *
 Composer_from_json(PyObject *cls, PyObject *args)
 {
-    (void)cls;
+    PyTypeObject *type = (PyTypeObject *)cls; /* alloc via cls: subclass round-trips */
     const char *json;
     if (!PyArg_ParseTuple(args, "s", &json))
         return NULL;
@@ -1307,7 +1308,7 @@ Composer_from_json(PyObject *cls, PyObject *args)
         PyErr_SetString(PyExc_ValueError, "wfm_compose_from_json failed");
         return NULL;
     }
-    ComposerObject *self = (ComposerObject *)ComposerType.tp_alloc(&ComposerType, 0);
+    ComposerObject *self = (ComposerObject *)type->tp_alloc(type, 0);
     if (!self) {
         wfm_compose_destroy(st);
         return NULL;
@@ -1320,7 +1321,7 @@ Composer_from_json(PyObject *cls, PyObject *args)
 static PyObject *
 Composer_from_file(PyObject *cls, PyObject *args)
 {
-    (void)cls;
+    PyTypeObject *type = (PyTypeObject *)cls; /* alloc via cls: subclass round-trips */
     PyObject *pathobj;
     if (!PyArg_ParseTuple(args, "O&", PyUnicode_FSConverter, &pathobj))
         return NULL;
@@ -1330,7 +1331,7 @@ Composer_from_file(PyObject *cls, PyObject *args)
         PyErr_SetString(PyExc_OSError, "wfm_compose_from_file failed");
         return NULL;
     }
-    ComposerObject *self = (ComposerObject *)ComposerType.tp_alloc(&ComposerType, 0);
+    ComposerObject *self = (ComposerObject *)type->tp_alloc(type, 0);
     if (!self) {
         wfm_compose_destroy(st);
         return NULL;

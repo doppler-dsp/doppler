@@ -179,3 +179,9 @@ def wfm_ebno_to_snr_db(ebno_db: float, bits_per_symbol: int, samples_per_symbol:
 
 def mls_poly(n: int) -> int:
     """Maximal-length-sequence primitive polynomial for an LFSR of length n."""
+
+def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
+    """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."""
+
+def dsss_spread(syms: NDArray[np.complex64], code: NDArray[np.uint8], sf: int) -> NDArray[np.complex64]:
+    """Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."""

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.22"
+jm_version = "0.19.24"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -196,7 +196,7 @@ args = [{ name = "on", type = "int", default = "1" }]
 [[module.wfm_writer.getters]]
 fields = [
     { name = "clip_fraction", getter = "wfm_writer_clip_fraction", type = "double" },
-    { name = "peak_dbfs", getter = "wfm_writer_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
+    { name = "peak_dbfs", getter = "wfm_writer_peak", type = "double", returns = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
     { name = "clipped", getter = "wfm_writer_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
 ]
 
@@ -244,7 +244,7 @@ args = [{ name = "on", type = "int", default = "1" }]
 [[module.wfm_sink.getters]]
 fields = [
     { name = "clip_fraction", getter = "wfm_zmq_sink_clip_fraction", type = "double" },
-    { name = "peak_dbfs", getter = "wfm_zmq_sink_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
+    { name = "peak_dbfs", getter = "wfm_zmq_sink_peak", type = "double", returns = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
     { name = "clipped", getter = "wfm_zmq_sink_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
 ]
 
@@ -265,6 +265,9 @@ extra_link_libs = ["$<$<PLATFORM_ID:Linux>:mvec>"]
 objects = ["pn", "wfm_synth"]
 # wfm_synth.toml's depends_on link=true (gh-225) links lo/awgn/fir _core into the
 # wfm .so; pn is in-module (linked via objects). Replaces extra_link_libs.
+# wfm_dsp_core (the rrc/dsss kernels in wfm_dsp.c) backs the rrc_taps/dsss_spread
+# module functions — linked module-wide since they're free fns, not an object.
+extra_link_libs = ["wfm_dsp_core"]
 
 # Fold the hand-written composition / I/O surface into doppler.wfm so the whole
 # subsystem has one import path (D7). The Python `Synth` (a thin wrapper in
@@ -275,7 +278,7 @@ objects = ["pn", "wfm_synth"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "sigmf_meta", "write_blue_header"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["ZmqSink"]
@@ -339,10 +342,46 @@ return_type = "uint64_t"
 name = "n"
 type = "uint32_t"
 
-# rrc_taps/dsss_spread stay hand-Python in compose.py for now: jm#335 (apply
-# ignores variable_output/out_size for module functions) blocks moving these
-# self-sizing kernels to generated module functions. mls_poly migrated (scalar
-# in/out — no variable output, so unaffected by #335).
+# Self-sizing DSP kernels as generated `variable_output` module functions
+# (jm#318, fixed for apply in jm#335 / 0.19.24). Each thin native/src/wfm/<fn>.c
+# aliases the prefixed wfm_dsp.c kernel (C-first: the algorithm lives once).
+[[module.wfm.functions]]
+name = "rrc_taps"
+doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."
+out_type = "float"
+variable_output = true
+out_size = "2 * span * sps + 1"
+
+[[module.wfm.functions.params]]
+name = "beta"
+type = "double"
+
+[[module.wfm.functions.params]]
+name = "sps"
+type = "int"
+
+[[module.wfm.functions.params]]
+name = "span"
+type = "int"
+
+[[module.wfm.functions]]
+name = "dsss_spread"
+doc = "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."
+out_type = "float _Complex"
+variable_output = true
+out_size = "syms_len * sf"
+
+[[module.wfm.functions.params]]
+name = "syms"
+type = "float _Complex[]"
+
+[[module.wfm.functions.params]]
+name = "code"
+type = "uint8_t[]"
+
+[[module.wfm.functions.params]]
+name = "sf"
+type = "int"
 
 # ── Multi-segment waveform composer (gh-287, additive adoption) ──────────────
 # The OO surface (Synth/Segment/Timeline/Composer + factories) generated INTO

@@ -38,8 +38,6 @@ from __future__ import annotations
 import os
 from typing import Sequence
 
-import numpy as np
-from numpy.typing import NDArray
 
 # _wfmcompose: transport binding (sigmf/DSP helpers — the transport classes are
 # now the generated kind="handle" types below).
@@ -216,37 +214,5 @@ def write_blue_header(
     )
 
 
-def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
-    """Root-raised-cosine pulse-shaping taps.
-
-    Returns ``2*span*sps + 1`` float32 taps for roll-off ``beta``, ``sps``
-    samples per symbol, and a ``±span``-symbol support.
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import rrc_taps
-    >>> t = rrc_taps(0.35, 4, 6)
-    >>> t.dtype, len(t)
-    (dtype('float32'), 49)
-    """
-    return _c.rrc_taps(float(beta), int(sps), int(span))
-
-
-def dsss_spread(
-    syms: NDArray[np.complex64], code: NDArray[np.uint8], sf: int
-) -> NDArray[np.complex64]:
-    """Direct-sequence spread ``syms`` by the ``±1`` chip ``code`` (length ≥ ``sf``).
-
-    Each symbol is repeated against the first ``sf`` chips, yielding
-    ``len(syms) * sf`` output chips.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from doppler.wfm.compose import dsss_spread
-    >>> syms = np.array([1+0j, -1+0j], dtype=np.complex64)
-    >>> code = np.array([0, 1, 0, 1], dtype=np.uint8)
-    >>> dsss_spread(syms, code, 4).shape
-    (8,)
-    """
-    return _c.dsss_spread(syms, code, int(sf))
+# rrc_taps / dsss_spread are now generated `variable_output` module functions
+# (doppler.wfm.rrc_taps / .dsss_spread, over native/src/wfm/{rrc_taps,dsss_spread}.c).

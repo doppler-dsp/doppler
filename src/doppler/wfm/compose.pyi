@@ -84,31 +84,4 @@ def write_blue_header(
     """
     ...
 
-def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
-    """Root-raised-cosine pulse-shaping taps (``2*span*sps + 1`` of them).
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import rrc_taps
-    >>> t = rrc_taps(0.35, 4, 6)
-    >>> t.dtype, len(t)
-    (dtype('float32'), 49)
-
-    """
-    ...
-
-def dsss_spread(
-    syms: NDArray[np.complex64], code: NDArray[np.uint8], sf: int
-) -> NDArray[np.complex64]:
-    """Direct-sequence spread ``syms`` by a ``±1`` chip ``code`` (length ≥ ``sf``).
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from doppler.wfm.compose import dsss_spread
-    >>> syms = np.array([1 + 0j, -1 + 0j], dtype=np.complex64)
-    >>> dsss_spread(syms, np.array([0, 1, 0, 1], dtype=np.uint8), 4).shape
-    (8,)
-
-    """
-    ...
+# rrc_taps / dsss_spread are generated module functions — see wfm.pyi.

@@ -807,77 +807,8 @@ _fn_clock_stats (PyObject *mod, PyObject *args)
 }
 #endif /* !_WIN32 */
 
-/* ───────────────────────── DSP helpers ────────────────────────────────────
- */
-
-static PyObject *
-_fn_rrc_taps (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  double beta;
-  int    sps, span;
-  if (!PyArg_ParseTuple (args, "dii", &beta, &sps, &span))
-    return NULL;
-  if (sps < 1 || span < 1)
-    {
-      PyErr_SetString (PyExc_ValueError, "sps and span must be >= 1");
-      return NULL;
-    }
-  npy_intp  dims[] = { (npy_intp)wfm_rrc_ntaps (sps, span) };
-  PyObject *arr    = PyArray_SimpleNew (1, dims, NPY_FLOAT32);
-  if (!arr)
-    return NULL;
-  wfm_rrc_taps (beta, sps, span, (float *)PyArray_DATA ((PyArrayObject *)arr));
-  return arr;
-}
-
-static PyObject *
-_fn_dsss_spread (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  PyObject  *syms_obj, *code_obj;
-  Py_ssize_t sf;
-  if (!PyArg_ParseTuple (args, "OOn", &syms_obj, &code_obj, &sf))
-    return NULL;
-  if (sf < 1)
-    {
-      PyErr_SetString (PyExc_ValueError, "sf must be >= 1");
-      return NULL;
-    }
-  PyArrayObject *syms = (PyArrayObject *)PyArray_FROM_OTF (
-      syms_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-  if (!syms)
-    return NULL;
-  PyArrayObject *code = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!code)
-    {
-      Py_DECREF (syms);
-      return NULL;
-    }
-  if ((size_t)PyArray_SIZE (code) < (size_t)sf)
-    {
-      PyErr_SetString (PyExc_ValueError, "code shorter than sf");
-      Py_DECREF (syms);
-      Py_DECREF (code);
-      return NULL;
-    }
-  size_t    n_sym  = (size_t)PyArray_SIZE (syms);
-  npy_intp  dims[] = { (npy_intp)(n_sym * (size_t)sf) };
-  PyObject *arr    = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
-  if (!arr)
-    {
-      Py_DECREF (syms);
-      Py_DECREF (code);
-      return NULL;
-    }
-  wfm_dsss_spread ((const float _Complex *)PyArray_DATA (syms), n_sym,
-                   (const uint8_t *)PyArray_DATA (code), (size_t)sf,
-                   (float _Complex *)PyArray_DATA ((PyArrayObject *)arr));
-  Py_DECREF (syms);
-  Py_DECREF (code);
-  return arr;
-}
+/* rrc_taps / dsss_spread migrated to generated `variable_output` wfm module
+ * functions (native/src/wfm/{rrc_taps,dsss_spread}.c over the wfm_dsp kernels). */
 
 /* ───────────────────────── module table ───────────────────────────────────
  */
@@ -928,10 +859,6 @@ static PyMethodDef _methods[] = {
   { "clock_stats", _fn_clock_stats, METH_VARARGS,
     "clock_stats(state) -> (n, underruns, max_late_ns)" },
 #endif
-  { "rrc_taps", _fn_rrc_taps, METH_VARARGS,
-    "rrc_taps(beta, sps, span) -> ndarray[float32]" },
-  { "dsss_spread", _fn_dsss_spread, METH_VARARGS,
-    "dsss_spread(syms, code, sf) -> ndarray[complex64]" },
   { NULL, NULL, 0, NULL },
 };
 

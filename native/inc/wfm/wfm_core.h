@@ -102,8 +102,6 @@ float wfm_awgn_amplitude(float snr_db, float signal_power);
  * @endcode
  */
 float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
-void rrc_taps(float *out, double beta, int sps, int span);
-void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, float complex *out, int sf);
 
 /**
  * @brief Maximal-length-sequence primitive polynomial for a length-@p n LFSR.
@@ -121,6 +119,8 @@ void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code
  * @endcode
  */
 uint64_t mls_poly(uint32_t n);
+void rrc_taps(double beta, int sps, int span, float *out);
+void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
 #ifdef __cplusplus
 }
 #endif

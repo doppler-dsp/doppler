@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 from doppler.wfm import _wfmcompose as _c
-from doppler.wfm import mls_poly
+from doppler.wfm import mls_poly, rrc_taps, dsss_spread
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -28,10 +28,8 @@ from doppler.wfm.compose import (
     Timeline,
     Writer,
     ZmqSink,
-    dsss_spread,
     noise,
     qpsk,
-    rrc_taps,
     sigmf_meta,
     tone,
     write_blue_header,

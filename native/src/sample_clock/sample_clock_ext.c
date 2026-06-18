@@ -11,6 +11,7 @@
 #include <numpy/arrayobject.h>
 #include <complex.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -68,7 +69,9 @@ SampleClock_pace(SampleClockObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
     double r;
+    Py_BEGIN_ALLOW_THREADS
     r = dp_sample_clock_pace(self->h, count);
+    Py_END_ALLOW_THREADS
     return PyFloat_FromDouble(r);
 }
 

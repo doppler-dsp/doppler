@@ -40,6 +40,16 @@ from doppler.wfm.compose import (
 from doppler.wfm.readback import read_iq
 
 
+def _read_all(r):
+    """Drain a Reader into one array via blocked read() (the generated handle
+    exposes read(n); read_all was an old hand-class convenience)."""
+    chunks, blk = [], r.read(65536)
+    while len(blk):
+        chunks.append(blk)
+        blk = r.read(65536)
+    return np.concatenate(chunks) if chunks else np.empty(0, np.complex64)
+
+
 def _wfmgen_bin():
     """The one C CLI: on PATH (wheel console-shim or installed), else the
     CMake build tree, else None (parity tests skip)."""
@@ -277,7 +287,7 @@ def test_zmqsink_loopback_to_subscriber():
     x = Composer(type="tone", freq=1e5, num_samples=512).compose()
     with ZmqSink(ep, sample_type="cf64") as sink, Subscriber(ep) as sub:
         time.sleep(0.15)  # PUB/SUB subscription warm-up
-        sink.send(x, fs=1e6, fc=2.4e9)
+        sink.send(x, 1e6, 2.4e9)
         samples, hdr = sub.recv(timeout_ms=2000)
     assert samples.dtype == np.complex128 and len(samples) == 512
     assert np.allclose(samples, x.astype(np.complex128), atol=1e-6)
@@ -479,7 +489,7 @@ def test_reader_roundtrips_each_container(
     with Reader(p, sample_type=stype) as r:
         assert r.file_type == file_type  # container auto-detected
         assert r.sample_type == stype
-        y = r.read_all()
+        y = _read_all(r)
     assert len(y) == len(x)
     assert np.max(np.abs(y - x)) < tol
 
@@ -496,7 +506,7 @@ def test_reader_blue_recovers_metadata(tmp_path):
         assert r.sample_type == "ci16"  # recovered, not the cf32 default
         assert r.fs == pytest.approx(2.4e6)
         assert r.num_samples == 2048
-        y = r.read_all()
+        y = _read_all(r)
     assert np.max(np.abs(y - x)) < 1e-3
 
 
@@ -513,7 +523,7 @@ def test_reader_sigmf_pair(tmp_path):
     with Reader(data) as r:
         assert r.file_type == "sigmf"
         assert r.fs == pytest.approx(1e6)
-        assert np.allclose(r.read_all(), x)
+        assert np.allclose(_read_all(r), x)
 
 
 def test_reader_matches_read_iq_for_raw(tmp_path):
@@ -522,7 +532,7 @@ def test_reader_matches_read_iq_for_raw(tmp_path):
     p = tmp_path / "cap.ci32"
     with Writer(p, sample_type="ci32", fs=1e6) as w:
         w.write(x)
-    via_reader = Reader(str(p), sample_type="ci32").read_all()
+    via_reader = _read_all(Reader(str(p), sample_type="ci32"))
     via_read_iq = read_iq(str(p), "ci32")
     # Both divide by the same full-scale; the C reader does it scalar, read_iq
     # via the SIMD cvt converter, so they agree to float precision (not bitwise).
@@ -536,7 +546,7 @@ def test_reader_blocked_read_matches_read_all(tmp_path):
     p = tmp_path / "cap.cf32"
     with Writer(p) as w:
         w.write(x)
-    whole = Reader(str(p)).read_all()
+    whole = _read_all(Reader(str(p)))
     r = Reader(str(p))
     chunks, blk = [], r.read(256)
     while len(blk):
@@ -551,13 +561,14 @@ def test_reader_idempotent_close(tmp_path):
     with Writer(p) as w:
         w.write(Composer(type="tone", num_samples=64).compose())
     r = Reader(str(p))
-    r.read_all()
+    _read_all(r)
     r.close()
     r.close()  # idempotent
 
 
 def test_reader_missing_file_raises(tmp_path):
-    with pytest.raises(OSError):
+    # The generated handle raises RuntimeError when the C open returns NULL.
+    with pytest.raises((OSError, RuntimeError)):
         Reader(str(tmp_path / "does-not-exist.cf32"))
 
 
@@ -585,8 +596,11 @@ def test_sigmf_meta_and_data_pair(tmp_path):
 
 
 def test_writer_clip_detection(tmp_path):
-    """Writer tracks the peak (always) and the clipped fraction (opt-in),
-    and the values survive close()."""
+    """Writer tracks the peak (always) and the clipped fraction (opt-in).
+
+    The generated handle reads stats live from the open writer, so read them
+    before close(); after close() any property access raises (handle freed).
+    """
     # peak magnitude 2.0 (clips in ci16); 2 of 4 components exceed full-scale.
     x = np.array([1.5 + 0.5j, -0.5 - 2.0j], dtype=np.complex64)
     w = Writer(tmp_path / "clip.ci16", sample_type="ci16")
@@ -596,7 +610,8 @@ def test_writer_clip_detection(tmp_path):
     assert abs(w.peak_dbfs - 20.0 * np.log10(2.0)) < 1e-4
     assert abs(w.clip_fraction - 0.5) < 1e-6
     w.close()
-    assert w.clipped  # snapshot survives close
+    with pytest.raises(RuntimeError):
+        _ = w.clipped  # the handle is freed; live stats are no longer readable
 
     # clean at full scale: peak 0 dBFS, no clip.
     c = Writer(tmp_path / "clean.ci16", sample_type="ci16")

@@ -104,10 +104,6 @@ double wfm_writer_peak(const wfm_writer_t *w);
  *  wfm_writer_track_clipping() was enabled. */
 double wfm_writer_clip_fraction(const wfm_writer_t *w);
 
-/** Non-zero if an integer-wire capture clipped (sample_type >= 2 and peak > 1.0).
- *  Backs the generated `Writer.clipped` per-field getter. */
-int wfm_writer_clipped(const wfm_writer_t *w);
-
 /** Path-opening + FILE-owning ctor for the generated `Writer` handle (jm
  *  kind="handle"): opens `path` ("wb"), delegates to wfm_writer_open, and marks
  *  the FILE owned so wfm_writer_close fclose's it. Returns NULL on open failure. */

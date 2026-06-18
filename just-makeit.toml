@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.21"
+jm_version = "0.19.22"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -81,6 +81,7 @@ create_args = [
 name = "read"
 fn = "wfm_reader_read"
 returns = "float _Complex[]"
+nogil = true
 args = [{ name = "n", type = "size_t" }]
 
 [[module.wfm_reader.getters]]
@@ -124,6 +125,7 @@ create_args = [
 name = "pace"
 fn = "dp_sample_clock_pace"
 returns = "double"
+nogil = true
 args = [{ name = "count", type = "size_t" }]
 
 [[module.sample_clock.methods]]
@@ -178,6 +180,7 @@ create_args = [
 name = "write"
 fn = "wfm_writer_write"
 returns = "size_t"
+nogil = true
 args = [{ name = "iq", type = "float _Complex[]" }]
 
 [[module.wfm_writer.methods]]
@@ -188,12 +191,13 @@ args = [{ name = "on", type = "int", default = "1" }]
 # Per-field scalar getters (jm#320): each property binds its own getter fn
 # directly over the writer's existing peak/clip_fraction accessors — no struct
 # snapshot shim. peak_dbfs/clipped are derived exprs: `tmp` is the bound
-# getter's scalar return; `self->sample_type` is the stashed ctor arg.
+# getter's scalar return (jm#330 types it by the getter's return, so a bool
+# field over a double getter is correct); `self->sample_type` is the ctor arg.
 [[module.wfm_writer.getters]]
 fields = [
     { name = "clip_fraction", getter = "wfm_writer_clip_fraction", type = "double" },
     { name = "peak_dbfs", getter = "wfm_writer_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
-    { name = "clipped", getter = "wfm_writer_clipped", type = "int" },
+    { name = "clipped", getter = "wfm_writer_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
 ]
 
 # Transport handle module: ZmqSink (POSIX, opt-in zmq). No stats props (the old
@@ -221,6 +225,7 @@ create_args = [
 name = "send"
 fn = "wfm_zmq_sink_send"
 returns = "int"
+nogil = true
 args = [
     { name = "iq", type = "float _Complex[]" },
     { name = "fs", type = "double" },
@@ -240,7 +245,7 @@ args = [{ name = "on", type = "int", default = "1" }]
 fields = [
     { name = "clip_fraction", getter = "wfm_zmq_sink_clip_fraction", type = "double" },
     { name = "peak_dbfs", getter = "wfm_zmq_sink_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
-    { name = "clipped", getter = "wfm_zmq_sink_clipped", type = "int" },
+    { name = "clipped", getter = "wfm_zmq_sink_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
 ]
 
 [module.cvt]
@@ -266,8 +271,15 @@ objects = ["pn", "wfm_synth"]
 # compose.py over the C engine) is re-exported AFTER the C-extension import, so
 # it shadows the raw engine type — the public doppler.wfm.Synth is the wrapper
 # (its get_*/set_* engine accessors stay internal, D9).
+# Transport classes are now the generated kind="handle" types (re-exported
+# straight from their .so submodules — zero hand-Python). Composition surface +
+# the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "Writer", "Reader", "ZmqSink", "SampleClock", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "paced", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
+wfm_writer = ["Writer"]
+wfm_reader = ["Reader"]
+wfm_sink = ["ZmqSink"]
+sample_clock = ["SampleClock"]
 readback = ["read_iq"]
 
 [[module.wfm.functions]]
@@ -317,6 +329,10 @@ type = "int"
 [[module.wfm.functions.params]]
 name = "samples_per_symbol"
 type = "float"
+
+# rrc_taps/dsss_spread/mls_poly stay hand-Python in compose.py for now: jm#335
+# (apply ignores variable_output/out_size for module functions) blocks moving
+# rrc_taps/dsss_spread to generated self-sizing module functions.
 
 # ── Multi-segment waveform composer (gh-287, additive adoption) ──────────────
 # The OO surface (Synth/Segment/Timeline/Composer + factories) generated INTO

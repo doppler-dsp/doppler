@@ -11,6 +11,7 @@
 #include <numpy/arrayobject.h>
 #include <complex.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -113,7 +114,9 @@ Reader_read(ReaderObject *self, PyObject *args)
     if (!arr) return NULL;
     float _Complex *out = (float _Complex *)PyArray_DATA((PyArrayObject *)arr);
     size_t got;
+    Py_BEGIN_ALLOW_THREADS
     got = wfm_reader_read(self->h, out, (size_t)n);
+    Py_END_ALLOW_THREADS
     PyArray_DIMS((PyArrayObject *)arr)[0] = (npy_intp)got; /* trim */
     return arr;
 }

@@ -11,6 +11,7 @@
 #include <numpy/arrayobject.h>
 #include <complex.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,6 +40,7 @@ typedef struct {
     PyObject_HEAD
     wfm_zmq_sink_t *h;
     int       closed;
+    int sample_type;
 } ZmqSinkObject;
 
 static int
@@ -62,7 +64,7 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
     self->closed = 0;
-
+    self->sample_type = _arg_sample_type;
 
 
     return 0;
@@ -86,7 +88,9 @@ ZmqSink_send(ZmqSinkObject *self, PyObject *args)
     size_t n_in = (size_t)PyArray_SIZE(x_arr);
     const float _Complex *in_data = (const float _Complex *)PyArray_DATA(x_arr);
     int r;
+    Py_BEGIN_ALLOW_THREADS
     r = wfm_zmq_sink_send(self->h, in_data, n_in, fs, fc);
+    Py_END_ALLOW_THREADS
     Py_DECREF(x_arr);
     return PyLong_FromLong((long)r);
 }
@@ -136,13 +140,13 @@ static PyObject *
 ZmqSink_get_clipped(ZmqSinkObject *self, void *closure)
 {
     (void)closure;
-    int tmp;
+    double tmp;
     if (self->closed) {
         PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
         return NULL;
     }
-    tmp = wfm_zmq_sink_clipped(self->h);
-    return PyLong_FromLong((long)tmp);
+    tmp = wfm_zmq_sink_peak(self->h);
+    return PyBool_FromLong((long)(tmp > 1.0 && self->sample_type >= 2));
 }
 
 static PyGetSetDef ZmqSink_getset[] = {

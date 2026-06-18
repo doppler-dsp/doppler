@@ -240,13 +240,3 @@ wfm_zmq_sink_clip_fraction (const wfm_zmq_sink_t *sink)
     return 0.0;
   return (double)sink->nclip / (double)sink->ntot;
 }
-
-/* Did an integer-wire send clip? Only integer wire types (wtype >= 2) saturate;
- * a peak above full-scale (1.0) means a sample clipped. Symmetric with
- * wfm_writer_clipped — a dedicated C accessor for the generated per-field
- * getter (the predicate folds the wire type with the peak). */
-int
-wfm_zmq_sink_clipped (const wfm_zmq_sink_t *sink)
-{
-  return sink && sink->wtype >= 2 && sink->peak > 1.0f;
-}

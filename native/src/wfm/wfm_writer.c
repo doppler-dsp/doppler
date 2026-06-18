@@ -340,16 +340,6 @@ wfm_writer_clip_fraction (const wfm_writer_t *w)
   return (double)w->nclip / (double)(2 * w->written);
 }
 
-/* Did an integer-wire capture clip? Only the integer sample types (stype >= 2:
- * ci32/ci16/ci8) saturate; a peak above full-scale (1.0) means a sample was
- * clipped. A dedicated C accessor (not a generated derived expr) because the
- * predicate folds the wire type with the peak. */
-int
-wfm_writer_clipped (const wfm_writer_t *w)
-{
-  return w && w->stype >= 2 && w->peak > 1.0f;
-}
-
 /* SigMF "cf32_le"-style datatype string (ci8 has no endian suffix). */
 static void
 sigmf_datatype (int stype, int be, char *out, size_t cap)

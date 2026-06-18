@@ -11,6 +11,7 @@
 #include <numpy/arrayobject.h>
 #include <complex.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -53,6 +54,7 @@ typedef struct {
     PyObject_HEAD
     wfm_writer_t *h;
     int       closed;
+    int sample_type;
 } WriterObject;
 
 static int
@@ -97,7 +99,7 @@ Writer_init(WriterObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
     self->closed = 0;
-
+    self->sample_type = _arg_sample_type;
 
 
     return 0;
@@ -119,7 +121,9 @@ Writer_write(WriterObject *self, PyObject *args)
     size_t n_in = (size_t)PyArray_SIZE(x_arr);
     const float _Complex *in_data = (const float _Complex *)PyArray_DATA(x_arr);
     size_t r;
+    Py_BEGIN_ALLOW_THREADS
     r = wfm_writer_write(self->h, in_data, n_in);
+    Py_END_ALLOW_THREADS
     Py_DECREF(x_arr);
     return PyLong_FromUnsignedLongLong((unsigned long long)r);
 }
@@ -169,13 +173,13 @@ static PyObject *
 Writer_get_clipped(WriterObject *self, void *closure)
 {
     (void)closure;
-    int tmp;
+    double tmp;
     if (self->closed) {
         PyErr_SetString(PyExc_RuntimeError, "Writer is closed");
         return NULL;
     }
-    tmp = wfm_writer_clipped(self->h);
-    return PyLong_FromLong((long)tmp);
+    tmp = wfm_writer_peak(self->h);
+    return PyBool_FromLong((long)(tmp > 1.0 && self->sample_type >= 2));
 }
 
 static PyGetSetDef Writer_getset[] = {

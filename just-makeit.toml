@@ -275,7 +275,7 @@ objects = ["pn", "wfm_synth"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "paced", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread", "mls_poly"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "paced", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["ZmqSink"]
@@ -330,9 +330,19 @@ type = "int"
 name = "samples_per_symbol"
 type = "float"
 
-# rrc_taps/dsss_spread/mls_poly stay hand-Python in compose.py for now: jm#335
-# (apply ignores variable_output/out_size for module functions) blocks moving
-# rrc_taps/dsss_spread to generated self-sizing module functions.
+[[module.wfm.functions]]
+name = "mls_poly"
+doc = "Maximal-length-sequence primitive polynomial for an LFSR of length n."
+return_type = "uint64_t"
+
+[[module.wfm.functions.params]]
+name = "n"
+type = "uint32_t"
+
+# rrc_taps/dsss_spread stay hand-Python in compose.py for now: jm#335 (apply
+# ignores variable_output/out_size for module functions) blocks moving these
+# self-sizing kernels to generated module functions. mls_poly migrated (scalar
+# in/out — no variable output, so unaffected by #335).
 
 # ── Multi-segment waveform composer (gh-287, additive adoption) ──────────────
 # The OO surface (Synth/Segment/Timeline/Composer + factories) generated INTO

@@ -176,3 +176,6 @@ def wfm_awgn_amplitude(snr_db: float, signal_power: float) -> float:
 
 def wfm_ebno_to_snr_db(ebno_db: float, bits_per_symbol: int, samples_per_symbol: float) -> float:
     """Convert Eb/No (dB) to SNR (dB over fs)."""
+
+def mls_poly(n: int) -> int:
+    """Maximal-length-sequence primitive polynomial for an LFSR of length n."""

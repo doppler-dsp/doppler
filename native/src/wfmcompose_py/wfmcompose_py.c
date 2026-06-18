@@ -29,7 +29,6 @@
 #include "wfm/wfm_dsp.h"
 #include "wfm/wfm_reader.h"
 #include "wfm/wfm_writer.h"
-#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly */
 #ifndef _WIN32
 #include "timing/timing_core.h"
 #include "wfm/wfm_sink.h"
@@ -808,7 +807,7 @@ _fn_clock_stats (PyObject *mod, PyObject *args)
 }
 #endif /* !_WIN32 */
 
-/* ───────────────────────── DSP helpers + mls_poly ─────────────────────────
+/* ───────────────────────── DSP helpers ────────────────────────────────────
  */
 
 static PyObject *
@@ -880,16 +879,6 @@ _fn_dsss_spread (PyObject *mod, PyObject *args)
   return arr;
 }
 
-static PyObject *
-_fn_mls_poly (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  unsigned int n;
-  if (!PyArg_ParseTuple (args, "I", &n))
-    return NULL;
-  return PyLong_FromUnsignedLongLong (wfm_synth_mls_poly (n));
-}
-
 /* ───────────────────────── module table ───────────────────────────────────
  */
 
@@ -943,7 +932,6 @@ static PyMethodDef _methods[] = {
     "rrc_taps(beta, sps, span) -> ndarray[float32]" },
   { "dsss_spread", _fn_dsss_spread, METH_VARARGS,
     "dsss_spread(syms, code, sf) -> ndarray[complex64]" },
-  { "mls_poly", _fn_mls_poly, METH_VARARGS, "mls_poly(n) -> int" },
   { NULL, NULL, 0, NULL },
 };
 

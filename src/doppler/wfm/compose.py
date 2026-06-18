@@ -285,18 +285,3 @@ def dsss_spread(
     (8,)
     """
     return _c.dsss_spread(syms, code, int(sf))
-
-
-def mls_poly(n: int) -> int:
-    """Maximal-length-sequence primitive polynomial for an LFSR of length ``n``.
-
-    Mirrors the table the synth/PN engine uses for ``pn_poly=0``; valid for
-    ``n`` in 2..64 (returns 0 otherwise).
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import mls_poly
-    >>> hex(mls_poly(7))
-    '0x41'
-    """
-    return _c.mls_poly(int(n))

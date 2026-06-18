@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.25"
+jm_version = "0.19.26"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -162,6 +162,7 @@ package         = "wfm"
 type_name       = "Writer"
 context_manager = true
 close_fn        = "wfm_writer_close"
+close_returns   = "int"
 create_fn       = "wfm_writer_open_path"
 depends_on      = [{ name = "wfm_writer", link = true }]
 extra_link_libs = ["wfm_cjson", "m"]

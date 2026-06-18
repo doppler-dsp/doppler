@@ -69,7 +69,7 @@ Writer_init(WriterObject *self, PyObject *args, PyObject *kwds)
     double fc = 0.0;
     size_t total = 0;
     double headroom = 0.0;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&sssddKd", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|sssddKd", kwlist,
             PyUnicode_FSConverter, &path, &file_type, &sample_type, &endian, &fs, &fc, &total, &headroom)) {
     Py_XDECREF(path);
         return -1;
@@ -92,6 +92,11 @@ Writer_init(WriterObject *self, PyObject *args, PyObject *kwds)
         Py_XDECREF(path);
         return -1;
     }
+    if (!self->closed && self->h) {
+        wfm_writer_close(self->h);
+        self->h = NULL;
+        self->closed = 1;
+    }
     self->h = wfm_writer_open_path(PyBytes_AS_STRING(path), _arg_file_type, _arg_sample_type, _arg_endian, fs, fc, total, headroom);
     Py_XDECREF(path);
     if (!self->h) {
@@ -109,8 +114,7 @@ static PyObject *
 Writer_write(WriterObject *self, PyObject *args)
 {
     PyObject *x_obj;
-    if (!PyArg_ParseTuple(args, "O", &x_obj))
-        return NULL;
+    if (!PyArg_ParseTuple(args, "O", &x_obj)) return NULL;
     if (self->closed) {
         PyErr_SetString(PyExc_RuntimeError, "Writer is closed");
         return NULL;
@@ -193,8 +197,14 @@ static PyObject *
 Writer_close(WriterObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->closed && self->h) {
-        wfm_writer_close(self->h);
+        int _rc = wfm_writer_close(self->h);
+        self->h = NULL;
         self->closed = 1;
+        if (_rc != 0) {
+            PyErr_Format(PyExc_RuntimeError,
+                "wfm_writer_close failed (rc=%d)", (int)_rc);
+            return NULL;
+        }
     }
     Py_RETURN_NONE;
 }

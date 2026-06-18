@@ -1804,7 +1804,9 @@ ComposerStream_next(ComposerStreamObject *self)
     if (self->realtime > 0.0) {
         if (!self->clk)
             self->clk = dp_sample_clock_create(self->realtime, 0);
+        Py_BEGIN_ALLOW_THREADS
         dp_sample_clock_pace(self->clk, (size_t)n);
+        Py_END_ALLOW_THREADS
     }
     return blk;
 }

@@ -64,7 +64,7 @@ Reader_init(ReaderObject *self, PyObject *args, PyObject *kwds)
     PyObject *path = NULL;  /* fspath -> bytes */
     const char *sample_type = "cf32";
     const char *endian = "le";
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|O&ss", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&|ss", kwlist,
             PyUnicode_FSConverter, &path, &sample_type, &endian)) {
     Py_XDECREF(path);
         return -1;
@@ -80,6 +80,11 @@ Reader_init(ReaderObject *self, PyObject *args, PyObject *kwds)
         PyErr_Format(PyExc_ValueError, "invalid endian '%s'", endian);
         Py_XDECREF(path);
         return -1;
+    }
+    if (!self->closed && self->h) {
+        wfm_reader_close(self->h);
+        self->h = NULL;
+        self->closed = 1;
     }
     self->h = wfm_reader_open(PyBytes_AS_STRING(path), _arg_sample_type, _arg_endian);
     Py_XDECREF(path);
@@ -212,7 +217,7 @@ Reader_dealloc(ReaderObject *self)
 }
 
 static PyMethodDef Reader_methods[] = {
-    {"read", (PyCFunction)Reader_read, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"read", (PyCFunction)Reader_read, METH_VARARGS, NULL},
     {"close", (PyCFunction)Reader_close, METH_NOARGS, "close() -> None"},
     {"__enter__", (PyCFunction)Reader_enter, METH_NOARGS, NULL},
     {"__exit__", (PyCFunction)Reader_exit, METH_VARARGS, NULL},

@@ -39,11 +39,16 @@ SampleClock_init(SampleClockObject *self, PyObject *args, PyObject *kwds)
     static char *kwlist[] = {"fs", "resync", NULL};
     double fs = 0;
     int resync = 0;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|di", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "d|i", kwlist,
             &fs, &resync)) {
         return -1;
     }
 
+    if (!self->closed && self->h) {
+        free(self->h);
+        self->h = NULL;
+        self->closed = 1;
+    }
     self->h = (dp_sample_clock_t *)malloc(sizeof(dp_sample_clock_t));
     if (!self->h) {
         PyErr_NoMemory();

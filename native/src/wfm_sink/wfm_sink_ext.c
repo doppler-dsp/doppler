@@ -49,7 +49,7 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
     static char *kwlist[] = {"endpoint", "sample_type", NULL};
     const char * endpoint = 0;
     const char *sample_type = "cf32";
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ss", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s|s", kwlist,
             &endpoint, &sample_type)) {
         return -1;
     }
@@ -57,6 +57,11 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
     if (_arg_sample_type < 0) {
         PyErr_Format(PyExc_ValueError, "invalid sample_type '%s'", sample_type);
         return -1;
+    }
+    if (!self->closed && self->h) {
+        wfm_zmq_sink_close(self->h);
+        self->h = NULL;
+        self->closed = 1;
     }
     self->h = wfm_zmq_sink_open(endpoint, _arg_sample_type);
     if (!self->h) {
@@ -71,12 +76,14 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-ZmqSink_send(ZmqSinkObject *self, PyObject *args)
+ZmqSink_send(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
 {
+    static char *kwlist[] = {"iq", "fs", "fc", NULL};
     PyObject *x_obj;
     double fs;
     double fc;
-    if (!PyArg_ParseTuple(args, "Odd", &x_obj, &fs, &fc))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Odd", kwlist,
+            &x_obj, &fs, &fc))
         return NULL;
     if (self->closed) {
         PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
@@ -189,7 +196,7 @@ ZmqSink_dealloc(ZmqSinkObject *self)
 }
 
 static PyMethodDef ZmqSink_methods[] = {
-    {"send", (PyCFunction)ZmqSink_send, METH_VARARGS, NULL},
+    {"send", (PyCFunction)ZmqSink_send, METH_VARARGS | METH_KEYWORDS, NULL},
     {"track_clipping", (PyCFunction)ZmqSink_track_clipping, METH_VARARGS | METH_KEYWORDS, NULL},
     {"close", (PyCFunction)ZmqSink_close, METH_NOARGS, "close() -> None"},
     {"__enter__", (PyCFunction)ZmqSink_enter, METH_NOARGS, NULL},

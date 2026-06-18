@@ -44,6 +44,11 @@ Ddcr_init(DdcrObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
+    if (!self->closed && self->h) {
+        ddcr_destroy(self->h);
+        self->h = NULL;
+        self->closed = 1;
+    }
     self->h = ddcr_create(norm_freq, rate);
     if (!self->h) {
         PyErr_SetString(PyExc_RuntimeError, "ddcr_create failed");

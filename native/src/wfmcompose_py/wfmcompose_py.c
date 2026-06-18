@@ -5,16 +5,13 @@
  *
  * This is a `no_generate` module (just-makeit only wires the CMake
  * add_subdirectory): the whole file is hand-owned, like ddc_fn_ext.c. It
- * exposes the low-level transport primitives over opaque PyCapsules; the
- * Writer/Reader/ZmqSink/SampleClock ergonomic API lives in
- * src/doppler/wfm/compose.py.
+ * exposes the low-level transport primitives over opaque PyCapsules.
  *
- * The composer itself (Synth/Segment/Timeline/Composer) is now the
- * jm-generated `doppler.wfm.wfm_compose` module (kind = "composer");
- * compose.py's classes subclass those. The only composer-shaped surface still
- * here is sigmf_meta_json, which takes the resolved segment list as
- * fixed-order tuples (see _SEG_FMT) built by compose.py — keeping the SigMF
- * annotation marshalling and the field order in one place.
+ * The composer (Synth/Segment/Timeline/Composer) and the transport handles
+ * (Writer/Reader/ZmqSink/SampleClock) are now jm-generated; SigMF metadata is
+ * the generated Composer.to_sigmf() serializer. The only surface still wired
+ * through here is blue_write_hcb, backing the hand-Python write_blue_header()
+ * (a path/string-enum I/O helper jm module functions can't yet express).
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -33,172 +30,6 @@
 #include "timing/timing_core.h"
 #include "wfm/wfm_sink.h"
 #endif
-
-/* A 1-source segment crosses as a 19-tuple (back-compat + f_end + bits + RRC):
- *   type fs freq snr snr_mode seed sps pn_length pn_poly lfsr num off level
- *   f_end modulation bits pulse rrc_beta rrc_span */
-#define _SEG_FMT "idddiIiiKinnddiOidi"
-#define _SEG_NTUP 19
-/* A multi-source segment crosses as (num, off, fs, [source, ...]) where each
- * source is a 16-tuple (no fs/num/off — those are segment-level):
- *   type freq snr snr_mode seed sps pn_length pn_poly lfsr level f_end
- *   modulation bits pulse rrc_beta rrc_span */
-#define _SOURCE_FMT "iddiIiiKiddiOidi"
-
-/* Copy a bits pattern (a Python bytes of 0/1, or None) into *src; the source
- * then owns src->bits (freed via _free_segments). Returns 1 on success. */
-static int
-_attach_bits (wfm_source_t *src, PyObject *bits_obj)
-{
-  src->bits   = NULL;
-  src->n_bits = 0;
-  if (!bits_obj || bits_obj == Py_None)
-    return 1;
-  if (!PyBytes_Check (bits_obj))
-    {
-      PyErr_SetString (PyExc_TypeError, "bits must be bytes or None");
-      return 0;
-    }
-  Py_ssize_t nb = PyBytes_GET_SIZE (bits_obj);
-  if (nb <= 0)
-    return 1;
-  uint8_t *copy = (uint8_t *)malloc ((size_t)nb);
-  if (!copy)
-    {
-      PyErr_NoMemory ();
-      return 0;
-    }
-  memcpy (copy, PyBytes_AS_STRING (bits_obj), (size_t)nb);
-  src->bits   = copy;
-  src->n_bits = (size_t)nb;
-  return 1;
-}
-
-/* Free a wfm_segment_t[] including each of the first `n` segments' sources
- * (and each source's bits pattern). */
-static void
-_free_segments (wfm_segment_t *segs, size_t n)
-{
-  if (segs)
-    {
-      for (size_t i = 0; i < n; i++)
-        {
-          if (segs[i].sources)
-            for (size_t k = 0; k < segs[i].n_sources; k++)
-              free (segs[i].sources[k].bits);
-          free (segs[i].sources);
-        }
-      free (segs);
-    }
-}
-
-/* Parse one source 12-tuple into *src (incl. modulation + bits). */
-static int
-_parse_source (PyObject *st, wfm_source_t *src)
-{
-  PyObject *bits_obj = NULL;
-  if (!PyArg_ParseTuple (st, _SOURCE_FMT, &src->type, &src->freq, &src->snr,
-                         &src->snr_mode, &src->seed, &src->sps,
-                         &src->pn_length, &src->pn_poly, &src->lfsr,
-                         &src->level, &src->f_end, &src->modulation, &bits_obj,
-                         &src->pulse, &src->rrc_beta, &src->rrc_span))
-    return 0;
-  return _attach_bits (src, bits_obj);
-}
-
-/* Parse a Python list of segment tuples into a malloc'd wfm_segment_t[]. A
- * len-13 tuple is the 1-source back-compat form; anything else is the nested
- * multi-source form (num, off, fs, [source10tuple, ...]). Caller frees via
- * _free_segments; returns NULL on error (with a Python exception set). */
-static wfm_segment_t *
-_parse_segments (PyObject *list, size_t *n_out)
-{
-  if (!PyList_Check (list))
-    {
-      PyErr_SetString (PyExc_TypeError, "segments must be a list");
-      return NULL;
-    }
-  Py_ssize_t n = PyList_GET_SIZE (list);
-  if (n < 1)
-    {
-      PyErr_SetString (PyExc_ValueError, "need at least one segment");
-      return NULL;
-    }
-  wfm_segment_t *segs = (wfm_segment_t *)calloc ((size_t)n, sizeof *segs);
-  if (!segs)
-    return (wfm_segment_t *)PyErr_NoMemory ();
-
-  for (Py_ssize_t i = 0; i < n; i++)
-    {
-      PyObject      *t = PyList_GET_ITEM (list, i);
-      wfm_segment_t *s = &segs[i];
-      if (PyTuple_Check (t) && PyTuple_GET_SIZE (t) == _SEG_NTUP)
-        {
-          /* 1-source 19-tuple (back-compat for plain types, + f_end +
-           * modulation/bits + pulse/rrc). */
-          wfm_source_t *src = (wfm_source_t *)calloc (1, sizeof *src);
-          if (!src)
-            {
-              _free_segments (segs, (size_t)i);
-              return (wfm_segment_t *)PyErr_NoMemory ();
-            }
-          s->sources         = src;
-          s->n_sources       = 1;
-          PyObject *bits_obj = NULL;
-          if (!PyArg_ParseTuple (
-                  t, _SEG_FMT, &src->type, &s->fs, &src->freq, &src->snr,
-                  &src->snr_mode, &src->seed, &src->sps, &src->pn_length,
-                  &src->pn_poly, &src->lfsr, &s->num_samples, &s->off_samples,
-                  &src->level, &src->f_end, &src->modulation, &bits_obj,
-                  &src->pulse, &src->rrc_beta, &src->rrc_span)
-              || !_attach_bits (src, bits_obj))
-            {
-              _free_segments (segs, (size_t)i + 1);
-              return NULL;
-            }
-        }
-      else
-        {
-          /* nested multi-source: (num, off, fs, [source, ...]). */
-          PyObject  *srclist;
-          Py_ssize_t num, off;
-          double     fs;
-          if (!PyArg_ParseTuple (t, "nndO", &num, &off, &fs, &srclist))
-            {
-              _free_segments (segs, (size_t)i);
-              return NULL;
-            }
-          if (!PyList_Check (srclist) || PyList_GET_SIZE (srclist) < 1)
-            {
-              PyErr_SetString (PyExc_ValueError,
-                               "segment sources must be a non-empty list");
-              _free_segments (segs, (size_t)i);
-              return NULL;
-            }
-          Py_ssize_t    ns = PyList_GET_SIZE (srclist);
-          wfm_source_t *srcs
-              = (wfm_source_t *)malloc ((size_t)ns * sizeof *srcs);
-          if (!srcs)
-            {
-              _free_segments (segs, (size_t)i);
-              return (wfm_segment_t *)PyErr_NoMemory ();
-            }
-          s->sources     = srcs;
-          s->n_sources   = (size_t)ns;
-          s->fs          = fs;
-          s->num_samples = (size_t)num;
-          s->off_samples = (size_t)off;
-          for (Py_ssize_t j = 0; j < ns; j++)
-            if (!_parse_source (PyList_GET_ITEM (srclist, j), &srcs[j]))
-              {
-                _free_segments (segs, (size_t)i + 1);
-                return NULL;
-              }
-        }
-    }
-  *n_out = (size_t)n;
-  return segs;
-}
 
 /* ───────────────────────── writer capsule ─────────────────────────────────
  */
@@ -406,31 +237,6 @@ _fn_blue_write_hcb (PyObject *mod, PyObject *args)
       return NULL;
     }
   Py_RETURN_NONE;
-}
-
-static PyObject *
-_fn_sigmf_meta_json (PyObject *mod, PyObject *args)
-{
-  (void)mod;
-  int       st, endian;
-  double    fs, fc;
-  PyObject *seg_list;
-  if (!PyArg_ParseTuple (args, "iiddO", &st, &endian, &fs, &fc, &seg_list))
-    return NULL;
-  size_t         n_segs;
-  wfm_segment_t *segs = _parse_segments (seg_list, &n_segs);
-  if (!segs)
-    return NULL;
-  char *json = wfm_sigmf_meta_json (st, endian, fs, fc, segs, n_segs);
-  _free_segments (segs, n_segs);
-  if (!json)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "wfm_sigmf_meta_json failed");
-      return NULL;
-    }
-  PyObject *s = PyUnicode_FromString (json);
-  free (json);
-  return s;
 }
 
 /* ─────────────────────────── reader capsule ───────────────────────────────
@@ -830,8 +636,6 @@ static PyMethodDef _methods[] = {
   { "blue_write_hcb", _fn_blue_write_hcb, METH_VARARGS,
     "blue_write_hcb(path, sample_type, endian, fs, fc, data_start, total,"
     " detached) -> None" },
-  { "sigmf_meta_json", _fn_sigmf_meta_json, METH_VARARGS,
-    "sigmf_meta_json(sample_type, endian, fs, fc, segments) -> str" },
   { "reader_open", _fn_reader_open, METH_VARARGS,
     "reader_open(path, hint_sample_type, hint_endian) -> capsule" },
   { "reader_info", _fn_reader_info, METH_VARARGS,

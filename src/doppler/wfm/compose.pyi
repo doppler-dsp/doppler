@@ -36,26 +36,7 @@ from .wfm_reader import Reader as Reader
 from .wfm_sink import ZmqSink as ZmqSink
 from .wfm_writer import Writer as Writer
 
-def sigmf_meta(
-    *,
-    sample_type: str = ...,
-    endian: str = ...,
-    fs: float = ...,
-    fc: float = ...,
-    segments: Sequence[Segment],
-) -> str:
-    """Build the SigMF ``.sigmf-meta`` JSON for a composed capture.
-
-    Examples
-    --------
-    >>> import json
-    >>> from doppler.wfm.compose import sigmf_meta, Segment
-    >>> meta = sigmf_meta(fs=1e6, segments=[Segment("tone", num_samples=64)])
-    >>> json.loads(meta)["global"]["core:sample_rate"]
-    1000000
-
-    """
-    ...
+# sigmf_meta is now the generated Composer.to_sigmf() method (see wfm_compose.pyi).
 
 def write_blue_header(
     path: str | os.PathLike,

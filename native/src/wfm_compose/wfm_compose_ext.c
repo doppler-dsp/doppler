@@ -17,6 +17,7 @@
 /* project bridge (straight C, no CPython): build the generator. */
 extern wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
 #include "timing/timing_core.h"
+#include "wfm/wfm_writer.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -63,6 +64,21 @@ static const char *const _enum_bitmod[] = {
 static const char *const _enum_wfm_pulse[] = {
     "rect",
     "rrc",
+    NULL,
+};
+
+static const char *const _enum_stype[] = {
+    "cf32",
+    "cf64",
+    "ci32",
+    "ci16",
+    "ci8",
+    NULL,
+};
+
+static const char *const _enum_endian[] = {
+    "le",
+    "be",
     NULL,
 };
 
@@ -1900,6 +1916,43 @@ fail:
     return NULL;
 }
 
+static PyObject *
+Composer_to_sigmf(ComposerObject *self, PyObject *args, PyObject *kwds)
+{
+    if (self->destroyed) {
+        PyErr_SetString(PyExc_RuntimeError, "composer already closed");
+        return NULL;
+    }
+    const char *sample_type = "cf32";
+    const char *endian = "le";
+    double fs = 1e6;
+    double fc = 0.0;
+    static char *kwlist[] = {"sample_type", "endian", "fs", "fc", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdd", kwlist,
+            &sample_type, &endian, &fs, &fc))
+        return NULL;
+    int _e_sample_type = _enum_index(_enum_stype, sample_type);
+    if (_e_sample_type < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid sample_type '%s'", sample_type);
+        return NULL;
+    }
+    int _e_endian = _enum_index(_enum_endian, endian);
+    if (_e_endian < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid endian '%s'", endian);
+        return NULL;
+    }
+    size_t _n; int _rep = 0, _cont = 0;
+    const wfm_segment_t *segs =
+        wfm_compose_segments(self->state, &_n, &_rep, &_cont);
+    char *_js = wfm_sigmf_meta_json(_e_sample_type, _e_endian, fs, fc, segs, _n);
+    if (!_js) {
+        PyErr_SetString(PyExc_RuntimeError, "wfm_sigmf_meta_json failed");
+        return NULL;
+    }
+    PyObject *_s = PyUnicode_FromString(_js);
+    free(_js);
+    return _s;
+}
 static PyMethodDef Composer_methods[] = {
     {"execute", (PyCFunction)Composer_execute, METH_VARARGS,
      "execute(n) -> ndarray[complex64]"},
@@ -1913,6 +1966,8 @@ static PyMethodDef Composer_methods[] = {
      "stream(block=4096, realtime=0.0) -> iterator (realtime=fs paces)"},
     {"to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
      "to_dict() -> dict (resolved repeat/continuous/segments)"},
+    {"to_sigmf", (PyCFunction)(void (*)(void))Composer_to_sigmf,
+     METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str"},
     {"from_json", (PyCFunction)Composer_from_json,
      METH_VARARGS | METH_CLASS, "from_json(json) -> Composer"},
     {"from_file", (PyCFunction)Composer_from_file,

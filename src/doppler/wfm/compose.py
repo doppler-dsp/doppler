@@ -36,7 +36,6 @@ Examples
 from __future__ import annotations
 
 import os
-from typing import Sequence
 
 
 # _wfmcompose: transport binding (sigmf/DSP helpers — the transport classes are
@@ -69,15 +68,11 @@ from .wfm_compose import (  # noqa: F401  (re-export)
     tone,
 )
 
-# ── string-enum ↔ C-int tables (must match native/src/app/wfmgen.c) ──────────
-_TYPES = ("tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits")
-_MODES = ("auto", "fs", "ebno", "esno")
-_PULSES = ("rect", "rrc")  # PSK pulse shape → C: rect (hold) / rrc (FIR)
-_BITMODS = ("none", "bpsk", "qpsk")  # bits-pattern modulation → C bit_mod
+# string-enum ↔ C-int tables for the remaining hand binding (write_blue_header);
+# must match native/src/app/wfmgen.c. The composer/transport enums are now the
+# manifest [[enum]] SSOT, generated into the .so types.
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
-_FTYPES = ("raw", "csv", "blue", "sigmf")
 _ENDIANS = ("le", "be")
-_LFSRS = ("galois", "fibonacci")
 
 
 def _idx(name: str, table: tuple[str, ...], what: str) -> int:
@@ -89,89 +84,10 @@ def _idx(name: str, table: tuple[str, ...], what: str) -> int:
         ) from None
 
 
-def _src_tuple(s) -> tuple:
-    """A source's 16-field ``_SOURCE_FMT`` tuple for the transport marshal."""
-    return (
-        _idx(s.type, _TYPES, "type"),
-        float(s.freq),
-        float(s.snr),
-        _idx(s.snr_mode, _MODES, "snr_mode"),
-        int(s.seed),
-        int(s.sps),
-        int(s.pn_length),
-        int(s.pn_poly),
-        _idx(s.lfsr, _LFSRS, "lfsr"),
-        float(s.level),
-        float(s.f_end),
-        _idx(s.modulation, _BITMODS, "modulation"),
-        s.bits,
-        _idx(s.pulse, _PULSES, "pulse"),
-        float(s.rrc_beta),
-        int(s.rrc_span),
-    )
-
-
-def _seg_tuple(seg) -> tuple:
-    """A segment's transport tuple: flat ``_SEG_FMT`` (1 source) else nested.
-
-    Mirrors the C round-trip (``wfmcompose_py.c``): ``n_sources == 1`` is the
-    flat single-source form, otherwise ``(num, off, fs, [source-tuples])``.
-    """
-    srcs = list(seg.sources)
-    if len(srcs) == 1:
-        s = srcs[0]
-        return (
-            _idx(s.type, _TYPES, "type"),
-            float(seg.fs),
-            float(s.freq),
-            float(s.snr),
-            _idx(s.snr_mode, _MODES, "snr_mode"),
-            int(s.seed),
-            int(s.sps),
-            int(s.pn_length),
-            int(s.pn_poly),
-            _idx(s.lfsr, _LFSRS, "lfsr"),
-            int(seg.num_samples),
-            int(seg.off_samples),
-            float(s.level),
-            float(s.f_end),
-            _idx(s.modulation, _BITMODS, "modulation"),
-            s.bits,
-            _idx(s.pulse, _PULSES, "pulse"),
-            float(s.rrc_beta),
-            int(s.rrc_span),
-        )
-    return (
-        int(seg.num_samples),
-        int(seg.off_samples),
-        float(seg.fs),
-        [_src_tuple(s) for s in srcs],
-    )
-
-
 # ── module-level helpers ─────────────────────────────────────────────────────
 
-
-def sigmf_meta(
-    *,
-    sample_type: str = "cf32",
-    endian: str = "le",
-    fs: float = 1e6,
-    fc: float = 0.0,
-    segments: Sequence[Segment],
-) -> str:
-    """Build the SigMF ``.sigmf-meta`` JSON for a composed capture.
-
-    The capture's segments become per-segment SigMF annotations; pair this with
-    a ``Writer(..., file_type="sigmf")`` writing the ``.sigmf-data`` companion.
-    """
-    return _c.sigmf_meta_json(
-        _idx(sample_type, _STYPES, "sample_type"),
-        _idx(endian, _ENDIANS, "endian"),
-        float(fs),
-        float(fc),
-        [_seg_tuple(s) for s in segments],
-    )
+# sigmf_meta is now the generated Composer.to_sigmf() method (delegated
+# serializer over the resolved segments) — call Composer(spec).to_sigmf(...).
 
 
 def write_blue_header(

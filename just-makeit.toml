@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.24"
+jm_version = "0.19.25"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -278,7 +278,7 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "sigmf_meta", "write_blue_header"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["ZmqSink"]
@@ -412,6 +412,8 @@ depends_on = [
     { name = "fir", link = true },
     # timing_core backs the realtime stream's opaque clock (composer.realtime).
     { name = "timing", link = true },
+    # wfm_writer_core defines wfm_sigmf_meta_json, the to_sigmf serializer fn.
+    { name = "wfm_writer", link = true },
 ]
 extra_link_libs = ["wfm_cjson", "m"]
 
@@ -492,14 +494,22 @@ enabled          = true
 to_json_fn       = "wfm_spec_to_json"
 to_json_trailing = ["0.0"]
 
-# Step 5 (sigmf_meta → generated Composer.to_sigmf) is BLOCKED on a jm gap:
-# [[module.wfm_compose.serializers]] generates the method body but emits no
-# `#include` for the serializer fn's header (render_serializers takes no header
-# key; the composer codegen test is a compiler-free unit gate, so it slipped —
-# same class of bug as gh-335). wfm_sigmf_meta_json lives in wfm/wfm_writer.h,
-# which the ext.c does not include → implicit-declaration. Needs a jm serializer
-# `header` key mirroring composer.realtime.header (filed jm#343). Until then
-# sigmf_meta stays the hand-Python free function over _c.sigmf_meta_json.
+# Step 5: sigmf_meta → generated Composer.to_sigmf (delegated serializer, gh-317
+# f2). Coerces the leading enum/scalar params then calls the project C serializer
+# wfm_sigmf_meta_json(<params>, segs, n) over the composer's resolved segments.
+# The `header` key (jm#343, jm 0.19.25) #includes wfm/wfm_writer.h so the fn's
+# decl is in scope; wfm_writer is linked via depends_on above.
+[[module.wfm_compose.serializers]]
+name = "to_sigmf"
+fn = "wfm_sigmf_meta_json"
+returns = "str"
+header = "wfm/wfm_writer.h"
+params = [
+    { name = "sample_type", type = "int", enum = "stype", default = "cf32" },
+    { name = "endian", type = "int", enum = "endian", default = "le" },
+    { name = "fs", type = "double", default = "1e6" },
+    { name = "fc", type = "double", default = "0.0" },
+]
 
 [module.delay]
 objects = ["delay"]

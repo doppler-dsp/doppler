@@ -30,7 +30,6 @@ from doppler.wfm.compose import (
     ZmqSink,
     noise,
     qpsk,
-    sigmf_meta,
     tone,
     write_blue_header,
 )
@@ -515,7 +514,7 @@ def test_reader_sigmf_pair(tmp_path):
     with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(x)
     (tmp_path / "cap.sigmf-meta").write_text(
-        sigmf_meta(sample_type="cf32", fs=1e6, segments=spec)
+        Composer(spec).to_sigmf(sample_type="cf32", fs=1e6)
     )
     with Reader(data) as r:
         assert r.file_type == "sigmf"
@@ -585,7 +584,7 @@ def test_sigmf_meta_and_data_pair(tmp_path):
     data = tmp_path / "cap.sigmf-data"
     with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(x)
-    meta = json.loads(sigmf_meta(sample_type="cf32", fs=1e6, segments=spec))
+    meta = json.loads(Composer(spec).to_sigmf(sample_type="cf32", fs=1e6))
     assert meta["global"]["core:sample_rate"] == 1e6
     assert meta["global"]["core:datatype"] == "cf32_le"
     assert len(meta["annotations"]) == 2  # one per segment

@@ -13,12 +13,12 @@ import random
 import shutil
 import struct
 import subprocess
+import sys
 import time
 
 import numpy as np
 import pytest
 
-from doppler.wfm import _wfmcompose as _c
 from doppler.wfm import mls_poly, rrc_taps, dsss_spread
 from doppler.wfm.compose import (
     Composer,
@@ -63,14 +63,16 @@ _WFMGEN = _wfmgen_bin()
 _needs_wfmgen = pytest.mark.skipif(
     _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
-# ZmqSink is POSIX-only; the C extension omits sink_* off-platform.
+# ZmqSink and SampleClock are POSIX-only (the vendored zmq is POSIX-only; the
+# clock uses clock_gettime / nanosleep). The generated handles are gated the
+# same way the retired capsule bindings were (#ifndef _WIN32), so key the skips
+# off the platform now that those probe symbols are gone (gh-178 review #7).
 _needs_zmq = pytest.mark.skipif(
-    not hasattr(_c, "sink_open"),
+    sys.platform == "win32",
     reason="ZmqSink not available on this platform",
 )
-# SampleClock is POSIX-only too (clock_gettime / nanosleep).
 _needs_clock = pytest.mark.skipif(
-    not hasattr(_c, "clock_create"),
+    sys.platform == "win32",
     reason="SampleClock not available on this platform",
 )
 
@@ -260,6 +262,32 @@ def test_dsss_spread():
     assert out.shape == (8,)
     assert np.allclose(out[:4], [1, -1, 1, -1])
     assert np.allclose(out[4:], [-1, 1, -1, 1])
+
+
+def test_dsss_spread_bad_inputs_do_not_crash():
+    """gh-178 review #2: the generated binding no longer validates sf /
+    len(code), so the C alias guards defensively (no raise) against the misuse
+    the retired hand binding rejected — a code shorter than sf (heap over-read)
+    and sf < 1 (unbounded write). The output is zeroed, never out-of-bounds."""
+    syms = np.array([1 + 0j, -1 + 0j], dtype=np.complex64)
+
+    # code shorter than sf: would over-read code[2..63]; now returns zeros.
+    short = np.zeros(2, dtype=np.uint8)
+    out = dsss_spread(syms, short, 64)
+    assert out.shape == (2 * 64,)
+    assert np.all(out == 0)
+
+    # sf == 0: empty output, no write.
+    assert dsss_spread(syms, short, 0).shape == (0,)
+
+
+def test_rrc_taps_bad_inputs_do_not_crash():
+    """gh-178 review #4: sps/span < 1 no longer divides by zero in the kernel
+    (inf/NaN taps); the alias returns a zeroed array of the binding length."""
+    t = rrc_taps(0.35, sps=0, span=0)
+    assert t.shape == (1,) and np.all(t == 0)
+    t = rrc_taps(0.35, sps=0, span=6)
+    assert np.all(np.isfinite(t)) and np.all(t == 0)
 
 
 def test_context_manager_and_idempotent_close():
@@ -460,6 +488,22 @@ def test_sampleclock_releases_gil():
         time.sleep(0.005)
     t.join()
     assert ticks > 10, f"main thread only ran {ticks}x — GIL not released?"
+
+
+@_needs_clock
+def test_sampleclock_nonpositive_fs_is_safe():
+    """gh-178 review #4: the generated binding no longer rejects fs <= 0 (the
+    retired hand binding raised "fs must be > 0"). A non-positive fs would make
+    n/fs infinite and casting that to uint64_t is UB — inf deadlines / garbage
+    stamps. The C offset_ns now treats fs <= 0 as a zero offset: stamp stays
+    finite at the epoch and pace returns immediately instead of sleeping."""
+    clk = SampleClock(fs=0.0)
+    s0 = clk.stamp()
+    assert isinstance(s0, int) and s0 >= 0  # finite, not an inf-cast
+    t0 = time.perf_counter()
+    clk.pace(1_000_000)  # would be "infinite" samples/0 Hz -> must not block
+    assert time.perf_counter() - t0 < 0.5
+    assert clk.stamp() == s0  # no time advances without a rate
 
 
 @pytest.mark.parametrize(

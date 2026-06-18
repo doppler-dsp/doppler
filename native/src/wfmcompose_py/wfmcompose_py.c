@@ -614,7 +614,8 @@ _fn_clock_stats (PyObject *mod, PyObject *args)
 #endif /* !_WIN32 */
 
 /* rrc_taps / dsss_spread migrated to generated `variable_output` wfm module
- * functions (native/src/wfm/{rrc_taps,dsss_spread}.c over the wfm_dsp kernels). */
+ * functions (native/src/wfm/{rrc_taps,dsss_spread}.c over the wfm_dsp
+ * kernels). */
 
 /* ───────────────────────── module table ───────────────────────────────────
  */

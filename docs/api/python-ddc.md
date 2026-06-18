@@ -188,13 +188,13 @@ the [Ddcr gallery walkthrough](../gallery/ddc-fn.md).
 `Ddcr` is an RAII handle: `close()` (or a `with` block) releases the C state
 deterministically; otherwise the destructor frees it.
 
-| Scenario                       | Safe?                                                   |
-| ------------------------------ | ------------------------------------------------------- |
-| GC without `close()`           | Yes — destructor frees state                            |
-| `close()` then GC              | Yes — destructor skips already-freed state              |
-| Live view after `close()`      | Yes — view lives in caller's `out` buffer, not in state |
-| Second call to `close()`       | No-op (idempotent)                                      |
-| Any call after `close()`       | Raises `RuntimeError`                                   |
+| Scenario                  | Safe?                                                   |
+| ------------------------- | ------------------------------------------------------- |
+| GC without `close()`      | Yes — destructor frees state                            |
+| `close()` then GC         | Yes — destructor skips already-freed state              |
+| Live view after `close()` | Yes — view lives in caller's `out` buffer, not in state |
+| Second call to `close()`  | No-op (idempotent)                                      |
+| Any call after `close()`  | Raises `RuntimeError`                                   |
 
 ```python
 with Ddcr(-0.7, 0.25) as ddcr:      # state released on exit

@@ -286,8 +286,9 @@ wfm_writer_close (wfm_writer_t *w)
 
 /* Path-opening + FILE-owning variant for the generated `Writer` handle (jm
  * kind="handle"): the handle wants create(path,…) -> writer*, and close must
- * release the FILE (the old CPython capsule owned it). Opens the file, delegates
- * to wfm_writer_open, and marks the FILE owned so wfm_writer_close fclose's it. */
+ * release the FILE (the old CPython capsule owned it). Opens the file,
+ * delegates to wfm_writer_open, and marks the FILE owned so wfm_writer_close
+ * fclose's it. */
 wfm_writer_t *
 wfm_writer_open_path (const char *path, wfm_filetype_t ft, int sample_type,
                       int endian, double fs, double fc, size_t total_samples,
@@ -304,8 +305,8 @@ wfm_writer_open_path (const char *path, wfm_filetype_t ft, int sample_type,
       return NULL;
     }
   w->owns_fp = 1;
-  /* headroom dB → a single output gain (10^(-H/20)); 0 dB is a no-op. Folded in
-   * here so headroom is a plain ctor arg, not a create_post over a non-ctor
+  /* headroom dB → a single output gain (10^(-H/20)); 0 dB is a no-op. Folded
+   * in here so headroom is a plain ctor arg, not a create_post over a non-ctor
    * param the generated create-call would mis-pass. */
   if (headroom != 0.0)
     wfm_writer_set_gain (w, pow (10.0, -headroom / 20.0));

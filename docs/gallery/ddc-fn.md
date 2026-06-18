@@ -31,13 +31,13 @@ and `ddcr_*` free functions) into one — it **owns** the C state like an object
 yet `execute()` writes into a **caller-provided** output buffer like the old
 functional API, so allocation and lifetime stay explicit.
 
-| Aspect    | `Ddcr`                                                       |
-| --------- | ----------------------------------------------------------- |
-| State     | opaque `ddcr_state_t *`, owned by the handle (RAII `close`) |
-| Output    | written into a **caller-owned** `complex64` buffer          |
-| Retune    | `ddcr.norm_freq = …` (live, phase-continuous)               |
-| Use when  | real-ADC input; you manage your own arrays / want zero      |
-|           | per-call allocation in a hot loop                           |
+| Aspect   | `Ddcr`                                                      |
+| -------- | ----------------------------------------------------------- |
+| State    | opaque `ddcr_state_t *`, owned by the handle (RAII `close`) |
+| Output   | written into a **caller-owned** `complex64` buffer          |
+| Retune   | `ddcr.norm_freq = …` (live, phase-continuous)               |
+| Use when | real-ADC input; you manage your own arrays / want zero      |
+|          | per-call allocation in a hot loop                           |
 
 ## How it works
 
@@ -115,10 +115,10 @@ The handle is the **same C core** as the `DDC` object; on a 4096-sample block
 all paths land within ~2 % (≈16 µs/block on this machine). The benefit is
 *where the output goes* and *what gets allocated*, not raw throughput:
 
-| Path                                  | per-call allocation     | output lands in       |
-| ------------------------------------- | ----------------------- | --------------------- |
-| `ddcr.execute(x, out)`, `out` reused  | **none** (steady state) | a buffer **you own**  |
-| `ddcr.execute(x, np.empty(...))`      | one output array        | a fresh array each call |
+| Path                                 | per-call allocation     | output lands in         |
+| ------------------------------------ | ----------------------- | ----------------------- |
+| `ddcr.execute(x, out)`, `out` reused | **none** (steady state) | a buffer **you own**    |
+| `ddcr.execute(x, np.empty(...))`     | one output array        | a fresh array each call |
 
 So the caller-buffer model buys you:
 

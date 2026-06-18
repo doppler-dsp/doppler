@@ -1799,7 +1799,8 @@ Composer_stream(ComposerObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"block", NULL};
     Py_ssize_t block = 4096;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|n", kwlist, &block))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|n", kwlist,
+            &block))
         return NULL;
     if (block <= 0) {
         PyErr_SetString(PyExc_ValueError, "block must be > 0");

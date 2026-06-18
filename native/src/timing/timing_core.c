@@ -14,6 +14,7 @@
 #include "timing/timing_core.h"
 
 #include <errno.h>
+#include <stdlib.h>
 #include <time.h>
 
 uint64_t
@@ -125,4 +126,12 @@ dp_sample_clock_resync (dp_sample_clock_t *c)
   uint64_t now  = dp_mono_ns ();
   if (now > want)
     c->epoch_mono_ns += now - want; /* absorb current lateness */
+}
+
+/* ── stats snapshot for the generated SampleClock handle ───────────────────── */
+
+void
+dp_sample_clock_stats (const dp_sample_clock_t *c, dp_sample_clock_t *out)
+{
+  *out = *c;
 }

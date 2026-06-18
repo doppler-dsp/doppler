@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.18"
+jm_version = "0.19.21"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -42,6 +42,206 @@ values = ["none", "bpsk", "qpsk"]
 [[enum]]
 name = "wfm_pulse"
 values = ["rect", "rrc"]
+
+# Transport SSOT enums (order = the C int contract; match _FTYPES/_STYPES/_ENDIANS
+# in the old compose.py and the wfm_filetype_t / sample_type / endian ints).
+[[enum]]
+name = "ftype"
+values = ["raw", "csv", "blue", "sigmf"]
+
+[[enum]]
+name = "stype"
+values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
+
+[[enum]]
+name = "endian"
+values = ["le", "be"]
+
+# Transport handle module: Reader (the dual of Writer). Path-based open, the
+# wfm_reader_info struct getter (resolved once — fixed per open), read int->array.
+[module.wfm_reader]
+kind            = "handle"
+backing         = "wfm_reader"
+header          = "wfm/wfm_reader.h"
+package         = "wfm"
+type_name       = "Reader"
+context_manager = true
+close_fn        = "wfm_reader_close"
+create_fn       = "wfm_reader_open"
+depends_on      = [{ name = "wfm_reader", link = true }]
+# wfm_reader.c parses SigMF sidecars via the vendored cJSON OBJECT lib; libm too.
+extra_link_libs = ["wfm_cjson", "m"]
+create_args = [
+    { name = "path", type = "path" },
+    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
+    { name = "endian", type = "int", enum = "endian", default = "le", kwonly = true },
+]
+
+[[module.wfm_reader.methods]]
+name = "read"
+fn = "wfm_reader_read"
+returns = "float _Complex[]"
+args = [{ name = "n", type = "size_t" }]
+
+[[module.wfm_reader.getters]]
+fn = "wfm_reader_info"
+out = "wfm_reader_info_t"
+cache = true
+fields = [
+    { name = "file_type", from = "file_type", type = "int", enum = "ftype" },
+    { name = "sample_type", from = "sample_type", type = "int", enum = "stype" },
+    { name = "endian", from = "endian", type = "int", enum = "endian" },
+    { name = "fs", from = "fs", type = "double" },
+    { name = "fc", from = "fc", type = "double" },
+    { name = "num_samples", from = "num_samples", type = "size_t" },
+]
+
+# Transport handle module: SampleClock over dp_sample_clock_t (timing_core).
+# init_fn (jm#320) constructs in place: jm mallocs sizeof(dp_sample_clock_t),
+# calls dp_sample_clock_init(h, fs, resync), and frees on close/dealloc — no
+# hand-written create/destroy. The stats getter reads the real public struct
+# (a genuine decoded-getter, not a shim). No optional_backend: doppler targets
+# linux/macos (both POSIX) so the clock is always present.
+[module.sample_clock]
+kind            = "handle"
+backing         = "dp_sample_clock"
+handle_type     = "dp_sample_clock_t"
+header          = "timing/timing_core.h"
+package         = "wfm"
+type_name       = "SampleClock"
+init_fn         = "dp_sample_clock_init"
+# Empty close_fn: the clock owns no internal resources, so teardown is jm's
+# free(self->h) alone (no <backing>_close finalizer). init_fn makes jm own the
+# malloc/free.
+close_fn        = ""
+depends_on      = [{ name = "timing", link = true }]
+create_args = [
+    { name = "fs", type = "double" },
+    { name = "resync", type = "int", default = "0", kwonly = true },
+]
+
+[[module.sample_clock.methods]]
+name = "pace"
+fn = "dp_sample_clock_pace"
+returns = "double"
+args = [{ name = "count", type = "size_t" }]
+
+[[module.sample_clock.methods]]
+name = "stamp"
+fn = "dp_sample_clock_stamp"
+returns = "uint64_t"
+
+[[module.sample_clock.methods]]
+name = "reset"
+fn = "dp_sample_clock_reset"
+
+[[module.sample_clock.methods]]
+name = "resync"
+fn = "dp_sample_clock_resync"
+
+[[module.sample_clock.getters]]
+fn = "dp_sample_clock_stats"
+out = "dp_sample_clock_t"
+cache = false
+fields = [
+    { name = "samples", from = "n", type = "uint64_t" },
+    { name = "underruns", from = "underruns", type = "uint64_t" },
+    { name = "max_lateness", from = "max_late_ns", type = "double", scale = "1e-9" },
+]
+
+# Transport handle module: Writer. Path-opening shim owns the FILE (closes it)
+# and folds headroom->set_gain so headroom is a plain ctor arg. Live stats getter
+# (peak_dbfs/clipped are derived exprs over the snapshot + the stashed sample_type).
+[module.wfm_writer]
+kind            = "handle"
+backing         = "wfm_writer"
+header          = "wfm/wfm_writer.h"
+package         = "wfm"
+type_name       = "Writer"
+context_manager = true
+close_fn        = "wfm_writer_close"
+create_fn       = "wfm_writer_open_path"
+depends_on      = [{ name = "wfm_writer", link = true }]
+extra_link_libs = ["wfm_cjson", "m"]
+create_args = [
+    { name = "path", type = "path" },
+    { name = "file_type", type = "int", enum = "ftype", default = "raw", kwonly = true },
+    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
+    { name = "endian", type = "int", enum = "endian", default = "le", kwonly = true },
+    { name = "fs", type = "double", default = "1e6", kwonly = true },
+    { name = "fc", type = "double", default = "0.0", kwonly = true },
+    { name = "total", type = "size_t", default = "0", kwonly = true },
+    { name = "headroom", type = "double", default = "0.0", kwonly = true },
+]
+
+[[module.wfm_writer.methods]]
+name = "write"
+fn = "wfm_writer_write"
+returns = "size_t"
+args = [{ name = "iq", type = "float _Complex[]" }]
+
+[[module.wfm_writer.methods]]
+name = "track_clipping"
+fn = "wfm_writer_track_clipping"
+args = [{ name = "on", type = "int", default = "1" }]
+
+# Per-field scalar getters (jm#320): each property binds its own getter fn
+# directly over the writer's existing peak/clip_fraction accessors — no struct
+# snapshot shim. peak_dbfs/clipped are derived exprs: `tmp` is the bound
+# getter's scalar return; `self->sample_type` is the stashed ctor arg.
+[[module.wfm_writer.getters]]
+fields = [
+    { name = "clip_fraction", getter = "wfm_writer_clip_fraction", type = "double" },
+    { name = "peak_dbfs", getter = "wfm_writer_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
+    { name = "clipped", getter = "wfm_writer_clipped", type = "int" },
+]
+
+# Transport handle module: ZmqSink (POSIX, opt-in zmq). No stats props (the old
+# class exposes only send/close). send is the array+scalars shape (#308). The zmq
+# backend is the vendored C++ libzmq via the weak-seam real component — hence the
+# stream_core_obj / zmq_vendor_static / Threads / stdc++ link line.
+[module.wfm_sink]
+kind            = "handle"
+backing         = "wfm_zmq_sink"
+handle_type     = "wfm_zmq_sink_t"
+header          = "wfm/wfm_sink.h"
+package         = "wfm"
+type_name       = "ZmqSink"
+context_manager = true
+close_fn        = "wfm_zmq_sink_close"
+create_fn       = "wfm_zmq_sink_open"
+depends_on      = [{ name = "wfm_sink", link = true }]
+extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "zmq_vendor_static", "Threads::Threads", "stdc++", "m"]
+create_args = [
+    { name = "endpoint", type = "const char *" },
+    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
+]
+
+[[module.wfm_sink.methods]]
+name = "send"
+fn = "wfm_zmq_sink_send"
+returns = "int"
+args = [
+    { name = "iq", type = "float _Complex[]" },
+    { name = "fs", type = "double" },
+    { name = "fc", type = "double" },
+]
+
+[[module.wfm_sink.methods]]
+name = "track_clipping"
+fn = "wfm_zmq_sink_track_clipping"
+args = [{ name = "on", type = "int", default = "1" }]
+
+# Symmetric with Writer: the C tracks clip stats on integer paths (the old Python
+# class under-exposed them). Per-field getters (jm#320) bind the sink's existing
+# peak/clip_fraction accessors directly; peak_dbfs/clipped are derived exprs
+# (`tmp` = the getter scalar, `self->sample_type` = the stashed ctor arg).
+[[module.wfm_sink.getters]]
+fields = [
+    { name = "clip_fraction", getter = "wfm_zmq_sink_clip_fraction", type = "double" },
+    { name = "peak_dbfs", getter = "wfm_zmq_sink_peak", type = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
+    { name = "clipped", getter = "wfm_zmq_sink_clipped", type = "int" },
+]
 
 [module.cvt]
 objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
@@ -398,22 +598,84 @@ no_generate = "true"
 [module.stream]
 no_generate = "true"
 
-[module.ddc_fn]
-no_generate = "true"
-
 [module.wfmcompose_py]
 no_generate = "true"
 
 [module.ddc]
-objects = ["ddc", "ddcr"]
-# ddc.toml's depends_on link=true (gh-225, additive for the collocated ddc object
-# since gh-254/0.19.7) links the composed cores into the ddc .so AND ddc's own C
-# test/bench; ddcr keeps bare-string depends_on for its core/test/bench. Only the
-# non-component libm remains here.
+objects = ["ddc"]
+# ddc.toml's depends_on link=true (gh-225) links the composed cores into the ddc
+# .so AND ddc's own C test/bench. Only the non-component libm remains here.
 extra_link_libs = ["m"]
 
 [module.ddc.reexports]
-ddc_fn = ["ddcr_create", "ddcr_execute", "ddcr_reset", "ddcr_destroy", "ddcr_get_norm_freq", "ddcr_set_norm_freq", "ddcr_get_rate"]
+# The functional ddcr_* free functions (hand ddc_fn_ext.c) and the object-
+# generator DDCR class were both retired (round 4): doppler.ddc.Ddcr is now the
+# generated kind="handle" class (module.ddc_fn below), the real non-wfm adopter.
+ddc_fn = ["Ddcr"]
+
+# ── Ddcr: the generic kind="handle" decimate/mix/resample resource ───────────
+# Consolidates the old DDCR object (object generator) and the seven ddcr_* free
+# functions (hand-written ddc_fn_ext.c) into ONE generated typed class over the
+# opaque ddcr_state_t. Proves the handle generator on a non-wfm adopter: the
+# array-in -> caller-buffer array-out execute (jm#316 shape d) and the writable
+# norm_freq property (jm#316) are exactly the shapes this object drove. The
+# module id stays `ddc_fn` (the slot the retired free-fn module held — its
+# native/src/ddc_fn/ dir is reused) to avoid colliding with native/src/ddcr/
+# (the ddcr_core OBJECT lib); users only ever see the reexported `Ddcr`.
+[module.ddc_fn]
+kind            = "handle"
+backing         = "ddcr"
+handle_type     = "ddcr_state_t"
+header          = "ddc/ddc_core.h"
+package         = "ddc"
+type_name       = "Ddcr"
+context_manager = true
+create_fn       = "ddcr_create"
+close_fn        = "ddcr_destroy"
+# ddcr_create/execute/reset/destroy/get_norm_freq/set_norm_freq/get_rate all live
+# in ddc_core (shared with the Ddc object). The handle sizes its output from the
+# caller's buffer, so it does NOT need ddcr_core's execute_max_out (that hook
+# existed only for the retired DDCR object's variable_output execute). Links
+# ddc_core + the transitive decimate/mix/resample cores (mirrors ddc.toml's set).
+depends_on = [
+    { name = "ddc", link = true },
+    { name = "lo", link = true },
+    { name = "RateConverter", link = true },
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "hbdecim_r2c", link = true },
+    { name = "cic", link = true },
+    { name = "fir", link = true },
+    { name = "resample", link = true },
+]
+extra_link_libs = ["m"]
+create_args = [
+    { name = "norm_freq", type = "double", default = "0.0" },
+    { name = "rate", type = "double", default = "0.25" },
+]
+
+[[module.ddc_fn.methods]]
+name = "execute"
+fn = "ddcr_execute"
+returns = "float _Complex[]"
+nogil = true
+args = [
+    { name = "x", type = "float[]" },
+    { name = "out", type = "float _Complex[]", writable = true },
+]
+
+[[module.ddc_fn.methods]]
+name = "reset"
+fn = "ddcr_reset"
+
+# norm_freq is live-writable (ddcr_set_norm_freq retunes the LO cheaply); rate is
+# read-only (fixed at construction). Per-field getters (jm#320) + writable_fn
+# (jm#316) compose on one getters block.
+[[module.ddc_fn.getters]]
+fields = [
+    { name = "norm_freq", getter = "ddcr_get_norm_freq", type = "double", writable_fn = "ddcr_set_norm_freq" },
+    { name = "rate", getter = "ddcr_get_rate", type = "double" },
+]
 
 [module.analyzer]
 objects = ["specan"]

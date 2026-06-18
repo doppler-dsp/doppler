@@ -28,6 +28,7 @@ static const char *const MODE_NAMES[4] = { "auto", "fs", "ebno", "esno" };
 struct wfm_writer
 {
   FILE    *fp;
+  int      owns_fp; /* close fp in wfm_writer_close (path-opened writers) */
   int      ft;
   int      stype;
   int      be;
@@ -275,10 +276,40 @@ wfm_writer_close (wfm_writer_t *w)
             rc = -1;
           fseek (w->fp, 0, SEEK_END);
         }
+      if (w->owns_fp && w->fp)
+        fclose (w->fp); /* path-opened writers own their FILE */
       free (w->buf);
       free (w);
     }
   return rc;
+}
+
+/* Path-opening + FILE-owning variant for the generated `Writer` handle (jm
+ * kind="handle"): the handle wants create(path,…) -> writer*, and close must
+ * release the FILE (the old CPython capsule owned it). Opens the file, delegates
+ * to wfm_writer_open, and marks the FILE owned so wfm_writer_close fclose's it. */
+wfm_writer_t *
+wfm_writer_open_path (const char *path, wfm_filetype_t ft, int sample_type,
+                      int endian, double fs, double fc, size_t total_samples,
+                      double headroom)
+{
+  FILE *fp = fopen (path, "wb");
+  if (!fp)
+    return NULL;
+  wfm_writer_t *w
+      = wfm_writer_open (fp, ft, sample_type, endian, fs, fc, total_samples);
+  if (!w)
+    {
+      fclose (fp);
+      return NULL;
+    }
+  w->owns_fp = 1;
+  /* headroom dB → a single output gain (10^(-H/20)); 0 dB is a no-op. Folded in
+   * here so headroom is a plain ctor arg, not a create_post over a non-ctor
+   * param the generated create-call would mis-pass. */
+  if (headroom != 0.0)
+    wfm_writer_set_gain (w, pow (10.0, -headroom / 20.0));
+  return w;
 }
 
 void
@@ -307,6 +338,16 @@ wfm_writer_clip_fraction (const wfm_writer_t *w)
   if (!w || w->written == 0)
     return 0.0;
   return (double)w->nclip / (double)(2 * w->written);
+}
+
+/* Did an integer-wire capture clip? Only the integer sample types (stype >= 2:
+ * ci32/ci16/ci8) saturate; a peak above full-scale (1.0) means a sample was
+ * clipped. A dedicated C accessor (not a generated derived expr) because the
+ * predicate folds the wire type with the peak. */
+int
+wfm_writer_clipped (const wfm_writer_t *w)
+{
+  return w && w->stype >= 2 && w->peak > 1.0f;
 }
 
 /* SigMF "cf32_le"-style datatype string (ci8 has no endian suffix). */

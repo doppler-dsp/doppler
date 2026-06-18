@@ -35,9 +35,6 @@ doppler.cvt.I16U64ToF32
 doppler.cvt.I32ToF32
 doppler.cvt.I8ToF32
 doppler.cvt.UQ15ToF32
-doppler.ddc.ddcr_get_norm_freq
-doppler.ddc.ddcr_get_rate
-doppler.ddc.ddcr_reset
 doppler.filter.HBDecimQ15
 doppler.resample.kaiser_beta
 doppler.resample.kaiser_num_taps

@@ -86,8 +86,14 @@ void wfm_zmq_sink_set_gain(wfm_zmq_sink_t *sink, double gain);
  *  > 1.0 ⇒ clipped; peak_dBFS = 20*log10(peak). */
 double wfm_zmq_sink_peak(const wfm_zmq_sink_t *sink);
 
-/** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. */
+/** Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked.
+ *  The generated ZmqSink handle binds peak/clip_fraction directly as per-field
+ *  getters (jm#320), so no stats-snapshot struct shim is needed. */
 double wfm_zmq_sink_clip_fraction(const wfm_zmq_sink_t *sink);
+
+/** Non-zero if an integer-wire send clipped (sample_type >= 2 and peak > 1.0).
+ *  Backs the generated `ZmqSink.clipped` per-field getter. */
+int wfm_zmq_sink_clipped(const wfm_zmq_sink_t *sink);
 
 #ifdef __cplusplus
 }

@@ -74,6 +74,14 @@ extern "C"
    *  present. (pace() does this automatically when ``resync`` is set.) */
   void dp_sample_clock_resync (dp_sample_clock_t *c);
 
+  /* A stats snapshot for the generated `SampleClock` handle (jm kind="handle"):
+   * the decoded-getter face wants one call that fills an out-struct, so this
+   * copies the (public) clock struct out. Construction is init-in-place via
+   * dp_sample_clock_init above (jm#320 `init_fn`); jm owns the malloc/free, so
+   * there is no hand-written create/destroy. */
+  void dp_sample_clock_stats (const dp_sample_clock_t *c,
+                              dp_sample_clock_t       *out);
+
 #ifdef __cplusplus
 }
 #endif

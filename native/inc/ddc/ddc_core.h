@@ -248,8 +248,8 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @return Non-NULL on success, NULL on OOM or invalid args.
    *
    * @code
-   * >>> from doppler.ddc import DDCR
-   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> from doppler.ddc import Ddcr
+   * >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
    * >>> ddcr.norm_freq
    * -0.7
    * >>> ddcr.rate
@@ -264,9 +264,9 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * the struct itself.  Passing NULL is a no-op.
    *
    * @code
-   * >>> from doppler.ddc import DDCR
-   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
-   * >>> ddcr.destroy()   # releases C memory immediately
+   * >>> from doppler.ddc import Ddcr
+   * >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
+   * >>> ddcr.close()   # releases C memory immediately
    * @endcode
    */
   void ddcr_destroy (ddcr_state_t *s);
@@ -277,13 +277,14 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * first call after create, enabling repeatable block-by-block tests.
    *
    * @code
-   * >>> from doppler.ddc import DDCR
+   * >>> from doppler.ddc import Ddcr
    * >>> import numpy as np
-   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+   * >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
    * >>> x = np.ones(64, dtype=np.float32)
-   * >>> y1 = ddcr.execute(x)
+   * >>> out = np.empty(64, dtype=np.complex64)
+   * >>> y1 = ddcr.execute(x, out).copy()
    * >>> ddcr.reset()
-   * >>> y2 = ddcr.execute(x)
+   * >>> y2 = ddcr.execute(x, out)
    * >>> bool(np.array_equal(y1, y2))
    * True
    * @endcode
@@ -295,8 +296,8 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * intermediate rate (fs_in/2, cycles/sample).
    *
    * @code
-   * >>> from doppler.ddc import DDCR
-   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> from doppler.ddc import Ddcr
+   * >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
    * >>> ddcr.norm_freq
    * -0.7
    * @endcode
@@ -312,8 +313,8 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @param norm_freq New frequency at the intermediate rate (fs_in/2).
    *
    * @code
-   * >>> from doppler.ddc import DDCR
-   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> from doppler.ddc import Ddcr
+   * >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
    * >>> ddcr.norm_freq = -0.5
    * >>> ddcr.norm_freq
    * -0.5
@@ -327,8 +328,8 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * it by destroying and recreating the DDCR.
    *
    * @code
-   * >>> from doppler.ddc import DDCR
-   * >>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+   * >>> from doppler.ddc import Ddcr
+   * >>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
    * >>> ddcr.rate
    * 0.25
    * @endcode
@@ -353,12 +354,13 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    * @return Number of output samples written (C-only).
    *
    * @code
-   * >>> from doppler.ddc import DDCR
+   * >>> from doppler.ddc import Ddcr
    * >>> import numpy as np
-   * >>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+   * >>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
    * >>> t = np.arange(4096)
    * >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
-   * >>> y = ddcr.execute(x)
+   * >>> out = np.empty(len(x), dtype=np.complex64)
+   * >>> y = ddcr.execute(x, out)
    * >>> y.shape
    * (1024,)
    * >>> y.dtype

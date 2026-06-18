@@ -69,8 +69,14 @@ from .wfm_compose import (  # noqa: F401  (re-export)
 )
 
 # string-enum ↔ C-int tables for the remaining hand binding (write_blue_header);
-# must match native/src/app/wfmgen.c. The composer/transport enums are now the
-# manifest [[enum]] SSOT, generated into the .so types.
+# must match native/src/app/wfmgen.c and the manifest [[enum]] stype/endian.
+#
+# This is a third copy of that enum SSOT (doppler#179 review #8). It survives
+# because write_blue_header is the last unmigrated hand binding: turning it into
+# a generated `jm function` would let the enum strings resolve against the single
+# manifest [[enum]] SSOT, deleting these tables — but that needs `path` + `enum`
+# arg support in jm's module-function generator, which it does not yet have
+# (tracked as just-makeit#353). Until then, the mapping has to live here.
 _STYPES = ("cf32", "cf64", "ci32", "ci16", "ci8")
 _ENDIANS = ("le", "be")
 

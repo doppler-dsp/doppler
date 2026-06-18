@@ -459,7 +459,7 @@ to_json_trailing = ["0.0"]
 # key; the composer codegen test is a compiler-free unit gate, so it slipped —
 # same class of bug as gh-335). wfm_sigmf_meta_json lives in wfm/wfm_writer.h,
 # which the ext.c does not include → implicit-declaration. Needs a jm serializer
-# `header` key mirroring composer.realtime.header (issue pending). Until then
+# `header` key mirroring composer.realtime.header (filed jm#343). Until then
 # sigmf_meta stays the hand-Python free function over _c.sigmf_meta_json.
 
 [module.delay]

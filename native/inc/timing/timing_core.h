@@ -76,11 +76,20 @@ extern "C"
 
   /* A stats snapshot for the generated `SampleClock` handle (jm kind="handle"):
    * the decoded-getter face wants one call that fills an out-struct, so this
-   * copies the (public) clock struct out. Construction is init-in-place via
-   * dp_sample_clock_init above (jm#320 `init_fn`); jm owns the malloc/free, so
-   * there is no hand-written create/destroy. */
+   * copies the (public) clock struct out. The handle constructs init-in-place
+   * via dp_sample_clock_init above (jm#320 `init_fn`); jm owns that malloc/free. */
   void dp_sample_clock_stats (const dp_sample_clock_t *c,
                               dp_sample_clock_t       *out);
+
+  /** Heap-allocate and initialise a clock for sample rate @p fs (Hz); see
+   *  dp_sample_clock_init for @p resync. Returns NULL on allocation failure.
+   *  This is the opaque-handle constructor the generated realtime composer
+   *  stream drives (`Composer.stream(realtime=fs)`): it owns a `void *clk`
+   *  created here and freed by dp_sample_clock_destroy. */
+  dp_sample_clock_t *dp_sample_clock_create (double fs, int resync);
+
+  /** Free a clock from dp_sample_clock_create (NULL-safe). */
+  void dp_sample_clock_destroy (dp_sample_clock_t *c);
 
 #ifdef __cplusplus
 }

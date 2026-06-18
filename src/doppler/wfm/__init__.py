@@ -12,6 +12,6 @@ from .wfm_sink import ZmqSink  # noqa: E402
 from .wfm_reader import Reader  # noqa: E402
 from .wfm_writer import Writer  # noqa: E402
 from .readback import read_iq  # noqa: E402
-from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, paced, sigmf_meta, write_blue_header, bits, chirp, rrc_taps, dsss_spread  # noqa: E402
+from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, sigmf_meta, write_blue_header, bits, chirp, rrc_taps, dsss_spread  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "paced", "sigmf_meta", "write_blue_header", "bits", "chirp", "rrc_taps", "dsss_spread", "Writer", "Reader", "ZmqSink", "SampleClock", "read_iq"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "sigmf_meta", "write_blue_header", "bits", "chirp", "rrc_taps", "dsss_spread", "Writer", "Reader", "ZmqSink", "SampleClock", "read_iq"]

@@ -128,10 +128,29 @@ dp_sample_clock_resync (dp_sample_clock_t *c)
     c->epoch_mono_ns += now - want; /* absorb current lateness */
 }
 
-/* ── stats snapshot for the generated SampleClock handle ───────────────────── */
+/* ── stats snapshot for the generated SampleClock handle ─────────────────────
+ */
 
 void
 dp_sample_clock_stats (const dp_sample_clock_t *c, dp_sample_clock_t *out)
 {
   *out = *c;
+}
+
+/* ── opaque heap clock for the generated realtime composer stream ────────────
+ */
+
+dp_sample_clock_t *
+dp_sample_clock_create (double fs, int resync)
+{
+  dp_sample_clock_t *c = (dp_sample_clock_t *)malloc (sizeof *c);
+  if (c)
+    dp_sample_clock_init (c, fs, resync);
+  return c;
+}
+
+void
+dp_sample_clock_destroy (dp_sample_clock_t *c)
+{
+  free (c);
 }

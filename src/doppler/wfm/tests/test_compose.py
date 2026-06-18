@@ -30,7 +30,6 @@ from doppler.wfm.compose import (
     ZmqSink,
     dsss_spread,
     noise,
-    paced,
     qpsk,
     rrc_taps,
     sigmf_meta,
@@ -364,11 +363,11 @@ def test_stream_continuous_is_infinite():
 
 @_needs_clock
 def test_stream_realtime_paces():
-    """paced(stream, fs) paces blocks at the segment's fs (~ N/fs total)."""
-    # 100 blocks of 1000 @ 1e5 = 1.0 s; paced() at segments[0].fs.
+    """stream(block, realtime=fs) paces blocks in C at fs (~ N/fs total)."""
+    # 100 blocks of 1000 @ 1e5 = 1.0 s; paced at segments[0].fs.
     c = Composer(type="tone", fs=1e5, num_samples=100_000)
     t0 = time.perf_counter()
-    n = sum(len(b) for b in paced(c.stream(1000), fs=c.segments[0].fs))
+    n = sum(len(b) for b in c.stream(1000, realtime=c.segments[0].fs))
     elapsed = time.perf_counter() - t0
     assert n == 100_000
     assert 0.9 < elapsed < 1.4, (
@@ -378,10 +377,10 @@ def test_stream_realtime_paces():
 
 @_needs_clock
 def test_stream_realtime_float_rate_overrides():
-    """A faster paced() rate drains quickly."""
+    """A faster realtime rate drains quickly."""
     c = Composer(type="tone", fs=1e5, num_samples=10_000)
     t0 = time.perf_counter()
-    list(paced(c.stream(1000), fs=1e7))  # 10 MS/s → ~1 ms total
+    list(c.stream(1000, realtime=1e7))  # 10 MS/s → ~1 ms total
     assert time.perf_counter() - t0 < 0.3
 
 

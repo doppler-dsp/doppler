@@ -336,8 +336,6 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ### Module-level helpers
 
-::: doppler.wfm.compose.paced
-
 ::: doppler.wfm.compose.sigmf_meta
 
 ::: doppler.wfm.compose.write_blue_header

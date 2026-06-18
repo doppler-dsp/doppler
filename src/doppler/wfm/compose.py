@@ -47,8 +47,9 @@ from . import _wfmcompose as _c
 
 # The transport surface is now the generated kind="handle" types — re-export
 # them through compose so `doppler.wfm.compose.Writer` (etc.) stays the import
-# path. SampleClock also backs paced() until the realtime-paced stream lands.
-from .sample_clock import SampleClock  # noqa: F401  (re-export + paced uses it)
+# path. (Realtime pacing now lives in C as Composer.stream(realtime=fs); the
+# hand-written paced() helper is retired.)
+from .sample_clock import SampleClock  # noqa: F401  (re-export)
 from .wfm_reader import Reader  # noqa: F401  (re-export)
 from .wfm_sink import ZmqSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)
@@ -151,42 +152,6 @@ def _seg_tuple(seg) -> tuple:
 
 
 # ── module-level helpers ─────────────────────────────────────────────────────
-
-
-def paced(blocks, fs: float):
-    """Pace an iterable of sample blocks to real time against an ``fs``-Hz clock.
-
-    The transport-side equivalent of the ``wfmgen --realtime`` flag: wrap any
-    block iterator (typically :meth:`Composer.stream`) and this yields each block
-    unchanged, sleeping after it so the stream leaves at its real-time deadline
-    (the same :class:`SampleClock` the CLI uses). The generated
-    :meth:`Composer.stream` stays a pure drain; pacing lives here, in the
-    hand-written transport layer, because it is an I/O concern, not composition.
-
-    Parameters
-    ----------
-    blocks : iterable of NDArray[np.complex64]
-        Sample blocks to emit, e.g. ``Composer(spec).stream(4096)``.
-    fs : float
-        Sample rate (Hz) to pace to. Must be > 0.
-
-    Yields
-    ------
-    NDArray[np.complex64]
-        Each input block, unchanged, after pacing to its deadline.
-
-    Examples
-    --------
-    >>> from doppler.wfm.compose import Composer, paced
-    >>> comp = Composer(type="tone", freq=1e5, num_samples=512)
-    >>> total = sum(len(b) for b in paced(comp.stream(256), fs=1e6))
-    >>> total
-    512
-    """
-    clk = SampleClock(float(fs))
-    for blk in blocks:
-        yield blk
-        clk.pace(len(blk))  # sleep to the next block's deadline
 
 
 def sigmf_meta(

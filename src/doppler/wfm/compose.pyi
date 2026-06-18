@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import os
-from typing import Iterable, Iterator, Sequence
+from typing import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,22 +35,6 @@ from .sample_clock import SampleClock as SampleClock
 from .wfm_reader import Reader as Reader
 from .wfm_sink import ZmqSink as ZmqSink
 from .wfm_writer import Writer as Writer
-
-def paced(
-    blocks: Iterable[NDArray[np.complex64]], fs: float
-) -> Iterator[NDArray[np.complex64]]:
-    """Pace an iterable of sample blocks to real time against an ``fs``-Hz clock.
-
-    The transport-side equivalent of ``wfmgen --realtime``: wrap any block
-    iterator (typically :meth:`Composer.stream`) so each block is yielded
-    unchanged, then sleeps to its real-time deadline via :class:`SampleClock`.
-
-    >>> from doppler.wfm.compose import Composer, paced
-    >>> comp = Composer(type="tone", freq=1e5, num_samples=512)
-    >>> sum(len(b) for b in paced(comp.stream(256), fs=1e6))
-    512
-
-    """
 
 def sigmf_meta(
     *,

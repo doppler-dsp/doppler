@@ -275,7 +275,7 @@ objects = ["pn", "wfm_synth"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "paced", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "sigmf_meta", "write_blue_header", "rrc_taps", "dsss_spread"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["ZmqSink"]
@@ -371,6 +371,8 @@ depends_on = [
     { name = "awgn", link = true },
     { name = "pn", link = true },
     { name = "fir", link = true },
+    # timing_core backs the realtime stream's opaque clock (composer.realtime).
+    { name = "timing", link = true },
 ]
 extra_link_libs = ["wfm_cjson", "m"]
 
@@ -430,12 +432,17 @@ emit               = "ctypes"
 discriminant       = "type"
 composer_type_name = "Composer"
 
-# Generated Composer.stream(block) iterator (drains execute into blocks) +
-# to_dict() (resolved repeat/continuous/segments as a plain nested dict — the
-# generic introspection primitive SigMF/BLUE sidecars are built from).
+# Generated Composer.stream(block, realtime=0.0) iterator (drains execute into
+# blocks) + to_dict() (resolved repeat/continuous/segments as a plain nested
+# dict — the generic introspection primitive SigMF/BLUE sidecars are built
+# from). The `realtime` table (jm#317-f1) paces the iterator to an fs-Hz clock
+# entirely in C (GIL released): `stream(block, realtime=fs)` is the one-liner
+# that replaced the hand-written `paced()` helper — the clock is the same
+# timing_core the SampleClock handle wraps.
 [module.wfm_compose.composer]
-stream  = true
-to_dict = true
+stream   = true
+to_dict  = true
+realtime = { clock_create = "dp_sample_clock_create", pace = "dp_sample_clock_pace", destroy = "dp_sample_clock_destroy", header = "timing/timing_core.h" }
 
 # Delegated JSON: call the backing wfm_spec_to_json (trailing headroom arg = 0.0)
 # and wfm_compose_from_json / wfm_compose_from_file so the wire format is

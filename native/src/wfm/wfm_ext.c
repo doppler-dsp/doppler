@@ -1,7 +1,7 @@
 /*
  * wfm_ext.c — Python extension module wfm
  *
- * Objects: PN, _SynthEngine
+ * Objects: PN, _SynthEngine, IqFile
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -15,6 +15,7 @@
 
 #include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
+#include "wfm_ext_iq_file.c"
 
 static PyObject *
 _bind_bpsk_map(PyObject *self, PyObject *args, PyObject *kwds)
@@ -178,6 +179,7 @@ PyInit_wfm(void)
     import_array();
     if (PyType_Ready(&PNObjType) < 0) return NULL;
     if (PyType_Ready(&_SynthEngineType) < 0) return NULL;
+    if (PyType_Ready(&IqFileType) < 0) return NULL;
     PyObject *m = PyModule_Create(&wfm_moduledef);
     if (!m) return NULL;
     Py_INCREF(&PNObjType);
@@ -187,6 +189,10 @@ PyInit_wfm(void)
     Py_INCREF(&_SynthEngineType);
     if (PyModule_AddObject(m, "_SynthEngine", (PyObject *)&_SynthEngineType) < 0) {
         Py_DECREF(&_SynthEngineType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&IqFileType);
+    if (PyModule_AddObject(m, "IqFile", (PyObject *)&IqFileType) < 0) {
+        Py_DECREF(&IqFileType); Py_DECREF(m); return NULL;
     }
     return m;
 }

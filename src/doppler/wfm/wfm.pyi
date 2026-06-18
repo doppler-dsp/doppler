@@ -165,6 +165,44 @@ class _SynthEngine:
 
     def __exit__(self, *args: object) -> None: ...
 
+class IqFile:
+    """IqFile component.
+
+    Parameters
+    ----------
+    filepath : Any
+        filepath constructor parameter (required).
+    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
+        sample_type constructor parameter.
+    endian : Literal["le", "be"], default "le"
+        endian constructor parameter.
+
+    """
+    def __init__(self, fd: int = ..., position: int = ..., nsamples: int = ..., sample_type: int = ..., endian: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Reset IqFile to its post-create state.
+        """
+
+    def read(self, n: int) -> complex:
+        """Read."""
+
+    def close(self) -> complex:
+        """Close."""
+
+    @property
+    def nsamples(self) -> int:
+        """Nsamples."""
+    @nsamples.setter
+    def nsamples(self, value: int) -> None: ...
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "IqFile": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 def bpsk_map(bits: NDArray[np.uint8]) -> NDArray[np.complex64]:
     """Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."""
 

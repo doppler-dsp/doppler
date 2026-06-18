@@ -7,6 +7,7 @@ Python3_add_library(wfm_reader MODULE WITH_SOABI wfm_reader_ext.c)
 target_link_libraries(wfm_reader PRIVATE
     wfm_reader_core
     wfm_cjson
+    wfm_sample_core
     m
     Python3::NumPy)
 target_include_directories(wfm_reader PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

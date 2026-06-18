@@ -11,7 +11,9 @@ round-trips through JSON (:meth:`Composer.to_json` / :meth:`Composer.from_json`)
 so a capture is fully reproducible.
 
 The samples come back as ``complex64`` arrays; pair :class:`Writer` with
-:func:`doppler.wfm.readback.read_iq` to round-trip a file.
+:class:`doppler.wfm.IqFile` to round-trip a headerless capture
+(``IqFile(path, sample_type).read(nsamples)``), or :class:`Reader` for the
+container-aware path.
 
 The ``Synth`` / ``Segment`` / ``Timeline`` / ``Composer`` ergonomic types are the
 **jm-generated** CPython types in ``doppler.wfm.wfm_compose`` (the composer lives

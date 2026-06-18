@@ -1,0 +1,71 @@
+[iq_file]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "false"
+no_step = "true"
+# read() decodes wire bytes via the shared wfm_sample_core (wfm_convert_pair /
+# wfm_bytes_per_sample). Linking it into iq_file_core makes the C test/bench
+# self-contained; the wfm .so links it module-wide too (just-makeit.toml).
+extra_link_libs = ["wfm_sample_core"]
+
+[[iq_file.state]]
+name = "fd"
+type = "int"
+default = "-1"
+
+[[iq_file.state]]
+name = "position"
+type = "size_t"
+default = "0"
+
+[[iq_file.state]]
+name = "nsamples"
+type = "size_t"
+default = "0"
+
+[[iq_file.state]]
+name = "sample_type"
+type = "int"
+default = "0"
+
+[[iq_file.state]]
+name = "endian"
+type = "int"
+default = "0"
+
+# required = true (jm-gh-266) makes filepath a mandatory positional that parses
+# before the PyArg `|`, so it sorts first in the kwlist (ahead of the string-enum
+# kwargs) — the Python signature is IqFile(filepath, sample_type="cf32",
+# endian="le"). Without it, the optional enums would sort ahead of filepath.
+[[iq_file.init_params]]
+name = "filepath"
+type = "const char *"
+required = true
+
+[[iq_file.init_params]]
+name = "sample_type"
+type = "string_enum:cf32,cf64,ci32,ci16,ci8"
+default = "cf32"
+
+[[iq_file.init_params]]
+name = "endian"
+type = "string_enum:le,be"
+default = "le"
+
+[[iq_file.methods]]
+name = "read"
+arg_type = "void"
+return_type = "float _Complex"
+params = [{name = "n", type = "size_t"}]
+out_type = "float _Complex"
+
+[[iq_file.methods]]
+name = "close"
+arg_type = "void"
+return_type = "float _Complex"
+
+[[iq_file.properties]]
+name = "nsamples"
+type = "size_t"
+field = true

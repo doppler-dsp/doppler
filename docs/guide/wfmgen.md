@@ -538,18 +538,17 @@ pts = sym.reshape(-1, 8).mean(axis=1)    # boxcar matched filter per symbol
 
 The `raw` container is **interleaved** I/Q in the chosen `--sample_type`, so a
 naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
-`read_iq` does the right thing — a zero-copy complex view for the float types, a
-SIMD rescale to ±1.0 for the integer types — or pass `raw=True` for the raw
-`(N, 2)` on-disk view:
+`IqFile` does the right thing in C — deinterleave plus a rescale to ±1.0 for the
+integer types — for a headerless, explicit-type capture:
 
 ```python
-from doppler.wfm.readback import read_iq
+from doppler.wfm import IqFile
 
-iq = read_iq("capture.iq", sample_type="ci16")   # → complex64, ±1.0
-iq = read_iq("capture.iq", sample_type="cf32")   # → complex64, zero-copy
+r  = IqFile("capture.iq", sample_type="ci16")
+iq = r.read(r.nsamples)                          # → complex64, ±1.0
 ```
 
-`generate → read_iq` is bit-faithful. See
+`generate → IqFile.read` is bit-faithful. See
 [Type System → Reading interleaved I/Q](../types.md#reading-interleaved-iq-in-python).
 
 ______________________________________________________________________

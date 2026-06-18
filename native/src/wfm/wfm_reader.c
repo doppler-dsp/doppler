@@ -13,11 +13,14 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "wfm/wfm_sample.h"
 
-/* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
- */
-static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
-static const size_t BPS[5] = { 8, 16, 8, 4, 2 }; /* bytes per complex sample */
+/* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer.
+   The wire→unit conversion + bytes-per-sample table now live in wfm_sample.c
+   (shared with iq_file). These two stay local: ELEM/SCALE feed the binary read
+   buffer sizing and the CSV integer rescale, neither of which goes through
+   wfm_convert_pair. */
+static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
 static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
@@ -51,61 +54,6 @@ ends_with (const char *s, const char *suffix)
   return ls >= lx && strcmp (s + ls - lx, suffix) == 0;
 }
 
-/* Decode one interleaved I/Q pair from the wire type into unit-scale floats.
- */
-static void
-convert_pair (const uint8_t *p, int stype, int be, float *re, float *im)
-{
-  size_t e = ELEM[stype];
-  switch (stype)
-    {
-    case 0:
-      {
-        float a, b;
-        swab_copy (&a, p, 4, be);
-        swab_copy (&b, p + 4, 4, be);
-        *re = a;
-        *im = b;
-        break;
-      }
-    case 1:
-      {
-        double a, b;
-        swab_copy (&a, p, 8, be);
-        swab_copy (&b, p + 8, 8, be);
-        *re = (float)a;
-        *im = (float)b;
-        break;
-      }
-    case 2:
-      {
-        int32_t a, b;
-        swab_copy (&a, p, 4, be);
-        swab_copy (&b, p + 4, 4, be);
-        *re = (float)(a / SCALE[2]);
-        *im = (float)(b / SCALE[2]);
-        break;
-      }
-    case 3:
-      {
-        int16_t a, b;
-        swab_copy (&a, p, 2, be);
-        swab_copy (&b, p + 2, 2, be);
-        *re = (float)(a / SCALE[3]);
-        *im = (float)(b / SCALE[3]);
-        break;
-      }
-    default:
-      {
-        int8_t a = (int8_t)p[0], b = (int8_t)p[1];
-        *re = (float)(a / SCALE[4]);
-        *im = (float)(b / SCALE[4]);
-        break;
-      }
-    }
-  (void)e;
-}
-
 /* Parse a 512-byte BLUE type-1000 HCB. Returns 0 on success, -1 if this is not
    a BLUE header — the "BLUE" magic at byte 0 is the gate, so a file that is
    not BLUE (a stray .hdr, a raw file that happens to be .det) is rejected,
@@ -132,7 +80,7 @@ parse_blue_hcb (const uint8_t h[512], int *stype, int *endian, double *fs,
   *endian     = be;
   *fs         = (xdelta != 0.0) ? 1.0 / xdelta : 0.0;
   *data_start = ds;
-  *nsamples   = (size_t)(dsz / (double)BPS[st]);
+  *nsamples   = (size_t)(dsz / (double)wfm_bytes_per_sample (st));
   return 0;
 }
 
@@ -225,7 +173,7 @@ fill_nsamples (wfm_reader_t *r)
       long end = ftell (r->fp);
       fseek (r->fp, cur, SEEK_SET);
       if (end >= cur)
-        r->nsamples = (size_t)(end - cur) / BPS[r->stype];
+        r->nsamples = (size_t)(end - cur) / wfm_bytes_per_sample (r->stype);
     }
 }
 
@@ -371,7 +319,7 @@ wfm_reader_read (wfm_reader_t *r, float _Complex *out, size_t max)
   for (size_t i = 0; i < nsamp; i++)
     {
       float re, im;
-      convert_pair (p, r->stype, r->endian, &re, &im);
+      wfm_convert_pair (p, r->stype, r->endian, &re, &im);
       out[i] = re + im * (float _Complex)I;
       p += 2 * elem;
     }

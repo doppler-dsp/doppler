@@ -58,4 +58,4 @@ python examples/python/wfm_io_demo.py    # the four-container figure (writes .pn
 ```
 
 See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink)
-for the full `Writer` / `Reader` / `read_iq` surface.
+for the full `Writer` / `Reader` / `IqFile` surface.

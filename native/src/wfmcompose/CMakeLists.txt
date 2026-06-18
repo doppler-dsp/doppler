@@ -63,6 +63,23 @@ target_include_directories(test_wfm_writer PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_writer COMMAND test_wfm_writer)
 
+# ── shared interleaved-I/Q wire-format converter (wfm_convert_pair /
+#    wfm_bytes_per_sample) — one bit-faithful decoder used by both the
+#    container-aware reader below and the headerless IqFile object (iq_file). ─
+add_library(wfm_sample_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sample.c)
+target_include_directories(wfm_sample_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc
+    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+
+# iq_file_core is folded into libdoppler (jm Components block) and calls these
+# symbols, so the converter objects must ride along too — otherwise libdoppler
+# carries an undefined wfm_convert_pair / wfm_bytes_per_sample. (The jm-generated
+# iq_file CMake links wfm_sample_core for the standalone test/bench; libdoppler
+# composes object sets directly, so fold it in here next to its definition.)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:wfm_sample_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:wfm_sample_core>)
+
 # ── input containers: the dual of the writer (raw/csv/BLUE/SigMF auto-detect) ─
 add_library(wfm_reader_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_reader.c)
@@ -70,12 +87,12 @@ target_include_directories(wfm_reader_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
-target_link_libraries(wfm_reader_core PUBLIC m)
+target_link_libraries(wfm_reader_core PUBLIC wfm_sample_core m)
 
 add_executable(test_wfm_reader
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader.c)
 target_link_libraries(test_wfm_reader PRIVATE
-    wfm_reader_core wfm_writer_core wfm_cjson m)
+    wfm_reader_core wfm_writer_core wfm_sample_core wfm_cjson m)
 target_include_directories(test_wfm_reader PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
@@ -131,7 +148,7 @@ if(NOT WIN32)
     add_executable(bench_wfm_reader_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
     target_link_libraries(bench_wfm_reader_core PRIVATE
-        wfm_reader_core wfm_writer_core wfm_cjson m)
+        wfm_reader_core wfm_writer_core wfm_sample_core wfm_cjson m)
     target_include_directories(bench_wfm_reader_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks
         ${CMAKE_SOURCE_DIR}/vendor/cjson)

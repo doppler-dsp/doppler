@@ -65,6 +65,7 @@ _Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 |  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br> |
 |  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), and free the writer (does not close the FILE\*)._  |
 |  [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* | [**wfm\_writer\_open**](#function-wfm_writer_open) (FILE \* fp, [**wfm\_filetype\_t**](wfm__writer_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples) <br>_Open a writer on an already-open stream._  |
+|  [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* | [**wfm\_writer\_open\_path**](#function-wfm_writer_open_path) (const char \* path, [**wfm\_filetype\_t**](wfm__writer_8h.md#enum-wfm_filetype_t) ft, int sample\_type, int endian, double fs, double fc, size\_t total\_samples, double headroom) <br> |
 |  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w) <br> |
 |  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w, double gain) <br> |
 |  void | [**wfm\_writer\_track\_clipping**](#function-wfm_writer_track_clipping) ([**wfm\_writer\_t**](wfm__writer_8h.md#typedef-wfm_writer_t) \* w, int on) <br> |
@@ -336,6 +337,32 @@ Writer handle, or NULL on bad args / allocation. BLUE writes its 512-byte header
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_writer\_open\_path 
+
+```C++
+wfm_writer_t * wfm_writer_open_path (
+    const char * path,
+    wfm_filetype_t ft,
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    size_t total_samples,
+    double headroom
+) 
+```
+
+
+
+Path-opening + FILE-owning ctor for the generated `Writer` handle (jm kind="handle"): opens `path` ("wb"), delegates to wfm\_writer\_open, and marks the FILE owned so wfm\_writer\_close fclose's it. Returns NULL on open failure. 
 
 
         

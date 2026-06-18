@@ -131,7 +131,6 @@
 * **ddcr\_get\_rate** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_reset** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_set\_norm\_freq** ([**ddc\_core.h**](ddc__core_8h.md))
-* **ddcr\_execute\_max\_out** ([**ddcr\_core.h**](ddcr__core_8h.md))
 * **delay\_create** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_destroy** ([**delay\_core.h**](delay__core_8h.md))
 * **delay\_ptr** ([**delay\_core.h**](delay__core_8h.md))
@@ -164,11 +163,15 @@
 * **dp\_coherent\_freq** ([**measure\_core.h**](measure__core_8h.md))
 * **dp\_mono\_ns** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_real\_ns** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_create** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_destroy** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_init** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_pace** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_reset** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_resync** ([**timing\_core.h**](timing__core_8h.md))
 * **dp\_sample\_clock\_stamp** ([**timing\_core.h**](timing__core_8h.md))
+* **dp\_sample\_clock\_stats** ([**timing\_core.h**](timing__core_8h.md))
+* **dsss\_spread** ([**wfm\_core.h**](wfm__core_8h.md))
 * **doppler\_wfmgen** ([**wfmgen.h**](wfmgen_8h.md))
 * **dot\_q15\_scalar** ([**q15\_mac.h**](q15__mac_8h.md))
 
@@ -332,6 +335,7 @@
 * **measure\_rec\_nfft** ([**measure\_core.h**](measure__core_8h.md))
 * **magnitude\_db\_cf32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
+* **mls\_poly** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
 ## n
@@ -434,6 +438,7 @@
 * **resamp\_get\_rate** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_reset** ([**resamp\_core.h**](resamp__core_8h.md))
 * **resamp\_set\_rate** ([**resamp\_core.h**](resamp__core_8h.md))
+* **rrc\_taps** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
 ## s
@@ -512,6 +517,7 @@
 * **wfm\_writer\_clip\_fraction** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_close** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_open** ([**wfm\_writer.h**](wfm__writer_8h.md))
+* **wfm\_writer\_open\_path** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_peak** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_set\_gain** ([**wfm\_writer.h**](wfm__writer_8h.md))
 * **wfm\_writer\_track\_clipping** ([**wfm\_writer.h**](wfm__writer_8h.md))

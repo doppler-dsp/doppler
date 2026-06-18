@@ -57,6 +57,8 @@ extern "C" {
 
 #include "wfm_synth/wfm_synth_core.h"
 
+#include "iq_file/iq_file_core.h"
+
 #include "delay/delay_core.h"
 
 #include "fft/fft_core.h"

@@ -162,7 +162,7 @@ double wfm_zmq_sink_clip_fraction (
 
 
 
-Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. 
+Fraction (0..1) of integer I/Q components that saturated; 0 unless tracked. The generated ZmqSink handle binds peak/clip\_fraction directly as per-field getters (jm#320), so no stats-snapshot struct shim is needed. 
 
 
         

@@ -445,8 +445,8 @@ Non-NULL on success, NULL on OOM or invalid args.
 
 
 ```C++
->>> from doppler.ddc import DDCR
->>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+>>> from doppler.ddc import Ddcr
+>>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 >>> ddcr.norm_freq
 -0.7
 >>> ddcr.rate
@@ -474,9 +474,9 @@ void ddcr_destroy (
 
 
 ```C++
->>> from doppler.ddc import DDCR
->>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
->>> ddcr.destroy()   # releases C memory immediately
+>>> from doppler.ddc import Ddcr
+>>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
+>>> ddcr.close()   # releases C memory immediately
 ```
  
 
@@ -522,12 +522,13 @@ Number of output samples written (C-only).
 
 
 ```C++
->>> from doppler.ddc import DDCR
+>>> from doppler.ddc import Ddcr
 >>> import numpy as np
->>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+>>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 >>> t = np.arange(4096)
 >>> x = np.cos(2 * np.pi * 0.1 * t).astype(np.float32)
->>> y = ddcr.execute(x)
+>>> out = np.empty(len(x), dtype=np.complex64)
+>>> y = ddcr.execute(x, out)
 >>> y.shape
 (1024,)
 >>> y.dtype
@@ -557,8 +558,8 @@ double ddcr_get_norm_freq (
 
 
 ```C++
->>> from doppler.ddc import DDCR
->>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+>>> from doppler.ddc import Ddcr
+>>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 >>> ddcr.norm_freq
 -0.7
 ```
@@ -584,8 +585,8 @@ double ddcr_get_rate (
 
 
 ```C++
->>> from doppler.ddc import DDCR
->>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+>>> from doppler.ddc import Ddcr
+>>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
 >>> ddcr.rate
 0.25
 ```
@@ -611,13 +612,14 @@ void ddcr_reset (
 
 
 ```C++
->>> from doppler.ddc import DDCR
+>>> from doppler.ddc import Ddcr
 >>> import numpy as np
->>> ddcr = DDCR(norm_freq=0.0, rate=0.25)
+>>> ddcr = Ddcr(norm_freq=0.0, rate=0.25)
 >>> x = np.ones(64, dtype=np.float32)
->>> y1 = ddcr.execute(x)
+>>> out = np.empty(64, dtype=np.complex64)
+>>> y1 = ddcr.execute(x, out).copy()
 >>> ddcr.reset()
->>> y2 = ddcr.execute(x)
+>>> y2 = ddcr.execute(x, out)
 >>> bool(np.array_equal(y1, y2))
 True
 ```
@@ -652,8 +654,8 @@ void ddcr_set_norm_freq (
 
 
 ```C++
->>> from doppler.ddc import DDCR
->>> ddcr = DDCR(norm_freq=-0.7, rate=0.25)
+>>> from doppler.ddc import Ddcr
+>>> ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 >>> ddcr.norm_freq = -0.5
 >>> ddcr.norm_freq
 -0.5

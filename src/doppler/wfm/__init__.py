@@ -6,12 +6,11 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .wfm import PN, bpsk_map, qpsk_map, wfm_awgn_amplitude, wfm_ebno_to_snr_db, _SynthEngine, mls_poly, rrc_taps, dsss_spread  # noqa: E402
+from .wfm import PN, bpsk_map, qpsk_map, wfm_awgn_amplitude, wfm_ebno_to_snr_db, _SynthEngine, mls_poly, rrc_taps, dsss_spread, IqFile  # noqa: E402
 from .sample_clock import SampleClock  # noqa: E402
 from .wfm_sink import ZmqSink  # noqa: E402
 from .wfm_reader import Reader  # noqa: E402
 from .wfm_writer import Writer  # noqa: E402
-from .readback import read_iq  # noqa: E402
 from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, write_blue_header, bits, chirp  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "write_blue_header", "bits", "chirp", "Writer", "Reader", "ZmqSink", "SampleClock", "read_iq"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "IqFile", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "write_blue_header", "bits", "chirp", "Writer", "Reader", "ZmqSink", "SampleClock"]

@@ -43,7 +43,6 @@
 * `#include "nprmeas/nprmeas_core.h"`
 * `#include "imdmeas/imdmeas_core.h"`
 * `#include "ddc/ddc_core.h"`
-* `#include "ddcr/ddcr_core.h"`
 * `#include "specan/specan_core.h"`
 * `#include "Resampler/Resampler_core.h"`
 * `#include "HalfbandDecimator/HalfbandDecimator_core.h"`

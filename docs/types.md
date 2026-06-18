@@ -131,25 +131,26 @@ integer types, the scale too — so it's worth knowing what each type costs:
 | `cf64`                  | `np.complex128` | complex **view**                                  | zero-copy               |
 | `ci8` / `ci16` / `ci32` | `np.int8/16/32` | full-scale ints; **no** complex-int dtype         | copy to rescale to ±1.0 |
 
-There is no complex-integer dtype, so integer captures can be a zero-copy
-`(N, 2)` int view *or* a `complex64` copy (deinterleave + rescale via the
-`cvt` SIMD converters), but not both. The convenience helper returns `complex`
-by default (SIMD path for integers); pass `raw=True` for the zero-copy view:
+There is no complex-integer dtype, so integer captures need a deinterleave +
+rescale to `±1.0` (`complex64`) — `IqFile` does that in C for every wire type:
 
 ```python
-from doppler.wfm.readback import read_iq
+from doppler.wfm import IqFile
 
-iq  = read_iq("capture.iq", "ci16")            # complex64, rescaled to ±1.0
-iq  = read_iq("capture.iq", "cf32")            # complex64, zero-copy view
-raw = read_iq("capture.iq", "ci16", raw=True)  # (N, 2) int16, zero-copy
+r  = IqFile("capture.iq", "ci16")   # headerless, explicit type
+iq = r.read(r.nsamples)             # complex64, rescaled to ±1.0
 
-# the float types also read directly, no helper needed:
-iq  = np.fromfile("capture.iq", dtype="<c8")       # cf32 → complex64
-iq  = np.memmap("huge.iq", dtype="<c8", mode="r")  # zero-copy view of a big capture
+r  = IqFile("capture.iq", "cf32")
+iq = r.read(r.nsamples)             # complex64
+
+# the float types also read directly, no object needed:
+iq = np.fromfile("capture.iq", dtype="<c8")       # cf32 → complex64
+iq = np.memmap("huge.iq", dtype="<c8", mode="r")  # zero-copy view of a big capture
 ```
 
-`read_iq` uses the writer's exact full-scale (`2³¹−1 / 32767 / 127`), so
-`generate → read_iq` is bit-faithful.
+`IqFile` uses the writer's exact full-scale (`2³¹−1 / 32767 / 127`), so
+`generate → IqFile.read` is bit-faithful. For container-aware captures
+(BLUE / SigMF / CSV auto-detect) use `Reader` instead.
 
 ______________________________________________________________________
 

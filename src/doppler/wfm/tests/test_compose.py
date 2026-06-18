@@ -3,7 +3,7 @@
 The strong test is **byte-parity against the C ``wfmgen`` CLI**: a single-segment
 ``Composer`` written through ``Writer`` must produce the exact same file the
 one C CLI does for the same flags. The rest cover the JSON round-trip, the
-Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers.
+Writer↔IqFile round-trip per sample type, segment timing, and the DSP helpers.
 """
 
 import hashlib
@@ -33,7 +33,14 @@ from doppler.wfm.compose import (
     tone,
     write_blue_header,
 )
-from doppler.wfm.readback import read_iq
+from doppler.wfm import IqFile
+
+
+def read_iq(path, sample_type, endian="le"):
+    """Whole-file headerless read via the C-first IqFile (replaces the old
+    hand-Python read_iq helper). Returns the capture as one complex64 array."""
+    r = IqFile(path, sample_type, endian)
+    return r.read(r.nsamples)
 
 
 def _read_all(r):

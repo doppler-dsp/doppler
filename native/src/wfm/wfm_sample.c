@@ -2,14 +2,13 @@
  * wfm_sample.c — shared interleaved-I/Q wire-format converter (see header).
  *
  * Lifted verbatim from wfm_reader.c's former static helpers so the reader and
- * the headerless IqFile share one bit-faithful decoder. The ELEM/BPS/SCALE
- * tables mirror wfm_writer's quantisation exactly.
+ * the headerless IqFile share one bit-faithful decoder. The BPS/SCALE tables
+ * mirror wfm_writer's quantisation exactly.
  */
 #include "wfm/wfm_sample.h"
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */
-static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per I or Q */
 static const size_t BPS[5] = { 8, 16, 8, 4, 2 }; /* bytes per complex sample */
 static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 

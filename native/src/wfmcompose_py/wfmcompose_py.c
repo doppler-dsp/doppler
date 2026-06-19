@@ -8,7 +8,7 @@
  * The composer (Synth/Segment/Timeline/Composer), the transport handles
  * (Writer/Reader/ZmqSink/SampleClock) and SigMF metadata (Composer.to_sigmf())
  * are all jm-generated now. The capsule bindings that used to live here for
- * those — the _fn_writer_*/reader_*/sink_*/clock_* PyCapsule glue — were
+ * those — the _fn_writer/reader/sink/clock PyCapsule glue — were
  * superseded by the generated handles and have been removed (gh-178 review #7),
  * along with the orphan includes they needed. The only surface still wired
  * through here is blue_write_hcb, backing the hand-Python write_blue_header()

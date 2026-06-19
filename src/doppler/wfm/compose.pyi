@@ -1,15 +1,8 @@
-# compose.pyi — type stubs for the hand-written composer wrapper.
+# compose.pyi — type stubs for compose.py re-exports.
 #
-# Hand-owned (no_generate): the C extension is doppler.wfm._wfmcompose and the
-# ergonomic API lives in compose.py. The doctests here are the CI-gated surface
-# (pytest --doctest-glob='*.pyi'); they run against the built extension.
+# compose.py is now pure re-exports: all binding surface is jm-generated.
+# This stub preserves the doctests that CI gates on.
 from __future__ import annotations
-
-import os
-from typing import Sequence
-
-import numpy as np
-from numpy.typing import NDArray
 
 # The composer OO surface is the generated .so type (stubs in
 # wfm_compose.pyi) — re-exported verbatim, no Python wrapper.
@@ -29,25 +22,24 @@ from .wfm_compose import (
 
 # Transport handles are the generated kind="handle" .so types — their
 # authoritative stubs live in wfm_writer.pyi / wfm_reader.pyi / wfm_sink.pyi /
-# sample_clock.pyi. compose.py re-imports them for one import path, so re-export
-# (don't redefine) here to keep the surface in sync with the generated API.
+# sample_clock.pyi.
 from .sample_clock import SampleClock as SampleClock
 from .wfm_reader import Reader as Reader
 from .wfm_sink import ZmqSink as ZmqSink
 from .wfm_writer import Writer as Writer
 
-# sigmf_meta is now the generated Composer.to_sigmf() method (see wfm_compose.pyi).
-
+# write_blue_header is a generated module function (wfm.pyi).
+# Re-exported here so doppler.wfm.compose.write_blue_header still resolves.
+# The doctest exercises the build end-to-end.
 def write_blue_header(
-    path: str | os.PathLike,
-    *,
-    sample_type: str = ...,
-    endian: str = ...,
-    fs: float = ...,
-    fc: float = ...,
+    path: str,
     total: int,
-    data_start: float = ...,
-    detached: bool = ...,
+    sample_type: str = "cf32",
+    endian: str = "le",
+    fs: float = 1e6,
+    fc: float = 0.0,
+    data_start: float = 0.0,
+    detached: int = 1,
 ) -> None:
     """Write a standalone BLUE type-1000 HCB header (the detached ``.hdr``).
 
@@ -56,7 +48,7 @@ def write_blue_header(
     >>> import os, tempfile
     >>> from doppler.wfm.compose import write_blue_header
     >>> p = os.path.join(tempfile.mkdtemp(), "cap.hdr")
-    >>> write_blue_header(p, sample_type="cf32", fs=1e6, total=512)
+    >>> write_blue_header(p, 512, sample_type="cf32", fs=1e6)
     >>> with open(p, "rb") as f:
     ...     head = f.read()
     >>> head[:4], len(head)
@@ -65,4 +57,4 @@ def write_blue_header(
     """
     ...
 
-# rrc_taps / dsss_spread are generated module functions — see wfm.pyi.
+# rrc_taps / dsss_spread / mls_poly are generated module functions — see wfm.pyi.

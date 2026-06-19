@@ -1,4 +1,4 @@
-add_library(wfm_core OBJECT wfm_core.c bpsk_map.c qpsk_map.c wfm_awgn_amplitude.c wfm_ebno_to_snr_db.c mls_poly.c rrc_taps.c dsss_spread.c)
+add_library(wfm_core OBJECT wfm_core.c bpsk_map.c qpsk_map.c wfm_awgn_amplitude.c wfm_ebno_to_snr_db.c mls_poly.c rrc_taps.c dsss_spread.c write_blue_header.c)
 target_include_directories(wfm_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
@@ -12,6 +12,9 @@ target_link_libraries(wfm PRIVATE
     awgn_core
     fir_core
     wfm_dsp_core
+    wfm_writer_core
+    wfm_cjson
+    m
     Python3::NumPy)
 target_include_directories(wfm PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm PROPERTIES

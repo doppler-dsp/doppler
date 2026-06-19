@@ -121,6 +121,9 @@ float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_s
 uint64_t mls_poly(uint32_t n);
 void rrc_taps(double beta, int sps, int span, float *out);
 void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
+int write_blue_header(const char *path, size_t total, int sample_type, int endian, double fs, double fc, double data_start, int detached);
+
+
 #ifdef __cplusplus
 }
 #endif

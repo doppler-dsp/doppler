@@ -1,5 +1,6 @@
 # wfm/wfm.pyi — type stubs for the wfm C extension.
 from typing import Literal
+import os
 import numpy as np
 from numpy.typing import NDArray
 
@@ -185,3 +186,6 @@ def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
 
 def dsss_spread(syms: NDArray[np.complex64], code: NDArray[np.uint8], sf: int) -> NDArray[np.complex64]:
     """Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."""
+
+def write_blue_header(path: str | os.PathLike, total: int, sample_type: str = 'cf32', endian: str = 'le', fs: float = 1e6, fc: float = 0.0, data_start: float = 0.0, detached: int = 1) -> None:
+    """Write blue header."""

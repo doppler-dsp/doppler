@@ -10,11 +10,38 @@
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
 #include <complex.h>
+#include <string.h>
 
 #include "wfm/wfm_core.h"
 
 #include "wfm_ext_pn.c"
 #include "wfm_ext_wfm_synth.c"
+
+/* String-enum tables — order is the C int (the [[enum]] SSOT). */
+static int
+_enum_index(const char *const *tab, const char *s)
+{
+    for (int i = 0; tab[i]; i++)
+        if (strcmp(tab[i], s) == 0)
+            return i;
+    return -1;
+}
+
+static const char *const _enum_stype[] = {
+    "cf32",
+    "cf64",
+    "ci32",
+    "ci16",
+    "ci8",
+    NULL,
+};
+
+static const char *const _enum_endian[] = {
+    "le",
+    "be",
+    NULL,
+};
+
 
 static PyObject *
 _bind_bpsk_map(PyObject *self, PyObject *args, PyObject *kwds)
@@ -148,6 +175,46 @@ _bind_dsss_spread(PyObject *self, PyObject *args, PyObject *kwds)
     return _out;
 }
 
+static PyObject *
+_bind_write_blue_header(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"path", "total", "sample_type", "endian", "fs", "fc", "data_start", "detached", NULL};
+    PyObject *path = NULL;  /* fspath -> bytes */
+    unsigned long long total_raw = 0ULL;
+    const char *sample_type = "cf32";
+    const char *endian = "le";
+    double fs = 1e6;
+    double fc = 0.0;
+    double data_start = 0.0;
+    int detached = 1;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O&K|ssdddi",
+            _kwlist, PyUnicode_FSConverter, &path, &total_raw, &sample_type, &endian, &fs, &fc, &data_start, &detached))
+    {
+        Py_XDECREF(path);
+        return NULL;
+    }
+    size_t total = (size_t)total_raw;
+    int _arg_sample_type = _enum_index(_enum_stype, sample_type);
+    if (_arg_sample_type < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid sample_type '%s'", sample_type); Py_XDECREF(path);
+        return NULL;
+    }
+    int _arg_endian = _enum_index(_enum_endian, endian);
+    if (_arg_endian < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid endian '%s'", endian); Py_XDECREF(path);
+        return NULL;
+    }
+    int _rc = write_blue_header(PyBytes_AS_STRING(path), total, _arg_sample_type, _arg_endian, fs, fc, data_start, detached);
+    Py_XDECREF(path);
+    if (_rc != 0) {
+        PyErr_Format(PyExc_RuntimeError,
+            "write_blue_header failed (rc=%d)", (int)_rc);
+        return NULL;
+    }
+    Py_RETURN_NONE;
+}
+
 
 /* ======================================================== */
 /* Module                                                    */
@@ -161,6 +228,7 @@ static PyMethodDef wfm_module_methods[] = {
     {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS, "Maximal-length-sequence primitive polynomial for an LFSR of length n."},
     {"rrc_taps", (PyCFunction)(void *)_bind_rrc_taps, METH_VARARGS | METH_KEYWORDS, "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."},
     {"dsss_spread", (PyCFunction)(void *)_bind_dsss_spread, METH_VARARGS | METH_KEYWORDS, "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."},
+    {"write_blue_header", (PyCFunction)(void *)_bind_write_blue_header, METH_VARARGS | METH_KEYWORDS, "write_blue_header."},
     {NULL, NULL, 0, NULL}
 };
 

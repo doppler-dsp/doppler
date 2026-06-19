@@ -12,7 +12,7 @@ write_blue_header (const char *path, size_t total, int sample_type, int endian,
   if (!fp)
     return -1;
   int rc = wfm_blue_write_hcb (fp, sample_type, endian, fs, fc, data_start,
-                                total, detached);
+                               total, detached);
   fclose (fp);
   return rc;
 }

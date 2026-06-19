@@ -102,6 +102,25 @@ float wfm_awgn_amplitude(float snr_db, float signal_power);
  * @endcode
  */
 float wfm_ebno_to_snr_db(float ebno_db, int bits_per_symbol, float samples_per_symbol);
+
+/**
+ * @brief Maximal-length-sequence primitive polynomial for a length-@p n LFSR.
+ * Returns the tap mask (in the same bit convention the synth/PN engine uses
+ * for `pn_poly = 0`) that drives an @p n-stage Fibonacci LFSR through its full
+ * 2^n - 1 state period.  Thin public alias over the synth engine's MLS table;
+ * valid for @p n in 2..64 and returns 0 otherwise.
+ *
+ * @param n  LFSR length in stages (2..64).
+ * @return Primitive-polynomial tap mask, or 0 if @p n is out of range.
+ * @code
+ * >>> from doppler.wfm import mls_poly
+ * >>> hex(mls_poly(7))
+ * '0x41'
+ * @endcode
+ */
+uint64_t mls_poly(uint32_t n);
+void rrc_taps(double beta, int sps, int span, float *out);
+void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
 #ifdef __cplusplus
 }
 #endif

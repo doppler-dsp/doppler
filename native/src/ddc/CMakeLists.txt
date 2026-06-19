@@ -49,11 +49,10 @@ target_include_directories(
   bench_ddc_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
 if(BUILD_PYTHON)
-# ddc Python module — aggregates: DDC, DDCR
+# ddc Python module — aggregates: DDC
 Python3_add_library(ddc MODULE WITH_SOABI ddc_ext.c)
 target_link_libraries(ddc PRIVATE
     ddc_core
-    ddcr_core
     lo_core
     RateConverter_core
     resamp_core

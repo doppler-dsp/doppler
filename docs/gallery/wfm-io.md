@@ -28,22 +28,23 @@ extension / else raw); raw is the one case that needs a `sample_type` hint.
 ## Building it
 
 ```python
-from doppler.wfm import Composer, Reader, Segment, Writer, sigmf_meta
+from doppler.wfm import Composer, Reader, Segment, Writer
 
 seg = Segment("qpsk", fs=1e6, freq=1.5e5, snr=20, sps=8, num_samples=1 << 14)
-x = Composer([seg]).compose()
+comp = Composer([seg])
+x = comp.compose()
 
 # BLUE: one self-describing file — fs/fc tagged on write, recovered on read.
 with Writer("cap.blue", file_type="blue", sample_type="cf32", fs=1e6, fc=2.4e9) as w:
     w.write(x)
 with Reader("cap.blue") as r:                 # container auto-detected
-    y, fs = r.read_all(), r.fs                 # fs recovered from the header
+    y, fs = r.read(r.num_samples), r.fs        # fs recovered from the header
 
-# SigMF is a pair: Writer lays down .sigmf-data; sigmf_meta() writes the sidecar.
+# SigMF is a pair: Writer lays down .sigmf-data; Composer.to_sigmf() the sidecar.
 with Writer("cap.sigmf-data", file_type="sigmf", sample_type="cf32", fs=1e6, fc=2.4e9) as w:
     w.write(x)
 open("cap.sigmf-meta", "w").write(
-    sigmf_meta(sample_type="cf32", fs=1e6, fc=2.4e9, segments=[seg])
+    comp.to_sigmf(sample_type="cf32", fs=1e6, fc=2.4e9)
 )
 ```
 

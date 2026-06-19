@@ -1,22 +1,19 @@
-"""ddc_fn_demo.py — functional DDCR API demo (state as a PyCapsule).
+"""ddc_fn_demo.py — the Ddcr handle: real passband to complex baseband.
 
-The ``doppler.ddc`` package exposes two faces of the same digital
-down-converter:
+``doppler.ddc.Ddcr`` is a generated ``kind="handle"`` class over an opaque
+``ddcr_state_t *``. It owns the C state like an object, yet ``execute()`` writes
+into a **caller-provided** output buffer — so the caller keeps control of
+lifetime and allocation, handy for pipelines that already manage their own
+arrays and want zero per-call allocation.
 
-  * ``DDCR`` — an object wrapping the C state in a Python type, and
-  * the **functional** ``ddcr_*`` API (this demo) — free functions that pass
-    an opaque ``state`` capsule explicitly, so the caller owns lifetime and
-    the output buffer.  Handy for pipelines that already manage their own
-    arrays and want zero per-call allocation.
-
-A DDCR takes a **real** float32 passband signal, mixes it down with a fine
+A Ddcr takes a **real** float32 passband signal, mixes it down with a fine
 NCO, low-pass filters, and **decimates** — emitting **complex64** baseband.
 To park a real tone at carrier ``f_carrier`` (normalised to ``fs_in``) at DC,
 set ``norm_freq = -(2 * f_carrier + 0.5)`` (the NCO runs at ``fs_in / 2``).
 
 Shows:
-  1. Lifecycle     — create → get/set → execute → reset → destroy (+ the
-                     post-destroy RuntimeError guard)
+  1. Lifecycle     — create → get/set → execute → reset → close (+ the
+                     post-close RuntimeError guard)
   2. Tuning        — a real tone at f_carrier lands at DC after mixing
   3. Streaming     — block-by-block execute into one caller-owned buffer
   4. Spectral plot — input passband → baseband output → retuned output
@@ -33,15 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.ddc import (
-    ddcr_create,
-    ddcr_destroy,
-    ddcr_execute,
-    ddcr_get_norm_freq,
-    ddcr_get_rate,
-    ddcr_reset,
-    ddcr_set_norm_freq,
-)
+from doppler.ddc import Ddcr
 
 FS_IN = 1.0  # everything normalised to the input sample rate
 RATE = 0.25  # decimate 4× → fs_out = 0.25 · fs_in
@@ -94,28 +83,27 @@ def _peak_fn(x: np.ndarray) -> float:
 
 
 def demo_lifecycle():
-    print("--- 1. Lifecycle (functional API) ---")
-    state = ddcr_create(_lo_for_carrier(0.18), RATE)
+    print("--- 1. Lifecycle (Ddcr handle) ---")
+    ddcr = Ddcr(_lo_for_carrier(0.18), RATE)
     print(
-        f"  created      norm_freq={ddcr_get_norm_freq(state):+.4f}  "
-        f"rate={ddcr_get_rate(state):.4f}"
+        f"  created      norm_freq={ddcr.norm_freq:+.4f}  rate={ddcr.rate:.4f}"
     )
 
-    ddcr_set_norm_freq(state, _lo_for_carrier(0.14))
+    ddcr.norm_freq = _lo_for_carrier(0.14)
     print(
-        f"  retuned      norm_freq={ddcr_get_norm_freq(state):+.4f}  "
+        f"  retuned      norm_freq={ddcr.norm_freq:+.4f}  "
         f"(phase-continuous, no history reset)"
     )
 
-    ddcr_reset(state)
+    ddcr.reset()
     print("  reset        halfband / LO phase / resampler history zeroed")
 
-    ddcr_destroy(state)
-    print("  destroyed    C resources released")
+    ddcr.close()
+    print("  closed       C resources released")
     try:
-        ddcr_execute(state, np.zeros(8, np.float32), np.empty(8, np.complex64))
+        ddcr.execute(np.zeros(8, np.float32), np.empty(8, np.complex64))
     except RuntimeError:
-        print("  use-after-destroy correctly raises RuntimeError\n")
+        print("  use-after-close correctly raises RuntimeError\n")
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +119,10 @@ def demo_tuning():
     print(f"  {'-' * 10}  {'-' * 10}  {'-' * 12}")
     for f_carrier in (0.10, 0.18, 0.30):
         x = _real_passband(f_carrier, n, rng)
-        state = ddcr_create(_lo_for_carrier(f_carrier), RATE)
+        ddcr = Ddcr(_lo_for_carrier(f_carrier), RATE)
         out = np.empty(n, dtype=np.complex64)
-        y = np.array(ddcr_execute(state, x, out), copy=True)
-        ddcr_destroy(state)
+        y = np.array(ddcr.execute(x, out), copy=True)
+        ddcr.close()
         y_settled = y[len(y) // 10 :]  # drop filter transient
         print(
             f"  {f_carrier:>10.3f}  {_lo_for_carrier(f_carrier):>+10.3f}  "
@@ -152,15 +140,15 @@ def demo_streaming():
     print("--- 3. Streaming: block-by-block into one buffer ---")
     rng = np.random.default_rng(2)
     n_block = 4096
-    state = ddcr_create(_lo_for_carrier(0.18), RATE)
+    ddcr = Ddcr(_lo_for_carrier(0.18), RATE)
     out = np.empty(n_block, dtype=np.complex64)  # reused every block
     total_in = total_out = 0
     for _ in range(4):
         x = _real_passband(0.18, n_block, rng)
-        y = ddcr_execute(state, x, out)  # zero-copy view of out[:n_out]
+        y = ddcr.execute(x, out)  # zero-copy view of out[:n_out]
         total_in += len(x)
         total_out += len(y)
-    ddcr_destroy(state)
+    ddcr.close()
     print(
         f"  fed {total_in} real samples in 4 blocks → "
         f"{total_out} complex samples  (≈{total_in / total_out:.1f}× "
@@ -186,18 +174,14 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
     x = _real_passband(f_carrier, n, rng)
 
     # baseband output (LO parks the carrier at DC)
-    s_dc = ddcr_create(_lo_for_carrier(f_carrier), RATE)
-    y_dc = np.array(
-        ddcr_execute(s_dc, x, np.empty(n, np.complex64)), copy=True
-    )
-    ddcr_destroy(s_dc)
+    d_dc = Ddcr(_lo_for_carrier(f_carrier), RATE)
+    y_dc = np.array(d_dc.execute(x, np.empty(n, np.complex64)), copy=True)
+    d_dc.close()
 
     # retuned output (LO 0.04 below the carrier → tone lands above DC)
-    s_off = ddcr_create(_lo_for_carrier(0.14), RATE)
-    y_off = np.array(
-        ddcr_execute(s_off, x, np.empty(n, np.complex64)), copy=True
-    )
-    ddcr_destroy(s_off)
+    d_off = Ddcr(_lo_for_carrier(0.14), RATE)
+    y_off = np.array(d_off.execute(x, np.empty(n, np.complex64)), copy=True)
+    d_off.close()
 
     drop = lambda y: y[len(y) // 10 :]  # noqa: E731 — drop transient
     panels = [
@@ -211,14 +195,14 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
         (
             drop(y_dc),
             "#4ade80",
-            "DDCR output — LO tuned to carrier (tone at DC)",
+            "Ddcr output — LO tuned to carrier (tone at DC)",
             "fs_out",
             0.0,
         ),
         (
             drop(y_off),
             "#fbbf24",
-            "DDCR output — LO retuned 0.04 below carrier",
+            "Ddcr output — LO retuned 0.04 below carrier",
             "fs_out",
             None,
         ),
@@ -226,7 +210,7 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
 
     fig, axes = plt.subplots(3, 1, figsize=(10, 7.2), constrained_layout=True)
     fig.suptitle(
-        "doppler — functional DDCR API (ddcr_create / ddcr_execute)\n"
+        "doppler — Ddcr handle (real → complex baseband)\n"
         f"real {n}-sample input → complex baseband, {int(1 / RATE)}× "
         "decimation",
         fontsize=12,
@@ -289,7 +273,7 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("=== doppler functional DDCR (ddc_fn) demo ===\n")
+    print("=== doppler Ddcr handle demo ===\n")
     demo_lifecycle()
     demo_tuning()
     demo_streaming()

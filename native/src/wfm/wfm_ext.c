@@ -87,6 +87,67 @@ _bind_wfm_ebno_to_snr_db(PyObject *self, PyObject *args, PyObject *kwds)
     return PyFloat_FromDouble((double)wfm_ebno_to_snr_db(ebno_db, bits_per_symbol, samples_per_symbol));
 }
 
+static PyObject *
+_bind_mls_poly(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"n", NULL};
+    unsigned long n_raw = 0UL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "k",
+            _kwlist, &n_raw))
+        return NULL;
+    uint32_t n = (uint32_t)n_raw;
+    return PyLong_FromUnsignedLongLong((unsigned long long)mls_poly(n));
+}
+
+static PyObject *
+_bind_rrc_taps(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"beta", "sps", "span", NULL};
+    double beta = 0.0;
+    int sps = 0;
+    int span = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "dii",
+            _kwlist, &beta, &sps, &span))
+        return NULL;
+    npy_intp _dim = (npy_intp)(2 * span * sps + 1);
+    PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_FLOAT, 0);
+    if (!_out) { return NULL; }
+    rrc_taps(beta, sps, span, (float *)PyArray_DATA((PyArrayObject *)_out));
+    return _out;
+}
+
+static PyObject *
+_bind_dsss_spread(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"syms", "code", "sf", NULL};
+    PyObject *syms_obj = NULL;
+    PyObject *code_obj = NULL;
+    int sf = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "OOi",
+            _kwlist, &syms_obj, &code_obj, &sf))
+        return NULL;
+    PyArrayObject *syms_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        syms_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+    if (!syms_arr) { return NULL; }
+    const float complex *syms = (const float complex *)PyArray_DATA(syms_arr);
+    size_t syms_len = (size_t)PyArray_SIZE(syms_arr);
+    PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+    if (!code_arr) { Py_DECREF(syms_arr); return NULL; }
+    const uint8_t *code = (const uint8_t *)PyArray_DATA(code_arr);
+    size_t code_len = (size_t)PyArray_SIZE(code_arr);
+    npy_intp _dim = (npy_intp)(syms_len * sf);
+    PyObject *_out = PyArray_EMPTY(1, &_dim, NPY_COMPLEX64, 0);
+    if (!_out) {Py_DECREF(syms_arr); Py_DECREF(code_arr); return NULL; }
+    dsss_spread(syms, syms_len, code, code_len, sf, (float complex *)PyArray_DATA((PyArrayObject *)_out));
+    Py_DECREF(syms_arr);
+    Py_DECREF(code_arr);
+    return _out;
+}
+
 
 /* ======================================================== */
 /* Module                                                    */
@@ -97,6 +158,9 @@ static PyMethodDef wfm_module_methods[] = {
     {"qpsk_map", (PyCFunction)(void *)_bind_qpsk_map, METH_VARARGS | METH_KEYWORDS, "Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."},
     {"wfm_awgn_amplitude", (PyCFunction)(void *)_bind_wfm_awgn_amplitude, METH_VARARGS | METH_KEYWORDS, "AWGN amplitude for a target SNR (dB, over fs) given signal power."},
     {"wfm_ebno_to_snr_db", (PyCFunction)(void *)_bind_wfm_ebno_to_snr_db, METH_VARARGS | METH_KEYWORDS, "Convert Eb/No (dB) to SNR (dB over fs)."},
+    {"mls_poly", (PyCFunction)(void *)_bind_mls_poly, METH_VARARGS | METH_KEYWORDS, "Maximal-length-sequence primitive polynomial for an LFSR of length n."},
+    {"rrc_taps", (PyCFunction)(void *)_bind_rrc_taps, METH_VARARGS | METH_KEYWORDS, "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."},
+    {"dsss_spread", (PyCFunction)(void *)_bind_dsss_spread, METH_VARARGS | METH_KEYWORDS, "Direct-sequence spread syms by the ±1 chip code; yields len(syms)*sf chips."},
     {NULL, NULL, 0, NULL}
 };
 

@@ -43,7 +43,10 @@ def test_bench_reader(benchmark, samples, tmp_path, file_type, stype):
         w.write(samples)
 
     def read():
-        Reader(p, sample_type=stype).read_all()
+        r = Reader(p, sample_type=stype)
+        while len(r.read(65536)):
+            pass
+        r.close()
 
     benchmark(read)
     if benchmark.stats:

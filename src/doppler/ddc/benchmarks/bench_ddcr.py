@@ -1,4 +1,4 @@
-"""Benchmark for DDCR.
+"""Benchmark for Ddcr (the generated kind="handle" class).
 
 Run: pytest src/doppler/ddc/benchmarks/bench_ddcr.py --benchmark-only
 """
@@ -6,7 +6,7 @@ Run: pytest src/doppler/ddc/benchmarks/bench_ddcr.py --benchmark-only
 import pytest
 import numpy as np
 
-from doppler.ddc import DDCR
+from doppler.ddc import Ddcr
 
 BLOCK_1K = 1_024
 BLOCK_64K = 65_536
@@ -14,12 +14,13 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return DDCR(0.0, 0.25)
+    return Ddcr(0.0, 0.25)
 
 
 def test_bench_execute_1k(benchmark, obj):
     x = np.ones(BLOCK_1K, dtype=np.float32)
-    benchmark(obj.execute, x)
+    out = np.empty(BLOCK_1K, dtype=np.complex64)
+    benchmark(obj.execute, x, out)
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (
             BLOCK_1K / benchmark.stats["mean"] / 1e6
@@ -28,7 +29,8 @@ def test_bench_execute_1k(benchmark, obj):
 
 def test_bench_execute_64k(benchmark, obj):
     x = np.ones(BLOCK_64K, dtype=np.float32)
-    benchmark(obj.execute, x)
+    out = np.empty(BLOCK_64K, dtype=np.complex64)
+    benchmark(obj.execute, x, out)
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (
             BLOCK_64K / benchmark.stats["mean"] / 1e6

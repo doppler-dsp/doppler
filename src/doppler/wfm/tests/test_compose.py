@@ -13,12 +13,13 @@ import random
 import shutil
 import struct
 import subprocess
+import sys
 import time
 
 import numpy as np
 import pytest
 
-from doppler.wfm import _wfmcompose as _c
+from doppler.wfm import mls_poly, rrc_taps, dsss_spread
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -27,17 +28,22 @@ from doppler.wfm.compose import (
     Timeline,
     Writer,
     ZmqSink,
-    dsss_spread,
-    mls_poly,
     noise,
-    paced,
     qpsk,
-    rrc_taps,
-    sigmf_meta,
     tone,
     write_blue_header,
 )
 from doppler.wfm.readback import read_iq
+
+
+def _read_all(r):
+    """Drain a Reader into one array via blocked read() (the generated handle
+    exposes read(n); read_all was an old hand-class convenience)."""
+    chunks, blk = [], r.read(65536)
+    while len(blk):
+        chunks.append(blk)
+        blk = r.read(65536)
+    return np.concatenate(chunks) if chunks else np.empty(0, np.complex64)
 
 
 def _wfmgen_bin():
@@ -57,14 +63,16 @@ _WFMGEN = _wfmgen_bin()
 _needs_wfmgen = pytest.mark.skipif(
     _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
-# ZmqSink is POSIX-only; the C extension omits sink_* off-platform.
+# ZmqSink and SampleClock are POSIX-only (the vendored zmq is POSIX-only; the
+# clock uses clock_gettime / nanosleep). The generated handles are gated the
+# same way the retired capsule bindings were (#ifndef _WIN32), so key the skips
+# off the platform now that those probe symbols are gone (gh-178 review #7).
 _needs_zmq = pytest.mark.skipif(
-    not hasattr(_c, "sink_open"),
+    sys.platform == "win32",
     reason="ZmqSink not available on this platform",
 )
-# SampleClock is POSIX-only too (clock_gettime / nanosleep).
 _needs_clock = pytest.mark.skipif(
-    not hasattr(_c, "clock_create"),
+    sys.platform == "win32",
     reason="SampleClock not available on this platform",
 )
 
@@ -256,6 +264,32 @@ def test_dsss_spread():
     assert np.allclose(out[4:], [-1, 1, -1, 1])
 
 
+def test_dsss_spread_bad_inputs_do_not_crash():
+    """gh-178 review #2: the generated binding no longer validates sf /
+    len(code), so the C alias guards defensively (no raise) against the misuse
+    the retired hand binding rejected — a code shorter than sf (heap over-read)
+    and sf < 1 (unbounded write). The output is zeroed, never out-of-bounds."""
+    syms = np.array([1 + 0j, -1 + 0j], dtype=np.complex64)
+
+    # code shorter than sf: would over-read code[2..63]; now returns zeros.
+    short = np.zeros(2, dtype=np.uint8)
+    out = dsss_spread(syms, short, 64)
+    assert out.shape == (2 * 64,)
+    assert np.all(out == 0)
+
+    # sf == 0: empty output, no write.
+    assert dsss_spread(syms, short, 0).shape == (0,)
+
+
+def test_rrc_taps_bad_inputs_do_not_crash():
+    """gh-178 review #4: sps/span < 1 no longer divides by zero in the kernel
+    (inf/NaN taps); the alias returns a zeroed array of the binding length."""
+    t = rrc_taps(0.35, sps=0, span=0)
+    assert t.shape == (1,) and np.all(t == 0)
+    t = rrc_taps(0.35, sps=0, span=6)
+    assert np.all(np.isfinite(t)) and np.all(t == 0)
+
+
 def test_context_manager_and_idempotent_close():
     with Composer(type="tone", num_samples=64) as c:
         assert len(c.execute(64)) == 64
@@ -277,7 +311,7 @@ def test_zmqsink_loopback_to_subscriber():
     x = Composer(type="tone", freq=1e5, num_samples=512).compose()
     with ZmqSink(ep, sample_type="cf64") as sink, Subscriber(ep) as sub:
         time.sleep(0.15)  # PUB/SUB subscription warm-up
-        sink.send(x, fs=1e6, fc=2.4e9)
+        sink.send(x, 1e6, 2.4e9)
         samples, hdr = sub.recv(timeout_ms=2000)
     assert samples.dtype == np.complex128 and len(samples) == 512
     assert np.allclose(samples, x.astype(np.complex128), atol=1e-6)
@@ -354,11 +388,11 @@ def test_stream_continuous_is_infinite():
 
 @_needs_clock
 def test_stream_realtime_paces():
-    """paced(stream, fs) paces blocks at the segment's fs (~ N/fs total)."""
-    # 100 blocks of 1000 @ 1e5 = 1.0 s; paced() at segments[0].fs.
+    """stream(block, realtime=fs) paces blocks in C at fs (~ N/fs total)."""
+    # 100 blocks of 1000 @ 1e5 = 1.0 s; paced at segments[0].fs.
     c = Composer(type="tone", fs=1e5, num_samples=100_000)
     t0 = time.perf_counter()
-    n = sum(len(b) for b in paced(c.stream(1000), fs=c.segments[0].fs))
+    n = sum(len(b) for b in c.stream(1000, realtime=c.segments[0].fs))
     elapsed = time.perf_counter() - t0
     assert n == 100_000
     assert 0.9 < elapsed < 1.4, (
@@ -368,10 +402,10 @@ def test_stream_realtime_paces():
 
 @_needs_clock
 def test_stream_realtime_float_rate_overrides():
-    """A faster paced() rate drains quickly."""
+    """A faster realtime rate drains quickly."""
     c = Composer(type="tone", fs=1e5, num_samples=10_000)
     t0 = time.perf_counter()
-    list(paced(c.stream(1000), fs=1e7))  # 10 MS/s → ~1 ms total
+    list(c.stream(1000, realtime=1e7))  # 10 MS/s → ~1 ms total
     assert time.perf_counter() - t0 < 0.3
 
 
@@ -456,6 +490,22 @@ def test_sampleclock_releases_gil():
     assert ticks > 10, f"main thread only ran {ticks}x — GIL not released?"
 
 
+@_needs_clock
+def test_sampleclock_nonpositive_fs_is_safe():
+    """gh-178 review #4: the generated binding no longer rejects fs <= 0 (the
+    retired hand binding raised "fs must be > 0"). A non-positive fs would make
+    n/fs infinite and casting that to uint64_t is UB — inf deadlines / garbage
+    stamps. The C offset_ns now treats fs <= 0 as a zero offset: stamp stays
+    finite at the epoch and pace returns immediately instead of sleeping."""
+    clk = SampleClock(fs=0.0)
+    s0 = clk.stamp()
+    assert isinstance(s0, int) and s0 >= 0  # finite, not an inf-cast
+    t0 = time.perf_counter()
+    clk.pace(1_000_000)  # would be "infinite" samples/0 Hz -> must not block
+    assert time.perf_counter() - t0 < 0.5
+    assert clk.stamp() == s0  # no time advances without a rate
+
+
 @pytest.mark.parametrize(
     "file_type,ext,stype,tol",
     [
@@ -479,7 +529,7 @@ def test_reader_roundtrips_each_container(
     with Reader(p, sample_type=stype) as r:
         assert r.file_type == file_type  # container auto-detected
         assert r.sample_type == stype
-        y = r.read_all()
+        y = _read_all(r)
     assert len(y) == len(x)
     assert np.max(np.abs(y - x)) < tol
 
@@ -496,7 +546,7 @@ def test_reader_blue_recovers_metadata(tmp_path):
         assert r.sample_type == "ci16"  # recovered, not the cf32 default
         assert r.fs == pytest.approx(2.4e6)
         assert r.num_samples == 2048
-        y = r.read_all()
+        y = _read_all(r)
     assert np.max(np.abs(y - x)) < 1e-3
 
 
@@ -508,12 +558,12 @@ def test_reader_sigmf_pair(tmp_path):
     with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(x)
     (tmp_path / "cap.sigmf-meta").write_text(
-        sigmf_meta(sample_type="cf32", fs=1e6, segments=spec)
+        Composer(spec).to_sigmf(sample_type="cf32", fs=1e6)
     )
     with Reader(data) as r:
         assert r.file_type == "sigmf"
         assert r.fs == pytest.approx(1e6)
-        assert np.allclose(r.read_all(), x)
+        assert np.allclose(_read_all(r), x)
 
 
 def test_reader_matches_read_iq_for_raw(tmp_path):
@@ -522,7 +572,7 @@ def test_reader_matches_read_iq_for_raw(tmp_path):
     p = tmp_path / "cap.ci32"
     with Writer(p, sample_type="ci32", fs=1e6) as w:
         w.write(x)
-    via_reader = Reader(str(p), sample_type="ci32").read_all()
+    via_reader = _read_all(Reader(str(p), sample_type="ci32"))
     via_read_iq = read_iq(str(p), "ci32")
     # Both divide by the same full-scale; the C reader does it scalar, read_iq
     # via the SIMD cvt converter, so they agree to float precision (not bitwise).
@@ -536,7 +586,7 @@ def test_reader_blocked_read_matches_read_all(tmp_path):
     p = tmp_path / "cap.cf32"
     with Writer(p) as w:
         w.write(x)
-    whole = Reader(str(p)).read_all()
+    whole = _read_all(Reader(str(p)))
     r = Reader(str(p))
     chunks, blk = [], r.read(256)
     while len(blk):
@@ -551,13 +601,14 @@ def test_reader_idempotent_close(tmp_path):
     with Writer(p) as w:
         w.write(Composer(type="tone", num_samples=64).compose())
     r = Reader(str(p))
-    r.read_all()
+    _read_all(r)
     r.close()
     r.close()  # idempotent
 
 
 def test_reader_missing_file_raises(tmp_path):
-    with pytest.raises(OSError):
+    # The generated handle raises RuntimeError when the C open returns NULL.
+    with pytest.raises((OSError, RuntimeError)):
         Reader(str(tmp_path / "does-not-exist.cf32"))
 
 
@@ -577,7 +628,7 @@ def test_sigmf_meta_and_data_pair(tmp_path):
     data = tmp_path / "cap.sigmf-data"
     with Writer(data, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(x)
-    meta = json.loads(sigmf_meta(sample_type="cf32", fs=1e6, segments=spec))
+    meta = json.loads(Composer(spec).to_sigmf(sample_type="cf32", fs=1e6))
     assert meta["global"]["core:sample_rate"] == 1e6
     assert meta["global"]["core:datatype"] == "cf32_le"
     assert len(meta["annotations"]) == 2  # one per segment
@@ -585,8 +636,11 @@ def test_sigmf_meta_and_data_pair(tmp_path):
 
 
 def test_writer_clip_detection(tmp_path):
-    """Writer tracks the peak (always) and the clipped fraction (opt-in),
-    and the values survive close()."""
+    """Writer tracks the peak (always) and the clipped fraction (opt-in).
+
+    The generated handle reads stats live from the open writer, so read them
+    before close(); after close() any property access raises (handle freed).
+    """
     # peak magnitude 2.0 (clips in ci16); 2 of 4 components exceed full-scale.
     x = np.array([1.5 + 0.5j, -0.5 - 2.0j], dtype=np.complex64)
     w = Writer(tmp_path / "clip.ci16", sample_type="ci16")
@@ -596,7 +650,8 @@ def test_writer_clip_detection(tmp_path):
     assert abs(w.peak_dbfs - 20.0 * np.log10(2.0)) < 1e-4
     assert abs(w.clip_fraction - 0.5) < 1e-6
     w.close()
-    assert w.clipped  # snapshot survives close
+    with pytest.raises(RuntimeError):
+        _ = w.clipped  # the handle is freed; live stats are no longer readable
 
     # clean at full scale: peak 0 dBFS, no clip.
     c = Writer(tmp_path / "clean.ci16", sample_type="ci16")

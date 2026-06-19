@@ -285,13 +285,13 @@ from doppler.wfm import Composer, Writer, Reader
 Composer(type="qpsk", sps=8, num_samples=4096).compose()  # ... write it ...
 with Reader("capture.blue") as r:          # container auto-detected
     print(r.file_type, r.fs, r.num_samples)
-    x = r.read_all()                        # or block-wise: r.read(4096)
+    x = r.read(r.num_samples)               # or block-wise: r.read(4096)
 ```
 
 For a quick raw-only read with no object, `read_iq` still works;
 `Reader` is the full container-aware dual. `Writer` pairs with `read_iq` or
 `Reader`; for SigMF, pair a `Writer(..., file_type="sigmf")` data file with
-`sigmf_meta(...)`, and for detached BLUE use `write_blue_header(...)`. The
+`Composer(...).to_sigmf(...)`, and for detached BLUE use `write_blue_header(...)`. The
 `ZmqSink` is POSIX-only. DSP
 helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
 pulse-shaping and spreading primitives.
@@ -336,16 +336,15 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ### Module-level helpers
 
-::: doppler.wfm.compose.paced
-
-::: doppler.wfm.compose.sigmf_meta
+The SigMF sidecar is now `Composer(...).to_sigmf(...)` — see the `Composer`
+class above.
 
 ::: doppler.wfm.compose.write_blue_header
 
-::: doppler.wfm.compose.rrc_taps
+::: doppler.wfm.rrc_taps
 
-::: doppler.wfm.compose.dsss_spread
+::: doppler.wfm.dsss_spread
 
-::: doppler.wfm.compose.mls_poly
+::: doppler.wfm.mls_poly
 
 ::: doppler.wfm.readback.read_iq

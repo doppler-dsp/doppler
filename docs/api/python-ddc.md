@@ -13,9 +13,11 @@ ______________________________________________________________________
 | Class  | Input        | Cost        | Use when                      |
 | ------ | ------------ | ----------- | ----------------------------- |
 | `DDC`  | CF32 IQ      | baseline    | complex ADC, already at fs    |
-| `DDCR` | float32 real | ~2× cheaper | real ADC, direct-sampling SDR |
+| `Ddcr` | float32 real | ~2× cheaper | real ADC, direct-sampling SDR |
 
-Both produce CF32 IQ at the decimated output rate.
+Both produce CF32 IQ at the decimated output rate. `DDC` owns and pre-allocates
+its output buffer (`y = ddc.execute(x)`); `Ddcr` takes a caller-provided output
+buffer (`y = ddcr.execute(x, out)`) so allocation and buffer reuse are explicit.
 
 ______________________________________________________________________
 
@@ -58,7 +60,7 @@ for block in iq_stream:     # generator of CF32 arrays
 
 ______________________________________________________________________
 
-## `DDCR` — real input (Architecture D2)
+## `Ddcr` — real input (Architecture D2)
 
 Signal chain: halfband R2C (2:1, embedded −fs/4 shift, zero extra
 multiplications) → LO mix at fs/2 → polyphase resample.
@@ -67,19 +69,24 @@ multiplications) → LO mix at fs/2 → polyphase resample.
 operates at half the sample rate and the embedded mix costs zero extra
 multiplications.
 
+`Ddcr` is a generated typed handle over the opaque `ddcr_state_t`. `execute()`
+takes a **caller-provided writable `complex64` output buffer** and returns the
+zero-copy view `out[:n_out]`, so allocation and buffer reuse are explicit.
+
 **Frequency convention:** `norm_freq = -(2*f_carrier + 0.5)`
 The −0.5 cancels the halfband's embedded −fs/4 shift.
 
 ```python
-from doppler.ddc import DDCR
+from doppler.ddc import Ddcr
 import numpy as np
 
 # Tune to a tone at f_carrier=0.1·fs; real ADC, decimate 4×
 #   norm_freq at intermediate rate: -(2 * 0.1 + 0.5) = -0.7
-ddc = DDCR(norm_freq=-0.7, rate=0.25)
+ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 
 x = np.random.randn(4096).astype(np.float32)   # real ADC samples
-y = ddc.execute(x)          # CF32 output, len(y) ≈ 4096/2 * 0.25 = 512
+out = np.empty(len(x), dtype=np.complex64)     # caller buffer (reuse across calls)
+y = ddcr.execute(x, out)    # CF32 view out[:n_out], len(y) ≈ 4096/2 * 0.25 = 512
 ```
 
 ______________________________________________________________________
@@ -88,103 +95,82 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-::: doppler.ddc.DDCR
+::: doppler.ddc.Ddcr
 
 ______________________________________________________________________
 
-## Functional DDCR API
+## `Ddcr` usage patterns
 
-The `ddcr_*` free functions expose the same DDCR algorithm with state
-passed explicitly as an opaque handle. The caller also supplies the
-output buffer, making allocation strategy and buffer reuse entirely
-explicit.
-
-**When to prefer the functional API over `DDCR`:**
-
-- You want to manage multiple independent streams without keeping a
-    collection of class instances.
-- You are composing pipelines functionally and need state to be a
-    first-class value you can pass, store, and share across call sites.
-- You want deterministic control over when C memory is released
-    (`ddcr_destroy`) vs. relying on the GC.
-
-**When to prefer `DDCR`:**
-
-- The object owns and pre-allocates its output buffer — one less array
-    to manage when block size is fixed.
-- Slightly more ergonomic for simple single-stream use.
-
-### Throughput
-
-Both APIs call the same C code. Benchmarks on 65 536-sample blocks show
-identical throughput — the per-call Python overhead is under 1 µs.
+`Ddcr` consolidates the former `DDCR` object and the `ddcr_*` free functions into
+one typed handle. The caller supplies the output buffer, making allocation
+strategy and buffer reuse entirely explicit — ideal for streaming and
+sharded-worker designs.
 
 ### Buffer sizing
 
-A decimating DDCR never produces more output samples than it consumes
-input. An output buffer of `len(x)` elements is always sufficient:
+A decimating `Ddcr` never produces more output samples than it consumes. An
+output buffer of `len(x)` elements is always sufficient; `execute` returns the
+trimmed zero-copy view `out[:n_out]`:
 
 ```python
 out = np.empty(len(x), dtype=np.complex64)
-y = ddcr_execute(state, x, out)   # len(y) <= len(x)
+y = ddcr.execute(x, out)            # len(y) <= len(x), zero-copy view of out
 ```
 
-### Basic usage
+### Streaming loop — no per-call allocation
 
 ```python
 import numpy as np
-from doppler.ddc import ddcr_create, ddcr_execute, ddcr_destroy
+from doppler.ddc import Ddcr
 
-# Allocate state once
-state = ddcr_create(norm_freq=-0.7, rate=0.25)
+ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
+out = np.empty(4096, dtype=np.complex64)   # allocate once, reuse
 
-# Allocate output buffer once (reuse across calls)
-out = np.empty(4096, dtype=np.complex64)
-
-# Stream processing loop — no per-call allocation
-for x in real_adc_stream():             # x: float32, len 4096
-    y = ddcr_execute(state, x, out)     # y is out[:n_out], zero-copy
+for x in real_adc_stream():                # x: float32, len 4096
+    y = ddcr.execute(x, out)               # y is out[:n_out], zero-copy
     process(y)
-
-ddcr_destroy(state)                     # explicit teardown (GC also works)
 ```
 
 ### Retune mid-stream
 
 ```python
-ddcr_set_norm_freq(state, -(2 * new_carrier + 0.5))
-y = ddcr_execute(state, x, out)         # phase-continuous
+ddcr.norm_freq = -(2 * new_carrier + 0.5)  # writable property; phase-continuous
+y = ddcr.execute(x, out)
 ```
+
+`rate` is read-only (fixed at construction); `norm_freq` is live-writable.
 
 ### Multiple independent streams
 
 ```python
-states = [ddcr_create(-0.7, 0.25) for _ in range(num_channels)]
-bufs   = [np.empty(N, dtype=np.complex64) for _ in range(num_channels)]
+chans = [Ddcr(-0.7, 0.25) for _ in range(num_channels)]
+bufs  = [np.empty(N, dtype=np.complex64) for _ in range(num_channels)]
 
-for ch, (s, buf) in enumerate(zip(states, bufs)):
-    y[ch] = ddcr_execute(s, x[ch], buf).copy()  # copy if outputs must outlive next call
-
-for s in states:
-    ddcr_destroy(s)
+for ch, (d, buf) in enumerate(zip(chans, bufs)):
+    y[ch] = d.execute(x[ch], buf).copy()   # copy if it must outlive the next call
 ```
+
+### Throughput
+
+`Ddcr` and `DDC` call the same C kernel; the per-call Python overhead is under
+1 µs on 65 536-sample blocks.
 
 ### Threading — the GIL is released across the kernel
 
-`ddcr_execute` (and `DDC`/`DDCR.execute`) run the pure-C kernel with the **GIL
+`Ddcr.execute` (like `DDC.execute`) runs the pure-C kernel with the **GIL
 released** (`Py_BEGIN_ALLOW_THREADS`; numpy accessors hoisted out first). So a
-**thread-per-shard** worker — each thread owning its own state/object and
-output buffer — scales across cores instead of serialising on the GIL:
+**thread-per-shard** worker — each thread owning its own `Ddcr` and output
+buffer — scales across cores instead of serialising on the GIL:
 
 ```python
 import threading
 
-def worker(state, blocks, out):
-    for x in blocks:                 # this thread's own state + buffer
-        process(ddcr_execute(state, x, out))
+def worker(ddcr, blocks, out):
+    for x in blocks:                 # this thread's own handle + buffer
+        process(ddcr.execute(x, out))
 
 threads = [
-    threading.Thread(target=worker, args=(ddcr_create(-0.7, 0.25),
+    threading.Thread(target=worker, args=(Ddcr(-0.7, 0.25),
                                           shard, np.empty(N, np.complex64)))
     for shard in shards
 ]
@@ -193,31 +179,28 @@ for t in threads: t.join()
 ```
 
 Measured ~5–8× across 8–12 cores (then memory-bandwidth bound). **Contract:**
-one state/object per stream — never share a handle across threads concurrently
-(no internal lock). This is the basis of the sharded-microservice model; see
-the [functional DDCR gallery walkthrough](../gallery/ddc-fn.md).
+one `Ddcr` per stream — never share a handle across threads concurrently (no
+internal lock). This is the basis of the sharded-microservice model; see
+the [Ddcr gallery walkthrough](../gallery/ddc-fn.md).
 
 ### Lifecycle and memory safety
 
-| Scenario                       | Safe?                                                   |
-| ------------------------------ | ------------------------------------------------------- |
-| GC without `ddcr_destroy`      | Yes — destructor frees state                            |
-| `ddcr_destroy` then GC         | Yes — destructor skips already-freed state              |
-| Live view after `ddcr_destroy` | Yes — view lives in caller's `out` buffer, not in state |
-| Second call to `ddcr_destroy`  | Raises `RuntimeError`                                   |
-| Any call after `ddcr_destroy`  | Raises `RuntimeError`                                   |
-| `None` or wrong type as state  | Raises `TypeError` / `ValueError`                       |
+`Ddcr` is an RAII handle: `close()` (or a `with` block) releases the C state
+deterministically; otherwise the destructor frees it.
 
-### API reference
-
-Full parameter and return-type documentation is available at the REPL:
+| Scenario                  | Safe?                                                   |
+| ------------------------- | ------------------------------------------------------- |
+| GC without `close()`      | Yes — destructor frees state                            |
+| `close()` then GC         | Yes — destructor skips already-freed state              |
+| Live view after `close()` | Yes — view lives in caller's `out` buffer, not in state |
+| Second call to `close()`  | No-op (idempotent)                                      |
+| Any call after `close()`  | Raises `RuntimeError`                                   |
 
 ```python
-help(ddcr_create)
-help(ddcr_execute)
+with Ddcr(-0.7, 0.25) as ddcr:      # state released on exit
+    y = ddcr.execute(x, out)
+    process(y)
 ```
-
-and in the type stubs (`ddc.pyi`) for IDE completion.
 
 ______________________________________________________________________
 
@@ -302,7 +285,7 @@ The +0.5 cancels the halfband's embedded −fs/4 shift.
 | **Total (N=19)** | **≈ 11.5 MACs**    | **≈ 5.75 MACs**          |
 
 Architecture D2 is approximately **2× cheaper** than Architecture D for
-real input at any carrier or decimation rate. This is what `DDCR`
+real input at any carrier or decimation rate. This is what `Ddcr`
 implements.
 
 ______________________________________________________________________
@@ -345,7 +328,7 @@ ______________________________________________________________________
 
 ```
 Is your input real (single ADC channel)?
-  YES ─► DDCR / Architecture D2
+  YES ─► Ddcr / Architecture D2
   │        ~2× cheaper at any carrier, any decimation rate
   │        └─ Decimation > 38× after the HB?
   │              ─► Architecture E (planned): embed LO into polyphase taps

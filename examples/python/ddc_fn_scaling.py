@@ -1,12 +1,12 @@
-"""ddc_fn_scaling.py — thread-per-shard core-scaling benchmark for ddc_fn.
+"""ddc_fn_scaling.py — thread-per-shard core-scaling benchmark for Ddcr.
 
-`ddcr_execute` runs the C kernel with the **GIL released** (the kernel touches
-only its own stream's capsule and the caller's buffers — no Python objects, no
+`Ddcr.execute` runs the C kernel with the **GIL released** (the kernel touches
+only its own handle's state and the caller's buffers — no Python objects, no
 shared state), so a thread-per-shard worker scales across cores instead of
 serialising on the GIL.
 
-This measures that: N worker threads, each owning its **own** capsule and `out`
-buffer, all running `ddcr_execute` concurrently. It plots realised speedup
+This measures that: N worker threads, each owning its **own** Ddcr handle and
+`out` buffer, all running `execute` concurrently. It plots realised speedup
 versus an ideal-linear reference and saves ``ddc_fn_scaling.png``.
 
 The curve is near-linear through a handful of cores, then flattens — the kernel
@@ -29,7 +29,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.ddc import ddcr_create, ddcr_destroy, ddcr_execute
+from doppler.ddc import Ddcr
 
 F_CARRIER = 0.18
 LO = -(2.0 * F_CARRIER + 0.5)
@@ -40,14 +40,14 @@ TRIALS = 3  # keep the best (least-noisy) of this many runs
 
 
 def _worker(barrier: threading.Barrier) -> None:
-    """One shard: own capsule, own output buffer, tight execute loop."""
-    state = ddcr_create(LO, RATE)
+    """One shard: own handle, own output buffer, tight execute loop."""
+    ddcr = Ddcr(LO, RATE)
     out = np.empty(NBLK, dtype=np.complex64)
     x = np.cos(2.0 * np.pi * F_CARRIER * np.arange(NBLK)).astype(np.float32)
     barrier.wait()  # release all threads together
     for _ in range(BPT):
-        ddcr_execute(state, x, out)
-    ddcr_destroy(state)
+        ddcr.execute(x, out)
+    ddcr.close()
 
 
 def _throughput(n_threads: int) -> float:
@@ -89,8 +89,8 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
     # ── plot ────────────────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(9, 5.2), constrained_layout=True)
     fig.suptitle(
-        "doppler — functional DDCR thread-per-shard scaling\n"
-        "GIL released across ddcr_execute; one capsule + buffer per thread",
+        "doppler — Ddcr thread-per-shard scaling\n"
+        "GIL released across Ddcr.execute; one handle + buffer per thread",
         fontsize=12,
         color="#f1f5f9",
     )

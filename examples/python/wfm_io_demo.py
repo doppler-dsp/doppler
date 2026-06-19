@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.spectral import PSD
-from doppler.wfm import Composer, Reader, Segment, Writer, sigmf_meta
+from doppler.wfm import Composer, Reader, Segment, Writer
 
 FS = 1e6
 FC = 2.4e9
@@ -54,8 +54,8 @@ def psd_db(x, nfft=1024):
 
 
 # ── the capture: a QPSK signal at +150 kHz, written with fs/fc tagged ────────
-# Keep it as an explicit Segment so SigMF can annotate it (sigmf_meta wants the
-# segment list — each segment becomes one SigMF annotation).
+# Keep it as an explicit Segment so SigMF can annotate it (Composer.to_sigmf
+# annotates each resolved segment).
 seg = Segment("qpsk", fs=FS, freq=1.5e5, snr=20.0, sps=8, num_samples=N)
 x = Composer([seg]).compose()
 
@@ -83,10 +83,10 @@ for file_type, name, read_kw in formats:
         meta_path = path.replace(".sigmf-data", ".sigmf-meta")
         with open(meta_path, "w") as fh:
             fh.write(
-                sigmf_meta(sample_type="cf32", fs=FS, fc=FC, segments=[seg])
+                Composer([seg]).to_sigmf(sample_type="cf32", fs=FS, fc=FC)
             )
     with Reader(path, **read_kw) as r:
-        y = r.read_all()
+        y = r.read(N)  # read the whole capture (N < one read block)
         meta = dict(file_type=r.file_type, fs=r.fs, fc=r.fc)
     size = os.path.getsize(path)
     err = float(np.max(np.abs(y - x))) if len(y) == len(x) else float("nan")

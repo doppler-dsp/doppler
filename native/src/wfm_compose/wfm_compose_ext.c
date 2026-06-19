@@ -16,6 +16,8 @@
 #include "wfm_synth/wfm_synth_core.h"
 /* project bridge (straight C, no CPython): build the generator. */
 extern wfm_synth_state_t *wfm_source_to_synth(const wfm_source_t *, double);
+#include "timing/timing_core.h"
+#include "wfm/wfm_writer.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int
@@ -62,6 +64,21 @@ static const char *const _enum_bitmod[] = {
 static const char *const _enum_wfm_pulse[] = {
     "rect",
     "rrc",
+    NULL,
+};
+
+static const char *const _enum_stype[] = {
+    "cf32",
+    "cf64",
+    "ci32",
+    "ci16",
+    "ci8",
+    NULL,
+};
+
+static const char *const _enum_endian[] = {
+    "le",
+    "be",
     NULL,
 };
 
@@ -1746,6 +1763,8 @@ typedef struct {
     PyObject_HEAD
     PyObject  *composer; /* strong ref to the Composer */
     Py_ssize_t block;
+    double realtime;
+    void *clk;
 } ComposerStreamObject;
 
 static PyTypeObject ComposerStreamType;
@@ -1753,6 +1772,8 @@ static PyTypeObject ComposerStreamType;
 static void
 ComposerStream_dealloc(ComposerStreamObject *self)
 {
+    if (self->clk)
+        dp_sample_clock_destroy(self->clk);
     Py_XDECREF(self->composer);
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
@@ -1780,6 +1801,13 @@ ComposerStream_next(ComposerStreamObject *self)
         Py_DECREF(blk);
         return NULL;
     }
+    if (self->realtime > 0.0) {
+        if (!self->clk)
+            self->clk = dp_sample_clock_create(self->realtime, 0);
+        Py_BEGIN_ALLOW_THREADS
+        dp_sample_clock_pace(self->clk, (size_t)n);
+        Py_END_ALLOW_THREADS
+    }
     return blk;
 }
 
@@ -1797,9 +1825,11 @@ static PyTypeObject ComposerStreamType = {
 static PyObject *
 Composer_stream(ComposerObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"block", NULL};
+    static char *kwlist[] = {"block", "realtime", NULL};
     Py_ssize_t block = 4096;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|n", kwlist, &block))
+    double realtime = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|nd", kwlist,
+            &block, &realtime))
         return NULL;
     if (block <= 0) {
         PyErr_SetString(PyExc_ValueError, "block must be > 0");
@@ -1812,6 +1842,8 @@ Composer_stream(ComposerObject *self, PyObject *args, PyObject *kwds)
     Py_INCREF(self);
     it->composer = (PyObject *)self;
     it->block = block;
+    it->realtime = realtime;
+    it->clk = NULL;
     return (PyObject *)it;
 }
 
@@ -1886,6 +1918,43 @@ fail:
     return NULL;
 }
 
+static PyObject *
+Composer_to_sigmf(ComposerObject *self, PyObject *args, PyObject *kwds)
+{
+    if (self->destroyed) {
+        PyErr_SetString(PyExc_RuntimeError, "composer already closed");
+        return NULL;
+    }
+    const char *sample_type = "cf32";
+    const char *endian = "le";
+    double fs = 1e6;
+    double fc = 0.0;
+    static char *kwlist[] = {"sample_type", "endian", "fs", "fc", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|ssdd", kwlist,
+            &sample_type, &endian, &fs, &fc))
+        return NULL;
+    int _e_sample_type = _enum_index(_enum_stype, sample_type);
+    if (_e_sample_type < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid sample_type '%s'", sample_type);
+        return NULL;
+    }
+    int _e_endian = _enum_index(_enum_endian, endian);
+    if (_e_endian < 0) {
+        PyErr_Format(PyExc_ValueError, "invalid endian '%s'", endian);
+        return NULL;
+    }
+    size_t _n; int _rep = 0, _cont = 0;
+    const wfm_segment_t *segs =
+        wfm_compose_segments(self->state, &_n, &_rep, &_cont);
+    char *_js = wfm_sigmf_meta_json(_e_sample_type, _e_endian, fs, fc, segs, _n);
+    if (!_js) {
+        PyErr_SetString(PyExc_RuntimeError, "wfm_sigmf_meta_json failed");
+        return NULL;
+    }
+    PyObject *_s = PyUnicode_FromString(_js);
+    free(_js);
+    return _s;
+}
 static PyMethodDef Composer_methods[] = {
     {"execute", (PyCFunction)Composer_execute, METH_VARARGS,
      "execute(n) -> ndarray[complex64]"},
@@ -1896,9 +1965,11 @@ static PyMethodDef Composer_methods[] = {
     {"__exit__", (PyCFunction)Composer_exit, METH_VARARGS, NULL},
     {"stream", (PyCFunction)(void (*)(void))Composer_stream,
      METH_VARARGS | METH_KEYWORDS,
-     "stream(block=4096) -> iterator of complex64 blocks"},
+     "stream(block=4096, realtime=0.0) -> iterator (realtime=fs paces)"},
     {"to_dict", (PyCFunction)Composer_to_dict, METH_NOARGS,
      "to_dict() -> dict (resolved repeat/continuous/segments)"},
+    {"to_sigmf", (PyCFunction)(void (*)(void))Composer_to_sigmf,
+     METH_VARARGS | METH_KEYWORDS, "to_sigmf(...) -> str"},
     {"from_json", (PyCFunction)Composer_from_json,
      METH_VARARGS | METH_CLASS, "from_json(json) -> Composer"},
     {"from_file", (PyCFunction)Composer_from_file,

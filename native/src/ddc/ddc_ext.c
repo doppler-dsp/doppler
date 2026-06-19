@@ -1,7 +1,7 @@
 /*
  * ddc_ext.c — Python extension module ddc
  *
- * Objects: DDC, DDCR
+ * Objects: DDC
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,7 +13,6 @@
 
 
 #include "ddc_ext_ddc.c"
-#include "ddc_ext_ddcr.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -32,16 +31,11 @@ PyInit_ddc(void)
 {
     import_array();
     if (PyType_Ready(&DDCObjType) < 0) return NULL;
-    if (PyType_Ready(&DDCRObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&ddc_moduledef);
     if (!m) return NULL;
     Py_INCREF(&DDCObjType);
     if (PyModule_AddObject(m, "DDC", (PyObject *)&DDCObjType) < 0) {
         Py_DECREF(&DDCObjType); Py_DECREF(m); return NULL;
-    }
-    Py_INCREF(&DDCRObjType);
-    if (PyModule_AddObject(m, "DDCR", (PyObject *)&DDCRObjType) < 0) {
-        Py_DECREF(&DDCRObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

@@ -86,22 +86,23 @@ real time at the cost of an inserted gap).
 
 ## Pacing — Python
 
-The one-liner equivalent of `--realtime` is `paced(comp.stream(block), fs)`, a
-generator that wraps `Composer.stream` and paces each block to real time as it
-yields it (the generated `stream` is a pure drain; `paced` lives in the
-transport layer and drives the same C `SampleClock` the CLI uses):
+The one-liner equivalent of `--realtime` is `comp.stream(block, realtime=fs)`:
+passing `realtime=fs` paces the iterator to an `fs`-Hz clock entirely in C (the
+generated `stream` owns a `SampleClock` and sleeps to each block's deadline with
+the GIL released — the same clock the CLI uses). With `realtime` omitted (the
+default `0.0`), `stream` is a pure drain that yields as fast as it can:
 
 ```python
-from doppler.wfm.compose import Composer, ZmqSink, paced
+from doppler.wfm.compose import Composer, ZmqSink
 
 comp = Composer(type="qpsk", sps=8, fs=1e6, continuous=True)
 with ZmqSink("tcp://0.0.0.0:5555") as sink:
-    for blk in paced(comp.stream(4096), fs=1e6):   # paced to fs
+    for blk in comp.stream(4096, realtime=1e6):   # paced to fs in C
         sink.send(blk, fs=1e6, fc=0.0)
 ```
 
-Under the hood `stream()` drives a `SampleClock`, which you can also use
-directly when you need the slack value, the timestamp, or a custom loop:
+When you need the slack value, the timestamp, or a custom loop, drive a
+`SampleClock` directly:
 
 ```python
 from doppler.wfm.compose import Composer, SampleClock, ZmqSink

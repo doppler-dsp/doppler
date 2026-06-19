@@ -14,6 +14,7 @@
 #include "timing/timing_core.h"
 
 #include <errno.h>
+#include <stdlib.h>
 #include <time.h>
 
 uint64_t
@@ -36,6 +37,15 @@ dp_real_ns (void)
 static uint64_t
 offset_ns (uint64_t n, double fs)
 {
+  /* Defensive guard (gh-178 review #4): the generated SampleClock binding no
+     longer rejects fs <= 0 (the retired hand binding raised "fs must be > 0").
+     A non-positive or NaN fs makes n / fs infinite/NaN, and casting that to
+     uint64_t is undefined behaviour — manifesting as inf deadlines (pace never
+     wakes) and garbage timestamps. A real clock cannot advance without a rate,
+     so the offset is simply zero: pace returns immediately, stamp stays at the
+     epoch. No raise — jm bindings stay unchecked; this just refuses the UB. */
+  if (!(fs > 0.0))
+    return 0;
   long double secs = (long double)n / (long double)fs;
   return (uint64_t)(secs * 1e9L + 0.5L);
 }
@@ -125,4 +135,31 @@ dp_sample_clock_resync (dp_sample_clock_t *c)
   uint64_t now  = dp_mono_ns ();
   if (now > want)
     c->epoch_mono_ns += now - want; /* absorb current lateness */
+}
+
+/* ── stats snapshot for the generated SampleClock handle ─────────────────────
+ */
+
+void
+dp_sample_clock_stats (const dp_sample_clock_t *c, dp_sample_clock_t *out)
+{
+  *out = *c;
+}
+
+/* ── opaque heap clock for the generated realtime composer stream ────────────
+ */
+
+dp_sample_clock_t *
+dp_sample_clock_create (double fs, int resync)
+{
+  dp_sample_clock_t *c = (dp_sample_clock_t *)malloc (sizeof *c);
+  if (c)
+    dp_sample_clock_init (c, fs, resync);
+  return c;
+}
+
+void
+dp_sample_clock_destroy (dp_sample_clock_t *c)
+{
+  free (c);
 }

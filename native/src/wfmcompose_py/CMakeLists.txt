@@ -1,37 +1,25 @@
 if(BUILD_PYTHON)
 
-# wfmcompose_py — hand-written CPython binding for the wfmgen composer subsystem
-# (multi-segment composer, file writers, ZMQ sink, RRC/DSSS helpers).
+# wfmcompose_py — hand-written CPython binding for the one wfmgen transport
+# primitive just-makeit cannot yet express: blue_write_hcb.
 #
 # no_generate module: just-makeit only wires this add_subdirectory; the .c, the
 # compose.py wrapper, and the .pyi are hand-owned (like ddc_fn). The extension
 # is named `_wfmcompose` and lands in doppler/wfm/, so it imports as
 # doppler.wfm._wfmcompose — mirroring the hand-written doppler.wfm.readback.
-# The OBJECT libraries (wfm_*_core, wfm_cjson, stream_core_obj, zmq_vendor_static)
-# come from native/src/wfmcompose (a c_dep added earlier in the Components block).
+#
+# The capsule bindings for the now-generated handles were removed (gh-178 review
+# #7), so the only backing left is wfm_blue_write_hcb (in wfm_writer_core, which
+# uses cJSON for its embedded SigMF writer — hence wfm_cjson). The compose / dsp
+# / sink / clock / synth / source cores it used to drag in are no longer linked,
+# and the POSIX/Windows split is gone with the sink_*/clock_* bindings.
 
 Python3_add_library(_wfmcompose MODULE WITH_SOABI wfmcompose_py.c)
 target_include_directories(_wfmcompose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 
-if(WIN32)
-    # No ZMQ sink on Windows (vendored zmq is POSIX-only); the binding #ifdefs
-    # the sink_* functions out to match.
-    target_link_libraries(_wfmcompose PRIVATE
-        wfm_compose_core wfm_writer_core wfm_reader_core wfm_dsp_core wfm_cjson
-        wfm_synth_core lo_core awgn_core pn_core fir_core
-        m Python3::NumPy)
-else()
-    target_link_libraries(_wfmcompose PRIVATE
-        wfm_compose_core wfm_writer_core wfm_reader_core wfm_sink_core
-        timing_core wfm_dsp_core wfm_cjson
-        wfm_synth_core lo_core awgn_core pn_core fir_core
-        $<TARGET_OBJECTS:stream_core_obj>
-        zmq_vendor_static
-        Threads::Threads stdc++ m
-        Python3::NumPy)
-endif()
+target_link_libraries(_wfmcompose PRIVATE wfm_writer_core wfm_cjson m)
 
 set_target_properties(_wfmcompose PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/wfm"

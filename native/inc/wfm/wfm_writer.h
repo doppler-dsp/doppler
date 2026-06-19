@@ -104,6 +104,14 @@ double wfm_writer_peak(const wfm_writer_t *w);
  *  wfm_writer_track_clipping() was enabled. */
 double wfm_writer_clip_fraction(const wfm_writer_t *w);
 
+/** Path-opening + FILE-owning ctor for the generated `Writer` handle (jm
+ *  kind="handle"): opens `path` ("wb"), delegates to wfm_writer_open, and marks
+ *  the FILE owned so wfm_writer_close fclose's it. Returns NULL on open failure. */
+wfm_writer_t *wfm_writer_open_path(const char *path, wfm_filetype_t ft,
+                                   int sample_type, int endian, double fs,
+                                   double fc, size_t total_samples,
+                                   double headroom);
+
 /**
  * @brief Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block.
  *

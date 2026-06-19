@@ -1,7 +1,7 @@
 """Smoke tests for the IqFile reader's lifecycle + accessors.
 
 Round-trip / bit-faithfulness against real wfmgen captures lives in
-``test_readback.py``; this file covers construction, the state getters/setters,
+``test_readback.py``; this file covers construction, the state getters,
 reset (rewind), and the headerless error contract on a tiny hand-written file.
 """
 
@@ -28,14 +28,14 @@ def test_create_and_nsamples(cf32_file):
     assert obj.nsamples == 4  # 32 bytes / 8 bytes-per-cf32-sample
 
 
-def test_getter_setter(cf32_file):
+def test_getters(cf32_file):
     obj = IqFile(cf32_file, "cf32")
     assert obj.get_fd() >= 0  # a real open fd
     assert obj.get_position() == 0
     assert obj.get_nsamples() == 4
     assert obj.get_sample_type() == 0  # cf32 -> 0
     assert obj.get_endian() == 0  # le -> 0
-    obj.set_position(2)
+    obj.read(2)  # advance via read, not set_position
     assert obj.get_position() == 2
 
 
@@ -61,7 +61,7 @@ def test_context_manager(cf32_file):
 
 
 def test_missing_file_raises(tmp_path):
-    with pytest.raises((OSError, MemoryError, ValueError)):
+    with pytest.raises(FileNotFoundError):
         IqFile(str(tmp_path / "nope.iq"), "cf32")
 
 

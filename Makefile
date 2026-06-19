@@ -111,6 +111,10 @@ pyext:
 		-DBUILD_PYTHON=ON \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
+	# Refresh the repo-root compile_commands.json symlink so clangd/IDEs resolve
+	# include paths. It is gitignored, so the manual one-time `ln -s` is easy to
+	# miss in a fresh clone or git worktree — do it on every build instead.
+	ln -sf $(BUILD_DIR)/compile_commands.json compile_commands.json
 	uv sync
 
 # ── just-build ────────────────────────────────────────────────────────────────

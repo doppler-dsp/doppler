@@ -78,7 +78,7 @@ IqFile_init (IqFileObject *self, PyObject *args, PyObject *kwds)
   self->handle = iq_file_create (filepath, sample_type, endian);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "iq_file_create returned NULL");
+      PyErr_SetFromErrnoWithFilename (PyExc_OSError, filepath);
       return -1;
     }
   return 0;
@@ -316,22 +316,14 @@ static PyMethodDef IqFile_methods[] = {
     "Reset state to post-create defaults." },
 
   { "get_fd", (PyCFunction)IqFile_get_fd, METH_NOARGS, "Get fd." },
-  { "set_fd", (PyCFunction)IqFile_set_fd, METH_VARARGS, "Set fd." },
   { "get_position", (PyCFunction)IqFile_get_position, METH_NOARGS,
     "Get position." },
-  { "set_position", (PyCFunction)IqFile_set_position, METH_VARARGS,
-    "Set position." },
   { "get_nsamples", (PyCFunction)IqFile_get_nsamples, METH_NOARGS,
     "Get nsamples." },
-  { "set_nsamples", (PyCFunction)IqFile_set_nsamples, METH_VARARGS,
-    "Set nsamples." },
   { "get_sample_type", (PyCFunction)IqFile_get_sample_type, METH_NOARGS,
     "Get sample_type." },
-  { "set_sample_type", (PyCFunction)IqFile_set_sample_type, METH_VARARGS,
-    "Set sample_type." },
-  { "get_endian", (PyCFunction)IqFile_get_endian, METH_NOARGS, "Get endian." },
-  { "set_endian", (PyCFunction)IqFile_set_endian, METH_VARARGS,
-    "Set endian." },
+  { "get_endian", (PyCFunction)IqFile_get_endian, METH_NOARGS,
+    "Get endian." },
   { "read", (PyCFunction)(void *)IqFile_read, METH_VARARGS | METH_KEYWORDS,
     "read(n) -> ndarray\n"
     "\n"

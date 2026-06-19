@@ -9,10 +9,11 @@
  * (Writer/Reader/ZmqSink/SampleClock) and SigMF metadata (Composer.to_sigmf())
  * are all jm-generated now. The capsule bindings that used to live here for
  * those — the _fn_writer/reader/sink/clock PyCapsule glue — were
- * superseded by the generated handles and have been removed (gh-178 review #7),
- * along with the orphan includes they needed. The only surface still wired
- * through here is blue_write_hcb, backing the hand-Python write_blue_header()
- * (a path + string-enum I/O helper jm module functions cannot yet express).
+ * superseded by the generated handles and have been removed (gh-178 review
+ * #7), along with the orphan includes they needed. The only surface still
+ * wired through here is blue_write_hcb, backing the hand-Python
+ * write_blue_header() (a path + string-enum I/O helper jm module functions
+ * cannot yet express).
  */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>

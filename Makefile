@@ -78,7 +78,7 @@ endif
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
         debug release blazing bump-version check-version tag-release \
-        test-examples test-examples-python clean help
+        test-examples test-examples-python setup clean help
 
 # ── default ──────────────────────────────────────────────────────────────────
 all: build
@@ -196,8 +196,14 @@ test-all: test test-examples python-test test-examples-python
 python-test:
 	uv run pytest src/ -v
 
+# ── setup ─────────────────────────────────────────────────────────────────────
+setup:
+	uv sync
+	pre-commit install
+
 # ── lint ──────────────────────────────────────────────────────────────────────
 lint:
+	@test -f .git/hooks/pre-commit || pre-commit install
 	uv run pre-commit run --all-files
 
 # ── bench ─────────────────────────────────────────────────────────────────────
@@ -414,6 +420,7 @@ help:
 	@echo "doppler build targets"
 	@echo "====================="
 	@echo ""
+	@echo "  make setup         One-time per clone: uv sync + pre-commit install"
 	@echo "  make               Configure + build ($(BUILD_TYPE))"
 	@echo "  make build         Same as above"
 	@echo "  make test          Run CTest suite (native/ unit tests; requires pyext)"

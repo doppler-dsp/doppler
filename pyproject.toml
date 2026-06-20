@@ -92,15 +92,19 @@ dev = [
     "scipy>=1.17.1; python_version >= '3.11'",
     "scipy<1.16; python_version == '3.10'",
     "scipy<1.14; python_version == '3.9'",
-    "zensical>=0.0.29; python_version >= '3.10'",
-    "mkdocs-glightbox>=0.4; python_version >= '3.10'",
-    "mkdocstrings[python]>=0.29; python_version >= '3.10'",
-    "mkdoxy>=1.2.8",
     "pydantic>=2.0",
     "pyyaml>=6.0",
     "rich>=13.0",
     "matplotlib>=3.10.9; python_version >= '3.10'",
     "matplotlib<3.10; python_version == '3.9'",
+]
+# Docs toolchain is intentionally separate from dev so wheel builds can
+# uv sync --no-group docs and avoid a docs-dep network blip failing a release.
+docs = [
+    "zensical>=0.0.29; python_version >= '3.10'",
+    "mkdocs-glightbox>=0.4; python_version >= '3.10'",
+    "mkdocstrings[python]>=0.29; python_version >= '3.10'",
+    "mkdoxy>=1.2.8",
 ]
 
 [tool.ruff]

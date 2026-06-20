@@ -103,6 +103,10 @@ test:
 # ── pyext ─────────────────────────────────────────────────────────────────────
 # Build Python C extensions into src/doppler/**/.
 # Re-configures with BUILD_PYTHON=ON (default is OFF for C-only builds).
+#
+# UV_SYNC_FLAGS can be overridden by dependents (e.g. just-build passes
+# --no-group docs so the wheel build path never downloads the docs toolchain).
+UV_SYNC_FLAGS ?=
 pyext:
 	$(CMAKE) -B $(BUILD_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
@@ -111,12 +115,15 @@ pyext:
 		-DBUILD_PYTHON=ON \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
-	uv sync
+	uv sync $(UV_SYNC_FLAGS)
 
 # ── just-build ────────────────────────────────────────────────────────────────
 # PEP 517 build hook for just-buildit.
 # just-buildit sets JUST_BUILDIT_OUTPUT_DIR and JUST_BUILDIT_PYTHON before
 # calling this target. The package tree is copied there to be packaged.
+#
+# Exclude the docs group: a docs-dep network blip must not fail a wheel build.
+just-build: UV_SYNC_FLAGS = --no-group docs
 just-build: pyext
 	mkdir -p $(JUST_BUILDIT_OUTPUT_DIR)
 	cp -r $(PYEXT_DIR) $(JUST_BUILDIT_OUTPUT_DIR)/doppler

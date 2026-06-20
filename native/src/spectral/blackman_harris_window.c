@@ -22,9 +22,7 @@ blackman_harris_window (float *w, size_t w_len)
   for (size_t k = 0; k < w_len; k++)
     {
       double x = scale * (double)k;
-      w[k] = (float)(BH_A0
-                     - BH_A1 * cos (x)
-                     + BH_A2 * cos (2.0 * x)
-                     - BH_A3 * cos (3.0 * x));
+      w[k]     = (float)(BH_A0 - BH_A1 * cos (x) + BH_A2 * cos (2.0 * x)
+                         - BH_A3 * cos (3.0 * x));
     }
 }

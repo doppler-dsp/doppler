@@ -299,7 +299,7 @@ jobs:
         echo "OK (specan_changes=$SPECAN frames_changes=$FRAMES)"
 
   # ------------------------------------------------------------------
-  # Documentation build (mkdocs-material)
+  # Documentation build (zensical)
   # ------------------------------------------------------------------
   docs:
     name: Docs
@@ -324,7 +324,7 @@ jobs:
       run: uv run python scripts/check_api_docs.py
 
     - name: Build docs
-      run: uv run mkdocs build
+      run: uv run zensical build
 
   # ------------------------------------------------------------------
   # Docker image build + container tests

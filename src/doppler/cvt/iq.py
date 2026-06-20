@@ -45,14 +45,15 @@ class ADCIQ:
     >>> import numpy as np
     >>> from doppler.cvt import ADCIQ
     >>> adc = ADCIQ(bits=12, dbfs=-10.0)
-    >>> x = np.exp(1j * np.linspace(0, 2 * np.pi, 64, endpoint=False,
-    ...            dtype=np.float32)) * 10**(-10/20)
+    >>> x = np.exp(
+    ...     1j * np.linspace(0, 2 * np.pi, 64, endpoint=False, dtype=np.float32)
+    ... ) * 10 ** (-10 / 20)
     >>> iq = adc.steps(x)
     >>> iq.dtype
     dtype('int16')
     >>> iq.shape
     (128,)
-    >>> iq[0::2].dtype   # I channel
+    >>> iq[0::2].dtype  # I channel
     dtype('int16')
     """
 

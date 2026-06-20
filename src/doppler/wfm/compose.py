@@ -26,8 +26,10 @@ binding ``_wfmcompose``.
 Examples
 --------
 >>> from doppler.wfm.compose import Composer, Segment
->>> spec = [Segment("pn", num_samples=127, pn_length=7),
-...         Segment("tone", freq=1e5, num_samples=256, off_samples=64)]
+>>> spec = [
+...     Segment("pn", num_samples=127, pn_length=7),
+...     Segment("tone", freq=1e5, num_samples=256, off_samples=64),
+... ]
 >>> x = Composer(spec).compose()
 >>> x.dtype, len(x)  # 127 (pn) + 256 (tone) + 64 (gap)
 (dtype('complex64'), 447)

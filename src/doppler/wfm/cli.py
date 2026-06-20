@@ -9,7 +9,7 @@ through. See ``docs/dev/wfmgen/api.md`` (D2/D5).
 
 Run::
 
-    wfmgen --help
+    wfmgen - -help
 """
 
 import os

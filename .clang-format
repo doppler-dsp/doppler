@@ -1,6 +1,5 @@
 BasedOnStyle: GNU
 ColumnLimit: 79
-RequiresClangFormatVersion: 22
 
 IndentWidth: 2
 TabWidth: 8

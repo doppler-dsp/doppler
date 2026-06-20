@@ -33,7 +33,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install deps
-        run: uv sync --group dev
+        run: uv sync --group dev --group docs
 
       - name: Install doxygen
         run: sudo apt-get install -y --no-install-recommends doxygen graphviz

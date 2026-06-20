@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.ddc import Ddcr
+from doppler.spectral import blackman_harris_window
 
 FS_IN = 1.0  # everything normalised to the input sample rate
 RATE = 0.25  # decimate 4× → fs_out = 0.25 · fs_in
@@ -62,9 +63,8 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
     always the full [−0.5, +0.5) so a real input shows its mirror image.
     """
     n = len(x)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = w.mean()
     spec = np.fft.fftshift(np.fft.fft(x * w, n * pad))
     amp_db = 20.0 * np.log10(np.abs(spec) / (n * cg) + 1e-300)

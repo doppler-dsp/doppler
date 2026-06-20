@@ -25,6 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.cvt import ADC
+from doppler.spectral import blackman_harris_window
 
 # ── parameters ───────────────────────────────────────────────────────────────
 
@@ -45,20 +46,13 @@ PAD = 4  # zero-pad factor for spectrum
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 
-def _blackman_harris(n: int) -> np.ndarray:
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2.0 * np.pi * np.arange(n) / n
-    return (
-        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
-    )
-
-
 def _spectrum_db(
     x: np.ndarray, pad: int = PAD
 ) -> tuple[np.ndarray, np.ndarray]:
     """One-sided amplitude spectrum, 0 dBFS = unit-amplitude sine."""
     n = len(x)
-    w = _blackman_harris(n)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = w.mean()
     S = np.abs(np.fft.rfft(x * w, n * pad))
     amp_db = 20.0 * np.log10(S / (n * cg / 2.0) + 1e-300)
@@ -79,7 +73,8 @@ def _per_bin_floor_db(adc: ADC, n: int, pad: int = PAD) -> float:
     """
     delta = 1.0 / adc.scale
     noise_power = delta**2 / 12.0
-    w = _blackman_harris(n)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     wn2 = np.mean(w**2)  # noise power of the window
     n_fft = n * pad
     per_bin_amp = np.sqrt(noise_power / (n_fft * wn2 / 2.0))

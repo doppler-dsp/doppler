@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.resample import RateConverter
+from doppler.spectral import blackman_harris_window
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -64,9 +65,8 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
     Uses a Blackman-Harris window.
     """
     n = len(x)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = w.mean()
     S = np.fft.fftshift(np.fft.fft(x * w, n * pad))
     amp_db = 20.0 * np.log10(np.abs(S) / (n * cg) + 1e-300)

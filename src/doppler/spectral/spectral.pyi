@@ -686,7 +686,7 @@ class PSD:
         n constructor parameter.
     fs : float, default 1.0
         fs constructor parameter.
-    window : Literal["hann", "kaiser"], default "hann"
+    window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
         window constructor parameter.
     beta : float, default 0.0
         beta constructor parameter.
@@ -709,7 +709,7 @@ class PSD:
     >>> obj = PSD(n=1024, fs=1.0, window="hann", beta=0.0, pad=1, full_scale=1.0, bits=0, mode="mean", alpha=0.1)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser", "blackman-harris"] = "hann", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ..., mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean", alpha: float = ...) -> None: ...
 
     def accumulate(self, x: NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
@@ -942,6 +942,9 @@ def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
 
 def hann_window(w: NDArray[np.float32]) -> None:
     """Hann window."""
+
+def blackman_harris_window(w: NDArray[np.float32]) -> None:
+    """Blackman harris window."""
 
 def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
     """Magnitude db cf32."""

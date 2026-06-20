@@ -16,6 +16,7 @@ ffi/rust/target/
 # Generated documentation output
 docs/doxygen/
 site/
+.capi-site/
 
 # Example / benchmark artifacts written to the working tree (regenerable;
 # belong in build/, never committed to the repo root)

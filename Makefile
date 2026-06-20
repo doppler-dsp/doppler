@@ -246,13 +246,13 @@ docs-serve: gen-c-api
 	uv run zensical serve
 
 gen-c-api:
-	rm -rf docs/c-api .mkdoxy
+	rm -rf docs/c-api .mkdoxy .capi-site
 	uv run zensical build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api
 	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
 	# after the regen wipes it (matches the CI docs.yml step).
 	git checkout -- docs/c-api/index.md
-	rm -rf .mkdoxy
+	rm -rf .mkdoxy .capi-site
 
 # ── doxygen ───────────────────────────────────────────────────────────────────
 # Generates XML (consumed by mkdocstrings) and HTML in docs/doxygen/.

@@ -42,7 +42,7 @@ jobs:
         run: |
           uv run zensical build -f mkdocs-capi.yml
           cp -r .mkdoxy/doppler/c-api/. docs/c-api/
-          rm -rf .mkdoxy
+          rm -rf .mkdoxy .capi-site
           # mkdoxy doesn't generate index.md; restore the committed landing page
           git checkout -- docs/c-api/index.md
 

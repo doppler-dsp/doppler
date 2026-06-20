@@ -1,7 +1,11 @@
-"""fft_demo.py — smoke test for FFT examples from docs/examples/python-fft.md."""
+"""fft_demo.py — smoke test for FFT examples.
+
+From docs/examples/python-fft.md.
+"""
+
+import numpy as np
 
 from doppler.spectral import FFT, FFT2D
-import numpy as np
 
 rng = np.random.default_rng(0)
 

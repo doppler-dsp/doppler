@@ -1,10 +1,17 @@
 import numpy as np
-from doppler.spectral import FFT, FFT2D, kaiser_enbw, kaiser_window
-from doppler.spectral import hann_window, magnitude_db_cf32
-from doppler.spectral import magnitude_db_cf64, find_peaks_f32
 
+from doppler.spectral import (
+    FFT,
+    FFT2D,
+    find_peaks_f32,
+    hann_window,
+    kaiser_enbw,
+    kaiser_window,
+    magnitude_db_cf32,
+    magnitude_db_cf64,
+)
 
-# ── FFT ────────────────────────────────────────────────────────────────────────
+# ── FFT ──────────────────────────────────────────────────────────────────────
 
 
 def test_fft_create():
@@ -45,7 +52,7 @@ def test_fft_dc_tone_cf64():
 def test_fft_inplace_cf64_matches_oop():
     N = 32
     obj = FFT(N, -1, 1)
-    x = np.random.randn(N).astype(np.complex128)
+    x = np.random.default_rng(0).standard_normal(N).astype(np.complex128)
     oop = obj.execute_cf64(x)
     ip = obj.execute_inplace_cf64(x)
     np.testing.assert_allclose(ip, oop, rtol=1e-12)
@@ -54,7 +61,7 @@ def test_fft_inplace_cf64_matches_oop():
 def test_fft_inplace_cf32_matches_oop():
     N = 32
     obj = FFT(N, -1, 1)
-    x = np.random.randn(N).astype(np.complex64)
+    x = np.random.default_rng(0).standard_normal(N).astype(np.complex64)
     oop = obj.execute_cf32(x)
     ip = obj.execute_inplace_cf32(x)
     np.testing.assert_allclose(ip, oop, rtol=1e-5)
@@ -83,7 +90,7 @@ def test_fft_destroy():
     obj.destroy()
 
 
-# ── FFT2D ──────────────────────────────────────────────────────────────────────
+# ── FFT2D ────────────────────────────────────────────────────────────────────
 
 
 def test_fft2d_create():
@@ -116,7 +123,7 @@ def test_fft2d_round_trip_cf32():
 def test_fft2d_inplace_cf64_matches_oop():
     NY, NX = 8, 8
     obj = FFT2D(NY, NX, -1, 1)
-    x = np.random.randn(NY * NX).astype(np.complex128)
+    x = np.random.default_rng(0).standard_normal(NY * NX).astype(np.complex128)
     oop = obj.execute_cf64(x)
     ip = obj.execute_inplace_cf64(x)
     np.testing.assert_allclose(ip, oop, rtol=1e-12)
@@ -127,7 +134,7 @@ def test_fft2d_destroy():
     obj.destroy()
 
 
-# ── Module-level functions ──────────────────────────────────────────────────────
+# ── Module-level functions ───────────────────────────────────────────────────
 
 
 def test_kaiser_enbw():

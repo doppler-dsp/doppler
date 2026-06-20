@@ -3,8 +3,8 @@
 Run: pytest src/doppler/spectral/benchmarks/bench_detector.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.spectral import Detector
 

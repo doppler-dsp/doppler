@@ -1,6 +1,8 @@
 import math
-import pytest
+
 import numpy as np
+import pytest
+
 from doppler.cvt import ADC
 
 
@@ -85,7 +87,8 @@ def test_bits_64():
 
 
 def test_dithering_changes_output():
-    """With TPDF dither, a constant DC input must not always give the same code."""
+    """With TPDF dither, a constant DC input must not always give the same
+    code."""
     obj_d = ADC(bits=16, dbfs=-10.0, dithering=1)
     samples = np.full(1024, 0.01, dtype=np.float32)
     out = obj_d.steps(samples)

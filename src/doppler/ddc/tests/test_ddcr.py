@@ -138,7 +138,7 @@ class TestDdcrLifecycle:
     def test_close_then_execute_raises(self):
         r = Ddcr(0.0, 0.25)
         r.close()
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             _run(r, np.zeros(N, dtype=np.float32))
 
     def test_close_idempotent(self):

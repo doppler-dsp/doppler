@@ -6,7 +6,7 @@ from doppler.cli.blocks import Block, BlockConfig, register
 
 
 class FirConfig(BlockConfig):
-    taps: list[float] = []
+    taps: list[float] = []  # noqa: RUF012
 
 
 @register

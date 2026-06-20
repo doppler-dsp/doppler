@@ -26,7 +26,7 @@ import numpy as np
 
 from doppler.cvt import ADC
 
-# ── parameters ────────────────────────────────────────────────────────────────
+# ── parameters ───────────────────────────────────────────────────────────────
 
 DBFS = -10.0
 BITS = [3, 4, 5, 6, 7, 8]
@@ -42,7 +42,7 @@ F0_S = 0.05  # 20 samples/cycle
 N_S = 8192
 PAD = 4  # zero-pad factor for spectrum
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# ── helpers ──────────────────────────────────────────────────────────────────
 
 
 def _blackman_harris(n: int) -> np.ndarray:
@@ -101,7 +101,7 @@ def _style_ax(ax: plt.Axes) -> None:
     ax.grid(True, color="#374151", lw=0.4)
 
 
-# ── signals ───────────────────────────────────────────────────────────────────
+# ── signals ──────────────────────────────────────────────────────────────────
 
 amplitude = 10.0 ** (DBFS / 20.0)
 
@@ -113,7 +113,7 @@ x_t = (amplitude * np.sin(2.0 * np.pi * F0_T * t_t)).astype(np.float32)
 t_s = np.arange(N_S, dtype=np.float64)
 x_s = (amplitude * np.sin(2.0 * np.pi * F0_S * t_s)).astype(np.float32)
 
-# ── figure ────────────────────────────────────────────────────────────────────
+# ── figure ───────────────────────────────────────────────────────────────────
 
 
 def main(out_path: str = "adc_demo.png") -> None:
@@ -122,17 +122,18 @@ def main(out_path: str = "adc_demo.png") -> None:
     )
     fig.patch.set_facecolor("#0f172a")
     fig.suptitle(
-        f"ADC quantisation — {DBFS} dBFS sinusoid  ·  {BITS[0]}–{BITS[-1]} bits",
+        f"ADC quantisation — {DBFS} dBFS sinusoid"
+        f"  ·  {BITS[0]}–{BITS[-1]} bits",
         fontsize=13,
         color="#f1f5f9",
     )
 
-    # ── time domain ───────────────────────────────────────────────────────────
+    # ── time domain ──────────────────────────────────────────────────────────
     # Show one full cycle.  F0_T=0.01 → 100 samples/cycle so near the peak
     # (sample 25) consecutive samples differ by < one LSB for all bit depths;
     # the staircase steps are individually resolvable, getting progressively
     # finer from 6→10 bits.
-    cycle_len = int(round(1.0 / F0_T))  # 100 samples
+    cycle_len = round(1.0 / F0_T)  # 100 samples
     t_show = min(cycle_len, N_T)
 
     ax_t.plot(
@@ -173,7 +174,7 @@ def main(out_path: str = "adc_demo.png") -> None:
     )
     _style_ax(ax_t)
 
-    # ── spectrum ──────────────────────────────────────────────────────────────
+    # ── spectrum ─────────────────────────────────────────────────────────────
     freq, amp_ref = _spectrum_db(x_s.astype(np.float64))
     ax_s.plot(
         freq,

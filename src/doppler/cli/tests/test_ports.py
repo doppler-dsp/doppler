@@ -10,6 +10,7 @@ Covers:
 """
 
 import json
+
 import pytest
 
 from doppler.cli import ports as ports_mod

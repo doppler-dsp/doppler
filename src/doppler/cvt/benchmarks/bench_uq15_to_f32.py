@@ -3,8 +3,8 @@
 Run: pytest src/doppler/cvt/benchmarks/bench_uq15_to_f32.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.cvt import UQ15ToF32
 

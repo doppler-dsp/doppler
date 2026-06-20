@@ -38,7 +38,7 @@ def test_npr_named_result():
     assert type(r).__name__ == "NPRMetrics"
     assert type(r).__module__ == "doppler.measure"
     assert isinstance(r.npr_db, float)
-    npr, *_ = r  # unpackable
+    _npr, *_ = r  # unpackable
 
 
 def test_npr_defaults_construct():

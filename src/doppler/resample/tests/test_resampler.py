@@ -10,7 +10,6 @@ from doppler.resample import (
     _num_phases_for_rejection,
 )
 
-
 # ------------------------------------------------------------------ #
 # Helpers                                                              #
 # ------------------------------------------------------------------ #
@@ -58,7 +57,11 @@ class TestConstruction:
         assert r.num_taps > 19
 
     def test_custom_bank_path(self):
-        bank = np.random.randn(256, 11).astype(np.float32)
+        bank = (
+            np.random.default_rng(0)
+            .standard_normal((256, 11))
+            .astype(np.float32)
+        )
         r = Resampler(1.0, bank=bank)
         assert r.num_phases == 256
         assert r.num_taps == 11

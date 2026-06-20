@@ -20,18 +20,17 @@ import numpy as np
 import pytest
 
 from doppler.stream import (
-    Push,
-    Pull,
-    Publisher,
-    Subscriber,
-    Requester,
-    Replier,
-    CI32,
     CF64,
     CF128,
+    CI32,
+    Publisher,
+    Pull,
+    Push,
+    Replier,
+    Requester,
+    Subscriber,
     get_timestamp_ns,
 )
-
 
 # ------------------------------------------------------------------ #
 # Helpers                                                             #
@@ -83,7 +82,7 @@ def test_push_pull_cf64_roundtrip(push_pull_cf64):
     push, pull = push_pull_cf64
     x = np.array([1 + 2j, 3 + 4j, 5 + 6j], dtype=np.complex128)
     push.send(x, sample_rate=int(1e6), center_freq=int(2.4e9))
-    samples, hdr = pull.recv(timeout_ms=2000)
+    samples, _hdr = pull.recv(timeout_ms=2000)
     np.testing.assert_array_almost_equal(samples, x)
 
 
@@ -91,14 +90,14 @@ def test_push_pull_cf64_dtype(push_pull_cf64):
     push, pull = push_pull_cf64
     x = np.ones(8, dtype=np.complex128)
     push.send(x)
-    samples, hdr = pull.recv(timeout_ms=2000)
+    samples, _hdr = pull.recv(timeout_ms=2000)
     assert samples.dtype == np.complex128
 
 
 def test_push_pull_header_sample_rate(push_pull_cf64):
     push, pull = push_pull_cf64
     x = np.ones(4, dtype=np.complex128)
-    push.send(x, sample_rate=int(48000))
+    push.send(x, sample_rate=48000)
     _, hdr = pull.recv(timeout_ms=2000)
     assert hdr["sample_rate"] == 48000
 
@@ -163,7 +162,7 @@ def test_push_pull_ci32_roundtrip():
     # recv returns a flat int32 array of the same layout.
     x = np.array([1, 2, 3, 4], dtype=np.int32)  # 2 IQ pairs
     push.send(x)
-    samples, hdr = pull.recv(timeout_ms=2000)
+    samples, _hdr = pull.recv(timeout_ms=2000)
     assert samples.dtype == np.int32
     np.testing.assert_array_equal(samples, x)
     push.__exit__(None, None, None)
@@ -182,7 +181,7 @@ def test_pub_sub_cf64_roundtrip():
     time.sleep(0.1)  # ZMQ PUB/SUB needs subscriber warm-up time
     x = np.array([7 + 8j, 9 + 10j], dtype=np.complex128)
     pub.send(x, sample_rate=int(1e6))
-    samples, hdr = sub.recv(timeout_ms=2000)
+    samples, _hdr = sub.recv(timeout_ms=2000)
     np.testing.assert_array_almost_equal(samples, x)
     pub.__exit__(None, None, None)
     sub.__exit__(None, None, None)
@@ -195,13 +194,12 @@ def test_pub_sub_cf64_roundtrip():
 
 def test_push_context_manager():
     ep = _unique_endpoint()
-    with Push(ep, CF64) as push:
-        with Pull(ep) as pull:
-            time.sleep(0.05)
-            x = np.ones(4, dtype=np.complex128)
-            push.send(x)
-            samples, _ = pull.recv(timeout_ms=2000)
-            assert len(samples) == 4
+    with Push(ep, CF64) as push, Pull(ep) as pull:
+        time.sleep(0.05)
+        x = np.ones(4, dtype=np.complex128)
+        push.send(x)
+        samples, _ = pull.recv(timeout_ms=2000)
+        assert len(samples) == 4
 
 
 # ------------------------------------------------------------------ #
@@ -234,7 +232,7 @@ def test_push_pull_cf128_roundtrip():
     time.sleep(0.05)
     x = np.array([1 + 2j, -3 - 4j], dtype=np.clongdouble)
     push.send(x)
-    samples, hdr = pull.recv(timeout_ms=2000)
+    samples, _hdr = pull.recv(timeout_ms=2000)
     assert samples.dtype == np.clongdouble
     np.testing.assert_array_almost_equal(samples.real, x.real)
     np.testing.assert_array_almost_equal(samples.imag, x.imag)
@@ -288,7 +286,7 @@ def test_pub_sub_ci32_roundtrip():
     time.sleep(0.1)
     x = np.array([10, 20, 30, 40], dtype=np.int32)  # 2 IQ pairs
     pub.send(x)
-    samples, hdr = sub.recv(timeout_ms=2000)
+    samples, _hdr = sub.recv(timeout_ms=2000)
     assert samples.dtype == np.int32
     np.testing.assert_array_equal(samples, x)
     pub.__exit__(None, None, None)
@@ -312,9 +310,8 @@ def test_pub_sub_header_fields():
 
 def test_sub_timeout_raises():
     ep = _unique_endpoint()
-    with Subscriber(ep) as sub:
-        with pytest.raises((TimeoutError, Exception)):
-            sub.recv(timeout_ms=50)
+    with Subscriber(ep) as sub, pytest.raises((TimeoutError, Exception)):
+        sub.recv(timeout_ms=50)
 
 
 # ------------------------------------------------------------------ #
@@ -338,13 +335,13 @@ def test_req_rep_cf64_roundtrip(req_rep_cf64):
     x_req = np.array([1 + 2j, 3 + 4j], dtype=np.complex128)
     req.send(x_req, sample_rate=int(1e6))
 
-    req_samples, req_hdr = rep.recv(timeout_ms=2000)
+    req_samples, _req_hdr = rep.recv(timeout_ms=2000)
     np.testing.assert_array_almost_equal(req_samples, x_req)
 
     x_rep = np.array([5 + 6j, 7 + 8j], dtype=np.complex128)
     rep.send(x_rep, sample_rate=int(2e6))
 
-    rep_samples, rep_hdr = req.recv(timeout_ms=2000)
+    rep_samples, _rep_hdr = req.recv(timeout_ms=2000)
     np.testing.assert_array_almost_equal(rep_samples, x_rep)
 
 
@@ -362,7 +359,7 @@ def test_req_rep_cf64_dtype(req_rep_cf64):
 def test_req_rep_header_fields(req_rep_cf64):
     req, rep = req_rep_cf64
     x = np.ones(4, dtype=np.complex128)
-    req.send(x, sample_rate=int(48000), center_freq=int(915e6))
+    req.send(x, sample_rate=48000, center_freq=int(915e6))
     _, hdr = rep.recv(timeout_ms=2000)
     assert hdr["sample_rate"] == pytest.approx(48000)
     assert hdr["center_freq"] == pytest.approx(915e6)
@@ -400,9 +397,8 @@ def test_req_rep_ci32_roundtrip():
 
 def test_replier_timeout_raises():
     ep = _unique_endpoint()
-    with Replier(ep, CF64) as rep:
-        with pytest.raises((TimeoutError, Exception)):
-            rep.recv(timeout_ms=50)
+    with Replier(ep, CF64) as rep, pytest.raises((TimeoutError, Exception)):
+        rep.recv(timeout_ms=50)
 
 
 def test_requester_reply_timeout_raises():
@@ -427,34 +423,31 @@ def test_requester_reply_timeout_raises():
 
 def test_pull_context_manager():
     ep = _unique_endpoint()
-    with Push(ep, CF64) as push:
-        with Pull(ep) as pull:
-            time.sleep(0.05)
-            x = np.ones(4, dtype=np.complex128)
-            push.send(x)
-            samples, _ = pull.recv(timeout_ms=2000)
-            assert len(samples) == 4
+    with Push(ep, CF64) as push, Pull(ep) as pull:
+        time.sleep(0.05)
+        x = np.ones(4, dtype=np.complex128)
+        push.send(x)
+        samples, _ = pull.recv(timeout_ms=2000)
+        assert len(samples) == 4
 
 
 def test_subscriber_context_manager():
     ep = _unique_endpoint()
-    with Publisher(ep, CF64) as pub:
-        with Subscriber(ep) as sub:
-            time.sleep(0.1)
-            x = np.ones(4, dtype=np.complex128)
-            pub.send(x)
-            samples, _ = sub.recv(timeout_ms=2000)
-            assert len(samples) == 4
+    with Publisher(ep, CF64) as pub, Subscriber(ep) as sub:
+        time.sleep(0.1)
+        x = np.ones(4, dtype=np.complex128)
+        pub.send(x)
+        samples, _ = sub.recv(timeout_ms=2000)
+        assert len(samples) == 4
 
 
 def test_req_rep_context_manager():
     ep = _unique_endpoint()
-    with Replier(ep, CF64) as rep:
-        with Requester(ep, CF64) as req:
-            time.sleep(0.05)
-            x = np.ones(4, dtype=np.complex128)
-            req.send(x)
-            samples, _ = rep.recv(timeout_ms=2000)
-            assert len(samples) == 4
-            rep.send(samples)
-            req.recv(timeout_ms=2000)
+    with Replier(ep, CF64) as rep, Requester(ep, CF64) as req:
+        time.sleep(0.05)
+        x = np.ones(4, dtype=np.complex128)
+        req.send(x)
+        samples, _ = rep.recv(timeout_ms=2000)
+        assert len(samples) == 4
+        rep.send(samples)
+        req.recv(timeout_ms=2000)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -54,7 +55,7 @@ class ChainState:
         }
 
     @classmethod
-    def load(cls, chain_id: str) -> "ChainState":
+    def load(cls, chain_id: str) -> ChainState:
         path = _CHAINS_DIR / f"{chain_id}.json"
         if not path.exists():
             raise KeyError(f"No chain with id {chain_id!r}")
@@ -102,8 +103,6 @@ def stop_chain(chain: ChainState, kill: bool = False) -> None:
     sig = signal.SIGKILL if kill else signal.SIGTERM
     for block in chain.blocks:
         if pid_alive(block.pid):
-            try:
+            with contextlib.suppress(ProcessLookupError):
                 os.kill(block.pid, sig)
-            except ProcessLookupError:
-                pass
     chain.delete()

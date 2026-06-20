@@ -1,6 +1,7 @@
 """Benchmarks for doppler.detection scalar functions.
 
-Run: pytest src/doppler/detection/benchmarks/bench_detection.py --benchmark-only
+Run: pytest src/doppler/detection/benchmarks/bench_detection.py
+     --benchmark-only
 
 All functions are pure scalar computation (no array allocation), so the
 dominant cost is C function overhead + Python call overhead.  The results
@@ -25,7 +26,7 @@ ETA = det_threshold(1e-6)
 P = det_threshold_power(1e-6)
 
 
-# ── marcum_q ──────────────────────────────────────────────────────────────────
+# ── marcum_q ─────────────────────────────────────────────────────────────────
 
 
 def test_bench_marcum_q_m1(benchmark):
@@ -56,7 +57,7 @@ def test_bench_det_threshold_power(benchmark):
     benchmark(det_threshold_power, 1e-6)
 
 
-# ── det_pd / det_pd_power ─────────────────────────────────────────────────────
+# ── det_pd / det_pd_power ────────────────────────────────────────────────────
 
 
 def test_bench_det_pd_m1(benchmark):
@@ -79,7 +80,7 @@ def test_bench_det_pd_power_m4(benchmark):
     benchmark(det_pd_power, 1.0, 4, P)
 
 
-# ── det_dwell / det_dwell_power ───────────────────────────────────────────────
+# ── det_dwell / det_dwell_power ──────────────────────────────────────────────
 
 
 def test_bench_det_dwell(benchmark):
@@ -92,7 +93,7 @@ def test_bench_det_dwell_power(benchmark):
     benchmark(det_dwell_power, 0.25, 0.9, 1e-6, 512)
 
 
-# ── det_snr / det_snr_power ───────────────────────────────────────────────────
+# ── det_snr / det_snr_power ──────────────────────────────────────────────────
 
 
 def test_bench_det_snr_m4(benchmark):

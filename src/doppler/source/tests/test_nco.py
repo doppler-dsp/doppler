@@ -5,8 +5,8 @@ phase continuity, nmax scaling, overflow carry flag, property accessors.
 """
 
 import numpy as np
-from doppler.source import NCO
 
+from doppler.source import NCO
 
 # ── Lifecycle ────────────────────────────────────────────────────────
 

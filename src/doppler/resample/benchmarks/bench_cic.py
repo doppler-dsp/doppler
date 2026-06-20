@@ -3,8 +3,8 @@
 Run: pytest src/doppler/resample/benchmarks/bench_cic.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.resample import CIC
 

@@ -205,7 +205,8 @@ class TestSpectralQuality:
         assert rejection >= 20.0, f"Alias rejection only {rejection:.1f} dB"
 
     def test_stopband_null(self):
-        """Tone at exactly fs/R (first CIC null) is near-zero after settling."""
+        """Tone at exactly fs/R (first CIC null) is near-zero after
+        settling."""
         R, N = 8, 4
         F_NULL = 1.0 / R
         x = _tone(F_NULL, 32 * R * N)

@@ -1,7 +1,11 @@
-"""nco_demo.py — smoke test for NCO examples from docs/examples/python-nco.md."""
+"""nco_demo.py — smoke test for NCO examples.
+
+From docs/examples/python-nco.md.
+"""
+
+import numpy as np
 
 from doppler.source import NCO
-import numpy as np
 
 # Raw uint32 phase — 0.25 * 2^32 = 2^30 = 1073741824 per step
 nco = NCO(0.25)

@@ -1,7 +1,8 @@
 """ddc_fn_demo.py — the Ddcr handle: real passband to complex baseband.
 
 ``doppler.ddc.Ddcr`` is a generated ``kind="handle"`` class over an opaque
-``ddcr_state_t *``. It owns the C state like an object, yet ``execute()`` writes
+``ddcr_state_t *``. It owns the C state like an object, yet
+``execute()`` writes
 into a **caller-provided** output buffer — so the caller keeps control of
 lifetime and allocation, handy for pipelines that already manage their own
 arrays and want zero per-call allocation.
@@ -227,7 +228,7 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
         ax.yaxis.label.set_color("#d1d5db")
         ax.title.set_color("#f1f5f9")
 
-    for ax, (sig, color, title, unit, mark) in zip(axes, panels):
+    for ax, (sig, color, title, unit, _mark) in zip(axes, panels):
         freq, amp = _spectrum_db(sig)
         ax.plot(freq, amp, color=color, lw=0.8)
         peak = _peak_fn(sig)
@@ -238,7 +239,7 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
             xytext=(peak + 0.06, -18),
             color="#f87171",
             fontsize=9,
-            arrowprops=dict(arrowstyle="->", color="#f87171", lw=1.0),
+            arrowprops={"arrowstyle": "->", "color": "#f87171", "lw": 1.0},
         )
         ax.set_xlim(-0.5, 0.5)
         ax.set_ylim(-90, 10)
@@ -253,11 +254,11 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
             color="#9ca3af",
             fontsize=8,
             va="top",
-            bbox=dict(
-                boxstyle="round,pad=0.2",
-                facecolor="#1f2937",
-                edgecolor="#4b5563",
-            ),
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "#1f2937",
+                "edgecolor": "#4b5563",
+            },
         )
         _style(ax)
 

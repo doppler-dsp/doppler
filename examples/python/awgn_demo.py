@@ -1,8 +1,10 @@
 """awgn_demo.py — AWGN generator demo.
 
 Shows:
-  1. Basic generation    — complex CF32 noise, amplitude = per-component std dev
-  2. Statistics          — empirical mean ≈ 0, std dev ≈ amplitude, Gaussian shape
+  1. Basic generation    — complex CF32 noise, amplitude = per-component
+                           std dev
+  2. Statistics          — empirical mean ≈ 0, std dev ≈ amplitude,
+                           Gaussian shape
   3. White spectrum      — PSD flat to within thermal noise floor
   4. Seeding             — deterministic replay via reset() / reseed()
   5. Spectral plot       — histogram + Welch PSD + noisy carrier saved to
@@ -25,7 +27,6 @@ import numpy as np
 from scipy.signal import welch
 
 from doppler.source import AWGN, LO
-
 
 # ---------------------------------------------------------------------------
 # helpers

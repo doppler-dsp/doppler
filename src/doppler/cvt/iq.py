@@ -46,7 +46,9 @@ class ADCIQ:
     >>> from doppler.cvt import ADCIQ
     >>> adc = ADCIQ(bits=12, dbfs=-10.0)
     >>> x = np.exp(
-    ...     1j * np.linspace(0, 2 * np.pi, 64, endpoint=False, dtype=np.float32)
+    ...     1j * np.linspace(
+    ...         0, 2 * np.pi, 64, endpoint=False, dtype=np.float32
+    ...     )
     ... ) * 10 ** (-10 / 20)
     >>> iq = adc.steps(x)
     >>> iq.dtype
@@ -70,7 +72,7 @@ class ADCIQ:
             )
         self._adc = ADC(bits=bits, dbfs=dbfs, dithering=dithering)
 
-    # ── properties ────────────────────────────────────────────────────────────
+    # ── properties ───────────────────────────────────────────────────────────
 
     @property
     def scale(self) -> float:
@@ -87,7 +89,7 @@ class ADCIQ:
         """True if any sample saturated since the last reset()."""
         return self._adc.clipped
 
-    # ── lifecycle ─────────────────────────────────────────────────────────────
+    # ── lifecycle ────────────────────────────────────────────────────────────
 
     def reset(self) -> None:
         """Reset state: clear sticky clipped flag, re-seed dither PRNG."""
@@ -97,13 +99,13 @@ class ADCIQ:
         """Release the underlying ADC resources."""
         self._adc.destroy()
 
-    def __enter__(self) -> "ADCIQ":
+    def __enter__(self) -> ADCIQ:
         return self
 
     def __exit__(self, *args: object) -> None:
         self.destroy()
 
-    # ── processing ────────────────────────────────────────────────────────────
+    # ── processing ───────────────────────────────────────────────────────────
 
     def step(self, x: complex) -> tuple[int, int]:
         """Quantise one complex sample.

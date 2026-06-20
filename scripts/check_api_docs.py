@@ -48,25 +48,26 @@ EXTRA_MODULES = [
 def _all_list(path: str) -> list[str] | None:
     """The literal ``__all__`` list from a Python file, or None if absent."""
     try:
-        tree = ast.parse(open(path, encoding="utf-8").read())
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
     except (OSError, SyntaxError):
         return None
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
             isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
-        ):
-            if isinstance(node.value, (ast.List, ast.Tuple)):
-                return [
-                    e.value
-                    for e in node.value.elts
-                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
-                ]
+        ) and isinstance(node.value, (ast.List, ast.Tuple)):
+            return [
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            ]
     return None
 
 
 def _public_defs(path: str) -> list[str]:
     """Top-level public class/def names defined in a module file."""
-    tree = ast.parse(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
     out = []
     for node in tree.body:
         if isinstance(
@@ -97,15 +98,16 @@ def discover() -> list[tuple[str, list[str]]]:
 
 def documented_names() -> set[str]:
     """Every identifier that appears anywhere under ``docs/api/`` — a ``:::``
-    directive, a prose mention, or a code example. The bar is deliberately low:
-    catch a *wholly undocumented* surface, not mandate a documentation style."""
+    directive, a prose mention, or a code example. The bar is deliberately
+    low: catch a *wholly undocumented* surface, not mandate a documentation
+    style."""
     tok = re.compile(r"[A-Za-z_]\w+")
     names: set[str] = set()
     for fn in os.listdir(API_DIR):
         if not fn.endswith(".md"):
             continue
-        text = open(os.path.join(API_DIR, fn), encoding="utf-8").read()
-        names.update(tok.findall(text))
+        with open(os.path.join(API_DIR, fn), encoding="utf-8") as fh:
+            names.update(tok.findall(fh.read()))
     return names
 
 
@@ -113,7 +115,9 @@ def load_ignore() -> set[str]:
     if not os.path.exists(IGNORE_FILE):
         return set()
     out = set()
-    for line in open(IGNORE_FILE, encoding="utf-8"):
+    with open(IGNORE_FILE, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    for line in lines:
         line = line.split("#", 1)[0].strip()
         if line:
             out.add(line)
@@ -141,9 +145,10 @@ def main() -> int:
     for q in missing:
         print(f"  {q}", file=sys.stderr)
     print(
-        "\nEach must be named somewhere under docs/api/ (a ::: directive, prose,"
-        " or an example). Run `python scripts/check_api_docs.py --scaffold "
-        "<module>` for a stub, or add intentional exclusions to "
+        "\nEach must be named somewhere under docs/api/ (a ::: directive,"
+        " prose, or an example). Run"
+        " `python scripts/check_api_docs.py --scaffold"
+        " <module>` for a stub, or add intentional exclusions to "
         f"{os.path.relpath(IGNORE_FILE, ROOT)}.",
         file=sys.stderr,
     )

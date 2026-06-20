@@ -10,7 +10,6 @@ import pytest
 
 from doppler.filter import HBDecimQ15
 
-
 # ── shared coefficient fixture ─────────────────────────────────────────────
 
 
@@ -192,7 +191,8 @@ def test_snr_vs_float_reference(h51):
     settle = dec.num_taps
     dec.destroy()
 
-    # Float64 reference using the SAME FIR branch (not a different remez design).
+    # Float64 reference using the SAME FIR branch (not a different remez
+    # design).
     from doppler.resample import HalfbandDecimator
 
     dec_f = HalfbandDecimator(h51)
@@ -252,7 +252,8 @@ def test_streaming_matches_single_block(h51):
 
 
 def test_near_full_scale_no_saturation(h51):
-    """Passband tone at near full-scale (amp=30000) should not hard-clip output.
+    """Passband tone at near full-scale (amp=30000) should not hard-clip
+    output.
 
     The two-pass AVX2 inner loop avoids folding delay-line values as int16,
     so it handles amplitudes above -6 dBFS without saturation clipping.

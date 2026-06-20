@@ -24,7 +24,6 @@ engine can be constructed before the source's sample rate is known.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 import numpy as np
 
@@ -84,7 +83,7 @@ class SpecanEngine:
 
     def _init_chain(self, fs_in: float, center_freq: float) -> None:
         """Build or rebuild the C ``Specan`` for a given input rate/center."""
-        from doppler.analyzer import Specan  # noqa: PLC0415
+        from doppler.analyzer import Specan
 
         cfg = self._cfg
         self._fs_in = fs_in
@@ -128,7 +127,7 @@ class SpecanEngine:
 
     def process(
         self, iq: np.ndarray, fs_in: float, center_freq: float
-    ) -> Optional[SpectrumFrame]:
+    ) -> SpectrumFrame | None:
         """
         Process one block of IQ samples and return a spectrum frame.
 
@@ -146,7 +145,7 @@ class SpecanEngine:
         SpectrumFrame or None
             ``None`` if the block is too short to fill an FFT frame yet.
         """
-        from doppler.spectral import find_peaks_f32  # noqa: PLC0415
+        from doppler.spectral import find_peaks_f32
 
         if fs_in != self._fs_in or center_freq != self._center_freq:
             self._init_chain(fs_in, center_freq)

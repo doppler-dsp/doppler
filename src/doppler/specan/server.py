@@ -51,7 +51,7 @@ async def index():
 async def get_state():
     if _cfg is None:
         return {}
-    from doppler.specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource
 
     state: dict = {
         "source": _cfg.source,
@@ -73,7 +73,7 @@ async def get_state():
 
 async def _apply_cmd(cmd: dict) -> None:
     """Apply a control command (from HTTP POST or WebSocket)."""
-    from doppler.specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource
 
     if _engine is None:
         return
@@ -161,7 +161,7 @@ async def websocket_endpoint(ws: WebSocket):
             )
 
             if frame is not None:
-                from doppler.specan.source import DemoSource  # noqa: PLC0415
+                from doppler.specan.source import DemoSource
 
                 tones = (
                     _source.get_tones()
@@ -231,10 +231,10 @@ def main(
 ) -> None:
     global _engine, _source, _cfg
 
-    import uvicorn  # noqa: PLC0415
+    import uvicorn
 
-    from doppler.specan.engine import SpecanEngine  # noqa: PLC0415
-    from doppler.specan.source import make_source  # noqa: PLC0415
+    from doppler.specan.engine import SpecanEngine
+    from doppler.specan.source import make_source
 
     _cfg = cfg
     _source = make_source(cfg)
@@ -244,8 +244,8 @@ def main(
     print(f"  doppler specan  →  {url}")
 
     if open_browser and not _is_wsl():
-        import threading  # noqa: PLC0415
-        import webbrowser  # noqa: PLC0415
+        import threading
+        import webbrowser
 
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
 

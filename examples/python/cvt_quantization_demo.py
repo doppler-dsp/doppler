@@ -1,4 +1,4 @@
-"""cvt_quantization_demo.py — Quantization noise comparison for all cvt converters.
+"""cvt_quantization_demo.py — Quantization noise comparison for cvt converters.
 
 Each cvt converter operates on real F32 samples.  For complex signals
 (float _Complex / CF32 — two 32-bit floats per sample) we view the array
@@ -7,8 +7,10 @@ values, then view the output back as CF32.
 
 Converters compared:
   - F32ToI16   / I16ToF32      — signed int16 (bipolar, two's-complement)
-  - F32ToI16U32 / I16U32ToF32  — uint32 container (same Q15 bit pattern, zero-extended)
-  - F32ToI16U64 / I16U64ToF32  — uint64 container (same Q15 bit pattern, zero-extended)
+  - F32ToI16U32 / I16U32ToF32  — uint32 container (same Q15 bit pattern,
+                                  zero-extended)
+  - F32ToI16U64 / I16U64ToF32  — uint64 container (same Q15 bit pattern,
+                                  zero-extended)
 
 All three share the same Q15 quantization step (1/32768 ≈ 3.05e-5), so
 their quantization noise floors are identical.  The container type determines
@@ -29,7 +31,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import doppler.cvt as cvt
-
 
 # ---------------------------------------------------------------------------
 # converters
@@ -108,7 +109,8 @@ def _blackman_harris(n: int) -> np.ndarray:
 
 
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
-    """Full complex spectrum (−0.5…+0.5), Blackman-Harris windowed, normalised."""
+    """Full complex spectrum (−0.5…+0.5), Blackman-Harris windowed, normalised.
+    """
     n = len(x)
     w = _blackman_harris(n)
     cg = w.mean()
@@ -150,7 +152,8 @@ def main(out_path: str = "cvt_quantization_demo.png") -> None:
     )
     fig.patch.set_facecolor("#0f172a")
     fig.suptitle(
-        "cvt quantization — CF32 input (two F32 per sample, interleaved re/im)\n"
+        "cvt quantization — CF32 input"
+        " (two F32 per sample, interleaved re/im)\n"
         "Q15 step = 1/32768 ≈ 3.05e-5  (all three converters identical)",
         fontsize=12,
         color="#f1f5f9",

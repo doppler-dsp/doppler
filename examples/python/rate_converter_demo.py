@@ -35,7 +35,6 @@ import numpy as np
 
 from doppler.resample import RateConverter
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -203,7 +202,7 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
         ax.yaxis.label.set_color("#d1d5db")
         ax.title.set_color("#f1f5f9")
 
-    # ── input spectrum ────────────────────────────────────────────────────────
+    # ── input spectrum ───────────────────────────────────────────────────────
     freq_in, amp_in = _spectrum_db(x)
     axes[0].plot(freq_in, amp_in, color="#60a5fa", lw=0.8)
     axes[0].axvline(fn_in, color="#4ade80", lw=1.2, linestyle="--")
@@ -228,7 +227,7 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
     )
     _style(axes[0])
 
-    # ── one panel per regime ──────────────────────────────────────────────────
+    # ── one panel per regime ─────────────────────────────────────────────────
     for ax, (rate, title) in zip(axes[1:], REGIMES):
         rc = RateConverter(rate)
         y = np.array(rc.execute(x), copy=True)
@@ -253,7 +252,7 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
                 xytext=(fn_out + 0.06, tone_amp - 15),
                 color="#4ade80",
                 fontsize=9,
-                arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.0),
+                arrowprops={"arrowstyle": "->", "color": "#4ade80", "lw": 1.0},
             )
 
         # Stage label in top-left corner
@@ -265,11 +264,11 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
             color="#fbbf24",
             fontsize=9,
             va="top",
-            bbox=dict(
-                boxstyle="round,pad=0.2",
-                facecolor="#1f2937",
-                edgecolor="#4b5563",
-            ),
+            bbox={
+                "boxstyle": "round,pad=0.2",
+                "facecolor": "#1f2937",
+                "edgecolor": "#4b5563",
+            },
         )
 
         ax.set_xlim(-0.5, 0.5)

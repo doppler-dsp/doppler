@@ -9,8 +9,7 @@ import pytest
 
 from doppler.buffer import F32Buffer, F64Buffer, I16Buffer
 
-
-# ── F32Buffer (complex64) ──────────────────────────────────────────────────────
+# ── F32Buffer (complex64) ────────────────────────────────────────────────────
 
 
 class TestF32Buffer:
@@ -90,7 +89,7 @@ class TestF32Buffer:
         buf.destroy()
 
 
-# ── F64Buffer (complex128) ─────────────────────────────────────────────────────
+# ── F64Buffer (complex128) ───────────────────────────────────────────────────
 
 
 class TestF64Buffer:
@@ -124,7 +123,7 @@ class TestF64Buffer:
         buf.destroy()
 
 
-# ── I16Buffer (int16 IQ pairs) ─────────────────────────────────────────────────
+# ── I16Buffer (int16 IQ pairs) ───────────────────────────────────────────────
 
 
 class TestI16Buffer:
@@ -179,7 +178,7 @@ class TestI16Buffer:
         buf.destroy()
 
 
-# ── Page-aware sizing (regression for the 16 KB-page mirror bug) ────────────────
+# ── Page-aware sizing (regression for the 16 KB-page mirror bug) ─────────────
 
 
 import mmap  # noqa: E402  (kept local to this regression section)

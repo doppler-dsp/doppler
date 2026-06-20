@@ -24,9 +24,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.resample import _halfband_bank, HalfbandDecimator
 from doppler.filter import HBDecimQ15
-
+from doppler.resample import HalfbandDecimator, _halfband_bank
 
 # ---------------------------------------------------------------------------
 # theme constants
@@ -313,7 +312,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     freq_q15, mag_q15 = _measure_freq_response_q15(h)
     freq_f32, mag_f32 = _measure_freq_response_float(h)
 
-    # ── input/output signals ──────────────────────────────────────────────────
+    # ── input/output signals ─────────────────────────────────────────────────
     rng = np.random.default_rng(42)
     x_iq = _build_input_signal(n=8192, rng=rng)
 
@@ -332,7 +331,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
 
     freq_out, mag_out = _bh_spectrum_db(y_c_settled, full_scale=32768.0)
 
-    # ── figure layout ─────────────────────────────────────────────────────────
+    # ── figure layout ────────────────────────────────────────────────────────
     fig = plt.figure(figsize=(14, 12), facecolor=BG_FIG)
     gs = fig.add_gridspec(
         2,
@@ -350,7 +349,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     ax_in = fig.add_subplot(gs[1, 0])  # bottom-left
     ax_out = fig.add_subplot(gs[1, 1])  # bottom-right
 
-    # ── Panel 1: frequency response ───────────────────────────────────────────
+    # ── Panel 1: frequency response ──────────────────────────────────────────
 
     # Background region shading
     ax_resp.axvspan(0.00, 0.20, color=C_PASS, alpha=0.35, label="_pass bg")
@@ -438,7 +437,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     )
     _style(ax_resp)
 
-    # ── Panel 2: input spectrum ───────────────────────────────────────────────
+    # ── Panel 2: input spectrum ──────────────────────────────────────────────
 
     ax_in.plot(freq_in, mag_in, color=C_Q15, lw=0.8)
 
@@ -452,7 +451,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         xytext=(f_pass_norm + 0.06, tone_p_db - 12),
         color=C_TONE_P,
         fontsize=8,
-        arrowprops=dict(arrowstyle="->", color=C_TONE_P, lw=0.9),
+        arrowprops={"arrowstyle": "->", "color": C_TONE_P, "lw": 0.9},
     )
 
     # Annotate stopband tone
@@ -465,7 +464,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         xytext=(f_stop_norm - 0.13, tone_s_db - 14),
         color=C_TONE_S,
         fontsize=8,
-        arrowprops=dict(arrowstyle="->", color=C_TONE_S, lw=0.9),
+        arrowprops={"arrowstyle": "->", "color": C_TONE_S, "lw": 0.9},
     )
 
     ax_in.set_xlim(0.0, 0.5)
@@ -475,7 +474,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     ax_in.set_title("Input spectrum (before decimation)", fontsize=10)
     _style(ax_in)
 
-    # ── Panel 3: output spectrum ──────────────────────────────────────────────
+    # ── Panel 3: output spectrum ─────────────────────────────────────────────
 
     ax_out.plot(freq_out, mag_out, color=C_Q15, lw=0.8)
 
@@ -489,7 +488,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         xytext=(f_pass_out + 0.05, tone_po_db - 12),
         color=C_TONE_P,
         fontsize=8,
-        arrowprops=dict(arrowstyle="->", color=C_TONE_P, lw=0.9),
+        arrowprops={"arrowstyle": "->", "color": C_TONE_P, "lw": 0.9},
     )
 
     # Stopband tone should be suppressed — annotate near f=0.35 of output
@@ -503,7 +502,7 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         xytext=(f_stop_out - 0.14, tone_so_db + 18),
         color=C_TONE_S,
         fontsize=8,
-        arrowprops=dict(arrowstyle="->", color=C_TONE_S, lw=0.9),
+        arrowprops={"arrowstyle": "->", "color": C_TONE_S, "lw": 0.9},
     )
 
     ax_out.set_xlim(0.0, 0.5)

@@ -57,7 +57,8 @@ def two_tone(f1, f2, amp, a2=0.02, a3=0.05):
     nonlinearity y = x + a2 x^2 + a3 x^3 — the DUT model that creates the
     controlled IM2/IM3 products.  The spectrum backdrop the demo plots comes
     from the analyzer's own `spectrum_dbfs`, not a hand-rolled periodogram.
-    The capture spans `M = NAVG * N` so `analyze()` averages `NAVG` segments."""
+    The capture spans `M = NAVG * N` so `analyze()` averages `NAVG` segments.
+    """
     x = amp * (LO(f1 / FS).steps(M).real + LO(f2 / FS).steps(M).real)
     return (x + a2 * x**2 + a3 * x**3).astype(np.float32)
 
@@ -143,7 +144,7 @@ def main():
         va="top",
         family="monospace",
         fontsize=8,
-        bbox=dict(boxstyle="round", fc="#f8fafc", ec="#cbd5e1"),
+        bbox={"boxstyle": "round", "fc": "#f8fafc", "ec": "#cbd5e1"},
     )
     ax.set(
         title="(a) two-tone IMD — fundamentals + folded IM products",
@@ -235,7 +236,7 @@ def main():
         "",
         xy=((nlo + nhi) / 2e6, g.notch_psd_dbfs),
         xytext=((nlo + nhi) / 2e6, g.inband_psd_dbfs),
-        arrowprops=dict(arrowstyle="<->", color="C4", lw=1.4),
+        arrowprops={"arrowstyle": "<->", "color": "C4", "lw": 1.4},
     )
     ax.text(
         (nlo + nhi) / 2e6 + 1.0,

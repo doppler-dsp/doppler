@@ -1,14 +1,18 @@
 """wfm_io_demo.py — write a waveform once, read it back from any container.
 
-The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader`` / ``read_iq``) is the
+The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader`` / ``read_iq``)
+is the
 same C codec behind the ``wfmgen`` CLI's ``--file_type``. This demo writes one
 QPSK capture to all four containers and reads each back, showing the headline
 distinction between them:
 
-- **raw** — bare interleaved I/Q. Smallest, fastest, but carries **no metadata**:
+- **raw** — bare interleaved I/Q. Smallest, fastest, but carries
+  **no metadata**:
   the reader must be *told* the sample type (and ``fs``/``fc`` are not stored).
-- **csv** — human-readable ``I,Q`` text. Self-describing shape, no metadata, big.
-- **BLUE (type-1000)** — a 512-byte header that records sample type, byte order,
+- **csv** — human-readable ``I,Q`` text. Self-describing shape, no metadata,
+  big.
+- **BLUE (type-1000)** — a 512-byte header that records sample type,
+  byte order,
   ``fs`` and ``fc``; the reader recovers them with no hints.
 - **SigMF** — a ``.sigmf-data`` + ``.sigmf-meta`` JSON sidecar, likewise
   self-describing (``fs``/``fc`` recovered from the metadata).
@@ -63,7 +67,7 @@ work = tempfile.mkdtemp()
 # (file_type, filename, how to open the Reader). Raw has no magic/metadata, so
 # the reader is given the sample type; the rest auto-detect from the container.
 formats = [
-    ("raw", "cap.cf32", dict(sample_type="cf32")),
+    ("raw", "cap.cf32", {"sample_type": "cf32"}),
     ("csv", "cap.csv", {}),
     ("blue", "cap.blue", {}),
     ("sigmf", "cap.sigmf-data", {}),
@@ -87,7 +91,7 @@ for file_type, name, read_kw in formats:
             )
     with Reader(path, **read_kw) as r:
         y = r.read(N)  # read the whole capture (N < one read block)
-        meta = dict(file_type=r.file_type, fs=r.fs, fc=r.fc)
+        meta = {"file_type": r.file_type, "fs": r.fs, "fc": r.fc}
     size = os.path.getsize(path)
     err = float(np.max(np.abs(y - x))) if len(y) == len(x) else float("nan")
     results.append((file_type, y, size, meta, err))
@@ -122,7 +126,10 @@ for ax, (file_type, y, size, meta, err) in zip(axes.ravel(), results):
         fontsize=8,
         va="bottom",
         family="monospace",
-        bbox=dict(boxstyle="round", fc="white", ec="#cccccc", alpha=0.9),
+        bbox={
+            "boxstyle": "round", "fc": "white",
+            "ec": "#cccccc", "alpha": 0.9,
+        },
     )
     ax.legend(loc="upper right", fontsize=8)
 
@@ -131,7 +138,8 @@ fig.savefig("wfm_io_demo.png", dpi=110)
 print("Wrote the same QPSK capture to four containers, read each back:")
 for file_type, _, size, meta, err in results:
     print(
-        f"  {file_type:5s}  {size / 1024:6.0f} KiB  detected={meta['file_type']:5s}"
+        f"  {file_type:5s}  {size / 1024:6.0f} KiB"
+        f"  detected={meta['file_type']:5s}"
         f"  fs={meta['fs'] / 1e6 or 0:.1f}M  fc={meta['fc'] / 1e9 or 0:.2f}G"
         f"  |Δ|max={err:.1e}"
     )

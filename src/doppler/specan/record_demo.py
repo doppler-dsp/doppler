@@ -63,7 +63,7 @@ def record(
     list of dict
         Each dict has keys: db, fft_size, fs_out, center_freq, span, rbw.
     """
-    from doppler.specan.config import SpecanConfig, DemoConfig
+    from doppler.specan.config import DemoConfig, SpecanConfig
     from doppler.specan.engine import SpecanEngine
     from doppler.specan.source import DemoSource
 

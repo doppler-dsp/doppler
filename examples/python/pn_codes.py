@@ -52,7 +52,7 @@ def main() -> None:
     assert np.allclose(ac[1:], -1.0 / period, atol=1e-9)
     print(f"n={n}  autocorrelation: peak={ac[0]:.3f}, floor={ac[1]:.5f}")
 
-    # ── 64-bit register (length 40): auto-MLS poly, balanced, never collapses ──
+    # ── 64-bit register (length 40): auto-MLS poly, balanced, never collapses
     big = np.asarray(PN(0x800000001C, 1, 40).generate(100_000))
     assert set(np.unique(big).tolist()) <= {0, 1}
     assert 0.45 < big.mean() < 0.55 and big.any()

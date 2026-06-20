@@ -28,7 +28,6 @@ import numpy as np
 
 from doppler.resample import CIC
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -223,7 +222,8 @@ def demo_sdr_pipeline():
     fn_jammer = f_jammer / fs_in
 
     # Scale so the two-tone sum stays within ±1.0 per component.
-    # Worst-case component amplitude = A_wanted + A_jammer; use 0.6 + 0.3 = 0.9.
+    # Worst-case component amplitude = A_wanted + A_jammer;
+    # use 0.6 + 0.3 = 0.9.
     A_wanted = 0.6
     A_jammer = 0.3
 
@@ -231,7 +231,8 @@ def demo_sdr_pipeline():
     x = A_wanted * _tone(fn_wanted, N_IN) + A_jammer * _tone(fn_jammer, N_IN)
 
     print(
-        f"  Input fs = {fs_in / 1e6:.3f} Msps, R={R} → output {fs_out / 1e3:.0f} ksps"
+        f"  Input fs = {fs_in / 1e6:.3f} Msps, R={R}"
+        f" → output {fs_out / 1e3:.0f} ksps"
     )
     print(f"  Wanted:  {f_wanted / 1e3:.0f} kHz  (fn={fn_wanted:.5f})")
     print(f"  Jammer:  {f_jammer / 1e3:.0f} kHz  (fn={fn_jammer:.5f})")
@@ -248,7 +249,8 @@ def demo_sdr_pipeline():
 
     print(f"  Wanted-only output RMS:   {wanted_db:+.1f} dBFS")
     print(f"  Combined output RMS:      {combined_db:+.1f} dBFS")
-    # Without CIC: power of two incoherent tones adds → 10·log₁₀(1 + (A_j/A_w)²)
+    # Without CIC: power of two incoherent tones adds
+    # → 10·log₁₀(1 + (A_j/A_w)²)
     no_filter_excess_db = 10.0 * math.log10(1.0 + (A_jammer / A_wanted) ** 2)
     print(
         f"  Jammer visible as excess: {combined_db - wanted_db:+.1f} dB "
@@ -344,7 +346,7 @@ def demo_spectral_plot(
         color="#4ade80",
         fontsize=11,
         va="top",
-        arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.2),
+        arrowprops={"arrowstyle": "->", "color": "#4ade80", "lw": 1.2},
     )
     ax_in.axvline(
         f_jammer_khz, color="#f87171", lw=1.0, linestyle="-.", alpha=0.8
@@ -356,7 +358,7 @@ def demo_spectral_plot(
         color="#f87171",
         fontsize=11,
         va="top",
-        arrowprops=dict(arrowstyle="->", color="#f87171", lw=1.2),
+        arrowprops={"arrowstyle": "->", "color": "#f87171", "lw": 1.2},
     )
 
     ax_in.set_xlim(-fs_in / 2 / 1e3, fs_in / 2 / 1e3)
@@ -427,7 +429,7 @@ def demo_spectral_plot(
         color="#4ade80",
         fontsize=11,
         va="top",
-        arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.2),
+        arrowprops={"arrowstyle": "->", "color": "#4ade80", "lw": 1.2},
     )
 
     # Complex tone at f_jammer aliases to f_jammer mod fs_out,
@@ -449,7 +451,7 @@ def demo_spectral_plot(
         color="#f87171",
         fontsize=11,
         va="top",
-        arrowprops=dict(arrowstyle="->", color="#f87171", lw=1.2),
+        arrowprops={"arrowstyle": "->", "color": "#f87171", "lw": 1.2},
     )
 
     ax_out.set_xlim(-fs_in / 2 / 1e3, fs_in / 2 / 1e3)

@@ -159,7 +159,7 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
         xytext=(counts[bi] - 0.5, speedups[bi] + 1.5),
         color="#4ade80",
         fontsize=10,
-        arrowprops=dict(arrowstyle="->", color="#4ade80", lw=1.0),
+        arrowprops={"arrowstyle": "->", "color": "#4ade80", "lw": 1.0},
     )
 
     fig.patch.set_facecolor("#0f172a")

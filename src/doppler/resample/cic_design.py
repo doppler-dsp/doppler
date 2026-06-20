@@ -29,18 +29,17 @@ Examples
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 __all__ = [
-    "cic_precision_bits",
     "cic_alias_rejection",
-    "cic_passband_droop",
-    "cic_min_order",
     "cic_design",
+    "cic_min_order",
+    "cic_passband_droop",
+    "cic_precision_bits",
 ]
 
 
-# ── internal helpers ──────────────────────────────────────────────────────────
+# ── internal helpers ─────────────────────────────────────────────────────────
 
 
 def _response(R: int, N: int, M: int, f_in: float) -> float:
@@ -73,7 +72,7 @@ def _response(R: int, N: int, M: int, f_in: float) -> float:
     return h**N
 
 
-# ── public API ────────────────────────────────────────────────────────────────
+# ── public API ───────────────────────────────────────────────────────────────
 
 
 def cic_precision_bits(R: int, N: int, M: int = 1) -> int:
@@ -123,7 +122,8 @@ def cic_precision_bits(R: int, N: int, M: int = 1) -> int:
 
 
 def cic_alias_rejection(R: int, N: int, M: int, f_p: float) -> float:
-    """Alias rejection at output passband edge f_p (dB, positive = attenuation).
+    """Alias rejection at output passband edge f_p (dB, positive =
+    attenuation).
 
     For a CIC decimator with ratio R, the worst alias at output frequency
     f_p comes from the complex-conjugate alias zone: input digital
@@ -206,8 +206,8 @@ def cic_min_order(
     R: int,
     f_p: float,
     rejection_db: float,
-    M: Optional[int] = None,
-) -> Optional[tuple[int, int]]:
+    M: int | None = None,
+) -> tuple[int, int] | None:
     """Minimum (N, M) meeting alias rejection requirement.
 
     Searches N from 1 to 16 and M in {1, 2} (or just the supplied M) and
@@ -254,7 +254,7 @@ def cic_design(
     R: int,
     f_p: float,
     *,
-    M: Optional[int] = None,
+    M: int | None = None,
     max_N: int = 8,
 ) -> None:
     """Print a design-aid table for a CIC decimator.

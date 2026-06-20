@@ -1,6 +1,7 @@
 """Integration tests for the Python composer (doppler.wfm.compose).
 
-The strong test is **byte-parity against the C ``wfmgen`` CLI**: a single-segment
+The strong test is **byte-parity against the C ``wfmgen`` CLI**: a
+single-segment
 ``Composer`` written through ``Writer`` must produce the exact same file the
 one C CLI does for the same flags. The rest cover the JSON round-trip, the
 Writer↔read_iq round-trip per sample type, segment timing, and the DSP helpers.
@@ -19,7 +20,7 @@ import time
 import numpy as np
 import pytest
 
-from doppler.wfm import mls_poly, rrc_taps, dsss_spread
+from doppler.wfm import dsss_spread, mls_poly, rrc_taps
 from doppler.wfm.compose import (
     Composer,
     Reader,
@@ -86,7 +87,8 @@ def _md5(path) -> str:
 @pytest.mark.parametrize("stype", ["cf32", "ci16", "ci8"])
 def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
     """Python Composer+Writer == the wfmgen CLI single-segment run, byte-for-
-    byte (same defaults). A 1-segment wfmgen run is the old single-shot path."""
+    byte (same defaults). A 1-segment wfmgen run is the old single-shot
+    path."""
     n = 1024
     cli = tmp_path / "cli.iq"
     subprocess.run(
@@ -169,7 +171,8 @@ def test_chirp_json_roundtrip():
 
 
 def test_chirp_in_timeline_and_sum():
-    """A chirp composes both in time (.add) and summed (.sum) with other srcs."""
+    """A chirp composes both in time (.add) and summed (.sum) with other
+    srcs."""
     from doppler.wfm import chirp, tone
 
     tl = Segment("chirp", freq=1e5, f_end=2e5, num_samples=1000).add(
@@ -198,7 +201,8 @@ def test_json_roundtrip():
 
 @pytest.mark.parametrize("stype", ["cf32", "cf64", "ci32", "ci16", "ci8"])
 def test_writer_readback_roundtrip(tmp_path, stype):
-    """Writer → read_iq round-trips per sample type (cf* exact, ci* within q-step)."""
+    """Writer → read_iq round-trips per sample type (cf* exact, ci* within
+    q-step)."""
     x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
     p = tmp_path / f"cap.{stype}"
     with Writer(p, sample_type=stype) as w:
@@ -241,7 +245,8 @@ def test_continuous_raises_on_compose():
 
 
 def test_mls_poly_table():
-    """A few known maximal-length polynomials (Galois right-shift convention)."""
+    """A few known maximal-length polynomials (Galois right-shift
+    convention)."""
     assert mls_poly(7) == 0x41
     assert mls_poly(15) == 0x4001
     assert mls_poly(31) == 0x40000004
@@ -419,9 +424,10 @@ def test_sampleclock_paces_to_rate():
     elapsed = time.perf_counter() - t0
     assert 0.9 < elapsed < 1.4, f"paced run took {elapsed:.3f}s, expected ~1.0"
     assert clk.samples == 100000
-    # NB: no `underruns == 0` assertion — on a loaded, non-realtime CI runner an
-    # idle pacer can legitimately fall behind once (that's what the counter is
-    # for); the drift-free schedule still lands elapsed near 1.0 s.
+    # NB: no `underruns == 0` assertion — on a loaded, non-realtime CI
+    # runner an idle pacer can legitimately fall behind once (that's what
+    # the counter is for); the drift-free schedule still lands elapsed
+    # near 1.0 s.
 
 
 @_needs_clock
@@ -521,7 +527,8 @@ def test_sampleclock_nonpositive_fs_is_safe():
 def test_reader_roundtrips_each_container(
     tmp_path, file_type, ext, stype, tol
 ):
-    """Writer → Reader round-trips per container; auto-detection recovers it."""
+    """Writer → Reader round-trips per container; auto-detection recovers
+    it."""
     x = Composer(type="tone", freq=1e5, num_samples=1000).compose()
     p = tmp_path / f"cap.{ext}"
     with Writer(p, file_type=file_type, sample_type=stype, fs=1e6) as w:
@@ -574,8 +581,9 @@ def test_reader_matches_read_iq_for_raw(tmp_path):
         w.write(x)
     via_reader = _read_all(Reader(str(p), sample_type="ci32"))
     via_read_iq = read_iq(str(p), "ci32")
-    # Both divide by the same full-scale; the C reader does it scalar, read_iq
-    # via the SIMD cvt converter, so they agree to float precision (not bitwise).
+    # Both divide by the same full-scale; the C reader does it scalar,
+    # read_iq via the SIMD cvt converter, so they agree to float precision
+    # (not bitwise).
     assert via_reader.shape == via_read_iq.shape
     assert np.allclose(via_reader, via_read_iq, atol=1e-6)
 
@@ -692,7 +700,8 @@ def test_writer_headroom(tmp_path):
 
 def test_segment_level():
     """Per-segment ``level`` (dBFS) scales the segment by 10^(level/20):
-    -6.02 dB halves it, 0 dB is a no-op, it's SNR-invariant, JSON carries it."""
+    -6.02 dB halves it, 0 dB is a no-op, it's SNR-invariant, JSON carries
+    it."""
     base = Composer([Segment("tone", num_samples=256)]).compose()
     half = Composer(
         [Segment("tone", num_samples=256, level=-6.020599913)]
@@ -722,12 +731,13 @@ def test_segment_level():
     )
 
 
-# ── Phase 4b: .sum() multi-source segments + noise resolution ─────────────────
+# ── Phase 4b: .sum() multi-source segments + noise resolution ────────────────
 # (_WFMGEN / _needs_wfmgen are defined at the top of the module.)
 
 
 def test_sum_compose_basic():
-    """Segment.sum mixes sources over one span; the C resolver adds the floor."""
+    """Segment.sum mixes sources over one span; the C resolver adds the
+    floor."""
     seg = Segment.sum(
         qpsk(snr=15, snr_mode="esno"),
         tone(freq=2e5, level=-12),
@@ -800,7 +810,8 @@ def test_sum_explicit_noise_floor():
 
 @_needs_wfmgen
 def test_sum_cli_parity(tmp_path):
-    """wfmgen --from-file == the Python composer for a summed spec, byte-exact."""
+    """wfmgen --from-file == the Python composer for a summed spec,
+    byte-exact."""
     seg = Segment.sum(
         qpsk(snr=12, snr_mode="esno", seed=3),
         tone(freq=1.5e5, level=-10),
@@ -832,7 +843,7 @@ def test_sum_reject_overspecified():
         tone(snr=5, level=-3),  # over-specified: snr AND level
         num_samples=4096,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         Composer([seg]).compose()
 
 
@@ -860,7 +871,7 @@ def test_timeline_add_chains():
     b = Segment("pn", num_samples=127, pn_length=7)
     c = Segment("qpsk", num_samples=200, seed=4)
     tl = a.add(b).add(c)
-    assert [s for s in tl] == [a, b, c] and tl[1] is b
+    assert list(tl) == [a, b, c] and tl[1] is b
     assert np.array_equal(
         Composer(tl).compose(), Composer([a, b, c]).compose()
     )
@@ -1018,7 +1029,8 @@ def test_rrc_byte_parity_vs_wfmgen(tmp_path):
 
 
 def test_rrc_json_roundtrip():
-    """pulse/rrc_beta/rrc_span survive JSON; a rect spec never grows the keys."""
+    """pulse/rrc_beta/rrc_span survive JSON; a rect spec never grows the
+    keys."""
     a = Composer(
         [
             Segment(

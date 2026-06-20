@@ -1,4 +1,5 @@
-"""detection2d_demo.py — 2-D acquisition grid with theory-driven dwell and CFAR.
+"""detection2d_demo.py — 2-D acquisition grid with theory-driven dwell and
+CFAR.
 
 Frames the Detector2D as a GPS/CDMA acquisition search: the correlation
 surface is an N_DOPPLER × N_CODE_PHASE grid where each cell is an
@@ -71,7 +72,7 @@ import numpy as np
 from doppler.detection import det_dwell, det_pd, det_threshold
 from doppler.spectral import Corr2D, Detector2D
 
-# ── Search grid ───────────────────────────────────────────────────────────────
+# ── Search grid ──────────────────────────────────────────────────────────────
 
 N_DOPPLER = 16  # Doppler search bins  (rows)
 N_CODE_PHASE = 16  # code-phase search bins (columns, = PRN length in chips)
@@ -83,7 +84,7 @@ N = N_DOPPLER * N_CODE_PHASE  # total cells
 DOPPLER_BIN_TRUE = 5  # true Doppler bin
 CODE_PHASE_BIN_TRUE = 11  # true code-phase offset (chips)
 
-# ── Detection parameters ──────────────────────────────────────────────────────
+# ── Detection parameters ─────────────────────────────────────────────────────
 
 SNR_DB = 3.0  # per-sample amplitude SNR (dB)
 SIGMA = 1.0  # noise std dev per real/imag component
@@ -95,7 +96,7 @@ MAX_DWELL = 64  # upper search limit for det_dwell()
 N_TRIALS = 3_000  # MC trials
 RNG = np.random.default_rng(0)
 
-# ── Theory: minimum dwell and CFAR threshold ──────────────────────────────────
+# ── Theory: minimum dwell and CFAR threshold ─────────────────────────────────
 
 snr_amp = 10.0 ** (SNR_DB / 20.0)
 
@@ -128,7 +129,7 @@ print(f"                        →  η = {eta:.4f},  θ = {theta:.4f}")
 print(f"Pd target       : {PD_MIN:.2f}   →  required dwell M = {M}")
 print(f"Theory Pd @ M   : {pd_theory:.4f}  (cell: {pd_cell:.4f})")
 
-# ── Reference template ────────────────────────────────────────────────────────
+# ── Reference template ───────────────────────────────────────────────────────
 # Build a CAZAC-style (flat-spectrum) reference by assigning a random phase
 # to each 2D FFT bin and synthesizing via IFFT.  Flat spectrum → exactly
 # zero circular autocorrelation outside lag (0,0).  This prevents the
@@ -159,7 +160,9 @@ _ns = np.float32(SIGMA / math.sqrt(2.0))  # per-component noise std
 
 
 def signal_frame() -> np.ndarray:
-    """One CF32 acquisition frame with signal at (DOPPLER_BIN_TRUE, CODE_PHASE_BIN_TRUE)."""
+    """One CF32 acquisition frame with signal at
+    (DOPPLER_BIN_TRUE, CODE_PHASE_BIN_TRUE).
+    """
     sig = np.roll(
         np.roll(ref2d * A, DOPPLER_BIN_TRUE, axis=0),
         CODE_PHASE_BIN_TRUE,
@@ -193,7 +196,7 @@ peak_doppler, peak_code_phase = np.unravel_index(
     surf.argmax(), (N_DOPPLER, N_CODE_PHASE)
 )
 
-# ── Monte Carlo ───────────────────────────────────────────────────────────────
+# ── Monte Carlo ──────────────────────────────────────────────────────────────
 # threshold=0 → always fire; apply θ in Python to build the ROC.
 #
 # Guard band: exclude the signal cell from the noise reference (flat index
@@ -229,7 +232,7 @@ pfa_mc = float((noise_stats > theta).mean())
 print(f"\nMC Pd  = {pd_mc:.4f}  (theory {pd_theory:.4f})")
 print(f"MC Pfa = {pfa_mc:.4f}  (target  {PFA:.4f})")
 
-# ── Theory curves ─────────────────────────────────────────────────────────────
+# ── Theory curves ────────────────────────────────────────────────────────────
 
 dwell_x = np.arange(1, min(MAX_DWELL, M * 3) + 1, dtype=int)
 pd_vs_dwell = np.array(
@@ -262,7 +265,7 @@ thresholds = np.percentile(
 roc_pfa = np.array([(noise_stats > t).mean() for t in thresholds])
 roc_pd = np.array([(sig_stats > t).mean() for t in thresholds])
 
-# ── Plot ──────────────────────────────────────────────────────────────────────
+# ── Plot ─────────────────────────────────────────────────────────────────────
 
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(14, 4.5))
 fig.suptitle(

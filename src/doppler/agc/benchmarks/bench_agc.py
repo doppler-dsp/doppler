@@ -3,8 +3,8 @@
 Run: pytest src/doppler/agc/benchmarks/bench_agc.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.agc import AGC
 

@@ -26,11 +26,11 @@ from doppler.detection import (
     marcum_q,
 )
 
-# ── Shared fixtures ───────────────────────────────────────────────────────────
+# ── Shared fixtures ──────────────────────────────────────────────────────────
 
 PFA_VALUES = [1e-2, 1e-3, 1e-4, 1e-6, 1e-8, 1e-10]
 
-# ── marcum_q ──────────────────────────────────────────────────────────────────
+# ── marcum_q ─────────────────────────────────────────────────────────────────
 
 
 class TestMarcumQ:
@@ -126,7 +126,7 @@ class TestMarcumQ:
             marcum_q(1, 1.0)
 
 
-# ── det_threshold ─────────────────────────────────────────────────────────────
+# ── det_threshold ────────────────────────────────────────────────────────────
 
 
 class TestDetThreshold:
@@ -156,7 +156,7 @@ class TestDetThreshold:
         assert isinstance(det_threshold(1e-6), float)
 
 
-# ── det_pd ────────────────────────────────────────────────────────────────────
+# ── det_pd ───────────────────────────────────────────────────────────────────
 
 
 class TestDetPd:
@@ -192,7 +192,7 @@ class TestDetPd:
         assert isinstance(det_pd(1.0, 4, det_threshold(1e-6)), float)
 
 
-# ── det_dwell ─────────────────────────────────────────────────────────────────
+# ── det_dwell ────────────────────────────────────────────────────────────────
 
 
 class TestDetDwell:
@@ -223,7 +223,7 @@ class TestDetDwell:
         assert isinstance(det_dwell(1.0, 0.9, 1e-6, 256), int)
 
 
-# ── det_snr ───────────────────────────────────────────────────────────────────
+# ── det_snr ──────────────────────────────────────────────────────────────────
 
 
 class TestDetSnr:
@@ -255,7 +255,7 @@ class TestDetSnr:
         assert isinstance(det_snr(4, 0.9, 1e-6), float)
 
 
-# ── det_threshold_power ───────────────────────────────────────────────────────
+# ── det_threshold_power ──────────────────────────────────────────────────────
 
 
 class TestDetThresholdPower:
@@ -285,7 +285,7 @@ class TestDetThresholdPower:
         assert isinstance(det_threshold_power(1e-6), float)
 
 
-# ── det_pd_power ──────────────────────────────────────────────────────────────
+# ── det_pd_power ─────────────────────────────────────────────────────────────
 
 
 class TestDetPdPower:
@@ -334,7 +334,7 @@ class TestDetPdPower:
         )
 
 
-# ── det_dwell_power ───────────────────────────────────────────────────────────
+# ── det_dwell_power ──────────────────────────────────────────────────────────
 
 
 class TestDetDwellPower:
@@ -371,7 +371,7 @@ class TestDetDwellPower:
         assert isinstance(det_dwell_power(1.0, 0.9, 1e-6, 256), int)
 
 
-# ── det_snr_power ─────────────────────────────────────────────────────────────
+# ── det_snr_power ────────────────────────────────────────────────────────────
 
 
 class TestDetSnrPower:

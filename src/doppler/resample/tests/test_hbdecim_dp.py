@@ -26,7 +26,6 @@ from doppler.resample import (
     _halfband_bank,
 )
 
-
 # ------------------------------------------------------------------ #
 # Fixture: FIR branch of a 60 dB Kaiser halfband bank                #
 # ------------------------------------------------------------------ #
@@ -149,7 +148,8 @@ class TestHalfbandDecimatorDp:
     # ---- spectral: stopband rejection ≥ 50 dBc --------------------- #
 
     def test_stopband_rejection(self, fir_h):
-        """Stopband tone (f_in=0.4 → alias at -0.2 output) is ≥50 dB below passband.
+        """Stopband tone (f_in=0.4 → alias at -0.2 output) is ≥50 dB below
+        passband.
 
         Passband tone f_pb=0.1 → output at 0.2.
         Stopband tone f_sb=0.4 is above the stopband edge (0.3×fs_in);

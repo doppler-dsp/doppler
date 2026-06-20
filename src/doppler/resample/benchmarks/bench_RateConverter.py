@@ -1,6 +1,7 @@
 """Benchmark for RateConverter.
 
-Run: pytest src/doppler/resample/benchmarks/bench_RateConverter.py --benchmark-only
+Run: pytest src/doppler/resample/benchmarks/bench_RateConverter.py
+     --benchmark-only
 """
 
 import numpy as np

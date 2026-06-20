@@ -27,7 +27,6 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-
 # ------------------------------------------------------------------
 # Abstract base
 # ------------------------------------------------------------------
@@ -52,10 +51,10 @@ class Source(ABC):
         """
         ...
 
-    def set_fft_size(self, n: int) -> None:
+    def set_fft_size(self, n: int) -> None:  # noqa: B027
         """Notify the source of the current FFT size (optional hint)."""
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027
         """Release any held resources."""
 
 
@@ -122,6 +121,7 @@ class DemoSource(Source):
         self._tones: list[dict] = [
             self._make_tone(float(tone_freq) / self._fs, tone_power)
         ]
+        self._rng = np.random.default_rng()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -137,7 +137,7 @@ class DemoSource(Source):
 
     def _nco_for(self, tone: dict):
         if tone["nco"] is None:
-            from doppler.source import LO  # noqa: PLC0415
+            from doppler.source import LO
 
             tone["nco"] = LO(tone["fn"])
         return tone["nco"]
@@ -234,7 +234,7 @@ class DemoSource(Source):
         # FFT size (not the block read size) so the level stays stable
         # when block_size changes on zoom.
         noise_scale = self._noise_amp * math.sqrt(self._fft_size)
-        rng = np.random.standard_normal((n, 2)).astype(np.float32)
+        rng = self._rng.standard_normal((n, 2)).astype(np.float32)
         sig += (
             (rng[:, 0] + 1j * rng[:, 1]).astype(np.complex64)
             * noise_scale
@@ -276,7 +276,7 @@ class FileSource(Source):
         sample_rate: float,
         center_freq: float = 0.0,
     ) -> None:
-        from pathlib import Path  # noqa: PLC0415
+        from pathlib import Path
 
         self._path = Path(path)
         self._fs = float(sample_rate)
@@ -336,7 +336,7 @@ class SocketSource(Source):
 
     def _get_sub(self):
         if self._sub is None:
-            from doppler import Subscriber  # noqa: PLC0415
+            from doppler import Subscriber
 
             self._sub = Subscriber(self._address)
             self._sub.__enter__()
@@ -406,7 +406,7 @@ class PullSource(Source):
 
     def _get_pull(self):
         if self._pull is None:
-            from doppler import Pull  # noqa: PLC0415
+            from doppler import Pull
 
             self._pull = Pull(self._address)
             self._pull.__enter__()

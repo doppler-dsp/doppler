@@ -26,6 +26,7 @@ import numpy as np
 
 from doppler.filter import HBDecimQ15
 from doppler.resample import HalfbandDecimator, _halfband_bank
+from doppler.spectral import blackman_harris_window
 
 # ---------------------------------------------------------------------------
 # theme constants
@@ -118,9 +119,8 @@ def _measure_freq_response_q15(
     y_c = y_iq[0::2].astype(np.float64) + 1j * y_iq[1::2].astype(np.float64)
 
     n_out = len(y_c)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n_out) / n_out
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n_out, dtype=np.float32)
+    blackman_harris_window(w)
     cg = float(w.mean())
 
     S = np.fft.fft(y_c * w, n_out * pad)
@@ -171,9 +171,8 @@ def _measure_freq_response_float(
 
     y = y.astype(np.complex128)
     n_out = len(y)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n_out) / n_out
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n_out, dtype=np.float32)
+    blackman_harris_window(w)
     cg = float(w.mean())
 
     S = np.fft.fft(y * w, n_out * pad)
@@ -214,9 +213,8 @@ def _bh_spectrum_db(
         Magnitude in dBFS.
     """
     n = len(x_c)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = float(w.mean())
 
     S = np.fft.fft(x_c * w, n * pad)

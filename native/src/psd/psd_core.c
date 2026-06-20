@@ -41,7 +41,7 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
    */
   if (bits > 0)
     full_scale = ldexp (1.0, (int)bits - 1);
-  if (n < 2 || fs <= 0.0 || window < 0 || window > 1 || full_scale <= 0.0)
+  if (n < 2 || fs <= 0.0 || window < 0 || window > 2 || full_scale <= 0.0)
     return NULL;
   if (mode < ACC_TRACE_MEAN || mode > ACC_TRACE_MINHOLD)
     return NULL;
@@ -71,6 +71,8 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
 
   if (window == 1)
     kaiser_window (s->w, n, beta);
+  else if (window == 2)
+    blackman_harris_window (s->w, n);
   else
     hann_window (s->w, n);
 

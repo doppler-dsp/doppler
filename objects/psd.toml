@@ -29,7 +29,7 @@ default = "1.0"
 
 [[psd.init_params]]
 name = "window"
-type = "string_enum:hann,kaiser"
+type = "string_enum:hann,kaiser,blackman-harris"
 default = "hann"
 
 [[psd.init_params]]

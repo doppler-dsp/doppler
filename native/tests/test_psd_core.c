@@ -77,7 +77,7 @@ main (void)
   {
     CHECK (psd_create (1, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* n<2  */
     CHECK (psd_create (N, 0.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* fs   */
-    CHECK (psd_create (N, 1.0, 2, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* win  */
+    CHECK (psd_create (N, 1.0, 3, 0.0f, 1, 1.0, 0, 0, 0.1) == NULL); /* win  */
     CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 0.0, 0, 0, 0.1) == NULL); /* fscl */
     CHECK (psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 9, 0.1) == NULL); /* mode */
     psd_destroy (NULL);                                              /* ok   */

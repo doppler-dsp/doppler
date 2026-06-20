@@ -549,6 +549,14 @@ type = "float[]"
 out = true
 
 [[module.spectral.functions]]
+name = "blackman_harris_window"
+
+[[module.spectral.functions.params]]
+name = "w"
+type = "float[]"
+out = true
+
+[[module.spectral.functions]]
 name = "magnitude_db_cf32"
 out_type = "float"
 

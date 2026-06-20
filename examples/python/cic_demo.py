@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.resample import CIC
+from doppler.spectral import blackman_harris_window
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -87,9 +88,8 @@ def _spectrum_db(
         If True, return the full −fs/2…+fs/2 range (useful for complex IQ).
     """
     n = len(x)
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n) / n
-    w = a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = w.mean()
     S = np.fft.fft(x * w, n * pad)
     amp_db = 20.0 * np.log10(np.abs(S) / (n * cg) + 1e-300)

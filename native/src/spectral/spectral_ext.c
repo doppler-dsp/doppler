@@ -79,6 +79,25 @@ _bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_blackman_harris_window(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"w", NULL};
+    PyObject *w_obj = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O",
+            _kwlist, &w_obj))
+        return NULL;
+    PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        w_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+    if (!w_arr) { return NULL; }
+    float *w = (float *)PyArray_DATA(w_arr);
+    size_t w_len = (size_t)PyArray_SIZE(w_arr);
+    blackman_harris_window(w, w_len);
+    Py_DECREF(w_arr);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 _bind_magnitude_db_cf32(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
@@ -206,6 +225,7 @@ static PyMethodDef spectral_module_methods[] = {
     {"kaiser_enbw", (PyCFunction)(void *)_bind_kaiser_enbw, METH_VARARGS | METH_KEYWORDS, "kaiser_enbw."},
     {"kaiser_window", (PyCFunction)(void *)_bind_kaiser_window, METH_VARARGS | METH_KEYWORDS, "kaiser_window."},
     {"hann_window", (PyCFunction)(void *)_bind_hann_window, METH_VARARGS | METH_KEYWORDS, "hann_window."},
+    {"blackman_harris_window", (PyCFunction)(void *)_bind_blackman_harris_window, METH_VARARGS | METH_KEYWORDS, "blackman_harris_window."},
     {"magnitude_db_cf32", (PyCFunction)(void *)_bind_magnitude_db_cf32, METH_VARARGS | METH_KEYWORDS, "magnitude_db_cf32."},
     {"magnitude_db_cf64", (PyCFunction)(void *)_bind_magnitude_db_cf64, METH_VARARGS | METH_KEYWORDS, "magnitude_db_cf64."},
     {"find_peaks_f32", (PyCFunction)(void *)_bind_find_peaks_f32, METH_VARARGS | METH_KEYWORDS, "find_peaks_f32."},

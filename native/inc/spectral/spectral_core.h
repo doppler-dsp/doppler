@@ -2,7 +2,7 @@
  * @file spectral_core.h
  * @brief Spectral module — public C API.
  *
- * Provides windowing (Kaiser, Hann), ENBW computation, magnitude conversion,
+ * Provides windowing (Kaiser, Hann, Blackman-Harris), ENBW computation, magnitude conversion,
  * and peak finding.  These are pure functions with no persistent state.
  */
 #ifndef SPECTRAL_CORE_H
@@ -87,6 +87,30 @@ void kaiser_window(float *w, size_t w_len, float beta);
    * @endcode
    */
 void hann_window(float *w, size_t w_len);
+
+  /**
+   * @brief Fill @p w with a 4-term Blackman-Harris window.
+   * Computes the minimum 4-term Blackman-Harris window:
+   * w(k) = 0.35875 - 0.48829*cos(2πk/(N-1))
+   *               + 0.14128*cos(4πk/(N-1))
+   *               - 0.01168*cos(6πk/(N-1))
+   * for k = 0..N-1.  Provides approximately 92 dB first-sidelobe rejection,
+   * far deeper than Hann (~31 dB) or Kaiser at β=8 (~80 dB).  Use for
+   * quantization and decimation spectra where you need to see low-level
+   * artefacts below the noise floor.
+   *
+   * @param w      Output buffer modified in-place; must be length >= 1.
+   * @param w_len  Number of elements in @p w.
+   * @code
+   * >>> from doppler.spectral import blackman_harris_window
+   * >>> import numpy as np
+   * >>> w = np.zeros(8, dtype=np.float32)
+   * >>> blackman_harris_window(w)
+   * >>> [round(v, 4) for v in w.tolist()]
+   * [0.0001, 0.0334, 0.3328, 0.8894, 0.8894, 0.3328, 0.0334, 0.0001]
+   * @endcode
+   */
+void blackman_harris_window(float *w, size_t w_len);
 
   /**
    * @brief Convert a CF32 complex spectrum to F32 dB magnitudes.

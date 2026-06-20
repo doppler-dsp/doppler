@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import doppler.cvt as cvt
+from doppler.spectral import blackman_harris_window
 
 # ---------------------------------------------------------------------------
 # converters
@@ -100,20 +101,13 @@ def _make_signal(n: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def _blackman_harris(n: int) -> np.ndarray:
-    a = [0.35875, 0.48829, 0.14128, 0.01168]
-    k = 2 * np.pi * np.arange(n) / n
-    return (
-        a[0] - a[1] * np.cos(k) + a[2] * np.cos(2 * k) - a[3] * np.cos(3 * k)
-    )
-
-
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
     """Full complex spectrum (−0.5…+0.5), Blackman-Harris windowed,
     normalised.
     """
     n = len(x)
-    w = _blackman_harris(n)
+    w = np.zeros(n, dtype=np.float32)
+    blackman_harris_window(w)
     cg = w.mean()
     S = np.fft.fftshift(np.fft.fft(x * w, n * pad))
     amp_db = 20.0 * np.log10(np.abs(S) / (n * cg) + 1e-300)

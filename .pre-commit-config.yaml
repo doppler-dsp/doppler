@@ -18,7 +18,7 @@ exclude: '^vendor/|^docs/c-api/'
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.17
+    rev: v0.15.18
     hooks:
       - id: ruff
         args: [--fix, --unsafe-fixes]
@@ -64,3 +64,16 @@ repos:
         exclude: '\.pyi$|^native/inc/|_ext\.c$|^native/src/[^/]+/CMakeLists\.txt$'
       - id: trailing-whitespace
         exclude: '\.pyi$|^native/inc/|_ext\.c$|^native/src/[^/]+/CMakeLists\.txt$'
+
+  - repo: local
+    hooks:
+      # Push-stage only — needs compile_commands.json (cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON).
+      # Excludes match clang-format: jm-generated headers/aggregators and vendored code
+      # are already covered by the global exclude; add the per-component ext.c glue here.
+      - id: clang-tidy
+        name: clang-tidy
+        entry: clang-tidy
+        language: system
+        types_or: [c]
+        exclude: '^native/inc/|_ext\.c$'
+        stages: [push]

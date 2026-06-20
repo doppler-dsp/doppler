@@ -92,9 +92,9 @@ dev = [
     "scipy>=1.17.1; python_version >= '3.11'",
     "scipy<1.16; python_version == '3.10'",
     "scipy<1.14; python_version == '3.9'",
-    "mkdocs-material>=9.5",
-    "mkdocs-glightbox>=0.4",
-    "mkdocstrings[python]>=0.29",
+    "zensical>=0.0.29; python_version >= '3.10'",
+    "mkdocs-glightbox>=0.4; python_version >= '3.10'",
+    "mkdocstrings[python]>=0.29; python_version >= '3.10'",
     "mkdoxy>=1.2.8",
     "pydantic>=2.0",
     "pyyaml>=6.0",
@@ -110,3 +110,6 @@ line-length = 79
 # jm generates the re-export `__init__.py` shims; like the .pyi stubs they are
 # owned by the manifest-drift gate.
 extend-exclude = ["*.pyi", "vendor", "src/doppler/*/__init__.py"]
+# pre-commit passes files explicitly; force-exclude ensures extend-exclude
+# still applies even when ruff receives a .pyi path on the command line.
+force-exclude = true

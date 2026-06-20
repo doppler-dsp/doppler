@@ -1,0 +1,30 @@
+# Ruff configuration for doppler.
+# Replaces the former symlink to ~/mcp-store/configs/ruff.toml.
+#
+# Strict rules (ANN, N, etc.) are intentionally deferred — enabling them
+# project-wide requires a dedicated cleanup pass so CI stays green during
+# the toolchain-alignment change.  Add a [lint] section with extended
+# selects in a follow-up PR once the codebase is annotated.
+
+line-length = 79
+target-version = "py39"
+
+# jm-generated type stubs are owned by the manifest-drift gate; formatters
+# must not rewrite them. force-exclude ensures pre-commit's per-file
+# invocations also respect this when ruff receives a .pyi path explicitly.
+extend-exclude = ["*.pyi", "vendor", "src/doppler/*/__init__.py"]
+force-exclude = true
+
+[lint]
+# Mirrors the default ruff selection — basic correctness only.
+# Expand in a follow-up lint-cleanup PR.
+select = ["E4", "E7", "E9", "F"]
+
+[lint.isort]
+known-first-party = ["doppler"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+docstring-code-line-length = 79

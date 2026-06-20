@@ -78,8 +78,8 @@ def read_iq(
     >>> import numpy as np
     >>> from doppler.wfm.readback import read_iq
     >>> # round-trip a ci16 capture back to unit-scale complex64
-    >>> iq = read_iq("capture.iq", "ci16")          # doctest: +SKIP
-    >>> iq.dtype                                     # doctest: +SKIP
+    >>> iq = read_iq("capture.iq", "ci16")  # doctest: +SKIP
+    >>> iq.dtype  # doctest: +SKIP
     dtype('complex64')
     """
     bo = "<" if endian == "le" else ">"

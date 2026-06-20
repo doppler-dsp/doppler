@@ -74,7 +74,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
 endif
 
 .PHONY: all build test pyext \
-        wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
+        wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
         debug release blazing bump-version check-version tag-release \
@@ -189,6 +189,10 @@ test-all: test test-examples python-test test-examples-python
 python-test:
 	uv run pytest src/ -v
 
+# ── lint ──────────────────────────────────────────────────────────────────────
+lint:
+	uv run pre-commit run --all-files
+
 # ── bench ─────────────────────────────────────────────────────────────────────
 # Run C + Python benchmarks on THIS machine, snapshot to benchmarks/history/
 # (local scratch, gitignored). Use the CLI directly for options, e.g.
@@ -234,20 +238,21 @@ rust-test: build
 	cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # ── docs ──────────────────────────────────────────────────────────────────────
-docs-build: gen-c-api
-	uv run mkdocs build --strict
+# zensical reads mkdocs.yml natively — no config migration required.
+docs: gen-c-api
+	uv run zensical build --strict
 
 docs-serve: gen-c-api
-	uv run mkdocs serve
+	uv run zensical serve
 
 gen-c-api:
-	rm -rf docs/c-api .mkdoxy
+	rm -rf docs/c-api .mkdoxy .capi-site
 	uv run mkdocs build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api
 	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
 	# after the regen wipes it (matches the CI docs.yml step).
 	git checkout -- docs/c-api/index.md
-	rm -rf .mkdoxy
+	rm -rf .mkdoxy .capi-site
 
 # ── doxygen ───────────────────────────────────────────────────────────────────
 # Generates XML (consumed by mkdocstrings) and HTML in docs/doxygen/.
@@ -388,7 +393,7 @@ endif
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:
 	rm -rf $(BUILD_DIR) $(PY_BUILD_DIR)
-	rm -rf html/ xml/
+	rm -rf docs/doxygen/
 	rm -rf site/
 	find $(PYEXT_DIR) -name '*.cpython-*.so' -delete
 	find $(PYEXT_DIR) -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
@@ -415,8 +420,9 @@ help:
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
-	@echo "  make docs-build    Build the docs site (mkdocs-material)"
-	@echo "  make docs-serve    Serve the docs site locally (mkdocs-material)"
+	@echo "  make lint          Run pre-commit hooks on all files"
+	@echo "  make docs          Build the docs site (zensical)"
+	@echo "  make docs-serve    Serve the docs site locally (zensical)"
 	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"
 	@echo "  make debug         Clean + Debug build"
 	@echo "  make release       Clean + Release build"

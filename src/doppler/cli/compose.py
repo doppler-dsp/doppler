@@ -127,9 +127,7 @@ def up(compose_file: Path) -> ChainState:
     def _spawn(name: str, cmd: list[str]) -> tuple[subprocess.Popen, str]:
         log_path = _CHAINS_DIR / f"{chain_id}-{name}.log"
         log_fh = open(log_path, "w")  # noqa: SIM115
-        proc = subprocess.Popen(
-            cmd, stdout=log_fh, stderr=log_fh
-        )
+        proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh)
         return proc, str(log_path)
 
     # --- spawn source ---

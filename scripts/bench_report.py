@@ -132,8 +132,7 @@ def _load_build(version_dir, build):
 
 
 def load_published(root=PUBLISHED):
-    """{version: {build: {...}}} for every committed release, version-sorted.
-    """
+    """{version: {build: {...}}} for every committed release, sorted."""
     out = {}
     for d in sorted(glob.glob(os.path.join(root, "v*"))):
         version = os.path.basename(d)
@@ -231,8 +230,7 @@ def _git_short_sha():
 
 
 def cmd_publish(version, build) -> int:
-    """Stamp THIS machine's newest ``make bench`` run into published/v<ver>/.
-    """
+    """Stamp this machine's ``make bench`` output into published/v<ver>/."""
     if build not in BUILDS:
         print(f"--build must be one of {BUILDS}")
         return 1

@@ -53,9 +53,14 @@ def _all_list(path: str) -> list[str] | None:
     except (OSError, SyntaxError):
         return None
     for node in tree.body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets
-        ) and isinstance(node.value, (ast.List, ast.Tuple)):
+        if (
+            isinstance(node, ast.Assign)
+            and any(
+                isinstance(t, ast.Name) and t.id == "__all__"
+                for t in node.targets
+            )
+            and isinstance(node.value, (ast.List, ast.Tuple))
+        ):
             return [
                 e.value
                 for e in node.value.elts

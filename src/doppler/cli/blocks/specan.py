@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from doppler.cli.blocks import Block, BlockConfig, register
 
@@ -14,9 +14,9 @@ class SpecanConfig(BlockConfig):
     # annotations via get_type_hints at class-definition time, and PEP-604
     # `|` unions are not evaluatable on Python 3.9. `from __future__ import
     # annotations` does not help here — pydantic resolves the strings.
-    span: float | None = None
-    rbw: float | None = None
-    level: float | None = None
+    span: Optional[float] = None  # noqa: UP045
+    rbw: Optional[float] = None  # noqa: UP045
+    level: Optional[float] = None  # noqa: UP045
     web_port: int = 8080
     web_host: str = "127.0.0.1"
 

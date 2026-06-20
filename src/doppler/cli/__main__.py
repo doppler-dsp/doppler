@@ -96,8 +96,7 @@ def main() -> None:
         default=None,
         metavar="FILE",
         help=(
-            "Write compose file to FILE"
-            " (default: ~/.doppler/chains/<ID>.yml)"
+            "Write compose file to FILE (default: ~/.doppler/chains/<ID>.yml)"
         ),
     )
 

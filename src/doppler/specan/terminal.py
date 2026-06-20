@@ -242,13 +242,15 @@ class TerminalDisplay:
             tty.setraw(fd)
             if select.select([sys.stdin], [], [], 0.0)[0]:
                 ch = sys.stdin.read(1)
-                if ch == "\x1b" and select.select(
-                    [sys.stdin], [], [], 0.05
-                )[0]:
+                if (
+                    ch == "\x1b"
+                    and select.select([sys.stdin], [], [], 0.05)[0]
+                ):
                     ch2 = sys.stdin.read(1)
-                    if ch2 == "[" and select.select(
-                        [sys.stdin], [], [], 0.05
-                    )[0]:
+                    if (
+                        ch2 == "["
+                        and select.select([sys.stdin], [], [], 0.05)[0]
+                    ):
                         ch3 = sys.stdin.read(1)
                         return f"ESC[{ch3}"
                 return ch

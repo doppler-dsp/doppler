@@ -109,7 +109,8 @@ def _blackman_harris(n: int) -> np.ndarray:
 
 
 def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
-    """Full complex spectrum (−0.5…+0.5), Blackman-Harris windowed, normalised.
+    """Full complex spectrum (−0.5…+0.5), Blackman-Harris windowed,
+    normalised.
     """
     n = len(x)
     w = _blackman_harris(n)

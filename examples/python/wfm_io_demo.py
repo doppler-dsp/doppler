@@ -127,8 +127,10 @@ for ax, (file_type, y, size, meta, err) in zip(axes.ravel(), results):
         va="bottom",
         family="monospace",
         bbox={
-            "boxstyle": "round", "fc": "white",
-            "ec": "#cccccc", "alpha": 0.9,
+            "boxstyle": "round",
+            "fc": "white",
+            "ec": "#cccccc",
+            "alpha": 0.9,
         },
     )
     ax.legend(loc="upper right", fontsize=8)

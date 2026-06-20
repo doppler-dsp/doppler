@@ -314,7 +314,7 @@ jobs:
         python-version: '3.12'
 
     - name: Install dev deps
-      run: uv sync --group dev
+      run: uv sync --group dev --group docs
 
     - name: Check Python API docs coverage
       # Fails if a public symbol (module __all__) is documented nowhere under

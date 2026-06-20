@@ -18,15 +18,12 @@ select = [
     "C4",   # flake8-comprehensions
     "SIM",  # flake8-simplify
     "TC",   # flake8-type-checking
+    "ANN",  # flake8-annotations
     "N",    # pep8-naming
     "NPY",  # numpy rules
     "RUF",  # ruff-specific
 ]
 ignore = [
-    # ANN (type annotations) deferred — separate PR once all callsites
-    # are annotated; enables incremental approach without a 1900-violation cliff.
-    "ANN",
-
     # DSP naming conventions: N (sample count), Fs (sample rate), Q (filter
     # quality), H (transfer function), etc. are standard uppercase symbols in
     # signal-processing literature and map directly to C API parameter names.
@@ -39,9 +36,24 @@ ignore = [
     "RUF001",  # ambiguous unicode character in string
     "RUF002",  # ambiguous unicode character in docstring
     "RUF003",  # ambiguous unicode character in comment
+
+    "ANN204",  # missing return type on __init__ — always None, noisy
+    "ANN401",  # disallows `Any` — too strict at C extension boundaries
 ]
 
 [lint.per-file-ignores]
+# ANN not enforced outside the importable DSP API.
+# - tests, benchmarks, examples, scripts: coverage noise, not public API
+# - cli/ and specan/: application entry points, not the library surface
+"**/tests/**"           = ["ANN"]
+"**/benchmarks/**"      = ["ANN"]
+"examples/**"           = ["ANN"]
+"scripts/**"            = ["ANN"]
+"conftest.py"           = ["ANN"]
+"**/conftest.py"        = ["ANN"]
+"src/doppler/cli/**"    = ["ANN"]
+"src/doppler/specan/**" = ["ANN"]
+
 # CamelCase test/bench filenames mirror the class under test (HalfbandDecimator,
 # RateConverter, Resampler); renaming would break references across the repo.
 "src/doppler/resample/tests/test_*.py" = ["N999"]

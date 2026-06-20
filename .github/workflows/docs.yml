@@ -40,14 +40,14 @@ jobs:
 
       - name: Generate C API docs
         run: |
-          uv run mkdocs build -f mkdocs-capi.yml
+          uv run zensical build -f mkdocs-capi.yml
           cp -r .mkdoxy/doppler/c-api/. docs/c-api/
           rm -rf .mkdoxy
           # mkdoxy doesn't generate index.md; restore the committed landing page
           git checkout -- docs/c-api/index.md
 
       - name: Build site
-        run: uv run mkdocs build
+        run: uv run zensical build
 
       - name: Configure Pages
         if: github.ref == 'refs/heads/main'

@@ -1,78 +1,30 @@
 PROJECT_NAME           = "doppler"
-PROJECT_BRIEF          = "Open-source multi-language cross-platform DSP library"
 INPUT                  = native/inc native/src
-OUTPUT_DIRECTORY       = docs/doxygen
+FILE_PATTERNS          = *.h *.c
+RECURSIVE              = YES
 
-# pocketfft is vendored; signal_stream.h and pyex_common.h are internal glue.
-# _ext.c files are CPython binding boilerplate — no user-facing API.
-# clib_common.h "included by" graph exceeds the default 50-node cap once enough
-# modules include it — DOT_GRAPH_MAX_NODES raised to 100.
 EXCLUDE_PATTERNS       = */pocketfft* \
                          */signal_stream.h \
                          */pyex_common.h \
-                         */clib_common.h \
                          *_ext.c
 
-#---------------------------------------------------------------------------
-# Input
-#---------------------------------------------------------------------------
-FILE_PATTERNS          = *.h *.c
-RECURSIVE              = YES
-FULL_PATH_NAMES        = NO
-
-#---------------------------------------------------------------------------
-# Extraction
-#---------------------------------------------------------------------------
-EXTRACT_ALL            = YES
-EXTRACT_STATIC         = YES
-SORT_MEMBER_DOCS       = NO
-
-#---------------------------------------------------------------------------
-# C optimisation
-#---------------------------------------------------------------------------
-OPTIMIZE_OUTPUT_FOR_C  = YES
-
-#---------------------------------------------------------------------------
-# Markup
-#---------------------------------------------------------------------------
-MARKDOWN_SUPPORT       = YES
-JAVADOC_AUTOBRIEF      = YES
-AUTOLINK_SUPPORT       = YES
-
-#---------------------------------------------------------------------------
-# Math — MathJax 3 for inline LaTeX in DSP docstrings.
-# Use \f$ ... \f$ for inline and \f[ ... \f] for display equations.
-#---------------------------------------------------------------------------
-USE_MATHJAX            = YES
-MATHJAX_VERSION        = MathJax_3
-
-#---------------------------------------------------------------------------
-# Graphs — requires graphviz (dot)
-#---------------------------------------------------------------------------
-HAVE_DOT               = YES
-DOT_IMAGE_FORMAT       = svg
-CALL_GRAPH             = YES
-CALLER_GRAPH           = YES
-INCLUDE_GRAPH          = YES
-DOT_GRAPH_MAX_NODES    = 100
-
-#---------------------------------------------------------------------------
-# Output formats
-#---------------------------------------------------------------------------
-GENERATE_HTML          = YES
-GENERATE_LATEX         = NO
 GENERATE_XML           = YES
 XML_OUTPUT             = xml
 
-#---------------------------------------------------------------------------
-# HTML appearance
-#---------------------------------------------------------------------------
-GENERATE_TREEVIEW      = YES
-HTML_DYNAMIC_SECTIONS  = YES
+GENERATE_HTML          = YES
+OUTPUT_DIRECTORY       = docs/doxygen
 
-#---------------------------------------------------------------------------
-# Warnings
-#---------------------------------------------------------------------------
+GENERATE_LATEX         = NO
+
+
+EXTRACT_ALL            = YES
+OPTIMIZE_OUTPUT_FOR_C  = YES
+SORT_MEMBER_DOCS       = NO
+MARKDOWN_SUPPORT       = YES
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = YES
-WARN_AS_ERROR          = NO
+
+# The "included by" graph for clib_common.h exceeds the default 50-node cap once
+# enough modules include it (each adds a node); raise the ceiling so the graph
+# renders without a warning (the CI gate fails on any Doxygen warning).
+DOT_GRAPH_MAX_NODES    = 100

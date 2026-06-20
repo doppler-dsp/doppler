@@ -234,15 +234,16 @@ rust-test: build
 	cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
 # ── docs ──────────────────────────────────────────────────────────────────────
+# zensical reads mkdocs.yml natively — no config migration required.
 docs-build: gen-c-api
-	uv run mkdocs build --strict
+	uv run zensical build --strict
 
 docs-serve: gen-c-api
-	uv run mkdocs serve
+	uv run zensical serve
 
 gen-c-api:
 	rm -rf docs/c-api .mkdoxy
-	uv run mkdocs build -f mkdocs-capi.yml
+	uv run zensical build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api
 	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
 	# after the regen wipes it (matches the CI docs.yml step).
@@ -388,7 +389,7 @@ endif
 # ── clean ─────────────────────────────────────────────────────────────────────
 clean:
 	rm -rf $(BUILD_DIR) $(PY_BUILD_DIR)
-	rm -rf html/ xml/
+	rm -rf docs/doxygen/
 	rm -rf site/
 	find $(PYEXT_DIR) -name '*.cpython-*.so' -delete
 	find $(PYEXT_DIR) -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
@@ -415,8 +416,8 @@ help:
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
-	@echo "  make docs-build    Build the docs site (mkdocs-material)"
-	@echo "  make docs-serve    Serve the docs site locally (mkdocs-material)"
+	@echo "  make docs-build    Build the docs site (zensical)"
+	@echo "  make docs-serve    Serve the docs site locally (zensical)"
 	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"
 	@echo "  make debug         Clean + Debug build"
 	@echo "  make release       Clean + Release build"

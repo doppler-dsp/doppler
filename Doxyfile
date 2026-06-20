@@ -1,30 +1,16 @@
-PROJECT_NAME           = "doppler"
-INPUT                  = native/inc native/src
-FILE_PATTERNS          = *.h *.c
-RECURSIVE              = YES
+@INCLUDE               = ~/mcp-store/configs/Doxyfile.base
 
+PROJECT_NAME           = "doppler"
+PROJECT_BRIEF          = "Open-source multi-language cross-platform DSP library"
+INPUT                  = native/inc native/src
+OUTPUT_DIRECTORY       = docs/doxygen
+
+# pocketfft is vendored; signal_stream.h and pyex_common.h are internal glue.
+# _ext.c files are CPython binding boilerplate — no user-facing API.
+# clib_common.h "included by" graph exceeds the default 50-node cap once enough
+# modules include it — DOT_GRAPH_MAX_NODES raised to 100 in Doxyfile.base.
 EXCLUDE_PATTERNS       = */pocketfft* \
                          */signal_stream.h \
                          */pyex_common.h \
+                         */clib_common.h \
                          *_ext.c
-
-GENERATE_XML           = YES
-XML_OUTPUT             = xml
-
-GENERATE_HTML          = YES
-HTML_OUTPUT            = html
-
-GENERATE_LATEX         = NO
-
-
-EXTRACT_ALL            = YES
-OPTIMIZE_OUTPUT_FOR_C  = YES
-SORT_MEMBER_DOCS       = NO
-MARKDOWN_SUPPORT       = YES
-QUIET                  = YES
-WARN_IF_UNDOCUMENTED   = YES
-
-# The "included by" graph for clib_common.h exceeds the default 50-node cap once
-# enough modules include it (each adds a node); raise the ceiling so the graph
-# renders without a warning (the CI gate fails on any Doxygen warning).
-DOT_GRAPH_MAX_NODES    = 100

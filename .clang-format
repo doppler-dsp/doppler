@@ -1,13 +1,22 @@
 BasedOnStyle: GNU
 ColumnLimit: 79
+RequiresClangFormatVersion: 22
+
+IndentWidth: 2
+TabWidth: 8
+UseTab: Never
+BreakAfterReturnType: AllDefinitions
+BreakBeforeBraces: GNU
+SpaceBeforeParens: Always
+
 AlignConsecutiveDeclarations: Consecutive
 AlignConsecutiveAssignments: Consecutive
 AlignTrailingComments:
   Kind: Always
   OverEmptyLines: 0
 SortIncludes: CaseSensitive
+
 # Py_BEGIN/END_ALLOW_THREADS expand to an open/close brace pair; tell
-# clang-format they delimit a block so it indents the body and keeps each macro
-# on its own line (instead of gluing the next statement onto the macro).
+# clang-format they delimit a block so it indents the body correctly.
 MacroBlockBegin: "Py_BEGIN_ALLOW_THREADS"
-MacroBlockEnd: "Py_END_ALLOW_THREADS"
+MacroBlockEnd:   "Py_END_ALLOW_THREADS"

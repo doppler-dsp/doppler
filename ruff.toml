@@ -42,17 +42,15 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-# ANN not enforced outside the importable DSP API.
-# - tests, benchmarks, examples, scripts: coverage noise, not public API
-# - cli/ and specan/: application entry points, not the library surface
+# ANN enforced on all user-facing API surfaces. Excluded:
+# - tests, benchmarks, scripts: not public API
+# - examples: demonstrate API usage, are not API themselves
 "**/tests/**"           = ["ANN"]
 "**/benchmarks/**"      = ["ANN"]
 "examples/**"           = ["ANN"]
 "scripts/**"            = ["ANN"]
 "conftest.py"           = ["ANN"]
 "**/conftest.py"        = ["ANN"]
-"src/doppler/cli/**"    = ["ANN"]
-"src/doppler/specan/**" = ["ANN"]
 
 # CamelCase test/bench filenames mirror the class under test (HalfbandDecimator,
 # RateConverter, Resampler); renaming would break references across the repo.

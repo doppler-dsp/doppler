@@ -11,6 +11,10 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from doppler.specan.config import SpecanConfig
 
 
 def _log(msg: str) -> None:
@@ -208,7 +212,7 @@ def main() -> None:
         _run_terminal(cfg)
 
 
-def _run_terminal(cfg) -> None:
+def _run_terminal(cfg: SpecanConfig) -> None:
     """Launch the terminal spectrum display."""
     try:
         from doppler.specan.terminal import TerminalDisplay
@@ -234,7 +238,7 @@ def _run_terminal(cfg) -> None:
         engine.close()
 
 
-def _run_web(cfg) -> None:
+def _run_web(cfg: SpecanConfig) -> None:
     """Launch the FastAPI / WebSocket browser UI."""
     try:
         import fastapi  # noqa: F401

@@ -26,7 +26,9 @@ from rich.panel import Panel
 from rich.text import Text
 
 if TYPE_CHECKING:
-    from .engine import SpectrumFrame
+    from .config import SpecanConfig
+    from .engine import SpecanEngine, SpectrumFrame
+    from .source import Source
 
 # Block-drawing characters (1/8 increments, low to high)
 _BLOCKS = " ▁▂▃▄▅▆▇█"
@@ -177,7 +179,12 @@ class TerminalDisplay:
     source : Source
     """
 
-    def __init__(self, engine, cfg, source) -> None:
+    def __init__(
+        self,
+        engine: SpecanEngine,
+        cfg: SpecanConfig,
+        source: Source,
+    ) -> None:
         self._engine = engine
         self._cfg = cfg
         self._source = source

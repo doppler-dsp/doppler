@@ -16,10 +16,15 @@ import concurrent.futures
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+
+if TYPE_CHECKING:
+    from doppler.specan.config import SpecanConfig
+    from doppler.specan.engine import SpectrumFrame
 
 log = logging.getLogger(__name__)
 
@@ -43,12 +48,12 @@ _cfg = None
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index():
+async def index() -> str:
     return (_STATIC / "index.html").read_text()
 
 
 @app.get("/state")
-async def get_state():
+async def get_state() -> dict:
     if _cfg is None:
         return {}
     from doppler.specan.source import DemoSource
@@ -117,7 +122,7 @@ async def _apply_cmd(cmd: dict) -> None:
 
 
 @app.post("/tune")
-async def tune(body: dict):
+async def tune(body: dict) -> dict:
     """
     Update display or demo parameters.
 
@@ -149,7 +154,7 @@ _FRAME_DT = 1.0 / _FRAME_RATE
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket):
+async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     log.info("specan client connected")
     try:
@@ -199,7 +204,7 @@ async def websocket_endpoint(ws: WebSocket):
         log.info("specan client disconnected")
 
 
-def _next_frame():
+def _next_frame() -> SpectrumFrame | None:
     """Read one source block and return a SpectrumFrame (or None)."""
     if _engine is None or _source is None:
         return None
@@ -227,7 +232,7 @@ def main(
     host: str = "127.0.0.1",
     port: int = 8765,
     open_browser: bool = True,
-    cfg=None,
+    cfg: SpecanConfig | None = None,
 ) -> None:
     global _engine, _source, _cfg
 

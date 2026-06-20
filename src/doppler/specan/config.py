@@ -137,7 +137,7 @@ def _load_yaml(path: Path) -> dict:
 
 def load_config(
     yml_path: Path | None = None,
-    **cli_overrides,
+    **cli_overrides: object,
 ) -> SpecanConfig:
     """
     Build a :class:`SpecanConfig` from yml file + CLI overrides.

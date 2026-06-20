@@ -24,8 +24,15 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from doppler.source import LO
+    from doppler.specan.config import SpecanConfig
+    from doppler.stream import Pull, Subscriber
 
 # ------------------------------------------------------------------
 # Abstract base
@@ -135,7 +142,7 @@ class DemoSource(Source):
             "nco": None,
         }
 
-    def _nco_for(self, tone: dict):
+    def _nco_for(self, tone: dict) -> LO:
         if tone["nco"] is None:
             from doppler.source import LO
 
@@ -272,12 +279,10 @@ class FileSource(Source):
 
     def __init__(
         self,
-        path,
+        path: str | Path,
         sample_rate: float,
         center_freq: float = 0.0,
     ) -> None:
-        from pathlib import Path
-
         self._path = Path(path)
         self._fs = float(sample_rate)
         self._cf = float(center_freq)
@@ -334,7 +339,7 @@ class SocketSource(Source):
         self._cf: float = 0.0
         self._buf = np.empty(0, dtype=np.complex64)
 
-    def _get_sub(self):
+    def _get_sub(self) -> Subscriber:
         if self._sub is None:
             from doppler import Subscriber
 
@@ -404,7 +409,7 @@ class PullSource(Source):
         self._cf: float = 0.0
         self._buf = np.empty(0, dtype=np.complex64)
 
-    def _get_pull(self):
+    def _get_pull(self) -> Pull:
         if self._pull is None:
             from doppler import Pull
 
@@ -440,7 +445,7 @@ class PullSource(Source):
 # ------------------------------------------------------------------
 
 
-def make_source(cfg) -> Source:
+def make_source(cfg: SpecanConfig) -> Source:
     """
     Instantiate the source described by *cfg*.
 

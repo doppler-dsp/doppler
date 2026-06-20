@@ -84,7 +84,7 @@ def _make_block(
     ConfigClass = _make_config(config_defaults)
 
     def _command(
-        self,
+        self: Block,
         config: BlockConfig,
         input_addr: str | None,
         output_addr: str | None,

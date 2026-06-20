@@ -24,8 +24,12 @@ engine can be constructed before the source's sample rate is known.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from doppler.specan.config import SpecanConfig
 
 # dBm calibration: amplitude=1.0 ↔ +10 dBm into 50 Ω
 # P = V² / (2·Z)   →   P_mW = 1000·V²/(2·50) = V²/0.1
@@ -65,7 +69,7 @@ class SpecanEngine:
         Specan configuration (center, span, rbw, level).
     """
 
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg: SpecanConfig) -> None:
         self._cfg = cfg
         self._specan = None
         self._fs_in: float = 0.0

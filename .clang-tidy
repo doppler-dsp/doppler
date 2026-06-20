@@ -1,1 +1,45 @@
-/home/hunterdsp/mcp-store/configs/.clang-tidy
+---
+# Curated clang-tidy config for DSP C projects.
+#
+# Strategy: start clean (-*), opt in to three families:
+#   bugprone-*        real bugs and suspicious patterns
+#   cert-*            CERT C secure coding rules
+#   clang-analyzer-*  static analyzer (null deref, leaks, uninit)
+#
+# C++-only checks in those families are explicitly suppressed below.
+# modernize-*, cppcoreguidelines-*, performance-* are C++-centric — skipped.
+
+Checks: >-
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  readability-misleading-indentation,
+  readability-function-size,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -cert-dcl50-cpp,
+  -cert-err58-cpp,
+  -cert-msc50-cpp,
+  -cert-msc51-cpp,
+  -cert-msc54-cpp,
+  -cert-oop54-cpp,
+  -cert-oop57-cpp,
+  -cert-oop58-cpp,
+
+# Treat all warnings as errors. Keep the codebase clean from day one.
+WarningsAsErrors: "*"
+
+# Only report diagnostics for project headers, not system/third-party headers.
+# Adjust per-project if your header tree differs.
+HeaderFilterRegex: "native/inc/.*"
+
+# Apply the project's clang-format style to suggested fixes.
+FormatStyle: file
+
+CheckOptions:
+  # Flag functions over 80 lines or 10 branches — DSP algos should be tight.
+  - key: readability-function-size.LineThreshold
+    value: "80"
+  - key: readability-function-size.BranchThreshold
+    value: "10"

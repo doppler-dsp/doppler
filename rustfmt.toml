@@ -1,1 +1,11 @@
-/home/hunterdsp/mcp-store/configs/rustfmt.toml
+max_width = 79
+edition = "2021"
+
+# Wrap comments and doc comments at the same width as code.
+wrap_comments = true
+comment_width = 79
+format_code_in_doc_comments = true
+
+# Alphabetical ordering — both are default true, stated explicitly for clarity.
+reorder_imports = true
+reorder_modules = true

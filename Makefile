@@ -74,7 +74,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
 endif
 
 .PHONY: all build test pyext \
-        wheel just-build python-test rust-test test-all docs-build docs-serve gen-c-api doxygen \
+        wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
         debug release blazing bump-version check-version tag-release \
@@ -189,6 +189,10 @@ test-all: test test-examples python-test test-examples-python
 python-test:
 	uv run pytest src/ -v
 
+# ── lint ──────────────────────────────────────────────────────────────────────
+lint:
+	uv run pre-commit run --all-files
+
 # ── bench ─────────────────────────────────────────────────────────────────────
 # Run C + Python benchmarks on THIS machine, snapshot to benchmarks/history/
 # (local scratch, gitignored). Use the CLI directly for options, e.g.
@@ -235,7 +239,7 @@ rust-test: build
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 # zensical reads mkdocs.yml natively — no config migration required.
-docs-build: gen-c-api
+docs: gen-c-api
 	uv run zensical build --strict
 
 docs-serve: gen-c-api
@@ -416,7 +420,8 @@ help:
 	@echo "  make specan              Launch live spectrum analyzer in browser"
 	@echo "  make record-demo         Re-record specan demo frames (docs/specan/frames.json)"
 	@echo "  make gallery             Run plot examples and copy PNGs to docs/assets/"
-	@echo "  make docs-build    Build the docs site (zensical)"
+	@echo "  make lint          Run pre-commit hooks on all files"
+	@echo "  make docs          Build the docs site (zensical)"
 	@echo "  make docs-serve    Serve the docs site locally (zensical)"
 	@echo "  make doxygen       Generate C API docs (XML + HTML via Doxygen)"
 	@echo "  make debug         Clean + Debug build"

@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Type
+from typing import Any
 
 import yaml
 from pydantic import create_model
@@ -58,7 +58,7 @@ _BLOCKS_DIR = Path.home() / ".doppler" / "blocks"
 # ---------------------------------------------------------------------------
 
 
-def _make_config(defaults: dict[str, Any]) -> Type[BlockConfig]:
+def _make_config(defaults: dict[str, Any]) -> type[BlockConfig]:
     """Dynamically build a pydantic BlockConfig from a defaults dict."""
     fields: dict[str, Any] = {}
     for k, v in defaults.items():
@@ -78,13 +78,13 @@ def _make_block(
     config_defaults: dict[str, Any],
     args_template: dict[str, str] | None,
     dependencies: list[str] | None = None,
-) -> Type[Block]:
+) -> type[Block]:
     """Return a live Block subclass described by a dopplerfile document."""
 
     ConfigClass = _make_config(config_defaults)
 
     def _command(
-        self,
+        self: Block,
         config: BlockConfig,
         input_addr: str | None,
         output_addr: str | None,
@@ -122,7 +122,7 @@ def _make_block(
             with_flags: list[str] = []
             for dep in deps:
                 with_flags += ["--with", dep]
-            cmd = ["uv", "run"] + with_flags + cmd
+            cmd = ["uv", "run", *with_flags, *cmd]
 
         return cmd
 
@@ -147,7 +147,7 @@ def _make_block(
 # ---------------------------------------------------------------------------
 
 
-def load(path: Path) -> Type[Block]:
+def load(path: Path) -> type[Block]:
     """Parse *path* as a dopplerfile and return a Block subclass.
 
     Parameters
@@ -175,7 +175,7 @@ def load(path: Path) -> Type[Block]:
     )
 
 
-def discover(name: str) -> Type[Block] | None:
+def discover(name: str) -> type[Block] | None:
     """Search for a dopplerfile that defines *name*.
 
     Search order:

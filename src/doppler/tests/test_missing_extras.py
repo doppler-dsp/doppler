@@ -36,7 +36,8 @@ def bare_pythonpath(tmp_path_factory) -> str:
     A PYTHONPATH that makes doppler importable but the optional extras absent.
 
     A generated ``sitecustomize.py`` installs a meta-path finder that raises
-    ``ModuleNotFoundError`` for the extra packages, so ``import pydantic`` (etc.)
+    ``ModuleNotFoundError`` for the extra packages, so ``import pydantic``
+    (etc.)
     fails just as it would if the extra were never installed — regardless of
     what the outer environment actually has on disk.
     """

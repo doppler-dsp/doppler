@@ -7,7 +7,8 @@ resolved noise floor, the ``Segment.add`` timeline, and clip detection +
 
 Top-left — **the scene's spectrum.** ``Segment.sum`` mixes a QPSK signal of
 interest (−10 dBFS) with a full-scale CW interferer at +200 kHz over one shared
-noise floor. SNR lives on the SoI (``snr=15`` Es/No); the composer resolves that
+noise floor. SNR lives on the SoI (``snr=15`` Es/No); the composer resolves
+that
 into an explicit AWGN floor in C, so the SoI sits its **over-fs SNR** above the
 floor here (the Es/No is realised later, by the receiver's matched filter).
 
@@ -16,7 +17,8 @@ burst, then the scene — a spectrogram shows the time-frequency structure.
 
 Bottom-left — **PAPR and headroom.** The sum is no longer constant-envelope, so
 its peak runs past full-scale and an integer capture clips (red). ``headroom``
-backs the whole composite off by a few dB so the peak fits — one scale, so every
+backs the whole composite off by a few dB so the peak fits — one scale, so
+every
 power ratio (and the SNR) is unchanged.
 
 Bottom-right — **SNR on the source.** The SoI in isolation, matched-filtered:
@@ -120,21 +122,21 @@ ax[0, 0].annotate(
     xy=(200, -2),
     xytext=(60, -14),
     fontsize=9,
-    arrowprops=dict(arrowstyle="->", color="k"),
+    arrowprops={"arrowstyle": "->", "color": "k"},
 )
 ax[0, 0].annotate(
     "QPSK SoI\n−10 dBFS",
     xy=(0, -26),
     xytext=(-230, -16),
     fontsize=9,
-    arrowprops=dict(arrowstyle="->", color="k"),
+    arrowprops={"arrowstyle": "->", "color": "k"},
 )
 ax[0, 0].annotate(
     "resolved noise floor",
     xy=(330, -52),
     xytext=(120, -64),
     fontsize=9,
-    arrowprops=dict(arrowstyle="->", color="k"),
+    arrowprops={"arrowstyle": "->", "color": "k"},
 )
 ax[0, 0].set_ylim(-80, 5)
 ax[0, 0].grid(alpha=0.3)

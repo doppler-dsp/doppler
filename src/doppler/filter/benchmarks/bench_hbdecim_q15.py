@@ -3,10 +3,11 @@
 Run: pytest src/doppler/filter/benchmarks/bench_hbdecim_q15.py --benchmark-only
 """
 
-import pytest
 import numpy as np
-from doppler.resample import _halfband_bank
+import pytest
+
 from doppler.filter import HBDecimQ15
+from doppler.resample import _halfband_bank
 
 BLOCK_1K = 1_024
 BLOCK_64K = 65_536

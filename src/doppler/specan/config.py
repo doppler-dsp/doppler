@@ -12,7 +12,6 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -137,8 +136,8 @@ def _load_yaml(path: Path) -> dict:
 
 
 def load_config(
-    yml_path: Optional[Path] = None,
-    **cli_overrides,
+    yml_path: Path | None = None,
+    **cli_overrides: object,
 ) -> SpecanConfig:
     """
     Build a :class:`SpecanConfig` from yml file + CLI overrides.

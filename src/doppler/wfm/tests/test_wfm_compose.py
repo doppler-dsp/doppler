@@ -1,22 +1,24 @@
 """Byte-parity: the generated ``wfm_compose`` composer vs ``compose.py``.
 
-``doppler.wfm.wfm_compose`` is the jm-generated composer (``kind = "composer"``,
-gh-287): the ``Synth``/``Segment``/``Timeline``/``Composer`` OO surface emitted
-as CPython types **into the ``.so``**. During adoption it dual-runs alongside the
+``doppler.wfm.wfm_compose`` is the jm-generated composer
+(``kind = "composer"``, gh-287): the
+``Synth``/``Segment``/``Timeline``/``Composer`` OO surface emitted as CPython
+types **into the ``.so``**. During adoption it dual-runs alongside the
 hand-written ``doppler.wfm.compose`` reference; these tests pin the generated
 module to the reference sample-for-sample (and the delegated JSON wire format
 byte-for-byte) so the eventual cutover is provably lossless.
 
 Each side is driven through its own native API — the generated ``Segment``
 forwards source fields plus the segment scalars, the reference ``Segment`` is a
-flat dataclass — and the emitted ``cf32`` is compared with ``array_equal`` (exact,
+flat dataclass — and the emitted ``cf32`` is compared with ``array_equal``
+(exact,
 not ``allclose``: a composer is deterministic, so parity is bit-exact).
 """
 
 import numpy as np
 import pytest
 
-from doppler.wfm import compose as R  # hand-written reference
+from doppler.wfm import compose as R  # hand-written reference  # noqa: N812
 
 G = pytest.importorskip(
     "doppler.wfm.wfm_compose",
@@ -129,8 +131,9 @@ def test_chirp_sweep():
 
 
 def test_execute_matches_compose():
-    """Blockwise ``execute`` drains to the same stream as one-shot ``compose``."""
-    spec = dict(type="tone", freq=5e4, fs=1e6, num_samples=3000)
+    """Blockwise ``execute`` drains to the same stream as one-shot
+    ``compose``."""
+    spec = {"type": "tone", "freq": 5e4, "fs": 1e6, "num_samples": 3000}
     g = G.Composer(G.Segment(**spec))
     blocks = []
     while len(b := g.execute(512)):
@@ -154,7 +157,8 @@ def _timeline(mod):
 
 
 def test_to_json_wire_bytes_match_reference():
-    """Delegated ``wfm_spec_to_json`` → byte-identical wire format vs reference."""
+    """Delegated ``wfm_spec_to_json`` → byte-identical wire format vs
+    reference."""
     assert _timeline(G).to_json() == _timeline(R).to_json()
 
 

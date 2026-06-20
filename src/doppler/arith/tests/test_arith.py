@@ -1,20 +1,21 @@
 """Domain tests for doppler.arith fixed-point arithmetic functions."""
 
 import numpy as np
+
 from doppler.arith import (
-    add_q15,
-    sub_q15,
-    mul_q15,
-    dot_q15,
-    shl_q15,
-    shr_q15,
-    add_q8,
-    mul_q8,
-    dot_q8,
-    shl_i64,
-    shr_i64,
-    AccQ15,
     AccQ8,
+    AccQ15,
+    add_q8,
+    add_q15,
+    dot_q8,
+    dot_q15,
+    mul_q8,
+    mul_q15,
+    shl_i64,
+    shl_q15,
+    shr_i64,
+    shr_q15,
+    sub_q15,
 )
 
 Q15_MAX = 32767
@@ -190,7 +191,7 @@ def test_dot_q8_known():
     assert dot_q8(a, b) == 64 * 64 * 2  # raw Q14: 8192
 
 
-# ----------------------------------------------------------------- i64 shift --
+# --------------------------------------------------------------- i64 shift --
 
 
 def test_shr_i64_normalise_dot():

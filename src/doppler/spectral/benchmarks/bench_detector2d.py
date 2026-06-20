@@ -1,10 +1,11 @@
 """Benchmark for Detector2D.
 
-Run: pytest src/doppler/spectral/benchmarks/bench_detector2d.py --benchmark-only
+Run: pytest src/doppler/spectral/benchmarks/bench_detector2d.py
+     --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.spectral import Detector2D
 

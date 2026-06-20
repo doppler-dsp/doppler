@@ -253,7 +253,8 @@ def test_chirp_down_sweep():
 
 
 def test_chirp_span_is_generation_length():
-    """The sweep fills exactly the requested length: f_end is hit at sample N."""
+    """The sweep fills exactly the requested length: f_end is hit at sample
+    N."""
     fs, f0, f1 = 1e6, 1e5, 4e5
     short = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(2000), fs)
     long = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(8000), fs)
@@ -271,7 +272,8 @@ def test_chirp_reset_reproduces():
 
 
 def test_chirp_respects_snr():
-    """A noisy chirp adds AWGN over fs like a tone (clean chirp is unit power)."""
+    """A noisy chirp adds AWGN over fs like a tone (clean chirp is unit
+    power)."""
     clean = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=100).steps(1 << 16)
     noisy = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=10, seed=3).steps(
         1 << 16

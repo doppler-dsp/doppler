@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from doppler.cvt import I16U32ToF32
 
 

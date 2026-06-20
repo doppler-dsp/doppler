@@ -1,4 +1,4 @@
-"""q15_uq15_demo.py — Q15 (bipolar) vs UQ15 (offset-binary) spectrum comparison.
+"""q15_uq15_demo.py — Q15 (bipolar) vs UQ15 (offset-binary) comparison.
 
 Q15  (bipolar):       0.0 → int16   0      (two's-complement, sign-extended)
 UQ15 (offset-binary): 0.0 → uint16 32768   (all values shifted +32768)
@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import doppler.cvt as cvt
-
 
 # ---------------------------------------------------------------------------
 # quantizers

@@ -3,8 +3,8 @@
 Run: pytest src/doppler/ddc/benchmarks/bench_ddc.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.ddc import DDC
 

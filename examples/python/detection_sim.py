@@ -94,7 +94,7 @@ from doppler.detection import (
     marcum_q,
 )
 
-# ── Simulation parameters ─────────────────────────────────────────────────────
+# ── Simulation parameters ────────────────────────────────────────────────────
 
 N = 64  # frame length (complex samples)
 DWELL = 4  # coherent integrations
@@ -113,7 +113,7 @@ P_THRESH = det_threshold_power(PFA)  # pow_stat threshold = -ln(Pfa)
 RNG = np.random.default_rng(0)
 
 
-# ── Monte Carlo core ──────────────────────────────────────────────────────────
+# ── Monte Carlo core ─────────────────────────────────────────────────────────
 
 
 def simulate(snr: float, n_trials: int = N_TRIALS) -> tuple:
@@ -163,7 +163,7 @@ def simulate(snr: float, n_trials: int = N_TRIALS) -> tuple:
     return env_stat, pow_stat
 
 
-# ── Theory survival functions ─────────────────────────────────────────────────
+# ── Theory survival functions ────────────────────────────────────────────────
 
 
 def env_sf(snr: float, x: np.ndarray) -> np.ndarray:
@@ -179,7 +179,7 @@ def pow_sf(snr: float, x: np.ndarray) -> np.ndarray:
     return np.array([det_pd_power(snr**2, DWELL, float(xi)) for xi in x])
 
 
-# ── Run simulations ───────────────────────────────────────────────────────────
+# ── Run simulations ──────────────────────────────────────────────────────────
 
 print(f"Running H0 ({N_TRIALS:,} trials)…")
 env_h0, pow_h0 = simulate(0.0)
@@ -203,7 +203,7 @@ pd_pow_th = np.array(
 
 print("Done.")
 
-# ── Plot — 2×2 grid ───────────────────────────────────────────────────────────
+# ── Plot — 2×2 grid ──────────────────────────────────────────────────────────
 
 fig, axes = plt.subplots(2, 2, figsize=(14, 9))
 fig.suptitle(
@@ -222,7 +222,7 @@ for row, (
     sf_fn,
     thresh,
     pd_mc,
-    pd_th,
+    _pd_th,
     ax_sf,
     ax_pd,
     x_lim,
@@ -241,7 +241,8 @@ for row, (
             axes[0, 0],
             axes[0, 1],
             8.0,
-            r"env_stat = $|R_\mathrm{acc}[0]|\,/\,\mathrm{mean}(|R_\mathrm{acc}[\tau]|)$",
+            r"env_stat = $|R_\mathrm{acc}[0]|\,/\,"
+            r"\mathrm{mean}(|R_\mathrm{acc}[\tau]|)$",
             "env_stat",
         ),
         (
@@ -255,7 +256,8 @@ for row, (
             axes[1, 0],
             axes[1, 1],
             25.0,
-            r"pow_stat = $|R_\mathrm{acc}[0]|^2\,/\,\mathrm{mean}(|R_\mathrm{acc}[\tau]|^2)$",
+            r"pow_stat = $|R_\mathrm{acc}[0]|^2\,/\,"
+            r"\mathrm{mean}(|R_\mathrm{acc}[\tau]|^2)$",
             "pow_stat",
         ),
     ]
@@ -309,7 +311,7 @@ for row, (
         fontsize=8.5,
         color=BLUE,
         ha="right",
-        arrowprops=dict(arrowstyle="-", color=BLUE, lw=0.8),
+        arrowprops={"arrowstyle": "-", "color": BLUE, "lw": 0.8},
     )
     ax_sf.annotate(
         rf"$P_d={pd_mc_pt:.3f}$",
@@ -318,7 +320,7 @@ for row, (
         fontsize=8.5,
         color=RED,
         ha="right",
-        arrowprops=dict(arrowstyle="-", color=RED, lw=0.8),
+        arrowprops={"arrowstyle": "-", "color": RED, "lw": 0.8},
     )
     ax_sf.set_xlim(0, x_lim)
     ax_sf.set_ylim(1e-4, 1.2)
@@ -384,7 +386,7 @@ for row, (
     ax_pd.legend(fontsize=9, loc="upper left")
     ax_pd.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
 
-# ── Save ──────────────────────────────────────────────────────────────────────
+# ── Save ─────────────────────────────────────────────────────────────────────
 
 fig.tight_layout()
 out = "detection_sim.png"

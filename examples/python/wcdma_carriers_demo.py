@@ -41,7 +41,7 @@ from doppler.wfm import Composer, Segment, noise, qpsk
 # ── scene parameters ────────────────────────────────────────────────────────
 FS = 30.72e6  # 8 x 3.84 Mcps — a standard WCDMA capture rate
 CHIP_RATE = 3.84e6  # WCDMA downlink chip rate
-SPS = int(round(FS / CHIP_RATE))  # 8 samples/chip
+SPS = round(FS / CHIP_RATE)  # 8 samples/chip
 RRC_BETA = 0.22  # WCDMA root-raised-cosine roll-off
 RRC_SPAN = 8  # RRC support, ±8 symbols
 CH_BW = 5.0e6  # nominal 5 MHz channel spacing
@@ -62,9 +62,10 @@ FLOOR_DBFS = -70.0  # AWGN floor, well below the weakest (-10 dBFS) carrier
 def _rrc_carrier(fc: float, level: float, seed: int, n: int) -> np.ndarray:
     """One RRC-shaped WCDMA carrier at offset ``fc``, scaled to ``level`` dBFS.
 
-    Straight from doppler's waveform generator: ``qpsk(pulse="rrc")`` band-limits
-    the QPSK chips with a root-raised-cosine pulse (WCDMA roll-off 0.22) — the
-    shaping the default sample-and-hold QPSK does not do — and ``freq=fc`` mixes
+    Straight from doppler's waveform generator: ``qpsk(pulse="rrc")``
+    band-limits the QPSK chips with a root-raised-cosine pulse (WCDMA
+    roll-off 0.22) — the shaping the default sample-and-hold QPSK does
+    not do — and ``freq=fc`` mixes
     the carrier to its channel centre, all in the C engine. The RRC taps are
     unit-transmit-power scaled, so the carrier is already unit power and the
     ``level`` factor lets ``band_power`` read the level directly.
@@ -183,7 +184,7 @@ def main() -> None:
     # (1) averaged PSD with channel shading
     a = ax[0, 0]
     a.plot(fmhz, psd, lw=0.8, color="#1f77b4")
-    for (fc, lvl), bdb in zip(CARRIERS, band_db):
+    for (fc, _), bdb in zip(CARRIERS, band_db):
         lo, hi = (fc - CH_BW / 2) / 1e6, (fc + CH_BW / 2) / 1e6
         a.axvspan(lo, hi, color="#1f77b4", alpha=0.07)
         a.annotate(
@@ -278,10 +279,12 @@ def main() -> None:
     fig.savefig("wcdma_carriers_demo.png", dpi=110)
     print("wrote wcdma_carriers_demo.png")
     print(
-        f"  per-channel band power (dB): {[round(float(b), 1) for b in band_db]}"
+        "  per-channel band power (dB): "
+        f"{[round(float(b), 1) for b in band_db]}"
     )
     print(
-        f"  total {total_db:.1f} dB | noise floor {nf:.1f} dB | ACLR {aclr:.1f} dB"
+        f"  total {total_db:.1f} dB | noise floor {nf:.1f} dB"
+        f" | ACLR {aclr:.1f} dB"
     )
 
 

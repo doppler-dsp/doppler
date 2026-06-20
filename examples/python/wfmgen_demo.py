@@ -17,7 +17,8 @@ Bottom-left — **QPSK** at 20 dB Es/No, after a boxcar matched filter over each
 symbol. The four Gray-coded points sit at the corners; the noise cloud is the
 symbol-energy SNR made visible.
 
-Bottom-right — **BPSK** at 8 dB Es/No, matched-filtered. Two antipodal points on
+Bottom-right — **BPSK** at 8 dB Es/No, matched-filtered. Two antipodal points
+on
 the real axis with a wider cloud — lower SNR, fewer points.
 
 Run:

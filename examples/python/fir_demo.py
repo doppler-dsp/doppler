@@ -39,7 +39,8 @@ y = fir.execute(x)
 print("--- CF32 input: 0.05 Fs + 0.4 Fs tone ---")
 print("  first 8 samples (LF tone survives, HF attenuated):")
 print(
-    f"  {'idx':>3}  {'in.real':>8}  {'in.imag':>8}  {'out.real':>9}  {'out.imag':>9}"
+    f"  {'idx':>3}  {'in.real':>8}  {'in.imag':>8}"
+    f"  {'out.real':>9}  {'out.imag':>9}"
 )
 for i in range(8):
     print(
@@ -48,7 +49,7 @@ for i in range(8):
     )
 print()
 
-# ── 2. State persistence across buffer boundaries ─────────────────────────────
+# ── 2. State persistence across buffer boundaries ────────────────────────────
 
 fir.reset()
 

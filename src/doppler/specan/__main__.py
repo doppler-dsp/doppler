@@ -11,6 +11,10 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from doppler.specan.config import SpecanConfig
 
 
 def _log(msg: str) -> None:
@@ -53,7 +57,10 @@ def main() -> None:
         type=int,
         default=None,
         metavar="MS",
-        help="Socket receive timeout in milliseconds (source=socket, default: 2000)",
+        help=(
+            "Socket receive timeout in milliseconds"
+            " (source=socket, default: 2000)"
+        ),
     )
 
     # Display
@@ -148,9 +155,9 @@ def main() -> None:
     # ----------------------------------------------------------------
     # Build config from yml + CLI overrides
     # ----------------------------------------------------------------
-    from pathlib import Path  # noqa: PLC0415
+    from pathlib import Path
 
-    from doppler.specan.config import load_config  # noqa: PLC0415
+    from doppler.specan.config import load_config
 
     yml_path = Path(args.config) if args.config else None
 
@@ -205,20 +212,21 @@ def main() -> None:
         _run_terminal(cfg)
 
 
-def _run_terminal(cfg) -> None:
+def _run_terminal(cfg: SpecanConfig) -> None:
     """Launch the terminal spectrum display."""
     try:
-        from doppler.specan.terminal import TerminalDisplay  # noqa: PLC0415
+        from doppler.specan.terminal import TerminalDisplay
     except ImportError as e:
         print(
-            f"doppler-specan terminal mode requires optional dependencies: {e}\n"
+            f"doppler-specan terminal mode requires optional"
+            f" dependencies: {e}\n"
             f"Install with: pip install 'doppler-dsp[specan]'",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    from doppler.specan.engine import SpecanEngine  # noqa: PLC0415
-    from doppler.specan.source import make_source  # noqa: PLC0415
+    from doppler.specan.engine import SpecanEngine
+    from doppler.specan.source import make_source
 
     source = make_source(cfg)
     engine = SpecanEngine(cfg)
@@ -230,7 +238,7 @@ def _run_terminal(cfg) -> None:
         engine.close()
 
 
-def _run_web(cfg) -> None:
+def _run_web(cfg: SpecanConfig) -> None:
     """Launch the FastAPI / WebSocket browser UI."""
     try:
         import fastapi  # noqa: F401
@@ -243,7 +251,7 @@ def _run_web(cfg) -> None:
         )
         sys.exit(1)
 
-    from doppler.specan.server import main as serve  # noqa: PLC0415
+    from doppler.specan.server import main as serve
 
     serve(
         host=cfg.host,

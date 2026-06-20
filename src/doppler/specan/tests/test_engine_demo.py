@@ -102,7 +102,8 @@ def test_demo_tone_is_detected_as_a_peak():
 def test_retune_propagates_to_the_c_specan():
     """retune() must move the C Specan's center without raising or rebuilding.
 
-    Guards the engine → ``doppler.analyzer.Specan`` re-base: a retune is a cheap
+    Guards the engine → ``doppler.analyzer.Specan`` re-base: a retune is a
+    cheap
     C-level LO change, so the same Specan instance carries the new center.
     """
     cfg = SpecanConfig(source="demo", span=200e3)

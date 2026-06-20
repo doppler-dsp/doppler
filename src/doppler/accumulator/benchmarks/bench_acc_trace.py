@@ -1,6 +1,7 @@
 """Benchmark for AccTrace.
 
-Run: pytest src/doppler/accumulator/benchmarks/bench_acc_trace.py --benchmark-only
+Run: pytest src/doppler/accumulator/benchmarks/bench_acc_trace.py
+     --benchmark-only
 """
 
 import pytest

@@ -3,8 +3,8 @@
 Run: pytest src/doppler/source/benchmarks/bench_lo.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.source import LO
 

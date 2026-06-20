@@ -8,6 +8,7 @@ Run:
 """
 
 import numpy as np
+
 from doppler.source import awgn
 
 noise = awgn(4096, amplitude=1.0, seed=42)

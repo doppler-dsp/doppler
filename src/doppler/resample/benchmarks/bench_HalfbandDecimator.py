@@ -1,6 +1,7 @@
 """Benchmark for HalfbandDecimator.
 
-Run: pytest src/doppler/resample/benchmarks/bench_HalfbandDecimator.py --benchmark-only
+Run: pytest src/doppler/resample/benchmarks/bench_HalfbandDecimator.py
+     --benchmark-only
 """
 
 import numpy as np

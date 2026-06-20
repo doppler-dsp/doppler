@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from doppler.filter import FIR
 
+from doppler.filter import FIR
 
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ def test_dc_gain():
     np.testing.assert_allclose(y[-1].real, expected_gain, atol=1e-5)
 
 
-# ── Continuity (split vs whole) ───────────────────────────────────────────────
+# ── Continuity (split vs whole) ──────────────────────────────────────────────
 
 
 def test_continuity():

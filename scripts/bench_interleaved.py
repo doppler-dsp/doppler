@@ -39,7 +39,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bench_report import collect_meta  # noqa: E402  (sibling script)
+from bench_report import collect_meta
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
@@ -58,7 +58,8 @@ def _build_info(worktree):
     db = os.path.join(worktree, "build", "compile_commands.json")
     if not os.path.exists(db):
         return "", ""
-    entries = json.load(open(db))
+    with open(db) as fh:
+        entries = json.load(fh)
     core = next(
         (
             e

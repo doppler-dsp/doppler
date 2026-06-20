@@ -3,8 +3,8 @@
 Run: pytest src/doppler/filter/benchmarks/bench_fir.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 from scipy.signal import firwin
 
 from doppler.filter import FIR

@@ -2,8 +2,8 @@
 
 These drive the real ``doppler.analyzer`` extension end to end — the DDC
 mix/decimate, the PSD averaging PSD, and the display crop — through its
-instrument-parameter API (fs / span / rbw / center / offset_db), the C-first home
-for the mapping ``doppler.specan``'s engine used to hand-roll in Python.
+instrument-parameter API (fs / span / rbw / center / offset_db), the C-first
+home for the mapping ``doppler.specan``'s engine used to hand-roll in Python.
 """
 
 import numpy as np

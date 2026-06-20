@@ -1,7 +1,8 @@
 """Round-trip tests for read_iq: generate -> read back -> faithful complex64.
 
 Drives the real ``wfmgen`` CLI so the on-disk bytes are exactly what users get,
-then checks read_iq reconstructs the signal within the wire type's quantization.
+then checks read_iq reconstructs the signal within the wire type's
+quantization.
 """
 
 import os

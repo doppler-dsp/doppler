@@ -24,9 +24,12 @@ engine can be constructed before the source's sample rate is known.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from doppler.specan.config import SpecanConfig
 
 # dBm calibration: amplitude=1.0 ↔ +10 dBm into 50 Ω
 # P = V² / (2·Z)   →   P_mW = 1000·V²/(2·50) = V²/0.1
@@ -66,7 +69,7 @@ class SpecanEngine:
         Specan configuration (center, span, rbw, level).
     """
 
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg: SpecanConfig) -> None:
         self._cfg = cfg
         self._specan = None
         self._fs_in: float = 0.0
@@ -84,7 +87,7 @@ class SpecanEngine:
 
     def _init_chain(self, fs_in: float, center_freq: float) -> None:
         """Build or rebuild the C ``Specan`` for a given input rate/center."""
-        from doppler.analyzer import Specan  # noqa: PLC0415
+        from doppler.analyzer import Specan
 
         cfg = self._cfg
         self._fs_in = fs_in
@@ -128,7 +131,7 @@ class SpecanEngine:
 
     def process(
         self, iq: np.ndarray, fs_in: float, center_freq: float
-    ) -> Optional[SpectrumFrame]:
+    ) -> SpectrumFrame | None:
         """
         Process one block of IQ samples and return a spectrum frame.
 
@@ -146,7 +149,7 @@ class SpecanEngine:
         SpectrumFrame or None
             ``None`` if the block is too short to fill an FFT frame yet.
         """
-        from doppler.spectral import find_peaks_f32  # noqa: PLC0415
+        from doppler.spectral import find_peaks_f32
 
         if fs_in != self._fs_in or center_freq != self._center_freq:
             self._init_chain(fs_in, center_freq)

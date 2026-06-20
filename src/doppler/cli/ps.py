@@ -113,4 +113,4 @@ def cmd_logs(chain_id: str, block_name: str | None = None) -> None:
             console.print(f"[yellow]Log file not found:[/yellow] {f}")
 
     if available:
-        subprocess.run(["tail", "-f", *available], check=False)  # noqa: S603
+        subprocess.run(["tail", "-f", *available], check=False)

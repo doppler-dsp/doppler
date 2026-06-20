@@ -26,7 +26,7 @@ import numpy as np
 
 from doppler.detection import det_dwell, det_pd, det_threshold
 
-# ── Parameters ────────────────────────────────────────────────────────────────
+# ── Parameters ───────────────────────────────────────────────────────────────
 
 PFA = 1e-5
 PD_TARGET = 0.9
@@ -36,7 +36,7 @@ DWELL_X = np.arange(1, MAX_DWELL + 1)
 
 ETA = det_threshold(PFA)  # threshold is Pfa-only; computed once
 
-# ── Compute curves ─────────────────────────────────────────────────────────────
+# ── Compute curves ───────────────────────────────────────────────────────────
 
 # Left panel: Pd vs dwell for each SNR.
 snr_amps = [10 ** (db / 20) for db in SNR_DB]
@@ -49,7 +49,7 @@ min_dwell = [
     det_dwell(float(s), PD_TARGET, PFA, MAX_DWELL) for s in snr_amp_sweep
 ]
 
-# ── Plot ──────────────────────────────────────────────────────────────────────
+# ── Plot ─────────────────────────────────────────────────────────────────────
 
 COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 
@@ -59,7 +59,7 @@ fig.suptitle(
     fontsize=12,
 )
 
-# ── Left panel ────────────────────────────────────────────────────────────────
+# ── Left panel ───────────────────────────────────────────────────────────────
 
 ax1.axhline(PD_TARGET, color="0.5", linestyle="--", linewidth=0.9, zorder=1)
 ax1.text(
@@ -105,7 +105,7 @@ ax1.set_title(r"$P_d$ vs dwell", fontsize=11)
 ax1.legend(fontsize=9, loc="lower right")
 ax1.grid(True, linestyle=":", linewidth=0.6, alpha=0.8)
 
-# ── Right panel ───────────────────────────────────────────────────────────────
+# ── Right panel ──────────────────────────────────────────────────────────────
 
 # Mask SNRs where det_dwell returned -1 (not achievable within MAX_DWELL).
 valid = np.array(min_dwell)
@@ -150,7 +150,7 @@ ax2.set_title(
 ax2.legend(fontsize=8, loc="upper right")
 ax2.grid(True, which="both", linestyle=":", linewidth=0.6, alpha=0.8)
 
-# ── Save ──────────────────────────────────────────────────────────────────────
+# ── Save ─────────────────────────────────────────────────────────────────────
 
 fig.tight_layout()
 out = "detection_curves.png"

@@ -1,8 +1,13 @@
-"""buffers_demo.py — smoke test for ring buffer examples from docs/examples/python-buffers.md."""
+"""buffers_demo.py — smoke test for ring buffer examples.
+
+From docs/examples/python-buffers.md.
+"""
+
+import threading
+
+import numpy as np
 
 from doppler.buffer import F32Buffer, F64Buffer, I16Buffer
-import numpy as np
-import threading
 
 # F64 producer / consumer with thread joins
 buf = F64Buffer(256)

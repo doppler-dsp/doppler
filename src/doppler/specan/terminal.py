@@ -18,14 +18,17 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
 from rich.text import Text
 
-from .engine import SpectrumFrame
+if TYPE_CHECKING:
+    from .config import SpecanConfig
+    from .engine import SpecanEngine, SpectrumFrame
+    from .source import Source
 
 # Block-drawing characters (1/8 increments, low to high)
 _BLOCKS = " ▁▂▃▄▅▆▇█"
@@ -119,7 +122,10 @@ def _build_display(
     span_str = _freq_label(frame.span) + "Hz"
     fc_str = _freq_label(frame.center_freq) + "Hz"
 
-    header = f"  Fc: {fc_str}  Span: {span_str}  RBW: {rbw_str}  Ref: {top_dbm:.0f} dBm"
+    header = (
+        f"  Fc: {fc_str}  Span: {span_str}"
+        f"  RBW: {rbw_str}  Ref: {top_dbm:.0f} dBm"
+    )
 
     # Spectrum grid
     rows = _render_bar(frame.db, top_dbm, bottom_dbm, width, height)
@@ -173,11 +179,16 @@ class TerminalDisplay:
     source : Source
     """
 
-    def __init__(self, engine, cfg, source) -> None:
+    def __init__(
+        self,
+        engine: SpecanEngine,
+        cfg: SpecanConfig,
+        source: Source,
+    ) -> None:
         self._engine = engine
         self._cfg = cfg
         self._source = source
-        self._frame: Optional[SpectrumFrame] = None
+        self._frame: SpectrumFrame | None = None
         self._lock = threading.Lock()
         self._running = False
         self._top_dbm = cfg.level if cfg.level != 0 else 10.0
@@ -190,7 +201,7 @@ class TerminalDisplay:
         # Last DSP-loop error, surfaced in the display so a persistent
         # failure (e.g. an extension-API mismatch) shows a diagnostic
         # instead of hanging forever on "Waiting for signal...".
-        self._error: Optional[str] = None
+        self._error: str | None = None
 
     # ----------------------------------------------------------------
     # DSP thread
@@ -213,7 +224,7 @@ class TerminalDisplay:
                         self._error = None
                         if self._freq_step == 0.0:
                             self._freq_step = frame.span / 10.0
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 # Don't let a single bad block kill the display, but do
                 # record the cause so it can be shown rather than silently
                 # spinning. A persistent error here is a real bug.
@@ -225,12 +236,12 @@ class TerminalDisplay:
     # Keyboard (non-blocking, Linux/macOS)
     # ----------------------------------------------------------------
 
-    def _read_key(self) -> Optional[str]:
+    def _read_key(self) -> str | None:
         """Non-blocking single-keypress read.  Returns None if no key."""
         import select
         import sys
-        import tty
         import termios
+        import tty
 
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
@@ -238,14 +249,17 @@ class TerminalDisplay:
             tty.setraw(fd)
             if select.select([sys.stdin], [], [], 0.0)[0]:
                 ch = sys.stdin.read(1)
-                if ch == "\x1b":
-                    # Escape sequence
-                    if select.select([sys.stdin], [], [], 0.05)[0]:
-                        ch2 = sys.stdin.read(1)
-                        if ch2 == "[":
-                            if select.select([sys.stdin], [], [], 0.05)[0]:
-                                ch3 = sys.stdin.read(1)
-                                return f"ESC[{ch3}"
+                if (
+                    ch == "\x1b"
+                    and select.select([sys.stdin], [], [], 0.05)[0]
+                ):
+                    ch2 = sys.stdin.read(1)
+                    if (
+                        ch2 == "["
+                        and select.select([sys.stdin], [], [], 0.05)[0]
+                    ):
+                        ch3 = sys.stdin.read(1)
+                        return f"ESC[{ch3}"
                 return ch
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)

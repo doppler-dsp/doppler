@@ -106,7 +106,7 @@ def main():
         "",
         xy=(r.worst_spur_freq / 1e6, r.fund_dbfs - r.sfdr_dbc),
         xytext=(r.worst_spur_freq / 1e6, r.fund_dbfs),
-        arrowprops=dict(arrowstyle="<->", color=SPUR, lw=1.2),
+        arrowprops={"arrowstyle": "<->", "color": SPUR, "lw": 1.2},
     )
     ax.text(
         r.worst_spur_freq / 1e6 + 1.5,
@@ -130,7 +130,7 @@ def main():
         va="top",
         family="monospace",
         fontsize=8,
-        bbox=dict(boxstyle="round", fc="#f8fafc", ec="#cbd5e1"),
+        bbox={"boxstyle": "round", "fc": "#f8fafc", "ec": "#cbd5e1"},
     )
     ax.set(
         title="(a) 12-bit ADC capture — annotated metrics",
@@ -170,7 +170,7 @@ def main():
     for k in ks:
         fk = (k * rc.fund_freq) % FS
         fk = fk if fk <= FS / 2 else FS - fk
-        b = int(round(fk / FS * mc.nfft)) + mc.nfft // 2
+        b = round(fk / FS * mc.nfft) + mc.nfft // 2
         levels.append(float(np.max(spec_c[b - 3 : b + 4]) - rc.fund_dbfs))
     ax.bar([str(k) for k in ks], levels, color=HARM)
     ax.axhline(

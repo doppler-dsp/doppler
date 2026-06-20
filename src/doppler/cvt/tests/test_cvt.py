@@ -446,7 +446,8 @@ class TestF32ToUQ15:
         np.testing.assert_array_equal(got, expected)
 
     def test_bipolar_vs_unipolar_bias(self):
-        """F32ToUQ15 output must equal F32ToI16 output viewed as uint16 + 32768."""
+        """F32ToUQ15 output must equal F32ToI16 output viewed as uint16 +
+        32768."""
         x = np.linspace(-0.9, 0.9, 128, dtype=np.float32)
         q15 = F32ToI16().steps(x).view(np.uint16).astype(np.uint32)
         uq15 = F32ToUQ15().steps(x).astype(np.uint32)

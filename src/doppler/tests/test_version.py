@@ -8,9 +8,11 @@ def test_version_is_string():
 
 
 def test_version_not_unknown():
-    """Package must be installed (editable or otherwise) for version to resolve."""
+    """Package must be installed (editable or otherwise) for version to
+    resolve."""
     assert doppler.__version__ != "unknown", (
-        "doppler.__version__ is 'unknown' — run `pip install -e .` or `uv sync` first"
+        "doppler.__version__ is 'unknown'"
+        " — run `pip install -e .` or `uv sync` first"
     )
 
 

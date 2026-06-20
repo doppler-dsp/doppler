@@ -16,17 +16,19 @@ as an ``(N, 2)`` array (column 0 = I, column 1 = Q) in the file's own dtype.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ..cvt import I8ToF32, I16ToF32, I32ToF32
 
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
 SampleType = Literal["cf32", "cf64", "ci32", "ci16", "ci8"]
 
-# Float wire types: (complex dtype char, real dtype char). The complex form is a
-# zero-copy reinterpretation of the interleaved reals.
+# Float wire types: (complex dtype char, real dtype char). The complex form
+# is a zero-copy reinterpretation of the interleaved reals.
 _CPLX: dict[str, tuple[str, str]] = {
     "cf32": ("c8", "f4"),
     "cf64": ("c16", "f8"),
@@ -61,7 +63,8 @@ def read_iq(
     endian : {"le", "be"}
         The ``--endian`` the file was written with.
     raw : bool, keyword-only
-        If true, return the **zero-copy** on-disk samples as an ``(N, 2)`` array
+        If true, return the **zero-copy** on-disk samples as an ``(N, 2)``
+        array
         (``[:, 0]`` = I, ``[:, 1]`` = Q) in the file's own dtype, with no
         rescale. Otherwise return a complex array (see Returns).
 
@@ -87,7 +90,8 @@ def read_iq(
         cchar, rchar = _CPLX[sample_type]
         if raw:
             return np.fromfile(path, dtype=bo + rchar).reshape(-1, 2)
-        # interleaved float32/float64 reinterpreted as complex — no deinterleave
+        # interleaved float32/float64 reinterpreted as complex — no
+        # deinterleave
         return np.fromfile(path, dtype=bo + cchar)
     if sample_type in _INT:
         ichar, scale, conv = _INT[sample_type]

@@ -1,8 +1,8 @@
 """Tests for filter.ciccompmf — CIC compensator FIR design."""
 
 import numpy as np
-from doppler.resample import ciccompmf
 
+from doppler.resample import ciccompmf
 
 # Reference taps from Python port of Hentschel/Fettweis algorithm (N=4, R=16)
 _REF_M7 = np.array(
@@ -71,7 +71,8 @@ def test_reference_values_m7():
 
 
 def test_passband_correction():
-    """Compensator should boost near-passband frequencies to flatten CIC droop."""
+    """Compensator should boost near-passband frequencies to flatten CIC
+    droop."""
     N, R, M = 4, 16, 7
     h = ciccompmf(N, R, M)
     n_fft = len(h) * 256
@@ -79,7 +80,7 @@ def test_passband_correction():
     np.fft.rfftfreq(n_fft)
     # At passband edge (0.5/R in output-rate normalised units), the
     # compensator must have gain > 1 (it boosts to cancel CIC droop).
-    pb_idx = int(round(0.5 / R * n_fft))
+    pb_idx = round(0.5 / R * n_fft)
     assert H[pb_idx] > 1.0, "compensator must have gain > 1 at passband edge"
 
 

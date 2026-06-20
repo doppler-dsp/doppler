@@ -24,9 +24,15 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+if TYPE_CHECKING:
+    from doppler.source import LO
+    from doppler.specan.config import SpecanConfig
+    from doppler.stream import Pull, Subscriber
 
 # ------------------------------------------------------------------
 # Abstract base
@@ -52,10 +58,10 @@ class Source(ABC):
         """
         ...
 
-    def set_fft_size(self, n: int) -> None:
+    def set_fft_size(self, n: int) -> None:  # noqa: B027
         """Notify the source of the current FFT size (optional hint)."""
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027
         """Release any held resources."""
 
 
@@ -122,6 +128,7 @@ class DemoSource(Source):
         self._tones: list[dict] = [
             self._make_tone(float(tone_freq) / self._fs, tone_power)
         ]
+        self._rng = np.random.default_rng()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -135,9 +142,9 @@ class DemoSource(Source):
             "nco": None,
         }
 
-    def _nco_for(self, tone: dict):
+    def _nco_for(self, tone: dict) -> LO:
         if tone["nco"] is None:
-            from doppler.source import LO  # noqa: PLC0415
+            from doppler.source import LO
 
             tone["nco"] = LO(tone["fn"])
         return tone["nco"]
@@ -234,7 +241,7 @@ class DemoSource(Source):
         # FFT size (not the block read size) so the level stays stable
         # when block_size changes on zoom.
         noise_scale = self._noise_amp * math.sqrt(self._fft_size)
-        rng = np.random.standard_normal((n, 2)).astype(np.float32)
+        rng = self._rng.standard_normal((n, 2)).astype(np.float32)
         sig += (
             (rng[:, 0] + 1j * rng[:, 1]).astype(np.complex64)
             * noise_scale
@@ -272,12 +279,10 @@ class FileSource(Source):
 
     def __init__(
         self,
-        path,
+        path: str | Path,
         sample_rate: float,
         center_freq: float = 0.0,
     ) -> None:
-        from pathlib import Path  # noqa: PLC0415
-
         self._path = Path(path)
         self._fs = float(sample_rate)
         self._cf = float(center_freq)
@@ -334,9 +339,9 @@ class SocketSource(Source):
         self._cf: float = 0.0
         self._buf = np.empty(0, dtype=np.complex64)
 
-    def _get_sub(self):
+    def _get_sub(self) -> Subscriber:
         if self._sub is None:
-            from doppler import Subscriber  # noqa: PLC0415
+            from doppler import Subscriber
 
             self._sub = Subscriber(self._address)
             self._sub.__enter__()
@@ -404,9 +409,9 @@ class PullSource(Source):
         self._cf: float = 0.0
         self._buf = np.empty(0, dtype=np.complex64)
 
-    def _get_pull(self):
+    def _get_pull(self) -> Pull:
         if self._pull is None:
-            from doppler import Pull  # noqa: PLC0415
+            from doppler import Pull
 
             self._pull = Pull(self._address)
             self._pull.__enter__()
@@ -440,7 +445,7 @@ class PullSource(Source):
 # ------------------------------------------------------------------
 
 
-def make_source(cfg) -> Source:
+def make_source(cfg: SpecanConfig) -> Source:
     """
     Instantiate the source described by *cfg*.
 

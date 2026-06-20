@@ -19,10 +19,10 @@ import pytest
 
 from doppler.cvt import (
     F32ToI16,
-    I16ToF32,
     F32ToI16U32,
-    I16U32ToF32,
     F32ToI16U64,
+    I16ToF32,
+    I16U32ToF32,
     I16U64ToF32,
 )
 

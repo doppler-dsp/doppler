@@ -1,7 +1,8 @@
 """lo_demo.py — smoke test for LO examples from docs/examples/python-lo.md."""
 
-from doppler.source import LO
 import numpy as np
+
+from doppler.source import LO
 
 # Free-running quarter-rate tone
 lo = LO(0.25)

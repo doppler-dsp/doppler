@@ -14,6 +14,10 @@ from __future__ import annotations
 import argparse
 import signal
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import types
 
 BLOCK_SIZE = 4096  # samples per push frame
 
@@ -79,8 +83,8 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    from doppler.stream import CF64, Push  # noqa: PLC0415
-    from doppler.specan.source import DemoSource  # noqa: PLC0415
+    from doppler.specan.source import DemoSource
+    from doppler.stream import CF64, Push
 
     _log(
         f"doppler-source started — type=tone bind={args.bind}"
@@ -99,7 +103,7 @@ def main() -> None:
     # Graceful shutdown on SIGTERM
     _running = True
 
-    def _stop(signum, frame):
+    def _stop(signum: int, frame: types.FrameType | None) -> None:
         nonlocal _running
         _running = False
 

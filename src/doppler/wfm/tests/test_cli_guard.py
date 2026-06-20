@@ -36,8 +36,7 @@ def test_wfmgen_pipe_still_writes_binary():
     # stdout is a pipe (not a tty) -> binary IQ flows as before.
     p = subprocess.run(
         [_bin(), "--type", "tone", "--count", "16"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     assert p.returncode == 0
     assert len(p.stdout) > 0

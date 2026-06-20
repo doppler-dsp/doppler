@@ -12,15 +12,14 @@ Covers:
   - Too-few blocks (< 2) raises ValueError
 """
 
-import yaml
 import pytest
+import yaml
 
-import doppler.cli.blocks.fir  # noqa: F401 — populate registry
-import doppler.cli.blocks.specan  # noqa: F401
+import doppler.cli.blocks.fir
+import doppler.cli.blocks.specan
 import doppler.cli.blocks.tone  # noqa: F401
 from doppler.cli import compose as compose_mod
 from doppler.cli import ports as ports_mod
-
 
 # ---------------------------------------------------------------------------
 # Helpers

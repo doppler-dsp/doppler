@@ -5,6 +5,7 @@ phase continuity, ctrl-port FM shift, LUT accuracy, property accessors.
 """
 
 import numpy as np
+
 from doppler.source import LO
 
 TOL = 1e-3  # half a LUT bin at 2^16 resolution (~4.8e-5); 1e-3 is generous
@@ -179,7 +180,8 @@ def test_reset_zeroes_phase():
 
 def test_steps_large_n_no_overflow():
     """steps(n) for n past the internal default cap (65536) must not overflow
-    the reuse buffer — it sizes to n. Regression for #116 (segfault at large n).
+    the reuse buffer — it sizes to n. Regression for #116 (segfault at
+    large n).
     """
     n = 393_216  # 96 * 4096; > LO_MAX_OUT, the issue's crash size
     y = LO(norm_freq=0.1).steps(n)
@@ -207,7 +209,8 @@ def test_steps_grows_then_reuses():
 
 
 def test_steps_ctrl_large_n():
-    """steps_ctrl sizes its buffer to the control-array length, not a fixed cap."""
+    """steps_ctrl sizes its buffer to the control-array length, not a fixed
+    cap."""
     n = 200_000
     ctrl = np.zeros(n, dtype=np.float32)
     y = LO(norm_freq=0.1).steps_ctrl(ctrl)

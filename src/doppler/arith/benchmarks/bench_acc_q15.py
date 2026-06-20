@@ -3,8 +3,8 @@
 Run: pytest src/doppler/arith/benchmarks/bench_acc_q15.py --benchmark-only
 """
 
-import pytest
 import numpy as np
+import pytest
 
 from doppler.arith import AccQ15
 

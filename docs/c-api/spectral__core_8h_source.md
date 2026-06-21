@@ -31,6 +31,8 @@ void kaiser_window(float *w, size_t w_len, float beta);
 
 void hann_window(float *w, size_t w_len);
 
+void blackman_harris_window(float *w, size_t w_len);
+
 void magnitude_db_cf32(const float complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
 
 void magnitude_db_cf64(const double complex *x, size_t x_len, float *out, double lin_floor, float offset_db);

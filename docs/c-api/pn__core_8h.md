@@ -38,7 +38,7 @@ _PN component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**@363037266276365067044042006330270222323345306043**](#enum-@363037266276365067044042006330270222323345306043)  <br>_PN state._  |
+| enum  | [**pn\_\_core\_8h\_1aa5aa6f9f85a17c48ca6b7feb11fe83a7**](#enum-pn__core_8h_1aa5aa6f9f85a17c48ca6b7feb11fe83a7)  <br>_PN state._  |
 
 
 
@@ -100,7 +100,7 @@ _PN component API._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Lifecycle: create -&gt; [step / steps / reset]\* -&gt; destroy
+Lifecycle: create -&gt; `[step / steps / reset]*` -&gt; destroy
 
 
 Example: 
@@ -118,11 +118,11 @@ pn_destroy(obj);
 
 
 
-### enum @363037266276365067044042006330270222323345306043 
+### enum pn\_\_core\_8h\_1aa5aa6f9f85a17c48ca6b7feb11fe83a7 
 
 _PN state._ 
 ```C++
-enum @363037266276365067044042006330270222323345306043 {
+enum pn__core_8h_1aa5aa6f9f85a17c48ca6b7feb11fe83a7 {
     PN_GALOIS = 0,
     PN_FIBONACCI = 1
 };

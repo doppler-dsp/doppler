@@ -3,14 +3,14 @@
  * @brief int8-to-float converter with configurable inverse scale.
  *
  * Multiplies each signed int8 sample by @c 1/scale and returns a float32.
- * The default scale of 128.0 maps the full int8 range [-128, 127] to
- * [-1.0, ~+1.0), which is the natural inverse of an 8-bit ADC path.
+ * The default scale of 128.0 maps the full int8 range `[-128, 127]` to
+ * `[-1.0, ~+1.0)`, which is the natural inverse of an 8-bit ADC path.
  * This converter is used in the 8-bit IQ sample pipeline (e.g., RTL-SDR
  * signed-8 I/Q streams) where samples arrive as int8 and must be converted
  * to normalised complex floats.
  * The inverse scale is pre-computed at construction time.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> `[step / steps / reset]*` -> destroy
  *
  * @code
  * >>> from doppler.cvt import I8ToF32

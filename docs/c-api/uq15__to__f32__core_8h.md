@@ -151,7 +151,7 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single subtract
 **Parameters:**
 
 
-* `scale` Denominator applied after offset-binary bias removal (default: 32768.0f). Use 32768.0 to recover normalised [-1, +1] floats from UQ15 data written by F32ToUQ15. Must be &gt; 0; returns NULL otherwise. 
+* `scale` Denominator applied after offset-binary bias removal (default: 32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from UQ15 data written by F32ToUQ15. Must be &gt; 0; returns NULL otherwise. 
 
 
 
@@ -260,7 +260,7 @@ Computes ``((int32\_t)x - 32768) \* iscale. The int32\_t cast prevents signed ov
 
 **Returns:**
 
-Decoded float sample in [-1.0, ~+1.0). 
+Decoded float sample in `[-1.0, ~+1.0)`. 
 
 
 

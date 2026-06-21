@@ -10,20 +10,40 @@ import numpy as np
 from numpy.typing import NDArray
 
 class Reader:
+    """Reader handle.
+
+    Parameters
+    ----------
+    path : str
+    sample_type : str, default ``"cf32"``
+        One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
+    endian : str, default ``"le"``
+        One of ``"le"``, ``"be"``.
+    """
     def __init__(self, path: str, sample_type: str = ..., endian: str = ...) -> None: ...
-    def read(self, n: int) -> NDArray[Any]: ...
+    def read(self, n: int) -> NDArray[Any]:
+        """read(n) -> NDArray[Any]."""
     @property
-    def file_type(self) -> str: ...
+    def file_type(self) -> str:
+        """file_type (str); one of ``"raw"``, ``"csv"``, ``"blue"``, ``"sigmf"``."""
     @property
-    def sample_type(self) -> str: ...
+    def sample_type(self) -> str:
+        """sample_type (str); one of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``."""
     @property
-    def endian(self) -> str: ...
+    def endian(self) -> str:
+        """endian (str); one of ``"le"``, ``"be"``."""
     @property
-    def fs(self) -> float: ...
+    def fs(self) -> float:
+        """fs (float)."""
     @property
-    def fc(self) -> float: ...
+    def fc(self) -> float:
+        """fc (float)."""
     @property
-    def num_samples(self) -> int: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> Reader: ...
-    def __exit__(self, *exc: Any) -> None: ...
+    def num_samples(self) -> int:
+        """num_samples (int)."""
+    def close(self) -> None:
+        """Release the handle and free resources."""
+    def __enter__(self) -> Reader:
+        """Enter context; return self."""
+    def __exit__(self, *exc: Any) -> None:
+        """Exit context and close the handle."""

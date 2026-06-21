@@ -8,13 +8,13 @@
  *
  * Stage selection (D = 1/rate):
  *
- *   rate >= 1.0 or D < 2           [Resampler(rate)]
- *   D ~= 2^1                        [HalfbandDecimator]
- *   D ~= 2^2                        [HalfbandDecimator, HalfbandDecimator]
- *   D ~= 2^n, n>=3, D<=4096         [CIC(D)]
- *   D >= 8, non-power-of-2          [CIC(R*), Resampler correction]
+ *   rate >= 1.0 or D < 2           `[Resampler(rate)]`
+ *   D ~= 2^1                        `[HalfbandDecimator]`
+ *   D ~= 2^2                        `[HalfbandDecimator, HalfbandDecimator]`
+ *   D ~= 2^n, n>=3, D<=4096         `[CIC(D)]`
+ *   D >= 8, non-power-of-2          `[CIC(R*), Resampler correction]`
  *                                    R* = nearest power-of-2 to D
- *   otherwise (2 <= D < 8, non-int) [Resampler(rate)]
+ *   otherwise (2 <= D < 8, non-int) `[Resampler(rate)]`
  *
  * Lifecycle:
  * @code
@@ -179,7 +179,7 @@ void RateConverter_set_rate (RateConverter_state_t *s, double rate);
  * Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
  *
  * @param s    Must be non-NULL.
- * @param i    Stage index in [0, s->n_stages).
+ * @param i    Stage index in `[0, s->n_stages)`.
  * @param buf  Output buffer.
  * @param len  Capacity of buf in bytes.
  * @return 1 on success, 0 if i is out of range.

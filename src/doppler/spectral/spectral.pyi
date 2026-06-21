@@ -805,7 +805,7 @@ class PSD:
         Parameters
         ----------
         bands : NDArray[np.float64]
-            Flat [lo,hi,...] band edges, Hz.
+            Flat `[lo,hi,...]` band edges, Hz.
 
         Returns
         -------
@@ -830,7 +830,7 @@ class PSD:
         Parameters
         ----------
         bands : NDArray[np.float64]
-            Flat [lo,hi,...] band edges, Hz.
+            Flat `[lo,hi,...]` band edges, Hz.
 
         Returns
         -------

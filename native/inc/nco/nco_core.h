@@ -7,7 +7,7 @@
  * 2^32, giving exact integer arithmetic with no floating-point drift.
  * Three output mappings expose different views of the accumulator:
  *
- *   nco_steps_u32        raw accumulator value  [0, 2^32)
+ *   nco_steps_u32        raw accumulator value  `[0, 2^32)`
  *   nco_steps_u32_scaled (uint64)phase * nmax >> 32  →  [0, nmax)
  *   nco_steps_u32_ovf    raw phase + per-sample carry flag
  *
@@ -144,7 +144,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
 
   /**
    * @brief Current phase accumulator value (read/write).
-   * Reading returns the current integer phase in [0, 2^32).  Writing
+   * Reading returns the current integer phase in `[0, 2^32)`.  Writing
    * overrides the accumulator directly, allowing arbitrary phase offsets
    * without re-creating the NCO.
    *
@@ -189,7 +189,7 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief Advance n samples; write raw uint32 accumulator values.
    * Each element is the phase value BEFORE the increment fires, so
-   * out[0] is the phase at the moment of the call.  The accumulator
+   * `out[0]` is the phase at the moment of the call.  The accumulator
    * wraps silently at 2^32, giving the full-resolution integer ramp
    * that the scaled and carry variants derive from.  Returns n.
    *
@@ -212,9 +212,9 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   size_t nco_steps_u32_scaled_max_out (nco_state_t *state);
 
   /**
-   * @brief Advance n samples; values scaled to [0, nmax).
+   * @brief Advance n samples; values scaled to `[0, nmax)`.
    * Uses the branchless fixed-point identity
-   *   out[i] = (uint64_t)phase * nmax >> 32
+   *   `out[i]` = (uint64_t)phase * nmax >> 32
    * to map the full accumulator range uniformly onto [0, nmax) without
    * a modulo operation.  When nmax == 0 falls back to the raw accumulator
    * (identical to nco_steps_u32).  Useful for polyphase filter bank
@@ -241,8 +241,8 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
   /**
    * @brief Advance n samples; write raw phase values and per-sample carry.
    * Identical to nco_steps_u32 for the phase array, but simultaneously
-   * fills a parallel uint8 carry buffer: out1[i] is 1 if the add that
-   * produced out[i]'s post-increment phase wrapped past 2^32, else 0.
+   * fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that
+   * produced `out[i]`'s post-increment phase wrapped past 2^32, else 0.
    * The carry marks the exact boundary of one input period and is the
    * primitive for polyphase sample-clock and rational resampling engines.
    * Returns n.

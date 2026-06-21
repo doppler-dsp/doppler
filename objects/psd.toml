@@ -47,8 +47,6 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
-# bits>0 sets full_scale = 2^(bits-1) (ADC dBFS reference) — the single
-# definition of the dBFS reference shared by the measure analyzers and Specan.
 [[psd.init_params]]
 name = "bits"
 type = "size_t"
@@ -64,7 +62,6 @@ name = "alpha"
 type = "double"
 default = "0.1"
 
-# ── accumulation ──────────────────────────────────────────────────────────
 [[psd.methods]]
 name = "accumulate"
 doc = "Window, FFT and fold floor(n_in/n) cf32 frames into the average."
@@ -87,7 +84,6 @@ doc = "Discard the running average; counters return to zero."
 arg_type = "void"
 return_type = "void"
 
-# ── PSD trace getters (variable_output, length n) ─────────────────────────
 [[psd.methods]]
 name = "psd_db"
 doc = "Averaged power spectrum in dB (None before any accumulate)."
@@ -104,7 +100,6 @@ return_type = "float"
 variable_output = true
 none_on_empty = true
 
-# ── linear-power accessors (raw spectral estimate for measurement) ────────
 [[psd.methods]]
 name = "power_twosided"
 doc = "Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised."
@@ -121,7 +116,6 @@ return_type = "float"
 variable_output = true
 none_on_empty = true
 
-# ── band power (split: per-band array + total scalar) ─────────────────────
 [[psd.methods]]
 name = "band_power"
 doc = "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz."
@@ -137,7 +131,6 @@ arg_type = "void"
 return_type = "double"
 params = [{name = "bands", type = "double[]"}]
 
-# ── scalar measurements ───────────────────────────────────────────────────
 [[psd.methods]]
 name = "occupied_bw"
 doc = "Occupied bandwidth in Hz holding the given fraction of total power."
@@ -165,11 +158,6 @@ arg_type = "void"
 return_type = "double"
 params = [{name = "min_db", type = "float"}]
 
-# NB: spectral peaks are obtained idiomatically by composing the existing free
-# function on the averaged trace: find_peaks_f32(w.psd_db(), n_peaks, min_db).
-# No dedicated method — sfdr() below covers the common top-2-peaks measurement.
-
-# ── properties ────────────────────────────────────────────────────────────
 [[psd.properties]]
 name = "n"
 type = "size_t"

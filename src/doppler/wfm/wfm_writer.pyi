@@ -10,15 +10,39 @@ import numpy as np
 from numpy.typing import NDArray
 
 class Writer:
+    """Writer handle.
+
+    Parameters
+    ----------
+    path : str
+    file_type : str, default ``"raw"``
+        One of ``"raw"``, ``"csv"``, ``"blue"``, ``"sigmf"``.
+    sample_type : str, default ``"cf32"``
+        One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
+    endian : str, default ``"le"``
+        One of ``"le"``, ``"be"``.
+    fs : float, default 1e6
+    fc : float, default 0.0
+    total : int, default 0
+    headroom : float, default 0.0
+    """
     def __init__(self, path: str, file_type: str = ..., sample_type: str = ..., endian: str = ..., fs: float = ..., fc: float = ..., total: int = ..., headroom: float = ...) -> None: ...
-    def write(self, x: NDArray[Any]) -> int: ...
-    def track_clipping(self, on: int = ...) -> None: ...
+    def write(self, x: NDArray[Any]) -> int:
+        """write(x) -> int."""
+    def track_clipping(self, on: int = ...) -> None:
+        """track_clipping(on=1) -> None."""
     @property
-    def clip_fraction(self) -> float: ...
+    def clip_fraction(self) -> float:
+        """clip_fraction (float)."""
     @property
-    def peak_dbfs(self) -> float: ...
+    def peak_dbfs(self) -> float:
+        """peak_dbfs (float)."""
     @property
-    def clipped(self) -> bool: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> Writer: ...
-    def __exit__(self, *exc: Any) -> None: ...
+    def clipped(self) -> bool:
+        """clipped (bool)."""
+    def close(self) -> None:
+        """Release the handle and free resources."""
+    def __enter__(self) -> Writer:
+        """Enter context; return self."""
+    def __exit__(self, *exc: Any) -> None:
+        """Exit context and close the handle."""

@@ -41,7 +41,7 @@ class NCO:
         """
 
     def steps_u32(self) -> NDArray[np.uint32]:
-        """Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so out[0] is the phase at the moment of the call.  The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from.  Returns n.
+        """Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so `out[0]` is the phase at the moment of the call.  The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from.  Returns n.
 
         Returns
         -------
@@ -61,7 +61,7 @@ class NCO:
         """
 
     def steps_u32_scaled(self) -> NDArray[np.uint32]:
-        """Advance n samples; values scaled to [0, nmax). Uses the branchless fixed-point identity out[i] = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
+        """Advance n samples; values scaled to `[0, nmax)`. Uses the branchless fixed-point identity `out[i]` = (uint64_t)phase * nmax >> 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation.  When nmax == 0 falls back to the raw accumulator (identical to nco_steps_u32).  Useful for polyphase filter bank indexing and direct LUT addressing.  Returns n.
 
         Returns
         -------
@@ -81,7 +81,7 @@ class NCO:
         """
 
     def steps_u32_ovf(self) -> tuple[NDArray[np.uint32], NDArray[np.uint8]]:
-        """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: out1[i] is 1 if the add that produced out[i]'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
+        """Advance n samples; write raw phase values and per-sample carry. Identical to nco_steps_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: `out1[i]` is 1 if the add that produced `out[i]`'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n.
 
         Returns
         -------
@@ -110,7 +110,7 @@ class NCO:
 
     @property
     def phase(self) -> int:
-        """Current phase accumulator value (read/write). Reading returns the current integer phase in [0, 2^32).  Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO."""
+        """Current phase accumulator value (read/write). Reading returns the current integer phase in `[0, 2^32)`.  Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO."""
     @phase.setter
     def phase(self, value: int) -> None: ...
 
@@ -184,7 +184,7 @@ class LO:
         """
 
     def steps_ctrl(self, ctrl: NDArray[np.float32]) -> NDArray[np.complex64]:
-        """Generate CF32 phasors with per-sample FM deviation. For each sample i, ctrl[i]'s fractional part is converted to a delta phase-increment (delta = floor(frac(ctrl[i]) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
+        """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
 
         Parameters
         ----------
@@ -220,7 +220,7 @@ class LO:
 
     @property
     def phase(self) -> int:
-        """Current phase accumulator value (read/write). Returns the current integer phase in [0, 2^32).  Writing overrides the accumulator directly for phase-coherent frequency switching."""
+        """Current phase accumulator value (read/write). Returns the current integer phase in `[0, 2^32)`.  Writing overrides the accumulator directly for phase-coherent frequency switching."""
     @phase.setter
     def phase(self, value: int) -> None: ...
 

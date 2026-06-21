@@ -108,8 +108,8 @@ Process-global only in the ways the CLI is: it may write to `stdout` / `stderr` 
 **Parameters:**
 
 
-* `argc` Argument count, including `argv`[0] (the program name). 
-* `argv` Argument vector; `argv`[0] is used only in diagnostics/usage. 
+* `argc` Argument count, including `argv``[0]` (the program name). 
+* `argv` Argument vector; `argv``[0]` is used only in diagnostics/usage. 
 
 
 

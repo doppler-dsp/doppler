@@ -6,7 +6,7 @@
  * optional TPDF dither.  A normalised float input is scaled by the
  * pre-computed double-precision factor, optionally dithered with a
  * triangular-PDF noise source, rounded, clamped to the signed integer range
- * [-(2^(bits-1)), 2^(bits-1)-1], and returned as int64_t.
+ * `[-(2^(bits-1)), 2^(bits-1)-1]`, and returned as int64_t.
  *
  * Scale derivation:
  * @code
@@ -19,7 +19,7 @@
  * (float32 mantissa limit) are modelled without rounding artefacts.
  *
  * TPDF dither (dithering != 0): two xorshift32 uniform draws are summed to
- * produce a triangular PDF over [-1, +1] LSB before rounding.  This breaks
+ * produce a triangular PDF over `[-1, +1]` LSB before rounding.  This breaks
  * correlated quantisation noise patterns at the cost of a slight noise-floor
  * increase.  The PRNG state is part of the object; reset() re-seeds it.
  *
@@ -85,7 +85,7 @@ typedef struct {
  *
  * Computes @c scale = 2^(bits-1) * 10^(-dbfs/20), sets the clip bounds, and
  * seeds the xorshift32 PRNG to a fixed constant.  Returns NULL if @p bits is
- * outside [1, 64] or on allocation failure.
+ * outside `[1, 64]` or on allocation failure.
  *
  * @param bits      ADC resolution in bits (1..64).
  * @param dbfs      Full-scale reference level in dBFS (typically negative,
@@ -117,12 +117,12 @@ void adc_reset(adc_state_t *state);
  * @brief Process one input sample.
  *
  * Multiplies @p x by the pre-computed double-precision @c scale, optionally
- * adds TPDF dither, rounds with @c llround, and clamps to [clip_min,
- * clip_max].  Sets the sticky @c clipped flag if clamping occurred.
+ * adds TPDF dither, rounds with @c llround, and clamps to `[clip_min,
+ * clip_max]`.  Sets the sticky @c clipped flag if clamping occurred.
  *
  * @param state  Must be non-NULL.
- * @param x      Normalised float input sample (typically in [-1, +1]).
- * @return Quantised signed integer in [-(2^(bits-1)), 2^(bits-1)-1].
+ * @param x      Normalised float input sample (typically in `[-1, +1]`).
+ * @return Quantised signed integer in `[-(2^(bits-1)), 2^(bits-1)-1]`.
  */
 JM_FORCEINLINE JM_HOT int64_t
 adc_step(adc_state_t *state, float x)

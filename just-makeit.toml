@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.26"
+jm_version = "0.19.30"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -12,7 +12,7 @@ platforms = ["linux", "macos"]
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
-schema = "6"
+schema = "7"
 c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # measure.pyi is now jm-generated: the analyze() methods use single=true (gh-244),
 # so jm emits the PyStructSequence binding + the stub itself — no hand-maintenance.
@@ -23,42 +23,6 @@ status_allow = ["zensical.toml"]
 # (append-only — never reorder). The wfm_compose composer (below) emits its C
 # lookup tables from these, collapsing the string tables historically duplicated
 # across wfmgen.c / wfm_json.c / wfmcompose_py.c / compose.py to this one source.
-[[enum]]
-name = "wfm_type"
-values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
-
-[[enum]]
-name = "snr_mode"
-values = ["auto", "fs", "ebno", "esno"]
-
-[[enum]]
-name = "wfm_lfsr"
-values = ["galois", "fibonacci"]
-
-[[enum]]
-name = "bitmod"
-values = ["none", "bpsk", "qpsk"]
-
-[[enum]]
-name = "wfm_pulse"
-values = ["rect", "rrc"]
-
-# Transport SSOT enums (order = the C int contract; match _FTYPES/_STYPES/_ENDIANS
-# in the old compose.py and the wfm_filetype_t / sample_type / endian ints).
-[[enum]]
-name = "ftype"
-values = ["raw", "csv", "blue", "sigmf"]
-
-[[enum]]
-name = "stype"
-values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
-
-[[enum]]
-name = "endian"
-values = ["le", "be"]
-
-# Transport handle module: Reader (the dual of Writer). Path-based open, the
-# wfm_reader_info struct getter (resolved once — fixed per open), read int->array.
 [module.wfm_reader]
 kind            = "handle"
 backing         = "wfm_reader"
@@ -68,41 +32,75 @@ type_name       = "Reader"
 context_manager = true
 close_fn        = "wfm_reader_close"
 create_fn       = "wfm_reader_open"
-depends_on      = [{ name = "wfm_reader", link = true }]
 # wfm_reader.c parses SigMF sidecars via the vendored cJSON OBJECT lib; libm too.
 extra_link_libs = ["wfm_cjson", "m"]
-create_args = [
-    { name = "path", type = "path" },
-    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
-    { name = "endian", type = "int", enum = "endian", default = "le", kwonly = true },
-]
 
+[[module.wfm_reader.create_args]]
+name = "path"
+type = "path"
+
+[[module.wfm_reader.create_args]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+kwonly = true
+
+[[module.wfm_reader.create_args]]
+name = "endian"
+type = "int"
+enum = "endian"
+default = "le"
+kwonly = true
+[[module.wfm_reader.depends_on]]
+name = "wfm_reader"
+link = true
 [[module.wfm_reader.methods]]
 name = "read"
 fn = "wfm_reader_read"
 returns = "float _Complex[]"
 nogil = true
-args = [{ name = "n", type = "size_t" }]
 
+[[module.wfm_reader.methods.args]]
+name = "n"
+type = "size_t"
 [[module.wfm_reader.getters]]
 fn = "wfm_reader_info"
 out = "wfm_reader_info_t"
 cache = true
-fields = [
-    { name = "file_type", from = "file_type", type = "int", enum = "ftype" },
-    { name = "sample_type", from = "sample_type", type = "int", enum = "stype" },
-    { name = "endian", from = "endian", type = "int", enum = "endian" },
-    { name = "fs", from = "fs", type = "double" },
-    { name = "fc", from = "fc", type = "double" },
-    { name = "num_samples", from = "num_samples", type = "size_t" },
-]
 
-# Transport handle module: SampleClock over dp_sample_clock_t (timing_core).
-# init_fn (jm#320) constructs in place: jm mallocs sizeof(dp_sample_clock_t),
-# calls dp_sample_clock_init(h, fs, resync), and frees on close/dealloc — no
-# hand-written create/destroy. The stats getter reads the real public struct
-# (a genuine decoded-getter, not a shim). No optional_backend: doppler targets
-# linux/macos (both POSIX) so the clock is always present.
+[[module.wfm_reader.getters.fields]]
+name = "file_type"
+from = "file_type"
+type = "int"
+enum = "ftype"
+
+[[module.wfm_reader.getters.fields]]
+name = "sample_type"
+from = "sample_type"
+type = "int"
+enum = "stype"
+
+[[module.wfm_reader.getters.fields]]
+name = "endian"
+from = "endian"
+type = "int"
+enum = "endian"
+
+[[module.wfm_reader.getters.fields]]
+name = "fs"
+from = "fs"
+type = "double"
+
+[[module.wfm_reader.getters.fields]]
+name = "fc"
+from = "fc"
+type = "double"
+
+[[module.wfm_reader.getters.fields]]
+name = "num_samples"
+from = "num_samples"
+type = "size_t"
 [module.sample_clock]
 kind            = "handle"
 backing         = "dp_sample_clock"
@@ -115,18 +113,28 @@ init_fn         = "dp_sample_clock_init"
 # free(self->h) alone (no <backing>_close finalizer). init_fn makes jm own the
 # malloc/free.
 close_fn        = ""
-depends_on      = [{ name = "timing", link = true }]
-create_args = [
-    { name = "fs", type = "double" },
-    { name = "resync", type = "int", default = "0", kwonly = true },
-]
 
+[[module.sample_clock.create_args]]
+name = "fs"
+type = "double"
+
+[[module.sample_clock.create_args]]
+name = "resync"
+type = "int"
+default = "0"
+kwonly = true
+[[module.sample_clock.depends_on]]
+name = "timing"
+link = true
 [[module.sample_clock.methods]]
 name = "pace"
 fn = "dp_sample_clock_pace"
 returns = "double"
 nogil = true
-args = [{ name = "count", type = "size_t" }]
+
+[[module.sample_clock.methods.args]]
+name = "count"
+type = "size_t"
 
 [[module.sample_clock.methods]]
 name = "stamp"
@@ -140,20 +148,26 @@ fn = "dp_sample_clock_reset"
 [[module.sample_clock.methods]]
 name = "resync"
 fn = "dp_sample_clock_resync"
-
 [[module.sample_clock.getters]]
 fn = "dp_sample_clock_stats"
 out = "dp_sample_clock_t"
 cache = false
-fields = [
-    { name = "samples", from = "n", type = "uint64_t" },
-    { name = "underruns", from = "underruns", type = "uint64_t" },
-    { name = "max_lateness", from = "max_late_ns", type = "double", scale = "1e-9" },
-]
 
-# Transport handle module: Writer. Path-opening shim owns the FILE (closes it)
-# and folds headroom->set_gain so headroom is a plain ctor arg. Live stats getter
-# (peak_dbfs/clipped are derived exprs over the snapshot + the stashed sample_type).
+[[module.sample_clock.getters.fields]]
+name = "samples"
+from = "n"
+type = "uint64_t"
+
+[[module.sample_clock.getters.fields]]
+name = "underruns"
+from = "underruns"
+type = "uint64_t"
+
+[[module.sample_clock.getters.fields]]
+name = "max_lateness"
+from = "max_late_ns"
+type = "double"
+scale = "1e-9"
 [module.wfm_writer]
 kind            = "handle"
 backing         = "wfm_writer"
@@ -164,47 +178,96 @@ context_manager = true
 close_fn        = "wfm_writer_close"
 close_returns   = "int"
 create_fn       = "wfm_writer_open_path"
-depends_on      = [{ name = "wfm_writer", link = true }]
 extra_link_libs = ["wfm_cjson", "m"]
-create_args = [
-    { name = "path", type = "path" },
-    { name = "file_type", type = "int", enum = "ftype", default = "raw", kwonly = true },
-    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
-    { name = "endian", type = "int", enum = "endian", default = "le", kwonly = true },
-    { name = "fs", type = "double", default = "1e6", kwonly = true },
-    { name = "fc", type = "double", default = "0.0", kwonly = true },
-    { name = "total", type = "size_t", default = "0", kwonly = true },
-    { name = "headroom", type = "double", default = "0.0", kwonly = true },
-]
 
+[[module.wfm_writer.create_args]]
+name = "path"
+type = "path"
+
+[[module.wfm_writer.create_args]]
+name = "file_type"
+type = "int"
+enum = "ftype"
+default = "raw"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "endian"
+type = "int"
+enum = "endian"
+default = "le"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "fs"
+type = "double"
+default = "1e6"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "fc"
+type = "double"
+default = "0.0"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "total"
+type = "size_t"
+default = "0"
+kwonly = true
+
+[[module.wfm_writer.create_args]]
+name = "headroom"
+type = "double"
+default = "0.0"
+kwonly = true
+[[module.wfm_writer.depends_on]]
+name = "wfm_writer"
+link = true
 [[module.wfm_writer.methods]]
 name = "write"
 fn = "wfm_writer_write"
 returns = "size_t"
 nogil = true
-args = [{ name = "iq", type = "float _Complex[]" }]
+
+[[module.wfm_writer.methods.args]]
+name = "iq"
+type = "float _Complex[]"
 
 [[module.wfm_writer.methods]]
 name = "track_clipping"
 fn = "wfm_writer_track_clipping"
-args = [{ name = "on", type = "int", default = "1" }]
 
-# Per-field scalar getters (jm#320): each property binds its own getter fn
-# directly over the writer's existing peak/clip_fraction accessors — no struct
-# snapshot shim. peak_dbfs/clipped are derived exprs: `tmp` is the bound
-# getter's scalar return (jm#330 types it by the getter's return, so a bool
-# field over a double getter is correct); `self->sample_type` is the ctor arg.
+[[module.wfm_writer.methods.args]]
+name = "on"
+type = "int"
+default = "1"
 [[module.wfm_writer.getters]]
-fields = [
-    { name = "clip_fraction", getter = "wfm_writer_clip_fraction", type = "double" },
-    { name = "peak_dbfs", getter = "wfm_writer_peak", type = "double", returns = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
-    { name = "clipped", getter = "wfm_writer_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
-]
+[[module.wfm_writer.getters.fields]]
+name = "clip_fraction"
+getter = "wfm_writer_clip_fraction"
+type = "double"
 
-# Transport handle module: ZmqSink (POSIX, opt-in zmq). No stats props (the old
-# class exposes only send/close). send is the array+scalars shape (#308). The zmq
-# backend is the vendored C++ libzmq via the weak-seam real component — hence the
-# stream_core_obj / zmq_vendor_static / Threads / stdc++ link line.
+[[module.wfm_writer.getters.fields]]
+name = "peak_dbfs"
+getter = "wfm_writer_peak"
+type = "double"
+returns = "double"
+expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
+
+[[module.wfm_writer.getters.fields]]
+name = "clipped"
+getter = "wfm_writer_peak"
+type = "bool"
+returns = "double"
+expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.wfm_sink]
 kind            = "handle"
 backing         = "wfm_zmq_sink"
@@ -215,40 +278,66 @@ type_name       = "ZmqSink"
 context_manager = true
 close_fn        = "wfm_zmq_sink_close"
 create_fn       = "wfm_zmq_sink_open"
-depends_on      = [{ name = "wfm_sink", link = true }]
 extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "zmq_vendor_static", "Threads::Threads", "stdc++", "m"]
-create_args = [
-    { name = "endpoint", type = "const char *" },
-    { name = "sample_type", type = "int", enum = "stype", default = "cf32", kwonly = true },
-]
 
+[[module.wfm_sink.create_args]]
+name = "endpoint"
+type = "const char *"
+
+[[module.wfm_sink.create_args]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+kwonly = true
+[[module.wfm_sink.depends_on]]
+name = "wfm_sink"
+link = true
 [[module.wfm_sink.methods]]
 name = "send"
 fn = "wfm_zmq_sink_send"
 returns = "int"
 nogil = true
-args = [
-    { name = "iq", type = "float _Complex[]" },
-    { name = "fs", type = "double" },
-    { name = "fc", type = "double" },
-]
+
+[[module.wfm_sink.methods.args]]
+name = "iq"
+type = "float _Complex[]"
+
+[[module.wfm_sink.methods.args]]
+name = "fs"
+type = "double"
+
+[[module.wfm_sink.methods.args]]
+name = "fc"
+type = "double"
 
 [[module.wfm_sink.methods]]
 name = "track_clipping"
 fn = "wfm_zmq_sink_track_clipping"
-args = [{ name = "on", type = "int", default = "1" }]
 
-# Symmetric with Writer: the C tracks clip stats on integer paths (the old Python
-# class under-exposed them). Per-field getters (jm#320) bind the sink's existing
-# peak/clip_fraction accessors directly; peak_dbfs/clipped are derived exprs
-# (`tmp` = the getter scalar, `self->sample_type` = the stashed ctor arg).
+[[module.wfm_sink.methods.args]]
+name = "on"
+type = "int"
+default = "1"
 [[module.wfm_sink.getters]]
-fields = [
-    { name = "clip_fraction", getter = "wfm_zmq_sink_clip_fraction", type = "double" },
-    { name = "peak_dbfs", getter = "wfm_zmq_sink_peak", type = "double", returns = "double", expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY" },
-    { name = "clipped", getter = "wfm_zmq_sink_peak", type = "bool", returns = "double", expr = "tmp > 1.0 && self->sample_type >= 2" },
-]
+[[module.wfm_sink.getters.fields]]
+name = "clip_fraction"
+getter = "wfm_zmq_sink_clip_fraction"
+type = "double"
 
+[[module.wfm_sink.getters.fields]]
+name = "peak_dbfs"
+getter = "wfm_zmq_sink_peak"
+type = "double"
+returns = "double"
+expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
+
+[[module.wfm_sink.getters.fields]]
+name = "clipped"
+getter = "wfm_zmq_sink_peak"
+type = "bool"
+returns = "double"
+expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.cvt]
 objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32", "f32_to_i16u64", "i16u32_to_f32", "i16u64_to_f32", "f32_to_uq15", "uq15_to_f32", "adc"]
 
@@ -343,9 +432,6 @@ return_type = "uint64_t"
 name = "n"
 type = "uint32_t"
 
-# Self-sizing DSP kernels as generated `variable_output` module functions
-# (jm#318, fixed for apply in jm#335 / 0.19.24). Each thin native/src/wfm/<fn>.c
-# aliases the prefixed wfm_dsp.c kernel (C-first: the algorithm lives once).
 [[module.wfm.functions]]
 name = "rrc_taps"
 doc = "Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."
@@ -383,14 +469,6 @@ type = "uint8_t[]"
 [[module.wfm.functions.params]]
 name = "sf"
 type = "int"
-
-# ── Multi-segment waveform composer (gh-287, additive adoption) ──────────────
-# The OO surface (Synth/Segment/Timeline/Composer + factories) generated INTO
-# the .so as CPython types over the wfm_compose backing. Dual-runs alongside the
-# hand-written compose.py / _wfmcompose during adoption; the cutover that retires
-# the hand glue is a later PR. JSON is DELEGATED to the backing
-# wfm_spec_to_json / wfm_compose_from_json|from_file so the wire format stays
-# byte-identical to the existing wfmgen / --from-file schema.
 [module.wfm_compose]
 kind         = "composer"
 backing      = "wfm_compose"
@@ -403,115 +481,215 @@ sample_type  = true
 # wfm_dsp (DSSS/RRC taps), and the synth chain wfm_synth/lo/awgn/pn/fir. The
 # vendored cJSON OBJECT lib (wfm_cjson) + libm go in extra_link_libs. This mirrors
 # native/src/wfmcompose/CMakeLists.txt's test_wfm_compose link line.
-depends_on = [
-    { name = "wfm_compose", link = true },
-    { name = "wfm_dsp", link = true },
-    { name = "wfm_synth", link = true },
-    { name = "lo", link = true },
-    { name = "awgn", link = true },
-    { name = "pn", link = true },
-    { name = "fir", link = true },
-    # timing_core backs the realtime stream's opaque clock (composer.realtime).
-    { name = "timing", link = true },
-    # wfm_writer_core defines wfm_sigmf_meta_json, the to_sigmf serializer fn.
-    { name = "wfm_writer", link = true },
-]
 extra_link_libs = ["wfm_cjson", "m"]
 
 # The source type wraps wfm_source_t field-for-field (struct order); enum fields
 # cross as validated strings via the SSOT, `bits` as an owned bytes buffer.
-[module.wfm_compose.source]
-object    = "wfm_synth"
-struct    = "wfm_source_t"
-type_name = "Synth"
-fields = [
-    { name = "type", type = "int", enum = "wfm_type", default = "tone" },
-    { name = "freq", type = "double", default = "0.0", aliases = ["f_start"] },
-    { name = "snr", type = "double", default = "100.0" },
-    { name = "snr_mode", type = "int", enum = "snr_mode", default = "auto" },
-    { name = "seed", type = "uint32_t", default = "1" },
-    { name = "sps", type = "int", default = "8" },
-    { name = "pn_length", type = "int", default = "7" },
-    { name = "pn_poly", type = "uint64_t", default = "0" },
-    { name = "lfsr", type = "int", enum = "wfm_lfsr", default = "galois" },
-    { name = "level", type = "double", default = "0.0" },
-    { name = "f_end", type = "double", default = "0.0" },
-    { name = "bits", type = "uint8_t*", bytes = true, aliases = ["pattern"], coerce = "bit_pattern" },
-    { name = "modulation", type = "int", enum = "bitmod", default = "bpsk" },
-    { name = "pulse", type = "int", enum = "wfm_pulse", default = "rect" },
-    { name = "rrc_beta", type = "double", default = "0.35" },
-    { name = "rrc_span", type = "int", default = "8" },
-]
+[[module.wfm_compose.depends_on]]
+name = "wfm_compose"
+link = true
 
-# Standalone generation: a Synth generates samples on its own (Synth(...).steps(n))
-# by delegating to the composed wfm_synth generator, built from the source config
-# by the straight-C bridge `wfm_source_to_synth` (native/src/wfm/wfm_synth_bridge.c
-# — no CPython; jm generates the steps/step/reset plumbing that calls it).
+[[module.wfm_compose.depends_on]]
+name = "wfm_dsp"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "wfm_synth"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "lo"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "awgn"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "pn"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "fir"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "timing"
+link = true
+
+[[module.wfm_compose.depends_on]]
+name = "wfm_writer"
+link = true
+[module.wfm_compose.source]
+object = "wfm_synth"
+struct = "wfm_source_t"
+type_name = "Synth"
+
+[[module.wfm_compose.source.fields]]
+name = "type"
+type = "int"
+enum = "wfm_type"
+default = "tone"
+
+[[module.wfm_compose.source.fields]]
+name = "freq"
+type = "double"
+default = "0.0"
+aliases = ["f_start"]
+
+[[module.wfm_compose.source.fields]]
+name = "snr"
+type = "double"
+default = "100.0"
+
+[[module.wfm_compose.source.fields]]
+name = "snr_mode"
+type = "int"
+enum = "snr_mode"
+default = "auto"
+
+[[module.wfm_compose.source.fields]]
+name = "seed"
+type = "uint32_t"
+default = "1"
+
+[[module.wfm_compose.source.fields]]
+name = "sps"
+type = "int"
+default = "8"
+
+[[module.wfm_compose.source.fields]]
+name = "pn_length"
+type = "int"
+default = "7"
+
+[[module.wfm_compose.source.fields]]
+name = "pn_poly"
+type = "uint64_t"
+default = "0"
+
+[[module.wfm_compose.source.fields]]
+name = "lfsr"
+type = "int"
+enum = "wfm_lfsr"
+default = "galois"
+
+[[module.wfm_compose.source.fields]]
+name = "level"
+type = "double"
+default = "0.0"
+
+[[module.wfm_compose.source.fields]]
+name = "f_end"
+type = "double"
+default = "0.0"
+
+[[module.wfm_compose.source.fields]]
+name = "bits"
+type = "uint8_t*"
+bytes = true
+aliases = ["pattern"]
+coerce = "bit_pattern"
+
+[[module.wfm_compose.source.fields]]
+name = "modulation"
+type = "int"
+enum = "bitmod"
+default = "bpsk"
+
+[[module.wfm_compose.source.fields]]
+name = "pulse"
+type = "int"
+enum = "wfm_pulse"
+default = "rect"
+
+[[module.wfm_compose.source.fields]]
+name = "rrc_beta"
+type = "double"
+default = "0.35"
+
+[[module.wfm_compose.source.fields]]
+name = "rrc_span"
+type = "int"
+default = "8"
+
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
 bridge_fn = "wfm_source_to_synth"
 
 [module.wfm_compose.segment]
 type_name = "Segment"
-struct    = "wfm_segment_t"
-sources   = "multi"
-# Round 3 feature 4: a single-source segment proxies its source's fields as
-# read-only attributes (segment.freq -> segment.sources[0].freq).
+struct = "wfm_segment_t"
+sources = "multi"
 flat_sources = true
-fields = [
-    { name = "fs", type = "double", default = "1e6" },
-    { name = "num_samples", type = "size_t", default = "1024" },
-    { name = "off_samples", type = "size_t", default = "0" },
-]
+
+[[module.wfm_compose.segment.fields]]
+name = "fs"
+type = "double"
+default = "1e6"
+
+[[module.wfm_compose.segment.fields]]
+name = "num_samples"
+type = "size_t"
+default = "1024"
+
+[[module.wfm_compose.segment.fields]]
+name = "off_samples"
+type = "size_t"
+default = "0"
 
 [module.wfm_compose.timeline]
 type_name = "Timeline"
 loop = ["once", "repeat", "continuous"]
 
 [module.wfm_compose.oo]
-factories          = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
-emit               = "ctypes"
-discriminant       = "type"
+factories = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
+emit = "ctypes"
+discriminant = "type"
 composer_type_name = "Composer"
 
-# Generated Composer.stream(block, realtime=0.0) iterator (drains execute into
-# blocks) + to_dict() (resolved repeat/continuous/segments as a plain nested
-# dict — the generic introspection primitive SigMF/BLUE sidecars are built
-# from). The `realtime` table (jm#317-f1) paces the iterator to an fs-Hz clock
-# entirely in C (GIL released): `stream(block, realtime=fs)` is the one-liner
-# that replaced the hand-written `paced()` helper — the clock is the same
-# timing_core the SampleClock handle wraps.
 [module.wfm_compose.composer]
-stream   = true
-to_dict  = true
-realtime = { clock_create = "dp_sample_clock_create", pace = "dp_sample_clock_pace", destroy = "dp_sample_clock_destroy", header = "timing/timing_core.h" }
+stream = true
+to_dict = true
 
-# Delegated JSON: call the backing wfm_spec_to_json (trailing headroom arg = 0.0)
-# and wfm_compose_from_json / wfm_compose_from_file so the wire format is
-# byte-identical to the hand-written schema. (from_json_fn/from_file_fn default to
-# <backing>_from_json/_from_file, which match the real symbols.)
+[module.wfm_compose.composer.realtime]
+clock_create = "dp_sample_clock_create"
+pace = "dp_sample_clock_pace"
+destroy = "dp_sample_clock_destroy"
+header = "timing/timing_core.h"
+
 [module.wfm_compose.json]
-enabled          = true
-to_json_fn       = "wfm_spec_to_json"
+enabled = true
+to_json_fn = "wfm_spec_to_json"
 to_json_trailing = ["0.0"]
 
-# Step 5: sigmf_meta → generated Composer.to_sigmf (delegated serializer, gh-317
-# f2). Coerces the leading enum/scalar params then calls the project C serializer
-# wfm_sigmf_meta_json(<params>, segs, n) over the composer's resolved segments.
-# The `header` key (jm#343, jm 0.19.25) #includes wfm/wfm_writer.h so the fn's
-# decl is in scope; wfm_writer is linked via depends_on above.
 [[module.wfm_compose.serializers]]
 name = "to_sigmf"
 fn = "wfm_sigmf_meta_json"
 returns = "str"
 header = "wfm/wfm_writer.h"
-params = [
-    { name = "sample_type", type = "int", enum = "stype", default = "cf32" },
-    { name = "endian", type = "int", enum = "endian", default = "le" },
-    { name = "fs", type = "double", default = "1e6" },
-    { name = "fc", type = "double", default = "0.0" },
-]
 
+[[module.wfm_compose.serializers.params]]
+name = "sample_type"
+type = "int"
+enum = "stype"
+default = "cf32"
+
+[[module.wfm_compose.serializers.params]]
+name = "endian"
+type = "int"
+enum = "endian"
+default = "le"
+
+[[module.wfm_compose.serializers.params]]
+name = "fs"
+type = "double"
+default = "1e6"
+
+[[module.wfm_compose.serializers.params]]
+name = "fc"
+type = "double"
+default = "0.0"
 [module.delay]
 objects = ["delay"]
 
@@ -646,15 +824,19 @@ objects = ["tonemeas", "nprmeas", "imdmeas"]
 name = "measure_min_samples"
 doc = "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."
 return_type = "size_t"
+
 [[module.measure.functions.params]]
 name = "fs"
 type = "double"
+
 [[module.measure.functions.params]]
 name = "target_rbw"
 type = "double"
+
 [[module.measure.functions.params]]
 name = "window"
 type = "int"
+
 [[module.measure.functions.params]]
 name = "beta"
 type = "float"
@@ -663,9 +845,11 @@ type = "float"
 name = "measure_rec_nfft"
 doc = "Recommended zero-padded transform length: next_pow2(n * pad)."
 return_type = "size_t"
+
 [[module.measure.functions.params]]
 name = "n"
 type = "size_t"
+
 [[module.measure.functions.params]]
 name = "pad"
 type = "size_t"
@@ -674,6 +858,7 @@ type = "size_t"
 name = "measure_proc_gain"
 doc = "FFT processing gain in dB: 10*log10(nfft / 2)."
 return_type = "double"
+
 [[module.measure.functions.params]]
 name = "nfft"
 type = "size_t"
@@ -682,16 +867,18 @@ type = "size_t"
 name = "dp_coherent_freq"
 doc = "Nearest leakage-free coherent test frequency (J cycles, J coprime N)."
 return_type = "double"
+
 [[module.measure.functions.params]]
 name = "fs"
 type = "double"
+
 [[module.measure.functions.params]]
 name = "f_target"
 type = "double"
+
 [[module.measure.functions.params]]
 name = "N"
 type = "size_t"
-
 [module.buffer]
 no_generate = "true"
 
@@ -708,20 +895,7 @@ objects = ["ddc"]
 extra_link_libs = ["m"]
 
 [module.ddc.reexports]
-# The functional ddcr_* free functions (hand ddc_fn_ext.c) and the object-
-# generator DDCR class were both retired (round 4): doppler.ddc.Ddcr is now the
-# generated kind="handle" class (module.ddc_fn below), the real non-wfm adopter.
 ddc_fn = ["Ddcr"]
-
-# ── Ddcr: the generic kind="handle" decimate/mix/resample resource ───────────
-# Consolidates the old DDCR object (object generator) and the seven ddcr_* free
-# functions (hand-written ddc_fn_ext.c) into ONE generated typed class over the
-# opaque ddcr_state_t. Proves the handle generator on a non-wfm adopter: the
-# array-in -> caller-buffer array-out execute (jm#316 shape d) and the writable
-# norm_freq property (jm#316) are exactly the shapes this object drove. The
-# module id stays `ddc_fn` (the slot the retired free-fn module held — its
-# native/src/ddc_fn/ dir is reused) to avoid colliding with native/src/ddcr/
-# (the ddcr_core OBJECT lib); users only ever see the reexported `Ddcr`.
 [module.ddc_fn]
 kind            = "handle"
 backing         = "ddcr"
@@ -737,46 +911,81 @@ close_fn        = "ddcr_destroy"
 # caller's buffer, so it does NOT need ddcr_core's execute_max_out (that hook
 # existed only for the retired DDCR object's variable_output execute). Links
 # ddc_core + the transitive decimate/mix/resample cores (mirrors ddc.toml's set).
-depends_on = [
-    { name = "ddc", link = true },
-    { name = "lo", link = true },
-    { name = "RateConverter", link = true },
-    { name = "resamp", link = true },
-    { name = "hbdecim", link = true },
-    { name = "hbdecim_r2c", link = true },
-    { name = "cic", link = true },
-    { name = "fir", link = true },
-    { name = "resample", link = true },
-]
 extra_link_libs = ["m"]
-create_args = [
-    { name = "norm_freq", type = "double", default = "0.0" },
-    { name = "rate", type = "double", default = "0.25" },
-]
 
+[[module.ddc_fn.create_args]]
+name = "norm_freq"
+type = "double"
+default = "0.0"
+
+[[module.ddc_fn.create_args]]
+name = "rate"
+type = "double"
+default = "0.25"
+[[module.ddc_fn.depends_on]]
+name = "ddc"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "lo"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "RateConverter"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "resamp"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "hbdecim"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "hbdecim_r2c"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "cic"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "fir"
+link = true
+
+[[module.ddc_fn.depends_on]]
+name = "resample"
+link = true
 [[module.ddc_fn.methods]]
 name = "execute"
 fn = "ddcr_execute"
 returns = "float _Complex[]"
 nogil = true
-args = [
-    { name = "x", type = "float[]" },
-    { name = "out", type = "float _Complex[]", writable = true },
-]
+
+[[module.ddc_fn.methods.args]]
+name = "x"
+type = "float[]"
+
+[[module.ddc_fn.methods.args]]
+name = "out"
+type = "float _Complex[]"
+writable = true
 
 [[module.ddc_fn.methods]]
 name = "reset"
 fn = "ddcr_reset"
-
-# norm_freq is live-writable (ddcr_set_norm_freq retunes the LO cheaply); rate is
-# read-only (fixed at construction). Per-field getters (jm#320) + writable_fn
-# (jm#316) compose on one getters block.
 [[module.ddc_fn.getters]]
-fields = [
-    { name = "norm_freq", getter = "ddcr_get_norm_freq", type = "double", writable_fn = "ddcr_set_norm_freq" },
-    { name = "rate", getter = "ddcr_get_rate", type = "double" },
-]
+[[module.ddc_fn.getters.fields]]
+name = "norm_freq"
+getter = "ddcr_get_norm_freq"
+type = "double"
+writable_fn = "ddcr_set_norm_freq"
 
+[[module.ddc_fn.getters.fields]]
+name = "rate"
+getter = "ddcr_get_rate"
+type = "double"
 [module.analyzer]
 objects = ["specan"]
 # Specan composes the Ddc cascade + the PSD averaging-PSD core; specan.toml's
@@ -1178,3 +1387,35 @@ type = "int64_t[]"
 [[module.arith.functions.params]]
 name = "n"
 type = "int"
+
+[[enum]]
+name = "wfm_type"
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
+
+[[enum]]
+name = "snr_mode"
+values = ["auto", "fs", "ebno", "esno"]
+
+[[enum]]
+name = "wfm_lfsr"
+values = ["galois", "fibonacci"]
+
+[[enum]]
+name = "bitmod"
+values = ["none", "bpsk", "qpsk"]
+
+[[enum]]
+name = "wfm_pulse"
+values = ["rect", "rrc"]
+
+[[enum]]
+name = "ftype"
+values = ["raw", "csv", "blue", "sigmf"]
+
+[[enum]]
+name = "stype"
+values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
+
+[[enum]]
+name = "endian"
+values = ["le", "be"]

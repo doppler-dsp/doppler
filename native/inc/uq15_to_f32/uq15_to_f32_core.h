@@ -55,7 +55,7 @@ typedef struct {
  *
  * @param scale  Denominator applied after offset-binary bias removal
  *               (default: 32768.0f).  Use 32768.0 to recover normalised
- *               [-1, +1] floats from UQ15 data written by F32ToUQ15.
+ *               `[-1, +1]` floats from UQ15 data written by F32ToUQ15.
  *               Must be > 0; returns NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call uq15_to_f32_destroy() when done.
@@ -87,7 +87,7 @@ void uq15_to_f32_reset(uq15_to_f32_state_t *state);
  * @param state  Must be non-NULL.
  * @param x      UQ15 offset-binary uint16 sample:
  *               0x0000 → -1.0f, 0x8000 → 0.0f, 0xFFFF → +32767/32768.
- * @return Decoded float sample in [-1.0, ~+1.0).
+ * @return Decoded float sample in `[-1.0, ~+1.0)`.
  */
 JM_FORCEINLINE JM_HOT float
 uq15_to_f32_step(const uq15_to_f32_state_t *state, uint16_t x)

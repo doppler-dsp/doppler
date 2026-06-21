@@ -101,7 +101,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 Drive two equal-amplitude tones f1&lt;f2; the analyser finds them as the two strongest lobes, integrates each fundamental and the intermodulation products (2f1-f2, 2f2-f1 for IMD3; f2-f1 for IMD2) over their window main lobes (folded into the analysed band), and reports the third/second-order intercepts.
 
 
-Lifecycle: create -&gt; [analyze]\* -&gt; destroy 
+Lifecycle: create -&gt; `[analyze]*` -&gt; destroy 
 
 
     

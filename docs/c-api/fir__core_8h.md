@@ -60,7 +60,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 | Type | Name |
 | ---: | :--- |
-|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float complex \* taps, size\_t num\_taps) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution: y[n] = sum\_k h[k]\*x[n-k]. The tap array is copied at creation; the caller may free it afterward. Use_ [_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
+|  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create**](#function-fir_create) (const float complex \* taps, size\_t num\_taps) <br>_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._ |
 |  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir\_create\_real**](#function-fir_create_real) (const float \* taps, size\_t num\_taps) <br>_Create a FIR filter from real float tap coefficients._  |
 |  void | [**fir\_destroy**](#function-fir_destroy) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Release all heap resources owned by the filter state. Frees the tap array, delay line, and scratch buffer, then the state struct itself. Passing NULL is a no-op. The Python wrapper calls this automatically in_ **del** _and_**exit** _; call it explicitly only when you want deterministic resource release before GC._ |
 |  size\_t | [**fir\_execute**](#function-fir_execute) ([**fir\_state\_t**](structfir__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Filter n\_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line. The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap. The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size._  |
@@ -127,7 +127,7 @@ fir_destroy(fir);
 
 ### function fir\_create 
 
-_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution: y[n] = sum\_k h[k]\*x[n-k]. The tap array is copied at creation; the caller may free it afterward. Use_ [_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._
+_Create a FIR filter from complex CF32 tap coefficients. Implements a direct-form FIR convolution:_ `y[n]` _= sum\_k_`h[k]` _\*_`x[n-k]` _. The tap array is copied at creation; the caller may free it afterward. Use_[_**fir\_create\_real()**_](fir__core_8h.md#function-fir_create_real) _instead when all imaginary parts are zero — that path costs 1 FMA/tap versus 2 FMA + permute + mul here._
 ```C++
 fir_state_t * fir_create (
     const float complex * taps,

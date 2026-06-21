@@ -16,12 +16,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "ToneMeasure"
-depends_on = [
-    { name = "fft", link = true },
-    { name = "spectral", link = true },
-    { name = "psd", link = true },
-    { name = "acc_trace", link = true },
-]
+depends_on = [{ name = "fft", link = true }, { name = "spectral", link = true }, { name = "psd", link = true }, { name = "acc_trace", link = true }]
 
 [[tonemeas.init_params]]
 name = "n"
@@ -58,8 +53,6 @@ name = "full_scale"
 type = "double"
 default = "1.0"
 
-# bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the
-# single source of truth); full_scale is the analog/general alternative.
 [[tonemeas.init_params]]
 name = "bits"
 type = "size_t"
@@ -70,38 +63,37 @@ name = "dc_guard"
 type = "size_t"
 default = "0"
 
-# ── analysis (bodies hand-owned in measure_ext_tonemeas.c) ─────────────────
 [[tonemeas.methods]]
 name = "analyze"
 doc = "Analyze a real time-domain capture; returns a ToneMetrics result."
 arg_type = "float"
 return_type = "tone_meas_t"
-single = true
 nogil = true
+result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
+single = true
 record_name = "ToneMetrics"
 record_module = "doppler.measure"
-result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
 
 [[tonemeas.methods]]
 name = "analyze_complex"
 doc = "Analyze a complex baseband capture (two-sided spectrum)."
 arg_type = "float _Complex"
 return_type = "tone_meas_t"
-single = true
 nogil = true
+result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
+single = true
 record_name = "ToneMetrics"
 record_module = "doppler.measure"
-result_fields = [{name = "snr", type = "double"}, {name = "sinad", type = "double"}, {name = "thd", type = "double"}, {name = "thd_pct", type = "double"}, {name = "thd_n", type = "double"}, {name = "sfdr_dbc", type = "double"}, {name = "sfdr_dbfs", type = "double"}, {name = "enob", type = "double"}, {name = "enob_fs", type = "double"}, {name = "noise_floor_dbfs", type = "double"}, {name = "fund_freq", type = "double"}, {name = "fund_dbfs", type = "double"}, {name = "worst_spur_freq", type = "double"}, {name = "worst_spur_dbc", type = "double"}, {name = "worst_spur_is_harm", type = "int"}, {name = "rbw_hz", type = "double"}, {name = "enbw_hz", type = "double"}, {name = "bin_hz", type = "double"}, {name = "lobe_bins", type = "size_t"}, {name = "n_noise_bins", type = "size_t"}, {name = "proc_gain_db", type = "double"}, {name = "amp_uncert_db", type = "double"}, {name = "floor_uncert_db", type = "double"}]
 
 [[tonemeas.methods]]
 name = "time_stats"
 doc = "Time-domain stats: RMS, peak, crest/PAPR, DC offset, FS utilisation."
 arg_type = "float"
 return_type = "time_stats_t"
+result_fields = [{name = "rms", type = "double"}, {name = "peak", type = "double"}, {name = "crest_db", type = "double"}, {name = "papr_db", type = "double"}, {name = "dc_offset", type = "double"}, {name = "fs_util_pct", type = "double"}]
 single = true
 record_name = "TimeStats"
 record_module = "doppler.measure"
-result_fields = [{name = "rms", type = "double"}, {name = "peak", type = "double"}, {name = "crest_db", type = "double"}, {name = "papr_db", type = "double"}, {name = "dc_offset", type = "double"}, {name = "fs_util_pct", type = "double"}]
 
 [[tonemeas.methods]]
 name = "spectrum_dbfs"
@@ -111,7 +103,6 @@ return_type = "float"
 variable_output = true
 params = [{name = "x", type = "float[]"}]
 
-# ── accuracy / resolution properties ──────────────────────────────────────
 [[tonemeas.properties]]
 name = "n"
 type = "size_t"

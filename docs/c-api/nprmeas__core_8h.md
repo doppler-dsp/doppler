@@ -101,7 +101,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 Drive the system with band-limited noise containing a deep notch; NPR is the ratio of the mean in-band noise PSD to the mean PSD that folds into the notch (distortion + quantisation + intermodulation). The band/notch geometry is an analyze() argument, so one estimator can sweep several notch placements.
 
 
-Lifecycle: create -&gt; [analyze]\* -&gt; destroy 
+Lifecycle: create -&gt; `[analyze]*` -&gt; destroy 
 
 
     

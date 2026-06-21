@@ -58,8 +58,8 @@ field = true
 [[acc_trace.properties]]
 name = "alpha"
 type = "double"
-field = true
 writable = true
+field = true
 
 [[acc_trace.properties]]
 name = "count"

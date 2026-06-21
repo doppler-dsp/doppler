@@ -10,15 +10,30 @@ import numpy as np
 from numpy.typing import NDArray
 
 class SampleClock:
+    """SampleClock handle.
+
+    Parameters
+    ----------
+    fs : float
+    resync : int, default 0
+    """
     def __init__(self, fs: float, resync: int = ...) -> None: ...
-    def pace(self, count: int) -> float: ...
-    def stamp(self) -> int: ...
-    def reset(self) -> None: ...
-    def resync(self) -> None: ...
+    def pace(self, count: int) -> float:
+        """pace(count) -> float."""
+    def stamp(self) -> int:
+        """stamp() -> int."""
+    def reset(self) -> None:
+        """reset() -> None."""
+    def resync(self) -> None:
+        """resync() -> None."""
     @property
-    def samples(self) -> int: ...
+    def samples(self) -> int:
+        """samples (int)."""
     @property
-    def underruns(self) -> int: ...
+    def underruns(self) -> int:
+        """underruns (int)."""
     @property
-    def max_lateness(self) -> float: ...
-    def close(self) -> None: ...
+    def max_lateness(self) -> float:
+        """max_lateness (float)."""
+    def close(self) -> None:
+        """Release the handle and free resources."""

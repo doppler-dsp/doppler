@@ -36,7 +36,7 @@ wfm_rrc_ntaps(int sps, int span)
  * Nyquist raised cosine). The `t = 0` and `t = ±1/(4β)` singularities are
  * handled by their closed-form limits.
  *
- * @param beta  roll-off in [0, 1].
+ * @param beta  roll-off in `[0, 1]`.
  * @param sps   samples per symbol (>= 1).
  * @param span  one-sided span in symbols (>= 1).
  * @param taps  output array of length `wfm_rrc_ntaps(sps, span)`.

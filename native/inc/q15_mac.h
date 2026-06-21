@@ -7,8 +7,8 @@
  *   int64_t dot_q15_scalar(a, b, n)
  *   int64_t dot_q15_avx2 (a, b, n)  — only when __AVX2__ is defined
  *
- * Both compute the exact integer inner product sum(a[i] * b[i]) for i in
- * [0, n), accumulating into int64_t without saturation.  The caller decides
+ * Both compute the exact integer inner product sum(`a[i]` * `b[i]`) for i in
+ * `[0, n)`, accumulating into int64_t without saturation.  The caller decides
  * how to round and saturate the result.
  *
  * Result format: Q30 (each Q15 × Q15 product is Q30; n products accumulate
@@ -76,8 +76,8 @@ hsum_epi32_i64(__m256i v)
  * when n is not a multiple of 16.
  *
  * _mm256_madd_epi16 multiplies adjacent int16 pairs and accumulates into
- * int32 lanes: acc_i32[j] += a[2j]*b[2j] + a[2j+1]*b[2j+1].  Each lane
- * stays within int32_t provided |a[k]| and |b[k]| ≤ 32767 (always true
+ * int32 lanes: `acc_i32[j]` += `a[2j]`*`b[2j]` + `a[2j+1]`*`b[2j+1]`.  Each lane
+ * stays within int32_t provided |`a[k]`| and |`b[k]`| ≤ 32767 (always true
  * for Q15), so no intermediate overflow occurs.
  *
  * @param a  Q15 samples, not required to be aligned.

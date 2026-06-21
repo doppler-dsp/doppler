@@ -117,7 +117,7 @@ Selects the cheapest cascade of CIC, HalfbandDecimator, and/or polyphase Resampl
 Stage selection (D = 1/rate):
 
 
-rate &gt;= 1.0 or D &lt; 2 [Resampler(rate)] D ~= 2^1 [HalfbandDecimator] D ~= 2^2 [HalfbandDecimator, HalfbandDecimator] D ~= 2^n, n&gt;=3, D&lt;=4096 [CIC(D)] D &gt;= 8, non-power-of-2 [CIC(R\*), Resampler correction] R\* = nearest power-of-2 to D otherwise (2 &lt;= D &lt; 8, non-int) [Resampler(rate)]
+rate &gt;= 1.0 or D &lt; 2 `[Resampler(rate)]` D ~= 2^1 `[HalfbandDecimator]` D ~= 2^2 `[HalfbandDecimator, HalfbandDecimator]` D ~= 2^n, n&gt;=3, D&lt;=4096 `[CIC(D)]` D &gt;= 8, non-power-of-2 `[CIC(R*), Resampler correction]` R\* = nearest power-of-2 to D otherwise (2 &lt;= D &lt; 8, non-int) `[Resampler(rate)]`
 
 
 Lifecycle: 
@@ -456,7 +456,7 @@ Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
 
 
 * `s` Must be non-NULL. 
-* `i` Stage index in [0, s-&gt;n\_stages). 
+* `i` Stage index in `[0, s->n_stages)`. 
 * `buf` Output buffer. 
 * `len` Capacity of buf in bytes. 
 

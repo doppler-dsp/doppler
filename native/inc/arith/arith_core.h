@@ -31,8 +31,8 @@ static inline int8_t sat8(int16_t x)
 
 /**
  * @brief Elementwise saturating add of two Q15 arrays.
- * Each pair of samples is added as int32_t and then clamped to [-32768,
- * 32767] before storing, so overflow wraps to the saturation boundary
+ * Each pair of samples is added as int32_t and then clamped to `[-32768,
+ * 32767]` before storing, so overflow wraps to the saturation boundary
  * rather than producing garbage bits.
  *
  * @param a      First input array (int16_t).
@@ -55,7 +55,7 @@ void add_q15(const int16_t *a, size_t a_len, const int16_t *b, size_t b_len, int
 
 /**
  * @brief Elementwise saturating subtract of two Q15 arrays.
- * Computes out[i] = sat16(a[i] - b[i]) for i in [0, min(len(a), len(b))).
+ * Computes `out[i]` = sat16(`a[i]` - `b[i]`) for i in `[0, min(len(a), len(b)))`.
  * The intermediate difference is computed as int32_t to detect overflow
  * before clamping, preserving the correct sign at the saturation boundary.
  *
@@ -79,7 +79,7 @@ void sub_q15(const int16_t *a, size_t a_len, const int16_t *b, size_t b_len, int
 
 /**
  * @brief Elementwise Q15 multiply with round-half-up and saturation.
- * Computes out[i] = sat16((a[i] * b[i] + 16384) >> 15). The bias 16384
+ * Computes `out[i]` = sat16((`a[i]` * `b[i]` + 16384) >> 15). The bias 16384
  * (= 1 << 14) implements round-half-up before the 15-bit right shift, so
  * 0.5 * 0.5 = 0.25 in Q15 arithmetic (16384 * 16384 -> 8192) rather than
  * truncating toward zero.
@@ -128,7 +128,7 @@ int64_t dot_q15(const int16_t *a, size_t a_len, const int16_t *b, size_t b_len);
 
 /**
  * @brief Elementwise arithmetic left shift of a Q15 array with saturation.
- * Computes out[i] = sat16(a[i] << n), equivalent to multiplying by 2^n in
+ * Computes `out[i]` = sat16(`a[i]` << n), equivalent to multiplying by 2^n in
  * fixed-point. Any shifted value that exceeds the int16_t range is clamped,
  * preventing silent wraparound.
  *
@@ -172,7 +172,7 @@ void shr_q15(const int16_t *a, size_t a_len, int16_t *out, int n);
 
 /**
  * @brief Elementwise saturating add of two Q8 arrays.
- * Each pair of samples is added as int16_t and then clamped to [-128, 127]
+ * Each pair of samples is added as int16_t and then clamped to `[-128, 127]`
  * before storing, preventing overflow wrap on near-boundary values.
  *
  * @param a      First input array (int8_t).
@@ -195,7 +195,7 @@ void add_q8(const int8_t *a, size_t a_len, const int8_t *b, size_t b_len, int8_t
 
 /**
  * @brief Elementwise saturating subtract of two Q8 arrays.
- * Computes out[i] = sat8(a[i] - b[i]) for i in [0, min(len(a), len(b))).
+ * Computes `out[i]` = sat8(`a[i]` - `b[i]`) for i in `[0, min(len(a), len(b)))`.
  * The intermediate difference is computed as int16_t so overflow is
  * detected before clamping.
  *
@@ -219,7 +219,7 @@ void sub_q8(const int8_t *a, size_t a_len, const int8_t *b, size_t b_len, int8_t
 
 /**
  * @brief Elementwise Q8 multiply with round-half-up and saturation.
- * Computes out[i] = sat8((a[i] * b[i] + 64) >> 7). The bias 64 (= 1 << 6)
+ * Computes `out[i]` = sat8((`a[i]` * `b[i]` + 64) >> 7). The bias 64 (= 1 << 6)
  * rounds at the half-LSB position before the 7-bit shift, mirroring the
  * rounding convention of mul_q15 but for 8-bit fixed-point. In Q8 terms,
  * 0.5 * 0.5 = 0.25 (64 * 64 -> 32).
@@ -268,7 +268,7 @@ int32_t dot_q8(const int8_t *a, size_t a_len, const int8_t *b, size_t b_len);
 
 /**
  * @brief Elementwise arithmetic left shift of a Q8 array with saturation.
- * Computes out[i] = sat8(a[i] << n). Shifts that would exceed the int8_t
+ * Computes `out[i]` = sat8(`a[i]` << n). Shifts that would exceed the int8_t
  * range are clamped, preventing silent wraparound into wrong-sign results.
  *
  * @param a      Input array (int8_t).

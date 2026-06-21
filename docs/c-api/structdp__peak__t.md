@@ -85,7 +85,7 @@ _One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#
 ## Detailed Description
 
 
-freq\_norm is the DC-centred normalised frequency in [−0.5, +0.5). amplitude\_db is the parabola-corrected peak value in the same dB units as the input spectrum. 
+freq\_norm is the DC-centred normalised frequency in `[−0.5, +0.5)`. amplitude\_db is the parabola-corrected peak value in the same dB units as the input spectrum. 
 
 
     

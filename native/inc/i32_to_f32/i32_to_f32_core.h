@@ -4,14 +4,14 @@
  *
  * Multiplies each int32 sample by @c 1/scale and returns a float32 result.
  * The default scale of 2147483648.0 (2^31) maps the full int32 range
- * [-2147483648, 2147483647] to [-1.0, ~+1.0), recovering the normalised
+ * `[-2147483648, 2147483647]` to `[-1.0, ~+1.0)`, recovering the normalised
  * float representation from a 32-bit fixed-point stream.
  * Note: float32 has 23 mantissa bits, so int32 values beyond ±16777217
  * will be rounded to the nearest representable float.  Use I32ToF32 when
  * only the magnitude matters or the source is genuinely 32-bit fixed-point.
  * The inverse scale is pre-computed at construction time.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> `[step / steps / reset]*` -> destroy
  *
  * @code
  * >>> from doppler.cvt import I32ToF32

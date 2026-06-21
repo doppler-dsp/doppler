@@ -18,7 +18,7 @@ extern "C"
   /**
    * @brief One spectral peak returned by find_peaks_f32().
    *
-   * freq_norm is the DC-centred normalised frequency in [−0.5, +0.5).
+   * freq_norm is the DC-centred normalised frequency in `[−0.5, +0.5)`.
    * amplitude_db is the parabola-corrected peak value in the same dB units
    * as the input spectrum.
    */
@@ -53,7 +53,7 @@ float kaiser_enbw(const float *w, size_t w_len);
    * I0 is computed via the converging power-series expansion.  Increasing
    * @p beta raises sidelobe attenuation at the cost of a wider main lobe
    * (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection).  The
-   * output is normalised so that w[0] = w[N-1] = I0(0)/I0(beta).
+   * output is normalised so that `w[0]` = `w[N-1]` = I0(0)/I0(beta).
    *
    * @param w      Output buffer modified in-place; must be length >= 1.
    * @param w_len  Number of elements in @p w.
@@ -158,8 +158,8 @@ void magnitude_db_cf64(const double complex *x, size_t x_len, float *out, double
 
   /**
    * @brief Find up to @p n_peaks local maxima in a DC-centred F32 dB spectrum.
-   * Three-step algorithm: (1) local-max scan — db[k] > db[k-1] && db[k] >=
-   * db[k+1] with db[k] > min_db; (2) parabolic interpolation on each local
+   * Three-step algorithm: (1) local-max scan — `db[k]` > `db[k-1]` && `db[k]` >=
+   * `db[k+1]` with `db[k]` > min_db; (2) parabolic interpolation on each local
    * maximum to produce sub-bin freq_norm accuracy; (3) sort descending and
    * return the top @p n_peaks.  freq_norm is DC-centred: bin i maps to
    * freq_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative

@@ -207,6 +207,17 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](awgn.md)
 
+- **[Waveform Write — Compose, Write, Read Back](wfm-write.md)**
+
+    ______________________________________________________________________
+
+    [![waveform write demo](../assets/wfm_write_demo.png)](wfm-write.md)
+
+    The shortest path from a `Composer` to a file: burst written to BLUE
+    and read back — writer-in and reader-out envelopes coincide exactly.
+
+    [:octicons-arrow-right-24: Walkthrough](wfm-write.md)
+
 - **[Waveform I/O — One Capture, Four Containers](wfm-io.md)**
 
     ______________________________________________________________________

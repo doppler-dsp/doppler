@@ -91,7 +91,7 @@ Provides two functions:
 int64\_t dot\_q15\_scalar(a, b, n) int64\_t dot\_q15\_avx2 (a, b, n) — only when **AVX2** is defined
 
 
-Both compute the exact integer inner product sum(a[i] \* b[i]) for i in [0, n), accumulating into int64\_t without saturation. The caller decides how to round and saturate the result.
+Both compute the exact integer inner product sum(`a[i]` \* `b[i]`) for i in `[0, n)`, accumulating into int64\_t without saturation. The caller decides how to round and saturate the result.
 
 
 Result format: Q30 (each Q15 × Q15 product is Q30; n products accumulate in int64\_t, which has sufficient headroom for n ≤ 2^33 before overflow).

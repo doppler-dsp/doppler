@@ -7,7 +7,7 @@
  * (2f1-f2, 2f2-f1 for IMD3; f2-f1 for IMD2) over their window main lobes (folded
  * into the analysed band), and reports the third/second-order intercepts.
  *
- * Lifecycle: create -> [analyze]* -> destroy
+ * Lifecycle: create -> `[analyze]*` -> destroy
  */
 #ifndef IMDMEAS_CORE_H
 #define IMDMEAS_CORE_H

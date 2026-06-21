@@ -72,7 +72,7 @@ typedef struct {
  *
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
- *               [-1, +1] floats to the full UQ15 range [0, 65535].
+ *               `[-1, +1]` floats to the full UQ15 range `[0, 65535]`.
  *               Must be > 0; returns NULL otherwise.
  * @return Heap-allocated state, or NULL on invalid args or allocation failure.
  * @note Caller must call f32_to_uq15_destroy() when done.
@@ -97,13 +97,13 @@ void f32_to_uq15_reset(f32_to_uq15_state_t *state);
 /**
  * @brief Process one input sample.
  *
- * Computes @c round(x * scale), clamps to [-32768, 32767], then adds 32768
+ * Computes @c round(x * scale), clamps to `[-32768, 32767]`, then adds 32768
  * to produce the offset-binary uint16 result.  Sets @c clipped if
  * saturation occurred before clamping.
  *
  * @param state  Must be non-NULL.
  * @param x      Normalised float input sample.
- * @return Offset-binary uint16 in [0, 65535]:
+ * @return Offset-binary uint16 in `[0, 65535]`:
  *         x = -1.0 → 0x0000, x = 0.0 → 0x8000, x ≈ +1.0 → 0xFFFF.
  */
 JM_FORCEINLINE JM_HOT uint16_t

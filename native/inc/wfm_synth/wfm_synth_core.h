@@ -2,7 +2,7 @@
  * @file wfm_synth_core.h
  * @brief Synth component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> `[step / steps / reset]*` -> destroy
  *
  * Example:
  * @code

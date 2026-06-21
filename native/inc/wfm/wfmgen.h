@@ -35,8 +35,8 @@ extern "C" {
  * state, so it is safe to call repeatedly within one process. Not reentrant
  * across threads (it shares @c stdout).
  *
- * @param argc Argument count, including @c argv[0] (the program name).
- * @param argv Argument vector; @c argv[0] is used only in diagnostics/usage.
+ * @param argc Argument count, including @c argv`[0]` (the program name).
+ * @param argv Argument vector; @c argv`[0]` is used only in diagnostics/usage.
  * @return 0 on success; a non-zero shell exit code on a usage or I/O error
  *         (mirrors the CLI: 1 = runtime/I/O failure, 2 = bad arguments).
  *

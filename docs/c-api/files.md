@@ -50,8 +50,6 @@ Here is a list of all files with brief descriptions:
             * **file** [**cvt\_core.h**](cvt__core_8h.md) _Cvt module — public C API._ 
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
             * **file** [**ddc\_core.h**](ddc__core_8h.md) _Digital Down-Converter — composes LO + RateConverter cascade._     
-        * **dir** [**ddcr**](dir_46c04c942eb84c8716610cebe515b046.md)     
-            * **file** [**ddcr\_core.h**](ddcr__core_8h.md) _DDCR (real-input DDC) — re-exports from_ [_**ddc\_core.h**_](ddc__core_8h.md) _._    
         * **dir** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md)     
             * **file** [**delay\_core.h**](delay__core_8h.md) _Delay component API._     
         * **dir** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md)     

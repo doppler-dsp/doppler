@@ -61,16 +61,16 @@ _Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 |  [**nco\_state\_t**](structnco__state__t.md) \* | [**nco\_create**](#function-nco_create) (double norm\_freq, uint32\_t nmax) <br>_Create an NCO instance. Allocates and initialises the phase accumulator to zero, converts norm\_freq to the integer phase\_inc = floor(frac(norm\_freq) × 2^32), and stores nmax for scaled output. The NCO is immediately ready to call nco\_steps\_u32 / nco\_steps\_u32\_scaled / nco\_steps\_u32\_ovf._  |
 |  void | [**nco\_destroy**](#function-nco_destroy) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 |  double | [**nco\_get\_norm\_freq**](#function-nco_get_norm_freq) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Normalised frequency (read/write). Setting norm\_freq recomputes phase\_inc = floor(frac(v) × 2^32) and takes effect on the next nco\_steps\_\* call; phase is NOT reset._  |
-|  uint32\_t | [**nco\_get\_phase**](#function-nco_get_phase) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Current phase accumulator value (read/write). Reading returns the current integer phase in [0, 2^32). Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO._  |
+|  uint32\_t | [**nco\_get\_phase**](#function-nco_get_phase) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Current phase accumulator value (read/write). Reading returns the current integer phase in_ `[0, 2^32)` _. Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO._ |
 |  uint32\_t | [**nco\_get\_phase\_inc**](#function-nco_get_phase_inc) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Per-sample phase increment (read-only). Derived from norm\_freq as floor(frac(norm\_freq) × 2^32). Updated automatically whenever norm\_freq is written. A freq of 0.25 gives phase\_inc = 1073741824 (0x40000000)._  |
 |  void | [**nco\_reset**](#function-nco_reset) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Zero the phase accumulator. Sets phase to 0 so the next nco\_steps\_u32 call starts from the beginning of the cycle. norm\_freq, phase\_inc, and nmax are unchanged; the NCO is ready to generate samples again immediately._  |
 |  void | [**nco\_set\_norm\_freq**](#function-nco_set_norm_freq) ([**nco\_state\_t**](structnco__state__t.md) \* state, double norm\_freq) <br> |
 |  void | [**nco\_set\_phase**](#function-nco_set_phase) ([**nco\_state\_t**](structnco__state__t.md) \* state, uint32\_t phase) <br> |
-|  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so out[0] is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._  |
+|  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so_ `out[0]` _is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
-|  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1) <br>_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: out1[i] is 1 if the add that produced out[i]'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._  |
+|  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1) <br>_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer:_ `out1[i]` _is 1 if the add that produced_`out[i]` _'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_ovf\_max\_out**](#function-nco_steps_u32_ovf_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
-|  size\_t | [**nco\_steps\_u32\_scaled**](#function-nco_steps_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; values scaled to [0, nmax). Uses the branchless fixed-point identity out[i] = (uint64\_t)phase \* nmax &gt;&gt; 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation. When nmax == 0 falls back to the raw accumulator (identical to nco\_steps\_u32). Useful for polyphase filter bank indexing and direct LUT addressing. Returns n._  |
+|  size\_t | [**nco\_steps\_u32\_scaled**](#function-nco_steps_u32_scaled) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; values scaled to_ `[0, nmax)` _. Uses the branchless fixed-point identity_`out[i]` _= (uint64\_t)phase \* nmax &gt;&gt; 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation. When nmax == 0 falls back to the raw accumulator (identical to nco\_steps\_u32). Useful for polyphase filter bank indexing and direct LUT addressing. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_scaled\_max\_out**](#function-nco_steps_u32_scaled_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br> |
 
 
@@ -116,7 +116,7 @@ _Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 Implements a numerically-controlled oscillator whose 32-bit phase register advances by phase\_inc every sample and wraps naturally at 2^32, giving exact integer arithmetic with no floating-point drift. Three output mappings expose different views of the accumulator:
 
 
-nco\_steps\_u32 raw accumulator value [0, 2^32) nco\_steps\_u32\_scaled (uint64)phase \* nmax &gt;&gt; 32 → [0, nmax) nco\_steps\_u32\_ovf raw phase + per-sample carry flag
+nco\_steps\_u32 raw accumulator value `[0, 2^32)` nco\_steps\_u32\_scaled (uint64)phase \* nmax &gt;&gt; 32 → [0, nmax) nco\_steps\_u32\_ovf raw phase + per-sample carry flag
 
 
 nmax=0 in nco\_steps\_u32\_scaled is treated identically to nco\_steps\_u32 (returns raw accumulator unchanged).
@@ -246,7 +246,7 @@ double nco_get_norm_freq (
 
 ### function nco\_get\_phase 
 
-_Current phase accumulator value (read/write). Reading returns the current integer phase in [0, 2^32). Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO._ 
+_Current phase accumulator value (read/write). Reading returns the current integer phase in_ `[0, 2^32)` _. Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO._
 ```C++
 uint32_t nco_get_phase (
     const nco_state_t * state
@@ -368,7 +368,7 @@ void nco_set_phase (
 
 ### function nco\_steps\_u32 
 
-_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so out[0] is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._ 
+_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so_ `out[0]` _is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._
 ```C++
 size_t nco_steps_u32 (
     nco_state_t * state,
@@ -436,7 +436,7 @@ The Python extension pre-allocates output buffers of this size at create time. R
 
 ### function nco\_steps\_u32\_ovf 
 
-_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer: out1[i] is 1 if the add that produced out[i]'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._ 
+_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer:_ `out1[i]` _is 1 if the add that produced_`out[i]` _'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._
 ```C++
 size_t nco_steps_u32_ovf (
     nco_state_t * state,
@@ -503,7 +503,7 @@ size_t nco_steps_u32_ovf_max_out (
 
 ### function nco\_steps\_u32\_scaled 
 
-_Advance n samples; values scaled to [0, nmax). Uses the branchless fixed-point identity out[i] = (uint64\_t)phase \* nmax &gt;&gt; 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation. When nmax == 0 falls back to the raw accumulator (identical to nco\_steps\_u32). Useful for polyphase filter bank indexing and direct LUT addressing. Returns n._ 
+_Advance n samples; values scaled to_ `[0, nmax)` _. Uses the branchless fixed-point identity_`out[i]` _= (uint64\_t)phase \* nmax &gt;&gt; 32 to map the full accumulator range uniformly onto [0, nmax) without a modulo operation. When nmax == 0 falls back to the raw accumulator (identical to nco\_steps\_u32). Useful for polyphase filter bank indexing and direct LUT addressing. Returns n._
 ```C++
 size_t nco_steps_u32_scaled (
     nco_state_t * state,

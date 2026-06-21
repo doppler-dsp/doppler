@@ -45,7 +45,7 @@ class Resampler:
         """
 
     def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(ctrl[i]). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
+        """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(`ctrl[i]`). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
 
         Parameters
         ----------
@@ -209,7 +209,7 @@ class CIC:
         """
 
     def reconfigure(self, R: int) -> None:
-        """Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in [2, 4096] — the state is left unchanged in that case.
+        """Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in `[2, 4096]` — the state is left unchanged in that case.
 
         Parameters
         ----------

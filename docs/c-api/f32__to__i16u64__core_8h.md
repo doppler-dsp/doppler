@@ -101,7 +101,7 @@ Identical semantics to F32ToI16U32 but the zero-extended Q15 result occupies the
 input +1.0 → int16 32767 → uint64 0x0000000000007FFF input -1.0 → int16 -32768 → uint64 0x0000000000008000
 
 
-The default scale of 32768.0 maps [-1, +1] float to Q15 range. A sticky `clipped` flag is raised on saturation and cleared only by reset().
+The default scale of 32768.0 maps `[-1, +1]` float to Q15 range. A sticky `clipped` flag is raised on saturation and cleared only by reset().
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
@@ -150,7 +150,7 @@ Stores `scale` and initialises the sticky `clipped` flag to 0.
 **Parameters:**
 
 
-* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised [-1, +1] samples to Q15 packed into the low 16 bits of a uint64. 
+* `scale` Multiply factor applied before quantisation and saturation (default: 32768.0f). Use 32768.0 to convert normalised `[-1, +1]` samples to Q15 packed into the low 16 bits of a uint64. 
 
 
 
@@ -244,7 +244,7 @@ JM_FORCEINLINE  JM_HOT uint64_t f32_to_i16u64_step (
 
 
 
-Computes `round(x * scale)`, saturates to [-32768, 32767], then zero-extends the int16 bit pattern into the lower 16 bits of a uint64. The `clipped` flag is set if saturation occurred.
+Computes `round(x * scale)`, saturates to `[-32768, 32767]`, then zero-extends the int16 bit pattern into the lower 16 bits of a uint64. The `clipped` flag is set if saturation occurred.
 
 
 

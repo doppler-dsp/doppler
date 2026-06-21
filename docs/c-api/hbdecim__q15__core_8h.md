@@ -119,7 +119,7 @@ hbdecim_q15_state_t * hbdecim_q15_create (
 
 
 * `num_taps` Number of FIR branch coefficients in h (&gt;= 1). 
-* `h` Float FIR branch coefficients of length num\_taps. Must be symmetric (h[k] == h[num\_taps-1-k]). 
+* `h` Float FIR branch coefficients of length num\_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`). 
 
 
 

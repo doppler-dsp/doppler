@@ -95,7 +95,7 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Models an N-bit ADC with configurable full-scale reference (dBFS) and optional TPDF dither. A normalised float input is scaled by the pre-computed double-precision factor, optionally dithered with a triangular-PDF noise source, rounded, clamped to the signed integer range [-(2^(bits-1)), 2^(bits-1)-1], and returned as int64\_t.
+Models an N-bit ADC with configurable full-scale reference (dBFS) and optional TPDF dither. A normalised float input is scaled by the pre-computed double-precision factor, optionally dithered with a triangular-PDF noise source, rounded, clamped to the signed integer range `[-(2^(bits-1)), 2^(bits-1)-1]`, and returned as int64\_t.
 
 
 Scale derivation: 
@@ -108,7 +108,7 @@ scale = 2^(bits-1) * 10^(-dbfs / 20)
 An input of amplitude 10^(dbfs/20) uses the full ADC code range. With the default dbfs=-10.0 a signal at -10 dBFS fills the converter exactly. double precision is used throughout so converters wider than 23 bits (float32 mantissa limit) are modelled without rounding artefacts.
 
 
-TPDF dither (dithering != 0): two xorshift32 uniform draws are summed to produce a triangular PDF over [-1, +1] LSB before rounding. This breaks correlated quantisation noise patterns at the cost of a slight noise-floor increase. The PRNG state is part of the object; reset() re-seeds it.
+TPDF dither (dithering != 0): two xorshift32 uniform draws are summed to produce a triangular PDF over `[-1, +1]` LSB before rounding. This breaks correlated quantisation noise patterns at the cost of a slight noise-floor increase. The PRNG state is part of the object; reset() re-seeds it.
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
@@ -162,7 +162,7 @@ adc_state_t * adc_create (
 
 
 
-Computes `scale` = 2^(bits-1) \* 10^(-dbfs/20), sets the clip bounds, and seeds the xorshift32 PRNG to a fixed constant. Returns NULL if `bits` is outside [1, 64] or on allocation failure.
+Computes `scale` = 2^(bits-1) \* 10^(-dbfs/20), sets the clip bounds, and seeds the xorshift32 PRNG to a fixed constant. Returns NULL if `bits` is outside `[1, 64]` or on allocation failure.
 
 
 
@@ -266,7 +266,7 @@ JM_FORCEINLINE  JM_HOT int64_t adc_step (
 
 
 
-Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPDF dither, rounds with `llround`, and clamps to [clip\_min, clip\_max]. Sets the sticky `clipped` flag if clamping occurred.
+Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPDF dither, rounds with `llround`, and clamps to `[clip_min, clip_max]`. Sets the sticky `clipped` flag if clamping occurred.
 
 
 
@@ -275,13 +275,13 @@ Multiplies `x` by the pre-computed double-precision `scale`, optionally adds TPD
 
 
 * `state` Must be non-NULL. 
-* `x` Normalised float input sample (typically in [-1, +1]). 
+* `x` Normalised float input sample (typically in `[-1, +1]`). 
 
 
 
 **Returns:**
 
-Quantised signed integer in [-(2^(bits-1)), 2^(bits-1)-1]. 
+Quantised signed integer in `[-(2^(bits-1)), 2^(bits-1)-1]`. 
 
 
 

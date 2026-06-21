@@ -29,24 +29,18 @@ jobs:
 
     - name: Install jbx
       run: |
-        mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
-          -o "$HOME/.local/bin/just-runit"
-        chmod +x "$HOME/.local/bin/just-runit"
-        ln -sf just-runit "$HOME/.local/bin/jb"
-        ln -sf just-runit "$HOME/.local/bin/jbx"
-        ln -sf just-runit "$HOME/.local/bin/just-buildit"
+        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install dependencies (Ubuntu)
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         sudo apt-get update
-        jbx -r install-deps -g runtime,dev -s apt
+        jbx just-bashit:install-deps -g runtime,dev -s apt
 
     - name: Install dependencies (macOS)
       if: startsWith(matrix.os, 'macos')
-      run: jbx -r install-deps -g runtime,dev -s brew
+      run: jbx just-bashit:install-deps -g runtime,dev -s brew
 
     - name: Build
       run: make build
@@ -134,19 +128,13 @@ jobs:
 
     - name: Install jbx
       run: |
-        mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
-          -o "$HOME/.local/bin/just-runit"
-        chmod +x "$HOME/.local/bin/just-runit"
-        ln -sf just-runit "$HOME/.local/bin/jb"
-        ln -sf just-runit "$HOME/.local/bin/jbx"
-        ln -sf just-runit "$HOME/.local/bin/just-buildit"
+        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install system deps
       run: |
         sudo apt-get update
-        jbx -r install-deps -g runtime,dev -s apt
+        jbx just-bashit:install-deps -g runtime,dev -s apt
 
     - name: Install uv + Python + package deps
       uses: astral-sh/setup-uv@v4
@@ -252,19 +240,13 @@ jobs:
 
     - name: Install jbx
       run: |
-        mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
-          -o "$HOME/.local/bin/just-runit"
-        chmod +x "$HOME/.local/bin/just-runit"
-        ln -sf just-runit "$HOME/.local/bin/jb"
-        ln -sf just-runit "$HOME/.local/bin/jbx"
-        ln -sf just-runit "$HOME/.local/bin/just-buildit"
+        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install doxygen + LaTeX
       run: |
         sudo apt-get update
-        jbx -r install-deps -g docs -s apt
+        jbx just-bashit:install-deps -g docs -s apt
 
     - name: Run doxygen (zero warnings)
       run: |

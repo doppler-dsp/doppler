@@ -216,3 +216,4 @@ nav:
       - "wfm validation findings": dev/wfm-validation-findings.md
       - Benchmarking: dev/benchmarking.md
       - Release: dev/release.md
+      - Build Internals: dev/build-internals.md

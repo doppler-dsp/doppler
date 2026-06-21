@@ -295,6 +295,57 @@ wfmgen --type qpsk --count 200000 --sample_type ci16 --endian be \
 wfmgen --from-file scenario.json --sample_type ci16 --file_type sigmf -o capture
 ```
 
+### SigMF sidecar schema
+
+The `.sigmf-meta` JSON is SigMF 1.0.0 with one **annotation per source per
+segment**, so a multi-segment / multi-source scene becomes a self-labelling
+ground-truth capture. The exact shape `wfmgen` (and `Composer.to_sigmf`) emit
+— see `native/src/wfm/wfm_writer.c`:
+
+```json
+{
+  "global": {
+    "core:datatype": "ci16_le",
+    "core:sample_rate": 1000000,
+    "core:version": "1.0.0",
+    "core:description": "doppler wfmgen",
+    "core:author": "doppler wfmgen"
+  },
+  "captures": [
+    { "core:sample_start": 0, "core:frequency": 2400000000.0 }
+  ],
+  "annotations": [
+    {
+      "core:sample_start": 0,
+      "core:sample_count": 4096,
+      "core:freq_lower_edge": -62500.0,
+      "core:freq_upper_edge": 62500.0,
+      "core:label": "qpsk",
+      "wfmgen:snr": 20.0,
+      "wfmgen:snr_mode": "esno",
+      "wfmgen:sps": 8,
+      "wfmgen:seed": 1,
+      "wfmgen:pn_length": 7,
+      "wfmgen:pn_poly": 0
+    }
+  ]
+}
+```
+
+- `core:datatype` is `<sample_type>_<endian>` (`cf32_le`, `ci16_be`, …).
+- `captures[0].core:frequency` is `--fc` (the RF centre); annotation frequency
+    edges are **baseband** offsets from it — a chirp spans `f_start..f_end`, a
+    modulated source is roughly `±fs/(2·sps)` wide, a tone is a point.
+- `core:label` is the source type (`tone`/`noise`/`pn`/`bpsk`/`qpsk`/`chirp`/
+    `bits`); the `wfmgen:*` keys carry the generator parameters so the capture
+    round-trips to the spec that made it.
+
+`Composer.to_sigmf(sample_type="cf32", endian="le", fs=1e6, fc=0.0)` returns
+this document as a string; pair it with a `Writer(..., file_type="sigmf")` data
+file. (The validator test
+`src/doppler/wfm/tests/test_api_surface.py::TestComposerGraph` asserts the
+global/annotation keys.)
+
 ______________________________________________________________________
 
 ## Sinks

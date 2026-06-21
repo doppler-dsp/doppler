@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+#
+# End-to-end validation of the *published* doppler-dsp wheel on Python 3.9.
+#
+# This image installs ONLY the released wheel from PyPI — no compiler, no cmake,
+# no repo checkout — so a successful run proves the cp39 manylinux wheel (and
+# its bundled `wfmgen` C binary) is self-contained and works on a clean 3.9.
+#
+#   docker build -f Dockerfile.py39-e2e -t doppler-wfm-py39-e2e .
+#   docker run --rm doppler-wfm-py39-e2e
+#
+FROM python:3.9-slim
+
+# pip pulls doppler_dsp-<ver>-cp39-cp39-manylinux_2_28_x86_64.whl + its numpy
+# pin. python:3.9-slim (Debian, glibc >= 2.31) satisfies manylinux_2_28.
+ARG DOPPLER_VERSION=0.17.0
+RUN pip install --no-cache-dir "doppler-dsp==${DOPPLER_VERSION}"
+
+WORKDIR /e2e
+COPY wfm_e2e.py .
+
+# Prints a PASS/FAIL table; exits non-zero if any check fails.
+CMD ["python", "wfm_e2e.py"]

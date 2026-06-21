@@ -148,11 +148,32 @@ wfmgen --type qpsk --sps 8 --count 50000 \
 # → capture.hdr (512-byte HCB) + capture.det (raw interleaved I/Q)
 ```
 
+## Pulse shaping & the SNR model
+
+Two further demos exercise the modulation chain end to end:
+
+- **RRC pulse shaping** (`rrc_taps`). The root-raised-cosine taps are
+    `2·span·sps + 1` long and **unit-energy** (`Σh² = 1`), symmetric about the
+    centre tap. Their excess bandwidth grows with the roll-off `β`; the −3 dB edge
+    sits near `(1+β)/(2T)`. The defining property is **Nyquist no-ISI**: the
+    matched-filter cascade TX⊛RX is a raised cosine that is *zero at every
+    non-zero integer multiple of `sps`*, so a receiver samples one symbol with no
+    smear from its neighbours. `wfm_rrc_response.py` plots the impulse response,
+    the magnitude response, and the no-ISI cascade for `β ∈ {0, 0.35, 1}`.
+
+- **BER vs Eb/No.** Generating BPSK/QPSK with `snr_mode="ebno"` places exactly
+    the right noise power: the measured bit-error rate tracks the closed-form
+    coherent curve `BER = Q(√(2·Eb/No))` across the sweep, for *both* schemes
+    (Gray-coded QPSK shares the BPSK curve). This is the SNR model validated as a
+    number, not a shape — see `wfm_receiver_ber.py`.
+
 ## Reproduce
 
 ```sh
-python examples/python/wfmgen_demo.py    # the four-waveform figure (writes .png)
-python examples/python/pn_codes.py       # PN MLS / Galois vs Fibonacci / 64-bit
+python examples/python/wfmgen_demo.py        # the four-waveform figure (.png)
+python examples/python/pn_codes.py           # PN MLS / Galois vs Fibonacci
+python examples/python/wfm_rrc_response.py   # RRC impulse/freq/no-ISI (.png)
+python examples/python/wfm_receiver_ber.py   # BER vs Eb/No vs theory (.png)
 ```
 
 ## From Python — the composer API

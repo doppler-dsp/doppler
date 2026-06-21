@@ -13,6 +13,7 @@ flowchart TD
     src["Source\nnative/ + src/doppler/"]
     cmake["CMake\nbuild/"]
     so["C extensions\n*.cpython-*.so"]
+    bin["wfmgen binary\nsrc/doppler/wfm/_bin/wfmgen"]
     jb["just-buildit\nPEP 517 backend"]
     manylinux["manylinux_2_28\ncontainer (Linux)"]
     auditwheel["auditwheel repair\nbundle shared deps"]
@@ -21,6 +22,7 @@ flowchart TD
     ctarball["C library tarball\ndoppler-X.Y.Z-linux.tar.gz"]
 
     src --> cmake --> so --> jb --> manylinux --> auditwheel --> wheel --> pypi
+    cmake --> bin --> jb
     manylinux --> ctarball
 ```
 

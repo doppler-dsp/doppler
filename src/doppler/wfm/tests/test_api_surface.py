@@ -720,3 +720,56 @@ class TestCLI:
         )
         assert len(r.stdout) == 256 * 8  # 256 cf32 samples on stdout
         assert not (tmp_path / "-").exists()
+
+    def test_output_dash_to_tty_refused(self, tmp_path) -> None:
+        # The explicit '-' form must trip the same "refuse binary IQ to a
+        # terminal" guard as omitting --output. Give wfmgen a pty as stdout so
+        # isatty() is true; it should exit non-zero and write nothing.
+        import os
+
+        master, slave = os.openpty()
+        try:
+            r = subprocess.run(
+                [
+                    WFMGEN,
+                    "--type",
+                    "tone",
+                    "--count",
+                    "64",
+                    "--sample_type",
+                    "cf32",
+                    "--output",
+                    "-",
+                ],
+                stdout=slave,
+                stderr=subprocess.PIPE,
+                cwd=str(tmp_path),
+            )
+        finally:
+            os.close(slave)
+            os.close(master)
+        assert r.returncode != 0, "writing binary IQ to a tty must be refused"
+        assert b"terminal" in r.stderr.lower()
+        # CSV is human-readable, so '-' to a tty is allowed.
+        m2, s2 = os.openpty()
+        try:
+            r2 = subprocess.run(
+                [
+                    WFMGEN,
+                    "--type",
+                    "tone",
+                    "--count",
+                    "8",
+                    "--file_type",
+                    "csv",
+                    "--output",
+                    "-",
+                ],
+                stdout=s2,
+                stderr=subprocess.PIPE,
+                cwd=str(tmp_path),
+            )
+        finally:
+            os.close(s2)
+            os.close(m2)
+        assert r2.returncode == 0, "CSV to a tty should be allowed"

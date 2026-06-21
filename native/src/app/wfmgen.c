@@ -629,9 +629,12 @@ doppler_wfmgen (int argc, char *argv[])
         {
           /* Refuse to spew raw binary IQ onto an interactive terminal (the
            * footgun when --output is forgotten — `wfmgen` alone defaults to
-           * raw to stdout). CSV is human-readable text so it is allowed;
-           * piping/redirecting stdout (not a tty) is always allowed. */
-          if (!out_path && file_type != WFM_FT_CSV && isatty (fileno (stdout)))
+           * raw to stdout). An explicit `--output -` is stdout too, so it
+           * must trip the same guard. CSV is human-readable text so it is
+           * allowed; piping/redirecting stdout (not a tty) is always allowed.
+           */
+          int to_stdout = !out_path || !strcmp (out_path, "-");
+          if (to_stdout && file_type != WFM_FT_CSV && isatty (fileno (stdout)))
             {
               fprintf (stderr,
                        "error: refusing to write binary IQ to a terminal — "
@@ -640,8 +643,7 @@ doppler_wfmgen (int argc, char *argv[])
               wfm_compose_destroy (comp);
               return 1;
             }
-          fp = (!out_path || !strcmp (out_path, "-")) ? stdout
-                                                      : fopen (out_path, "wb");
+          fp = to_stdout ? stdout : fopen (out_path, "wb");
         }
       if (!fp)
         {

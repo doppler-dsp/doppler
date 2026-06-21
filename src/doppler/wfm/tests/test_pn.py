@@ -75,6 +75,16 @@ def test_64bit_fibonacci_runs():
     assert 0.45 < chips.mean() < 0.55
 
 
+def test_short_length_does_not_autoselect():
+    """poly=0 auto-select is guarded to length >= 2 (the MLS table starts at
+    n=2). A length-1 register must not reach into the table and must not
+    crash — poly simply stays 0."""
+    p = PN(seed=1, length=1)  # poly omitted -> 0, no mls_poly(1) lookup
+    chips = np.asarray(p.generate(4))
+    assert chips.shape == (4,)
+    assert set(np.unique(chips)).issubset({0, 1})
+
+
 def test_reset_reproduces():
     p = PN(POLY[7], 1, 7)
     a = np.asarray(p.generate(127)).copy()

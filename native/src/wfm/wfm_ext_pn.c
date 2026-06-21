@@ -64,8 +64,10 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
   uint64_t seed   = (uint64_t)seed_raw;
   uint32_t length = (uint32_t)length_raw;
   /* poly=0 means auto-select the MLS primitive polynomial for the given
-   * length, matching the Synth(pn_poly=0) convention. */
-  if (poly == 0 && length > 0)
+   * length, matching the Synth(pn_poly=0) convention. The MLS table starts
+   * at n=2, so guard length >= 2 — for length < 2 there is no maximal-length
+   * sequence and poly stays 0. */
+  if (poly == 0 && length >= 2)
     poly = mls_poly (length);
   self->handle = pn_create (poly, seed, length, lfsr);
   if (!self->handle)

@@ -113,7 +113,7 @@ extern "C"
 
   /**
    * @brief Current phase accumulator value (read/write).
-   * Returns the current integer phase in [0, 2^32).  Writing overrides
+   * Returns the current integer phase in `[0, 2^32)`.  Writing overrides
    * the accumulator directly for phase-coherent frequency switching.
    *
    * @code
@@ -178,8 +178,8 @@ extern "C"
 
   /**
    * @brief Generate CF32 phasors with per-sample FM deviation.
-   * For each sample i, ctrl[i]'s fractional part is converted to a
-   * delta phase-increment (delta = floor(frac(ctrl[i]) × 2^32)) that
+   * For each sample i, `ctrl[i]`'s fractional part is converted to a
+   * delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that
    * is added on top of the base phase_inc for that one step only.  The
    * base norm_freq and phase_inc are NOT modified; the deviation is
    * transient per sample, making this the natural API for FM synthesis

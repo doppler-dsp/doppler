@@ -140,18 +140,32 @@ The [`release.yml`](https://github.com/doppler-dsp/doppler/blob/main/.github/wor
 workflow runs these jobs in order:
 
 ```
-verify-version
-    │
+verify-version  ──  tag == pyproject == Cargo == CMakeLists
+verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
+    │                (the merge to main already ran the full suite — we do
+    │                 NOT re-test here, we confirm it was green)
     ▼
 build-python ── matrix ──┬── ubuntu-latest  (manylinux_2_28 x86_64 wheels via cibuildwheel)
                          └── macos-14       (arm64 wheels via cibuildwheel)
     │
     ▼
+smoke-wheel     ──  pip-install the built wheel + run deploy/validation/wfm_e2e.py
+    │                (smoke-tests the ARTIFACT, not the source tree)
+    ▼
 publish-python  ──  PyPI (OIDC trusted publishing, no token needed)
     │
     ▼
 github-release  ──  GitHub Release + auto-generated notes + wheel attachments
+    │
+    ▼
+smoke-c         ──  download the published C tarball; find_package + pkg-config
 ```
+
+The release pipeline **does not re-run the test suite** — the bump PR's merge
+to `main` is the gate, so `release.yml` only *confirms* CI was green on the
+tagged commit (`verify-ci` polls the `ci-passed` aggregator job in `ci.yml`),
+then builds, smoke-tests the built wheel, and publishes. This matches the
+canonical `release-process` skill.
 
 **What cibuildwheel does per Python version (cp312, cp313):**
 

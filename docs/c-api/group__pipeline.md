@@ -186,7 +186,7 @@ On success, `*msg` is set to a message handle whose data buffer is valid until [
 
 
 * `ctx` Subscriber context. 
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `msg` Set to a zero-copy message handle. 
 * `header` Set to the frame metadata. 
 
 

@@ -94,7 +94,7 @@ _int16-to-float converter with configurable inverse scale._ [More...](#detailed-
 ## Detailed Description
 
 
-Multiplies the signed int16 sample by `1/scale`. The default scale of 32768.0 maps the full Q15 range [-32768, 32767] to [-1.0, ~+1.0), making it the exact inverse of F32ToI16 at its default scale. The inverse scale is pre-computed at construction time so each step is a single multiply with no division on the hot path.
+Multiplies the signed int16 sample by `1/scale`. The default scale of 32768.0 maps the full Q15 range `[-32768, 32767]` to `[-1.0, ~+1.0)`, making it the exact inverse of F32ToI16 at its default scale. The inverse scale is pre-computed at construction time so each step is a single multiply with no division on the hot path.
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
@@ -141,7 +141,7 @@ Pre-computes `iscale` = 1.0f / `scale` so the hot step path is a single multiply
 **Parameters:**
 
 
-* `scale` Denominator scale; 1/scale is applied to each sample (default: 32768.0f). Use 32768.0 to recover normalised [-1, +1] floats from a Q15 int16 stream. 
+* `scale` Denominator scale; 1/scale is applied to each sample (default: 32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from a Q15 int16 stream. 
 
 
 

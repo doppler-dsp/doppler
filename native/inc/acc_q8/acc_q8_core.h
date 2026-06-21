@@ -6,7 +6,7 @@
  * get() for a non-destructive read, or dump() to read-and-reset in one
  * atomic call.
  *
- * Lifecycle: create -> [step / steps / madd / reset]* -> [get / dump]* ->
+ * Lifecycle: create -> `[step / steps / madd / reset]*` -> `[get / dump]*` ->
  * destroy
  *
  * @code
@@ -92,7 +92,7 @@ void acc_q8_reset(acc_q8_state_t *state);
  * samples correctly subtract from the accumulator.
  *
  * @param state  Must be non-NULL.
- * @param x      Q8 input sample (int8_t, range [-128, 127]).
+ * @param x      Q8 input sample (int8_t, range `[-128, 127]`).
  *
  * @code
  * >>> from doppler.arith import AccQ8
@@ -209,9 +209,9 @@ int32_t acc_q8_get(acc_q8_state_t *state);
 int32_t acc_q8_dump(acc_q8_state_t *state);
 
 /**
- * @brief Multiply-accumulate: acc += sum(a[i] * b[i]) over the shorter of
- * the two arrays. Operates on int8_t inputs, widening each product to
- * int32_t before accumulation to prevent intermediate overflow.
+ * @brief Multiply-accumulate over the shorter of the two arrays.
+ * Computes acc += sum(`a[i]` * `b[i]`), widening int8_t inputs to int32_t
+ * before accumulation to prevent intermediate overflow.
  *
  * @param state  Must be non-NULL.
  * @param a      First input array (int8_t).

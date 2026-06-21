@@ -131,7 +131,7 @@ extern "C"
 
   /**
    * @brief Resample with per-sample additive rate deviations.
-   * Effective rate for sample i is base_rate + real(ctrl[i]).
+   * Effective rate for sample i is base_rate + real(`ctrl[i]`).
    * Uses a unified double-precision accumulator that handles both
    * interpolation and decimation in a single code path — suitable for
    * Doppler-shift simulation and fractional-sample timing correction.

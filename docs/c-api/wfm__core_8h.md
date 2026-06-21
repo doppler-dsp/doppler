@@ -53,7 +53,10 @@ _Wfmgen module — public C API._
 | Type | Name |
 | ---: | :--- |
 |  void | [**bpsk\_map**](#function-bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
+|  void | [**dsss\_spread**](#function-dsss_spread) (const float complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float complex \* out) <br> |
+|  uint64\_t | [**mls\_poly**](#function-mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
 |  void | [**qpsk\_map**](#function-qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
+|  void | [**rrc\_taps**](#function-rrc_taps) (double beta, int sps, int span, float \* out) <br> |
 |  float | [**wfm\_awgn\_amplitude**](#function-wfm_awgn_amplitude) (float snr\_db, float signal\_power) <br>_Compute the per-component AWGN amplitude for a target SNR. The AWGN engine uses equal-power I and Q noise: complex noise power is 2 \* amplitude². This function inverts that relationship for a given_ `signal_power` _and_`snr_db` _(measured over the full sample-rate bandwidth): amplitude = sqrt(signal\_power / (2 \* 10^(snr\_db / 10))). Pass the result directly to_`awgn_create` _to get the exact noise level that corresponds to the requested SNR._ |
 |  float | [**wfm\_ebno\_to\_snr\_db**](#function-wfm_ebno_to_snr_db) (float ebno\_db, int bits\_per\_symbol, float samples\_per\_symbol) <br>_Convert Eb/No (dB) to SNR (dB) over the full sample-rate band. Digital communication systems are typically specified in Eb/No; doppler uses an fs-band SNR internally. The conversion is: SNR\_fs = Eb/No + 10 log10(bits\_per\_symbol) - 10 log10(samples\_per\_symbol) For BPSK (bits\_per\_symbol=1, sps=8) at Eb/No=10 dB this gives ~0.97 dB. For QPSK (bits\_per\_symbol=2, sps=8) at Eb/No=10 dB this gives ~3.98 dB._  |
 
@@ -128,6 +131,66 @@ void bpsk_map (
 
 
 
+### function dsss\_spread 
+
+```C++
+void dsss_spread (
+    const float complex * syms,
+    size_t syms_len,
+    const uint8_t * code,
+    size_t code_len,
+    int sf,
+    float complex * out
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function mls\_poly 
+
+_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._
+```C++
+uint64_t mls_poly (
+    uint32_t n
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `n` LFSR length in stages (2..64). 
+
+
+
+**Returns:**
+
+Primitive-polynomial tap mask, or 0 if `n` is out of range. 
+```C++
+>>> from doppler.wfm import mls_poly
+>>> hex(mls_poly(7))
+'0x41'
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function qpsk\_map 
 
 _Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._ 
@@ -165,6 +228,24 @@ void qpsk_map (
 
 
         
+
+<hr>
+
+
+
+### function rrc\_taps 
+
+```C++
+void rrc_taps (
+    double beta,
+    int sps,
+    int span,
+    float * out
+) 
+```
+
+
+
 
 <hr>
 

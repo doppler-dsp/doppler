@@ -106,7 +106,7 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 Owns a window + zero-padded FFT and analyses one time-domain capture (real or complex) into the full single-tone metric bag ([**tone\_meas\_t**](structtone__meas__t.md)). Each component's power is integrated over its window MAIN LOBE and the noise sum excludes the leakage bins around DC, the fundamental and each harmonic — the IEEE Std 1241 method — so a full-scale tone reads ~0 dBFS regardless of where it lands between FFT bins.
 
 
-Lifecycle: create -&gt; [analyze / analyze\_complex / time\_stats]\* -&gt; destroy
+Lifecycle: create -&gt; `[analyze / analyze_complex / time_stats]*` -&gt; destroy
 
 
 

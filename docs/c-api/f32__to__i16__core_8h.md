@@ -95,7 +95,7 @@ _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Multiplies the input by `scale`, rounds to the nearest integer, and saturates (clamps) the result to the int16 range [-32768, 32767]. The default scale of 32768.0 maps a normalised [-1, +1] float to the full Q15 integer range, making it the natural pair for I16ToF32. A sticky `clipped` flag is raised on any sample that saturates and is cleared only by reset().
+Multiplies the input by `scale`, rounds to the nearest integer, and saturates (clamps) the result to the int16 range `[-32768, 32767]`. The default scale of 32768.0 maps a normalised `[-1, +1]` float to the full Q15 integer range, making it the natural pair for I16ToF32. A sticky `clipped` flag is raised on any sample that saturates and is cleared only by reset().
 
 
 Lifecycle: create -&gt; (step / steps / reset)\* -&gt; destroy
@@ -151,7 +151,7 @@ Allocates state and stores `scale`. The `clipped` flag is initialised to 0. Retu
 **Parameters:**
 
 
-* `scale` Multiply factor applied before rounding and saturation (default: 32768.0f). Use 32768.0 to convert a normalised [-1, +1] signal to full Q15 range. 
+* `scale` Multiply factor applied before rounding and saturation (default: 32768.0f). Use 32768.0 to convert a normalised `[-1, +1]` signal to full Q15 range. 
 
 
 
@@ -245,7 +245,7 @@ JM_FORCEINLINE  JM_HOT int16_t f32_to_i16_step (
 
 
 
-Computes `round(x * scale)`, saturates to [-32768, 32767], and sets the sticky `clipped` flag if saturation occurred.
+Computes `round(x * scale)`, saturates to `[-32768, 32767]`, and sets the sticky `clipped` flag if saturation occurred.
 
 
 
@@ -260,7 +260,7 @@ Computes `round(x * scale)`, saturates to [-32768, 32767], and sets the sticky `
 
 **Returns:**
 
-Saturated int16 output in [-32768, 32767]. 
+Saturated int16 output in `[-32768, 32767]`. 
 
 
 

@@ -375,4 +375,35 @@ jobs:
     - name: Check manifest drift
       # --refresh: ignore setup-uv's cached PyPI index so a just-published jm
       # pin resolves on the first run after a release (no stale-cache race).
-      run: uvx --refresh --from 'just-makeit==0.19.26' just-makeit status --check
+      run: uvx --refresh --from 'just-makeit==0.19.30' just-makeit status --check
+
+  # ------------------------------------------------------------------
+  # Aggregator: a single "CI passed" check that is green only when every
+  # required job above succeeded. The release workflow polls this check on the
+  # tagged commit (verify-ci) instead of re-running the suite — the merge to
+  # main already gated it, so the release only confirms + builds + publishes.
+  # ------------------------------------------------------------------
+  ci-passed:
+    name: CI passed
+    needs:
+      - build-and-test
+      - python
+      - glibc-228
+      - doxygen
+      - specan-demo
+      - docs
+      - docker
+      - pre-commit
+      - manifest-drift
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Require all jobs to have succeeded
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || \
+                "${{ contains(needs.*.result, 'cancelled') }}" == "true" || \
+                "${{ contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "::error::a required CI job did not succeed — CI not green"
+            exit 1
+          fi
+          echo "All required CI jobs succeeded."

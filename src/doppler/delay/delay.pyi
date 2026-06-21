@@ -38,7 +38,7 @@ class DelayCf64:
         """
 
     def push(self, x: complex) -> None:
-        """Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that buf[head] always holds the most recent sample.  The same value is simultaneously written at buf[head + capacity] to keep the mirror half in sync; this ensures any num_taps-length window starting at head is contiguous without an extra copy.
+        """Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that `buf[head]` always holds the most recent sample.  The same value is simultaneously written at `buf[head + capacity]` to keep the mirror half in sync; this ensures any num_taps-length window starting at head is contiguous without an extra copy.
 
         Parameters
         ----------
@@ -57,7 +57,7 @@ class DelayCf64:
         """
 
     def ptr(self) -> NDArray[np.complex128]:
-        """Return a zero-copy view of the n most recent samples. Copies at most min(n, num_taps) samples starting from buf[head] into out.  Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num_taps elements; no wrap-around logic is needed.  The Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself).
+        """Return a zero-copy view of the n most recent samples. Copies at most min(n, num_taps) samples starting from `buf[head]` into out.  Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num_taps elements; no wrap-around logic is needed.  The Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself).
 
         Returns
         -------

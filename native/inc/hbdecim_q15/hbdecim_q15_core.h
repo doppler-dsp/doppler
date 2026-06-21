@@ -13,9 +13,9 @@
  * they are converted to Q15 internally with the standard x0.5 rate scaling.
  *
  * The symmetric-fold optimisation halves the number of multiplications:
- * instead of computing Sum h[k]*x[n-k] for all k, the filter computes
- * Sum h[k]*(x[n-k] + x[n-(N-1-k)]) for k = 0..N/2-1, exploiting
- * h[k] = h[N-1-k].  The center tap is a single unconditional right-shift
+ * instead of computing Sum `h[k]`*`x[n-k]` for all k, the filter computes
+ * Sum `h[k]`*(`x[n-k]` + `x[n-(N-1-k)]`) for k = 0..N/2-1, exploiting
+ * `h[k]` = `h[N-1-k]`.  The center tap is a single unconditional right-shift
  * (x0.5, baked in as the polyphase rate identity).
  *
  * On AVX2 the inner loop uses _mm256_madd_epi16 to multiply 16 int16_t
@@ -90,7 +90,7 @@ typedef struct {
  * the non-zero FIR branch taps, not the full sparse prototype.
  * @param num_taps Number of FIR branch coefficients in h (>= 1).
  * @param h        Float FIR branch coefficients of length num_taps.
- *                 Must be symmetric (h[k] == h[num_taps-1-k]).
+ *                 Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
  * @return HBDecimQ15 instance.
  * @code
  * >>> import numpy as np

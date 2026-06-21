@@ -128,6 +128,7 @@ nav:
   - Quick Start: quickstart.md
   - Architecture: architecture.md
   - Install:
+      - Overview: install/index.md
       - Python: install/python.md
       - C Library: install/c.md
       - Build from Source: install/source.md
@@ -138,6 +139,7 @@ nav:
       - Waveform Generator: gallery/wfmgen.md
       - Waveform Scenes: gallery/wfm-composition.md
       - WCDMA Carriers: gallery/wcdma-carriers.md
+      - Waveform Write: gallery/wfm-write.md
       - Waveform I/O: gallery/wfm-io.md
       - AGC: gallery/agc.md
       - CIC Decimation: gallery/cic.md
@@ -153,6 +155,7 @@ nav:
       - Measurement Suite: gallery/measure.md
       - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
   - Examples:
+      - Overview: examples/index.md
       - C: examples/c.md
       - Python:
           - Overview: examples/python.md
@@ -168,7 +171,8 @@ nav:
           - 2-D Acquisition: examples/python-detection2d.md
       - Streaming: examples/streaming.md
   - API Reference:
-      - C API: c-api/files.md
+      - Overview: api/index.md
+      - C API: c-api/index.md
       - "Python: FFT": api/python-fft.md
       - "Python: Correlation & Detection": api/python-spectral.md
       - "Python: Spectrum Analyzer (Specan)": api/python-analyzer.md
@@ -187,11 +191,13 @@ nav:
   - Type System: types.md
   - Benchmarks: benchmarks.md
   - Guides:
+      - Overview: guide/index.md
       - Waveform Generator (wfmgen): guide/wfmgen.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
+      - Overview: design/index.md
       - Repository Map: design/repository-map.md
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
@@ -202,6 +208,7 @@ nav:
       - Overview: cli/index.md
       - Dopplerfile: cli/dopplerfile.md
   - Contributing:
+      - Overview: dev/index.md
       - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md
       - Error Convention: dev/error-convention.md

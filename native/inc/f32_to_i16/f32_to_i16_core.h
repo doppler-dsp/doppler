@@ -3,8 +3,8 @@
  * @brief Scale-and-saturate float-to-int16 converter.
  *
  * Multiplies the input by @c scale, rounds to the nearest integer, and
- * saturates (clamps) the result to the int16 range [-32768, 32767].
- * The default scale of 32768.0 maps a normalised [-1, +1] float to the full
+ * saturates (clamps) the result to the int16 range `[-32768, 32767]`.
+ * The default scale of 32768.0 maps a normalised `[-1, +1]` float to the full
  * Q15 integer range, making it the natural pair for I16ToF32.
  * A sticky @c clipped flag is raised on any sample that saturates and is
  * cleared only by reset().
@@ -65,7 +65,7 @@ typedef struct {
  *
  * @param scale  Multiply factor applied before rounding and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert a normalised
- *               [-1, +1] signal to full Q15 range.
+ *               `[-1, +1]` signal to full Q15 range.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call f32_to_i16_destroy() when done.
  */
@@ -89,12 +89,12 @@ void f32_to_i16_reset(f32_to_i16_state_t *state);
 /**
  * @brief Process one input sample.
  *
- * Computes @c round(x * scale), saturates to [-32768, 32767], and sets the
+ * Computes @c round(x * scale), saturates to `[-32768, 32767]`, and sets the
  * sticky @c clipped flag if saturation occurred.
  *
  * @param state  Must be non-NULL.
  * @param x      Normalised float input sample.
- * @return Saturated int16 output in [-32768, 32767].
+ * @return Saturated int16 output in `[-32768, 32767]`.
  */
 JM_FORCEINLINE JM_HOT int16_t
 f32_to_i16_step(f32_to_i16_state_t *state, float x)

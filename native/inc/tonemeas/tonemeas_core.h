@@ -9,7 +9,7 @@
  * IEEE Std 1241 method — so a full-scale tone reads ~0 dBFS regardless of where
  * it lands between FFT bins.
  *
- * Lifecycle: create -> [analyze / analyze_complex / time_stats]* -> destroy
+ * Lifecycle: create -> `[analyze / analyze_complex / time_stats]*` -> destroy
  *
  * @code
  * tonemeas_state_t *m = tonemeas_create(8192, 1.0, 1, 12.0f, 2, 8, 1.0, 0);

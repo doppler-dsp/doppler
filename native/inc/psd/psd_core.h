@@ -149,7 +149,7 @@ size_t psd_power_twosided_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged linear power, DC-centred two-sided (length nfft).
- * Coherent-gain normalised (out[k] = avg|X[k]|^2 / cg^2); full_scale is NOT
+ * Coherent-gain normalised (`out[k]` = avg|`X[k]`|^2 / cg^2); full_scale is NOT
  * applied (callers that want a dBFS reference divide by full_scale^2).  This is
  * the raw spectral estimate the measurement kernels integrate over.  Returns 0
  * (and writes nothing) before any frame is accumulated.
@@ -166,9 +166,9 @@ size_t psd_power_onesided_max_out(psd_state_t *state);
 
 /**
  * @brief Averaged linear power, one-sided (length nfft/2 + 1).
- * Folds the DC-centred two-sided estimate onto [0, fs/2]: the DC and Nyquist
+ * Folds the DC-centred two-sided estimate onto `[0, fs/2]`: the DC and Nyquist
  * bins are kept as-is, every interior bin is the sum of its +k and -k halves
- * (so a real-input tone reads 2*avg|X[k]|^2 / cg^2 there).  Coherent-gain
+ * (so a real-input tone reads 2*avg|`X[k]`|^2 / cg^2 there).  Coherent-gain
  * normalised; full_scale is NOT applied.  Returns 0 before any accumulate.
  *
  * @param state  Must be non-NULL.
@@ -220,13 +220,13 @@ size_t psd_band_power_max_out(psd_state_t *state);
 
 /**
  * @brief Integrated power per band in dB.
- * @p bands is a flat array of [lo0, hi0, lo1, hi1, ...] band edges in Hz; the
+ * @p bands is a flat array of `[lo0, hi0, lo1, hi1, ...]` band edges in Hz; the
  * output holds one dB value per band (n_bands = bands_len / 2).  Edges are
  * clamped to the analysed span; a band fully outside the span integrates to the
  * dB floor.  Returns 0 before any frame is accumulated.
  *
  * @param state      Must be non-NULL.
- * @param bands      Flat [lo,hi,...] band edges, Hz.
+ * @param bands      Flat `[lo,hi,...]` band edges, Hz.
  * @param bands_len  Number of edge values (2 * n_bands).
  * @param out        Destination, at least n_bands float32 elements.
  * @return n_bands, or 0 if empty.
@@ -247,7 +247,7 @@ size_t psd_band_power(psd_state_t *state, const double *bands,
 /**
  * @brief Total integrated power across all bands in dB.
  * @param state      Must be non-NULL.
- * @param bands      Flat [lo,hi,...] band edges, Hz.
+ * @param bands      Flat `[lo,hi,...]` band edges, Hz.
  * @param bands_len  Number of edge values (2 * n_bands).
  * @return Total band power in dB (dB floor if empty).
  */
@@ -269,7 +269,7 @@ double psd_occupied_bw(psd_state_t *state, double fraction);
 double psd_noise_floor(psd_state_t *state);
 
 /**
- * @brief In-band SNR in dB: peak level in [lo_hz, hi_hz] minus the noise floor.
+ * @brief In-band SNR in dB: peak level in `[lo_hz, hi_hz]` minus the noise floor.
  * @param state  Must be non-NULL.
  * @param lo_hz  Band lower edge, Hz.
  * @param hi_hz  Band upper edge, Hz.

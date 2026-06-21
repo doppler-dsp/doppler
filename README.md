@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://en.wikipedia.org/wiki/C99"><img src="https://img.shields.io/badge/C-C99-blue" alt="C99"></a>
-  <a href="ffi/rust"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="install/rust.md"><img src="https://img.shields.io/badge/Rust-FFI-CE4A00?logo=rust&logoColor=white" alt="Rust"></a>
   <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json" alt="uv"></a>
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
@@ -23,6 +23,12 @@ doppler is a C99 DSP library: NCO, FIR filter, FFT, polyphase resampler,
 DDC, and ZMQ-based signal streaming. Python and Rust wrap the same C core —
 no second implementation, no divergence, full SIMD throughput from any
 language.
+
+**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Gallery](gallery/index.md) · [Examples](examples/python.md) · [Guides](guide/wfmgen.md)
+
+**API Reference** — [C API](c-api/files.md) · [Python: FFT](api/python-fft.md) · [Python: Spectral](api/python-spectral.md) · [Python: Waveform](api/python-wfmgen.md) · [Python: Resample](api/python-resample.md) · [Python: Filter](api/python-filter.md) · [Python: Measurement](api/python-measure.md) · [Python: DDC](api/python-ddc.md) · [Python: Accumulator](api/python-accumulator.md)
+
+______________________________________________________________________
 
 ## Why it's built this way
 
@@ -72,8 +78,7 @@ make bench              # benchmarks
 
 ## Docs
 
-Full docs at **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppler/)** —
-Quick Start, Architecture, API Reference, Examples.
+Full docs: **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppler/)**
 
 ## Licensing
 

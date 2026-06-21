@@ -2,7 +2,7 @@
  * @file pn_core.h
  * @brief PN component API.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * Lifecycle: create -> `[step / steps / reset]*` -> destroy
  *
  * Example:
  * @code

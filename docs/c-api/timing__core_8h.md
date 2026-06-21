@@ -60,11 +60,14 @@
 | ---: | :--- |
 |  uint64\_t | [**dp\_mono\_ns**](#function-dp_mono_ns) (void) <br> |
 |  uint64\_t | [**dp\_real\_ns**](#function-dp_real_ns) (void) <br> |
+|  [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* | [**dp\_sample\_clock\_create**](#function-dp_sample_clock_create) (double fs, int resync) <br> |
+|  void | [**dp\_sample\_clock\_destroy**](#function-dp_sample_clock_destroy) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  void | [**dp\_sample\_clock\_init**](#function-dp_sample_clock_init) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, double fs, int resync) <br> |
 |  double | [**dp\_sample\_clock\_pace**](#function-dp_sample_clock_pace) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, size\_t count) <br> |
 |  void | [**dp\_sample\_clock\_reset**](#function-dp_sample_clock_reset) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  void | [**dp\_sample\_clock\_resync**](#function-dp_sample_clock_resync) ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
 |  uint64\_t | [**dp\_sample\_clock\_stamp**](#function-dp_sample_clock_stamp) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c) <br> |
+|  void | [**dp\_sample\_clock\_stats**](#function-dp_sample_clock_stats) (const [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* c, [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) \* out) <br> |
 
 
 
@@ -128,6 +131,45 @@ uint64_t dp_real_ns (
 
 
 Current wall-clock in ns since the UNIX epoch (CLOCK\_REALTIME). 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_create 
+
+```C++
+dp_sample_clock_t * dp_sample_clock_create (
+    double fs,
+    int resync
+) 
+```
+
+
+
+Heap-allocate and initialise a clock for sample rate `fs` (Hz); see dp\_sample\_clock\_init for `resync`. Returns NULL on allocation failure. This is the opaque-handle constructor the generated realtime composer stream drives (`Composer.stream(realtime=fs)`): it owns a `void *clk` created here and freed by dp\_sample\_clock\_destroy. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_destroy 
+
+```C++
+void dp_sample_clock_destroy (
+    dp_sample_clock_t * c
+) 
+```
+
+
+
+Free a clock from dp\_sample\_clock\_create (NULL-safe). 
 
 
         
@@ -229,6 +271,22 @@ Ideal wall-clock timestamp (ns since the UNIX epoch) of the next sample to be pr
 
 
         
+
+<hr>
+
+
+
+### function dp\_sample\_clock\_stats 
+
+```C++
+void dp_sample_clock_stats (
+    const dp_sample_clock_t * c,
+    dp_sample_clock_t * out
+) 
+```
+
+
+
 
 <hr>
 

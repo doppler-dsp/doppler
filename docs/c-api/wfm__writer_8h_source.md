@@ -64,6 +64,11 @@ double wfm_writer_peak(const wfm_writer_t *w);
 
 double wfm_writer_clip_fraction(const wfm_writer_t *w);
 
+wfm_writer_t *wfm_writer_open_path(const char *path, wfm_filetype_t ft,
+                                   int sample_type, int endian, double fs,
+                                   double fc, size_t total_samples,
+                                   double headroom);
+
 int wfm_blue_write_hcb(FILE *fp, int sample_type, int endian, double fs,
                        double fc, double data_start, size_t total_samples,
                        int detached);

@@ -10,15 +10,31 @@ import numpy as np
 from numpy.typing import NDArray
 
 class ZmqSink:
+    """ZmqSink handle.
+
+    Parameters
+    ----------
+    endpoint : int
+    sample_type : str, default ``"cf32"``
+        One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``.
+    """
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
-    def send(self, x: NDArray[Any], fs: float, fc: float) -> int: ...
-    def track_clipping(self, on: int = ...) -> None: ...
+    def send(self, x: NDArray[Any], fs: float, fc: float) -> int:
+        """send(x, fs, fc) -> int."""
+    def track_clipping(self, on: int = ...) -> None:
+        """track_clipping(on=1) -> None."""
     @property
-    def clip_fraction(self) -> float: ...
+    def clip_fraction(self) -> float:
+        """clip_fraction (float)."""
     @property
-    def peak_dbfs(self) -> float: ...
+    def peak_dbfs(self) -> float:
+        """peak_dbfs (float)."""
     @property
-    def clipped(self) -> bool: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> ZmqSink: ...
-    def __exit__(self, *exc: Any) -> None: ...
+    def clipped(self) -> bool:
+        """clipped (bool)."""
+    def close(self) -> None:
+        """Release the handle and free resources."""
+    def __enter__(self) -> ZmqSink:
+        """Enter context; return self."""
+    def __exit__(self, *exc: Any) -> None:
+        """Exit context and close the handle."""

@@ -56,7 +56,7 @@ jobs:
         # off, so the pytest-benchmark suite can't import doppler.* without this.
         make build
         make pyext
-        uvx --refresh --from 'just-makeit==0.19.26' just-makeit bench --python-only --tag base
+        uvx --refresh --from 'just-makeit==0.19.30' just-makeit bench --python-only --tag base
         mkdir -p "$GITHUB_WORKSPACE/benchmarks/history"
         cp benchmarks/history/base.json \
            "$GITHUB_WORKSPACE/benchmarks/history/base.json"
@@ -66,5 +66,5 @@ jobs:
         uv sync --group dev
         make build
         make pyext
-        uvx --refresh --from 'just-makeit==0.19.26' just-makeit bench --check \
+        uvx --refresh --from 'just-makeit==0.19.30' just-makeit bench --check \
           --python-only --baseline base --threshold 0.30

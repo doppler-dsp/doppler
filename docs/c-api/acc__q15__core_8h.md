@@ -63,7 +63,7 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 |  int64\_t | [**acc\_q15\_dump**](#function-acc_q15_dump) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Ideal for block-based processing where each block hands off its sum and then starts fresh, avoiding a separate reset() call._  |
 |  int64\_t | [**acc\_q15\_get**](#function-acc_q15_get) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Identical to reading the acc field directly; exists as a named method so the Python binding can expose it consistently with dump()._  |
 |  int64\_t | [**acc\_q15\_get\_acc**](#function-acc_q15_get_acc) (const [**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Use this when you need to snapshot the running total mid-stream and continue accumulating afterward._  |
-|  void | [**acc\_q15\_madd**](#function-acc_q15_madd) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, const int16\_t \* a, size\_t a\_len, const int16\_t \* b, size\_t b\_len) <br>_Multiply-accumulate: acc += sum(a[i] \* b[i]) over the shorter of the two arrays. Uses SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._  |
+|  void | [**acc\_q15\_madd**](#function-acc_q15_madd) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, const int16\_t \* a, size\_t a\_len, const int16\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._ |
 |  void | [**acc\_q15\_reset**](#function-acc_q15_reset) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Does not re-initialise to the constructor's acc value — always resets to zero, matching the default initial state for a clean sweep._  |
 |  void | [**acc\_q15\_set\_acc**](#function-acc_q15_set_acc) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, int64\_t val) <br>_Overwrite the accumulator with a new value. Useful for setting a bias before a new accumulation window, or for restoring a previously checkpointed value._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_q15\_step**](#function-acc_q15_step) ([**acc\_q15\_state\_t**](structacc__q15__state__t.md) \* state, int16\_t x) <br>_Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap._  |
@@ -99,7 +99,7 @@ _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Int
 ## Detailed Description
 
 
-Lifecycle: create -&gt; [step / steps / madd / reset]\* -&gt; [get / dump]\* -&gt; destroy
+Lifecycle: create -&gt; `[step / steps / madd / reset]*` -&gt; `[get / dump]*` -&gt; destroy
 
 
 
@@ -327,7 +327,7 @@ int64_t acc_q15_get_acc (
 
 ### function acc\_q15\_madd 
 
-_Multiply-accumulate: acc += sum(a[i] \* b[i]) over the shorter of the two arrays. Uses SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._ 
+_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), using SIMD (AVX2 when available) to process multiple products per cycle, making this efficient for FIR filter energy computation and dot-product accumulation across blocks._
 ```C++
 void acc_q15_madd (
     acc_q15_state_t * state,
@@ -462,7 +462,7 @@ JM_FORCEINLINE  JM_HOT void acc_q15_step (
 
 
 * `state` Must be non-NULL. 
-* `x` Q15 input sample (int16\_t, range [-32768, 32767]).
+* `x` Q15 input sample (int16\_t, range `[-32768, 32767]`).
 
 
 ```C++

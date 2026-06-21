@@ -7,7 +7,7 @@
  * (distortion + quantisation + intermodulation).  The band/notch geometry is an
  * analyze() argument, so one estimator can sweep several notch placements.
  *
- * Lifecycle: create -> [analyze]* -> destroy
+ * Lifecycle: create -> `[analyze]*` -> destroy
  */
 #ifndef NPRMEAS_CORE_H
 #define NPRMEAS_CORE_H

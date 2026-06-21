@@ -254,10 +254,12 @@ rust-test: build
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 # zensical reads mkdocs.yml natively — no config migration required.
-docs: gen-c-api
-	uv run zensical build --strict
+# gen-c-api is a separate step; docs/c-api/ is committed and only needs
+# regeneration when native/inc/ headers change.
+docs:
+	uv run zensical build --clean
 
-docs-serve: gen-c-api
+docs-serve:
 	uv run zensical serve
 
 gen-c-api:
@@ -303,7 +305,8 @@ GALLERY_SCRIPTS := \
     examples/python/wfm_composition_demo.py \
     examples/python/wcdma_carriers_demo.py \
     examples/python/measure_demo.py \
-    examples/python/measure_imd_npr_demo.py
+    examples/python/measure_imd_npr_demo.py \
+    examples/python/wfm_write_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."
@@ -311,7 +314,8 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png wfm_composition_demo.png wcdma_carriers_demo.png measure_demo.png measure_imd_npr_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png wfm_composition_demo.png wcdma_carriers_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png docs/assets/
+	@rm -f burst.blue
 	@echo "Gallery plots written to docs/assets/."
 
 # ── debug / release ───────────────────────────────────────────────────────────

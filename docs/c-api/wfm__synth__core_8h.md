@@ -43,7 +43,7 @@ _Synth component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-| enum  | [**@030335204073247014045272275141261343376277117175**](#enum-@030335204073247014045272275141261343376277117175)  <br> |
+| enum  | [**wfm\_\_synth\_\_core\_8h\_1abd477555e01841805289c5cf8e4e76fb**](#enum-wfm__synth__core_8h_1abd477555e01841805289c5cf8e4e76fb)  <br> |
 
 
 
@@ -123,7 +123,7 @@ _Synth component API._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Lifecycle: create -&gt; [step / steps / reset]\* -&gt; destroy
+Lifecycle: create -&gt; `[step / steps / reset]*` -&gt; destroy
 
 
 Example: 
@@ -141,10 +141,10 @@ wfm_synth_destroy(obj);
 
 
 
-### enum @030335204073247014045272275141261343376277117175 
+### enum wfm\_\_synth\_\_core\_8h\_1abd477555e01841805289c5cf8e4e76fb 
 
 ```C++
-enum @030335204073247014045272275141261343376277117175 {
+enum wfm__synth__core_8h_1abd477555e01841805289c5cf8e4e76fb {
     WFM_SYNTH_TONE = 0,
     WFM_SYNTH_NOISE = 1,
     WFM_SYNTH_PN = 2,

@@ -110,7 +110,7 @@ void ciccompmf (
 * `out` Output buffer; must hold at least M doubles. M outside the Bernoulli table range leaves out unmodified. 
 * `N` CIC filter order (number of integrator/comb stages, &gt;= 1). 
 * `R` CIC decimation factor (&gt;= 2). 
-* `M` Number of compensator taps in [1, 19] (odd or even).
+* `M` Number of compensator taps in `[1, 19]` (odd or even).
 
 
 ```C++

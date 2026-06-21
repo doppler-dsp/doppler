@@ -13,42 +13,25 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Specan"
-depends_on = [
-    { name = "ddc", link = true },
-    { name = "lo", link = true },
-    { name = "RateConverter", link = true },
-    { name = "resamp", link = true },
-    { name = "hbdecim", link = true },
-    { name = "hbdecim_r2c", link = true },
-    { name = "cic", link = true },
-    { name = "fir", link = true },
-    { name = "resample", link = true },
-    { name = "psd", link = true },
-    { name = "acc_trace", link = true },
-    { name = "fft", link = true },
-    { name = "spectral", link = true },
-]
+depends_on = [{ name = "ddc", link = true }, { name = "lo", link = true }, { name = "RateConverter", link = true }, { name = "resamp", link = true }, { name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }, { name = "cic", link = true }, { name = "fir", link = true }, { name = "resample", link = true }, { name = "psd", link = true }, { name = "acc_trace", link = true }, { name = "fft", link = true }, { name = "spectral", link = true }]
 
-# Required instrument params (jm 0.19.10 gh-266): hoisted ahead of the
-# defaulted ones as positionals, so Specan() / Specan(0, 0, 0) raises a clear
-# TypeError instead of returning NULL → opaque MemoryError.
 [[specan.init_params]]
 name = "fs"
 type = "double"
-required = true
 default = "2.048e6"
+required = true
 
 [[specan.init_params]]
 name = "span"
 type = "double"
-required = true
 default = "200e3"
+required = true
 
 [[specan.init_params]]
 name = "rbw"
 type = "double"
-required = true
 default = "500.0"
+required = true
 
 [[specan.init_params]]
 name = "src_center"
@@ -60,9 +43,6 @@ name = "center"
 type = "double"
 default = "0.0"
 
-# offset_db is an additive dB offset applied on top of dBFS (e.g. a dBm
-# calibration); full_scale / bits set the 0-dBFS reference in the shared PSD
-# core (bits>0 -> 2^(bits-1)), so dBFS is single-sourced.
 [[specan.init_params]]
 name = "offset_db"
 type = "double"
@@ -88,7 +68,6 @@ name = "navg"
 type = "size_t"
 default = "1"
 
-# ── streaming display ─────────────────────────────────────────────────────
 [[specan.methods]]
 name = "execute"
 doc = "Mix, decimate, average; return one DC-centred dB display frame, or None."
@@ -113,7 +92,6 @@ doc = "Drop pending samples and the running average; zero LO/filter history."
 arg_type = "void"
 return_type = "void"
 
-# ── properties (read-only) ────────────────────────────────────────────────
 [[specan.properties]]
 name = "fs_out"
 type = "double"

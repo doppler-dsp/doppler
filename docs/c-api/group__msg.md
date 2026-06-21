@@ -105,7 +105,7 @@ void * dp_msg_data (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle returned by a recv function. 
+* `msg` Message handle returned by a recv function. 
 
 
 
@@ -139,7 +139,7 @@ void dp_msg_free (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle (may be NULL). 
+* `msg` Message handle (may be NULL). 
 
 
 
@@ -166,7 +166,7 @@ size_t dp_msg_num_samples (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle. 
+* `msg` Message handle. 
 
 
 
@@ -200,7 +200,7 @@ dp_sample_type_t dp_msg_sample_type (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle. 
+* `msg` Message handle. 
 
 
 
@@ -234,7 +234,7 @@ size_t dp_msg_size (
 **Parameters:**
 
 
-* [**Message handle**](group__msg.md) Message handle. 
+* `msg` Message handle. 
 
 
 

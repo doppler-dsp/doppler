@@ -195,7 +195,7 @@ int dp_rep_recv (
 
 
 * `ctx` Replier context. 
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `msg` Set to a zero-copy message handle. 
 * `size` Set to the request byte count. 
 
 
@@ -233,7 +233,7 @@ int dp_rep_recv_signal (
 
 
 * `ctx` Replier context. 
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `msg` Set to a zero-copy message handle. 
 * `header` Set to the frame metadata. 
 
 
@@ -519,7 +519,7 @@ int dp_req_recv (
 
 
 * `ctx` Requester context. 
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `msg` Set to a zero-copy message handle. 
 * `size` Set to the reply byte count. 
 
 
@@ -557,7 +557,7 @@ int dp_req_recv_signal (
 
 
 * `ctx` Requester context. 
-* [**Message handle**](group__msg.md) Set to a zero-copy message handle. 
+* `msg` Set to a zero-copy message handle. 
 * `header` Set to the frame metadata. 
 
 

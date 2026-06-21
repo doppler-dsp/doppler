@@ -5,7 +5,7 @@
  * prevents overflow even for very long block lengths. Use get() to read the
  * running total non-destructively, or dump() to read-and-reset in one call.
  *
- * Lifecycle: create -> [step / steps / madd / reset]* -> [get / dump]* ->
+ * Lifecycle: create -> `[step / steps / madd / reset]*` -> `[get / dump]*` ->
  * destroy
  *
  * @code
@@ -91,7 +91,7 @@ void acc_q15_reset(acc_q15_state_t *state);
  * negative samples subtract correctly from the accumulator without wrap.
  *
  * @param state  Must be non-NULL.
- * @param x      Q15 input sample (int16_t, range [-32768, 32767]).
+ * @param x      Q15 input sample (int16_t, range `[-32768, 32767]`).
  *
  * @code
  * >>> from doppler.arith import AccQ15
@@ -212,10 +212,10 @@ int64_t acc_q15_get(acc_q15_state_t *state);
 int64_t acc_q15_dump(acc_q15_state_t *state);
 
 /**
- * @brief Multiply-accumulate: acc += sum(a[i] * b[i]) over the shorter of
- * the two arrays. Uses SIMD (AVX2 when available) to process multiple
- * products per cycle, making this efficient for FIR filter energy
- * computation and dot-product accumulation across blocks.
+ * @brief Multiply-accumulate over the shorter of the two arrays.
+ * Computes acc += sum(`a[i]` * `b[i]`), using SIMD (AVX2 when available) to
+ * process multiple products per cycle, making this efficient for FIR filter
+ * energy computation and dot-product accumulation across blocks.
  *
  * @param state  Must be non-NULL.
  * @param a      First input array (int16_t).

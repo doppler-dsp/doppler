@@ -163,7 +163,7 @@ Length is `wfm_rrc_ntaps(sps, span)`; the response is symmetric about the centre
 **Parameters:**
 
 
-* `beta` roll-off in [0, 1]. 
+* `beta` roll-off in `[0, 1]`. 
 * `sps` samples per symbol (&gt;= 1). 
 * `span` one-sided span in symbols (&gt;= 1). 
 * `taps` output array of length `wfm_rrc_ntaps(sps, span)`. 

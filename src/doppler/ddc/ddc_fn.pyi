@@ -10,15 +10,29 @@ import numpy as np
 from numpy.typing import NDArray
 
 class Ddcr:
+    """Ddcr handle.
+
+    Parameters
+    ----------
+    norm_freq : float, default 0.0
+    rate : float, default 0.25
+    """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
-    def execute(self, x: NDArray[Any], out: NDArray[Any]) -> NDArray[Any]: ...
-    def reset(self) -> None: ...
+    def execute(self, x: NDArray[Any], out: NDArray[Any]) -> NDArray[Any]:
+        """execute(x, out) -> NDArray[Any]."""
+    def reset(self) -> None:
+        """reset() -> None."""
     @property
-    def norm_freq(self) -> float: ...
+    def norm_freq(self) -> float:
+        """norm_freq (float)."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
     @property
-    def rate(self) -> float: ...
-    def close(self) -> None: ...
-    def __enter__(self) -> Ddcr: ...
-    def __exit__(self, *exc: Any) -> None: ...
+    def rate(self) -> float:
+        """rate (float)."""
+    def close(self) -> None:
+        """Release the handle and free resources."""
+    def __enter__(self) -> Ddcr:
+        """Enter context; return self."""
+    def __exit__(self, *exc: Any) -> None:
+        """Exit context and close the handle."""

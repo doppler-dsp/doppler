@@ -11,7 +11,7 @@
  *   input  +1.0 → int16  32767 → uint64 0x0000000000007FFF
  *   input  -1.0 → int16 -32768 → uint64 0x0000000000008000
  *
- * The default scale of 32768.0 maps [-1, +1] float to Q15 range.  A sticky
+ * The default scale of 32768.0 maps `[-1, +1]` float to Q15 range.  A sticky
  * @c clipped flag is raised on saturation and cleared only by reset().
  *
  * Lifecycle: create -> (step / steps / reset)* -> destroy
@@ -61,7 +61,7 @@ typedef struct {
  *
  * @param scale  Multiply factor applied before quantisation and saturation
  *               (default: 32768.0f).  Use 32768.0 to convert normalised
- *               [-1, +1] samples to Q15 packed into the low 16 bits of
+ *               `[-1, +1]` samples to Q15 packed into the low 16 bits of
  *               a uint64.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call f32_to_i16u64_destroy() when done.
@@ -86,7 +86,7 @@ void f32_to_i16u64_reset(f32_to_i16u64_state_t *state);
 /**
  * @brief Process one input sample.
  *
- * Computes @c round(x * scale), saturates to [-32768, 32767], then
+ * Computes @c round(x * scale), saturates to `[-32768, 32767]`, then
  * zero-extends the int16 bit pattern into the lower 16 bits of a uint64.
  * The @c clipped flag is set if saturation occurred.
  *

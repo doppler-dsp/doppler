@@ -35,10 +35,10 @@ ______________________________________________________________________
 `n` bits for the fractional part, stored in an (m+n)-bit two's complement
 integer.
 
-| Format      | Stored type | Integer bits | Fraction bits | Range           | Resolution (LSB)   |
-| ----------- | ----------- | :----------: | :-----------: | --------------- | ------------------ |
-| Q8 (Q1.7)   | `int8_t`    |      1       |       7       | [−1, +1 − 2⁻⁷]  | 2⁻⁷ ≈ 0.0078       |
-| Q15 (Q1.15) | `int16_t`   |      1       |      15       | [−1, +1 − 2⁻¹⁵] | 2⁻¹⁵ ≈ 3.05 × 10⁻⁵ |
+| Format      | Stored type | Integer bits | Fraction bits | Range             | Resolution (LSB)   |
+| ----------- | ----------- | :----------: | :-----------: | ----------------- | ------------------ |
+| Q8 (Q1.7)   | `int8_t`    |      1       |       7       | `[−1, +1 − 2⁻⁷]`  | 2⁻⁷ ≈ 0.0078       |
+| Q15 (Q1.15) | `int16_t`   |      1       |      15       | `[−1, +1 − 2⁻¹⁵]` | 2⁻¹⁵ ≈ 3.05 × 10⁻⁵ |
 
 The real value of a raw integer `k` stored in Qm.n is:
 
@@ -62,7 +62,7 @@ print(half_q15 / 32768)        # 0.5
 !!! note "Why not reach +1?"
 
     Two's complement gives 2ⁿ negative values but only 2ⁿ − 1 non-negative
-    values. `int16_t` covers −32768 to +32767, so Q15 spans [−1, +32767/32768].
+    values. `int16_t` covers −32768 to +32767, so Q15 spans `[−1, +32767/32768]`.
     The missing upper bound is a fundamental property of the representation, not
     a bug.
 
@@ -106,10 +106,10 @@ ______________________________________________________________________
 The representable range of a Qm.n integer type is determined entirely by the
 integer range of the storage type.
 
-| Format | Storage   |  Integer range  |      Real range      |
-| ------ | --------- | :-------------: | :------------------: |
-| Q8     | `int8_t`  |   [−128, 127]   |   [−1.0, +127/128]   |
-| Q15    | `int16_t` | [−32768, 32767] | [−1.0, +32767/32768] |
+| Format | Storage   |   Integer range   |       Real range       |
+| ------ | --------- | :---------------: | :--------------------: |
+| Q8     | `int8_t`  |   `[−128, 127]`   |   `[−1.0, +127/128]`   |
+| Q15    | `int16_t` | `[−32768, 32767]` | `[−1.0, +32767/32768]` |
 
 Any real value outside this range cannot be represented — it overflows.
 
@@ -270,11 +270,11 @@ ______________________________________________________________________
 After a multiply or shift you must decide how to discard the fractional bits
 you are throwing away.
 
-| Mode                       | Rule                  |   Error range    |      Bias       |
-| -------------------------- | --------------------- | :--------------: | :-------------: |
-| Truncation (floor)         | `x >> n`              |   \[−1 LSB, 0)   |    negative     |
-| Round half-up              | `(x + 2^(n−1)) >> n`  | [−½ LSB, +½ LSB] | slight positive |
-| Round half-even (banker's) | round to nearest even | [−½ LSB, +½ LSB] |      none       |
+| Mode                       | Rule                  |    Error range     |      Bias       |
+| -------------------------- | --------------------- | :----------------: | :-------------: |
+| Truncation (floor)         | `x >> n`              |    \[−1 LSB, 0)    |    negative     |
+| Round half-up              | `(x + 2^(n−1)) >> n`  | `[−½ LSB, +½ LSB]` | slight positive |
+| Round half-even (banker's) | round to nearest even | `[−½ LSB, +½ LSB]` |      none       |
 
 `doppler.arith` uses **round-half-up** throughout: the bias of ½ LSB is added
 before the shift. This is the standard choice for DSP and matches the

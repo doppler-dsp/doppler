@@ -43,10 +43,11 @@ struct pocketfft_plan
 
   /* Pre-allocated scratch (interleaved doubles), sized at create:
    *   1-D : promote    = 2*n         (cf32 promote/demote)
-   *   2-D : promote    = 2*ny*nx     (cf32 whole-array promote)
-   *   2-D transpose    : tbuf        = 2*ny*nx (transposed copy)
-   *   2-D gather       : colscratch  = 2*ny    (one gathered column)  */
+   *   2-D : rowscratch = 2*nx        (cf32 fallback per-row promote/demote)
+   *   2-D : colscratch = 2*ny        (cf32 fallback col gather; cf64 !pow2)
+   *   2-D transpose    : tbuf        = 2*ny*nx (cf64 pow2 transposed copy)  */
   double *promote;
+  double *rowscratch;
   double *colscratch;
   double *tbuf;
 
@@ -184,13 +185,12 @@ pocketfft_plan_2d (size_t ny, size_t nx, int sign)
   p->use_transpose = is_pow2 (nx);
   p->row           = make_cfft_plan (nx);
   p->col           = make_cfft_plan (ny);
-  p->promote       = (double *)malloc (sizeof (double) * 2 * ny * nx);
+  p->rowscratch    = (double *)malloc (sizeof (double) * 2 * nx);
+  p->colscratch    = (double *)malloc (sizeof (double) * 2 * ny);
   if (p->use_transpose)
     p->tbuf = (double *)malloc (sizeof (double) * 2 * ny * nx);
-  else
-    p->colscratch = (double *)malloc (sizeof (double) * 2 * ny);
-  if (!p->row || !p->col || !p->promote
-      || (p->use_transpose ? !p->tbuf : !p->colscratch))
+  if (!p->row || !p->col || !p->rowscratch || !p->colscratch
+      || (p->use_transpose && !p->tbuf))
     {
       pocketfft_destroy_plan (p);
       return NULL;
@@ -209,6 +209,7 @@ pocketfft_destroy_plan (pocketfft_plan *p)
   if (p->col)
     destroy_cfft_plan (p->col);
   free (p->promote);
+  free (p->rowscratch);
   free (p->colscratch);
   free (p->tbuf);
   pffft_clear (p);
@@ -472,16 +473,37 @@ pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
       return;
     }
 
-  /* Fallback: promote to double, 2-D double transform, demote. */
-  const float complex *fin  = (const float complex *)in;
-  float complex       *fout = (float complex *)out;
-  double              *d    = p->promote;
-  for (size_t i = 0; i < total; ++i)
+  /* Fallback: row-by-row promote+transform+demote, then column gather/scatter.
+   * rowscratch (2*nx) and colscratch (2*ny) are tiny — both fit in L1.
+   * This avoids the O(ny*nx) promote buffer and the cache thrash it caused. */
+  if (in != out)
+    memcpy (out, in, sizeof (float complex) * total);
+  float complex *fout = (float complex *)out;
+
+  double *rb = p->rowscratch;
+  for (size_t r = 0; r < ny; ++r)
     {
-      d[2 * i]     = (double)crealf (fin[i]);
-      d[2 * i + 1] = (double)cimagf (fin[i]);
+      float complex *row = fout + r * nx;
+      for (size_t c = 0; c < nx; ++c)
+        {
+          rb[2 * c]     = (double)crealf (row[c]);
+          rb[2 * c + 1] = (double)cimagf (row[c]);
+        }
+      xform (p->row, p->sign, rb, nx);
+      for (size_t c = 0; c < nx; ++c)
+        row[c] = (float)rb[2 * c] + (float)rb[2 * c + 1] * I;
     }
-  xform_2d (p, d);
-  for (size_t i = 0; i < total; ++i)
-    fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
+
+  double *col = p->colscratch;
+  for (size_t c = 0; c < nx; ++c)
+    {
+      for (size_t r = 0; r < ny; ++r)
+        {
+          col[2 * r]     = (double)crealf (fout[r * nx + c]);
+          col[2 * r + 1] = (double)cimagf (fout[r * nx + c]);
+        }
+      xform (p->col, p->sign, col, ny);
+      for (size_t r = 0; r < ny; ++r)
+        fout[r * nx + c] = (float)col[2 * r] + (float)col[2 * r + 1] * I;
+    }
 }

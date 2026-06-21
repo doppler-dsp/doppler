@@ -34,7 +34,7 @@ doppler/
 │   ├── <module>/tests/                  Python integration tests (round-trip through C)
 │   └── <module>/benchmarks/             Python-level benches
 │
-├── examples/python/                     gallery + streaming demos (matplotlib → docs/assets PNGs)
+├── src/doppler/examples/                     gallery + streaming demos (matplotlib → docs/assets PNGs)
 │
 ├── ffi/rust/                            Rust FFI over the C ABI (hand-maintained)
 │   ├── src/                             extern decls + safe wrappers

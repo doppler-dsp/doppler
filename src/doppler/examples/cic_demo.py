@@ -126,7 +126,7 @@ def _cic_response_db(
 # ---------------------------------------------------------------------------
 
 
-def demo_basic():
+def demo_basic() -> None:
     print("--- 1. Basic decimation (R=8, N=4, M=1) ---")
     R = 8
     cic = CIC(R)
@@ -147,7 +147,7 @@ def demo_basic():
 # ---------------------------------------------------------------------------
 
 
-def demo_alias_rejection():
+def demo_alias_rejection() -> None:
     print("--- 2. Alias rejection (R=8, N=4, M=1) ---")
     R = 8
 
@@ -185,7 +185,7 @@ def demo_alias_rejection():
 # ---------------------------------------------------------------------------
 
 
-def demo_reconfigure():
+def demo_reconfigure() -> None:
     print("--- 3. Runtime reconfigure ---")
     cic = CIC(4)
     print(f"  initial   R={cic.R}  shift={cic.shift}")
@@ -275,7 +275,7 @@ def demo_spectral_plot(
     f_wanted,
     f_jammer,
     out_path="cic_demo_spectrum.png",
-):
+) -> None:
     """Save a two-panel spectral plot: input (wideband) and output (decimated).
 
     Top panel — input spectrum with:

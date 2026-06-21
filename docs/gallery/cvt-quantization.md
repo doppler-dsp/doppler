@@ -62,7 +62,7 @@ print(enc2.clipped)                 # False
 ```
 
 ```bash
-python examples/python/cvt_quantization_demo.py   # → cvt_quantization_demo.png
+python src/doppler/examples/cvt_quantization_demo.py   # → cvt_quantization_demo.png
 ```
 
 See [`docs/design/QUANTIZATION.md`](../design/QUANTIZATION.md) for the

@@ -107,8 +107,8 @@ print(clock.samples, clock.underruns, clock.max_lateness)
 ## Reproduce
 
 ```sh
-python examples/python/wfm_io_demo.py          # the four-container figure (.png)
-python examples/python/wfm_realtime_stream.py  # paced ZMQ publish + recv stats
+python src/doppler/examples/wfm_io_demo.py          # the four-container figure (.png)
+python src/doppler/examples/wfm_realtime_stream.py  # paced ZMQ publish + recv stats
 ```
 
 See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink)

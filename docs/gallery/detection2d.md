@@ -75,7 +75,7 @@ for *_, stat in det.push(signal_block):
 `test_stat` against `theta` to declare acquisition.
 
 ```bash
-python examples/python/detection2d_demo.py  # → detection2d_demo.png  (~10 s)
+python src/doppler/examples/detection2d_demo.py  # → detection2d_demo.png  (~10 s)
 ```
 
 See [2-D Acquisition Grid](../examples/python-detection2d.md) for

@@ -33,7 +33,7 @@ N_REQUESTS = 10  # 0 → run forever
 keep_running = True
 
 
-def _sighandler(sig, frame):
+def _sighandler(sig, frame) -> None:
     global keep_running
     keep_running = False
 

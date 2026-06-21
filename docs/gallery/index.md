@@ -1,6 +1,6 @@
 # Gallery
 
-Output plots from the example scripts in `examples/python/`.
+Output plots from the example scripts in `src/doppler/examples/`.
 Run `make gallery` to regenerate all images.
 
 <div class="grid cards" markdown>

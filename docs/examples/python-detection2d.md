@@ -58,11 +58,11 @@ A = snr_amp * SIGMA / math.sqrt(N)
 
 det = Detector2D(ref2d, dwell=M, noise_lo=1, noise_hi=N-1, threshold=0.0)
 # signal_block: one 2-D acquisition frame (rows × cols) to scan; theta: the
-# CFAR threshold from the curve above. See examples/python/detection2d_demo.py.
+# CFAR threshold from the curve above. See src/doppler/examples/detection2d_demo.py.
 for *_, stat in det.push(signal_block):
     detected = stat > theta
 ```
 
 ```bash
-python examples/python/detection2d_demo.py   # → detection2d_demo.png  (~10 s)
+python src/doppler/examples/detection2d_demo.py   # → detection2d_demo.png  (~10 s)
 ```

@@ -112,7 +112,7 @@ def _spectrum_db(x: np.ndarray, pad: int = 4) -> tuple[np.ndarray, np.ndarray]:
 # ---------------------------------------------------------------------------
 
 
-def _style_ax(ax):
+def _style_ax(ax) -> None:
     ax.set_facecolor("#111827")
     ax.tick_params(colors="#d1d5db")
     ax.xaxis.label.set_color("#d1d5db")

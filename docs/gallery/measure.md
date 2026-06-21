@@ -31,7 +31,7 @@ level.
 ## Reproduce
 
 ```sh
-python examples/python/measure_demo.py
+python src/doppler/examples/measure_demo.py
 ```
 
 ## The measurement object

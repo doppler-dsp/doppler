@@ -23,7 +23,7 @@ from doppler.stream import CF64, CI32, Pull
 keep_running = True
 
 
-def _sighandler(sig, frame):
+def _sighandler(sig, frame) -> None:
     global keep_running
     keep_running = False
 

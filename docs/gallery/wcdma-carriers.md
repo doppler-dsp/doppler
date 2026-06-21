@@ -80,4 +80,4 @@ snr = w.snr(-10e6, -5e6)                   # in-channel SNR of carrier 0
 - [PSD / AccTrace API](../api/python-spectral.md) — the measurement methods.
 - [Accumulator API](../api/python-accumulator.md) — `AccTrace` modes.
 - [Composing a Scene](wfm-composition.md) — the waveform generator.
-- `examples/python/wcdma_carriers_demo.py` — the script behind this figure.
+- `src/doppler/examples/wcdma_carriers_demo.py` — the script behind this figure.

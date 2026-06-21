@@ -50,7 +50,7 @@ SNR=+10 dB  →  min dwell M=2
 Run the full plot:
 
 ```bash
-python examples/python/detection_curves.py   # → detection_curves.png
+python src/doppler/examples/detection_curves.py   # → detection_curves.png
 ```
 
 ## Monte Carlo vs Marcum Q theory
@@ -69,5 +69,5 @@ the full FFT pipeline, which avoids the degeneracy that appears when a
 single-bin tone is correlated against itself via FFT.
 
 ```bash
-python examples/python/detection_sim.py   # → detection_sim.png  (~5 s)
+python src/doppler/examples/detection_sim.py   # → detection_sim.png  (~5 s)
 ```

@@ -158,25 +158,25 @@ test-examples: build
 	@echo "All C example smoke tests passed."
 
 PYTHON_EXAMPLE_SCRIPTS := \
-    examples/python/fir_demo.py \
-    examples/python/lo_demo.py \
-    examples/python/nco_demo.py \
-    examples/python/fft_demo.py \
-    examples/python/buffers_demo.py \
-    examples/python/agc_demo.py \
-    examples/python/corr_demo.py \
-    examples/python/detection_curves.py \
-    examples/python/detection_sim.py \
-    examples/python/detection2d_demo.py \
-    examples/python/rate_converter_demo.py \
-    examples/python/awgn_demo.py \
-    examples/python/wfmgen_demo.py \
-    examples/python/wfm_composition_demo.py \
-    examples/python/wfm_io_demo.py \
-    examples/python/wfm_receiver_ber.py \
-    examples/python/wfm_rrc_response.py \
-    examples/python/pn_codes.py \
-    examples/python/wcdma_carriers_demo.py \
+    src/doppler/examples/fir_demo.py \
+    src/doppler/examples/lo_demo.py \
+    src/doppler/examples/nco_demo.py \
+    src/doppler/examples/fft_demo.py \
+    src/doppler/examples/buffers_demo.py \
+    src/doppler/examples/agc_demo.py \
+    src/doppler/examples/corr_demo.py \
+    src/doppler/examples/detection_curves.py \
+    src/doppler/examples/detection_sim.py \
+    src/doppler/examples/detection2d_demo.py \
+    src/doppler/examples/rate_converter_demo.py \
+    src/doppler/examples/awgn_demo.py \
+    src/doppler/examples/wfmgen_demo.py \
+    src/doppler/examples/wfm_composition_demo.py \
+    src/doppler/examples/wfm_io_demo.py \
+    src/doppler/examples/wfm_receiver_ber.py \
+    src/doppler/examples/wfm_rrc_response.py \
+    src/doppler/examples/pn_codes.py \
+    src/doppler/examples/wcdma_carriers_demo.py \
     examples/standalone/example.py
 
 test-examples-python:
@@ -288,25 +288,25 @@ record-demo:
 
 # ── gallery ───────────────────────────────────────────────────────────────────
 # Run all plot-generating examples and copy output PNGs to docs/assets/.
-# Run before releasing whenever examples/python/ has changed.
+# Run before releasing whenever src/doppler/examples/ has changed.
 GALLERY_SCRIPTS := \
-    examples/python/agc_demo.py \
-    examples/python/cic_demo.py \
-    examples/python/corr_demo.py \
-    examples/python/detection_curves.py \
-    examples/python/detection_sim.py \
-    examples/python/detection2d_demo.py \
-    examples/python/rate_converter_demo.py \
-    examples/python/ddc_fn_demo.py \
-    examples/python/ddc_fn_scaling.py \
-    examples/python/adc_demo.py \
-    examples/python/hbdecim_q15_demo.py \
-    examples/python/wfmgen_demo.py \
-    examples/python/wfm_composition_demo.py \
-    examples/python/wcdma_carriers_demo.py \
-    examples/python/measure_demo.py \
-    examples/python/measure_imd_npr_demo.py \
-    examples/python/wfm_write_demo.py
+    src/doppler/examples/agc_demo.py \
+    src/doppler/examples/cic_demo.py \
+    src/doppler/examples/corr_demo.py \
+    src/doppler/examples/detection_curves.py \
+    src/doppler/examples/detection_sim.py \
+    src/doppler/examples/detection2d_demo.py \
+    src/doppler/examples/rate_converter_demo.py \
+    src/doppler/examples/ddc_fn_demo.py \
+    src/doppler/examples/ddc_fn_scaling.py \
+    src/doppler/examples/adc_demo.py \
+    src/doppler/examples/hbdecim_q15_demo.py \
+    src/doppler/examples/wfmgen_demo.py \
+    src/doppler/examples/wfm_composition_demo.py \
+    src/doppler/examples/wcdma_carriers_demo.py \
+    src/doppler/examples/measure_demo.py \
+    src/doppler/examples/measure_imd_npr_demo.py \
+    src/doppler/examples/wfm_write_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."

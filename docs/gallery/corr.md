@@ -59,7 +59,7 @@ peak_lag = int(np.argmax(np.abs(output)))
 `det.push(block)` without managing the dwell counter yourself.
 
 ```bash
-python examples/python/corr_demo.py   # → corr_demo.png
+python src/doppler/examples/corr_demo.py   # → corr_demo.png
 ```
 
 See [Corr / Detector API walkthrough](../examples/python-corr.md)

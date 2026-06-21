@@ -43,7 +43,7 @@ detector; `loop_bw` sets the first-order loop bandwidth. Wider
 `loop_bw` → faster tracking but more noise at steady state.
 
 ```bash
-python examples/python/agc_demo.py   # → agc_convergence.png
+python src/doppler/examples/agc_demo.py   # → agc_convergence.png
 ```
 
 See [AGC API walkthrough](../examples/python-agc.md) for the full

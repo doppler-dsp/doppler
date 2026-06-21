@@ -65,7 +65,7 @@ The execute buffer is grown lazily on the first call and invalidated on every
 rate change, so callers pay no per-call allocation overhead in steady state.
 
 ```bash
-python examples/python/rate_converter_demo.py
+python src/doppler/examples/rate_converter_demo.py
 ```
 
 See

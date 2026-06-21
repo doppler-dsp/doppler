@@ -43,7 +43,7 @@ gate `eta`. `det_dwell` binary-searches over M until
 `det_pd(snr, M, eta) >= pd_target`.
 
 ```bash
-python examples/python/detection_curves.py   # → detection_curves.png
+python src/doppler/examples/detection_curves.py   # → detection_curves.png
 ```
 
 See [Detection Theory](../examples/python-detection.md) for

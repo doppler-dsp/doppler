@@ -83,7 +83,7 @@ def _peak_fn(x: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 
 
-def demo_lifecycle():
+def demo_lifecycle() -> None:
     print("--- 1. Lifecycle (Ddcr handle) ---")
     ddcr = Ddcr(_lo_for_carrier(0.18), RATE)
     print(
@@ -112,7 +112,7 @@ def demo_lifecycle():
 # ---------------------------------------------------------------------------
 
 
-def demo_tuning():
+def demo_tuning() -> None:
     print("--- 2. Tuning: real tone → DC ---")
     rng = np.random.default_rng(1)
     n = 16384
@@ -137,7 +137,7 @@ def demo_tuning():
 # ---------------------------------------------------------------------------
 
 
-def demo_streaming():
+def demo_streaming() -> None:
     print("--- 3. Streaming: block-by-block into one buffer ---")
     rng = np.random.default_rng(2)
     n_block = 4096
@@ -162,7 +162,7 @@ def demo_streaming():
 # ---------------------------------------------------------------------------
 
 
-def demo_spectral_plot(out_path="ddc_fn_demo.png"):
+def demo_spectral_plot(out_path="ddc_fn_demo.png") -> None:
     """Save a 3-panel spectral plot: input passband, baseband, retuned.
 
     Input: real noise + tone at f_carrier=0.18 (rel. fs_in).  Panel 2 mixes
@@ -218,7 +218,7 @@ def demo_spectral_plot(out_path="ddc_fn_demo.png"):
         color="#f1f5f9",
     )
 
-    def _style(ax):
+    def _style(ax) -> None:
         ax.set_facecolor("#111827")
         ax.grid(True, color="#374151", lw=0.4)
         ax.tick_params(colors="#d1d5db")

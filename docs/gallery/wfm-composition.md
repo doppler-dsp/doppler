@@ -111,4 +111,4 @@ wfmgen --from-file run.json                                  -o b.cf32
     section.
 - [Waveform amplitude & composition](../design/wfmgen-composition.md) — the
     design rationale (average-power amplitude, PAPR, the noise-floor model).
-- `examples/python/wfm_composition_demo.py` — the script behind this figure.
+- `src/doppler/examples/wfm_composition_demo.py` — the script behind this figure.

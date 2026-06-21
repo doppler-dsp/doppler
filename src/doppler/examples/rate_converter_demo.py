@@ -79,7 +79,7 @@ def _spectrum_db(x: np.ndarray, pad: int = 8) -> tuple[np.ndarray, np.ndarray]:
 # ---------------------------------------------------------------------------
 
 
-def demo_stage_selection():
+def demo_stage_selection() -> None:
     print("--- 1. Stage selection ---")
     rates = [2.0, 0.5, 0.25, 0.125, 0.1, 1.0 / 3.0]
     print(f"  {'rate':>10}  {'stages'}")
@@ -96,7 +96,7 @@ def demo_stage_selection():
 # ---------------------------------------------------------------------------
 
 
-def demo_frequency_check():
+def demo_frequency_check() -> None:
     """Feed a passband tone and verify it appears at the expected output bin.
 
     A tone at input normalised frequency fn_in should appear at
@@ -138,7 +138,7 @@ def demo_frequency_check():
 # ---------------------------------------------------------------------------
 
 
-def demo_rate_change():
+def demo_rate_change() -> None:
     print("--- 3. Rate change at runtime ---")
     n_in = 1024
     x = _tone(0.05, n_in)
@@ -168,7 +168,7 @@ REGIMES = [
 ]
 
 
-def demo_spectral_plot(out_path="rate_converter_demo.png"):
+def demo_spectral_plot(out_path="rate_converter_demo.png") -> None:
     """Save a 5-panel spectral plot: input + four decimation regimes.
 
     Input: 4096-sample broadband noise + tone at fn=0.04.
@@ -192,7 +192,7 @@ def demo_spectral_plot(out_path="rate_converter_demo.png"):
         color="#f1f5f9",
     )
 
-    def _style(ax):
+    def _style(ax) -> None:
         ax.set_facecolor("#111827")
         ax.grid(True, color="#374151", lw=0.4)
         ax.tick_params(colors="#d1d5db")

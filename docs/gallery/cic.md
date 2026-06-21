@@ -66,7 +66,7 @@ Transient settling takes approximately `CIC_N*(R-1)/R` output samples;
 drop those before measuring power.
 
 ```bash
-python examples/python/cic_demo.py   # → cic_demo_spectrum.png
+python src/doppler/examples/cic_demo.py   # → cic_demo_spectrum.png
 ```
 
 See [`doppler.resample.CIC`](../api/python-resample.md#cic-cascaded-integrator-comb-decimator)

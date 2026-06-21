@@ -87,5 +87,5 @@ q_d   = adc_d.steps(x)
 | `.clipped` | `bool`  | Sticky flag — set if any sample saturated since last `reset()`                |
 
 ```bash
-python examples/python/adc_demo.py   # → adc_demo.png
+python src/doppler/examples/adc_demo.py   # → adc_demo.png
 ```

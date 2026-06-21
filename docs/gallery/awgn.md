@@ -46,7 +46,7 @@ sin/cos from the same 65 536-entry LUT as `LO` via AVX gather
 instructions — reaching **~525 MSa/s** on a single AVX-512 core.
 
 ```bash
-python examples/python/awgn_demo.py   # → docs/assets/awgn_demo.png
+python src/doppler/examples/awgn_demo.py   # → docs/assets/awgn_demo.png
 ```
 
 **C one-shot** (no persistent state):

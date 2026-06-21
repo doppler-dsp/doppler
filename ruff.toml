@@ -48,6 +48,7 @@ ignore = [
 "**/tests/**"           = ["ANN"]
 "**/benchmarks/**"      = ["ANN"]
 "examples/**"           = ["ANN"]
+"src/doppler/examples/**" = ["ANN"]
 "scripts/**"            = ["ANN"]
 "conftest.py"           = ["ANN"]
 "**/conftest.py"        = ["ANN"]

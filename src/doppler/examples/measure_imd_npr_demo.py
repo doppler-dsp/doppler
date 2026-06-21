@@ -108,7 +108,7 @@ def npr_theory_db(rms_dbfs, bits, b_active, b_nyq):
     )
 
 
-def main():
+def main() -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
     # ── (a) two-tone IMD spectrum ─────────────────────────────────────────

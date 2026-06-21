@@ -43,7 +43,7 @@ with Reader("burst.blue") as r:
 ## Reproduce
 
 ```sh
-python examples/python/wfm_write_demo.py   # → burst.blue + wfm_write_demo.png
+python src/doppler/examples/wfm_write_demo.py   # → burst.blue + wfm_write_demo.png
 ```
 
 For four containers side by side — raw, CSV, BLUE, and SigMF — see

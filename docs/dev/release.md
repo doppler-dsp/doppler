@@ -20,7 +20,7 @@ ______________________________________________________________________
 
 ## 2. Check examples
 
-If any gallery example scripts in `examples/python/` changed since the
+If any gallery example scripts in `src/doppler/examples/` changed since the
 last release, regenerate the plots:
 
 ```sh

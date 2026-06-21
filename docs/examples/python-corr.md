@@ -123,5 +123,5 @@ peak at (row=3, col=5)  (true=(3, 5))
 Run the full demo:
 
 ```bash
-python examples/python/corr_demo.py   # → corr_demo.png
+python src/doppler/examples/corr_demo.py   # → corr_demo.png
 ```

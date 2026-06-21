@@ -5,7 +5,7 @@ interpolation primitives. It inspects the requested rate ratio at construction
 time and builds the cheapest cascade — halfband, CIC, or polyphase Resampler —
 without any configuration from the caller.
 
-Source: [`examples/python/rate_converter_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/examples/python/rate_converter_demo.py)
+Source: [`src/doppler/examples/rate_converter_demo.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/examples/rate_converter_demo.py)
 
 ______________________________________________________________________
 
@@ -172,7 +172,7 @@ ______________________________________________________________________
 Run the full demo:
 
 ```bash
-python examples/python/rate_converter_demo.py
+python src/doppler/examples/rate_converter_demo.py
 ```
 
 See [API reference](../api/python-resample.md#rateconverter-automatic-cascade)

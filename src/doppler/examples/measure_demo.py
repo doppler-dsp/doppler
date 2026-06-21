@@ -60,7 +60,7 @@ def adc_capture(bits, ftone, amp=0.999, harmonics=(), noise=0.0, seed=0):
     return ADC(bits, 0.0, 0).steps(x).astype(np.float32)
 
 
-def main():
+def main() -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
     # ── (a) annotated single-tone spectrum ────────────────────────────────

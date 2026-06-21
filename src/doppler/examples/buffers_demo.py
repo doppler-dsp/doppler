@@ -14,13 +14,13 @@ buf = F64Buffer(256)
 received = []
 
 
-def producer():
+def producer() -> None:
     data = (np.ones(256) + 2j * np.ones(256)).astype(np.complex128)
     ok = buf.write(data)
     assert ok, "write should succeed into an empty buffer"
 
 
-def consumer():
+def consumer() -> None:
     view = buf.wait(256)
     received.append(view[:2].copy())
     buf.consume(256)

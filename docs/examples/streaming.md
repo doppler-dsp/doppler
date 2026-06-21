@@ -92,8 +92,8 @@ with Subscriber("tcp://localhost:5555") as sub:
 For a complete runnable example with live dashboard and graceful shutdown:
 
 ```bash
-python examples/python/transmitter.py tcp://*:5555
-python examples/python/receiver.py tcp://localhost:5555
+python src/doppler/examples/transmitter.py tcp://*:5555
+python src/doppler/examples/receiver.py tcp://localhost:5555
 ```
 
 ## Python: Push / Pull pipeline
@@ -117,11 +117,11 @@ Run multiple workers for parallel processing:
 
 ```bash
 # Terminal 1 — sender
-python examples/python/pipeline_send.py tcp://*:5560
+python src/doppler/examples/pipeline_send.py tcp://*:5560
 
 # Terminals 2 and 3 — two parallel workers
-python examples/python/pipeline_recv.py tcp://localhost:5560 0
-python examples/python/pipeline_recv.py tcp://localhost:5560 1
+python src/doppler/examples/pipeline_recv.py tcp://localhost:5560 0
+python src/doppler/examples/pipeline_recv.py tcp://localhost:5560 1
 ```
 
 ## Python: Requester / Replier
@@ -155,10 +155,10 @@ Complete standalone examples:
 
 ```bash
 # Terminal 1 — server (start first)
-python examples/python/replier.py tcp://*:5562 --gain 0.5
+python src/doppler/examples/replier.py tcp://*:5562 --gain 0.5
 
 # Terminal 2 — client
-python examples/python/requester.py tcp://localhost:5562 --count 20
+python src/doppler/examples/requester.py tcp://localhost:5562 --count 20
 ```
 
 ______________________________________________________________________

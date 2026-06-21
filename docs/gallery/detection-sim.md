@@ -54,7 +54,7 @@ The Rician draw uses a single non-central Gaussian pair:
 `sqrt(re^2 + im^2)`, which is exactly Rician-distributed.
 
 ```bash
-python examples/python/detection_sim.py   # → detection_sim.png  (~5 s)
+python src/doppler/examples/detection_sim.py   # → detection_sim.png  (~5 s)
 ```
 
 See [Detection Theory](../examples/python-detection.md) for the

@@ -63,7 +63,11 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
   uint64_t poly   = (uint64_t)poly_raw;
   uint64_t seed   = (uint64_t)seed_raw;
   uint32_t length = (uint32_t)length_raw;
-  self->handle    = pn_create (poly, seed, length, lfsr);
+  /* poly=0 means auto-select the MLS primitive polynomial for the given
+   * length, matching the Synth(pn_poly=0) convention. */
+  if (poly == 0 && length > 0)
+    poly = mls_poly (length);
+  self->handle = pn_create (poly, seed, length, lfsr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "pn_create returned NULL");

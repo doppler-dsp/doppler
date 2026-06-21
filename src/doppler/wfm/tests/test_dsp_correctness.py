@@ -187,17 +187,10 @@ class TestPN:
         assert int(g.sum()) == (1 << (length - 1))
         assert int(f.sum()) == (1 << (length - 1))
 
-    @pytest.mark.xfail(
-        reason="PN() default poly is degenerate; see "
-        "docs/dev/wfm-validation-findings.md#pn-default-poly",
-        strict=True,
-    )
     def test_default_poly_is_maximal_length(self) -> None:
-        # The .pyi documents poly=96 as the default and PN's docstring shows a
-        # 64-ones MLS period for length 7. But with poly omitted the LFSR runs
-        # with no feedback (effective poly 0) and decays to a single 1 then all
-        # zeros. Unlike Synth(pn_poly=0) which auto-selects an MLS polynomial,
-        # PN(poly=0) does not.
+        # With poly omitted (or 0) PN now auto-selects the MLS primitive
+        # polynomial, matching Synth(pn_poly=0) (#191): length-7 -> 64-ones
+        # maximal-length period.
         chips = w.PN(seed=1, length=7).generate(127).copy()
         assert int(chips.sum()) == 64
 

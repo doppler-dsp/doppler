@@ -86,3 +86,26 @@ def test_explicit_poly_changes_sequence():
     a = np.asarray(PN(POLY[7], 1, 7).generate(127))
     b = np.asarray(PN(POLY[9], 1, 9).generate(127))
     assert not np.array_equal(a[:64], b[:64])
+
+
+def test_default_poly_is_maximal_length():
+    """PN(seed, length) with poly omitted (or 0) auto-selects the MLS
+    primitive polynomial, matching Synth(pn_poly=0). Fixes #191."""
+    from doppler.wfm import mls_poly
+
+    n = 7
+    period = (1 << n) - 1
+    # omitted poly
+    chips_omitted = np.asarray(PN(seed=1, length=n).generate(period))
+    # explicit poly=0
+    chips_zero = np.asarray(PN(poly=0, seed=1, length=n).generate(period))
+    # explicit mls_poly
+    chips_explicit = np.asarray(
+        PN(poly=mls_poly(n), seed=1, length=n).generate(period)
+    )
+    assert int(chips_omitted.sum()) == (1 << (n - 1)), (
+        "omitted poly not maximal"
+    )
+    assert int(chips_zero.sum()) == (1 << (n - 1)), "poly=0 not maximal"
+    assert np.array_equal(chips_omitted, chips_explicit)
+    assert np.array_equal(chips_zero, chips_explicit)

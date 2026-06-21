@@ -5,6 +5,10 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
+  # Run the required checks on the merge queue's transient branches so a
+  # queued PR is validated against the latest main before it lands. Without
+  # this, the merge queue would wait forever for checks that never start.
+  merge_group:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

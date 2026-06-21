@@ -13,6 +13,48 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-06-21
+
+### Added
+
+- **Waveform composer is now a first-class generated surface.** The transport
+    and composition types — `Synth`, `Segment`, `Timeline`, `Composer`,
+    `Writer`, `Reader`, `ZmqSink`, `SampleClock` — are generated into the C
+    extension and re-exported verbatim from `doppler.wfm` (no Python wrapper
+    layer). New serializers: `Composer.to_json`/`from_json`/`from_file`,
+    `Composer.to_sigmf` (SigMF 1.0 sidecar with one annotation per source), and
+    the `Synth(bits=…)` arbitrary-bit-pattern waveform.
+- **`spectral`: `blackman_harris_window`** plus an extended PSD window enum.
+- **Exhaustive `wfm`/`wfmgen` validation.** Analytic DSP-correctness and full
+    API-surface test suites (`src/doppler/wfm/tests/`), three new examples
+    (`wfm_receiver_ber`, `wfm_rrc_response`, `wfm_realtime_stream`),
+    documentation gap-closure (SigMF sidecar schema, a worked SNR/level
+    walkthrough, RRC, real-time streaming, and BLUE-detached sections), and a
+    Python 3.9 end-to-end container (`deploy/validation/`) that validates the
+    published wheel with no build toolchain.
+
+### Fixed
+
+- **`doppler.stream` decodes all six `dp_sample_type_t` wire types.** The
+    receivers (`Subscriber`/`Pull`/`Requester`/`Replier`) previously handled
+    only `CI32`/`CF64`/`CF128`; `cf32` (the default `ZmqSink` type), `ci16`, and
+    `ci8` frames now round-trip to a Python subscriber. (#193)
+- **`PN()` auto-selects a maximal-length polynomial** when `poly` is omitted or
+    `0`, matching `Synth(pn_poly=0)` — previously it ran with no feedback and
+    emitted a degenerate sequence. (#191)
+- **`wfmgen --output -` writes to stdout** instead of creating a file literally
+    named `-`. (#192)
+
+### Changed
+
+- **Performance:** `fft2d` uses per-row/column scratch instead of a whole-array
+    CF32 promote.
+- **Toolchain:** standardized on zensical for docs, aligned Makefile targets and
+    mcp-store configs, expanded ruff to the full ruleset, split docs deps into
+    their own group (wheel builds skip the docs toolchain), and added
+    `make setup` with lint-hook auto-install. Vendored FFT backends moved to
+    `vendor/`.
+
 ## [0.17.0] — 2026-06-15
 
 ### Added
@@ -1476,6 +1518,7 @@ ______________________________________________________________________
 [0.16.1]: https://github.com/doppler-dsp/doppler/compare/v0.16.0...v0.16.1
 [0.16.2]: https://github.com/doppler-dsp/doppler/compare/v0.16.1...v0.16.2
 [0.17.0]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...v0.17.0
+[0.18.0]: https://github.com/doppler-dsp/doppler/compare/v0.17.0...v0.18.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1502,4 +1545,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.17.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.18.0...HEAD

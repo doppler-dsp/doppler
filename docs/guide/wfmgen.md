@@ -405,34 +405,48 @@ ______________________________________________________________________
 ## Multi-segment specs
 
 `wfmgen --from-file SPEC.json` sequences segments — each a waveform plus an
-optional trailing off-time — and can repeat or run forever. The schema is
-**`wfmgen-1`**:
+optional trailing off-time — and can repeat or run forever. Both the CLI and
+the Python `Composer` API drive the same C engine, so their output is
+**byte-identical** for the same parameters.
 
-```json
-{
-  "version": "wfmgen-1",
-  "repeat": false,
-  "continuous": false,
-  "segments": [
-    { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
-      "num_samples": 10000, "off_samples": 5000 },
-    { "type": "qpsk", "fs": 1e6, "snr": 9.0, "snr_mode": "esno",
-      "sps": 8, "num_samples": 40000, "off_samples": 0 }
-  ]
-}
-```
+=== "CLI (JSON spec)"
 
-`type` and `snr_mode` are strings; every other field is numeric and **falls back
-to the engine default** if omitted. `num_samples` is the on-time;
+    ```json title="scenario.json"
+    {
+      "version": "wfmgen-1",
+      "segments": [
+        { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
+          "num_samples": 10000, "off_samples": 5000 },
+        { "type": "qpsk", "fs": 1e6, "snr": 9.0, "snr_mode": "esno",
+          "sps": 8, "num_samples": 40000 }
+      ]
+    }
+    ```
+
+    ```sh
+    wfmgen --from-file scenario.json -o scenario.cf32
+    ```
+
+=== "Python API"
+
+    ```python
+    from doppler.wfm import Composer, tone, qpsk
+
+    scene = (
+        Composer(fs=1e6)
+        .add(tone(freq=1e5, snr=100.0, num_samples=10000, off_samples=5000))
+        .add(qpsk(snr=9.0, snr_mode="esno", sps=8, num_samples=40000))
+    )
+    scene.write("scenario.cf32")
+    ```
+
+`type` and `snr_mode` are strings in JSON; every other field is numeric and
+**falls back to the engine default** if omitted. `num_samples` is the on-time;
 `off_samples` is a trailing gap of zeros. `repeat` loops the sequence;
 `continuous` never finishes (for streaming).
 
-```sh
-wfmgen --from-file scenario.json -o scenario.cf32
-```
-
-Rather than write the schema from memory, dump a ready-to-edit example with
-**`wfmgen json-template`** and edit it down:
+Rather than write the JSON schema from memory, dump a ready-to-edit example
+with **`wfmgen json-template`** and edit it down:
 
 ```sh
 wfmgen json-template > scenario.json   # or: wfmgen json-template scenario.json

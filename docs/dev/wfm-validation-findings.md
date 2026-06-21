@@ -233,3 +233,24 @@ a second `generate()` call overwrites the first result in place
 (`np.shares_memory(a, b)` is `True`). This *is* documented in the method
 docstring ("copy the result before calling generate again"), so it is a note, not
 a bug — but it is a sharp edge worth surfacing in the gallery/PN docs.
+
+### version-skew-0.17.0 — HEAD carries unreleased public API under 0.17.0
+
+**Symbols:** `doppler.wfm.Synth(bits=…)`, `doppler.wfm.Composer.to_sigmf`
+**Surfaced by:** the Python 3.9 e2e container
+(`deploy/validation/wfm_e2e.py`) run against the **published**
+`doppler-dsp==0.17.0` wheel.
+
+The repo's working tree (version `0.17.0` in `pyproject.toml`) exposes public
+API that the **published** 0.17.0 wheel does not: the `Synth(bits=…)`
+constructor kwarg and `Composer.to_sigmf`. Running the e2e against the PyPI
+wheel fails those two paths (`TypeError: unexpected keyword argument 'bits'`;
+`AttributeError: 'Composer' object has no attribute 'to_sigmf'`) — they were
+added after the 0.17.0 tag without a version bump, so installing the wheel and
+building from a `0.17.0` checkout give **different** public surfaces.
+
+This is a **release-hygiene** note, not a code bug: the next release must bump
+the version so the new API ships under a number that advertises it. The e2e
+script **feature-detects** both (exercises them when present, degrades to the
+`wfmgen` CLI for SigMF otherwise), so it validates the current wheel and the
+next release unchanged. **Action:** bump `version` before the next publish.

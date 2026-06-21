@@ -18,8 +18,12 @@ golden-path proof that what a user `pip install`s actually works on Python 3.9:
 Checks are chosen to pass on the shipped 0.17.0 — they deliberately steer
 around the three known bugs the repo's exhaustive suite pins as xfails
 (PN default polynomial, `wfmgen --output -`, and the `ZmqSink` cf32 stream
-decode), so this is a clean PASS/FAIL signal for the artifact itself. Prints a
-summary table and exits non-zero on any failure.
+decode), so this is a clean PASS/FAIL signal for the artifact itself. Features
+that landed *after* 0.17.0 (the `Synth(bits=...)` kwarg, `Composer.to_sigmf`)
+are **feature-detected** — exercised when the wheel has them, gracefully
+degraded (SigMF via the `wfmgen` CLI) otherwise — so this same script validates
+the current release and the next one. Prints a summary table and exits non-zero
+on any failure.
 
 Run (inside the container):
     python wfm_e2e.py
@@ -133,14 +137,23 @@ def _cli_render() -> str:
 
 @check("generate every waveform type")
 def _all_types() -> str:
-    for t in ("tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"):
-        kw = {"type": t, "snr": 100.0}
-        if t == "bits":
-            kw["bits"] = bytes([1, 0, 1, 1])
-        x = np.asarray(w.Synth(**kw).steps(256))
+    # The six core types are present in every release.
+    for t in ("tone", "noise", "pn", "bpsk", "qpsk", "chirp"):
+        x = np.asarray(w.Synth(type=t, snr=100.0).steps(256))
         assert x.shape == (256,) and x.dtype == np.complex64
         assert np.all(np.isfinite(x.view(np.float32)))
-    return "7 types, finite cf32"
+    # The `bits` waveform + its `Synth(bits=...)` kwarg landed after 0.17.0;
+    # exercise it only when the installed wheel supports it.
+    try:
+        xb = np.asarray(
+            w.Synth(type="bits", bits=bytes([1, 0, 1, 1]), snr=100.0).steps(
+                256
+            )
+        )
+        assert xb.shape == (256,)
+        return "7 types, finite cf32"
+    except TypeError:
+        return "6 core types (bits kwarg not in this wheel)"
 
 
 @check("tone FFT peak at the right bin")
@@ -164,41 +177,90 @@ def _noise_power() -> str:
     return f"power {p:.3f}"
 
 
+def _write_sigmf(
+    base: Path, sample_type: str, fs: float, freq: float, n: int
+) -> None:
+    """Lay down a SigMF pair (`.sigmf-data` + `.sigmf-meta`) using whichever
+    sidecar writer the installed wheel provides: ``Composer.to_sigmf`` if
+    present (post-0.17.0), else the shipped ``wfmgen --file_type sigmf``."""
+    if hasattr(w.Composer, "to_sigmf"):
+        x = np.asarray(
+            w.Synth(type="tone", fs=fs, freq=freq, snr=100.0).steps(n)
+        )
+        with w.Writer(
+            str(base) + ".sigmf-data",
+            file_type="sigmf",
+            sample_type=sample_type,
+            fs=fs,
+            total=n,
+        ) as wr:
+            wr.write(x)
+        Path(str(base) + ".sigmf-meta").write_text(
+            w.Composer([w.Segment("tone", freq=freq, num_samples=n)]).to_sigmf(
+                sample_type=sample_type, fs=fs
+            )
+        )
+    else:
+        subprocess.run(
+            [
+                "wfmgen",
+                "--type",
+                "tone",
+                "--freq",
+                str(freq),
+                "--fs",
+                str(fs),
+                "--count",
+                str(n),
+                "--snr",
+                "100",
+                "--sample_type",
+                sample_type,
+                "--file_type",
+                "sigmf",
+                "--output",
+                str(base),
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+
 def _roundtrip(file_type: str, sample_type: str) -> None:
     """Write a tone capture in one container/dtype and read it back."""
-    x = np.asarray(
-        w.Synth(type="tone", fs=1e6, freq=5e4, snr=100.0).steps(512)
-    )
+    n = 512
     with tempfile.TemporaryDirectory() as d:
         if file_type == "sigmf":
             base = Path(d) / "cap"
-            path = str(base) + ".sigmf-data"
-            base.with_suffix(".sigmf-meta").write_text(
-                w.Composer(
-                    [w.Segment("tone", freq=5e4, num_samples=512)]
-                ).to_sigmf(sample_type=sample_type, fs=1e6)
-            )
-        else:
-            path = str(Path(d) / f"cap.{file_type}")
+            _write_sigmf(base, sample_type, 1e6, 5e4, n)
+            reader = w.Reader(str(base) + ".sigmf-data")
+            y = np.asarray(reader.read(n))
+            reader.close()
+            # CLI- or to_sigmf-generated: validate the round-trip is sane
+            # (count, finite, non-trivial power) rather than bit-exact.
+            assert len(y) == n, f"sigmf/{sample_type}: {len(y)} samples"
+            assert np.all(np.isfinite(y.view(np.float32)))
+            assert float(np.mean(np.abs(y) ** 2)) > 1e-6
+            return
+        x = np.asarray(
+            w.Synth(type="tone", fs=1e6, freq=5e4, snr=100.0).steps(n)
+        )
+        path = str(Path(d) / f"cap.{file_type}")
         with w.Writer(
-            path,
-            file_type=file_type,
-            sample_type=sample_type,
-            fs=1e6,
-            total=len(x),
+            path, file_type=file_type, sample_type=sample_type, fs=1e6, total=n
         ) as wr:
             wr.write(x)
-        # raw/csv are headerless -> supply the dtype; blue/sigmf self-describe.
+        # raw/csv are headerless -> supply the dtype; blue self-describes.
         reader = (
             w.Reader(path)
-            if file_type in ("blue", "sigmf")
+            if file_type == "blue"
             else w.Reader(path, sample_type=sample_type)
         )
-        y = np.asarray(reader.read(512))
+        y = np.asarray(reader.read(n))
         reader.close()
-    assert len(y) == 512, f"{file_type}/{sample_type}: {len(y)} samples"
-    corr = np.abs(np.vdot(y, x)) / (np.linalg.norm(y) * np.linalg.norm(x))
-    assert corr > 0.999, f"{file_type}/{sample_type}: corr {corr:.4f}"
+        assert len(y) == n, f"{file_type}/{sample_type}: {len(y)} samples"
+        corr = np.abs(np.vdot(y, x)) / (np.linalg.norm(y) * np.linalg.norm(x))
+        assert corr > 0.999, f"{file_type}/{sample_type}: corr {corr:.4f}"
 
 
 @check("container round-trips (raw/csv/blue/sigmf)")
@@ -237,14 +299,19 @@ def _json_parity() -> str:
     return "compose() identical"
 
 
-@check("to_sigmf JSON schema")
+@check("SigMF sidecar schema")
 def _sigmf() -> str:
-    c = w.Composer([w.Segment("tone", freq=1e5, num_samples=128)])
-    meta = json.loads(c.to_sigmf(sample_type="ci16", fs=1e6, fc=2.4e9))
+    # Validate the .sigmf-meta the shipped wheel emits — via Composer.to_sigmf
+    # if present, else the wfmgen CLI (see _write_sigmf).
+    with tempfile.TemporaryDirectory() as d:
+        base = Path(d) / "cap"
+        _write_sigmf(base, "ci16", 1e6, 1e5, 128)
+        meta = json.loads(Path(str(base) + ".sigmf-meta").read_text())
     assert meta["global"]["core:datatype"] == "ci16_le"
     assert meta["global"]["core:sample_rate"] == 1_000_000
     assert meta["annotations"][0]["core:label"] == "tone"
-    return "global + annotations present"
+    via = "to_sigmf" if hasattr(w.Composer, "to_sigmf") else "wfmgen CLI"
+    return f"global + annotations present (via {via})"
 
 
 def main() -> int:

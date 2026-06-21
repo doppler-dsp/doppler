@@ -13,6 +13,35 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-06-21
+
+### Added
+
+- **Two new Python examples:** `dsss_burst_demo.py` (DSSS burst generation with
+    PN code spreading) and `wfm_write_demo.py` (waveform I/O round-trip with
+    SigMF-style metadata), both bundled under `examples/python/`.
+- **Docs section overview pages** for all left-nav sections (Install, Examples,
+    Guides, Design, Contributing, API Reference), making section headers
+    clickable in the material theme via `navigation.indexes`.
+- **Waveform Write gallery page** (`docs/gallery/wfm-write.md`).
+
+### Changed
+
+- **jm pin → 0.19.30** — resolves incomplete docstrings on `Synth`, `Segment`,
+    `Composer` (jm#375), wfm handle generator objects (`wfm_reader`,
+    `wfm_writer`, `wfm_sink`, `sample_clock`) (jm#374), and `size_t`
+    init-param defaults (jm#377). All `.pyi` stubs regenerated.
+- **CI: release.yml `verify-ci` gate** now polls the tagged SHA for the
+    `CI passed` aggregator check instead of re-running the full suite on tag
+    push, cutting release cycle time.
+- **Docs build:** `make docs` no longer depends on `gen-c-api`; use
+    `--clean` instead of `--strict`. C API docs remain pre-generated in
+    `docs/c-api/`.
+- **Docs build warnings → 0:** fixed bracket notation in 32 `native/inc/`
+    Doxygen headers that zensical was parsing as link references.
+- **README:** added Navigate / API Reference quick-link block; fixed dead
+    Rust badge link.
+
 ## [0.18.0] — 2026-06-21
 
 ### Added
@@ -1519,6 +1548,7 @@ ______________________________________________________________________
 [0.16.2]: https://github.com/doppler-dsp/doppler/compare/v0.16.1...v0.16.2
 [0.17.0]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...v0.17.0
 [0.18.0]: https://github.com/doppler-dsp/doppler/compare/v0.17.0...v0.18.0
+[0.19.0]: https://github.com/doppler-dsp/doppler/compare/v0.18.0...v0.19.0
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1545,4 +1575,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.18.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.19.0...HEAD

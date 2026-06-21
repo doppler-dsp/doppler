@@ -206,5 +206,6 @@ nav:
       - Adding a Module: dev/adding-a-module.md
       - Error Convention: dev/error-convention.md
       - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
+      - "wfm validation findings": dev/wfm-validation-findings.md
       - Benchmarking: dev/benchmarking.md
       - Release: dev/release.md

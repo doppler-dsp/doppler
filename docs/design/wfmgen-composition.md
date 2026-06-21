@@ -85,6 +85,76 @@ band. Source-level SNR resolves against it:
 If nothing anchors a floor (every source clean, `snr ≥ 100`), there is no noise —
 exactly as today.
 
+### Worked example
+
+Take the three-source mix used in the Python snippet below — a QPSK SoI plus
+two CW interferers — at `fs = 1 MHz`:
+
+```python
+Segment.sum(
+    qpsk(sps=8, snr=15, snr_mode="esno"),  # anchor; level defaults to 0 dBFS
+    tone(freq=200e3, level=-12.0),         # interferer A
+    tone(freq=-150e3, level=-20.0),        # interferer B
+    num_samples=N,
+)
+```
+
+Resolving the powers, step by step:
+
+1. **Anchor → floor.** The QPSK source anchors. Convert its Es/No to SNR over
+    `fs`: `SNR_fs = 15 − 10·log10(8) = 15 − 9.03 = 5.97 dB`. With `level = 0`,
+    `floor_dBFS = 0 − 5.97 = −5.97 dBFS`. The noise floor is placed there,
+    integrated over the full band.
+1. **Per-source linear gains** (`gain = 10^(level/20)`, `wfm_compose.c`):
+    QPSK `level 0 → ×1.000`; interferer A `−12 dBFS → ×0.251` (power `−12 dBc`
+    vs the SoI); interferer B `−20 dBFS → ×0.100` (`−20 dBc`).
+1. **AWGN amplitude** (`wfm_awgn_amplitude.c`): per-quadrature
+    `σ = sqrt(P_sig / (2·10^(SNR_fs/10)))`. With the SoI's average power
+    `P_sig = 1` and `SNR_fs = 5.97 dB` (`10^0.597 = 3.95`),
+    `σ = sqrt(1 / (2·3.95)) = 0.356`, i.e. complex noise power
+    `2σ² = 0.253 ≈ −5.97 dBFS` — the floor, as designed.
+1. **Realised SNRs.** SoI: `0 − (−5.97) = 5.97 dB` over `fs` (15 dB Es/No).
+    Interferer A sits `−12 − (−5.97) = −6.0 dB` relative to the floor;
+    B sits `−20 − (−5.97) = −14.0 dB`.
+
+This is exactly what `TestSNRModes` and `TestNoise` in
+`src/doppler/wfm/tests/test_dsp_correctness.py` measure back from the generated
+samples (`wfm_awgn_amplitude` / `wfm_ebno_to_snr_db` conversions, plus per-mode
+realised-SNR and noise-power estimates).
+
+### Raw kernel vs composer: who applies the gain
+
+A standalone `Synth` (and `_SynthEngine`) is the **raw, scale-free kernel**:
+`Synth(type="noise").steps(n)` always emits **unit complex power**
+(`σ² = 0.5` per quadrature) *regardless of* `level`, `snr`, or `snr_mode`. The
+`level` gain and the multi-source noise-floor placement above are applied by
+the **`Composer`** (`wfm_compose.c` post-multiplies each source by
+`10^(level/20)`; `wfm_resolve.c` sets the floor). So amplitude only appears
+once samples flow through a `Composer`/`Segment`:
+
+```python
+>>> import numpy as np, doppler.wfm as w
+>>> x = w.Synth(type="noise", level=-20.0, seed=7).steps(100_000)
+>>> round(float(np.mean(np.abs(x) ** 2)), 3)   # raw kernel ignores level
+0.999
+>>> c = w.Composer([w.Segment("noise", level=-20.0, num_samples=100_000, seed=7)])
+>>> round(float(np.mean(np.abs(c.compose()) ** 2)), 3)  # composer applies it
+0.01
+```
+
+This split is intentional — the kernel stays scale-free so it composes
+cleanly — but it is easy to trip over: **set `level`/`snr` on a `Segment`/
+`Composer`, not on a bare `Synth`, when you want them to take effect.**
+
+### `compose()` needs a finite spec
+
+`Composer.compose()` materialises the **entire** stream into one array, so it
+requires a bounded timeline. A `repeat=True` (loop the sequence) or
+`continuous=True` (never stop) spec has no end — calling `compose()` on one
+loops without bound. Pull bounded blocks instead with `Composer.stream(block=…)`
+or `Composer.execute(n)` (the same engine behind the CLI `--continuous`). The
+`repeat`/`continuous` flags still round-trip through `to_json`/`to_dict`.
+
 ## Headroom
 
 **`--headroom <dB>`** (default `0`) reserves peak room by scaling the **final

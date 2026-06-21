@@ -322,11 +322,45 @@ class TestComposerGraph:
         assert np.array_equal(c.compose(), c2.compose())
 
     def test_to_sigmf_valid_json(self) -> None:
-        c = w.Composer([w.Segment("tone", freq=1e5, num_samples=128)])
+        # Two segments -> two annotations; documents the sidecar schema in
+        # docs/guide/wfmgen.md (#sigmf-sidecar-schema).
+        c = w.Composer(
+            [
+                w.Segment(
+                    "qpsk", sps=8, snr=20.0, snr_mode="esno", num_samples=4096
+                ),
+                w.Segment("tone", freq=1e5, num_samples=2048),
+            ]
+        )
         meta = json.loads(c.to_sigmf(sample_type="ci16", fs=1e6, fc=2.4e9))
-        assert meta["global"]["core:datatype"] == "ci16_le"
-        assert meta["global"]["core:sample_rate"] == 1_000_000
-        assert "core:version" in meta["global"]
+
+        g = meta["global"]
+        assert g["core:datatype"] == "ci16_le"
+        assert g["core:sample_rate"] == 1_000_000
+        assert g["core:version"] == "1.0.0"
+
+        # Single capture carries the RF centre.
+        assert meta["captures"][0]["core:sample_start"] == 0
+        assert meta["captures"][0]["core:frequency"] == 2.4e9
+
+        # One annotation per source, in order, with the wfmgen:* ground truth.
+        anns = meta["annotations"]
+        assert len(anns) == 2
+        assert anns[0]["core:label"] == "qpsk"
+        assert anns[1]["core:label"] == "tone"
+        assert anns[0]["core:sample_start"] == 0
+        assert anns[0]["core:sample_count"] == 4096
+        assert anns[1]["core:sample_start"] == 4096
+        for a in anns:
+            assert a["core:freq_lower_edge"] <= a["core:freq_upper_edge"]
+            for k in (
+                "wfmgen:snr",
+                "wfmgen:snr_mode",
+                "wfmgen:sps",
+                "wfmgen:seed",
+            ):
+                assert k in a
+        assert anns[0]["wfmgen:snr_mode"] == "esno"
 
     def test_context_manager_and_close(self) -> None:
         with w.Composer([w.Segment("tone", freq=1e5, num_samples=64)]) as c:

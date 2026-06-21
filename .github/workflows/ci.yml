@@ -30,7 +30,7 @@ jobs:
     - name: Install jbx
       run: |
         mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
+        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just_bashit/just-runit" \
           -o "$HOME/.local/bin/just-runit"
         chmod +x "$HOME/.local/bin/just-runit"
         ln -sf just-runit "$HOME/.local/bin/jb"
@@ -135,7 +135,7 @@ jobs:
     - name: Install jbx
       run: |
         mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
+        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just_bashit/just-runit" \
           -o "$HOME/.local/bin/just-runit"
         chmod +x "$HOME/.local/bin/just-runit"
         ln -sf just-runit "$HOME/.local/bin/jb"
@@ -253,7 +253,7 @@ jobs:
     - name: Install jbx
       run: |
         mkdir -p "$HOME/.local/bin"
-        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just-runit" \
+        curl -fsSL "https://raw.githubusercontent.com/just-buildit/just-bashit/main/src/just_bashit/just-runit" \
           -o "$HOME/.local/bin/just-runit"
         chmod +x "$HOME/.local/bin/just-runit"
         ln -sf just-runit "$HOME/.local/bin/jb"

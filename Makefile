@@ -173,6 +173,8 @@ PYTHON_EXAMPLE_SCRIPTS := \
     examples/python/wfmgen_demo.py \
     examples/python/wfm_composition_demo.py \
     examples/python/wfm_io_demo.py \
+    examples/python/wfm_receiver_ber.py \
+    examples/python/wfm_rrc_response.py \
     examples/python/pn_codes.py \
     examples/python/wcdma_carriers_demo.py \
     examples/standalone/example.py

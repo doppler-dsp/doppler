@@ -13,6 +13,23 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.19.1] — 2026-06-21
+
+### Added
+
+- **`wfmgen --help` rewrite** — grouped sections (WAVEFORM TYPE, SIGNAL
+    PARAMETERS, NOISE/SNR, PULSE SHAPING, BITS INPUT, PN SEQUENCE,
+    AMPLITUDE & CLIPPING, OUTPUT, COMPOSITION, REAL-TIME), per-flag
+    descriptions with defaults, pipe-separated choices (`auto | fs | ebno | esno`), and copy-paste EXAMPLES.
+- **Build internals doc** (`docs/dev/build-internals.md`) — CMake layer,
+    just-buildit PEP 517 hook, manylinux/auditwheel pipeline, CI and release
+    pipeline job tables, troubleshooting guide, local wheel replication steps.
+- **CLI vs Python API side-by-side** in the wfmgen guide multi-segment
+    section — tabbed `--from-file` JSON spec and `Composer` equivalent showing
+    byte-identical output from the same C engine.
+- **Python examples shipped in the wheel** (`src/doppler/examples/`) — all
+    37 example scripts now install with the package.
+
 ## [0.19.0] — 2026-06-21
 
 ### Added
@@ -1549,6 +1566,7 @@ ______________________________________________________________________
 [0.17.0]: https://github.com/doppler-dsp/doppler/compare/v0.16.2...v0.17.0
 [0.18.0]: https://github.com/doppler-dsp/doppler/compare/v0.17.0...v0.18.0
 [0.19.0]: https://github.com/doppler-dsp/doppler/compare/v0.18.0...v0.19.0
+[0.19.1]: https://github.com/doppler-dsp/doppler/compare/v0.19.0...v0.19.1
 [0.2.0]: https://github.com/doppler-dsp/doppler/compare/v0.1.0...v0.2.0
 [0.2.3]: https://github.com/doppler-dsp/doppler/compare/v0.2.0...v0.2.3
 [0.2.5]: https://github.com/doppler-dsp/doppler/compare/v0.2.3...v0.2.5
@@ -1575,4 +1593,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.19.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.19.1...HEAD

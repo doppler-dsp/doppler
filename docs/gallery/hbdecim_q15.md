@@ -35,7 +35,7 @@ x[n] → [even samples x[0], x[2], x[4], …] → FIR branch  → +→ y[m]
 ```
 
 The FIR branch applies the non-zero coefficients to the even-indexed inputs.
-The delay branch passes the odd-indexed input at the center lag (x[2m−N])
+The delay branch passes the odd-indexed input at the center lag (`x[2m−N]`)
 scaled by 0.5 (the halfband polyphase rate identity).
 
 Only `N/2` multiplications are needed per output sample instead of `N`

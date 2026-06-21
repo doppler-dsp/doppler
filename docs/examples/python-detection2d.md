@@ -24,7 +24,7 @@ coherent sidelobe contamination of the CFAR noise reference.
 
 Three panels:
 
-- **Left** — acquisition surface |R[i,j]| after M coherent dwells.
+- **Left** — acquisition surface `|R[i,j]|` after M coherent dwells.
     White cross = injected (Doppler bin, code-phase); red circle = peak.
 - **Centre** — Pd vs dwell M: Marcum Q theory + MC operating point.
 - **Right** — ROC at operating SNR and dwell: theory, empirical swept

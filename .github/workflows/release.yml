@@ -98,11 +98,11 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
-          jbx -r install-deps -g runtime,dev -s apt
+          jbx just-bashit:install-deps -g runtime,dev -s apt
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
-        run: jbx -r install-deps -g runtime,dev -s brew
+        run: jbx just-bashit:install-deps -g runtime,dev -s brew
 
       # `make pyext` ends in `uv sync`, so uv must be on PATH (the per-version
       # CI job gets this from setup-uv; the gate needs it too). Pin a single
@@ -238,7 +238,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install system dependencies
-        run: jbx -r install-deps -g runtime,dev -s brew
+        run: jbx just-bashit:install-deps -g runtime,dev -s brew
 
       - name: Build wheel (Python ${{ matrix.python }})
         run: |

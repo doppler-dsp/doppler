@@ -40,7 +40,7 @@ jobs:
     - name: Install system deps
       run: |
         sudo apt-get update
-        jbx -r install-deps -g runtime,dev -s apt
+        jbx just-bashit:install-deps -g runtime,dev -s apt
 
     - name: Install uv + Python 3.12
       uses: astral-sh/setup-uv@v4

@@ -640,7 +640,8 @@ doppler_wfmgen (int argc, char *argv[])
               wfm_compose_destroy (comp);
               return 1;
             }
-          fp = out_path ? fopen (out_path, "wb") : stdout;
+          fp = (!out_path || !strcmp (out_path, "-")) ? stdout
+                                                      : fopen (out_path, "wb");
         }
       if (!fp)
         {

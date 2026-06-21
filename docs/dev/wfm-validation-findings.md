@@ -19,6 +19,11 @@ ______________________________________________________________________
 
 ### pn-default-poly — `PN()` default polynomial is degenerate
 
+> **✅ Resolved in #196** (closes #191) — `PN()` with `poly` omitted/0 now
+> auto-selects the MLS primitive polynomial, matching `Synth(pn_poly=0)`. The
+> xfail is removed; `TestPN::test_default_poly_is_maximal_length` is now a
+> positive regression test.
+
 **Symbol:** `doppler.wfm.PN`
 **Severity:** medium (silent wrong output — a non-maximal sequence)
 **xfail:** `TestPN::test_default_poly_is_maximal_length`
@@ -62,6 +67,9 @@ docstring.
 
 ### cli-output-dash — `wfmgen --output -` writes a file named `-`, not stdout
 
+> **✅ Resolved in #196** (closes #192) — `wfmgen --output -` now writes to
+> stdout. The xfail is removed; the check is now a positive regression test.
+
 **Symbol:** `wfmgen` CLI (`--output`/`-o`)
 **Severity:** low (documented stdout idiom silently writes a stray file)
 **xfail:** `TestCLI::test_output_dash_is_stdout`
@@ -92,6 +100,10 @@ ordinary output path (`fopen("-")`) instead of special-casing it to `stdout`.
 the omitted-`--output` stdout default. The former matches common CLI convention.
 
 ### zmqsink-stream-dtype-gap — `doppler.stream` can't decode `ZmqSink` cf32/ci16/ci8
+
+> **✅ Resolved in #196** (closes #193) — `doppler.stream` now decodes all six
+> `dp_sample_type_t` wire types (cf32/ci16/ci8 added). The xfail is removed and
+> `test_zmqsink_cf32_decodes_in_stream` is now a positive round-trip test.
 
 **Symbols:** `doppler.wfm.ZmqSink` ↔ `doppler.stream.Subscriber`/`Pull`
 **Severity:** high (the **default** `ZmqSink` sample type is undeliverable to the

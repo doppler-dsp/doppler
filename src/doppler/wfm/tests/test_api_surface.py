@@ -485,30 +485,20 @@ class TestZmqSinkAndClock:
         return x, got
 
     def test_zmqsink_to_subscriber(self) -> None:
-        # Live PUB->SUB over ipc:// proves ZmqSink actually moves samples to a
-        # doppler.stream Subscriber. Use cf64: the Python stream receiver only
-        # decodes CI32/CF64/CF128 of the 6-member dp_sample_type_t (see the
-        # cf32 xfail below + findings #zmqsink-stream-dtype-gap).
+        # Live PUB->SUB over ipc:// proves ZmqSink moves samples to a
+        # doppler.stream Subscriber. cf64 round-trips bit-exactly.
         stream = pytest.importorskip("doppler.stream")
         x, got = self._sink_to_sub(stream, "cf64")
         assert got is not None, "no frame received from ZmqSink"
         assert np.allclose(got, x.astype(np.complex128), atol=1e-9)
 
-    @pytest.mark.xfail(
-        reason="doppler.stream.Subscriber decodes only CI32/CF64/CF128, so "
-        "ZmqSink's default cf32 (dp_sample_type_t CF32=5) frames are "
-        "undecodable; see docs/dev/wfm-validation-findings.md"
-        "#zmqsink-stream-dtype-gap",
-        strict=True,
-        raises=ValueError,
-    )
     def test_zmqsink_cf32_decodes_in_stream(self) -> None:
-        # cf32 is wfm's DEFAULT sample type and the most common ZmqSink path,
-        # yet the Python stream Subscriber cannot decode it. Pinned strict so
-        # the follow-up fix (teach doppler.stream the full enum) trips CI.
+        # cf32 is wfm's DEFAULT sample type + the most common ZmqSink path;
+        # doppler.stream now decodes all six dp_sample_type_t types (#193).
         stream = pytest.importorskip("doppler.stream")
-        _x, got = self._sink_to_sub(stream, "cf32")
-        assert got is not None
+        x, got = self._sink_to_sub(stream, "cf32")
+        assert got is not None, "no cf32 frame received from ZmqSink"
+        assert np.allclose(got, x, atol=1e-4)
 
     def test_zmqsink_clip_properties(self) -> None:
         import tempfile
@@ -710,13 +700,8 @@ class TestCLI:
         )
         assert json.loads(rec.read_text())  # a resolved spec record
 
-    @pytest.mark.xfail(
-        reason="--output - writes a file named '-'; see "
-        "docs/dev/wfm-validation-findings.md#cli-output-dash",
-        strict=True,
-    )
     def test_output_dash_is_stdout(self, tmp_path) -> None:
-        # Docs (guide/wfmgen.md) say '-' prints to stdout.
+        # Docs (guide/wfmgen.md) say '-' prints to stdout (#192).
         r = subprocess.run(
             [
                 WFMGEN,

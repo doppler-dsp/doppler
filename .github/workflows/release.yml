@@ -78,46 +78,41 @@ jobs:
   # Re-add macos-latest once both are fixed. macOS wheels still build + the
   # macOS CTest suite still runs in ci.yml.
   # ------------------------------------------------------------------
-  test:
-    name: Test gate on ${{ matrix.os }}
+  # ------------------------------------------------------------------
+  # Confirm the tagged commit already passed CI on main — don't re-run the
+  # suite. The release bump lands via a PR, so the merge to main is the real
+  # gate; here we just poll the "CI passed" aggregator check on this SHA (see
+  # the ci-passed job in ci.yml and the release-process skill).
+  # ------------------------------------------------------------------
+  verify-ci:
+    name: Verify CI passed on the tagged commit
     needs: verify-version
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install jbx
+      - name: Poll for the "CI passed" check on this SHA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          curl -sSL https://just-buildit.github.io/get-jb.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Install dependencies (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          jbx just-bashit:install-deps -g runtime,dev -s apt
-
-      - name: Install dependencies (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: jbx just-bashit:install-deps -g runtime,dev -s brew
-
-      # `make pyext` ends in `uv sync`, so uv must be on PATH (the per-version
-      # CI job gets this from setup-uv; the gate needs it too). Pin a single
-      # interpreter — CI already ran the full 3.9–3.14 matrix on this commit;
-      # the gate only re-confirms the suite on the shipping platforms.
-      - name: Install uv + Python
-        uses: astral-sh/setup-uv@v4
-        with:
-          python-version: '3.12'
-
-      - name: Build + Python extensions
-        run: make pyext
-
-      - name: CTest + pytest + example smoke tests
-        run: make test-all
+          for i in $(seq 1 60); do
+            line="$(gh api "repos/$REPO/commits/$SHA/check-runs" --paginate \
+              --jq '.check_runs[] | select(.name == "CI passed")
+                    | "\(.status) \(.conclusion)"' | head -n1)"
+            status="${line%% *}"; conclusion="${line#* }"
+            if [[ "$status" == "completed" && "$conclusion" == "success" ]]; then
+              echo "CI passed on $SHA."; exit 0
+            elif [[ "$status" == "completed" && -n "$conclusion" \
+                    && "$conclusion" != "success" ]]; then
+              echo "::error::CI concluded '$conclusion' on $SHA — refusing to release."
+              exit 1
+            fi
+            echo "Waiting for 'CI passed' on $SHA... ($i/60)"; sleep 20
+          done
+          echo "::error::Timed out waiting for 'CI passed' on $SHA."; exit 1
 
   # ------------------------------------------------------------------
   # Build Python wheels
@@ -365,9 +360,41 @@ jobs:
   # ------------------------------------------------------------------
   # Publish to PyPI (uses trusted publishing — configure in PyPI)
   # ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # Pre-publish smoke: install the just-built wheel in a clean interpreter and
+  # run the published-wheel e2e (deploy/validation/wfm_e2e.py) — validates the
+  # actual artifact, not the source tree, before it goes to PyPI.
+  # ------------------------------------------------------------------
+  smoke-wheel:
+    name: Smoke-test the built wheel
+    needs: build-python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download the cp312 wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: python-dist-cp312
+          path: dist/
+
+      - name: Install the built wheel + run the e2e from a clean dir
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          # cd out of the repo so `import doppler` resolves to the installed
+          # wheel, not the ./src tree.
+          cd "${RUNNER_TEMP}"
+          python "${GITHUB_WORKSPACE}/deploy/validation/wfm_e2e.py"
+          python -c "import doppler; print('doppler', doppler.__version__)"
+
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, test, build-sdist, build-python, build-macos]
+    needs: [verify-version, verify-ci, smoke-wheel, build-sdist, build-python, build-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -390,7 +417,7 @@ jobs:
     name: Create GitHub Release
     needs:
       - verify-version
-      - test
+      - verify-ci
       - build-sdist
       - build-python
       - build-macos

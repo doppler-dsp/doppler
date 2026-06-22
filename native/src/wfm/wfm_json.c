@@ -198,7 +198,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
   cJSON *root = cJSON_CreateObject ();
   if (!root)
     return NULL;
-  cJSON_AddStringToObject (root, "version", "wfmgen-1");
+  cJSON_AddNumberToObject (root, "version", 1);
   cJSON_AddBoolToObject (root, "repeat", repeat != 0);
   cJSON_AddBoolToObject (root, "continuous", continuous != 0);
   if (headroom != 0.0) /* omit at 0 dB so pre-headroom specs are unchanged */

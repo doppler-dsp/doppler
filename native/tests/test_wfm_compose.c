@@ -102,7 +102,7 @@ main (void)
   char *json = wfm_spec_to_json (segs, 2, 0, 0, 0.0);
   CHECK (json, "to_json");
   CHECK (strstr (json, "\"tone\"") && strstr (json, "\"qpsk\""), "type names");
-  CHECK (strstr (json, "wfmgen-1"), "version tag");
+  CHECK (strstr (json, "\"version\""), "version tag");
   wfm_compose_state_t *jc = wfm_compose_from_json (json);
   CHECK (jc, "from_json");
   static float complex jall[8192];
@@ -139,7 +139,7 @@ main (void)
   {
     char *tpl = wfm_spec_template_json ();
     CHECK (tpl, "template built");
-    CHECK (strstr (tpl, "wfmgen-1"), "template version tag");
+    CHECK (strstr (tpl, "\"version\""), "template version tag");
     CHECK (strstr (tpl, "\"sum\""), "template shows a multi-source segment");
     wfm_compose_state_t *tc = wfm_compose_from_json (tpl);
     CHECK (tc, "template round-trips through from_json");

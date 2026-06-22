@@ -12,7 +12,7 @@ build-backend = "just_buildit"
 
 [project]
 name = "doppler-dsp"
-version = "0.19.1"
+version = "0.20.0"
 description = "Dead-simple, ultra-fast digital signal processing."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -97,6 +97,7 @@ dev = [
     "rich>=13.0",
     "matplotlib>=3.10.9; python_version >= '3.10'",
     "matplotlib<3.10; python_version == '3.9'",
+    "jsonschema>=4.18",
 ]
 # Docs toolchain is intentionally separate from dev so wheel builds can
 # uv sync --no-group docs and avoid a docs-dep network blip failing a release.

@@ -138,6 +138,7 @@ nav:
       - Gallery: gallery/index.md
       - Waveform Generator: gallery/wfmgen.md
       - Waveform Scenes: gallery/wfm-composition.md
+      - Waveform JSON Round-Trip: gallery/wfm-json.md
       - WCDMA Carriers: gallery/wcdma-carriers.md
       - Waveform Write: gallery/wfm-write.md
       - Waveform I/O: gallery/wfm-io.md

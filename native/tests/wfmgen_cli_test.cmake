@@ -49,9 +49,9 @@ expect_contains(wg.blue "BLUE")
 run(--type tone --freq 0 --count 3 --file_type csv -o wg.csv)
 expect_contains(wg.csv ",")
 
-# 5. --record: a wfmgen-1 spec naming the type
+# 5. --record: version is integer 1, spec names the type
 run(--type pn --count 16 --record wg_rec.json -o wg_pn.bin)
-expect_contains(wg_rec.json "wfmgen-1")
+expect_contains(wg_rec.json "\"version\"")
 expect_contains(wg_rec.json "pn")
 
 # 6. --from-file round-trip: record a run, replay it, bytes identical

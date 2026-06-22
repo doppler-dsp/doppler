@@ -13,6 +13,34 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-06-22
+
+### Added
+
+- **Canonical wfmgen JSON schema** (`docs/schema/wfmgen.schema.json`,
+    JSON Schema 2020-12) — covers both segment forms (inline
+    single-source and multi-source `sum`), all source fields (`f_end`,
+    `lfsr`, `level`, `modulation`/`pattern`, `pulse`/`rrc_*`,
+    `headroom`), with `additionalProperties: false` so unknown keys
+    are caught. Replaces the partial sketch in the C header comment.
+- **Schema validation test suite** (`test_schema.py`, 36 tests) — 18
+    live `wfmgen --record` invocations covering every waveform type,
+    SNR mode, pulse shape, and LFSR convention; plus `json-template`
+    and `--from-file` round-trip; plus 8 static valid and 8 static
+    invalid cases. Caught a real gap: `sps`/`pn_length` are
+    zero-initialised in the noise source injected by
+    `wfm_resolve_noise`. Adds `jsonschema>=4.18` to dev deps.
+- **`wfm_json_demo.py` example + gallery page** — end-to-end
+    demonstration of `Composer.to_json()` → `Composer.from_json()`
+    byte-identical round-trip, with spectrogram and inline JSON panel.
+
+### Changed
+
+- **wfmgen JSON `version` field is now the integer `1`** (was the
+    string `"wfmgen-1"`). The parser ignores the field so existing
+    `--from-file` specs continue to work; new `--record` output and
+    `to_json()` emit the integer form.
+
 ## [0.19.1] — 2026-06-21
 
 ### Added

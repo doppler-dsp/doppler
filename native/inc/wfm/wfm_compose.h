@@ -142,17 +142,9 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
 
 /* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
 /*
- * One canonical schema, sample-exact so a recorded run reproduces byte-for-byte
- * when fed back via --from-file:
- *
- *   { "version": "wfmgen-1", "repeat": false, "continuous": false,
- *     "segments": [
- *       { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
- *         "snr_mode": "auto", "seed": 1, "sps": 8, "pn_length": 7,
- *         "pn_poly": 0, "num_samples": 1000, "off_samples": 500 }, … ] }
- *
- * `type` and `snr_mode` are strings; everything else is numeric. Missing fields
- * fall back to the synth defaults.
+ * Canonical schema: docs/schema/wfmgen.schema.json (JSON Schema 2020-12).
+ * A recorded run reproduces byte-for-byte when fed back via --from-file.
+ * Use `wfmgen json-template` for a ready-to-edit example covering all fields.
  */
 
 /**

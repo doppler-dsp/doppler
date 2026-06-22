@@ -413,7 +413,7 @@ the Python `Composer` API drive the same C engine, so their output is
 
     ```json title="scenario.json"
     {
-      "version": "wfmgen-1",
+      "version": 1,
       "segments": [
         { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
           "num_samples": 10000, "off_samples": 5000 },
@@ -518,7 +518,7 @@ themselves with `level` (a plain dBFS offset); giving a non-anchor *both* `snr`
 and `level` is a spec error. A single-source segment keeps its bundled AWGN
 untouched, so it is byte-identical to the pre-composition path.
 
-In the `wfmgen-1` JSON schema, a mixed segment replaces the inline source fields
+In the wfmgen JSON schema, a mixed segment replaces the inline source fields
 with a **`sum`** array (each entry is a source; `fs`/`num_samples`/`off_samples`
 stay on the segment):
 

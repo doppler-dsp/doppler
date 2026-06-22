@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wfmgen.schema.json",
+  "title": "wfmgen",
+  "description": "Canonical spec for the doppler waveform composer. Shared by --from-file (read) and --record (write); a recorded run reproduces byte-for-byte when fed back.",
+  "type": "object",
+  "required": ["version", "segments"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Schema version. Must be the integer 1."
+    },
+    "repeat": {
+      "type": "boolean",
+      "default": false,
+      "description": "Loop the whole segment sequence after the last segment finishes."
+    },
+    "continuous": {
+      "type": "boolean",
+      "default": false,
+      "description": "Never finish; execute always returns max samples. Implies repeat."
+    },
+    "headroom": {
+      "type": "number",
+      "default": 0.0,
+      "description": "Writer output backoff (dB). Applied at the writer, not the composer, so the segment-level SNR values are not affected. Omitted in the round-trip record when 0 to keep pre-headroom specs byte-identical."
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered sequence of segments. Each segment is either a single inline source or a multi-source sum. Segments play in order; repeat/continuous governs what happens after the last one.",
+      "items": { "$ref": "#/$defs/segment" }
+    }
+  },
+
+  "$defs": {
+
+    "source_type": {
+      "type": "string",
+      "enum": ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"],
+      "description": "Waveform type. tone: complex sinusoid. noise: AWGN. pn: PN sequence (LFSR). bpsk/qpsk: PN-driven modulation. chirp: linear-FM sweep. bits: user-supplied bit pattern with selectable modulation."
+    },
+
+    "snr_mode": {
+      "type": "string",
+      "enum": ["auto", "fs", "ebno", "esno"],
+      "default": "auto",
+      "description": "SNR reference convention. auto: over full-scale for tone/noise/pn/chirp, Es/N0 for bpsk/qpsk/bits. fs: dB relative to full scale. ebno: Eb/N0 (per-bit). esno: Es/N0 (per-symbol)."
+    },
+
+    "source": {
+      "description": "One additive source within a segment. Inline single-source segments embed these fields directly alongside fs/num_samples/off_samples. Multi-source segments place them inside the 'sum' array.",
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/source_type" },
+
+        "freq": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Carrier frequency offset from baseband (Hz). For chirp: the start frequency."
+        },
+        "f_end": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Chirp sweep end frequency (Hz). Ignored by all types other than chirp."
+        },
+
+        "snr": {
+          "type": "number",
+          "default": 100.0,
+          "description": "Signal-to-noise ratio (dB), interpreted according to snr_mode. 100 dB is the clean-signal threshold (no AWGN injected)."
+        },
+        "snr_mode": { "$ref": "#/$defs/snr_mode" },
+
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "PRNG seed (AWGN) and/or LFSR initial state (pn/bpsk/qpsk/bits)."
+        },
+        "sps": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 8,
+          "description": "Samples per symbol (bpsk/qpsk/bits) or per chip (pn). 0 in serialised noise sources (field unused; zero-initialised by wfm_resolve_noise)."
+        },
+
+        "pn_length": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 7,
+          "description": "LFSR register length in bits. 2–64 for PN-bearing types; 0 in serialised noise sources (field unused; zero-initialised by wfm_resolve_noise). Auto-selects the MLS primitive polynomial when pn_poly is 0."
+        },
+        "pn_poly": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "LFSR generator polynomial in the Galois bit-vector convention. 0 auto-selects the built-in primitive polynomial for pn_length. Polynomials larger than 2^53 are not losslessly representable as JSON numbers; use 0 (auto) or the CLI for register lengths that require them."
+        },
+        "lfsr": {
+          "type": "string",
+          "enum": ["galois", "fibonacci"],
+          "default": "galois",
+          "description": "LFSR feedback convention. fibonacci taps are derived from the canonical Galois polynomial so both conventions produce the same MLS sequence with the same period."
+        },
+
+        "level": {
+          "type": "number",
+          "maximum": 0.0,
+          "default": 0.0,
+          "description": "Source average power in dBFS (≤ 0). 0 = unit average power (no scaling). Used in multi-source sum segments to place each source relative to the shared noise floor. Omitted in the round-trip record when 0 to keep single-source specs byte-identical."
+        },
+
+        "modulation": {
+          "type": "string",
+          "enum": ["none", "bpsk", "qpsk"],
+          "default": "bpsk",
+          "description": "Modulation scheme for type=bits. none: the bit pattern is shaped and output as-is (NRZ). bpsk: ±1 BPSK symbols. qpsk: Gray-coded QPSK symbols from pairs of bits."
+        },
+        "pattern": {
+          "type": "string",
+          "pattern": "^[01]+$",
+          "description": "Bit pattern for type=bits: a string of '0' and '1' characters. Repeats cyclically to fill num_samples. Required for type=bits when used via --from-file; omitted by --record (the pattern is regenerated from seed/pn_length/pn_poly at playback)."
+        },
+
+        "pulse": {
+          "type": "string",
+          "enum": ["rect", "rrc"],
+          "default": "rect",
+          "description": "Pulse shape applied per symbol/chip for pn/bpsk/qpsk/bits types. rect: rectangular (no ISI filtering). rrc: root-raised cosine; see rrc_beta and rrc_span. Omitted in the round-trip record when rect to keep default specs compact."
+        },
+        "rrc_beta": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.35,
+          "description": "RRC roll-off factor β (0–1). Only used when pulse=rrc."
+        },
+        "rrc_span": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 8,
+          "description": "RRC filter support in symbols (the filter length is rrc_span * sps + 1 taps). Only used when pulse=rrc."
+        }
+      }
+    },
+
+    "inline_segment": {
+      "description": "Single-source segment: source fields appear inline alongside the segment timing fields. Byte-identical to driving that source's synth directly.",
+      "type": "object",
+      "required": ["type", "fs"],
+      "additionalProperties": false,
+      "properties": {
+        "type":       { "$ref": "#/$defs/source_type" },
+        "fs": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "description": "Sample rate (Hz)."
+        },
+        "freq":       { "$ref": "#/$defs/source/properties/freq" },
+        "f_end":      { "$ref": "#/$defs/source/properties/f_end" },
+        "snr":        { "$ref": "#/$defs/source/properties/snr" },
+        "snr_mode":   { "$ref": "#/$defs/snr_mode" },
+        "seed":       { "$ref": "#/$defs/source/properties/seed" },
+        "sps":        { "$ref": "#/$defs/source/properties/sps" },
+        "pn_length":  { "$ref": "#/$defs/source/properties/pn_length" },
+        "pn_poly":    { "$ref": "#/$defs/source/properties/pn_poly" },
+        "lfsr":       { "$ref": "#/$defs/source/properties/lfsr" },
+        "num_samples": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "On-time length (samples). The synth runs for exactly this many samples before the off-time gap."
+        },
+        "off_samples": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Trailing zero-gap after the segment (samples)."
+        },
+        "level":      { "$ref": "#/$defs/source/properties/level" },
+        "modulation": { "$ref": "#/$defs/source/properties/modulation" },
+        "pattern":    { "$ref": "#/$defs/source/properties/pattern" },
+        "pulse":      { "$ref": "#/$defs/source/properties/pulse" },
+        "rrc_beta":   { "$ref": "#/$defs/source/properties/rrc_beta" },
+        "rrc_span":   { "$ref": "#/$defs/source/properties/rrc_span" }
+      }
+    },
+
+    "sum_segment": {
+      "description": "Multi-source segment: two or more sources are summed over the same time span. Noise resolution (wfm_resolve_noise) requires exactly one source to anchor the noise floor — that source carries snr without level; all other sources use level (dBFS) to place their power relative to the floor.",
+      "type": "object",
+      "required": ["fs", "sum"],
+      "additionalProperties": false,
+      "properties": {
+        "fs": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "description": "Sample rate (Hz) shared by all sources in this segment."
+        },
+        "num_samples": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "On-time length (samples)."
+        },
+        "off_samples": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Trailing zero-gap after the segment (samples)."
+        },
+        "sum": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Sources to add together. Each entry is a source object (no fs/num_samples/off_samples — those are the segment's). The --record output always writes at least two sources here.",
+          "items": { "$ref": "#/$defs/source" }
+        }
+      }
+    },
+
+    "segment": {
+      "description": "One composer segment. Exactly one of 'type' (inline single-source) or 'sum' (multi-source array) must be present; having both or neither is an error.",
+      "oneOf": [
+        { "$ref": "#/$defs/inline_segment" },
+        { "$ref": "#/$defs/sum_segment" }
+      ]
+    }
+
+  }
+}

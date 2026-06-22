@@ -96,7 +96,7 @@ run forever:
 
 ```json
 {
-  "version": "wfmgen-1", "repeat": false, "continuous": false,
+  "version": 1, "repeat": false, "continuous": false,
   "segments": [
     { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
       "num_samples": 10000, "off_samples": 5000 },

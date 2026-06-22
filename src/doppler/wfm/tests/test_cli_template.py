@@ -27,7 +27,7 @@ def test_json_template_stdout_is_valid_json():
     )
     assert p.returncode == 0
     spec = json.loads(p.stdout)  # parses as JSON
-    assert spec["version"] == "wfmgen-1"
+    assert spec["version"] == 1
     assert len(spec["segments"]) >= 1
 
 
@@ -40,7 +40,7 @@ def test_json_template_to_file(tmp_path):
     assert p.returncode == 0
     assert p.stdout == b""  # nothing on stdout when a path is given
     spec = json.loads(out.read_text())
-    assert spec["version"] == "wfmgen-1"
+    assert spec["version"] == 1
 
 
 def test_json_template_roundtrips_through_from_file(tmp_path):

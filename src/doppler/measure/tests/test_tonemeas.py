@@ -2,7 +2,7 @@ from doppler.measure import ToneMeasure
 
 
 def test_create():
-    obj = ToneMeasure("kaiser", 8192, 1.0, 12.0, 2, 8, 1.0, 0)
+    obj = ToneMeasure(8192, 1.0, 8, 1.0, 0, 90.0, 0)
     assert obj is not None
 
 
@@ -15,10 +15,10 @@ def test_reset():
 
 
 def test_context_manager():
-    with ToneMeasure("kaiser", 8192, 1.0, 12.0, 2, 8, 1.0, 0):
+    with ToneMeasure(8192, 1.0, 8, 1.0, 0, 90.0, 0):
         pass
 
 
 def test_destroy():
-    obj = ToneMeasure("kaiser", 8192, 1.0, 12.0, 2, 8, 1.0, 0)
+    obj = ToneMeasure(8192, 1.0, 8, 1.0, 0, 90.0, 0)
     obj.destroy()

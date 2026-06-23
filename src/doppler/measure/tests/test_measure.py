@@ -32,14 +32,14 @@ def test_defaults_construct():
 def test_full_scale_tone_reads_zero_dbfs(offset):
     # window-bandwidth integration: a full-scale tone reads ~0 dBFS at any
     # sub-bin offset.
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     r = m.analyze(_cos(300.0 + offset, 1.0))
     assert abs(r.fund_dbfs) < 0.1
     assert abs(r.fund_freq - (300.0 + offset) / 4096) < 2e-3
 
 
 def test_thd_known_harmonics():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     x = _cos(200, 1.0) + _cos(400, 0.01)  # 2nd harmonic at -40 dBc
     r = m.analyze(x)
     assert abs(r.thd - (-40.0)) < 0.5
@@ -47,7 +47,7 @@ def test_thd_known_harmonics():
 
 
 def test_sfdr_nonharmonic_spur():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     x = _cos(200, 1.0) + _cos(777, 1e-3)  # -60 dBc non-harmonic spur
     r = m.analyze(x)
     assert abs(r.sfdr_dbc - 60.0) < 1.0
@@ -56,7 +56,7 @@ def test_sfdr_nonharmonic_spur():
 
 
 def test_snr_white_noise():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     rng = np.random.default_rng(0)
     a, sigma = 0.5, 1e-3
     x = _cos(211, a) + (sigma * rng.standard_normal(4096)).astype(np.float32)
@@ -69,7 +69,7 @@ def test_snr_white_noise():
 def test_multiframe_averaging():
     # A capture longer than n is split into floor(len/n) segments whose power
     # spectra are averaged before the metric kernel runs (the PSD path).
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     one = _cos(211, 0.5)
     r1 = m.analyze(one)
 
@@ -92,7 +92,7 @@ def test_multiframe_averaging():
 
 
 def test_complex_negative_frequency():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     i = np.arange(4096)
     x = np.exp(-2j * np.pi * 137 * i / 4096).astype(np.complex64)
     r = m.analyze_complex(x)
@@ -110,16 +110,18 @@ def test_enob_of_ideal_adc(bits):
     fs_amp = 2.0 ** (bits - 1)
     x = 0.999 * np.sin(2 * np.pi * 1234.567 * np.arange(n) / n)
     codes = adc.steps(x.astype(np.float32)).astype(np.float32)
+    # dynamic_range_db=106 -> Kaiser beta ~14 (window-sidelobe formula).
     m = ToneMeasure(
-        window="kaiser", n=n, beta=14.0, n_harmonics=10, full_scale=fs_amp
+        n=n, n_harmonics=10, full_scale=fs_amp, dynamic_range_db=106.0
     )
     r = m.analyze(codes)
     assert abs(r.enob - bits) < 0.3
     assert abs(r.sinad - (6.02 * bits + 1.76)) < 1.0
 
     # bits=B is sugar for full_scale=2**(B-1): the single dBFS source of truth.
+    # (the explicit dynamic_range_db override drives the window either way.)
     rb = ToneMeasure(
-        window="kaiser", n=n, beta=14.0, n_harmonics=10, bits=bits
+        n=n, n_harmonics=10, bits=bits, dynamic_range_db=106.0
     ).analyze(codes)
     assert rb.fund_dbfs == pytest.approx(r.fund_dbfs, abs=1e-6)
     assert rb.enob == pytest.approx(r.enob, abs=1e-6)
@@ -135,7 +137,7 @@ def test_time_stats():
 
 
 def test_named_result_fields_and_unpacking():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     r = m.analyze(_cos(300, 1.0))
     assert type(r).__name__ == "ToneMetrics"
     assert type(r).__module__ == "doppler.measure"
@@ -146,7 +148,7 @@ def test_named_result_fields_and_unpacking():
 
 
 def test_spectrum_dbfs_shape():
-    m = ToneMeasure(n=4096, beta=12.0)
+    m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     s = m.spectrum_dbfs(_cos(300, 1.0))
     assert s.shape == (m.nfft,)
     assert s.dtype == np.float32
@@ -154,7 +156,7 @@ def test_spectrum_dbfs_shape():
 
 
 def test_accuracy_metadata():
-    m = ToneMeasure(n=4096, fs=1e6, beta=12.0)
+    m = ToneMeasure(n=4096, fs=1e6, dynamic_range_db=90.0)
     r = m.analyze(_cos(300, 1.0))
     assert r.lobe_bins == m.lobe_bins
     assert r.bin_hz == pytest.approx(1e6 / m.nfft)
@@ -174,8 +176,9 @@ def test_capture_planning_helpers():
     )
 
     # min_samples reaches the requested RBW once analysed at that length.
-    n = measure_min_samples(1e6, 200.0, 1, 12.0)
-    m = ToneMeasure(window="kaiser", n=n, fs=1e6, beta=12.0)
+    # Signature: (fs, target_rbw, bits, dynamic_range_db, complex_input).
+    n = measure_min_samples(1e6, 200.0, 0, 90.0, 0)
+    m = ToneMeasure(n=n, fs=1e6, dynamic_range_db=90.0)
     assert m.rbw <= 200.0 * 1.05  # within ~5% of target
 
     assert measure_rec_nfft(8000, 2) == 16384

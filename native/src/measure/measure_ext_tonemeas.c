@@ -45,42 +45,27 @@ ToneMeasureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ToneMeasureObj_init (ToneMeasureObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "window",      "n",          "fs",   "beta",     "pad",
-          "n_harmonics", "full_scale", "bits", "dc_guard", NULL };
-  const char        *window_str      = "kaiser";
-  unsigned long long n_raw           = 8192;
-  double             fs              = 1.0;
-  float              beta            = 12.0f;
-  unsigned long long pad_raw         = 2;
-  unsigned long long n_harmonics_raw = 8;
-  double             full_scale      = 1.0;
-  unsigned long long bits_raw        = 0;
-  unsigned long long dc_guard_raw    = 0;
+  static char       *kwlist[] = { "n",          "fs",   "n_harmonics",
+                                  "full_scale", "bits", "dynamic_range_db",
+                                  "dc_guard",   NULL };
+  unsigned long long n_raw    = 8192;
+  double             fs       = 1.0;
+  unsigned long long n_harmonics_raw  = 8;
+  double             full_scale       = 1.0;
+  unsigned long long bits_raw         = 0;
+  double             dynamic_range_db = 0.0;
+  unsigned long long dc_guard_raw     = 0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "|sKdfKKdKK", kwlist, &window_str, &n_raw, &fs, &beta,
-          &pad_raw, &n_harmonics_raw, &full_scale, &bits_raw, &dc_guard_raw))
+          args, kwds, "|KdKdKdK", kwlist, &n_raw, &fs, &n_harmonics_raw,
+          &full_scale, &bits_raw, &dynamic_range_db, &dc_guard_raw))
     return -1;
-  int window = 0;
-  if (strcmp (window_str, "hann") == 0)
-    window = 0;
-  else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "window must be one of \"hann\", \"kaiser\", got '%s'",
-                    window_str);
-      return -1;
-    }
   size_t n           = (size_t)n_raw;
-  size_t pad         = (size_t)pad_raw;
   size_t n_harmonics = (size_t)n_harmonics_raw;
   size_t bits        = (size_t)bits_raw;
   size_t dc_guard    = (size_t)dc_guard_raw;
-  self->handle       = tonemeas_create (n, fs, window, beta, pad, n_harmonics,
-                                        full_scale, bits, dc_guard);
+  self->handle       = tonemeas_create (n, fs, n_harmonics, full_scale, bits,
+                                        dynamic_range_db, dc_guard);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "tonemeas_create returned NULL");
@@ -482,6 +467,28 @@ ToneMeasure_getprop_lobe_bins (ToneMeasureObject *self,
       (unsigned long long)self->handle->lobe_bins);
 }
 static PyObject *
+ToneMeasure_getprop_spur_guard_bins (ToneMeasureObject *self,
+                                     void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->spur_guard_bins);
+}
+static PyObject *
+ToneMeasure_getprop_beta (ToneMeasureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->beta);
+}
+static PyObject *
 ToneMeasure_getprop_rbw (ToneMeasureObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -521,6 +528,9 @@ static PyGetSetDef ToneMeasure_getset[]
         { "enbw", (getter)ToneMeasure_getprop_enbw, NULL, "Enbw.\n", NULL },
         { "lobe_bins", (getter)ToneMeasure_getprop_lobe_bins, NULL,
           "Lobe bins.\n", NULL },
+        { "spur_guard_bins", (getter)ToneMeasure_getprop_spur_guard_bins, NULL,
+          "Spur guard bins.\n", NULL },
+        { "beta", (getter)ToneMeasure_getprop_beta, NULL, "Beta.\n", NULL },
         { "rbw", (getter)ToneMeasure_getprop_rbw, NULL, "Rbw.\n", NULL },
         { "bin_hz", (getter)ToneMeasure_getprop_bin_hz, NULL, "Bin hz.\n",
           NULL },
@@ -586,7 +596,7 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import ToneMeasure\n"
-    "    >>> obj = ToneMeasure(\"kaiser\", 8192, 1.0, 12.0, 2, 8, 1.0, 0, 0)\n"
+    "    >>> obj = ToneMeasure(8192, 1.0, 8, 1.0, 0, 0.0, 0)\n"
     "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
@@ -602,9 +612,9 @@ static PyTypeObject ToneMeasureObjType = {
   .tp_basicsize                           = sizeof (ToneMeasureObject),
   .tp_dealloc                             = (destructor)ToneMeasureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a ToneMeasure analyser.\n",
-  .tp_methods                             = ToneMeasureObj_methods,
-  .tp_getset                              = ToneMeasure_getset,
-  .tp_new                                 = ToneMeasureObj_new,
-  .tp_init                                = (initproc)ToneMeasureObj_init,
+  .tp_doc     = "Create a ToneMeasure analyser (auto Kaiser window).\n",
+  .tp_methods = ToneMeasureObj_methods,
+  .tp_getset  = ToneMeasure_getset,
+  .tp_new     = ToneMeasureObj_new,
+  .tp_init    = (initproc)ToneMeasureObj_init,
 };

@@ -60,6 +60,18 @@ _bind_kaiser_window(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_kaiser_beta_for_sidelobe(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"atten_db", NULL};
+    double atten_db = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "d",
+            _kwlist, &atten_db))
+        return NULL;
+    return PyFloat_FromDouble(kaiser_beta_for_sidelobe(atten_db));
+}
+
+static PyObject *
 _bind_hann_window(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
@@ -224,6 +236,7 @@ _bind_noise_floor_db(PyObject *self, PyObject *args, PyObject *kwds)
 static PyMethodDef spectral_module_methods[] = {
     {"kaiser_enbw", (PyCFunction)(void *)_bind_kaiser_enbw, METH_VARARGS | METH_KEYWORDS, "kaiser_enbw."},
     {"kaiser_window", (PyCFunction)(void *)_bind_kaiser_window, METH_VARARGS | METH_KEYWORDS, "kaiser_window."},
+    {"kaiser_beta_for_sidelobe", (PyCFunction)(void *)_bind_kaiser_beta_for_sidelobe, METH_VARARGS | METH_KEYWORDS, "kaiser_beta_for_sidelobe."},
     {"hann_window", (PyCFunction)(void *)_bind_hann_window, METH_VARARGS | METH_KEYWORDS, "hann_window."},
     {"blackman_harris_window", (PyCFunction)(void *)_bind_blackman_harris_window, METH_VARARGS | METH_KEYWORDS, "blackman_harris_window."},
     {"magnitude_db_cf32", (PyCFunction)(void *)_bind_magnitude_db_cf32, METH_VARARGS | METH_KEYWORDS, "magnitude_db_cf32."},

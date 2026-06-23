@@ -27,25 +27,34 @@ typedef struct {
     psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
     float         *pwr;     /* metric working buffer, one-sided power     */
     double enbw;            /* window equivalent noise bandwidth (bins)   */
+    double beta;            /* auto-selected Kaiser shape (from DR target) */
+    size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
     size_t n;               /* capture / frame length                     */
     size_t nfft;            /* zero-padded transform length               */
     double fs;              /* sample rate (Hz)                           */
 } nprmeas_state_t;
 
 /**
- * @brief Create an NPRMeasure analyser.
- * @param n           Capture/frame length (>= 2).
- * @param fs          Sample rate (Hz, > 0).
- * @param window      0 = Hann, 1 = Kaiser.
- * @param beta        Kaiser shape (ignored for Hann).
- * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n*pad).
- * @param full_scale  Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
- * @param bits        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1)
- *                    (resolved in the shared PSD core).
+ * @brief Create an NPRMeasure analyser (auto Kaiser window).
+ *
+ * The window is always Kaiser; its shape is auto-selected so the sidelobes sit
+ * below the requested dynamic range (see measure_resolve_dr()).  The chosen
+ * window also sets a minimum notch keep-out so active-band noise cannot leak
+ * into the notch average through the window skirt.
+ *
+ * @param n                Capture/frame length (>= 2).
+ * @param fs               Sample rate (Hz, > 0).
+ * @param full_scale       Amplitude that equals 0 dBFS (> 0).  Ignored if
+ *                         bits > 0.
+ * @param bits             ADC depth: bits>0 sets the 0-dBFS reference to
+ *                         2^(bits-1) and, unless overridden, the dynamic-range
+ *                         target.
+ * @param dynamic_range_db Explicit sidelobe/dynamic-range target (dB); used
+ *                         when > 0, else derived from @p bits.
  * @return Heap state, or NULL on bad args / allocation failure.
  */
-nprmeas_state_t *nprmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale, size_t bits);
+nprmeas_state_t *nprmeas_create(size_t n, double fs, double full_scale,
+                                size_t bits, double dynamic_range_db);
 
 /** @brief Destroy an NPRMeasure analyser. @param state May be NULL. */
 void nprmeas_destroy(nprmeas_state_t *state);

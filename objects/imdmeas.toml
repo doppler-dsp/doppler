@@ -24,21 +24,6 @@ type = "double"
 default = "1.0"
 
 [[imdmeas.init_params]]
-name = "window"
-type = "string_enum:hann,kaiser"
-default = "kaiser"
-
-[[imdmeas.init_params]]
-name = "beta"
-type = "float"
-default = "12.0f"
-
-[[imdmeas.init_params]]
-name = "pad"
-type = "size_t"
-default = "2"
-
-[[imdmeas.init_params]]
 name = "full_scale"
 type = "double"
 default = "1.0"
@@ -47,6 +32,11 @@ default = "1.0"
 name = "bits"
 type = "size_t"
 default = "0"
+
+[[imdmeas.init_params]]
+name = "dynamic_range_db"
+type = "double"
+default = "0.0"
 
 [[imdmeas.methods]]
 name = "analyze"

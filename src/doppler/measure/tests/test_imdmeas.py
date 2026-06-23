@@ -15,7 +15,7 @@ def _c(cyc, amp):
 
 def test_imd3_and_toi():
     x = _c(200, 1.0) + _c(250, 1.0) + _c(150, 0.01) + _c(300, 0.01)
-    m = IMDMeasure(window="kaiser", n=N, fs=1.0, beta=12.0)
+    m = IMDMeasure(n=N, fs=1.0, dynamic_range_db=90.0)
     r = m.analyze(x.astype(np.float32))
     assert abs(r.f1 - 200 / N) < 2e-3
     assert abs(r.f2 - 250 / N) < 2e-3
@@ -27,7 +27,7 @@ def test_imd3_and_toi():
 
 def test_imd_named_result():
     x = _c(200, 1.0) + _c(250, 1.0) + _c(150, 0.01) + _c(300, 0.01)
-    m = IMDMeasure(n=N, fs=1.0, beta=12.0)
+    m = IMDMeasure(n=N, fs=1.0, dynamic_range_db=90.0)
     r = m.analyze(x.astype(np.float32))
     assert type(r).__name__ == "IMDMetrics"
     assert type(r).__module__ == "doppler.measure"

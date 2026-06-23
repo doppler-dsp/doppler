@@ -46,7 +46,7 @@ tone = 10.017e6                          # non-coherent so quant. noise spreads
 x = 0.999 * np.sin(2 * np.pi * tone * np.arange(n) / fs)
 codes = ADC(12, 0.0, 0).steps(x.astype(np.float32)).astype(np.float32)
 
-m = ToneMeasure(window="kaiser", n=n, fs=fs, beta=12.0, full_scale=2.0**11)
+m = ToneMeasure(n=n, fs=fs, bits=12, full_scale=2.0**11)
 r = m.analyze(codes)
 print(f"SNR {r.snr:.1f} dB  SINAD {r.sinad:.1f} dB  "
       f"SFDR {r.sfdr_dbc:.1f} dBc  ENOB {r.enob:.2f} bits")

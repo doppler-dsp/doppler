@@ -68,10 +68,8 @@ def main() -> None:
     ftone = 10.017e6  # ~10 MHz, non-coherent so quantisation noise spreads
     codes = adc_capture(12, ftone, harmonics=[(2, -62), (3, -70), (5, -78)])
     m = ToneMeasure(
-        window="kaiser",
         n=N,
         fs=FS,
-        beta=12.0,
         n_harmonics=8,
         bits=12,
     )
@@ -146,7 +144,9 @@ def main() -> None:
     enobs = []
     for b in bits_list:
         codes = adc_capture(b, 9.013e6)
-        mb = ToneMeasure(n=N, fs=FS, beta=14.0, n_harmonics=10, bits=b)
+        mb = ToneMeasure(
+            n=N, fs=FS, dynamic_range_db=106.0, n_harmonics=10, bits=b
+        )
         enobs.append(mb.analyze(codes).enob)
     ax.plot(bits_list, bits_list, color=FLOOR, ls="-", label="ideal (ENOB=N)")
     ax.plot(bits_list, enobs, "o", color=ACCENT, label="measured")
@@ -162,7 +162,7 @@ def main() -> None:
     ax = axes[1, 0]
     inj = [(2, -55), (3, -63), (4, -72), (5, -68)]
     codes = adc_capture(14, 7.011e6, harmonics=inj)
-    mc = ToneMeasure(n=N, fs=FS, beta=12.0, n_harmonics=8, bits=14)
+    mc = ToneMeasure(n=N, fs=FS, dynamic_range_db=90.0, n_harmonics=8, bits=14)
     rc = mc.analyze(codes)
     spec_c = mc.spectrum_dbfs(codes)
     ks = [2, 3, 4, 5, 6, 7]
@@ -190,7 +190,9 @@ def main() -> None:
     for bo in backoffs:
         amp = 0.999 * 10 ** (-bo / 20)
         codes = adc_capture(12, 9.013e6, amp=amp)
-        md = ToneMeasure(n=N, fs=FS, beta=14.0, n_harmonics=10, bits=12)
+        md = ToneMeasure(
+            n=N, fs=FS, dynamic_range_db=106.0, n_harmonics=10, bits=12
+        )
         rd = md.analyze(codes)
         snr.append(rd.snr)
         sinad.append(rd.sinad)

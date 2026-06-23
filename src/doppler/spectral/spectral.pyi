@@ -940,6 +940,9 @@ def kaiser_enbw(w: NDArray[np.float32]) -> float:
 def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
     """Kaiser window."""
 
+def kaiser_beta_for_sidelobe(atten_db: float) -> float:
+    """Kaiser beta for sidelobe."""
+
 def hann_window(w: NDArray[np.float32]) -> None:
     """Hann window."""
 

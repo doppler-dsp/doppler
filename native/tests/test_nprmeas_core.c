@@ -56,7 +56,8 @@ main (void)
   int    _fails = 0;
   float *x      = (float *)malloc (NCAP * sizeof (float));
 
-  nprmeas_state_t *m = nprmeas_create (NCAP, 1.0, 1, 12.0f, 2, 1.0, 0);
+  /* dynamic_range_db = 90 -> Kaiser beta ~12, matching the old default. */
+  nprmeas_state_t *m = nprmeas_create (NCAP, 1.0, 1.0, 0, 90.0);
   CHECK (m != NULL);
 
   /* active band [0.06, 0.46], notch [0.20, 0.25] (k in [200,250] over n) ->

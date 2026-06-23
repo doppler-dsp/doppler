@@ -7,6 +7,11 @@ tells you how much to trust them. The analyser owns its window, zero-padding and
 FFT, so it controls the spectral computation end-to-end — you hand it
 time-domain data, it returns the metric bag.
 
+You state the **dynamic range** you need (directly, or implied by an ADC's bit
+depth); the analyser auto-selects the window so its sidelobes sit below that
+range and never cap the measurement. You do not pick a window or a Kaiser
+`beta` — see [Auto-window selection](#auto-window-selection).
+
 This page defines every measurement and the conventions behind them. For the API
 see [`ToneMeasure`](../api/python-measure.md); for the worked plots see the
 [gallery page](../gallery/measure.md).
@@ -37,17 +42,68 @@ suites at sub-bin offsets of 0, ¼ and ½ a bin).
 
 ### Main-lobe half-width `L`
 
-`L` is the window's null-to-null half-width in un-padded bins, scaled by the
-zero-pad interpolation factor `nfft/n`, plus a guard bin:
+`L` is the Kaiser window's null-to-null half-width in un-padded bins, scaled by
+the zero-pad interpolation factor `nfft/n`, plus a guard bin:
 
 $$
 L = \Big\lceil \frac{n_\text{fft}}{n}\cdot w_\text{lobe} \Big\rceil + 1,
 \qquad
-w_\text{lobe} = \begin{cases} 2 & \text{Hann}\\[2pt]
-\sqrt{1+(\beta/\pi)^2} & \text{Kaiser}(\beta)\end{cases}
+w_\text{lobe} = \sqrt{1+(\beta/\pi)^2}
 $$
 
 It is reported as `lobe_bins`.
+
+### Spur-search keep-out `spur_guard_bins`
+
+`L` is the right width to **integrate** a component's power, but it is the wrong
+width to **exclude** the fundamental when hunting for the worst spur. A bin just
+past the first null (`L`) still sits on the fundamental's first (highest)
+sidelobe — so a keep-out of only `±L` would report that *window leakage* as the
+worst spur, capping SFDR at the window's sidelobe level instead of the DUT's.
+
+The spur search therefore excludes a wider band, `spur_guard_bins = L + ⌈w_lobe·nfft/n⌉`
+(roughly `2L`), which reaches past the first sidelobe into the region where the
+auto-selected window is already below the requested dynamic range. Power
+integration still uses `L`; only the spur **candidacy** test uses the wider
+guard. The same principle protects IMD tone-pair detection and the NPR notch
+keep-out. It is reported as `spur_guard_bins`.
+
+______________________________________________________________________
+
+## Auto-window selection
+
+You never choose a window or Kaiser `beta`. Instead you state a **dynamic-range
+target** `A` (dB) and the analyser picks the *minimum* Kaiser `beta` whose own
+peak sidelobe sits at `−A` — via the Kaiser window-design formula
+([`kaiser_beta_for_sidelobe`](../api/python-spectral.md)):
+
+$$
+\beta = \begin{cases}
+0.12438\,(A+6.3) & A > 60\\[2pt]
+0.76609\,(A-13.26)^{0.4} + 0.09834\,(A-13.26) & 13.26 < A \le 60\\[2pt]
+0 & A \le 13.26
+\end{cases}
+$$
+
+Taking the *minimum* β that meets `A` keeps the main lobe — and therefore the
+resolution bandwidth `ENBW·f_s/n` — as narrow as the requirement allows, which
+also maximises the noise-bin count for the best SNR/ENOB precision. This is the
+"most precise measurement the data supports" principle.
+
+The target `A` resolves from the constructor in this order:
+
+1. an explicit `dynamic_range_db` argument, else
+1. `6.02·bits + 1.76 + 12` dB derived from the ADC `bits` (the ideal converter
+    SNR plus ~12 dB of headroom, so window leakage stays below the converter's
+    own floor), else
+1. a deep `120` dB default for a general DUT.
+
+!!! note "This is the *window* sidelobe formula, not the FIR one"
+
+    `doppler.measure` uses the Kaiser **window** design formula above.
+    `doppler.resample.kaiser_beta()` uses the Kaiser **FIR-filter** formula
+    (`0.1102(A−8.7)`), where `A` is a filter stopband ripple — about 13 dB lower
+    than a window's own peak sidelobe at the same β. Do not cross the two.
 
 ______________________________________________________________________
 
@@ -160,7 +216,7 @@ self-describing:
 | ------------------- | -------------------------------------------------------------------- |
 | `bin_hz`            | FFT bin spacing `f_s/n_fft` — interpolation grid, **not** resolution |
 | `rbw_hz`, `enbw_hz` | resolution bandwidth `ENBW·f_s/n` — uses **`n`, not `n_fft`**        |
-| `lobe_bins`         | main-lobe half-width `L`                                             |
+| `lobe_bins`         | main-lobe half-width `L` (power integration)                         |
 | `n_noise_bins`      | bins counted as noise                                                |
 | `proc_gain_db`      | FFT processing gain $10\log_{10}(n_\text{fft}/2)$                    |
 | `floor_uncert_db`   | noise-floor standard error $\approx 4.34/\sqrt{n_\text{noise}}$      |
@@ -175,9 +231,13 @@ self-describing:
 
 ### Sizing the capture
 
-To resolve a target RBW, the helper functions give the required length and a
-recommended transform size (see the API reference): `measure_min_samples` returns
-$\lceil \text{ENBW}\cdot f_s/\text{RBW} \rceil$, and `dp_coherent_freq` snaps a test tone to the nearest
+To resolve a target RBW, `measure_min_samples(fs, target_rbw, bits, dynamic_range_db, complex_input)`
+returns $\lceil \text{ENBW}\cdot f_s/\text{RBW} \rceil$ for the **same** auto-selected
+window the analyser will use — the dynamic-range target (from `bits` or
+`dynamic_range_db`) fixes `beta`, whose ENBW sets the bins-per-RBW — so a capture
+planned at that length lands at the requested RBW. A non-positive `target_rbw`
+defaults to `span/1000` (span = `f_s/2` real, `f_s` complex), a sensible
+"good enough" grid. `dp_coherent_freq` then snaps a test tone to the nearest
 leakage-free coherent frequency (integer cycles in the capture, coprime with `N`)
 — the right way to set up an ADC test so the tone sits on a bin and quantisation
 noise decorrelates.

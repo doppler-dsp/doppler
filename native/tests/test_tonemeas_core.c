@@ -44,7 +44,9 @@ main (void)
 
   /* ── 1. lobe-integration invariance: a full-scale tone reads ~0 dBFS at
    *       any sub-bin offset (the headline correctness property) ── */
-  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 1, 12.0f, 2, 8, 1.0, 0, 0);
+  /* dynamic_range_db = 90 -> Kaiser beta ~12 (window-sidelobe formula),
+   * matching the old fixed beta=12 default so the legacy assertions hold. */
+  tonemeas_state_t *m = tonemeas_create (NCAP, 1.0, 8, 1.0, 0, 90.0, 0);
   CHECK (m != NULL);
   for (int t = 0; t < 3; t++)
     {
@@ -170,6 +172,49 @@ main (void)
   CHECK (r.bin_hz > 0.0 && r.rbw_hz > 0.0);
   CHECK (r.lobe_bins == m->lobe_bins);
   CHECK (r.n_noise_bins > 0);
+
+  /* ── 10. auto-window: beta is the window-sidelobe value for the DR target ──
+   *  bits=12 -> DR = 6.02*12 + 1.76 + margin; beta must match that closed
+   *  form, and the spur guard must be strictly wider than the integration
+   *  lobe (so the fundamental's first sidelobe is excluded from spur search).
+   */
+  {
+    tonemeas_state_t *mb = tonemeas_create (NCAP, 1.0, 8, 1.0, 12, 0.0, 0);
+    CHECK (mb != NULL);
+    double dr_expect   = measure_dr_from_bits (12);
+    double beta_expect = kaiser_beta_for_sidelobe (dr_expect);
+    CHECK (fabs (mb->beta - beta_expect) < 1e-9);
+    CHECK (mb->spur_guard_bins > mb->lobe_bins);
+    tonemeas_destroy (mb);
+  }
+
+  /* ── 11. SFDR is not capped by the window's own sidelobes (the spur fix) ──
+   *  A *clean* full-scale tone has no real spur, so SFDR is limited only by
+   * the window's first sidelobe.  The auto window targets DR dB; the spur
+   * search excludes the fundamental's main lobe AND first (highest) sidelobe,
+   * so the reported SFDR must come out at or above the DR target, never capped
+   * at the first-sidelobe level (which the old lobe_bins-only keep-out would
+   * report).
+   */
+  {
+    const double      DR = 70.0;
+    tonemeas_state_t *ms = tonemeas_create (NCAP, 1.0, 8, 1.0, 0, DR, 0);
+    CHECK (ms != NULL);
+    for (size_t i = 0; i < NCAP; i++)
+      x[i] = 0.0f;
+    add_cos (x, NCAP, 300.0, 1.0); /* clean full-scale tone, no spur */
+    tone_meas_t rc = tonemeas_analyze (ms, x, NCAP);
+    /* worst "spur" must be the residual below the DR target, not the first
+     * sidelobe sitting just past the main lobe. */
+    CHECK (rc.sfdr_dbc > DR);
+    /* and it must be found away from the fundamental's keep-out zone */
+    double guard_hz = (double)ms->spur_guard_bins * rc.bin_hz;
+    CHECK (fabs (rc.worst_spur_freq - rc.fund_freq) > 0.5 * guard_hz);
+    tonemeas_destroy (ms);
+  }
+
+  /* (measure_min_samples round-trip is covered by the Python measure tests,
+   *  which link the measure module core.) */
 
   tonemeas_destroy (m);
   free (x);

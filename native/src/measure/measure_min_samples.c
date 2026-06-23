@@ -1,9 +1,12 @@
 /*
  * measure_min_samples.c — capture length for a target resolution bandwidth.
  *
- * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).  The Kaiser ENBW
- * is measured from a reference window (reusing spectral_core's kaiser_enbw)
- * rather than a closed form; Hann is the constant 1.5.
+ * Plans a capture for the auto-Kaiser window the measurement objects use: the
+ * dynamic-range target (override, else ADC bits, else a deep default) selects
+ * the Kaiser beta via the Kaiser-Schafer formula, and that window's ENBW
+ * (measured by spectral_core's kaiser_enbw on a reference window) sets the
+ * bins-per-RBW.  RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+ * A non-positive target_rbw defaults to span/1000 (span = fs/2 real, fs cplx).
  */
 #include "measure/measure_core.h"
 
@@ -13,25 +16,32 @@
 #include <stdlib.h>
 
 size_t
-measure_min_samples (double fs, double target_rbw, int window, float beta)
+measure_min_samples (double fs, double target_rbw, size_t bits,
+                     double dynamic_range_db, int complex_input)
 {
-  if (fs <= 0.0 || target_rbw <= 0.0)
+  if (fs <= 0.0)
     return 0;
-  double enbw;
-  if (window == 1) /* Kaiser: measure ENBW from a reference window */
+
+  if (target_rbw <= 0.0)
     {
-      enum
-      {
-        REF = 1024
-      };
-      float *w = (float *)malloc (REF * sizeof (float));
-      if (!w)
-        return 0;
-      kaiser_window (w, REF, beta);
-      enbw = (double)kaiser_enbw (w, REF);
-      free (w);
+      double span = complex_input ? fs : fs * 0.5;
+      target_rbw  = span / 1000.0;
     }
-  else
-    enbw = 1.5; /* Hann */
+
+  double dr   = measure_resolve_dr (dynamic_range_db, bits);
+  double beta = kaiser_beta_for_sidelobe (dr);
+
+  /* Measure the chosen window's ENBW from a reference window. */
+  enum
+  {
+    REF = 1024
+  };
+  float *w = (float *)malloc (REF * sizeof (float));
+  if (!w)
+    return 0;
+  kaiser_window (w, REF, (float)beta);
+  double enbw = (double)kaiser_enbw (w, REF);
+  free (w);
+
   return (size_t)ceil (enbw * fs / target_rbw);
 }

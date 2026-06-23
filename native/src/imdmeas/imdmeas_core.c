@@ -7,6 +7,8 @@
  */
 #include "imdmeas/imdmeas_core.h"
 
+#include "spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
+
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
@@ -23,20 +25,23 @@ fold_real (double f, double fs)
 }
 
 imdmeas_state_t *
-imdmeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                double full_scale, size_t bits)
+imdmeas_create (size_t n, double fs, double full_scale, size_t bits,
+                double dynamic_range_db)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
+  if (n < 2 || fs <= 0.0)
     return NULL;
-  if (pad < 1)
-    pad = 1;
   imdmeas_state_t *s = (imdmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
+
+  /* Auto-window: minimum Kaiser beta meeting the dynamic-range target. */
+  double dr   = measure_resolve_dr (dynamic_range_db, bits);
+  double beta = kaiser_beta_for_sidelobe (dr);
+
   /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
    * s->psd->full_scale so it is defined exactly once. */
-  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
-                       ACC_TRACE_MEAN, 0.0);
+  s->psd = psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
+                       full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       imdmeas_destroy (s);
@@ -46,16 +51,21 @@ imdmeas_create (size_t n, double fs, int window, float beta, size_t pad,
   s->nfft = s->psd->nfft;
   s->fs   = fs;
   s->enbw = s->psd->enbw;
+  s->beta = beta;
   s->pwr  = (float *)malloc (s->nfft * sizeof (float));
   if (!s->pwr)
     {
       imdmeas_destroy (s);
       return NULL;
     }
-  double p_eff = (double)s->nfft / (double)n;
-  double lobe_un
-      = (window == 1) ? sqrt (1.0 + (beta / M_PI) * (beta / M_PI)) : 2.0;
-  s->lobe_bins = (size_t)ceil (lobe_un * p_eff) + 1;
+  /* L: main-lobe half-width for power integration; spur_guard_bins (>= L) is
+   * the wider tone keep-out so a tone's sidelobe is never taken for the other
+   * tone (or for an IM product near it). */
+  double p_eff   = (double)s->nfft / (double)n;
+  double lobe_un = sqrt (1.0 + (beta / M_PI) * (beta / M_PI));
+  s->lobe_bins   = (size_t)ceil (lobe_un * p_eff) + 1;
+  s->spur_guard_bins
+      = s->lobe_bins + (size_t)ceil (MEASURE_SPUR_SIDELOBES * lobe_un * p_eff);
   return s;
 }
 
@@ -107,12 +117,14 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
   if (nbins == 0)
     return r; /* capture holds no full frame */
   double df = s->fs / (double)s->nfft;
-  long   L  = (long)s->lobe_bins;
+  long   G  = (long)s->spur_guard_bins;
 
-  /* find the two strongest lobes (the fundamentals) */
+  /* find the two strongest lobes (the fundamentals).  Skip the first G bins so
+   * a tone's near-DC sidelobe is not picked, and keep the two tones at least G
+   * apart so one tone's sidelobe is never mistaken for the other. */
   long   ka = -1;
   double pa = -1.0;
-  for (long k = L + 1; k < (long)nbins; k++)
+  for (long k = G + 1; k < (long)nbins; k++)
     if ((double)s->pwr[k] > pa)
       {
         pa = (double)s->pwr[k];
@@ -120,9 +132,9 @@ imdmeas_analyze (imdmeas_state_t *s, const float *x, size_t n_in)
       }
   long   kb = -1;
   double pb = -1.0;
-  for (long k = L + 1; k < (long)nbins; k++)
+  for (long k = G + 1; k < (long)nbins; k++)
     {
-      if (labs (k - ka) <= 2 * L)
+      if (labs (k - ka) <= G)
         continue;
       if ((double)s->pwr[k] > pb)
         {

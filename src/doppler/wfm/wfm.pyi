@@ -166,19 +166,126 @@ class _SynthEngine:
     def __exit__(self, *args: object) -> None: ...
 
 def bpsk_map(bits: NDArray[np.uint8]) -> NDArray[np.complex64]:
-    """Map bits {0,1} to BPSK symbols {+1,-1} (cf32)."""
+    """Map bits {0,1} to BPSK symbols {+1,-1} (cf32).
+
+    Parameters
+    ----------
+    bits : NDArray[np.uint8]
+        Array of uint8 values; only the LSB of each byte is used.
+
+    Returns
+    -------
+    NDArray[np.complex64]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.wfm import bpsk_map
+    >>> import numpy as np
+    >>> bits = np.array([0, 1, 0, 1], dtype=np.uint8)
+    >>> bpsk_map(bits).tolist()
+    [(1+0j), (-1+0j), (1+0j), (-1+0j)]
+
+    """
 
 def qpsk_map(syms: NDArray[np.uint8]) -> NDArray[np.complex64]:
-    """Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32)."""
+    """Map QPSK symbol indices {0,1,2,3} to Gray-coded symbols (cf32).
+
+    Parameters
+    ----------
+    syms : NDArray[np.uint8]
+        Array of uint8 symbol indices; values must be in {0,1,2,3}. Bits above position 1 are ignored.
+
+    Returns
+    -------
+    NDArray[np.complex64]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.wfm import qpsk_map
+    >>> import numpy as np
+    >>> idx = np.array([0, 1, 2, 3], dtype=np.uint8)
+    >>> out = qpsk_map(idx)
+    >>> [round(float(v.real), 4) for v in out]
+    [0.7071, -0.7071, 0.7071, -0.7071]
+    >>> [round(float(v.imag), 4) for v in out]
+    [0.7071, 0.7071, -0.7071, -0.7071]
+
+    """
 
 def wfm_awgn_amplitude(snr_db: float, signal_power: float) -> float:
-    """AWGN amplitude for a target SNR (dB, over fs) given signal power."""
+    """AWGN amplitude for a target SNR (dB, over fs) given signal power.
+
+    Parameters
+    ----------
+    snr_db : float
+        Target SNR in dB, referenced to the full sample rate.
+    signal_power : float
+        RMS power of the signal (e.g. 1.0 for unit-power complex tones or unit-energy BPSK/QPSK symbols).
+
+    Returns
+    -------
+    float
+        Per-component AWGN amplitude (sigma for one I or Q channel).
+
+    Examples
+    --------
+    >>> from doppler.wfm import wfm_awgn_amplitude
+    >>> round(float(wfm_awgn_amplitude(10.0, 1.0)), 6)
+    0.223607
+    >>> round(float(wfm_awgn_amplitude(0.0, 1.0)), 6)
+    0.707107
+
+    """
 
 def wfm_ebno_to_snr_db(ebno_db: float, bits_per_symbol: int, samples_per_symbol: float) -> float:
-    """Convert Eb/No (dB) to SNR (dB over fs)."""
+    """Convert Eb/No (dB) to SNR (dB over fs).
+
+    Parameters
+    ----------
+    ebno_db : float
+        Eb/No in dB (energy per bit over noise spectral density).
+    bits_per_symbol : int
+        Bits carried per modulation symbol: 1 for BPSK, 2 for QPSK.
+    samples_per_symbol : float
+        Oversampling ratio (sps), e.g. 8.0.
+
+    Returns
+    -------
+    float
+        SNR in dB measured over the full sample-rate bandwidth.
+
+    Examples
+    --------
+    >>> from doppler.wfm import wfm_ebno_to_snr_db
+    >>> round(float(wfm_ebno_to_snr_db(10.0, 2, 8.0)), 4)
+    3.9794
+    >>> round(float(wfm_ebno_to_snr_db(10.0, 1, 8.0)), 4)
+    0.9691
+
+    """
 
 def mls_poly(n: int) -> int:
-    """Maximal-length-sequence primitive polynomial for an LFSR of length n."""
+    """Maximal-length-sequence primitive polynomial for an LFSR of length n.
+
+    Parameters
+    ----------
+    n : int
+        LFSR length in stages (2..64).
+
+    Returns
+    -------
+    int
+        Primitive-polynomial tap mask, or 0 if @p n is out of range.
+
+    Examples
+    --------
+    >>> from doppler.wfm import mls_poly
+    >>> hex(mls_poly(7))
+    '0x41'
+
+    """
 
 def rrc_taps(beta: float, sps: int, span: int) -> NDArray[np.float32]:
     """Root-raised-cosine pulse-shaping taps (2*span*sps+1 unit-energy cf32 taps)."""

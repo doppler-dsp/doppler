@@ -17,14 +17,14 @@ the SNR and the coherent dwell. The whole chain is closed-form and stateless:
 
 ```pycon
 >>> from doppler.detection import det_threshold, det_pd, det_dwell, det_snr
->>> thr = det_threshold(1e-6)        # threshold for Pfa = 1e-6
+>>> thr = det_threshold(pfa=1e-6)               # threshold for Pfa = 1e-6
 >>> round(thr, 4)
 5.2565
->>> round(det_pd(1.613, 8, thr), 2)  # amplitude SNR 1.613, 8-sample dwell
+>>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)
 0.9
->>> det_dwell(0.5, 0.9, 1e-6, 256)   # dwell to reach Pd>=0.9 at SNR 0.5
+>>> det_dwell(snr=0.5, pd_min=0.9, pfa=1e-6, max_dwell=256)
 84
->>> round(det_snr(8, 0.9, 1e-6), 3)  # inverse: min SNR for Pd>=0.9 at dwell 8
+>>> round(det_snr(dwell=8, pd_min=0.9, pfa=1e-6), 3)  # inverse of det_pd
 1.613
 
 ```
@@ -34,9 +34,9 @@ the Rayleigh tail `exp(-b²/2)`:
 
 ```pycon
 >>> from doppler.detection import marcum_q
->>> round(marcum_q(1, 0.0, 1.0), 5)  # P(Rayleigh > 1) = exp(-0.5)
+>>> round(marcum_q(m=1, a=0.0, b=1.0), 5)  # P(Rayleigh > 1) = exp(-0.5)
 0.60653
->>> round(marcum_q(1, 2.0, 1.0), 5)  # signal present (a = 2)
+>>> round(marcum_q(m=1, a=2.0, b=1.0), 5)  # signal present (a = 2)
 0.91811
 
 ```

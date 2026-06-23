@@ -62,13 +62,13 @@ extern "C" {
  *
  * @code
  * >>> from doppler.detection import marcum_q
- * >>> round(marcum_q(1, 0.0, 1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
+ * >>> round(marcum_q(m=1, a=0.0, b=1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
  * 0.60653
- * >>> round(marcum_q(1, 0.0, 2.0), 5)   # exp(-2)
+ * >>> round(marcum_q(m=1, a=0.0, b=2.0), 5)   # exp(-2)
  * 0.13534
- * >>> round(marcum_q(2, 0.0, 2.0), 5)   # 3*exp(-2)
+ * >>> round(marcum_q(m=2, a=0.0, b=2.0), 5)   # 3*exp(-2)
  * 0.40601
- * >>> round(marcum_q(1, 2.0, 1.0), 5)   # signal present (a=2)
+ * >>> round(marcum_q(m=1, a=2.0, b=1.0), 5)   # signal present (a=2)
  * 0.91811
  *
  * @endcode
@@ -90,7 +90,7 @@ double marcum_q(int m, double a, double b);
  *
  * @code
  * >>> from doppler.detection import det_threshold
- * >>> round(det_threshold(1e-6), 4)
+ * >>> round(det_threshold(pfa=1e-6), 4)
  * 5.2565
  *
  * @endcode
@@ -113,10 +113,10 @@ double det_threshold(double pfa);
  *
  * @code
  * >>> from doppler.detection import det_pd, det_threshold
- * >>> thr = det_threshold(1e-6)
- * >>> round(det_pd(1.613, 8, thr), 2)   # an 8-sample dwell reaches Pd ~ 0.9
+ * >>> thr = det_threshold(pfa=1e-6)
+ * >>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell -> Pd~0.9
  * 0.9
- * >>> round(det_pd(0.0, 8, thr), 6)     # snr=0 -> Pd collapses to Pfa
+ * >>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa
  * 1e-06
  *
  * @endcode
@@ -138,7 +138,7 @@ double det_pd(double snr, int dwell, double threshold);
  *
  * @code
  * >>> from doppler.detection import det_dwell
- * >>> det_dwell(0.5, 0.9, 1e-6, 256)   # dwell to detect a 0.5-SNR signal
+ * >>> det_dwell(snr=0.5, pd_min=0.9, pfa=1e-6, max_dwell=256)
  * 84
  *
  * @endcode
@@ -159,10 +159,10 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
  *
  * @code
  * >>> from doppler.detection import det_snr, det_pd, det_threshold
- * >>> snr = det_snr(8, 0.9, 1e-6)
+ * >>> snr = det_snr(dwell=8, pd_min=0.9, pfa=1e-6)
  * >>> round(snr, 3)
  * 1.613
- * >>> det_pd(snr, 8, det_threshold(1e-6)) >= 0.9   # roundtrip invariant
+ * >>> det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6)) >= 0.9
  * True
  *
  * @endcode
@@ -201,7 +201,7 @@ double det_snr(int dwell, double pd_min, double pfa);
  *
  * @code
  * >>> from doppler.detection import det_threshold_power
- * >>> round(det_threshold_power(1e-6), 3)   # -ln(1e-6) = 6*ln(10)
+ * >>> round(det_threshold_power(pfa=1e-6), 3)   # -ln(1e-6) = 6*ln(10)
  * 13.816
  *
  * @endcode
@@ -221,8 +221,8 @@ double det_threshold_power(double pfa);
  *
  * @code
  * >>> from doppler.detection import det_pd_power, det_threshold_power
- * >>> thr = det_threshold_power(1e-6)
- * >>> round(det_pd_power(2.6017, 8, thr), 2)   # power SNR 2.6 -> Pd ~ 0.9
+ * >>> thr = det_threshold_power(pfa=1e-6)
+ * >>> round(det_pd_power(snr_power=2.6017, dwell=8, power_threshold=thr), 2)
  * 0.9
  *
  * @endcode
@@ -242,7 +242,7 @@ double det_pd_power(double snr_power, int dwell, double power_threshold);
  *
  * @code
  * >>> from doppler.detection import det_dwell_power
- * >>> det_dwell_power(0.25, 0.9, 1e-6, 256)   # power SNR 0.25 = amp SNR 0.5
+ * >>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
  * 84
  *
  * @endcode
@@ -261,10 +261,11 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  * @code
  * >>> from doppler.detection import (det_snr_power, det_pd_power,
  * ...                                det_threshold_power)
- * >>> sp = det_snr_power(8, 0.9, 1e-6)
+ * >>> sp = det_snr_power(dwell=8, pd_min=0.9, pfa=1e-6)
  * >>> round(sp, 4)
  * 2.6017
- * >>> det_pd_power(sp, 8, det_threshold_power(1e-6)) >= 0.9   # roundtrip
+ * >>> det_pd_power(snr_power=sp, dwell=8,
+ * ...              power_threshold=det_threshold_power(pfa=1e-6)) >= 0.9
  * True
  *
  * @endcode

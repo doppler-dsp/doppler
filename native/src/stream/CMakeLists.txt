@@ -14,6 +14,19 @@ if(NOT WIN32)
         POSITION_INDEPENDENT_CODE ON)
 endif()
 
+if(NOT WIN32)
+    add_executable(bench_stream
+        ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_stream.c)
+    target_link_libraries(bench_stream PRIVATE
+        $<TARGET_OBJECTS:stream_core_obj>
+        zmq_vendor_static
+        stdc++ m pthread)
+    target_include_directories(bench_stream PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc)
+    set_target_properties(bench_stream PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/native/benchmarks")
+endif()
+
 if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE

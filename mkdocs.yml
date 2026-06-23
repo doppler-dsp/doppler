@@ -183,12 +183,16 @@ nav:
       - "Python: FIR Filter": api/python-filter.md
       - "Python: DDC": api/python-ddc.md
       - "Python: Resample": api/python-resample.md
+      - "Python: AGC": api/python-agc.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
       - "Python: Delay": api/python-delay.md
       - "Python: Accumulator": api/python-accumulator.md
+      - "Python: Type Converters": api/python-cvt.md
+      - "Python: Fixed-Point Arithmetic": api/python-arith.md
       - "Python: Measurement Suite": api/python-measure.md
       - "Polyphase → Resample": api/python-polyphase.md
+      - "Python: Utilities": api/python-util.md
   - Type System: types.md
   - Benchmarks: benchmarks.md
   - Guides:

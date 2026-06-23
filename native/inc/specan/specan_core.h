@@ -165,6 +165,18 @@ extern "C"
    * @param out      Display-spectrum buffer, dB (C-only).
    * @param max_out  Capacity of @p out (C-only); >= disp_n is sufficient.
    * @return Display bins written (disp_n), or 0 if no frame is ready yet.
+   *
+   * @code
+   * >>> from doppler.analyzer import Specan
+   * >>> import numpy as np
+   * >>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, navg=1)
+   * >>> sa.execute(np.zeros(64, dtype=np.complex64)) is None  # too few samples
+   * True
+   * >>> frame = sa.execute(np.zeros(65536, dtype=np.complex64))
+   * >>> frame.shape, frame.dtype
+   * ((801,), dtype('float32'))
+   *
+   * @endcode
    */
   size_t specan_execute (specan_state_t *state, const float complex *x,
                          size_t x_len, float *out, size_t max_out);

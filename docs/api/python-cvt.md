@@ -2,7 +2,7 @@
 
 The `doppler.cvt` module converts sample streams between **float32** and the
 fixed-point / integer formats used at the edges of a DSP chain — ADC codes, Q15
-fractions, packed unsigned words — plus an ideal-quantiser **`ADC`** model for
+fractions, Q15-in-wide-word for CIC — plus an ideal-quantiser **`ADC`** model for
 characterisation. Every converter is a tiny stateful object with a `scale` (or
 ADC depth) fixed at construction; `steps()` runs a whole block (optionally
 in-place via `out=`), `step()` does one sample.
@@ -28,8 +28,8 @@ ______________________________________________________________________
 | `I32ToF32`                    | int32 → float32  | 24/32-bit ADC codes to float                |
 | `I8ToF32`                     | int8 → float32   | 8-bit codes to float                        |
 | `F32ToUQ15` / `UQ15ToF32`     | float32 ↔ uint16 | **unsigned** Q15 (offset-binary) round-trip |
-| `F32ToI16U32` / `I16U32ToF32` | float32 ↔ uint32 | two int16 packed in a uint32 word           |
-| `F32ToI16U64` / `I16U64ToF32` | float32 ↔ uint64 | four int16 packed in a uint64 word          |
+| `F32ToI16U32` / `I16U32ToF32` | float32 ↔ uint32 | one Q15 in the low 16 bits (CIC integer in) |
+| `F32ToI16U64` / `I16U64ToF32` | float32 ↔ uint64 | one Q15 in the low 16 bits (CIC integer in) |
 | `ADC`                         | float32 → int64  | ideal `bits`-bit quantiser (codes)          |
 
 The `F32To*` directions expose a `clipped` flag that latches when an input
@@ -116,7 +116,11 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Packed multi-sample words
+## Q15 in a wide word (CIC integer input)
+
+These pack a single saturated Q15 into the low 16 bits of a `uint32`/`uint64`
+(upper bits zero) — the integer-input wire format the CIC filter expects, where
+the headroom absorbs the bit-growth of the integrator cascade.
 
 ::: doppler.cvt.F32ToI16U32
 

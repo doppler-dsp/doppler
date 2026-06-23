@@ -210,12 +210,6 @@ end-to-end rate. One-way latency uses `dp_header_t.timestamp_ns`
 (`CLOCK_REALTIME` sender → receiver; valid because both threads share the same
 clock).
 
-PUSH/PULL has **backpressure**: the producer blocks if the consumer falls
-behind, so every frame is delivered exactly once and throughput is the true
-end-to-end rate. One-way latency uses `dp_header_t.timestamp_ns`
-(`CLOCK_REALTIME` sender → receiver; valid because both threads share the same
-clock).
-
 | block_sz (samples) | frame bytes | tput MS/s | tput MB/s | lat_mean µs | lat_p99 µs |
 | ------------------ | ----------- | --------- | --------- | ----------- | ---------- |
 | 256                | 2,048       | 110       | 840       | 964         | 1,069      |
@@ -276,16 +270,17 @@ The status plane carries small control / telemetry messages at a low rate
 (Hz–kHz), so **throughput is irrelevant** — its figures of merit are *unloaded*
 latency and **delivery semantics**. Latency is a non-issue either way:
 
-| pattern     | msg  | RTT min | RTT mean | RTT p99 | one-way (≈) |
-| ----------- | ---- | ------- | -------- | ------- | ----------- |
-| ZMQ REQ/REP | 64 B | 224 µs  | 375 µs   | 998 µs  | ~110–190 µs |
+| pattern              | msg  | RTT min | RTT mean | RTT p99 | RTT max | one-way (≈) |
+| -------------------- | ---- | ------- | -------- | ------- | ------- | ----------- |
+| ZMQ REQ/REP (idle)   | 64 B | 14 µs   | 30 µs    | 51 µs   | 282 µs  | ~15 µs      |
+| ZMQ REQ/REP (loaded) | 64 B | 224 µs  | 375 µs   | 998 µs  | —       | ~110–190 µs |
 
-(Loopback on a **loaded** dev box — concurrent builds were running, so the
-firehose sweep was ~4–5× slower than §9.1 at the time; treat these as a
-*ceiling*. An idle box / tuned setup is lower.) The takeaway is the order of
-magnitude: a sub-millisecond round trip is **negligible against status update
-periods**, so latency does not drive the choice. **Semantics do** — and this is
-the axis NATS exists for:
+(Both rows are loopback, 20k pings. The **idle** row is the real figure; the
+**loaded** row was taken with concurrent builds running — the firehose sweep was
+~4–5× slower than §9.1 at the time — and stands as a worst-case ceiling.) The
+takeaway is the order of magnitude: even loaded, a sub-millisecond round trip is
+**negligible against status update periods**, so latency does not drive the
+choice. **Semantics do** — and this is the axis NATS exists for:
 
 | property                      | ZMQ PUB/SUB                                                                   | NATS                                                                             |
 | ----------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |

@@ -40,6 +40,7 @@
 #include <complex.h>
 #include <math.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +53,42 @@
 #define ENDPOINT "tcp://127.0.0.1:5679"
 #define WARMUP_BLKS 50  /* frames before timing starts */
 #define HIST_BINS 32768 /* 1 µs buckets → covers 0–32767 µs (32 ms) */
+
+/* ─── portable 2-party barrier via a pair of semaphores ─────────────────── */
+typedef struct
+{
+  sem_t a; /* producer posts when ready; consumer waits */
+  sem_t b; /* consumer posts when ready; producer waits */
+} bench_barrier_t;
+
+static void
+barrier_init (bench_barrier_t *br)
+{
+  sem_init (&br->a, 0, 0);
+  sem_init (&br->b, 0, 0);
+}
+
+static void
+barrier_wait (bench_barrier_t *br, int is_producer)
+{
+  if (is_producer)
+    {
+      sem_post (&br->a);
+      sem_wait (&br->b);
+    }
+  else
+    {
+      sem_post (&br->b);
+      sem_wait (&br->a);
+    }
+}
+
+static void
+barrier_destroy (bench_barrier_t *br)
+{
+  sem_destroy (&br->a);
+  sem_destroy (&br->b);
+}
 
 /* ─── shared state ──────────────────────────────────────────────────────── */
 typedef struct
@@ -66,7 +103,7 @@ typedef struct
   uint64_t wall_ns_start;
   uint64_t wall_ns_end;
 
-  pthread_barrier_t ready;
+  bench_barrier_t ready;
 } bench_state_t;
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -96,11 +133,11 @@ producer (void *arg)
     {
       fputs ("bench_stream: push create failed\n", stderr);
       free (buf);
-      pthread_barrier_wait (&s->ready);
+      barrier_wait (&s->ready, 1);
       return NULL;
     }
 
-  pthread_barrier_wait (&s->ready);
+  barrier_wait (&s->ready, 1);
 
   for (size_t i = 0; i < s->num_blks; i++)
     {
@@ -127,11 +164,11 @@ consumer (void *arg)
   if (!ctx)
     {
       fputs ("bench_stream: pull create failed\n", stderr);
-      pthread_barrier_wait (&s->ready);
+      barrier_wait (&s->ready, 0);
       return NULL;
     }
 
-  pthread_barrier_wait (&s->ready);
+  barrier_wait (&s->ready, 0);
 
   size_t timed = 0;
   for (size_t i = 0; i < s->num_blks; i++)
@@ -249,7 +286,7 @@ main (int argc, char *argv[])
     return 1;
   s->block_sz = block_sz;
   s->num_blks = num_blks;
-  pthread_barrier_init (&s->ready, NULL, 2);
+  barrier_init (&s->ready);
 
   printf ("block_sz\tnum_blocks\ttput_mss\ttput_mbs"
           "\tlat_min_us\tlat_mean_us\tlat_p99_us\tlat_max_us\n");
@@ -260,7 +297,7 @@ main (int argc, char *argv[])
   pthread_join (prod_tid, NULL);
   pthread_join (cons_tid, NULL);
 
-  pthread_barrier_destroy (&s->ready);
+  barrier_destroy (&s->ready);
 
   if (s->timed_blks == 0)
     {

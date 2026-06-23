@@ -376,13 +376,81 @@ class IMDMeasure:
     def __exit__(self, *args: object) -> None: ...
 
 def measure_min_samples(fs: float, target_rbw: float, bits: int, dynamic_range_db: float, complex_input: int) -> int:
-    """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000)."""
+    """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000).
+
+    Plans a capture for the same auto-Kaiser window the measurement objects
+    use: the dynamic-range target (from @p dynamic_range_db, else @p bits)
+    selects the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
+    bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
+
+    Parameters
+    ----------
+    fs : float
+        Sample rate (Hz, > 0).
+    target_rbw : float
+        Desired resolution bandwidth (Hz).  When <= 0 it defaults to span/1000, where span = fs/2 for real captures and fs for complex (@p complex_input).
+    bits : int
+        ADC depth: sets the dynamic-range target when no explicit override is given.
+    dynamic_range_db : float
+        Explicit dynamic-range target (dB); used when > 0.
+    complex_input : int
+        Non-zero if the capture is complex (span = fs).
+
+    Returns
+    -------
+    int
+        Required capture length, or 0 on bad args.
+    """
 
 def measure_rec_nfft(n: int, pad: int) -> int:
-    """Recommended zero-padded transform length: next_pow2(n * pad)."""
+    """Recommended zero-padded transform length: next_pow2(n * pad).
+
+    Parameters
+    ----------
+    n : int
+        Input.
+    pad : int
+        Input.
+
+    Returns
+    -------
+    int
+        Output.
+    """
 
 def measure_proc_gain(nfft: int) -> float:
-    """FFT processing gain in dB: 10*log10(nfft / 2)."""
+    """FFT processing gain in dB: 10*log10(nfft / 2).
+
+    Parameters
+    ----------
+    nfft : int
+        Input.
+
+    Returns
+    -------
+    float
+        Output.
+    """
 
 def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
-    """Nearest leakage-free coherent test frequency (J cycles, J coprime N)."""
+    """Nearest leakage-free coherent test frequency (J cycles, J coprime N).
+
+    Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle
+    count that is coprime with N — an integer number of cycles in the
+    capture (no leakage) with J coprime to N (so quantisation-noise
+    correlation is minimised).
+
+    Parameters
+    ----------
+    fs : float
+        Input.
+    f_target : float
+        Input.
+    N : int
+        Input.
+
+    Returns
+    -------
+    float
+        The coherent frequency (Hz), or 0 on bad args.
+    """

@@ -269,43 +269,362 @@ class AccQ8:
     def __exit__(self, *args: object) -> None: ...
 
 def add_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
-    """Elementwise saturating two's complement add of two Q15 arrays."""
+    """Elementwise saturating two's complement add of two Q15 arrays.
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        First input array (int16_t).
+    b : NDArray[np.int16]
+        Second input array (int16_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int16]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import add_q15
+    >>> import numpy as np
+    >>> a = np.array([100, 20000, -20000], dtype=np.int16)
+    >>> b = np.array([50,  20000, -20000], dtype=np.int16)
+    >>> add_q15(a, b).tolist()
+    [150, 32767, -32768]
+
+    """
 
 def sub_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
-    """Elementwise saturating two's complement subtract of two Q15 arrays."""
+    """Elementwise saturating two's complement subtract of two Q15 arrays.
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        Minuend array (int16_t).
+    b : NDArray[np.int16]
+        Subtrahend array (int16_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int16]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import sub_q15
+    >>> import numpy as np
+    >>> a = np.array([100,  0, -32768], dtype=np.int16)
+    >>> b = np.array([50,   0,     10], dtype=np.int16)
+    >>> sub_q15(a, b).tolist()
+    [50, 0, -32768]
+
+    """
 
 def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
-    """Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15)."""
+    """Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] + 16384) >> 15).
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        First input array (int16_t).
+    b : NDArray[np.int16]
+        Second input array (int16_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int16]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import mul_q15
+    >>> import numpy as np
+    >>> a = np.array([16384, 16384, 32767], dtype=np.int16)
+    >>> b = np.array([16384, -16384, 32767], dtype=np.int16)
+    >>> mul_q15(a, b).tolist()
+    [8192, -8192, 32766]
+
+    """
 
 def dot_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> int:
-    """Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar."""
+    """Inner product of two Q15 arrays. Returns the raw Q30 accumulation as int64_t. Shift right 15 to get a Q15 scalar.
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        First input array (int16_t).
+    b : NDArray[np.int16]
+        Second input array (int16_t), same length as a.
+
+    Returns
+    -------
+    int
+        Raw Q30 accumulation (int64_t).
+
+    Examples
+    --------
+    >>> from doppler.arith import dot_q15
+    >>> import numpy as np
+    >>> a = np.array([100, 200, 300], dtype=np.int16)
+    >>> b = np.array([1, 2, 3], dtype=np.int16)
+    >>> dot_q15(a, b)
+    1400
+
+    """
 
 def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
-    """Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point."""
+    """Elementwise arithmetic left shift of a Q15 array with saturation. Equivalent to multiplying by 2^n in fixed-point.
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        Input array (int16_t).
+    n : int
+        Shift count (non-negative integer).
+
+    Returns
+    -------
+    NDArray[np.int16]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import shl_q15
+    >>> import numpy as np
+    >>> a = np.array([8192, 16384, 20000], dtype=np.int16)
+    >>> shl_q15(a, 1).tolist()
+    [16384, 32767, 32767]
+
+    """
 
 def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
-    """Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n."""
+    """Elementwise arithmetic right shift of a Q15 array with round-half-up. Equivalent to dividing by 2^n.
+
+    Parameters
+    ----------
+    a : NDArray[np.int16]
+        Input array (int16_t).
+    n : int
+        Shift count (non-negative integer).
+
+    Returns
+    -------
+    NDArray[np.int16]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import shr_q15
+    >>> import numpy as np
+    >>> a = np.array([100, 101, 102, -100], dtype=np.int16)
+    >>> shr_q15(a, 2).tolist()
+    [25, 25, 26, -25]
+
+    """
 
 def add_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
-    """Elementwise saturating two's complement add of two Q8 arrays."""
+    """Elementwise saturating two's complement add of two Q8 arrays.
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        First input array (int8_t).
+    b : NDArray[np.int8]
+        Second input array (int8_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import add_q8
+    >>> import numpy as np
+    >>> a = np.array([50, 100, -100], dtype=np.int8)
+    >>> b = np.array([50,  30,  -50], dtype=np.int8)
+    >>> add_q8(a, b).tolist()
+    [100, 127, -128]
+
+    """
 
 def sub_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
-    """Elementwise saturating two's complement subtract of two Q8 arrays."""
+    """Elementwise saturating two's complement subtract of two Q8 arrays.
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        Minuend array (int8_t).
+    b : NDArray[np.int8]
+        Subtrahend array (int8_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import sub_q8
+    >>> import numpy as np
+    >>> a = np.array([50,   0, -128], dtype=np.int8)
+    >>> b = np.array([30,   0,   10], dtype=np.int8)
+    >>> sub_q8(a, b).tolist()
+    [20, 0, -128]
+
+    """
 
 def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
-    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7)."""
+    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] + 64) >> 7).
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        First input array (int8_t).
+    b : NDArray[np.int8]
+        Second input array (int8_t), same length as a.
+
+    Returns
+    -------
+    NDArray[np.int8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import mul_q8
+    >>> import numpy as np
+    >>> a = np.array([64,  64, -64], dtype=np.int8)
+    >>> b = np.array([64, -64,  64], dtype=np.int8)
+    >>> mul_q8(a, b).tolist()
+    [32, -32, -32]
+
+    """
 
 def dot_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> int:
-    """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t."""
+    """Inner product of two Q8 arrays. Returns the raw Q14 accumulation as int32_t.
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        First input array (int8_t).
+    b : NDArray[np.int8]
+        Second input array (int8_t), same length as a.
+
+    Returns
+    -------
+    int
+        Raw Q14 accumulation (int32_t).
+
+    Examples
+    --------
+    >>> from doppler.arith import dot_q8
+    >>> import numpy as np
+    >>> a = np.array([10, 20, 30], dtype=np.int8)
+    >>> b = np.array([1, 2, 3], dtype=np.int8)
+    >>> dot_q8(a, b)
+    140
+
+    """
 
 def shl_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
-    """Elementwise arithmetic left shift of a Q8 array with saturation."""
+    """Elementwise arithmetic left shift of a Q8 array with saturation.
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        Input array (int8_t).
+    n : int
+        Shift count (non-negative integer).
+
+    Returns
+    -------
+    NDArray[np.int8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import shl_q8
+    >>> import numpy as np
+    >>> a = np.array([10, 50, 64], dtype=np.int8)
+    >>> shl_q8(a, 1).tolist()
+    [20, 100, 127]
+
+    """
 
 def shr_q8(a: NDArray[np.int8], n: int) -> NDArray[np.int8]:
-    """Elementwise arithmetic right shift of a Q8 array with round-half-up."""
+    """Elementwise arithmetic right shift of a Q8 array with round-half-up.
+
+    Parameters
+    ----------
+    a : NDArray[np.int8]
+        Input array (int8_t).
+    n : int
+        Shift count (non-negative integer).
+
+    Returns
+    -------
+    NDArray[np.int8]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import shr_q8
+    >>> import numpy as np
+    >>> a = np.array([10, 11, 12, -10], dtype=np.int8)
+    >>> shr_q8(a, 2).tolist()
+    [3, 3, 3, -2]
+
+    """
 
 def shl_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
-    """Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow)."""
+    """Elementwise logical left shift of an int64_t array. No saturation (caller ensures no overflow).
+
+    Parameters
+    ----------
+    a : NDArray[np.int64]
+        Input array (int64_t).
+    n : int
+        Shift count (non-negative integer; >= 63 yields 0).
+
+    Returns
+    -------
+    NDArray[np.int64]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import shl_i64
+    >>> import numpy as np
+    >>> a = np.array([100, 200, -200], dtype=np.int64)
+    >>> shl_i64(a, 3).tolist()
+    [800, 1600, -1600]
+
+    """
 
 def shr_i64(a: NDArray[np.int64], n: int) -> NDArray[np.int64]:
-    """Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15."""
+    """Elementwise arithmetic right shift of an int64_t array with round-half-up. Useful for normalising dot_q15 Q30 results back to Q15.
+
+    Parameters
+    ----------
+    a : NDArray[np.int64]
+        Input array (int64_t).
+    n : int
+        Shift count (non-negative integer; >= 63 is clamped to 63).
+
+    Returns
+    -------
+    NDArray[np.int64]
+        Output.
+
+    Examples
+    --------
+    >>> from doppler.arith import dot_q15, shr_i64
+    >>> import numpy as np
+    >>> raw = dot_q15(
+    ...     np.array([16384, 16384], dtype=np.int16),
+    ...     np.array([16384, 16384], dtype=np.int16),
+    ... )
+    >>> shr_i64(np.array([raw], dtype=np.int64), 15).tolist()
+    [16384]
+
+    """

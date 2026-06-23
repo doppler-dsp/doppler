@@ -8,3 +8,4 @@ design rationale.
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph
 - [Waveform Amplitude & Composition](wfmgen-composition.md) — level/power conventions for wfmgen
+- [Streaming Roadmap](streaming-roadmap.md) — NATS JetStream transport for k8s; phased plan gated on P0 benchmark

@@ -167,3 +167,87 @@ doppler already has the seam (`stream/`) and the opt-in-component pattern
 
 **Recommendation: proceed to P0 (envelope + benchmark, both patterns) now;
 greenlight P1+ on the numbers.**
+
+______________________________________________________________________
+
+## 9. P0 benchmark results
+
+**Harness:** `native/benchmarks/bench_stream.c` — two pthreads (producer +
+consumer), `pthread_barrier` start sync, 50-frame warmup, 32k-bin 1 µs
+latency histogram. Run on a single host (dev box, Release build).
+
+**Transport under test:** ZMQ PUSH/PULL over `tcp://127.0.0.1:5679`; NATS
+core pub/sub over `nats://127.0.0.1:4222` (nats-server v2.14.2 in-process,
+no JetStream, `nats bench pub + sub` CLI).
+
+**Message payload:** CF32 I/Q (8 bytes/sample), no framing overhead subtracted.
+
+### ZMQ PUSH/PULL — TCP loopback
+
+PUSH/PULL has **backpressure**: the producer blocks if the consumer falls
+behind, so every frame is delivered exactly once and throughput is the true
+end-to-end rate. One-way latency uses `dp_header_t.timestamp_ns`
+(`CLOCK_REALTIME` sender → receiver; valid because both threads share the same
+clock).
+
+| block_sz (samples) | frame bytes | tput MS/s | tput MB/s | lat_mean µs | lat_p99 µs |
+| ------------------ | ----------- | --------- | --------- | ----------- | ---------- |
+| 256                | 2,048       | 110       | 840       | 964         | 1,069      |
+| 1,024              | 8,192       | 199       | 1,520     | 1,072       | 1,362      |
+| 4,096              | 32,768      | 461       | 3,516     | 832         | 1,135      |
+| 16,384             | 131,072     | 563       | 4,299     | 2,725       | 5,088      |
+| 65,536             | 524,288     | 721       | 5,501     | 5,671       | 11,974     |
+
+**Caveats:**
+
+- TCP loopback bypasses the NIC but still traverses the kernel TCP stack.
+    Real network throughput will be lower; a 10 GbE link caps at ~1,250 MB/s.
+- Latency is measured from `dp_push_send_cf32` → first byte past `dp_pull_recv`
+    on the same machine. Cross-host latency needs PTP/NTP-synchronised clocks.
+- No pinning, no `SO_BUSY_POLL`, no huge pages. Numbers are a pessimistic
+    baseline; tuned production configs will be better.
+
+### NATS core pub/sub — TCP loopback
+
+`nats bench pub` + `nats bench sub` with a single publisher and single
+subscriber. Core NATS (no JetStream persistence). Throughput is taken from
+the **subscriber** msgs/sec (end-to-end) × actual frame size; the CLI reports
+subscriber MB/s based on a fixed 128 B default which is wrong and ignored.
+Latency figures from `nats bench pub` are **publish-to-broker** only —
+not end-to-end — and are not comparable to the ZMQ column.
+
+| block_sz (samples) | frame bytes | NATS sub msgs/s | NATS MB/s | ZMQ MB/s | ZMQ / NATS |
+| ------------------ | ----------- | --------------- | --------- | -------- | ---------- |
+| 256                | 2,048       | 418,666         | 820       | 840      | 1.0×       |
+| 1,024              | 8,192       | 139,061         | 1,084     | 1,520    | 1.4×       |
+| 4,096              | 32,768      | 60,921          | 1,901     | 3,516    | 1.85×      |
+| 16,384             | 131,072     | 16,424          | 2,049     | 4,299    | 2.1×       |
+| 65,536             | 524,288     | 4,819           | 2,398     | 5,501    | 2.3×       |
+
+**Caveats:**
+
+- Core NATS routes every message through the broker (an extra copy + server
+    CPU); ZMQ PUSH/PULL is socket-to-socket. The gap grows with frame size
+    because the broker copy cost is proportional to bytes.
+- At 256-sample frames the two are **essentially tied** (~820 vs 840 MB/s).
+    The break-even is somewhere in the 256–1024 sample range.
+- These are **core NATS** numbers — not JetStream. JetStream adds a
+    persistence write per message and will be measurably slower; measure P2
+    before committing to it for high-rate paths.
+- The NATS C client (`nats.c`) is not yet integrated; these numbers come from
+    the Go-based `nats bench` CLI which has its own serialisation overhead.
+    A C-native integration (P1) may close some of the gap at small frames.
+
+### Interpretation for the phased plan
+
+- **ZMQ stays the right tool for the co-located high-rate firehose.** At
+    DSP-relevant block sizes (4k–64k samples) ZMQ delivers 1.85–2.3× the
+    end-to-end throughput of a NATS broker.
+- **NATS is competitive at small frames (≤ 256 samples / 2 KB)** and wins
+    on every resilience axis (discovery, reconnect, backpressure, durability).
+- **The throughput / latency boundary** for the firehose-vs-resilient routing
+    decision sits around 1k–4k samples (~8–32 KB/frame) — below that NATS can
+    keep up; above that ZMQ's brokerless advantage matters.
+- **P1 greenlit:** these numbers confirm the pluggable-transport seam is the
+    right architecture — ship ZMQ for high-rate paths, NATS for resilient /
+    k8s paths, routed by use case behind a common interface.

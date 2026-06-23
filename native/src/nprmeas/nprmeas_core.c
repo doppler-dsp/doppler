@@ -8,6 +8,8 @@
  */
 #include "nprmeas/nprmeas_core.h"
 
+#include "spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
+
 #include <complex.h>
 #include <math.h>
 #include <stdlib.h>
@@ -16,20 +18,23 @@
 #define NPR_EPS 1e-30
 
 nprmeas_state_t *
-nprmeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                double full_scale, size_t bits)
+nprmeas_create (size_t n, double fs, double full_scale, size_t bits,
+                double dynamic_range_db)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
+  if (n < 2 || fs <= 0.0)
     return NULL;
-  if (pad < 1)
-    pad = 1;
   nprmeas_state_t *s = (nprmeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
+
+  /* Auto-window: minimum Kaiser beta meeting the dynamic-range target. */
+  double dr   = measure_resolve_dr (dynamic_range_db, bits);
+  double beta = kaiser_beta_for_sidelobe (dr);
+
   /* The PSD core owns the dBFS reference (full_scale / bits); read it back as
    * s->psd->full_scale so it is defined exactly once. */
-  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
-                       ACC_TRACE_MEAN, 0.0);
+  s->psd = psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
+                       full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       nprmeas_destroy (s);
@@ -39,12 +44,21 @@ nprmeas_create (size_t n, double fs, int window, float beta, size_t pad,
   s->nfft = s->psd->nfft;
   s->fs   = fs;
   s->enbw = s->psd->enbw;
+  s->beta = beta;
   s->pwr  = (float *)malloc (s->nfft * sizeof (float));
   if (!s->pwr)
     {
       nprmeas_destroy (s);
       return NULL;
     }
+  /* Minimum notch keep-out (bins): the window main lobe + one sidelobe width,
+   * so active-band noise cannot fold into the notch average through the skirt
+   * even when the caller passes guard_hz = 0. */
+  double p_eff   = (double)s->nfft / (double)n;
+  double lobe_un = sqrt (1.0 + (beta / M_PI) * (beta / M_PI));
+  size_t lobe    = (size_t)ceil (lobe_un * p_eff) + 1;
+  s->spur_guard_bins
+      = lobe + (size_t)ceil (MEASURE_SPUR_SIDELOBES * lobe_un * p_eff);
   return s;
 }
 
@@ -82,8 +96,12 @@ nprmeas_analyze (nprmeas_state_t *s, const float *x, size_t n_in,
 
   double df    = s->fs / (double)s->nfft;
   double in_lo = active_lo, in_hi = active_hi;
-  double nt_lo = notch_lo - guard_hz, nt_hi = notch_hi + guard_hz;
-  double ni_lo = notch_lo + guard_hz, ni_hi = notch_hi - guard_hz;
+  /* Honour the caller's guard, but never less than the window's own skirt
+   * (spur_guard_bins): otherwise active-band leakage folds into the notch. */
+  double min_guard = (double)s->spur_guard_bins * df;
+  double guard     = (guard_hz > min_guard) ? guard_hz : min_guard;
+  double nt_lo = notch_lo - guard, nt_hi = notch_hi + guard;
+  double ni_lo = notch_lo + guard, ni_hi = notch_hi - guard;
   double in_sum = 0.0, nt_sum = 0.0;
   size_t in_cnt = 0, nt_cnt = 0;
   for (size_t k = 0; k <= half; k++)

@@ -33,7 +33,7 @@ pages.
     psd = w.psd_db()                       # averaged power spectrum, dB
 
     # ADC/tone metrics from the *same* averaged-spectrum engine
-    r = ToneMeasure(n=n, fs=fs, beta=12.0).analyze(x)
+    r = ToneMeasure(n=n, fs=fs, dynamic_range_db=90.0).analyze(x)
     r.enob, r.sfdr_dbc, r.fund_dbfs        # named ToneMetrics result
     ```
 
@@ -161,7 +161,7 @@ fs, n = 100e6, 1 << 14
 # 8 segments worth of capture → 8-way averaged spectrum
 x = np.cos(2 * np.pi * 10.017e6 * np.arange(8 * n) / fs).astype(np.float32)
 
-m = ToneMeasure(window="kaiser", n=n, fs=fs, beta=12.0, n_harmonics=8)
+m = ToneMeasure(n=n, fs=fs, n_harmonics=8, dynamic_range_db=90.0)
 r = m.analyze(x)                    # named ToneMetrics result
 r.enob, r.sinad, r.sfdr_dbc, r.thd  # attribute access
 r.fund_freq, r.fund_dbfs, r.worst_spur_freq
@@ -180,7 +180,7 @@ bits = 12
 adc = ADC(bits, 0.0, 0)                         # 0 dBFS at amplitude 1.0
 codes = adc.steps((0.999 * np.sin(2 * np.pi * 1234.567 * np.arange(n) / n))
                   .astype(np.float32)).astype(np.float32)
-r = ToneMeasure(n=n, beta=14.0, bits=bits).analyze(codes)   # bits sets dBFS
+r = ToneMeasure(n=n, bits=bits).analyze(codes)   # bits sets dBFS
 assert abs(r.enob - bits) < 0.3
 ```
 
@@ -189,7 +189,7 @@ assert abs(r.enob - bits) < 0.3
 ```python
 from doppler.measure import IMDMeasure
 
-m = IMDMeasure(n=n, fs=fs, beta=12.0)
+m = IMDMeasure(n=n, fs=fs, dynamic_range_db=90.0)
 r = m.analyze(two_tone_capture)     # finds the two strongest tones automatically
 r.imd3_dbc, r.imd2_dbc, r.toi_dbfs  # third/second-order products & intercept
 r.f1, r.f2, r.imd3_lo_freq, r.imd3_hi_freq
@@ -200,7 +200,7 @@ r.f1, r.f2, r.imd3_lo_freq, r.imd3_hi_freq
 ```python
 from doppler.measure import NPRMeasure
 
-m = NPRMeasure(n=n, fs=fs, beta=12.0, bits=bits)
+m = NPRMeasure(n=n, fs=fs, bits=bits)
 # band/notch geometry (Hz) is an analyze() argument, so one estimator sweeps notches
 r = m.analyze(codes, active_lo=1e6, active_hi=49e6,
               notch_lo=24e6, notch_hi=26e6, guard_hz=0.5e6)

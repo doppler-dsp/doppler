@@ -21,15 +21,17 @@ static PyObject *
 _bind_measure_min_samples(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
-    static char *_kwlist[] = {"fs", "target_rbw", "window", "beta", NULL};
+    static char *_kwlist[] = {"fs", "target_rbw", "bits", "dynamic_range_db", "complex_input", NULL};
     double fs = 0.0;
     double target_rbw = 0.0;
-    int window = 0;
-    float beta = 0.0f;
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ddif",
-            _kwlist, &fs, &target_rbw, &window, &beta))
+    unsigned long long bits_raw = 0ULL;
+    double dynamic_range_db = 0.0;
+    int complex_input = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "ddKdi",
+            _kwlist, &fs, &target_rbw, &bits_raw, &dynamic_range_db, &complex_input))
         return NULL;
-    return PyLong_FromUnsignedLongLong((unsigned long long)measure_min_samples(fs, target_rbw, window, beta));
+    size_t bits = (size_t)bits_raw;
+    return PyLong_FromUnsignedLongLong((unsigned long long)measure_min_samples(fs, target_rbw, bits, dynamic_range_db, complex_input));
 }
 
 static PyObject *
@@ -81,7 +83,7 @@ _bind_dp_coherent_freq(PyObject *self, PyObject *args, PyObject *kwds)
 /* ======================================================== */
 
 static PyMethodDef measure_module_methods[] = {
-    {"measure_min_samples", (PyCFunction)(void *)_bind_measure_min_samples, METH_VARARGS | METH_KEYWORDS, "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."},
+    {"measure_min_samples", (PyCFunction)(void *)_bind_measure_min_samples, METH_VARARGS | METH_KEYWORDS, "Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000)."},
     {"measure_rec_nfft", (PyCFunction)(void *)_bind_measure_rec_nfft, METH_VARARGS | METH_KEYWORDS, "Recommended zero-padded transform length: next_pow2(n * pad)."},
     {"measure_proc_gain", (PyCFunction)(void *)_bind_measure_proc_gain, METH_VARARGS | METH_KEYWORDS, "FFT processing gain in dB: 10*log10(nfft / 2)."},
     {"dp_coherent_freq", (PyCFunction)(void *)_bind_dp_coherent_freq, METH_VARARGS | METH_KEYWORDS, "Nearest leakage-free coherent test frequency (J cycles, J coprime N)."},

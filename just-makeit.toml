@@ -719,6 +719,14 @@ name = "beta"
 type = "float"
 
 [[module.spectral.functions]]
+name = "kaiser_beta_for_sidelobe"
+return_type = "double"
+
+[[module.spectral.functions.params]]
+name = "atten_db"
+type = "double"
+
+[[module.spectral.functions]]
 name = "hann_window"
 
 [[module.spectral.functions.params]]
@@ -822,7 +830,7 @@ objects = ["tonemeas", "nprmeas", "imdmeas"]
 
 [[module.measure.functions]]
 name = "measure_min_samples"
-doc = "Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."
+doc = "Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000)."
 return_type = "size_t"
 
 [[module.measure.functions.params]]
@@ -834,12 +842,16 @@ name = "target_rbw"
 type = "double"
 
 [[module.measure.functions.params]]
-name = "window"
-type = "int"
+name = "bits"
+type = "size_t"
 
 [[module.measure.functions.params]]
-name = "beta"
-type = "float"
+name = "dynamic_range_db"
+type = "double"
+
+[[module.measure.functions.params]]
+name = "complex_input"
+type = "int"
 
 [[module.measure.functions]]
 name = "measure_rec_nfft"

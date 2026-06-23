@@ -42,26 +42,29 @@ parabolic_delta (double ym1, double y0, double yp1)
 }
 
 tonemeas_state_t *
-tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
-                 size_t n_harmonics, double full_scale, size_t bits,
-                 size_t dc_guard)
+tonemeas_create (size_t n, double fs, size_t n_harmonics, double full_scale,
+                 size_t bits, double dynamic_range_db, size_t dc_guard)
 {
-  if (n < 2 || fs <= 0.0 || (window != 0 && window != 1))
+  if (n < 2 || fs <= 0.0)
     return NULL;
-  if (pad < 1)
-    pad = 1;
 
   tonemeas_state_t *s = (tonemeas_state_t *)calloc (1, sizeof (*s));
   if (!s)
     return NULL;
+
+  /* Auto-window: pick the minimum Kaiser beta whose sidelobes sit below the
+   * requested dynamic range, so window leakage never caps SFDR/SNR while the
+   * resolution bandwidth stays as fine as `n` allows. */
+  double dr   = measure_resolve_dr (dynamic_range_db, bits);
+  double beta = kaiser_beta_for_sidelobe (dr);
 
   /* The shared PSD core owns the window, the zero-padded FFT, the (single-
    * frame mean) averager AND the dBFS reference (full_scale / bits): the
    * metric kernels read it back as s->psd->full_scale, so the 0-dBFS
    * reference is defined exactly once, in the core.  (The linear accessors
    * stay cg^2-normalised; the kernels apply full_scale^2 themselves.) */
-  s->psd = psd_create (n, fs, window, beta, pad, full_scale, bits,
-                       ACC_TRACE_MEAN, 0.0);
+  s->psd = psd_create (n, fs, 1 /* Kaiser */, (float)beta, MEASURE_PAD,
+                       full_scale, bits, ACC_TRACE_MEAN, 0.0);
   if (!s->psd)
     {
       tonemeas_destroy (s);
@@ -72,7 +75,7 @@ tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
   s->nfft     = s->psd->nfft;
   s->fs       = fs;
   s->enbw     = s->psd->enbw;
-  s->window   = window;
+  s->beta     = beta;
   s->n_harm   = n_harmonics;
   s->dc_guard = dc_guard;
 
@@ -84,12 +87,19 @@ tonemeas_create (size_t n, double fs, int window, float beta, size_t pad,
       return NULL;
     }
 
-  /* Main-lobe half-width: window null-to-null half-width (un-padded bins)
-   * scaled by the zero-pad interpolation factor nfft/n, plus a guard bin. */
-  double p_eff = (double)s->nfft / (double)n;
-  double lobe_unpadded
-      = (window == 1) ? sqrt (1.0 + (beta / M_PI) * (beta / M_PI)) : 2.0;
-  s->lobe_bins = (size_t)ceil (lobe_unpadded * p_eff) + 1;
+  /* Main-lobe half-width L: Kaiser null-to-null half-width (un-padded bins)
+   * scaled by the zero-pad interpolation factor nfft/n, plus a guard bin.
+   * Power is INTEGRATED over ±L. */
+  double p_eff         = (double)s->nfft / (double)n;
+  double lobe_unpadded = sqrt (1.0 + (beta / M_PI) * (beta / M_PI));
+  s->lobe_bins         = (size_t)ceil (lobe_unpadded * p_eff) + 1;
+
+  /* Spur-search keep-out (>= L): exclude the fundamental out past its first
+   * null into the sidelobe skirt, so the fundamental's own (auto-suppressed)
+   * sidelobes are never picked as the worst spur. */
+  s->spur_guard_bins
+      = s->lobe_bins
+        + (size_t)ceil (MEASURE_SPUR_SIDELOBES * lobe_unpadded * p_eff);
 
   return s;
 }
@@ -238,12 +248,18 @@ compute_metrics (tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
     p_noise = TM_EPS;
 
   /* 5. worst spur = largest component other than the fundamental.  Scan bins
-   * outside the DC + fundamental lobes (harmonics are eligible spurs). */
-  long   ks    = -1;
-  double psmax = -1.0;
+   * outside the DC region and the fundamental's SIDELOBE skirt
+   * (spur_guard_bins
+   * >= lobe_bins) so the window leakage of the fundamental is not mistaken for
+   * a spur — SFDR then reflects the DUT, not the window.  Harmonics, which sit
+   * far from the fundamental, remain eligible spurs. */
+  long   spur_guard = (long)s->spur_guard_bins + (long)s->dc_guard;
+  long   ks         = -1;
+  double psmax      = -1.0;
   for (long k = 0; k < (long)nbins; k++)
     {
-      if (labs (k - dc_bin) <= guard || labs (k - k0) <= (long)s->lobe_bins)
+      if (labs (k - dc_bin) <= spur_guard
+          || labs (k - k0) <= (long)s->spur_guard_bins)
         continue;
       if ((double)s->pwr[k] > psmax)
         {
@@ -302,7 +318,7 @@ compute_metrics (tonemeas_state_t *s, size_t nbins, long dc_bin, double df,
   out->lobe_bins        = s->lobe_bins;
   out->n_noise_bins     = n_noise;
   out->proc_gain_db     = 10.0 * log10 ((double)s->nfft / 2.0);
-  out->amp_uncert_db    = (s->window == 1) ? 0.01 : 0.03;
+  out->amp_uncert_db    = 0.01; /* Kaiser window */
   out->floor_uncert_db  = 4.34 / sqrt ((double)n_noise);
 }
 

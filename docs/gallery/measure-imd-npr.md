@@ -47,7 +47,7 @@ python src/doppler/examples/measure_imd_npr_demo.py
 from doppler.measure import IMDMeasure, NPRMeasure
 
 # Two-tone IMD / third-order intercept
-imd = IMDMeasure(n=n, fs=fs, beta=12.0)
+imd = IMDMeasure(n=n, fs=fs, dynamic_range_db=90.0)
 r = imd.analyze(two_tone_capture)
 r.imd3_dbc, r.imd2_dbc, r.toi_dbfs        # products + intercept (dBFS)
 r.imd3_lo_freq, r.imd3_hi_freq            # folded 2f₁−f₂, 2f₂−f₁

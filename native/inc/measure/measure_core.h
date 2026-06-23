@@ -17,6 +17,62 @@
 extern "C" {
 #endif
 
+/* ── auto-window design policy ──────────────────────────────────────────────
+ * The measurement objects pick their Kaiser window automatically: the user
+ * states a target dynamic range (directly, or implied by the ADC bit depth)
+ * and the analyser chooses the *minimum* Kaiser beta whose sidelobes sit below
+ * that range — so window leakage never caps SFDR/SNR — while keeping the main
+ * lobe (hence resolution bandwidth) as narrow as the data allows. */
+
+/* Internal zero-pad factor (nfft = next_pow2(n * MEASURE_PAD)). */
+#define MEASURE_PAD 2u
+
+/* Sidelobe headroom below the ideal converter SNR: a B-bit ADC's spur/noise
+ * floor sits at -(6.02*B+1.76) dBc, so target sidelobes this much deeper to be
+ * sure window leakage stays under the floor being measured. */
+#define MEASURE_DR_MARGIN_DB 12.0
+
+/* Dynamic-range target when neither `bits` nor an explicit override is given
+ * (general DUT): deep enough for ~19-bit measurements. */
+#define MEASURE_DR_DEFAULT_DB 120.0
+
+/* Extra main-lobe widths excluded past the first null when searching for spurs,
+ * so a component's near-in sidelobes are never mistaken for a spur. */
+#define MEASURE_SPUR_SIDELOBES 1.0
+
+/**
+ * @brief Default dynamic-range target (dB) implied by an ADC bit depth.
+ *
+ * Ideal quantisation SNR is 6.02*bits + 1.76 dB; add MEASURE_DR_MARGIN_DB of
+ * headroom so the window's first sidelobe sits below the converter's own floor.
+ *
+ * @param bits  ADC depth in bits (> 0).
+ * @return Dynamic-range / sidelobe-attenuation target in dB.
+ */
+static inline double
+measure_dr_from_bits (size_t bits)
+{
+  return 6.02 * (double)bits + 1.76 + MEASURE_DR_MARGIN_DB;
+}
+
+/**
+ * @brief Resolve the dynamic-range target from the override/bits/default chain.
+ *
+ * @param dynamic_range_db  Explicit target (dB); used when > 0.
+ * @param bits              ADC depth; used (via measure_dr_from_bits) when the
+ *                          override is unset and bits > 0.
+ * @return Dynamic-range / sidelobe-attenuation target in dB.
+ */
+static inline double
+measure_resolve_dr (double dynamic_range_db, size_t bits)
+{
+  if (dynamic_range_db > 0.0)
+    return dynamic_range_db;
+  if (bits > 0)
+    return measure_dr_from_bits (bits);
+  return MEASURE_DR_DEFAULT_DB;
+}
+
 /**
  * @brief Single-tone dynamic-measurement bag.
  *
@@ -100,18 +156,23 @@ typedef struct {
 /**
  * @brief Samples needed to reach a target resolution bandwidth.
  *
- * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).  The window ENBW is
- * the Kaiser value for `beta` (measured via kaiser_enbw on a reference window)
- * or 1.5 for Hann.
+ * Plans a capture for the same auto-Kaiser window the measurement objects use:
+ * the dynamic-range target (from @p dynamic_range_db, else @p bits) selects the
+ * Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the bins-per-RBW.
+ * RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
  *
- * @param fs          Sample rate (Hz).
- * @param target_rbw  Desired resolution bandwidth (Hz).
- * @param window      0 = Hann, 1 = Kaiser.
- * @param beta        Kaiser shape (ignored for Hann).
+ * @param fs                Sample rate (Hz, > 0).
+ * @param target_rbw        Desired resolution bandwidth (Hz).  When <= 0 it
+ *                          defaults to span/1000, where span = fs/2 for real
+ *                          captures and fs for complex (@p complex_input).
+ * @param bits              ADC depth: sets the dynamic-range target when no
+ *                          explicit override is given.
+ * @param dynamic_range_db  Explicit dynamic-range target (dB); used when > 0.
+ * @param complex_input     Non-zero if the capture is complex (span = fs).
  * @return Required capture length, or 0 on bad args.
  */
-size_t measure_min_samples(double fs, double target_rbw, int window,
-                           float beta);
+size_t measure_min_samples(double fs, double target_rbw, size_t bits,
+                           double dynamic_range_db, int complex_input);
 
 /** @brief Recommended zero-padded transform length: next_pow2(n * max(pad,1)). */
 size_t measure_rec_nfft(size_t n, size_t pad);

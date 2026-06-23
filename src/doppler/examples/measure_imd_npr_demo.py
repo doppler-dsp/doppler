@@ -115,7 +115,7 @@ def main() -> None:
     ax = axes[0, 0]
     f1, f2 = 9.013e6, 9.637e6
     y = two_tone(f1, f2, amp=0.35)
-    imd = IMDMeasure(n=N, fs=FS, beta=12.0)
+    imd = IMDMeasure(n=N, fs=FS, dynamic_range_db=90.0)
     r = imd.analyze(y)
     db = imd.spectrum_dbfs(y)  # the same averaged PSD the metrics use
     half = imd.nfft // 2

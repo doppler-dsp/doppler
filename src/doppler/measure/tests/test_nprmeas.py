@@ -23,7 +23,7 @@ def _notched_noise(n, depth_db, seed=0):
 def test_npr_tracks_notch_depth(depth):
     n = 1 << 15
     x = _notched_noise(n, -depth)
-    m = NPRMeasure(window="kaiser", n=n, fs=1.0, beta=12.0)
+    m = NPRMeasure(n=n, fs=1.0, dynamic_range_db=90.0)
     r = m.analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
     assert abs(r.npr_db - depth) < 5.0
     assert r.n_inband_bins > 0 and r.n_notch_bins > 0
@@ -33,7 +33,7 @@ def test_npr_tracks_notch_depth(depth):
 def test_npr_named_result():
     n = 1 << 14
     x = _notched_noise(n, -50)
-    m = NPRMeasure(n=n, fs=1.0, beta=12.0)
+    m = NPRMeasure(n=n, fs=1.0, dynamic_range_db=90.0)
     r = m.analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
     assert type(r).__name__ == "NPRMetrics"
     assert type(r).__module__ == "doppler.measure"

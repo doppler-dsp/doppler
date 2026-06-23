@@ -49,6 +49,34 @@ extern "C"
 float kaiser_enbw(const float *w, size_t w_len);
 
   /**
+   * @brief Kaiser beta achieving a target *window* peak-sidelobe attenuation.
+   *
+   * Inverts the Kaiser window-design formula (Kaiser 1974) so the window's own
+   * peak sidelobe sits at -atten_db:
+   *   A > 60 dB           : beta = 0.12438 * (A + 6.3)
+   *   13.26 < A <= 60 dB  : beta = 0.76609*(A-13.26)^0.4 + 0.09834*(A-13.26)
+   *   A <= 13.26 dB       : beta = 0.0 (rectangular, sidelobes ~ -13.3 dB)
+   * Picking the smallest beta meeting a dynamic-range target keeps the main
+   * lobe (hence ENBW / resolution bandwidth) as narrow as the requirement
+   * allows — the basis of the measurement suite's auto-window selection.
+   *
+   * This differs from doppler.resample.kaiser_beta(), which uses the Kaiser
+   * *FIR-filter* formula (A there is a filter stopband ripple, not a window
+   * sidelobe — about 13 dB lower for the same beta).
+   *
+   * @param atten_db  Desired window peak-sidelobe attenuation in dB (positive).
+   * @return Kaiser beta (>= 0.0).
+   * @code
+   * >>> from doppler.spectral import kaiser_beta_for_sidelobe
+   * >>> round(kaiser_beta_for_sidelobe(90.0), 4)
+   * 11.9778
+   * >>> kaiser_beta_for_sidelobe(10.0)
+   * 0.0
+   * @endcode
+   */
+  double kaiser_beta_for_sidelobe(double atten_db);
+
+  /**
    * @brief Fill @p w with a Kaiser window of shape parameter @p beta.
    * I0 is computed via the converging power-series expansion.  Increasing
    * @p beta raises sidelobe attenuation at the cost of a wider main lobe

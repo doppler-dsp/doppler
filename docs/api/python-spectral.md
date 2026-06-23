@@ -121,7 +121,8 @@ ______________________________________________________________________
 ## Spectral helpers
 
 Window functions (`hann_window`, `kaiser_window` + its `kaiser_enbw` equivalent
-noise bandwidth, and `blackman_harris_window` for deep sidelobe rejection ~92 dB),
+noise bandwidth and `kaiser_beta_for_sidelobe` window-design helper, and
+`blackman_harris_window` for deep sidelobe rejection ~92 dB),
 magnitude conversion to dB (`magnitude_db_cf32` /
 `magnitude_db_cf64`), and peak finding (`find_peaks_f32`) — the building blocks
 for a spectrum display.
@@ -146,6 +147,8 @@ peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 ::: doppler.spectral.kaiser_window
 
 ::: doppler.spectral.kaiser_enbw
+
+::: doppler.spectral.kaiser_beta_for_sidelobe
 
 ::: doppler.spectral.blackman_harris_window
 

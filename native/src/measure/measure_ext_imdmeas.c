@@ -46,35 +46,19 @@ static int
 IMDMeasureObj_init (IMDMeasureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "window", "n", "fs", "beta", "pad", "full_scale", "bits", NULL };
-  const char        *window_str = "kaiser";
-  unsigned long long n_raw      = 8192;
-  double             fs         = 1.0;
-  float              beta       = 12.0f;
-  unsigned long long pad_raw    = 2;
-  double             full_scale = 1.0;
-  unsigned long long bits_raw   = 0;
+      = { "n", "fs", "full_scale", "bits", "dynamic_range_db", NULL };
+  unsigned long long n_raw            = 8192;
+  double             fs               = 1.0;
+  double             full_scale       = 1.0;
+  unsigned long long bits_raw         = 0;
+  double             dynamic_range_db = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKdfKdK", kwlist,
-                                    &window_str, &n_raw, &fs, &beta, &pad_raw,
-                                    &full_scale, &bits_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KddKd", kwlist, &n_raw, &fs,
+                                    &full_scale, &bits_raw, &dynamic_range_db))
     return -1;
-  int window = 0;
-  if (strcmp (window_str, "hann") == 0)
-    window = 0;
-  else if (strcmp (window_str, "kaiser") == 0)
-    window = 1;
-  else
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "window must be one of \"hann\", \"kaiser\", got '%s'",
-                    window_str);
-      return -1;
-    }
   size_t n     = (size_t)n_raw;
-  size_t pad   = (size_t)pad_raw;
   size_t bits  = (size_t)bits_raw;
-  self->handle = imdmeas_create (n, fs, window, beta, pad, full_scale, bits);
+  self->handle = imdmeas_create (n, fs, full_scale, bits, dynamic_range_db);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "imdmeas_create returned NULL");
@@ -322,7 +306,7 @@ static PyMethodDef IMDMeasureObj_methods[]
           "\n"
           "    >>> import numpy as np\n"
           "    >>> from doppler import IMDMeasure\n"
-          "    >>> obj = IMDMeasure(\"kaiser\", 8192, 1.0, 12.0, 2, 1.0, 0)\n"
+          "    >>> obj = IMDMeasure(8192, 1.0, 1.0, 0, 0.0)\n"
           "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
           "    >>> y.dtype\n"
           "    dtype('float32')\n" },
@@ -337,9 +321,9 @@ static PyTypeObject IMDMeasureObjType = {
   .tp_basicsize                           = sizeof (IMDMeasureObject),
   .tp_dealloc                             = (destructor)IMDMeasureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create an IMDMeasure analyser.\n",
-  .tp_methods                             = IMDMeasureObj_methods,
-  .tp_getset                              = IMDMeasure_getset,
-  .tp_new                                 = IMDMeasureObj_new,
-  .tp_init                                = (initproc)IMDMeasureObj_init,
+  .tp_doc     = "Create an IMDMeasure analyser (auto Kaiser window).\n",
+  .tp_methods = IMDMeasureObj_methods,
+  .tp_getset  = IMDMeasure_getset,
+  .tp_new     = IMDMeasureObj_new,
+  .tp_init    = (initproc)IMDMeasureObj_init,
 };

@@ -1,10 +1,9 @@
 # measure/measure.pyi — type stubs for the measure C extension.
-from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
 class ToneMeasure:
-    """Create a ToneMeasure analyser.
+    """Create a ToneMeasure analyser (auto Kaiser window).
 
     Parameters
     ----------
@@ -12,18 +11,14 @@ class ToneMeasure:
         n constructor parameter.
     fs : float, default 1.0
         fs constructor parameter.
-    window : Literal["hann", "kaiser"], default "kaiser"
-        window constructor parameter.
-    beta : float, default 12.0
-        beta constructor parameter.
-    pad : int, default 2
-        pad constructor parameter.
     n_harmonics : int, default 8
         n_harmonics constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
     bits : int, default 0
         bits constructor parameter.
+    dynamic_range_db : float, default 0.0
+        dynamic_range_db constructor parameter.
     dc_guard : int, default 0
         dc_guard constructor parameter.
 
@@ -32,10 +27,10 @@ class ToneMeasure:
     Create with defaults:
 
     >>> from doppler.measure import ToneMeasure
-    >>> obj = ToneMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, n_harmonics=8, full_scale=1.0, bits=0, dc_guard=0)
+    >>> obj = ToneMeasure(n=8192, fs=1.0, n_harmonics=8, full_scale=1.0, bits=0, dynamic_range_db=0.0, dc_guard=0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., n_harmonics: int = ..., full_scale: float = ..., bits: int = ..., dc_guard: int = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., n_harmonics: int = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ..., dc_guard: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: the analyser is stateless between calls).
@@ -118,6 +113,14 @@ class ToneMeasure:
         """Lobe bins."""
 
     @property
+    def spur_guard_bins(self) -> int:
+        """Spur guard bins."""
+
+    @property
+    def beta(self) -> float:
+        """Beta."""
+
+    @property
     def rbw(self) -> float:
         """Rbw."""
 
@@ -137,7 +140,7 @@ class ToneMeasure:
     def __exit__(self, *args: object) -> None: ...
 
 class NPRMeasure:
-    """Create an NPRMeasure analyser.
+    """Create an NPRMeasure analyser (auto Kaiser window).
 
     Parameters
     ----------
@@ -145,26 +148,22 @@ class NPRMeasure:
         n constructor parameter.
     fs : float, default 1.0
         fs constructor parameter.
-    window : Literal["hann", "kaiser"], default "kaiser"
-        window constructor parameter.
-    beta : float, default 12.0
-        beta constructor parameter.
-    pad : int, default 2
-        pad constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
     bits : int, default 0
         bits constructor parameter.
+    dynamic_range_db : float, default 0.0
+        dynamic_range_db constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import NPRMeasure
-    >>> obj = NPRMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0, bits=0)
+    >>> obj = NPRMeasure(n=8192, fs=1.0, full_scale=1.0, bits=0, dynamic_range_db=0.0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: each analyze() call is independent).
@@ -232,7 +231,7 @@ class NPRMeasure:
     def __exit__(self, *args: object) -> None: ...
 
 class IMDMeasure:
-    """Create an IMDMeasure analyser.
+    """Create an IMDMeasure analyser (auto Kaiser window).
 
     Parameters
     ----------
@@ -240,26 +239,22 @@ class IMDMeasure:
         n constructor parameter.
     fs : float, default 1.0
         fs constructor parameter.
-    window : Literal["hann", "kaiser"], default "kaiser"
-        window constructor parameter.
-    beta : float, default 12.0
-        beta constructor parameter.
-    pad : int, default 2
-        pad constructor parameter.
     full_scale : float, default 1.0
         full_scale constructor parameter.
     bits : int, default 0
         bits constructor parameter.
+    dynamic_range_db : float, default 0.0
+        dynamic_range_db constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.measure import IMDMeasure
-    >>> obj = IMDMeasure(n=8192, fs=1.0, window="kaiser", beta=12.0, pad=2, full_scale=1.0, bits=0)
+    >>> obj = IMDMeasure(n=8192, fs=1.0, full_scale=1.0, bits=0, dynamic_range_db=0.0)
 
     """
-    def __init__(self, n: int = ..., fs: float = ..., window: Literal["hann", "kaiser"] = "kaiser", beta: float = ..., pad: int = ..., full_scale: float = ..., bits: int = ...) -> None: ...
+    def __init__(self, n: int = ..., fs: float = ..., full_scale: float = ..., bits: int = ..., dynamic_range_db: float = ...) -> None: ...
 
     def reset(self) -> None:
         """Reset (no-op: each analyze() call is independent).
@@ -312,8 +307,8 @@ class IMDMeasure:
 
     def __exit__(self, *args: object) -> None: ...
 
-def measure_min_samples(fs: float, target_rbw: float, window: int, beta: float) -> int:
-    """Samples needed to reach a target RBW (window 0=hann, 1=kaiser)."""
+def measure_min_samples(fs: float, target_rbw: float, bits: int, dynamic_range_db: float, complex_input: int) -> int:
+    """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000)."""
 
 def measure_rec_nfft(n: int, pad: int) -> int:
     """Recommended zero-padded transform length: next_pow2(n * pad)."""

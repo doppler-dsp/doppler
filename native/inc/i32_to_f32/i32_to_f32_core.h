@@ -99,6 +99,14 @@ i32_to_f32_step(const i32_to_f32_state_t *state, int32_t x)
  * @param input   Input int32 array; must contain at least @p n elements.
  * @param output  Output float32 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import I32ToF32
+ * >>> import numpy as np
+ * >>> I32ToF32().steps(np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
+ * [0.0, 0.5, -1.0]
+ *
+ * @endcode
  */
 void i32_to_f32_steps(
     i32_to_f32_state_t *state,

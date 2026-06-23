@@ -43,6 +43,15 @@ class F32ToI16:
         -------
         NDArray[np.int16]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16
+        >>> import numpy as np
+        >>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
+        >>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+        [0, 16384, -32768, 32735]
+
         """
 
     @property
@@ -95,6 +104,14 @@ class I16ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16ToF32
+        >>> import numpy as np
+        >>> I16ToF32().steps(np.array([0, 16384, -32768], dtype=np.int16)).tolist()
+        [0.0, 0.5, -1.0]
+
         """
 
     def destroy(self) -> None:
@@ -147,6 +164,14 @@ class I32ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I32ToF32
+        >>> import numpy as np
+        >>> I32ToF32().steps(np.array([0, 2**30, -2**31], dtype=np.int32)).tolist()
+        [0.0, 0.5, -1.0]
+
         """
 
     def destroy(self) -> None:
@@ -199,6 +224,14 @@ class I8ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> import numpy as np
+        >>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()
+        [0.0, 0.5, -1.0]
+
         """
 
     def destroy(self) -> None:
@@ -248,6 +281,14 @@ class F32ToI16U32:
         -------
         NDArray[np.uint32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U32
+        >>> import numpy as np
+        >>> F32ToI16U32().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+        [0, 16384]
+
         """
 
     @property
@@ -301,6 +342,14 @@ class F32ToI16U64:
         -------
         NDArray[np.uint64]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI16U64
+        >>> import numpy as np
+        >>> F32ToI16U64().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+        [0, 16384]
+
         """
 
     @property
@@ -353,6 +402,14 @@ class I16U32ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U32ToF32
+        >>> import numpy as np
+        >>> I16U32ToF32().steps(np.array([0, 16384], dtype=np.uint32)).tolist()
+        [0.0, 0.5]
+
         """
 
     def destroy(self) -> None:
@@ -401,6 +458,14 @@ class I16U64ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I16U64ToF32
+        >>> import numpy as np
+        >>> I16U64ToF32().steps(np.array([0, 16384], dtype=np.uint64)).tolist()
+        [0.0, 0.5]
+
         """
 
     def destroy(self) -> None:
@@ -450,6 +515,14 @@ class F32ToUQ15:
         -------
         NDArray[np.uint16]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToUQ15
+        >>> import numpy as np
+        >>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+        [0, 32768, 65503]
+
         """
 
     @property
@@ -503,6 +576,14 @@ class UQ15ToF32:
         -------
         NDArray[np.float32]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import UQ15ToF32
+        >>> import numpy as np
+        >>> UQ15ToF32().steps(np.array([0, 32768], dtype=np.uint16)).tolist()
+        [-1.0, 0.0]
+
         """
 
     def destroy(self) -> None:
@@ -558,6 +639,16 @@ class ADC:
         -------
         NDArray[np.int64]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import ADC
+        >>> import numpy as np
+        >>> # ideal 12-bit ADC: full scale spans +-2**11 codes
+        >>> ADC(12, 0.0, 0).steps(np.array([0.0, 0.5, 0.999, -1.0],
+        ...                                dtype=np.float32)).tolist()
+        [0, 1024, 2046, -2048]
+
         """
 
     @property

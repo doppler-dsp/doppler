@@ -117,6 +117,14 @@ f32_to_i16u64_step(f32_to_i16u64_state_t *state, float x)
  * @param input   Input float32 array; must contain at least @p n elements.
  * @param output  Output uint64 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16U64
+ * >>> import numpy as np
+ * >>> F32ToI16U64().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+ * [0, 16384]
+ *
+ * @endcode
  */
 void f32_to_i16u64_steps(
     f32_to_i16u64_state_t *state,

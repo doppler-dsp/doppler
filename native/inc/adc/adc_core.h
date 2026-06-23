@@ -159,6 +159,16 @@ adc_step(adc_state_t *state, float x)
  * @param input   Input float32 array; must contain at least @p n elements.
  * @param output  Output int64 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import ADC
+ * >>> import numpy as np
+ * >>> # ideal 12-bit ADC: full scale spans +-2**11 codes
+ * >>> ADC(12, 0.0, 0).steps(np.array([0.0, 0.5, 0.999, -1.0],
+ * ...                                dtype=np.float32)).tolist()
+ * [0, 1024, 2046, -2048]
+ *
+ * @endcode
  */
 void adc_steps(
     adc_state_t       *state,

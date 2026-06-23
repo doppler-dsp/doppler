@@ -108,6 +108,14 @@ uq15_to_f32_step(const uq15_to_f32_state_t *state, uint16_t x)
  *                @p n elements.
  * @param output  Output float32 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import UQ15ToF32
+ * >>> import numpy as np
+ * >>> UQ15ToF32().steps(np.array([0, 32768], dtype=np.uint16)).tolist()
+ * [-1.0, 0.0]
+ *
+ * @endcode
  */
 void uq15_to_f32_steps(
     uq15_to_f32_state_t *state,

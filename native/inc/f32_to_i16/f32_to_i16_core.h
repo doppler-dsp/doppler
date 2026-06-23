@@ -119,6 +119,15 @@ f32_to_i16_step(f32_to_i16_state_t *state, float x)
  * @param input   Input float32 array; must contain at least @p n elements.
  * @param output  Output int16 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToI16
+ * >>> import numpy as np
+ * >>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
+ * >>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+ * [0, 16384, -32768, 32735]
+ *
+ * @endcode
  */
 void f32_to_i16_steps(
     f32_to_i16_state_t *state,

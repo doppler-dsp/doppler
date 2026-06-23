@@ -226,8 +226,31 @@ class CIC:
 
         """
 
-    def decimate(self, x: complex) -> NDArray[np.complex64]:
-        """Decimate."""
+    def decimate(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC_N M=1 comb stages and converted back to CF32.  State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n_in/R samples per block).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            CF32 output array; length is floor((phase + n_in) / R).
+
+        Examples
+        --------
+        >>> from doppler.resample import CIC
+        >>> import numpy as np
+        >>> cic = CIC(R=16)
+        >>> for _ in range(4):
+        ...     _ = cic.decimate(np.zeros(16, dtype=np.complex64))
+        >>> y = cic.decimate(np.zeros(16, dtype=np.complex64))
+        >>> y.tolist(), y.dtype
+        ([0j], dtype('complex64'))
+
+        """
 
     @property
     def R(self) -> int:

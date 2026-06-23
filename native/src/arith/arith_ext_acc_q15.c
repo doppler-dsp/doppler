@@ -223,7 +223,9 @@ static PyMethodDef AccQ15_methods[]
         { "step", (PyCFunction)AccQ15_step, METH_VARARGS,
           "step(x) -> None\n"
           "\n"
-          "Consume one input sample (sink; no output).\n"
+          "Accumulate one Q15 sample into the running total. The sample is "
+          "sign-extended to 64 bits before addition, ensuring that negative "
+          "samples subtract correctly from the accumulator without wrap.\n"
           "\n"
           "    >>> from doppler import AccQ15\n"
           "    >>> obj = AccQ15(0)\n"

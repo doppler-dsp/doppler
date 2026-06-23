@@ -223,7 +223,9 @@ static PyMethodDef AccQ8_methods[] = {
   { "step", (PyCFunction)AccQ8_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
-    "Consume one input sample (sink; no output).\n"
+    "Accumulate one Q8 sample into the running total. The sample is "
+    "sign-extended to 32 bits before addition so negative samples correctly "
+    "subtract from the accumulator.\n"
     "\n"
     "    >>> from doppler import AccQ8\n"
     "    >>> obj = AccQ8(0)\n"

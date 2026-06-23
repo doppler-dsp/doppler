@@ -48,6 +48,21 @@ class ToneMeasure:
         -------
         tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]
             the metric record (by value).
+
+        Examples
+        --------
+        >>> from doppler.measure import ToneMeasure
+        >>> import numpy as np
+        >>> n, t = 4096, np.arange(4096)
+        >>> # full-scale tone at 300 cycles + a 2nd harmonic 40 dB down
+        >>> x = (np.cos(2*np.pi*300*t/n)
+        ...      + 0.01*np.cos(2*np.pi*600*t/n)).astype(np.float32)
+        >>> r = ToneMeasure(n=n, fs=1.0).analyze(x)
+        >>> type(r).__name__
+        'ToneMetrics'
+        >>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)   # 0 dBFS tone, THD -40 dBc
+        (True, -40.0)
+
         """
 
     def analyze_complex(self, x: complex) -> tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]:
@@ -62,6 +77,17 @@ class ToneMeasure:
         -------
         tuple[float, float, float, float, float, float, float, float, float, float, float, float, float, float, int, float, float, float, int, int, float, float, float]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.measure import ToneMeasure
+        >>> import numpy as np
+        >>> i = np.arange(4096)
+        >>> x = np.exp(2j*np.pi*137*i/4096).astype(np.complex64)
+        >>> r = ToneMeasure(n=4096, fs=1.0).analyze_complex(x)
+        >>> round(r.fund_freq, 4), abs(r.fund_dbfs) < 0.2
+        (0.0334, True)
+
         """
 
     def time_stats(self, x: float) -> tuple[float, float, float, float, float, float]:
@@ -76,6 +102,17 @@ class ToneMeasure:
         -------
         tuple[float, float, float, float, float, float]
             Output.
+
+        Examples
+        --------
+        >>> from doppler.measure import ToneMeasure
+        >>> import numpy as np
+        >>> t = np.arange(4096)
+        >>> x = (0.8*np.cos(2*np.pi*50*t/4096)).astype(np.float32)
+        >>> ts = ToneMeasure(n=4096, fs=1.0).time_stats(x)
+        >>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)   # sine crest ~3.01 dB
+        (3.01, 80.0)
+
         """
 
     def spectrum_dbfs(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
@@ -191,6 +228,23 @@ class NPRMeasure:
         -------
         tuple[float, float, float, int, int, float]
             the NPR metric record (by value).
+
+        Examples
+        --------
+        >>> from doppler.measure import NPRMeasure
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(0)
+        >>> n = 1 << 15
+        >>> F = np.fft.rfft(rng.standard_normal(n))
+        >>> f = np.fft.rfftfreq(n)
+        >>> F[(f < 0.05) | (f > 0.45)] = 0                 # band-limit to [0.05,0.45]
+        >>> F[(f >= 0.20) & (f <= 0.25)] *= 10**(-50/20)   # notch 50 dB deep
+        >>> x = np.fft.irfft(F, n)
+        >>> x = (0.3*x/np.std(x)).astype(np.float32)
+        >>> r = NPRMeasure(n=n, fs=1.0).analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
+        >>> 45 < r.npr_db < 55, r.notch_psd_dbfs < r.inband_psd_dbfs
+        (True, True)
+
         """
 
     def spectrum_dbfs(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
@@ -272,6 +326,20 @@ class IMDMeasure:
         -------
         tuple[float, float, float, float, float, float, float, float, float, float, float, float]
             the IMD metric record (by value; zeroed if no two tones are found).
+
+        Examples
+        --------
+        >>> from doppler.measure import IMDMeasure
+        >>> import numpy as np
+        >>> t = np.arange(4096)
+        >>> # two equal tones at 200 & 250 cycles + 3rd-order products 40 dB down
+        >>> x = (np.cos(2*np.pi*200*t/4096) + np.cos(2*np.pi*250*t/4096)
+        ...      + 0.01*np.cos(2*np.pi*150*t/4096)
+        ...      + 0.01*np.cos(2*np.pi*300*t/4096)).astype(np.float32)
+        >>> r = IMDMeasure(n=4096, fs=1.0).analyze(x)
+        >>> round(r.f1, 4), round(r.f2, 4), round(r.imd3_dbc, 0)
+        (0.0488, 0.061, -40.0)
+
         """
 
     def spectrum_dbfs(self, x: NDArray[np.float32]) -> NDArray[np.float32]:

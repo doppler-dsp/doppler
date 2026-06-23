@@ -65,6 +65,20 @@ void imdmeas_reset(imdmeas_state_t *state);
 /**
  * @brief Two-tone IMD/TOI of a real capture (finds the two strongest tones).
  * @return the IMD metric record (by value; zeroed if no two tones are found).
+ *
+ * @code
+ * >>> from doppler.measure import IMDMeasure
+ * >>> import numpy as np
+ * >>> t = np.arange(4096)
+ * >>> # two equal tones at 200 & 250 cycles + 3rd-order products 40 dB down
+ * >>> x = (np.cos(2*np.pi*200*t/4096) + np.cos(2*np.pi*250*t/4096)
+ * ...      + 0.01*np.cos(2*np.pi*150*t/4096)
+ * ...      + 0.01*np.cos(2*np.pi*300*t/4096)).astype(np.float32)
+ * >>> r = IMDMeasure(n=4096, fs=1.0).analyze(x)
+ * >>> round(r.f1, 4), round(r.f2, 4), round(r.imd3_dbc, 0)
+ * (0.0488, 0.061, -40.0)
+ *
+ * @endcode
  */
 imd_meas_t imdmeas_analyze(imdmeas_state_t *state, const float *x, size_t n_in);
 

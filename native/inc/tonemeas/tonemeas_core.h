@@ -95,15 +95,56 @@ void tonemeas_reset(tonemeas_state_t *state);
 /**
  * @brief Analyse a real capture into the single-tone metric bag.
  * @return the metric record (by value).
+ *
+ * @code
+ * >>> from doppler.measure import ToneMeasure
+ * >>> import numpy as np
+ * >>> n, t = 4096, np.arange(4096)
+ * >>> # full-scale tone at 300 cycles + a 2nd harmonic 40 dB down
+ * >>> x = (np.cos(2*np.pi*300*t/n)
+ * ...      + 0.01*np.cos(2*np.pi*600*t/n)).astype(np.float32)
+ * >>> r = ToneMeasure(n=n, fs=1.0).analyze(x)
+ * >>> type(r).__name__
+ * 'ToneMetrics'
+ * >>> abs(r.fund_dbfs) < 0.1, round(r.thd, 1)   # 0 dBFS tone, THD -40 dBc
+ * (True, -40.0)
+ *
+ * @endcode
  */
 tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
                              size_t n_in);
 
-/** @brief Analyse a complex baseband capture (two-sided spectrum). */
+/**
+ * @brief Analyse a complex baseband capture (two-sided spectrum).
+ *
+ * @code
+ * >>> from doppler.measure import ToneMeasure
+ * >>> import numpy as np
+ * >>> i = np.arange(4096)
+ * >>> x = np.exp(2j*np.pi*137*i/4096).astype(np.complex64)
+ * >>> r = ToneMeasure(n=4096, fs=1.0).analyze_complex(x)
+ * >>> round(r.fund_freq, 4), abs(r.fund_dbfs) < 0.2
+ * (0.0334, True)
+ *
+ * @endcode
+ */
 tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
                                      const float complex *x, size_t n_in);
 
-/** @brief Time-domain statistics of a real capture. */
+/**
+ * @brief Time-domain statistics of a real capture.
+ *
+ * @code
+ * >>> from doppler.measure import ToneMeasure
+ * >>> import numpy as np
+ * >>> t = np.arange(4096)
+ * >>> x = (0.8*np.cos(2*np.pi*50*t/4096)).astype(np.float32)
+ * >>> ts = ToneMeasure(n=4096, fs=1.0).time_stats(x)
+ * >>> round(ts.crest_db, 2), round(ts.fs_util_pct, 0)   # sine crest ~3.01 dB
+ * (3.01, 80.0)
+ *
+ * @endcode
+ */
 time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
                                  size_t n_in);
 

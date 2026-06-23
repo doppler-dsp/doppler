@@ -178,13 +178,13 @@ extern "C"
    * Every send/recv function returns one of these values.
    * Use dp_strerror() to obtain a human-readable description.
    */
-#define DP_OK 0           /**< Success. */
-#define DP_ERR_INIT -1    /**< Initialisation failed (ZMQ context/socket). */
-#define DP_ERR_SEND -2    /**< Send failed. */
-#define DP_ERR_RECV -3    /**< Receive failed or timed out (EAGAIN). */
-#define DP_ERR_INVALID -4 /**< Invalid argument. */
-#define DP_ERR_TIMEOUT -5 /**< Operation timed out. */
-#define DP_ERR_MEMORY -6  /**< Memory allocation failure. */
+#define DP_OK 0             /**< Success. */
+#define DP_ERR_INIT (-1)    /**< Initialisation failed (context/socket). */
+#define DP_ERR_SEND (-2)    /**< Send failed. */
+#define DP_ERR_RECV (-3)    /**< Receive failed or timed out (EAGAIN). */
+#define DP_ERR_INVALID (-4) /**< Invalid argument. */
+#define DP_ERR_TIMEOUT (-5) /**< Operation timed out. */
+#define DP_ERR_MEMORY (-6)  /**< Memory allocation failure. */
   /** @} */
 
   /* -------------------------------------------------------------------------

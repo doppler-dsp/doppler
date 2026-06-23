@@ -1,13 +1,17 @@
 /*
  * bench_stream.c — P0 transport benchmark: throughput + one-way latency.
  *
- * Measures PUSH/PULL performance at DSP-relevant block sizes over ipc://
- * (same-host, lowest ZMQ overhead).  PUSH/PULL has backpressure and delivers
- * every frame exactly once, making it the right baseline for pipeline work.
+ * Measures PUSH/PULL performance at DSP-relevant block sizes over TCP
+ * loopback.  PUSH/PULL has backpressure and delivers every frame exactly
+ * once, making it the right baseline for pipeline work.
+ *
+ * TCP loopback is the conservative baseline: it exercises the kernel TCP
+ * stack (no shared-memory shortcut) and matches what a real network hop
+ * looks like at line rate on a fast LAN.
  *
  * One-way latency uses dp_header_t.timestamp_ns (CLOCK_REALTIME on sender)
  * vs CLOCK_REALTIME on receiver — valid because both threads share the same
- * clock.  For cross-host measurements use a REQ/REP echo and halve the RTT.
+ * clock.  For cross-host measurements the clocks must be PTP/NTP synced.
  *
  * Usage:
  *   bench_stream [block_size] [num_blocks]
@@ -45,7 +49,7 @@
 #include "stream/stream.h"
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
-#define ENDPOINT "ipc:///tmp/dp_bench_stream.ipc"
+#define ENDPOINT "tcp://127.0.0.1:5679"
 #define WARMUP_BLKS 50  /* frames before timing starts */
 #define HIST_BINS 32768 /* 1 µs buckets → covers 0–32767 µs (32 ms) */
 

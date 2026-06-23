@@ -97,6 +97,14 @@ i8_to_f32_step(const i8_to_f32_state_t *state, int8_t x)
  * @param input   Input int8 array; must contain at least @p n elements.
  * @param output  Output float32 array; must contain at least @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import I8ToF32
+ * >>> import numpy as np
+ * >>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()
+ * [0.0, 0.5, -1.0]
+ *
+ * @endcode
  */
 void i8_to_f32_steps(
     i8_to_f32_state_t *state,

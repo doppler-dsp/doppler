@@ -131,6 +131,14 @@ f32_to_uq15_step(f32_to_uq15_state_t *state, float x)
  * @param output  Output uint16 offset-binary array; must contain at least
  *                @p n elements.
  * @param n       Number of samples to process.
+ *
+ * @code
+ * >>> from doppler.cvt import F32ToUQ15
+ * >>> import numpy as np
+ * >>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+ * [0, 32768, 65503]
+ *
+ * @endcode
  */
 void f32_to_uq15_steps(
     f32_to_uq15_state_t *state,

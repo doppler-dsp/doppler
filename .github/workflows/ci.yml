@@ -29,7 +29,13 @@ jobs:
 
     - name: Install jbx
       run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+        mkdir -p "$HOME/.local/bin"
+        curl -fsSL "https://just-buildit.github.io/just-runit" \
+          -o "$HOME/.local/bin/just-runit"
+        chmod +x "$HOME/.local/bin/just-runit"
+        ln -sf just-runit "$HOME/.local/bin/jb"
+        ln -sf just-runit "$HOME/.local/bin/jbx"
+        ln -sf just-runit "$HOME/.local/bin/just-buildit"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install dependencies (Ubuntu)
@@ -128,7 +134,13 @@ jobs:
 
     - name: Install jbx
       run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+        mkdir -p "$HOME/.local/bin"
+        curl -fsSL "https://just-buildit.github.io/just-runit" \
+          -o "$HOME/.local/bin/just-runit"
+        chmod +x "$HOME/.local/bin/just-runit"
+        ln -sf just-runit "$HOME/.local/bin/jb"
+        ln -sf just-runit "$HOME/.local/bin/jbx"
+        ln -sf just-runit "$HOME/.local/bin/just-buildit"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install system deps
@@ -240,7 +252,13 @@ jobs:
 
     - name: Install jbx
       run: |
-        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+        mkdir -p "$HOME/.local/bin"
+        curl -fsSL "https://just-buildit.github.io/just-runit" \
+          -o "$HOME/.local/bin/just-runit"
+        chmod +x "$HOME/.local/bin/just-runit"
+        ln -sf just-runit "$HOME/.local/bin/jb"
+        ln -sf just-runit "$HOME/.local/bin/jbx"
+        ln -sf just-runit "$HOME/.local/bin/just-buildit"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     - name: Install doxygen + LaTeX

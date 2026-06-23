@@ -42,7 +42,33 @@ class AGC:
         """
 
     def step(self, x: complex) -> complex:
-        """Process one input sample."""
+        """Process one complex sample through the exact per-sample AGC loop. Applies the current @c gain_db, measures the output power via the EMA detector, advances the loop-filter integrator by one step, then square-clips the returned sample to @c clip_db.  The clip is applied after the detector update, so clipping never disturbs convergence. This is the exact reference path; agc_steps() is the faster block equivalent and is not bit-identical but converges to the same steady state.
+
+        Parameters
+        ----------
+        x : complex
+            Complex input sample.
+
+        Returns
+        -------
+        complex
+            Gained, clipped output sample @c x * 10^(gain_db/20) with each component independently clamped to @c +/-10^(clip_db/20).
+
+        Examples
+        --------
+        >>> from doppler.agc import AGC
+        >>> agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+        >>> agc.step(1.0+0.0j)   # unity gain at start, 0 dB in = 0 dB out
+        (1+0j)
+        >>> agc.gain_db           # loop already advanced from 0 dB
+        0.0
+        >>> agc2 = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+        >>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample passes at unity gain
+        (4+0j)
+        >>> round(agc2.gain_db, 6)  # loop starts driving gain negative
+        -0.024276
+
+        """
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of @c decim samples.  Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase.  The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for agc_step().  The output array may alias the input (in-place).

@@ -29,12 +29,12 @@ class FFT:
         """No-op reset (plans are immutable after creation).
         """
 
-    def execute_cf64(self, x: complex) -> NDArray[np.complex128]:
+    def execute_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         """Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer; @p in and @p out must not alias.  The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n.  Both buffers must be exactly state->n elements long.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex128]
             Input.
 
         Returns
@@ -53,12 +53,12 @@ class FFT:
 
         """
 
-    def execute_cf32(self, x: complex) -> NDArray[np.complex64]:
+    def execute_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to fft_execute_cf64() but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised; @p in and @p out must not alias.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns
@@ -77,12 +77,12 @@ class FFT:
 
         """
 
-    def execute_inplace_cf64(self, x: complex) -> NDArray[np.complex128]:
+    def execute_inplace_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         """Copy @p in into @p out, then transform @p out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate @p in / @p out pointers; use this variant when the caller already owns @p out and wants the result there without a second allocation.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex128]
             Input.
 
         Returns
@@ -101,12 +101,12 @@ class FFT:
 
         """
 
-    def execute_inplace_cf32(self, x: complex) -> NDArray[np.complex64]:
+    def execute_inplace_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Copy @p in into @p out, then transform @p out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from @p in to @p out, then transforms @p out with the CF32 pocketfft plan.  @p in is left unmodified.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns
@@ -168,12 +168,12 @@ class FFT2D:
         """No-op reset (plans are immutable after creation).
         """
 
-    def execute_cf64(self, x: complex) -> NDArray[np.complex128]:
+    def execute_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         """Compute an out-of-place 2-D DFT on a double-precision complex grid. @p in is a flat row-major CF64 array of length ny*nx.  The output is written to the caller-supplied @p out buffer (also ny*nx); the two must not alias.  The transform is unnormalised.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex128]
             Input.
 
         Returns
@@ -195,12 +195,12 @@ class FFT2D:
 
         """
 
-    def execute_cf32(self, x: complex) -> NDArray[np.complex64]:
+    def execute_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of fft2d_execute_cf64().  Accepts and returns flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; @p in and @p out must not alias.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns
@@ -222,12 +222,12 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf64(self, x: complex) -> NDArray[np.complex128]:
+    def execute_inplace_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
         """Copy @p in into @p out, then transform @p out in-place (CF64 2-D). The ny*nx CF64 samples from @p in are first memcpy'd to @p out; the 2-D DFT is then applied to @p out in-place.  @p in is left unmodified. Useful when the caller owns @p out and wants to preserve @p in.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex128]
             Input.
 
         Returns
@@ -247,12 +247,12 @@ class FFT2D:
 
         """
 
-    def execute_inplace_cf32(self, x: complex) -> NDArray[np.complex64]:
+    def execute_inplace_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Copy @p in into @p out, then transform @p out in-place (CF32 2-D). Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to @p out.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns
@@ -324,12 +324,12 @@ class Corr:
 
         """
 
-    def execute(self, x: complex) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Correlate one frame and optionally dump the coherent accumulator. Runs the six-step pipeline: forward FFT → pointwise multiply with ref_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump. On the @p dwell-th call the accumulator is copied to @p out, zeroed, and the counter resets; the function returns n.  All other calls return 0 and leave @p out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns
@@ -403,12 +403,12 @@ class Corr2D:
 
         """
 
-    def execute(self, x: complex) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → IFFT2 → normalise (÷ ny*nx) → accumulate → conditional dump.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx ndarray, a no-dump returns None.
 
         Parameters
         ----------
-        x : complex
+        x : NDArray[np.complex64]
             Input.
 
         Returns

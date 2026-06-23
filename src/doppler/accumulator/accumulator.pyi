@@ -45,7 +45,22 @@ class AccF32:
         """
 
     def step(self, x: float) -> None:
-        """Process one input sample."""
+        """Add one sample to the running sum (``acc += x``). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer ``acc_f32_steps`` to amortise call overhead and allow auto-vectorisation.
+
+        Parameters
+        ----------
+        x : float
+            Input sample (float).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccF32
+        >>> obj = AccF32(0.0)
+        >>> obj.step(3.0)
+        >>> obj.get()
+        3.0
+
+        """
 
     def steps(self, x: NDArray[np.float32]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_f32_step`` for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM_RESTRICT so the compiler can assume no aliasing between ``state`` and ``input``.
@@ -221,7 +236,22 @@ class AccCf64:
         """
 
     def step(self, x: complex) -> None:
-        """Process one input sample."""
+        """Add one complex sample to the running sum (``acc += x``). This is the hot-path entry for sample-by-sample processing. For block inputs prefer ``acc_cf64_steps`` to amortise call overhead.
+
+        Parameters
+        ----------
+        x : complex
+            Input sample (complex).
+
+        Examples
+        --------
+        >>> from doppler.accumulator import AccCf64
+        >>> obj = AccCf64(0j)
+        >>> obj.step(3+2j)
+        >>> obj.get()
+        (3+2j)
+
+        """
 
     def steps(self, x: NDArray[np.complex128]) -> None:
         """Add all samples in ``input`` to the running sum. Equivalent to calling ``acc_cf64_step`` for each element; iterates element-by-element over double-precision complex samples.

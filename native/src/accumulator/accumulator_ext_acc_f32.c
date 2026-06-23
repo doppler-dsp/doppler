@@ -279,7 +279,10 @@ static PyMethodDef AccF32_methods[] = {
   { "step", (PyCFunction)AccF32_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
-    "Consume one input sample (sink; no output).\n"
+    "Add one sample to the running sum (``acc += x``). This is the hot-path "
+    "entry point for sample-by-sample processing. For block inputs prefer "
+    "``acc_f32_steps`` to amortise call overhead and allow "
+    "auto-vectorisation.\n"
     "\n"
     "    >>> from doppler import AccF32\n"
     "    >>> obj = AccF32(0.0)\n"

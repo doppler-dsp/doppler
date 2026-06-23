@@ -130,7 +130,21 @@ class _SynthEngine:
         """
 
     def step(self) -> complex:
-        """Generate one output sample."""
+        """Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result: ``sym * carrier + noise``.  Inlined and hot-path annotated so tight per-sample loops pay no call overhead.
+
+        Returns
+        -------
+        complex
+            Next output sample (float complex).
+
+        Examples
+        --------
+        >>> from doppler.wfm import _SynthEngine
+        >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
+        >>> s.step()
+        (1+0j)
+
+        """
 
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate a block of output samples. Calls wfm_synth_step() in a tight loop, writing each cf32 sample into ``output``.  The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller.

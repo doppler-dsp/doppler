@@ -283,7 +283,9 @@ static PyMethodDef AccCf64_methods[]
         { "step", (PyCFunction)AccCf64_step, METH_VARARGS,
           "step(x) -> None\n"
           "\n"
-          "Consume one input sample (sink; no output).\n"
+          "Add one complex sample to the running sum (``acc += x``). This is "
+          "the hot-path entry for sample-by-sample processing. For block "
+          "inputs prefer ``acc_cf64_steps`` to amortise call overhead.\n"
           "\n"
           "    >>> from doppler import AccCf64\n"
           "    >>> obj = AccCf64(0j)\n"

@@ -44,7 +44,23 @@ class AccQ15:
         """
 
     def step(self, x: int) -> None:
-        """Process one input sample."""
+        """Accumulate one Q15 sample into the running total. The sample is sign-extended to 64 bits before addition, ensuring that negative samples subtract correctly from the accumulator without wrap.
+
+        Parameters
+        ----------
+        x : int
+            Q15 input sample (int16_t, range `[-32768, 32767]`).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ15
+        >>> obj = AccQ15(0)
+        >>> obj.step(100)
+        >>> obj.step(200)
+        >>> obj.get()
+        300
+
+        """
 
     def steps(self, x: NDArray[np.int16]) -> None:
         """Accumulate a contiguous block of Q15 samples. Equivalent to calling step() n times but faster for large arrays because the loop can be auto-vectorised by the compiler.
@@ -177,7 +193,23 @@ class AccQ8:
         """
 
     def step(self, x: int) -> None:
-        """Process one input sample."""
+        """Accumulate one Q8 sample into the running total. The sample is sign-extended to 32 bits before addition so negative samples correctly subtract from the accumulator.
+
+        Parameters
+        ----------
+        x : int
+            Q8 input sample (int8_t, range `[-128, 127]`).
+
+        Examples
+        --------
+        >>> from doppler.arith import AccQ8
+        >>> obj = AccQ8(0)
+        >>> obj.step(10)
+        >>> obj.step(20)
+        >>> obj.get()
+        30
+
+        """
 
     def steps(self, x: NDArray[np.int8]) -> None:
         """Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls.

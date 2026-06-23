@@ -13,6 +13,53 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-06-23
+
+### Changed (breaking)
+
+- **Measurement suite is now auto-windowed** — `ToneMeasure` / `IMDMeasure` /
+    `NPRMeasure` no longer take `window` / `beta` / `pad`. State the **dynamic
+    range** you need (directly via `dynamic_range_db`, or implied by the ADC
+    `bits`) and the analyser auto-selects the Kaiser window so its sidelobes sit
+    below that range — operators think in resolution bandwidth and dynamic
+    range, not Kaiser shape. The realised RBW is reported in each result.
+    Callers passing `window=`/`beta=`/`pad=` must drop them (use
+    `bits=`/`dynamic_range_db=` instead). `measure_min_samples` is likewise
+    dynamic-range driven and defaults `target_rbw` to span/1000.
+
+### Fixed
+
+- **SFDR no longer capped by window leakage** — the worst-spur search excluded
+    only the main-lobe null-to-null half-width around the fundamental, so the
+    first eligible bin sat on the fundamental's own first sidelobe and SFDR read
+    the *window's* leakage rather than the DUT's. A wider, window-aware
+    `spur_guard_bins` keep-out (still integrating power over the main lobe) fixes
+    it across ToneMeasure/IMDMeasure/NPRMeasure. The auto window uses the Kaiser
+    *window*-sidelobe design formula (not the FIR-filter one), so a B-bit ADC's
+    true SFDR is no longer leakage-limited.
+
+### Added
+
+- **Python API reference pages** for `arith`, `cvt`, `agc`, and `util` — the
+    four C-extension modules that previously had no docs page — plus a
+    rebuilt per-pattern streaming page, and a `spectral.kaiser_beta_for_sidelobe`
+    window-design helper.
+- **Runnable, CI-gated docstring examples** across the suite: every public
+    method/free function with an example now has it exercised by the
+    `--doctest-glob='*.pyi'` gate (extended to `docs/api/*.md` for the curated
+    free-function pages). Corrected several wrong documented values along the way
+    (notably the detection `Pd`/Marcum-Q numbers and the amplitude-vs-power SNR
+    framing).
+
+### Tooling
+
+- **just-makeit pin → 0.19.32** — brings the gh-384/gh-385 fixes upstream
+    (this project drove both): module free-function and inline-function header
+    `@code` now synthesize into the generated `.pyi` docstrings, and a
+    `variable_output` block method renders an `NDArray` input. Re-applying
+    enriches the `arith`/`detection`/`measure`/`resample`/`spectral`/`wfm` stubs
+    and gives `CIC.decimate` its real docstring + correct `x: NDArray` signature.
+
 ## [0.20.0] — 2026-06-22
 
 ### Added

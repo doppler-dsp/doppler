@@ -172,17 +172,43 @@ ______________________________________________________________________
 
 ## 9. P0 benchmark results
 
+doppler runs **two planes** with different figures of merit, and P0 measures
+each on its own terms:
+
+- the **I/Q firehose** (PUSH/PULL) — high-rate sample blocks; the metric is
+    **throughput** (§9.1);
+- the **status / control / telemetry plane** (PUB/SUB + REQ/REP) — small
+    messages at a low rate; the metric is **unloaded latency + delivery
+    semantics**, *not* throughput (§9.2).
+
 **Harness:** `native/benchmarks/bench_stream.c` — two pthreads (producer +
-consumer), `pthread_barrier` start sync, 50-frame warmup, 32k-bin 1 µs
-latency histogram. Run on a single host (dev box, Release build).
+consumer) with a semaphore-pair start barrier (portable; macOS lacks
+`pthread_barrier`), 50-frame warmup, 32k-bin 1 µs latency histogram. Run on a
+single host (dev box, Release build). One-way / RTT latency uses
+`dp_header_t.timestamp_ns` (`CLOCK_REALTIME`, valid because both threads share
+the clock).
 
-**Transport under test:** ZMQ PUSH/PULL over `tcp://127.0.0.1:5679`; NATS
-core pub/sub over `nats://127.0.0.1:4222` (nats-server v2.14.2 in-process,
-no JetStream, `nats bench pub + sub` CLI).
+**Transport under test:** ZMQ PUSH/PULL over `tcp://127.0.0.1:5679` and ZMQ
+REQ/REP over `tcp://127.0.0.1:5680`; NATS core pub/sub over
+`nats://127.0.0.1:4222` (nats-server v2.14.2 in-process, no JetStream,
+`nats bench pub + sub` CLI).
 
-**Message payload:** CF32 I/Q (8 bytes/sample), no framing overhead subtracted.
+**Message payload:** firehose = CF32 I/Q (8 bytes/sample); status = a 64-byte
+control message. No framing overhead subtracted.
 
-### ZMQ PUSH/PULL — TCP loopback
+> **Loopback overstates the brokerless edge for the *distributed* case.** At
+> ≥ 4 k-sample frames both transports exceed 10 GbE line rate (~1,250 MB/s), so
+> on a real NIC the firehose is link-bound for *either* transport and the
+> throughput gap below collapses. The ZMQ advantage is a **co-located** (ipc /
+> loopback) phenomenon — which is exactly the axis it's recommended for.
+
+### 9.1 Firehose throughput (PUSH/PULL)
+
+PUSH/PULL has **backpressure**: the producer blocks if the consumer falls
+behind, so every frame is delivered exactly once and throughput is the true
+end-to-end rate. One-way latency uses `dp_header_t.timestamp_ns`
+(`CLOCK_REALTIME` sender → receiver; valid because both threads share the same
+clock).
 
 PUSH/PULL has **backpressure**: the producer blocks if the consumer falls
 behind, so every frame is delivered exactly once and throughput is the true
@@ -206,15 +232,21 @@ clock).
     on the same machine. Cross-host latency needs PTP/NTP-synchronised clocks.
 - No pinning, no `SO_BUSY_POLL`, no huge pages. Numbers are a pessimistic
     baseline; tuned production configs will be better.
+- **The `lat_*` columns are *saturation* latency, not at-rate latency.** The
+    producer runs flat-out into the default ZMQ send queue (`SNDHWM` ≈ 1000
+    frames), so the ~1 ms means are dominated by **queue depth**, not transport
+    cost — which is why they are non-monotonic in frame size (256 → 964 µs but
+    4096 → 832 µs). They bound the firehose's worst case under saturation; the
+    *unloaded* small-message latency that matters for control lives in §9.2.
 
-### NATS core pub/sub — TCP loopback
+### Firehose: NATS as a candidate (throughput upper bound)
 
-`nats bench pub` + `nats bench sub` with a single publisher and single
-subscriber. Core NATS (no JetStream persistence). Throughput is taken from
-the **subscriber** msgs/sec (end-to-end) × actual frame size; the CLI reports
-subscriber MB/s based on a fixed 128 B default which is wrong and ignored.
-Latency figures from `nats bench pub` are **publish-to-broker** only —
-not end-to-end — and are not comparable to the ZMQ column.
+This is still the **firehose** question — *can a NATS broker carry the I/Q
+stream?* — measured against NATS's fastest path (core pub/sub, no persistence),
+so it's an upper bound. It is **not** the status plane (that's §9.2). `nats bench pub` + `nats bench sub`, single publisher + subscriber, no JetStream.
+Throughput is the **subscriber** msgs/sec (end-to-end) × actual frame size; the
+CLI's MB/s assumes a fixed 128 B default and is ignored. `nats bench` latency is
+**publish-to-broker** only — not end-to-end — and is not comparable.
 
 | block_sz (samples) | frame bytes | NATS sub msgs/s | NATS MB/s | ZMQ MB/s | ZMQ / NATS |
 | ------------------ | ----------- | --------------- | --------- | -------- | ---------- |
@@ -238,16 +270,49 @@ not end-to-end — and are not comparable to the ZMQ column.
     the Go-based `nats bench` CLI which has its own serialisation overhead.
     A C-native integration (P1) may close some of the gap at small frames.
 
-### Interpretation for the phased plan
+### 9.2 Status / control plane (PUB/SUB + REQ/REP)
 
-- **ZMQ stays the right tool for the co-located high-rate firehose.** At
-    DSP-relevant block sizes (4k–64k samples) ZMQ delivers 1.85–2.3× the
-    end-to-end throughput of a NATS broker.
-- **NATS is competitive at small frames (≤ 256 samples / 2 KB)** and wins
-    on every resilience axis (discovery, reconnect, backpressure, durability).
-- **The throughput / latency boundary** for the firehose-vs-resilient routing
-    decision sits around 1k–4k samples (~8–32 KB/frame) — below that NATS can
-    keep up; above that ZMQ's brokerless advantage matters.
-- **P1 greenlit:** these numbers confirm the pluggable-transport seam is the
-    right architecture — ship ZMQ for high-rate paths, NATS for resilient /
-    k8s paths, routed by use case behind a common interface.
+The status plane carries small control / telemetry messages at a low rate
+(Hz–kHz), so **throughput is irrelevant** — its figures of merit are *unloaded*
+latency and **delivery semantics**. Latency is a non-issue either way:
+
+| pattern     | msg  | RTT min | RTT mean | RTT p99 | one-way (≈) |
+| ----------- | ---- | ------- | -------- | ------- | ----------- |
+| ZMQ REQ/REP | 64 B | 224 µs  | 375 µs   | 998 µs  | ~110–190 µs |
+
+(Loopback on a **loaded** dev box — concurrent builds were running, so the
+firehose sweep was ~4–5× slower than §9.1 at the time; treat these as a
+*ceiling*. An idle box / tuned setup is lower.) The takeaway is the order of
+magnitude: a sub-millisecond round trip is **negligible against status update
+periods**, so latency does not drive the choice. **Semantics do** — and this is
+the axis NATS exists for:
+
+| property                      | ZMQ PUB/SUB                                                                   | NATS                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| late joiner / "current state" | **lost** — slow-joiner drops msgs sent before the SUB connects; no last value | **JetStream KV / last-value** — a new subscriber reads current state immediately |
+| delivery                      | fire-and-forget (lossy on a slow consumer)                                    | at-least-once + acks + redelivery (JetStream)                                    |
+| fan-out / filtering           | N subscribers; topic conventions by hand                                      | subjects + wildcards; broker-side filtering                                      |
+| discovery / reconnect         | endpoints hard-wired; no topology reconnect                                   | built-in reconnect, service discovery, clustering                                |
+| request / reply               | strict lock-step; head-of-line blocking                                       | request-reply with timeouts + queue groups, no HOL                               |
+
+The **late-joiner / last-value** gap is usually decisive for a control plane:
+ZMQ PUB/SUB cannot answer "what is the current state?" for a subscriber that
+joined after the last update, while NATS does so natively. So the status plane
+is a NATS win on semantics, with latency a non-factor.
+
+### 9.3 Interpretation for the phased plan
+
+- **Firehose → ZMQ, co-located.** At DSP block sizes (4k–64k samples) ZMQ
+    delivers 1.85–2.3× a NATS broker's throughput on loopback/ipc — but that
+    edge is a co-located phenomenon (on a real NIC both are link-bound; see the
+    headline caveat). Brokerless socket-to-socket is the right firehose.
+- **Status/control → NATS, distributed.** Throughput is moot; NATS wins on
+    last-value/late-joiner, durable+acked delivery, reconnect, and discovery —
+    exactly the resilient/k8s axis.
+- **The routing boundary is the *plane*, not just the frame size.** High-rate
+    co-located I/Q → ZMQ; resilient/distributed status + control → NATS. (For a
+    firehose that must cross hosts resiliently, NATS is viable above ~1k-sample
+    frames where its throughput keeps up and the NIC is the real limit anyway.)
+- **P1 greenlit:** the numbers confirm the pluggable-transport seam is the right
+    architecture — ZMQ for the co-located firehose, NATS for the distributed
+    status/control plane, behind one interface.

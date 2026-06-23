@@ -51,8 +51,10 @@
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 #define ENDPOINT "tcp://127.0.0.1:5679"
-#define WARMUP_BLKS 50  /* frames before timing starts */
-#define HIST_BINS 32768 /* 1 µs buckets → covers 0–32767 µs (32 ms) */
+#define REQREP_ENDPOINT "tcp://127.0.0.1:5680"
+#define STATUS_MSG_BYTES 64 /* representative small status/control payload */
+#define WARMUP_BLKS 50      /* frames before timing starts */
+#define HIST_BINS 32768     /* 1 µs buckets → covers 0–32767 µs (32 ms) */
 
 /* ─── portable 2-party barrier via a pair of semaphores ─────────────────── */
 typedef struct
@@ -246,6 +248,106 @@ hist_stats (const bench_state_t *s, double *min_us, double *mean_us,
     *min_us = 0;
 }
 
+/* ─── status-plane REQ/REP: unloaded small-message RTT ──────────────────────
+ *
+ * The status/control/telemetry plane carries small messages at a low rate, so
+ * its figure of merit is *unloaded* latency, not throughput. REQ/REP is
+ * lock-step (one request outstanding at a time), so a ping-pong of a
+ * STATUS_MSG_BYTES payload measures the genuine request→reply round trip with
+ * no queueing — the "query current state" latency. One-way ≈ RTT / 2. */
+static void *
+replier (void *arg)
+{
+  bench_state_t *s   = arg;
+  dp_rep_t      *rep = dp_rep_create (REQREP_ENDPOINT);
+  if (!rep)
+    {
+      fputs ("bench_stream: rep create failed\n", stderr);
+      barrier_wait (&s->ready, 0);
+      return NULL;
+    }
+  barrier_wait (&s->ready, 0);
+
+  unsigned char echo[STATUS_MSG_BYTES] = { 0 };
+  for (size_t i = 0; i < s->num_blks; i++)
+    {
+      dp_msg_t *msg = NULL;
+      size_t    sz  = 0;
+      if (dp_rep_recv (rep, &msg, &sz) != DP_OK)
+        {
+          dp_msg_free (msg);
+          break;
+        }
+      dp_msg_free (msg);
+      if (dp_rep_send (rep, echo, STATUS_MSG_BYTES) != DP_OK)
+        break;
+    }
+  dp_rep_destroy (rep);
+  return NULL;
+}
+
+static int
+run_reqrep (bench_state_t *s)
+{
+  pthread_t rep_tid;
+  pthread_create (&rep_tid, NULL, replier, s);
+
+  dp_req_t *req = dp_req_create (REQREP_ENDPOINT);
+  if (!req)
+    {
+      fputs ("bench_stream: req create failed\n", stderr);
+      barrier_wait (&s->ready, 1);
+      pthread_join (rep_tid, NULL);
+      return 1;
+    }
+  barrier_wait (&s->ready, 1);
+
+  unsigned char payload[STATUS_MSG_BYTES] = { 0 };
+  size_t        timed                     = 0;
+  for (size_t i = 0; i < s->num_blks; i++)
+    {
+      uint64_t t0 = now_ns ();
+      if (dp_req_send (req, payload, STATUS_MSG_BYTES) != DP_OK)
+        break;
+      dp_msg_t *msg = NULL;
+      size_t    sz  = 0;
+      if (dp_req_recv (req, &msg, &sz) != DP_OK)
+        {
+          dp_msg_free (msg);
+          break;
+        }
+      uint64_t t1 = now_ns ();
+      dp_msg_free (msg);
+
+      if (i >= WARMUP_BLKS)
+        {
+          uint64_t rtt_us = (t1 - t0) / 1000ULL;
+          if (rtt_us < HIST_BINS)
+            s->hist[rtt_us]++;
+          else
+            s->lat_overflow++;
+          timed++;
+        }
+    }
+  s->timed_blks = timed;
+  dp_req_destroy (req);
+  pthread_join (rep_tid, NULL);
+
+  if (timed == 0)
+    {
+      fputs ("bench_stream: no timed round trips\n", stderr);
+      return 1;
+    }
+
+  double min_us, mean_us, p99_us, max_us;
+  hist_stats (s, &min_us, &mean_us, &p99_us, &max_us);
+  printf ("msg_bytes\tpings\trtt_min_us\trtt_mean_us\trtt_p99_us"
+          "\trtt_max_us\toneway_mean_us\n");
+  printf ("%d\t%zu\t%.1f\t%.1f\t%.1f\t%.1f\t%.2f\n", STATUS_MSG_BYTES, timed,
+          min_us, mean_us, p99_us, max_us, mean_us / 2.0);
+  return 0;
+}
+
 /* ─── main ──────────────────────────────────────────────────────────────── */
 int
 main (int argc, char *argv[])
@@ -256,16 +358,40 @@ main (int argc, char *argv[])
   if (argc > 1
       && (strcmp (argv[1], "-h") == 0 || strcmp (argv[1], "--help") == 0))
     {
-      printf ("Usage: bench_stream [block_size] [num_blocks]\n"
-              "\n"
-              "  block_size   CF32 samples/frame (default 4096 = 32 KB)\n"
-              "  num_blocks   frames to send     (default 1000)\n"
-              "\n"
-              "P0 sweep:\n"
-              "  for blk in 256 1024 4096 16384 65536; do\n"
-              "    bench_stream $blk 600\n"
-              "  done\n");
+      printf (
+          "Usage: bench_stream [block_size] [num_blocks]\n"
+          "       bench_stream reqrep [num_pings]\n"
+          "\n"
+          "  block_size   CF32 samples/frame (default 4096 = 32 KB)\n"
+          "  num_blocks   frames to send     (default 1000)\n"
+          "  reqrep       status-plane mode: unloaded REQ/REP round-trip\n"
+          "               latency for a small message (default 10000 pings)\n"
+          "\n"
+          "Firehose throughput sweep (PUSH/PULL):\n"
+          "  for blk in 256 1024 4096 16384 65536; do\n"
+          "    bench_stream $blk 600\n"
+          "  done\n"
+          "\n"
+          "Status-plane latency:\n"
+          "  bench_stream reqrep\n");
       return 0;
+    }
+
+  /* Status-plane mode: `bench_stream reqrep [num_pings]` — unloaded small-
+   * message round-trip latency (no throughput; that is the firehose's job). */
+  if (argc > 1 && strcmp (argv[1], "reqrep") == 0)
+    {
+      bench_state_t *rs = calloc (1, sizeof (*rs));
+      if (!rs)
+        return 1;
+      rs->num_blks = (argc > 2) ? (size_t)strtoul (argv[2], NULL, 10) : 10000;
+      if (rs->num_blks <= WARMUP_BLKS)
+        rs->num_blks = WARMUP_BLKS + 1;
+      barrier_init (&rs->ready);
+      int rc = run_reqrep (rs);
+      barrier_destroy (&rs->ready);
+      free (rs);
+      return rc;
     }
 
   if (argc > 1)

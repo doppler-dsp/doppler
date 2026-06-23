@@ -60,11 +60,18 @@ extern "C" {
  * @param b  Threshold (same units as test_stat).
  * @return   Q_M(a, b) in &#91;0, 1&#93;.
  *
- * Verifiable reference values (scipy.special.marcum_q):
- *   marcum_q(1, 0.0, 1.0) = exp(-0.5) ~ 0.60653
- *   marcum_q(1, 0.0, 2.0) = exp(-2.0) ~ 0.13534
- *   marcum_q(2, 0.0, 2.0) = 3*exp(-2) ~ 0.40601
- *   marcum_q(1, 2.0, 1.0) ~ 0.91441
+ * @code
+ * >>> from doppler.detection import marcum_q
+ * >>> round(marcum_q(1, 0.0, 1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
+ * 0.60653
+ * >>> round(marcum_q(1, 0.0, 2.0), 5)   # exp(-2)
+ * 0.13534
+ * >>> round(marcum_q(2, 0.0, 2.0), 5)   # 3*exp(-2)
+ * 0.40601
+ * >>> round(marcum_q(1, 2.0, 1.0), 5)   # signal present (a=2)
+ * 0.91811
+ *
+ * @endcode
  */
 double marcum_q(int m, double a, double b);
 
@@ -81,7 +88,12 @@ double marcum_q(int m, double a, double b);
  * @param pfa  Desired false-alarm probability; must be in (0, 1).
  * @return     Threshold eta > 0.
  *
- * Example: det_threshold(1e-6) ~ 5.2565
+ * @code
+ * >>> from doppler.detection import det_threshold
+ * >>> round(det_threshold(1e-6), 4)
+ * 5.2565
+ *
+ * @endcode
  */
 double det_threshold(double pfa);
 
@@ -99,7 +111,15 @@ double det_threshold(double pfa);
  * @param threshold  Test-stat threshold eta, e.g. from det_threshold().
  * @return           Detection probability in &#91;0, 1&#93;.
  *
- * Example: det_pd(1.0, 4, det_threshold(1e-6)) ~ 0.78
+ * @code
+ * >>> from doppler.detection import det_pd, det_threshold
+ * >>> thr = det_threshold(1e-6)
+ * >>> round(det_pd(1.613, 8, thr), 2)   # an 8-sample dwell reaches Pd ~ 0.9
+ * 0.9
+ * >>> round(det_pd(0.0, 8, thr), 6)     # snr=0 -> Pd collapses to Pfa
+ * 1e-06
+ *
+ * @endcode
  */
 double det_pd(double snr, int dwell, double threshold);
 
@@ -116,9 +136,12 @@ double det_pd(double snr, int dwell, double threshold);
  * @param max_dwell  Search upper bound; prevents infinite loops for low SNR.
  * @return           Minimum dwell >= 1, or -1 if not achievable.
  *
- * Example: det_dwell(0.5, 0.9, 1e-6, 256) returns the coherent integration
- *          depth needed to detect a 0.5 amplitude-SNR signal with Pd = 0.9
- *          and Pfa = 1e-6.
+ * @code
+ * >>> from doppler.detection import det_dwell
+ * >>> det_dwell(0.5, 0.9, 1e-6, 256)   # dwell to detect a 0.5-SNR signal
+ * 84
+ *
+ * @endcode
  */
 int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
@@ -134,8 +157,15 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
  * @param pfa     False-alarm probability; used to derive eta.
  * @return        Minimum amplitude SNR >= 0.
  *
- * Roundtrip invariant:
- *   det_pd(det_snr(M, pd, pfa), M, det_threshold(pfa)) >= pd
+ * @code
+ * >>> from doppler.detection import det_snr, det_pd, det_threshold
+ * >>> snr = det_snr(8, 0.9, 1e-6)
+ * >>> round(snr, 3)
+ * 1.613
+ * >>> det_pd(snr, 8, det_threshold(1e-6)) >= 0.9   # roundtrip invariant
+ * True
+ *
+ * @endcode
  */
 double det_snr(int dwell, double pd_min, double pfa);
 
@@ -169,7 +199,12 @@ double det_snr(int dwell, double pd_min, double pfa);
  * @param pfa  Desired false-alarm probability; must be in (0, 1).
  * @return     Threshold p > 0.
  *
- * Example: det_threshold_power(1e-6) = 6·ln(10) ~ 13.816
+ * @code
+ * >>> from doppler.detection import det_threshold_power
+ * >>> round(det_threshold_power(1e-6), 3)   # -ln(1e-6) = 6*ln(10)
+ * 13.816
+ *
+ * @endcode
  */
 double det_threshold_power(double pfa);
 
@@ -184,9 +219,15 @@ double det_threshold_power(double pfa);
  * @param power_threshold Threshold p, e.g. from det_threshold_power().
  * @return                Detection probability in &#91;0, 1&#93;.
  *
- * Example: det_pd_power(1.0, 4, det_threshold_power(1e-6)) ~ 0.78
- *   (same result as det_pd(1.0, 4, det_threshold(1e-6)) since snr_power=1
- *   corresponds to snr_amplitude=1 and the Q_1 arguments are identical)
+ * @code
+ * >>> from doppler.detection import det_pd_power, det_threshold_power
+ * >>> thr = det_threshold_power(1e-6)
+ * >>> round(det_pd_power(2.6017, 8, thr), 2)   # power SNR 2.6 -> Pd ~ 0.9
+ * 0.9
+ *
+ * @endcode
+ * The result equals det_pd() at the equivalent amplitude SNR: power SNR
+ * `s` corresponds to amplitude SNR `sqrt(s)`, and the Q_1 arguments match.
  */
 double det_pd_power(double snr_power, int dwell, double power_threshold);
 
@@ -198,6 +239,13 @@ double det_pd_power(double snr_power, int dwell, double power_threshold);
  * @param pfa        False-alarm probability; used to derive p.
  * @param max_dwell  Search upper bound.
  * @return           Minimum dwell >= 1, or -1 if not achievable.
+ *
+ * @code
+ * >>> from doppler.detection import det_dwell_power
+ * >>> det_dwell_power(0.25, 0.9, 1e-6, 256)   # power SNR 0.25 = amp SNR 0.5
+ * 84
+ *
+ * @endcode
  */
 int det_dwell_power (double snr_power, double pd_min, double pfa,
                      int max_dwell);
@@ -205,13 +253,21 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
 /**
  * @brief Minimum per-sample power SNR achieving Pd >= pd_min.
  *
- * Roundtrip invariant:
- *   det_pd_power(det_snr_power(M,pd,pfa), M, det_threshold_power(pfa)) >= pd
- *
  * @param dwell   Coherent integration depth; must be >= 1.
  * @param pd_min  Required detection probability.
  * @param pfa     False-alarm probability.
  * @return        Minimum power SNR >= 0.
+ *
+ * @code
+ * >>> from doppler.detection import (det_snr_power, det_pd_power,
+ * ...                                det_threshold_power)
+ * >>> sp = det_snr_power(8, 0.9, 1e-6)
+ * >>> round(sp, 4)
+ * 2.6017
+ * >>> det_pd_power(sp, 8, det_threshold_power(1e-6)) >= 0.9   # roundtrip
+ * True
+ *
+ * @endcode
  */
 double det_snr_power(int dwell, double pd_min, double pfa);
 

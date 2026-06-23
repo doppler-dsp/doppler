@@ -159,6 +159,13 @@ jobs:
         uv run python -m pytest --doctest-glob='*.pyi' -q \
           $(find src/doppler -name '*.pyi')
 
+    - name: Doctest API reference pages
+      # jm synthesizes .pyi docstrings for *objects* but not module-level free
+      # functions (detection, spectral helpers, ...), so those modules' runnable
+      # examples live in their curated docs/api/*.md page instead. Gate them the
+      # same way: any `>>>` example on an API page must pass against the build.
+      run: uv run python -m pytest --doctest-glob='*.md' -q docs/api/
+
     - name: Test with coverage
       run: |
         uv run pytest src/ -v \

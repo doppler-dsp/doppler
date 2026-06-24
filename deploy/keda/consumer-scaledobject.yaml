@@ -26,7 +26,8 @@ spec:
     # Primary: scale on JetStream consumer lag (pending + un-acked).
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: "nats.doppler.svc.cluster.local:8222"
+        # The NATS monitoring port (:8222) is on the chart's *headless* service.
+        natsServerMonitoringEndpoint: "nats-headless.doppler.svc.cluster.local:8222"
         account: "$G"
         stream: "DP_WORK_default"
         consumer: "DP_PULL_default"

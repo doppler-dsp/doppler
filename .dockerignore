@@ -1,0 +1,7 @@
+.git
+.venv
+build
+**/build
+**/__pycache__
+**/*.so
+docs/c-api

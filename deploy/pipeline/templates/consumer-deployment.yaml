@@ -32,5 +32,9 @@ spec:
           env:
             - name: STREAM_ENDPOINT
               value: {{ .Values.streamEndpoint | quote }}
+            {{- range .Values.consumer.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
           resources:
             {{- toYaml .Values.consumer.resources | nindent 12 }}

@@ -319,6 +319,35 @@ set_target_properties(zmq_vendor_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${_ZMQ_SRC}/include")
 add_dependencies(zmq_vendor_static libzmq_vendor)
 
+# ── Vendored nats.c (static, PIC) ────────────────────────────────────────────
+# stream.so statically links libnats so it has no runtime dep on a libnats.so.
+# TLS and NATS Streaming (STAN, which pulls protobuf-c) are OFF; JetStream and
+# KV (js.c/jsm.c/kv.c) stay in.  nats.c is pure C, so — exactly like libzmq —
+# it lands only in the libdoppler_stream tier and adds no C++ to the core.
+set(_NATS_SRC "${CMAKE_SOURCE_DIR}/vendor/nats.c")
+set(_NATS_BLD "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor")
+set(_NATS_LIB "${_NATS_BLD}/lib/libnats_static.a")
+add_custom_command(OUTPUT "${_NATS_LIB}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${_NATS_BLD}"
+    COMMAND ${CMAKE_COMMAND} -B "${_NATS_BLD}" -S "${_NATS_SRC}"
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            -DNATS_BUILD_WITH_TLS=OFF
+            -DNATS_BUILD_STREAMING=OFF
+            -DNATS_BUILD_LIB_SHARED=OFF
+            -DNATS_BUILD_LIB_STATIC=ON
+            -DNATS_BUILD_EXAMPLES=OFF
+            -DNATS_BUILD_USE_SODIUM=OFF
+            -DBUILD_TESTING=OFF
+    COMMAND ${CMAKE_COMMAND} --build "${_NATS_BLD}" --parallel
+    COMMENT "Building vendored nats.c (static, PIC; TLS/STAN off)" VERBATIM)
+add_custom_target(libnats_vendor DEPENDS "${_NATS_LIB}")
+add_library(nats_vendor_static STATIC IMPORTED GLOBAL)
+set_target_properties(nats_vendor_static PROPERTIES
+    IMPORTED_LOCATION             "${_NATS_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES "${_NATS_SRC}/src")
+add_dependencies(nats_vendor_static libnats_vendor)
+
 # ── Optional stream component (libdoppler_stream) ────────────────────────────
 # The ZMQ-dependent layer is split OUT of the core so libdoppler stays C++-free
 # (-lm only).  libdoppler_stream bundles the stream wire layer (stream_core) and
@@ -343,16 +372,17 @@ if(NOT WIN32)
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
     # gcc (C driver) links the C objects; -lstdc++ pulls libstdc++ for the C++
-    # libzmq.  Threads/m propagate to consumers.
+    # libzmq (nats.c is pure C).  Threads/m propagate to consumers.
     target_link_libraries(doppler_stream
-        PRIVATE zmq_vendor_static
+        PRIVATE zmq_vendor_static nats_vendor_static
         PUBLIC  stdc++ Threads::Threads m)
     target_link_libraries(doppler_stream_static PUBLIC stdc++ Threads::Threads m)
     # The static form can't embed an archive through link rules, so fold the
-    # vendored libzmq.a objects in (the ar-merge the core used to use) — leaving
-    # the static consumer with `-ldoppler_stream` + the C/C++ runtime, no -lzmq.
-    add_dependencies(doppler_stream        libzmq_vendor)
-    add_dependencies(doppler_stream_static libzmq_vendor)
+    # vendored libzmq.a AND libnats.a objects in (the ar-merge the core used to
+    # use) — leaving the static consumer with `-ldoppler_stream` + the C/C++
+    # runtime, no -lzmq / -lnats.
+    add_dependencies(doppler_stream        libzmq_vendor libnats_vendor)
+    add_dependencies(doppler_stream_static libzmq_vendor libnats_vendor)
     add_custom_command(TARGET doppler_stream_static POST_BUILD
         COMMAND ${CMAKE_COMMAND}
             -DDEST=$<TARGET_FILE:doppler_stream_static>
@@ -360,7 +390,13 @@ if(NOT WIN32)
             -DAR=${CMAKE_AR}
             -DRANLIB=${CMAKE_RANLIB}
             -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
-        COMMENT "Folding libzmq.a into libdoppler_stream.a (self-contained)"
+        COMMAND ${CMAKE_COMMAND}
+            -DDEST=$<TARGET_FILE:doppler_stream_static>
+            -DSRC=${_NATS_LIB}
+            -DAR=${CMAKE_AR}
+            -DRANLIB=${CMAKE_RANLIB}
+            -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
+        COMMENT "Folding libzmq.a + libnats.a into libdoppler_stream.a (self-contained)"
         VERBATIM)
 endif()
 

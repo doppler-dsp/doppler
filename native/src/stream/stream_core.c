@@ -30,6 +30,8 @@ dp_msg_data (dp_msg_t *msg)
       return zmq_msg_data (&msg->u.zmq);
     case DP_MSG_NATS:
       return dpn_msg_data (msg);
+    case DP_MSG_OWNED:
+      return (char *)msg->u.owned.ptr + msg->data_offset;
     default:
       return NULL;
     }
@@ -46,6 +48,8 @@ dp_msg_size (dp_msg_t *msg)
       return zmq_msg_size (&msg->u.zmq);
     case DP_MSG_NATS:
       return dpn_msg_size (msg);
+    case DP_MSG_OWNED:
+      return msg->u.owned.len - msg->data_offset;
     default:
       return 0;
     }
@@ -63,6 +67,16 @@ dp_msg_sample_type (dp_msg_t *msg)
   return msg ? msg->sample_type : CF64;
 }
 
+int
+dp_msg_ack (dp_msg_t *msg)
+{
+  if (!msg)
+    return DP_ERR_INVALID;
+  if (msg->kind == DP_MSG_NATS)
+    return dpn_msg_ack (msg);
+  return DP_OK; /* ZMQ / core-NATS / reassembled: nothing to ack */
+}
+
 void
 dp_msg_free (dp_msg_t *msg)
 {
@@ -75,6 +89,9 @@ dp_msg_free (dp_msg_t *msg)
       break;
     case DP_MSG_NATS:
       dpn_msg_free (msg);
+      break;
+    case DP_MSG_OWNED:
+      free (msg->u.owned.ptr);
       break;
     }
   free (msg);

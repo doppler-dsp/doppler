@@ -11,11 +11,11 @@
  * Receive stays zero-copy — dp_msg_data() points into the natsMsg past the
  * header, and dp_msg_free() does exactly one natsMsg_Destroy().
  *
- * Subjects: an endpoint "nats://host:port/<base>" yields a subject base
- * (default "default").  PUB publishes "iq.<base>.<sample_type>"; SUB
- * subscribes "iq.<base>.>" (so the broker can filter by type for free).
+ * Subjects: an endpoint "nats://host:port/{base}" yields a subject base
+ * (default "default").  PUB publishes "iq.{base}.{sample_type}"; SUB
+ * subscribes "iq.{base}.>" (so the broker can filter by type for free).
  * REQ/REP map onto NATS request/reply: a REQ owns a reply inbox and
- * PublishRequest()s to <base>; a REP SubscribeSync()s <base>, remembers
+ * PublishRequest()s to {base}; a REP SubscribeSync()s {base}, remembers
  * each request's reply subject, and Publish()es the answer there.
  *
  * PUSH/PULL over nats:// is the JetStream work-queue tier (Phase 4) and is
@@ -177,7 +177,7 @@ dpn_ctx_destroy (struct dp_ctx *ctx)
  * ========================================================================= */
 
 /* Publish one prebuilt buffer to the role's subject.  typestr is the sample
- * type name (used only by PUB to build "iq.<base>.<type>"). */
+ * type name (used only by PUB to build "iq.{base}.{type}"). */
 static int
 dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
 {

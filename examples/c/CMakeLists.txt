@@ -31,6 +31,7 @@ if(NOT WIN32)
             doppler_lib_static
             $<TARGET_OBJECTS:stream_core_obj>
             zmq_vendor_static
+            nats_vendor_static
             Threads::Threads stdc++ m)
         set_target_properties(${_ex} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples/c)

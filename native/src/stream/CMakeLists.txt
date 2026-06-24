@@ -5,7 +5,7 @@
 # nats:// backend; pure C, TLS/STAN off — see the root CMakeLists).
 # Skipped on Windows: the vendored libzmq build does not support MinGW.
 if(NOT WIN32)
-    add_library(stream_core_obj OBJECT stream_core.c)
+    add_library(stream_core_obj OBJECT stream_core.c stream_nats.c)
     target_include_directories(stream_core_obj PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc)
     target_link_libraries(stream_core_obj PUBLIC

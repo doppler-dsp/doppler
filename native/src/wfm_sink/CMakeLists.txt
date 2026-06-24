@@ -8,6 +8,7 @@ target_link_libraries(wfm_sink PRIVATE
     wfm_sink_core
     $<TARGET_OBJECTS:stream_core_obj>
     zmq_vendor_static
+    nats_vendor_static
     Threads::Threads
     stdc++
     m

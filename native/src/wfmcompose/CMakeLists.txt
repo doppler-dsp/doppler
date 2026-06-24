@@ -149,6 +149,7 @@ if(NOT WIN32)
         wfm_sink_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static
+        nats_vendor_static
         Threads::Threads stdc++ m)
     target_include_directories(test_wfm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
@@ -185,6 +186,7 @@ if(NOT WIN32)
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static
+        nats_vendor_static
         Threads::Threads stdc++ m)
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     install(TARGETS wfmgen_cli DESTINATION bin)

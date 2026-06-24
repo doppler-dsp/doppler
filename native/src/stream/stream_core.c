@@ -1,87 +1,23 @@
 #include "stream/stream.h"
-#include <stdio.h>
+#include "stream_internal.h"
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <zmq.h>
 
-#define DP_MAGIC 0x53494753   /* "SIGS" */
-#define DP_VERSION 0x00010000 /* v1.0.0 */
-
 /* =========================================================================
  * Backend seam
  *
- * The transport is selected per context by the endpoint scheme: a
- * "nats://…" endpoint routes to the NATS backend, anything else (tcp://,
- * ipc://, inproc://) to ZMQ.  dp_ctx and dp_msg are tagged unions so the
- * two backends can coexist behind one unchanged public API.
- *
- * The NATS branch is stubbed here (returns DP_ERR_INIT / NULL); the real
- * nats.c implementation lands in stream_nats.c (Phase 2+).
+ * The transport is selected per context by the endpoint scheme (see
+ * parse_backend): a "nats://…" endpoint routes to the NATS backend
+ * (stream_nats.c, dpn_*), anything else (tcp://, ipc://, inproc://) to the
+ * ZMQ backend (dpz_*, below).  struct dp_ctx / struct dp_msg and the enums
+ * live in stream_internal.h so both translation units share them.
  * ========================================================================= */
-
-typedef enum
-{
-  DP_BACKEND_ZMQ  = 0,
-  DP_BACKEND_NATS = 1
-} dp_backend_t;
-
-/* Messaging role, decoupled from any backend's socket-type constants.  The
- * ZMQ backend maps these onto ZMQ_PUB/ZMQ_SUB/…; bind-vs-connect is implied
- * by the role (PUB/PUSH/REP bind, SUB/PULL/REQ connect). */
-typedef enum
-{
-  DP_ROLE_PUB = 0,
-  DP_ROLE_SUB,
-  DP_ROLE_PUSH,
-  DP_ROLE_PULL,
-  DP_ROLE_REQ,
-  DP_ROLE_REP
-} dp_role_t;
-
-struct dp_zmq_state
-{
-  void *context;
-  void *socket;
-};
-
-struct dp_nats_state
-{
-  void *conn; /* natsConnection * — populated in Phase 2 (stream_nats.c). */
-};
-
-struct dp_ctx
-{
-  dp_backend_t     backend;
-  dp_sample_type_t sample_type;
-  uint64_t         sequence; /* shared, backend-agnostic per-sender count. */
-  union
-  {
-    struct dp_zmq_state  zmq;
-    struct dp_nats_state nats;
-  } u;
-};
 
 /* =========================================================================
- * dp_msg_t — zero-copy message handle (tagged by how its buffer is owned)
+ * dp_msg_t — zero-copy message accessors (dispatch on how the buffer is owned)
  * ========================================================================= */
-
-typedef enum
-{
-  DP_MSG_ZMQ = 0 /* buffer owned by a zmq_msg_t (zero-copy). */
-                 /* DP_MSG_NATS / DP_MSG_OWNED added with the NATS backend. */
-} dp_msg_kind_t;
-
-struct dp_msg
-{
-  dp_msg_kind_t    kind;
-  dp_sample_type_t sample_type;
-  size_t           num_samples;
-  union
-  {
-    zmq_msg_t zmq;
-  } u;
-};
 
 void *
 dp_msg_data (dp_msg_t *msg)
@@ -92,6 +28,8 @@ dp_msg_data (dp_msg_t *msg)
     {
     case DP_MSG_ZMQ:
       return zmq_msg_data (&msg->u.zmq);
+    case DP_MSG_NATS:
+      return dpn_msg_data (msg);
     default:
       return NULL;
     }
@@ -106,6 +44,8 @@ dp_msg_size (dp_msg_t *msg)
     {
     case DP_MSG_ZMQ:
       return zmq_msg_size (&msg->u.zmq);
+    case DP_MSG_NATS:
+      return dpn_msg_size (msg);
     default:
       return 0;
     }
@@ -132,6 +72,9 @@ dp_msg_free (dp_msg_t *msg)
     {
     case DP_MSG_ZMQ:
       zmq_msg_close (&msg->u.zmq);
+      break;
+    case DP_MSG_NATS:
+      dpn_msg_free (msg);
       break;
     }
   free (msg);
@@ -375,7 +318,8 @@ dpz_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
     }
 
   /* Zero-copy recv: ZMQ owns the buffer */
-  msg->kind = DP_MSG_ZMQ;
+  msg->kind        = DP_MSG_ZMQ;
+  msg->data_offset = 0;
   zmq_msg_init (&msg->u.zmq);
   rc = zmq_msg_recv (&msg->u.zmq, ctx->u.zmq.socket, 0);
   if (rc == -1)
@@ -402,7 +346,8 @@ dpz_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
   if (!msg)
     return DP_ERR_MEMORY;
 
-  msg->kind = DP_MSG_ZMQ;
+  msg->kind        = DP_MSG_ZMQ;
+  msg->data_offset = 0;
   zmq_msg_init (&msg->u.zmq);
   int rc = zmq_msg_recv (&msg->u.zmq, ctx->u.zmq.socket, 0);
   if (rc == -1)
@@ -435,71 +380,6 @@ dpz_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 {
   zmq_setsockopt (ctx->u.zmq.socket, ZMQ_RCVTIMEO, &timeout_ms,
                   sizeof (timeout_ms));
-}
-
-/* =========================================================================
- * NATS backend (dpn_*) — stubbed until Phase 2 (stream_nats.c)
- * ========================================================================= */
-
-static struct dp_ctx *
-dpn_ctx_create (dp_role_t role, const char *endpoint,
-                dp_sample_type_t sample_type)
-{
-  (void)role;
-  (void)endpoint;
-  (void)sample_type;
-  return NULL; /* not yet implemented */
-}
-
-static void
-dpn_ctx_destroy (struct dp_ctx *ctx)
-{
-  (void)ctx;
-}
-
-static int
-dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                 const void *samples, size_t data_size)
-{
-  (void)ctx;
-  (void)header;
-  (void)samples;
-  (void)data_size;
-  return DP_ERR_INIT;
-}
-
-static int
-dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
-{
-  (void)ctx;
-  (void)out_msg;
-  (void)out_hdr;
-  return DP_ERR_INIT;
-}
-
-static int
-dpn_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
-{
-  (void)ctx;
-  (void)out_msg;
-  (void)out_size;
-  return DP_ERR_INIT;
-}
-
-static int
-dpn_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
-{
-  (void)ctx;
-  (void)data;
-  (void)size;
-  return DP_ERR_INIT;
-}
-
-static void
-dpn_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
-{
-  (void)ctx;
-  (void)timeout_ms;
 }
 
 /* =========================================================================

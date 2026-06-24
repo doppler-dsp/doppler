@@ -1,0 +1,16 @@
+# Local-dev NATS broker with JetStream — the single-node analog of the k8s
+# cluster, for running the stream suite's nats:// tests on a laptop:
+#
+#   docker compose -f deploy/docker-compose.nats.yml up -d
+#   pytest src/doppler/stream/         # nats:// tests now run (not skipped)
+#   docker compose -f deploy/docker-compose.nats.yml down
+#
+# Single node => no R=3; it proves protocol + at-least-once redelivery, not
+# broker-pod-death failover (that needs the 3-node cluster, deploy/nats/).
+services:
+  nats:
+    image: nats:2.10
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222" # client
+      - "8222:8222" # monitoring (KEDA scaler / nats CLI)

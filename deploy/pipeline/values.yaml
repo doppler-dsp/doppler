@@ -1,0 +1,29 @@
+image:
+  repository: ghcr.io/doppler-dsp/doppler
+  tag: "" # defaults to .Chart.appVersion
+  pullPolicy: IfNotPresent
+
+# NATS endpoint — the Service from the nats chart (deploy/nats/values.yaml).
+# The trailing path is the subject base: work.<base>.> / iq.<base>.>.
+streamEndpoint: "nats://nats.doppler.svc.cluster.local:4222/default"
+
+# Producers PUSH I/Q frames onto the work-queue. doppler ships no generic
+# producer binary, so supply your app's command/args (e.g. a wfmgen build that
+# sinks to the nats:// work subject). The endpoint is injected as
+# STREAM_ENDPOINT.
+producer:
+  replicas: 1
+  command: []
+  args: []
+  env: [] # extra env, e.g. [{name: RATE_HZ, value: "2000"}]
+  resources: {}
+
+# Consumers PULL + ack from the durable work-queue. `replicas` is only the
+# initial count — KEDA (deploy/keda/consumer-scaledobject.yaml) owns it at
+# runtime, scaling 2..50 on consumer lag. Keep it >= the KEDA minReplicaCount.
+consumer:
+  replicas: 2
+  command: []
+  args: []
+  env: [] # extra env, e.g. [{name: WORK_MS, value: "50"}]
+  resources: {}

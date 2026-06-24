@@ -166,12 +166,27 @@ jobs:
       # same way: any `>>>` example on an API page must pass against the build.
       run: uv run python -m pytest --doctest-glob='*.md' -q docs/api/
 
+    - name: Start NATS JetStream broker (for nats:// stream tests)
+      # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
+      # unreachable; start a JetStream broker so they actually run in CI.
+      # A service container can't pass the `-js` flag, so run it explicitly.
+      run: |
+        docker run -d --name nats -p 4222:4222 nats:2.10 -js
+        for _ in $(seq 1 50); do
+          (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null && break || sleep 0.2
+        done
+        echo "NATS JetStream broker ready on 127.0.0.1:4222"
+
     - name: Test with coverage
       run: |
         uv run pytest src/ -v \
           --cov \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml
+
+    - name: Stop NATS broker
+      if: always()
+      run: docker rm -f nats || true
 
     - name: Python example smoke tests
       run: make test-examples-python

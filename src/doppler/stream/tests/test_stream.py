@@ -451,3 +451,128 @@ def test_req_rep_context_manager():
         assert len(samples) == 4
         rep.send(samples)
         req.recv(timeout_ms=2000)
+
+
+# ------------------------------------------------------------------ #
+# NATS backend (nats://) — skipped unless a broker is reachable       #
+# ------------------------------------------------------------------ #
+
+
+def _nats_available() -> bool:
+    """True if a nats-server is listening on 127.0.0.1:4222."""
+    import socket
+
+    try:
+        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+requires_nats = pytest.mark.skipif(
+    not _nats_available(),
+    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
+)
+
+
+def _nats_ep(hint: str) -> str:
+    """Unique nats:// endpoint so tests don't share streams/subjects."""
+    import random
+
+    return f"nats://127.0.0.1:4222/{hint}{random.randint(1, 10**9)}"
+
+
+@requires_nats
+def test_nats_pub_sub_roundtrip():
+    ep = _nats_ep("pubsub")
+    sub = Subscriber(ep)
+    time.sleep(0.3)  # core NATS: sub must exist before publish
+    pub = Publisher(ep, CF64)
+    time.sleep(0.3)
+    x = np.array([1 + 2j, 3 + 4j, 5 + 6j], dtype=np.complex128)
+    pub.send(x, sample_rate=48000, center_freq=int(915e6))
+    samples, hdr = sub.recv(timeout_ms=3000)
+    np.testing.assert_array_almost_equal(samples, x)
+    assert hdr["sample_rate"] == 48000
+    assert hdr["center_freq"] == int(915e6)
+    pub.close()
+    sub.close()
+
+
+@requires_nats
+def test_nats_pub_sub_timeout():
+    sub = Subscriber(_nats_ep("empty"))
+    with pytest.raises((TimeoutError, Exception)):
+        sub.recv(timeout_ms=50)
+    sub.close()
+
+
+@requires_nats
+def test_nats_req_rep_roundtrip():
+    ep = _nats_ep("ctrl")
+    rep = Replier(ep)
+    time.sleep(0.3)
+    req = Requester(ep)
+    req.send(np.array([1 + 2j, 3 + 4j], dtype=np.complex128))
+    got, _ = rep.recv(timeout_ms=3000)
+    np.testing.assert_array_almost_equal(got, [1 + 2j, 3 + 4j])
+    rep.send(np.array([5 + 6j, 7 + 8j], dtype=np.complex128))
+    reply, _ = req.recv(timeout_ms=3000)
+    np.testing.assert_array_almost_equal(reply, [5 + 6j, 7 + 8j])
+    req.close()
+    rep.close()
+
+
+@requires_nats
+def test_nats_chunked_pub_sub():
+    """A >1 MiB frame is split into chunks and reassembled byte-identical."""
+    ep = _nats_ep("chunk")
+    sub = Subscriber(ep)
+    time.sleep(0.3)
+    pub = Publisher(ep, CF64)
+    time.sleep(0.3)
+    rng = np.random.default_rng(0)
+    big = (
+        rng.standard_normal(100_000) + 1j * rng.standard_normal(100_000)
+    ).astype(np.complex128)  # 1.6 MB > 1 MiB max_payload
+    pub.send(big)
+    got, hdr = sub.recv(timeout_ms=5000)
+    assert np.array_equal(got, big)
+    assert hdr["num_samples"] == 100_000
+    pub.close()
+    sub.close()
+
+
+@requires_nats
+def test_nats_jetstream_push_pull_ack():
+    """Durable work-queue: every pushed frame is pulled and acked exactly."""
+    ep = _nats_ep("wq")
+    push = Push(ep, CF64)
+    n = 10
+    for i in range(n):
+        push.send(
+            np.array([i + 0j], dtype=np.complex128), sample_rate=int(1e6)
+        )
+    pull = Pull(ep)
+    got = []
+    for _ in range(n):
+        samples, _hdr = pull.recv(timeout_ms=5000)
+        got.append(int(samples[0].real))
+        pull.ack(samples)  # explicit JetStream ack
+    push.close()
+    pull.close()
+    assert sorted(got) == list(range(n))
+
+
+@requires_nats
+def test_nats_ack_noop_on_zmq():
+    """Pull.ack is a no-op for a ZMQ frame (safe to call unconditionally)."""
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    pull = Pull(ep)
+    time.sleep(0.1)
+    push.send(np.ones(2, dtype=np.complex128))
+    samples, _ = pull.recv(timeout_ms=2000)
+    pull.ack(samples)  # ZMQ: no-op, must not raise
+    push.close()
+    pull.close()

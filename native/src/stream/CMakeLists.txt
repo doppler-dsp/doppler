@@ -20,6 +20,7 @@ if(NOT WIN32)
     target_link_libraries(bench_stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
         zmq_vendor_static
+        nats_vendor_static
         stdc++ m pthread)
     target_include_directories(bench_stream PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)

@@ -668,6 +668,39 @@ class Pull:
         """
         ...
 
+    def ack(self, samples: NDArray[Any]) -> None:
+        """Acknowledge a frame on a durable (JetStream) consumer.
+
+        For the resilient NATS work-queue tier (a ``nats://`` Pull), delivery
+        is at-least-once: a frame stays pending until acked and is redelivered
+        if the worker dies first.  Pass the array returned by :meth:`recv`
+        once it has been fully processed, then drop the array.
+
+        A no-op for transports without acks (ZMQ, NATS core PUB/SUB), so it is
+        always safe to call.
+
+        Parameters
+        ----------
+        samples : ndarray
+            The samples array returned by :meth:`recv` (its buffer still
+            alive — do not ack after the array is garbage-collected).
+
+        Raises
+        ------
+        ValueError
+            If ``samples`` is not an un-freed :meth:`recv` result.
+        RuntimeError
+            If the acknowledgement fails.
+
+        Examples
+        --------
+        >>> from doppler.stream import Pull                 # doctest: +SKIP
+        >>> pull = Pull("nats://localhost:4222/work")       # doctest: +SKIP
+        >>> samples, hdr = pull.recv(timeout_ms=1000)       # doctest: +SKIP
+        >>> pull.ack(samples)                               # doctest: +SKIP
+        """
+        ...
+
     def close(self) -> None:
         """Destroy the ZMQ socket and release all resources.
 

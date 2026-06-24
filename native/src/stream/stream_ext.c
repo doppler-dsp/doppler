@@ -623,6 +623,39 @@ Pull_recv (PullObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+Pull_ack (PullObject *Py_UNUSED (self), PyObject *arr)
+{
+  /* `arr` is the samples array from recv(); its NumPy base is the dpMsgObject
+   * holding the dp_msg.  Acknowledges a JetStream work-queue message (so it is
+   * not redelivered); a no-op for ZMQ / core-NATS transports.  Call after the
+   * frame has been processed, before dropping the array. */
+  if (!PyArray_Check (arr))
+    {
+      PyErr_SetString (PyExc_TypeError,
+                       "ack() expects the samples array returned by recv()");
+      return NULL;
+    }
+  PyObject *base = PyArray_BASE ((PyArrayObject *)arr);
+  if (!base || Py_TYPE (base) != &dpMsgType)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "array is not an un-freed recv() result");
+      return NULL;
+    }
+  dp_msg_t *msg = ((dpMsgObject *)base)->msg;
+  int       rc;
+  Py_BEGIN_ALLOW_THREADS
+  rc = dp_msg_ack (msg);
+  Py_END_ALLOW_THREADS
+  if (rc != DP_OK)
+    {
+      PyErr_Format (PyExc_RuntimeError, "ack failed: %s", dp_strerror (rc));
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 Pull_close (PullObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->closed && self->ctx)
@@ -650,6 +683,8 @@ Pull_exit (PullObject *self, PyObject *Py_UNUSED (args))
 static PyMethodDef Pull_methods[] = {
   { "recv", (PyCFunction)Pull_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header) — zero-copy recv" },
+  { "ack", (PyCFunction)Pull_ack, METH_O,
+    "ack(samples) — acknowledge a JetStream work-queue frame (no-op on ZMQ)" },
   { "close", (PyCFunction)Pull_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Pull_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Pull_exit, METH_VARARGS, NULL },

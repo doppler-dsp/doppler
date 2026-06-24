@@ -24,14 +24,23 @@ function(expect_contains path needle)
     endif()
 endfunction()
 
+# Assert a specific exit code (for the usage-error / crash-regression cases).
+function(expect_exit code)
+    execute_process(COMMAND ${EXE} ${ARGN}
+                    RESULT_VARIABLE rc OUTPUT_QUIET ERROR_QUIET)
+    if(NOT rc EQUAL ${code})
+        message(FATAL_ERROR "wfmgen ${ARGN}: exit ${rc}, expected ${code}")
+    endif()
+endfunction()
+
 # 1. raw cf32: 8 samples * 8 bytes = 64
 run(--type tone --count 8 --sample-type cf32 -o wg_tone.bin)
 expect_size(wg_tone.bin 64)
 
 # 2. single-segment output is byte-stable, frozen as an MD5 golden — the
 #    regression anchor for the single-segment path. Regenerated when the
-#    friendly CLI defaults landed (fs=1.0, sps=1, headroom=3): this run omits
-#    --sps/--headroom, so the new sps=1 + 3 dB backoff moved the bytes.
+#    friendly CLI defaults landed (fs=1.0, sps=1, seed=0): this run omits --sps,
+#    so the new sps=1 default (1 sample/symbol, not 8) moved the bytes.
 run(--type qpsk --count 64 --sample-type ci16 --seed 7 -o wg_q.bin)
 file(MD5 wg_q.bin h1)
 set(WG_Q_GOLDEN "d0afb7878f1e0eb189183dcca28610f8")
@@ -83,5 +92,23 @@ run(--type tone --count 8 --sample-type cf32 --file-type blue --detached -o wg_d
 expect_size(wg_det.hdr 512)         # header only
 expect_size(wg_det.det 64)          # 8 * cf32 (8 bytes/sample), no header
 expect_contains(wg_det.hdr "BLUE")
+
+# 10. Usage errors exit 2 — and a value-taking flag with no value must be a
+#     clean usage error, NOT a segfault (regression for the strtod(NULL) crash).
+expect_exit(2 --type tone --count 4 --freq)        # missing value (was SIGSEGV)
+expect_exit(2 --fs)                                 # missing value, flag is last
+expect_exit(2 --nope)                               # unknown option
+expect_exit(2 --type bpsk --pulse rrc --rrc-beta 5 --count 4 -o -)  # beta > 1
+
+# 11. --version prints the doppler banner and exits 0.
+execute_process(COMMAND ${EXE} --version
+    OUTPUT_VARIABLE ver_out RESULT_VARIABLE ver_rc)
+if(NOT ver_rc EQUAL 0)
+    message(FATAL_ERROR "wfmgen --version exited ${ver_rc}")
+endif()
+string(FIND "${ver_out}" "wfmgen (doppler)" ver_pos)
+if(ver_pos EQUAL -1)
+    message(FATAL_ERROR "wfmgen --version banner missing: ${ver_out}")
+endif()
 
 message(STATUS "wfmgen_cli: OK")

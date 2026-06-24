@@ -19,7 +19,7 @@ generate a single waveform.
 
     ```sh
     wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32   # 100k QPSK samples @ 12 dB Es/No
-    wfmgen --type tone --freq 1e5 --count 4096                    # a tone → stdout (cf32)
+    wfmgen --type tone --freq 0.1 --count 4096                   # a 0.1·Fs tone → stdout (cf32)
     wfmgen --type pn --pn-length 9 --file-type csv -o pn.csv      # length-9 MLS as text
     ```
 
@@ -622,8 +622,8 @@ ______________________________________________________________________
 ## Recipes
 
 ```sh
-# A clean tone at +100 kHz, 1 Msample, 16-bit I/Q to a file
-wfmgen --type tone --freq 1e5 --count 1000000 --sample-type ci16 -o tone.ci16
+# A clean tone at +100 kHz (1 MHz Fs), 1 Msample, 16-bit I/Q to a file
+wfmgen --type tone --freq 1e5 --fs 1e6 --count 1000000 --sample-type ci16 -o tone.ci16
 
 # Noisy BPSK at 6 dB Eb/No, as CSV for quick inspection
 wfmgen --type bpsk --snr 6 --snr-mode ebno --count 2000 --file-type csv -o bpsk.csv

@@ -24,10 +24,20 @@
 /* size_t-returning functions return a sample/byte count; they        */
 /* operate on already-created objects and cannot fail.                */
 /* Pointer-returning functions return NULL on failure.                */
+/*                                                                     */
+/* This is the single, doppler-wide error vocabulary.  The streaming   */
+/* API (stream/stream.h) includes this header for the same codes — one */
+/* scheme everywhere, so a value never means two things in one TU.     */
+/* Not every code is meaningful to every subsystem (the core DSP path  */
+/* only ever returns DP_OK / DP_ERR_MEMORY / DP_ERR_INVALID).          */
 /* ------------------------------------------------------------------ */
-#define DP_OK          0   /**< Success.                    */
-#define DP_ERR_MEMORY  (-1) /**< Memory allocation failure. */
-#define DP_ERR_INVALID (-2) /**< Invalid argument.          */
+#define DP_OK 0             /**< Success. */
+#define DP_ERR_INIT (-1)    /**< Initialisation failed (context/socket). */
+#define DP_ERR_SEND (-2)    /**< Send failed. */
+#define DP_ERR_RECV (-3)    /**< Receive failed or timed out (EAGAIN). */
+#define DP_ERR_INVALID (-4) /**< Invalid argument. */
+#define DP_ERR_TIMEOUT (-5) /**< Operation timed out. */
+#define DP_ERR_MEMORY (-6)  /**< Memory allocation failure. */
 
 #include "jm_perf.h"
 

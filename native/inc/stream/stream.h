@@ -40,7 +40,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* CMPLXF/CMPLX/CMPLXL fallbacks now live in clib_common.h. */
+/* CMPLXF/CMPLX/CMPLXL fallbacks and the shared DP_OK/DP_ERR_* error codes
+ * live in clib_common.h — the streaming API uses the one doppler-wide scheme. */
+#include "clib_common.h"
 
 /**
  * @defgroup streaming Streaming
@@ -175,16 +177,11 @@ extern "C"
   /** @defgroup errors Error codes
    *  @{
    *
-   * Every send/recv function returns one of these values.
+   * Every send/recv function returns one of the shared doppler error codes
+   * (DP_OK, DP_ERR_INIT, DP_ERR_SEND, DP_ERR_RECV, DP_ERR_INVALID,
+   * DP_ERR_TIMEOUT, DP_ERR_MEMORY) defined in clib_common.h, included above.
    * Use dp_strerror() to obtain a human-readable description.
    */
-#define DP_OK 0             /**< Success. */
-#define DP_ERR_INIT (-1)    /**< Initialisation failed (context/socket). */
-#define DP_ERR_SEND (-2)    /**< Send failed. */
-#define DP_ERR_RECV (-3)    /**< Receive failed or timed out (EAGAIN). */
-#define DP_ERR_INVALID (-4) /**< Invalid argument. */
-#define DP_ERR_TIMEOUT (-5) /**< Operation timed out. */
-#define DP_ERR_MEMORY (-6)  /**< Memory allocation failure. */
   /** @} */
 
   /* -------------------------------------------------------------------------

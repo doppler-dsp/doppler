@@ -47,7 +47,7 @@ def test_wfmgen_csv_to_terminal_allowed():
     primary, secondary = pty.openpty()
     try:
         p = subprocess.run(
-            [_bin(), "--file_type", "csv", "--type", "tone", "--count", "2"],
+            [_bin(), "--file-type", "csv", "--type", "tone", "--count", "2"],
             stdout=secondary,
             stderr=subprocess.PIPE,
             close_fds=True,

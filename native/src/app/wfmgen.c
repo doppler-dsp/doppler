@@ -131,7 +131,7 @@ report_clip (double peak, double frac, int stype, double headroom,
   (void)fprintf (
       stderr,
       "wfmgen: warning: %s output clipped — peak is +%.1f dB over full "
-      "scale.\n  remedy: --headroom %d, or --sample_type cf32.\n",
+      "scale.\n  remedy: --headroom %d, or --sample-type cf32.\n",
       STYPES[stype], dbfs, need);
   if (clip_report)
     (void)fprintf (stderr, "  clipped %.2f%% of I/Q components\n",
@@ -195,14 +195,14 @@ static const char USAGE[]
       "                    pn    - pseudo-random MLS sequence\n"
       "                    bpsk  - BPSK-modulated symbols\n"
       "                    qpsk  - QPSK-modulated symbols\n"
-      "                    chirp - linear sweep, --freq to --f_end\n"
+      "                    chirp - linear sweep, --freq to --f-end\n"
       "                    bits  - custom bit pattern (see BITS INPUT)\n"
       "\n"
       "SIGNAL PARAMETERS\n"
       "  --fs HZ         Sample rate (default 1.0; freq treated as"
       " normalised)\n"
       "  --freq HZ       Carrier / sweep-start frequency (default 0.0)\n"
-      "  --f_end HZ      Chirp sweep-end frequency (chirp only)\n"
+      "  --f-end HZ      Chirp sweep-end frequency (chirp only)\n"
       "  --fc HZ         Centre frequency stored in SigMF metadata only\n"
       "  --count N       Samples to generate (default 1024)\n"
       "  --off N         Skip N samples before writing output\n"
@@ -212,7 +212,7 @@ static const char USAGE[]
       "\n"
       "NOISE / SNR\n"
       "  --snr DB        Add AWGN at this SNR (dB); omit to suppress noise\n"
-      "  --snr_mode MODE auto | fs | ebno | esno (default auto)\n"
+      "  --snr-mode MODE auto | fs | ebno | esno (default auto)\n"
       "                    auto  - Es/No for PSK; full-band for tone/noise\n"
       "                    fs    - relative to full sample-rate band\n"
       "                    ebno  - Eb/No (energy per bit / noise density)\n"
@@ -231,8 +231,8 @@ static const char USAGE[]
       "  --modulation M  none | bpsk | qpsk (default bpsk)\n"
       "\n"
       "PN SEQUENCE  (--type pn)\n"
-      "  --pn_length N   Register length; period = 2^N - 1 (default 15)\n"
-      "  --pn_poly N     Generator polynomial; 0 = auto-select (default 0)\n"
+      "  --pn-length N   Register length; period = 2^N - 1 (default 15)\n"
+      "  --pn-poly N     Generator polynomial; 0 = auto-select (default 0)\n"
       "  --lfsr TYPE     galois | fibonacci (default galois)\n"
       "\n"
       "AMPLITUDE & CLIPPING\n"
@@ -244,8 +244,8 @@ static const char USAGE[]
       "OUTPUT\n"
       "  --output DEST   File path, - for stdout, or zmq://HOST:PORT"
       " (default -)\n"
-      "  --sample_type T cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
-      "  --file_type T   raw | csv | blue | sigmf (default raw)\n"
+      "  --sample-type T cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
+      "  --file-type T   raw | csv | blue | sigmf (default raw)\n"
       "  --endian E      le | be (default le)\n"
       "  --record FILE   Write a JSON record of the resolved run to FILE\n"
       "\n"
@@ -275,7 +275,7 @@ static const char USAGE[]
       "\n"
       "  # BPSK burst, 4 sps, RRC pulse shaping, Eb/No 10 dB\n"
       "  wfmgen --type bpsk --sps 4 --pulse rrc --rrc-beta 0.35 \\\n"
-      "         --snr 10 --snr_mode ebno --count 16384"
+      "         --snr 10 --snr-mode ebno --count 16384"
       " --output burst.cf32\n"
       "\n"
       "  # QPSK stream to ZMQ, real-time paced at 2 MHz\n"
@@ -413,15 +413,15 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         {
           CHOICE (src.type, TYPES);
         }
-      else if (!strcmp (a, "--snr_mode"))
+      else if (!strcmp (a, "--snr-mode"))
         {
           CHOICE (src.snr_mode, MODES);
         }
-      else if (!strcmp (a, "--sample_type"))
+      else if (!strcmp (a, "--sample-type"))
         {
           CHOICE (sample_type, STYPES);
         }
-      else if (!strcmp (a, "--file_type"))
+      else if (!strcmp (a, "--file-type"))
         {
           CHOICE (file_type, FTYPES);
         }
@@ -508,7 +508,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           REQVAL (v);
           src.freq = strtod (v, NULL);
         }
-      else if (!strcmp (a, "--f_end"))
+      else if (!strcmp (a, "--f-end"))
         {
           REQVAL (v);
           src.f_end = strtod (v, NULL); /* chirp end frequency */
@@ -533,12 +533,12 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           REQVAL (v);
           src.sps = (int)strtol (v, NULL, 10);
         }
-      else if (!strcmp (a, "--pn_length"))
+      else if (!strcmp (a, "--pn-length"))
         {
           REQVAL (v);
           src.pn_length = (int)strtol (v, NULL, 10);
         }
-      else if (!strcmp (a, "--pn_poly"))
+      else if (!strcmp (a, "--pn-poly"))
         {
           REQVAL (v);
           src.pn_poly = (uint64_t)strtoull (v, NULL, 10);
@@ -790,7 +790,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
           if (!out_path)
             {
               (void)fprintf (stderr,
-                             "error: --file_type sigmf needs --output\n");
+                             "error: --file-type sigmf needs --output\n");
               wfm_compose_destroy (comp);
               return 2;
             }

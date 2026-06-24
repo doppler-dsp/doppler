@@ -225,7 +225,7 @@ Run `make gallery` to regenerate all images.
     [![waveform I/O demo](../assets/wfm_io_demo.png)](wfm-io.md)
 
     The same QPSK capture written to **raw**, **CSV**, **BLUE** and **SigMF**
-    and read back with `read_iq` — the C codec behind `wfmgen --file_type`.
+    and read back with `read_iq` — the C codec behind `wfmgen --file-type`.
 
     [:octicons-arrow-right-24: Walkthrough](wfm-io.md)
 

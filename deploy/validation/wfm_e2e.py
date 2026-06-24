@@ -122,7 +122,7 @@ def _cli_render() -> str:
                 "256",
                 "--snr",
                 "100",
-                "--sample_type",
+                "--sample-type",
                 "cf32",
                 "--output",
                 str(out),
@@ -182,7 +182,7 @@ def _write_sigmf(
 ) -> None:
     """Lay down a SigMF pair (`.sigmf-data` + `.sigmf-meta`) using whichever
     sidecar writer the installed wheel provides: ``Composer.to_sigmf`` if
-    present (post-0.17.0), else the shipped ``wfmgen --file_type sigmf``."""
+    present (post-0.17.0), else the shipped ``wfmgen --file-type sigmf``."""
     if hasattr(w.Composer, "to_sigmf"):
         x = np.asarray(
             w.Synth(type="tone", fs=fs, freq=freq, snr=100.0).steps(n)
@@ -214,9 +214,9 @@ def _write_sigmf(
                 str(n),
                 "--snr",
                 "100",
-                "--sample_type",
+                "--sample-type",
                 sample_type,
-                "--file_type",
+                "--file-type",
                 "sigmf",
                 "--output",
                 str(base),

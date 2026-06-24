@@ -13,6 +13,34 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`wfmgen --version` / `-V`** prints `wfmgen (doppler) <version>`.
+
+### Changed (breaking)
+
+- **`wfmgen` flags are now hyphenated**: `--sample_type` → `--sample-type`,
+    `--file_type` → `--file-type`, `--snr_mode` → `--snr-mode`,
+    `--pn_length` → `--pn-length`, `--pn_poly` → `--pn-poly`,
+    `--f_end` → `--f-end`. The underscore spellings are removed (no aliases).
+    The `--from-file`/`--record` JSON keys are unchanged (still `sample_type`,
+    etc.), as are the Python keyword arguments.
+- **`wfmgen` friendly defaults**: `--fs` defaults to `1.0` (so `--freq`/`--f-end`
+    are **normalised**, cycles/sample, unless `--fs` is given), `--sps` to `1`,
+    `--seed` to `0`, `--pn-length` to `15`. The Python `Synth`/`Composer`
+    defaults move in lockstep, so `wfmgen` and `Synth()` stay byte-identical.
+    Pass explicit flags to restore the old behavior (e.g. `--fs 1e6 --sps 8`).
+
+### Fixed
+
+- **`wfmgen` no longer segfaults** when a value-taking flag is given without a
+    value (e.g. `wfmgen --freq`); it now reports a usage error and exits 2.
+- `wfmgen --rrc-beta` is validated against its documented `(0, 1]` range; an
+    unknown flag prints one terse line instead of the whole usage; over-long
+    `--output` paths are rejected instead of silently truncated.
+- `wfmgen --help` now states the real defaults (the old text mis-documented
+    `--fs`, `--sps`, `--seed`, `--pn-length`, and `--headroom`).
+
 ## [0.21.0] — 2026-06-23
 
 ### Changed (breaking)

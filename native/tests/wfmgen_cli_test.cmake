@@ -25,14 +25,14 @@ function(expect_contains path needle)
 endfunction()
 
 # 1. raw cf32: 8 samples * 8 bytes = 64
-run(--type tone --count 8 --sample_type cf32 -o wg_tone.bin)
+run(--type tone --count 8 --sample-type cf32 -o wg_tone.bin)
 expect_size(wg_tone.bin 64)
 
 # 2. single-segment output is byte-stable, frozen as an MD5 golden — the
 #    regression anchor for the single-segment path. Regenerated when the
 #    friendly CLI defaults landed (fs=1.0, sps=1, headroom=3): this run omits
 #    --sps/--headroom, so the new sps=1 + 3 dB backoff moved the bytes.
-run(--type qpsk --count 64 --sample_type ci16 --seed 7 -o wg_q.bin)
+run(--type qpsk --count 64 --sample-type ci16 --seed 7 -o wg_q.bin)
 file(MD5 wg_q.bin h1)
 set(WG_Q_GOLDEN "d0afb7878f1e0eb189183dcca28610f8")
 if(NOT h1 STREQUAL WG_Q_GOLDEN)
@@ -41,12 +41,12 @@ if(NOT h1 STREQUAL WG_Q_GOLDEN)
 endif()
 
 # 3. BLUE type-1000: 512-byte header + 4*8 bytes, magic "BLUE"
-run(--type tone --count 4 --sample_type cf32 --file_type blue -o wg.blue)
+run(--type tone --count 4 --sample-type cf32 --file-type blue -o wg.blue)
 expect_size(wg.blue 544)
 expect_contains(wg.blue "BLUE")
 
 # 4. csv: text output, one line per sample
-run(--type tone --freq 0 --count 3 --file_type csv -o wg.csv)
+run(--type tone --freq 0 --count 3 --file-type csv -o wg.csv)
 expect_contains(wg.csv ",")
 
 # 5. --record: version is integer 1, spec names the type
@@ -64,14 +64,14 @@ if(NOT d1 STREQUAL d2)
 endif()
 
 # 7. SigMF: <base>.sigmf-data (raw) + <base>.sigmf-meta (json)
-run(--type qpsk --count 8 --sample_type ci16 --file_type sigmf -o wg_cap)
+run(--type qpsk --count 8 --sample-type ci16 --file-type sigmf -o wg_cap)
 expect_size(wg_cap.sigmf-data 32)  # 8 samples * ci16 (4 bytes/sample)
 expect_contains(wg_cap.sigmf-meta "ci16_le")
 expect_contains(wg_cap.sigmf-meta "qpsk")
 
 # 8. Fibonacci LFSR differs from Galois
-run(--type pn --pn_length 7 --sps 1 --count 127 --lfsr galois    -o wg_g.bin)
-run(--type pn --pn_length 7 --sps 1 --count 127 --lfsr fibonacci -o wg_f.bin)
+run(--type pn --pn-length 7 --sps 1 --count 127 --lfsr galois    -o wg_g.bin)
+run(--type pn --pn-length 7 --sps 1 --count 127 --lfsr fibonacci -o wg_f.bin)
 file(MD5 wg_g.bin h_g)
 file(MD5 wg_f.bin h_f)
 if(h_g STREQUAL h_f)
@@ -79,7 +79,7 @@ if(h_g STREQUAL h_f)
 endif()
 
 # 9. BLUE detached: <base>.hdr (512-byte HCB) + <base>.det (raw data)
-run(--type tone --count 8 --sample_type cf32 --file_type blue --detached -o wg_det)
+run(--type tone --count 8 --sample-type cf32 --file-type blue --detached -o wg_det)
 expect_size(wg_det.hdr 512)         # header only
 expect_size(wg_det.det 64)          # 8 * cf32 (8 bytes/sample), no header
 expect_contains(wg_det.hdr "BLUE")

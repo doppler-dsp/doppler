@@ -1,7 +1,7 @@
 """readback.py — load interleaved-I/Q captures written by the wfmgen CLI.
 
 The generators write **interleaved** I/Q (``I Q I Q …``) in the chosen
-``--sample_type``, so a naive ``np.fromfile`` gets the layout wrong — and, for
+``--sample-type``, so a naive ``np.fromfile`` gets the layout wrong — and, for
 the integer types, the scale too. :func:`read_iq` does the right thing:
 
 - ``cf32`` / ``cf64`` — the interleaved floats *are* the memory layout of a
@@ -56,10 +56,10 @@ def read_iq(
     Parameters
     ----------
     path : str
-        File written by the ``wfmgen`` CLI with ``--file_type raw`` (or a
+        File written by the ``wfmgen`` CLI with ``--file-type raw`` (or a
         BLUE ``.det`` data file).
     sample_type : {"cf32", "cf64", "ci32", "ci16", "ci8"}
-        The ``--sample_type`` the file was written with.
+        The ``--sample-type`` the file was written with.
     endian : {"le", "be"}
         The ``--endian`` the file was written with.
     raw : bool, keyword-only

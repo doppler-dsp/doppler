@@ -49,7 +49,7 @@ def _gen(tmp_path, sample_type, endian="le", n=2000):
             str(n),
             "--snr",
             "100",
-            "--sample_type",
+            "--sample-type",
             sample_type,
             "--endian",
             endian,

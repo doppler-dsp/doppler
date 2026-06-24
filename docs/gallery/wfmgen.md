@@ -15,7 +15,7 @@ has a single line at +0.10 with no mirror image; the red marker labels the peak.
 **Top-right — PN.** A maximum-length sequence (LFSR register length 7 → period
 127\) at one chip per sample. Its periodic autocorrelation is the MLS
 "thumbtack": 1.0 at zero lag and a flat −1/127 floor at every other lag — the
-property that makes an MLS a good spreading and ranging code. `--pn_poly 0`
+property that makes an MLS a good spreading and ranging code. `--pn-poly 0`
 selects the primitive polynomial for the chosen length automatically.
 
 **Bottom-left — QPSK** at 20 dB Es/No and **bottom-right — BPSK** at 8 dB Es/No,
@@ -50,28 +50,28 @@ The goal is that a bare command Just Works and you only dial in what you need:
 ```sh
 wfmgen --type tone                  # clean baseband tone, fs 1 MHz, 1024 cf32
 wfmgen --type qpsk --snr 12         # QPSK at 12 dB Es/No (the auto mode for *psk)
-wfmgen --type pn --pn_length 9      # length-9 MLS, primitive poly chosen for you
+wfmgen --type pn --pn-length 9      # length-9 MLS, primitive poly chosen for you
 ```
 
-- `--snr_mode auto` resolves per type: **over-fs** for tone/noise/pn,
-    **Es/No** for bpsk/qpsk. Override with `--snr_mode fs|ebno|esno`.
+- `--snr-mode auto` resolves per type: **over-fs** for tone/noise/pn,
+    **Es/No** for bpsk/qpsk. Override with `--snr-mode fs|ebno|esno`.
 - `--snr 100` (the default) is effectively clean — raise the noise by lowering
     it.
-- `--pn_poly 0` picks the maximum-length polynomial for `--pn_length`.
+- `--pn-poly 0` picks the maximum-length polynomial for `--pn-length`.
 
 ## Containers, sample types, byte order
 
-The sample *type* (`--sample_type cf32|cf64|ci32|ci16|ci8`, full-scale ±1.0 for
+The sample *type* (`--sample-type cf32|cf64|ci32|ci16|ci8`, full-scale ±1.0 for
 the integer types) is orthogonal to the *container* and *byte order*:
 
 ```sh
 # 16-bit I/Q, big-endian, into a self-describing BLUE type-1000 file
-wfmgen --type qpsk --count 100000 --sample_type ci16 --endian be \
-       --file_type blue -o capture.blue
+wfmgen --type qpsk --count 100000 --sample-type ci16 --endian be \
+       --file-type blue -o capture.blue
 
 # SigMF pair: capture.sigmf-data (raw) + capture.sigmf-meta (one annotation
 # per segment, with frequency edges and the waveform label)
-wfmgen --from-file scenario.json --sample_type ci16 --file_type sigmf -o capture
+wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 
 # stream to a ZMQ PUB endpoint a doppler subscriber can read
 wfmgen --type tone --continuous --output zmq://tcp://*:5555
@@ -108,16 +108,16 @@ run forever:
 
 ## PN codes — length, polynomial, realization
 
-The PN/LFSR register runs from **2 to 64 bits**; `--pn_poly 0` (the default)
+The PN/LFSR register runs from **2 to 64 bits**; `--pn-poly 0` (the default)
 auto-selects a verified primitive polynomial for the length, so every auto code
 is a true maximum-length sequence. `--lfsr` picks the realization — **`galois`**
 (default, internal XOR) or **`fibonacci`** (external XOR) — same polynomial and
 period `2ⁿ−1`, different chip ordering.
 
 ```sh
-wfmgen --type pn --pn_length 23 --sps 1                 # length-23 MLS (auto poly)
-wfmgen --type pn --pn_length 40 --sps 1                 # 64-bit register, auto MLS
-wfmgen --type pn --pn_length 9  --sps 1 --lfsr fibonacci
+wfmgen --type pn --pn-length 23 --sps 1                 # length-23 MLS (auto poly)
+wfmgen --type pn --pn-length 40 --sps 1                 # 64-bit register, auto MLS
+wfmgen --type pn --pn-length 9  --sps 1 --lfsr fibonacci
 ```
 
 ```python
@@ -144,7 +144,7 @@ per segment.
 
 ```sh
 wfmgen --type qpsk --sps 8 --count 50000 \
-       --sample_type ci16 --file_type blue --detached -o capture
+       --sample-type ci16 --file-type blue --detached -o capture
 # → capture.hdr (512-byte HCB) + capture.det (raw interleaved I/Q)
 ```
 

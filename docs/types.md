@@ -122,10 +122,10 @@ ______________________________________________________________________
 ## Reading interleaved I/Q in Python
 
 `wavegen` / `wfmgen` write **interleaved** I/Q (`I Q I Q …`) in the chosen
-`--sample_type`. A naive `np.fromfile` gets the layout wrong — and for the
+`--sample-type`. A naive `np.fromfile` gets the layout wrong — and for the
 integer types, the scale too — so it's worth knowing what each type costs:
 
-| `--sample_type`         | NumPy           | natural form                                      | cost                    |
+| `--sample-type`         | NumPy           | natural form                                      | cost                    |
 | ----------------------- | --------------- | ------------------------------------------------- | ----------------------- |
 | `cf32`                  | `np.complex64`  | complex **view** (interleaved f32 *is* complex64) | zero-copy               |
 | `cf64`                  | `np.complex128` | complex **view**                                  | zero-copy               |

@@ -70,10 +70,10 @@ in time. No `+`/`-` operators.
 
 | Group                   | Flags                                                                                   |
 | ----------------------- | --------------------------------------------------------------------------------------- |
-| engine                  | `--type --fs --freq --snr --snr_mode --seed --sps --pn_length --pn_poly --lfsr --count` |
+| engine                  | `--type --fs --freq --snr --snr-mode --seed --sps --pn-length --pn-poly --lfsr --count` |
 | compose *(wfmgen-only)* | `--from-file --level --off --repeat --continuous`                                       |
 | amplitude               | `--headroom --clip-report --clip-error`                                                 |
-| output                  | `--sample_type --file_type --endian --output/-o --record --fc`                          |
+| output                  | `--sample-type --file-type --endian --output/-o --record --fc`                          |
 | realtime                | `--realtime --realtime-resync --detached`                                               |
 
 ### B · Python `doppler.wfm`

@@ -2,7 +2,7 @@
 
 The waveform I/O layer (``doppler.wfm.Writer`` / ``Reader`` / ``read_iq``)
 is the
-same C codec behind the ``wfmgen`` CLI's ``--file_type``. This demo writes one
+same C codec behind the ``wfmgen`` CLI's ``--file-type``. This demo writes one
 QPSK capture to all four containers and reads each back, showing the headline
 distinction between them:
 

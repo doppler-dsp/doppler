@@ -19,6 +19,16 @@
 #define DP_MAGIC 0x53494753   /* "SIGS" */
 #define DP_VERSION 0x00010000 /* v1.0.0 */
 
+/* Chunking (NATS only — ZMQ has no payload cap).  A logical frame larger than
+ * the server max_payload is split into several messages that share one
+ * sequence; dp_header_t.flags carries DP_FLAG_CHUNKED and reserved[] carries
+ * the reassembly geometry.  reserved[] is otherwise zero/uninterpreted. */
+#define DP_FLAG_CHUNKED 0x1u
+#define DP_CHUNK_IDX 0 /* reserved[] index: 0-based chunk number  */
+#define DP_CHUNK_CNT 1 /* reserved[] index: chunks in this frame  */
+#define DP_CHUNK_TOT 2 /* reserved[] index: total frame samples   */
+#define DP_CHUNK_OFF 3 /* reserved[] index: this chunk byte offset */
+
 /* Transport selected per context by the endpoint scheme: "nats://…" -> NATS,
  * anything else (tcp://, ipc://, inproc://) -> ZMQ. */
 typedef enum
@@ -57,6 +67,7 @@ struct dp_nats_state
   char     *inbox;           /* REQ: reply-to inbox subject                 */
   char     *last_reply;      /* REP: reply subject of the last request      */
   int       recv_timeout_ms; /* <0 = block (ZMQ RCVTIMEO default)           */
+  int64_t   max_payload;     /* server max message size (bytes); chunk above */
 };
 
 struct dp_ctx
@@ -74,8 +85,9 @@ struct dp_ctx
 /* How a received message's buffer is owned (tags struct dp_msg). */
 typedef enum
 {
-  DP_MSG_ZMQ  = 0, /* buffer owned by a zmq_msg_t (zero-copy).             */
-  DP_MSG_NATS = 1  /* buffer owned by a natsMsg * (zero-copy past offset). */
+  DP_MSG_ZMQ   = 0, /* buffer owned by a zmq_msg_t (zero-copy).             */
+  DP_MSG_NATS  = 1, /* buffer owned by a natsMsg * (zero-copy past offset). */
+  DP_MSG_OWNED = 2  /* malloc'd by doppler (chunk reassembly); plain free. */
 } dp_msg_kind_t;
 
 struct dp_msg
@@ -87,7 +99,12 @@ struct dp_msg
   union
   {
     zmq_msg_t zmq;
-    void     *nats; /* natsMsg * */
+    void     *nats; /* natsMsg *                       */
+    struct
+    {
+      void  *ptr;
+      size_t len;
+    } owned; /* reassembled, doppler-owned buffer */
   } u;
 };
 

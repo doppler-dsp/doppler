@@ -156,6 +156,9 @@ dpn_ctx_create (dp_role_t role, const char *endpoint,
       free (ctx);
       return NULL;
     }
+  /* Cache the server's max message size; frames above it are chunked. */
+  ctx->u.nats.max_payload
+      = natsConnection_GetMaxPayload ((natsConnection *)ctx->u.nats.conn);
   return ctx;
 }
 
@@ -214,23 +217,68 @@ dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
   return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
 }
 
+/* Stage one [header][payload] message and publish it (zero-copy send is not
+ * possible over NATS — header and data must be one contiguous buffer). */
+static int
+dpn_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
+                    size_t data_len)
+{
+  size_t hdr_sz = sizeof (*h);
+  char  *buf    = (char *)malloc (hdr_sz + data_len);
+  if (!buf)
+    return DP_ERR_MEMORY;
+  memcpy (buf, h, hdr_sz);
+  memcpy (buf + hdr_sz, data, data_len);
+  int rc = dpn_publish (ctx, dp_sample_type_str (h->sample_type), buf,
+                        (int)(hdr_sz + data_len));
+  free (buf);
+  return rc;
+}
+
 int
 dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
                  const void *samples, size_t data_size)
 {
-  /* NATS carries header‖data in one message (zero-copy send is not possible);
-   * stage them into a contiguous buffer. */
-  size_t total = sizeof (*header) + data_size;
-  char  *buf   = (char *)malloc (total);
-  if (!buf)
-    return DP_ERR_MEMORY;
-  memcpy (buf, header, sizeof (*header));
-  memcpy (buf + sizeof (*header), samples, data_size);
+  size_t  hdr_sz = sizeof (*header);
+  int64_t maxp   = ctx->u.nats.max_payload;
+  if (maxp <= 0)
+    maxp = 1024LL * 1024; /* NATS default if the server didn't report one */
 
-  int rc = dpn_publish (ctx, dp_sample_type_str (header->sample_type), buf,
-                        (int)total);
-  free (buf);
-  return rc;
+  /* Common case: the whole frame fits in one message (no chunk flag). */
+  if (hdr_sz + data_size <= (size_t)maxp)
+    return dpn_publish_framed (ctx, header, samples, data_size);
+
+  /* Otherwise split the payload into sample-aligned chunks that each fit,
+   * all sharing this frame's sequence; (sequence, chunk_index) lets the
+   * receiver reassemble idempotently. */
+  size_t ss = dp_sample_size ((dp_sample_type_t)header->sample_type);
+  if (ss == 0)
+    return DP_ERR_INVALID;
+  size_t max_data = (size_t)maxp - hdr_sz;
+  max_data -= max_data % ss; /* whole samples per chunk */
+  if (max_data == 0)
+    return DP_ERR_INVALID; /* header alone exceeds max_payload */
+
+  size_t      nchunks = (data_size + max_data - 1) / max_data;
+  const char *src     = (const char *)samples;
+  for (size_t i = 0; i < nchunks; i++)
+    {
+      size_t off  = i * max_data;
+      size_t take = (data_size - off < max_data) ? data_size - off : max_data;
+
+      dp_header_t h = *header;
+      h.flags |= DP_FLAG_CHUNKED;
+      h.num_samples            = take / ss;
+      h.reserved[DP_CHUNK_IDX] = i;
+      h.reserved[DP_CHUNK_CNT] = nchunks;
+      h.reserved[DP_CHUNK_TOT] = header->num_samples;
+      h.reserved[DP_CHUNK_OFF] = off;
+
+      int rc = dpn_publish_framed (ctx, &h, src + off, take);
+      if (rc != DP_OK)
+        return rc;
+    }
+  return DP_OK;
 }
 
 int
@@ -282,6 +330,115 @@ nats_stash_reply (struct dp_ctx *ctx, natsMsg *m)
     ctx->u.nats.last_reply = strdup (reply);
 }
 
+/* Validate one chunk message and copy its payload into the reassembly buffer
+ * at its byte offset.  Idempotent: a redelivered chunk (seen[idx]) is a no-op.
+ * Does not destroy m. */
+static int
+dpn_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
+                 uint64_t sequence, natsMsg *m, unsigned char *seen,
+                 uint64_t *received)
+{
+  size_t      hdr_sz = sizeof (dp_header_t);
+  const char *d      = natsMsg_GetData (m);
+  int         len    = natsMsg_GetDataLength (m);
+  if (len < (int)hdr_sz)
+    return DP_ERR_INVALID;
+
+  dp_header_t ch;
+  memcpy (&ch, d, hdr_sz);
+  if (ch.magic != DP_MAGIC || !(ch.flags & DP_FLAG_CHUNKED)
+      || ch.sequence != sequence || ch.reserved[DP_CHUNK_CNT] != nchunks)
+    return DP_ERR_INVALID;
+
+  uint64_t idx    = ch.reserved[DP_CHUNK_IDX];
+  uint64_t off    = ch.reserved[DP_CHUNK_OFF];
+  size_t   cbytes = (size_t)len - hdr_sz;
+  if (idx >= nchunks || off + cbytes > total_bytes)
+    return DP_ERR_INVALID;
+
+  if (!seen[idx])
+    {
+      memcpy (buf + off, d + hdr_sz, cbytes);
+      seen[idx] = 1;
+      (*received)++;
+    }
+  return DP_OK;
+}
+
+/* Reassemble a chunked frame into one doppler-owned buffer.  `first` is the
+ * already-received chunk; fhdr is its parsed header.  Consumes `first` and any
+ * further chunks fetched.  Returns a DP_MSG_OWNED message on success. */
+static int
+dpn_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
+                dp_msg_t **out_msg, dp_header_t *out_hdr)
+{
+  size_t   ss      = dp_sample_size ((dp_sample_type_t)fhdr->sample_type);
+  uint64_t nchunks = fhdr->reserved[DP_CHUNK_CNT];
+  uint64_t total_samples = fhdr->reserved[DP_CHUNK_TOT];
+  if (ss == 0 || nchunks == 0)
+    {
+      natsMsg_Destroy (first);
+      return DP_ERR_INVALID;
+    }
+  size_t total_bytes = (size_t)total_samples * ss;
+
+  char          *buf  = (char *)malloc (total_bytes ? total_bytes : 1);
+  unsigned char *seen = (unsigned char *)calloc ((size_t)nchunks, 1);
+  if (!buf || !seen)
+    {
+      free (buf);
+      free (seen);
+      natsMsg_Destroy (first);
+      return DP_ERR_MEMORY;
+    }
+
+  natsMsg *m        = first;
+  uint64_t received = 0;
+  int      rc       = DP_OK;
+  for (;;)
+    {
+      rc = dpn_place_chunk (buf, total_bytes, nchunks, fhdr->sequence, m, seen,
+                            &received);
+      natsMsg_Destroy (m);
+      m = NULL;
+      if (rc != DP_OK || received == nchunks)
+        break;
+      rc = nats_next (ctx, &m); /* next chunk of this frame */
+      if (rc != DP_OK)
+        break;
+    }
+
+  free (seen);
+  if (rc != DP_OK)
+    {
+      free (buf);
+      return rc;
+    }
+
+  dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
+  if (!msg)
+    {
+      free (buf);
+      return DP_ERR_MEMORY;
+    }
+  msg->kind        = DP_MSG_OWNED;
+  msg->u.owned.ptr = buf;
+  msg->u.owned.len = total_bytes;
+  msg->data_offset = 0;
+  msg->sample_type = (dp_sample_type_t)fhdr->sample_type;
+  msg->num_samples = total_samples;
+
+  *out_msg = msg;
+  if (out_hdr)
+    {
+      *out_hdr = *fhdr; /* present a clean logical-frame header */
+      out_hdr->flags &= ~DP_FLAG_CHUNKED;
+      out_hdr->num_samples = total_samples;
+      memset (out_hdr->reserved, 0, sizeof (out_hdr->reserved));
+    }
+  return DP_OK;
+}
+
 int
 dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
@@ -309,6 +466,12 @@ dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
   if (ctx->u.nats.role == DP_ROLE_REP)
     nats_stash_reply (ctx, m);
 
+  /* Large frames arrive as several chunks — reassemble into one owned buffer.
+   */
+  if (hdr.flags & DP_FLAG_CHUNKED)
+    return dpn_reassemble (ctx, m, &hdr, out_msg, out_hdr);
+
+  /* Single message: zero-copy, data lives in the natsMsg past the header. */
   dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
   if (!msg)
     {

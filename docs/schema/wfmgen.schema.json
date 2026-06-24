@@ -78,20 +78,20 @@
         "seed": {
           "type": "integer",
           "minimum": 0,
-          "default": 1,
+          "default": 0,
           "description": "PRNG seed (AWGN) and/or LFSR initial state (pn/bpsk/qpsk/bits)."
         },
         "sps": {
           "type": "integer",
           "minimum": 0,
-          "default": 8,
+          "default": 1,
           "description": "Samples per symbol (bpsk/qpsk/bits) or per chip (pn). 0 in serialised noise sources (field unused; zero-initialised by wfm_resolve_noise)."
         },
 
         "pn_length": {
           "type": "integer",
           "minimum": 0,
-          "default": 7,
+          "default": 15,
           "description": "LFSR register length in bits. 2–64 for PN-bearing types; 0 in serialised noise sources (field unused; zero-initialised by wfm_resolve_noise). Auto-selects the MLS primitive polynomial when pn_poly is 0."
         },
         "pn_poly": {

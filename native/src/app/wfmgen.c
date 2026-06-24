@@ -206,7 +206,8 @@ static const char USAGE[]
       "  --fc HZ         Centre frequency stored in SigMF metadata only\n"
       "  --count N       Samples to generate (default 1024)\n"
       "  --off N         Skip N samples before writing output\n"
-      "  --seed N        PRNG seed; 0 = random (default 0)\n"
+      "  --seed N        PRNG seed (default 0; deterministic — vary it for"
+      " run-to-run change)\n"
       "  --sps N         Samples per symbol for PSK / PN (default 1)\n"
       "\n"
       "NOISE / SNR\n"
@@ -236,7 +237,7 @@ static const char USAGE[]
       "\n"
       "AMPLITUDE & CLIPPING\n"
       "  --level DB      Output level in dBFS (default 0)\n"
-      "  --headroom DB   Back off composite to prevent clipping (default 3)\n"
+      "  --headroom DB   Back off composite to prevent clipping (default 0)\n"
       "  --clip-report   Print clipping fraction and peak to stderr\n"
       "  --clip-error    Exit non-zero if output clips after headroom\n"
       "\n"
@@ -344,21 +345,24 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       return 0;
     }
 
-  /* single-segment defaults mirror synth/wavegen: one source in one segment */
+  /* Single-segment defaults: one source in one segment. fs = 1.0 means
+     frequencies are normalised (cycles/sample) out of the box. These mirror
+     the Python Synth/Composer defaults (just-makeit.toml) so `wfmgen` and
+     `Synth()` agree sample-for-sample. */
   wfm_source_t  src    = { .type       = 0,
                            .freq       = 0.0,
                            .snr        = 100.0,
                            .snr_mode   = 0,
-                           .seed       = 1,
-                           .sps        = 8,
-                           .pn_length  = 7,
+                           .seed       = 0,
+                           .sps        = 1,
+                           .pn_length  = 15,
                            .pn_poly    = 0,
                            .modulation = 1, /* bits: default bpsk */
                            .rrc_beta   = 0.35,
                            .rrc_span   = 8 };
   wfm_segment_t seg    = { .sources     = &src,
                            .n_sources   = 1,
-                           .fs          = 1e6,
+                           .fs          = 1.0,
                            .num_samples = 1024,
                            .off_samples = 0 };
   int           repeat = 0, continuous = 0, detached = 0;

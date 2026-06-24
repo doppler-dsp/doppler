@@ -551,17 +551,17 @@ default = "auto"
 [[module.wfm_compose.source.fields]]
 name = "seed"
 type = "uint32_t"
-default = "1"
+default = "0"
 
 [[module.wfm_compose.source.fields]]
 name = "sps"
 type = "int"
-default = "8"
+default = "1"
 
 [[module.wfm_compose.source.fields]]
 name = "pn_length"
 type = "int"
-default = "7"
+default = "15"
 
 [[module.wfm_compose.source.fields]]
 name = "pn_poly"
@@ -626,7 +626,7 @@ flat_sources = true
 [[module.wfm_compose.segment.fields]]
 name = "fs"
 type = "double"
-default = "1e6"
+default = "1.0"
 
 [[module.wfm_compose.segment.fields]]
 name = "num_samples"

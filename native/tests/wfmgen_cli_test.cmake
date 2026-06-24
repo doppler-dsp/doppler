@@ -28,13 +28,13 @@ endfunction()
 run(--type tone --count 8 --sample_type cf32 -o wg_tone.bin)
 expect_size(wg_tone.bin 64)
 
-# 2. single-segment output is byte-stable, frozen as an MD5 golden. This value
-#    was the byte-for-byte output of the retired single-shot `wavegen` for the
-#    same flags — wfmgen subsumed it (1 segment == single-shot), so the golden
-#    is the regression anchor now that wavegen is gone.
+# 2. single-segment output is byte-stable, frozen as an MD5 golden — the
+#    regression anchor for the single-segment path. Regenerated when the
+#    friendly CLI defaults landed (fs=1.0, sps=1, headroom=3): this run omits
+#    --sps/--headroom, so the new sps=1 + 3 dB backoff moved the bytes.
 run(--type qpsk --count 64 --sample_type ci16 --seed 7 -o wg_q.bin)
 file(MD5 wg_q.bin h1)
-set(WG_Q_GOLDEN "7ec76510ddd3daeb3bc07e6a51ff2c79")
+set(WG_Q_GOLDEN "d0afb7878f1e0eb189183dcca28610f8")
 if(NOT h1 STREQUAL WG_Q_GOLDEN)
     message(FATAL_ERROR
         "wfmgen single-segment output drifted: got ${h1}, want ${WG_Q_GOLDEN}")

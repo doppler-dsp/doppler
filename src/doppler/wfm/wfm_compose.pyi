@@ -15,9 +15,9 @@ class Synth:
     snr : float, default 100.0
     snr_mode : str, default ``"auto"``
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
-    seed : int, default 1
-    sps : int, default 8
-    pn_length : int, default 7
+    seed : int, default 0
+    sps : int, default 1
+    pn_length : int, default 15
     pn_poly : int, default 0
     lfsr : str, default ``"galois"``
         One of ``"galois"``, ``"fibonacci"``.
@@ -30,7 +30,7 @@ class Synth:
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
     rrc_span : int, default 8
-    fs : float, default 1e6
+    fs : float, default 1.0
     """
     def __init__(self, type: str = ..., freq: float = ..., snr: float = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float = ..., f_end: float = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ...) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
@@ -52,9 +52,9 @@ class Segment:
     snr : float, default 100.0
     snr_mode : str, default ``"auto"``
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
-    seed : int, default 1
-    sps : int, default 8
-    pn_length : int, default 7
+    seed : int, default 0
+    sps : int, default 1
+    pn_length : int, default 15
     pn_poly : int, default 0
     lfsr : str, default ``"galois"``
         One of ``"galois"``, ``"fibonacci"``.
@@ -67,7 +67,7 @@ class Segment:
         One of ``"rect"``, ``"rrc"``.
     rrc_beta : float, default 0.35
     rrc_span : int, default 8
-    fs : float, default 1e6
+    fs : float, default 1.0
     num_samples : int, default 1024
     off_samples : int, default 0
     """

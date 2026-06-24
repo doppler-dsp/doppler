@@ -86,25 +86,25 @@ ______________________________________________________________________
 
 === ====
 
-| Flag           | Type                                 | Default  | Meaning                                                          |
-| -------------- | ------------------------------------ | -------- | ---------------------------------------------------------------- |
-| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                         |
-| `--fs`         | float (Hz)                           | `1e6`    | sample rate                                                      |
-| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start    |
-| `--f_end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                        |
-| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)               |
-| `--snr_mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                           |
-| `--seed`       | uint32                               | `1`      | PRNG / LFSR seed (deterministic)                                 |
-| `--sps`        | int                                  | `8`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)             |
-| `--pn_length`  | int (2..64)                          | `7`      | LFSR register length → period `2ⁿ−1`                             |
-| `--pn_poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial              |
-| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)    |
-| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`) |
-| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                          |
-| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping       |
-| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                     |
-| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                    |
-| `--count`      | int                                  | `1024`   | number of complex samples to generate                            |
+| Flag           | Type                                 | Default  | Meaning                                                                        |
+| -------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------ |
+| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                                       |
+| `--fs`         | float (Hz)                           | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f_end` are normalised, cycles/sample) |
+| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start                  |
+| `--f_end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                                      |
+| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)                             |
+| `--snr_mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                                         |
+| `--seed`       | uint32                               | `0`      | PRNG / LFSR seed (deterministic)                                               |
+| `--sps`        | int                                  | `1`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)                           |
+| `--pn_length`  | int (2..64)                          | `15`     | LFSR register length → period `2ⁿ−1`                                           |
+| `--pn_poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                            |
+| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)                  |
+| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)               |
+| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                                        |
+| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping                     |
+| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                                   |
+| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                                  |
+| `--count`      | int                                  | `1024`   | number of complex samples to generate                                          |
 
 ### Output
 

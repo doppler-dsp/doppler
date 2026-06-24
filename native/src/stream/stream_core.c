@@ -67,6 +67,16 @@ dp_msg_sample_type (dp_msg_t *msg)
   return msg ? msg->sample_type : CF64;
 }
 
+int
+dp_msg_ack (dp_msg_t *msg)
+{
+  if (!msg)
+    return DP_ERR_INVALID;
+  if (msg->kind == DP_MSG_NATS)
+    return dpn_msg_ack (msg);
+  return DP_OK; /* ZMQ / core-NATS / reassembled: nothing to ack */
+}
+
 void
 dp_msg_free (dp_msg_t *msg)
 {

@@ -18,8 +18,10 @@
  * PublishRequest()s to {base}; a REP SubscribeSync()s {base}, remembers
  * each request's reply subject, and Publish()es the answer there.
  *
- * PUSH/PULL over nats:// is the JetStream work-queue tier (Phase 4) and is
- * not handled here yet — dpn_ctx_create returns NULL for those roles.
+ * PUSH/PULL over nats:// is the durable JetStream work-queue tier: PUSH does
+ * synchronous server-acked js_Publish onto a WorkQueue/File stream; PULL is a
+ * shared durable consumer with explicit ack (at-least-once), so workers
+ * load-balance and a crashed consumer's un-acked frames redeliver.
  */
 
 #include "stream/stream.h"
@@ -86,8 +88,74 @@ dpn_subscribe (natsConnection *conn, const char *subj, natsSubscription **sub)
   return s;
 }
 
+/* JetStream stream/consumer names cannot contain . * > or space — derive a
+ * safe one from the subject base. */
+static void
+dpn_js_name (char *out, size_t n, const char *prefix, const char *base)
+{
+  (void)snprintf (out, n, "%s%s", prefix, base);
+  for (char *p = out; *p; p++)
+    if (*p == '.' || *p == '*' || *p == '>' || *p == ' ')
+      *p = '_';
+}
+
+/* Idempotently create the durable work-queue stream for `base`.  Tolerates a
+ * pre-provisioned stream (e.g. a Helm-created R=3 one): if AddStream fails but
+ * the stream already exists, succeed and use it as-is. */
+static int
+dpn_ensure_stream (jsCtx *js, const char *base)
+{
+  char name[256], subj[256];
+  dpn_js_name (name, sizeof (name), "DP_WORK_", base);
+  (void)snprintf (subj, sizeof (subj), "work.%s.>", base);
+
+  jsStreamConfig cfg;
+  jsStreamConfig_Init (&cfg);
+  const char *subjects[1] = { subj };
+  cfg.Name                = name;
+  cfg.Subjects            = subjects;
+  cfg.SubjectsLen         = 1;
+  cfg.Retention           = js_WorkQueuePolicy;
+  cfg.Storage             = js_FileStorage; /* survives a broker restart */
+  cfg.Replicas            = 1; /* dev default; prod pre-provisions R=3 */
+
+  natsStatus s = js_AddStream (NULL, js, &cfg, NULL, NULL);
+  if (s == NATS_OK)
+    return DP_OK;
+
+  jsStreamInfo *si = NULL; /* already exists? use it as-is. */
+  s                = js_GetStreamInfo (&si, js, name, NULL, NULL);
+  if (si)
+    jsStreamInfo_Destroy (si);
+  return (s == NATS_OK) ? DP_OK : DP_ERR_INIT;
+}
+
+/* Create/attach the shared durable pull consumer for `base` (explicit ack,
+ * at-least-once; workers sharing the durable load-balance + redeliver). */
+static int
+dpn_pull_subscribe (struct dp_ctx *ctx, jsCtx *js, natsSubscription **out)
+{
+  char durable[256], filter[256];
+  dpn_js_name (durable, sizeof (durable), "DP_PULL_", ctx->u.nats.base);
+  (void)snprintf (filter, sizeof (filter), "work.%s.>", ctx->u.nats.base);
+
+  jsSubOptions so;
+  jsSubOptions_Init (&so);
+  so.ManualAck            = true; /* caller acks via dp_msg_ack */
+  so.Config.Durable       = durable;
+  so.Config.AckPolicy     = js_AckExplicit;
+  so.Config.MaxAckPending = 1000;               /* HWM-style backpressure */
+  so.Config.AckWait = 5LL * 1000 * 1000 * 1000; /* 5s ns -> fast redeliver */
+
+  return (js_PullSubscribe (out, js, filter, durable, NULL, &so, NULL)
+          == NATS_OK)
+             ? 0
+             : -1;
+}
+
 /* Role-specific subscription wiring after connect.  Returns 0 on success.
- * PUB needs no subscription; SUB/REP/REQ each get one (REQ also an inbox). */
+ * PUB needs no subscription; SUB/REP/REQ each get one (REQ also an inbox);
+ * PUSH/PULL set up the JetStream work-queue tier. */
 static int
 dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
 {
@@ -117,6 +185,26 @@ dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
           return -1;
         break;
       }
+    case DP_ROLE_PUSH:
+      {
+        jsCtx *js = NULL;
+        if (natsConnection_JetStream (&js, conn, NULL) != NATS_OK)
+          return -1;
+        ctx->u.nats.js = js;
+        if (dpn_ensure_stream (js, ctx->u.nats.base) != DP_OK)
+          return -1;
+        break; /* publisher: no subscription */
+      }
+    case DP_ROLE_PULL:
+      {
+        jsCtx *js = NULL;
+        if (natsConnection_JetStream (&js, conn, NULL) != NATS_OK)
+          return -1;
+        ctx->u.nats.js = js;
+        if (dpn_pull_subscribe (ctx, js, &sub) != 0)
+          return -1;
+        break;
+      }
     default: /* DP_ROLE_PUB */
       break;
     }
@@ -129,10 +217,6 @@ struct dp_ctx *
 dpn_ctx_create (dp_role_t role, const char *endpoint,
                 dp_sample_type_t sample_type)
 {
-  /* PUSH/PULL over NATS is the JetStream work-queue tier (Phase 4). */
-  if (role == DP_ROLE_PUSH || role == DP_ROLE_PULL)
-    return NULL;
-
   struct dp_ctx *ctx = (struct dp_ctx *)calloc (1, sizeof (struct dp_ctx));
   if (!ctx)
     return NULL;
@@ -167,6 +251,8 @@ dpn_ctx_destroy (struct dp_ctx *ctx)
 {
   if (ctx->u.nats.sub)
     natsSubscription_Destroy ((natsSubscription *)ctx->u.nats.sub);
+  if (ctx->u.nats.js)
+    jsCtx_Destroy ((jsCtx *)ctx->u.nats.js);
   if (ctx->u.nats.conn)
     natsConnection_Destroy ((natsConnection *)ctx->u.nats.conn);
   if (ctx->u.nats.inbox)
@@ -210,6 +296,21 @@ dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
       if (s == NATS_OK)
         s = natsConnection_Flush (conn);
       break;
+    case DP_ROLE_PUSH:
+      {
+        /* JetStream work-queue: synchronous, server-acked publish — the
+         * message is persisted (and replicated) before we return, so a
+         * producer-side crash never silently drops it. */
+        char subj[640];
+        (void)snprintf (subj, sizeof (subj), "work.%s.%s", ctx->u.nats.base,
+                        typestr);
+        jsPubAck *pa = NULL;
+        s = js_Publish (&pa, (jsCtx *)ctx->u.nats.js, subj, buf, len, NULL,
+                        NULL);
+        if (pa)
+          jsPubAck_Destroy (pa);
+        break;
+      }
     default:
       return DP_ERR_INVALID; /* SUB/PULL cannot send */
     }
@@ -244,13 +345,17 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
   if (maxp <= 0)
     maxp = 1024LL * 1024; /* NATS default if the server didn't report one */
 
-  /* Common case: the whole frame fits in one message (no chunk flag). */
-  if (hdr_sz + data_size <= (size_t)maxp)
+  /* Chunking is a fan-out (PUB/SUB) feature only: every subscriber receives
+   * the whole in-order chunk sequence and reassembles independently.  Over a
+   * load-balanced work-queue (PUSH/PULL) a frame's chunks could land on
+   * different workers, so PUSH sends one frame as one message (the resilient
+   * tier relies on a generous server max_payload).  REQ/REP are small. */
+  if (ctx->u.nats.role != DP_ROLE_PUB || hdr_sz + data_size <= (size_t)maxp)
     return dpn_publish_framed (ctx, header, samples, data_size);
 
-  /* Otherwise split the payload into sample-aligned chunks that each fit,
-   * all sharing this frame's sequence; (sequence, chunk_index) lets the
-   * receiver reassemble idempotently. */
+  /* Large PUB frame: split into sample-aligned chunks that each fit, all
+   * sharing this frame's sequence; (sequence, chunk_index) lets each
+   * subscriber reassemble idempotently. */
   size_t ss = dp_sample_size ((dp_sample_type_t)header->sample_type);
   if (ss == 0)
     return DP_ERR_INVALID;
@@ -291,11 +396,49 @@ dpn_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
  * Receive
  * ========================================================================= */
 
+/* Pull one message from the durable JetStream consumer (batch of 1).  The
+ * message is NOT acked here — the caller acks via dp_msg_ack once it has been
+ * processed, so a crash before ack triggers redelivery (at-least-once). */
+static int
+dpn_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
+{
+  natsSubscription *sub = (natsSubscription *)ctx->u.nats.sub;
+  if (!sub)
+    return DP_ERR_INVALID;
+
+  int         to   = ctx->u.nats.recv_timeout_ms;
+  natsMsgList list = { NULL, 0 };
+  natsStatus  s;
+  if (to < 0)
+    {
+      do
+        s = natsSubscription_Fetch (&list, sub, 1, 3600000, NULL);
+      while (s == NATS_TIMEOUT);
+    }
+  else
+    s = natsSubscription_Fetch (&list, sub, 1, to == 0 ? 1 : to, NULL);
+
+  if (s == NATS_TIMEOUT)
+    return DP_ERR_TIMEOUT;
+  if (s != NATS_OK || list.Count < 1)
+    {
+      natsMsgList_Destroy (&list);
+      return DP_ERR_RECV;
+    }
+  *out         = list.Msgs[0];
+  list.Msgs[0] = NULL;         /* keep this message alive */
+  natsMsgList_Destroy (&list); /* frees the array; NULL slot is a no-op */
+  return DP_OK;
+}
+
 /* Block for the next message honouring the stored timeout.  recv_timeout_ms
  * < 0 means block indefinitely (emulated by re-polling on NATS_TIMEOUT). */
 static int
 nats_next (struct dp_ctx *ctx, natsMsg **out)
 {
+  if (ctx->u.nats.role == DP_ROLE_PULL)
+    return dpn_pull_fetch (ctx, out);
+
   natsSubscription *sub = (natsSubscription *)ctx->u.nats.sub;
   if (!sub)
     return DP_ERR_INVALID;
@@ -466,9 +609,9 @@ dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
   if (ctx->u.nats.role == DP_ROLE_REP)
     nats_stash_reply (ctx, m);
 
-  /* Large frames arrive as several chunks — reassemble into one owned buffer.
-   */
-  if (hdr.flags & DP_FLAG_CHUNKED)
+  /* Large fan-out frames arrive as several chunks — reassemble into one owned
+   * buffer.  (PULL never chunks: the work-queue carries whole frames.) */
+  if ((hdr.flags & DP_FLAG_CHUNKED) && ctx->u.nats.role != DP_ROLE_PULL)
     return dpn_reassemble (ctx, m, &hdr, out_msg, out_hdr);
 
   /* Single message: zero-copy, data lives in the natsMsg past the header. */
@@ -546,4 +689,11 @@ void
 dpn_msg_free (dp_msg_t *msg)
 {
   natsMsg_Destroy ((natsMsg *)msg->u.nats);
+}
+
+int
+dpn_msg_ack (dp_msg_t *msg)
+{
+  natsStatus s = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL);
+  return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
 }

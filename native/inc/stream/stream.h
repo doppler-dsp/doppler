@@ -225,7 +225,23 @@ extern "C"
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
 
   /**
-   * @brief Free a message handle and release the underlying ZMQ buffer.
+   * @brief Acknowledge a message on a durable (JetStream) consumer.
+   *
+   * For the resilient NATS work-queue tier (a `nats://` Pull consumer),
+   * delivery is at-least-once: a message stays pending until acked, and is
+   * redelivered if the consumer dies before acking.  Call this once the
+   * message has been fully processed, then dp_msg_free().
+   *
+   * A no-op (returns DP_OK) for transports without acks — ZMQ messages and
+   * NATS core PUB/SUB — so callers can ack unconditionally.
+   *
+   * @param msg Message handle returned by a recv function.
+   * @return DP_OK on success, negative error code on failure.
+   */
+  int dp_msg_ack (dp_msg_t *msg);
+
+  /**
+   * @brief Free a message handle and release the underlying buffer.
    * @param msg Message handle (may be NULL).
    */
   void dp_msg_free (dp_msg_t *msg);

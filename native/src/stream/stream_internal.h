@@ -61,7 +61,8 @@ struct dp_zmq_state
 struct dp_nats_state
 {
   void     *conn;            /* natsConnection *                            */
-  void     *sub;             /* natsSubscription * (SUB/REP/REQ-inbox)      */
+  void     *sub;             /* natsSubscription * (SUB/REP/REQ-inbox/PULL) */
+  void     *js;              /* jsCtx * (JetStream ctx for PUSH/PULL)       */
   dp_role_t role;            /* drives subject choice in send/recv          */
   char     *base;            /* subject base parsed from the endpoint path  */
   char     *inbox;           /* REQ: reply-to inbox subject                 */
@@ -125,5 +126,6 @@ void dpn_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms);
 void  *dpn_msg_data (dp_msg_t *msg);
 size_t dpn_msg_size (dp_msg_t *msg);
 void   dpn_msg_free (dp_msg_t *msg); /* destroys the natsMsg only, not msg */
+int    dpn_msg_ack (dp_msg_t *msg);  /* JetStream explicit ack (PULL)      */
 
 #endif /* DP_STREAM_INTERNAL_H */

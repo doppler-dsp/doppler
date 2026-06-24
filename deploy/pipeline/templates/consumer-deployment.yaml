@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doppler-consumer # KEDA ScaledObject scaleTargetRef points here
+  labels:
+    {{- include "doppler-pipeline.labels" . | nindent 4 }}
+    app.kubernetes.io/component: consumer
+spec:
+  # Initial only — KEDA (deploy/keda/consumer-scaledobject.yaml) owns replicas
+  # at runtime, scaling 2..50 on JetStream consumer lag.
+  replicas: {{ .Values.consumer.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: consumer
+    spec:
+      containers:
+        - name: consumer
+          image: {{ include "doppler-pipeline.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.consumer.command }}
+          command: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.consumer.args }}
+          args: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: STREAM_ENDPOINT
+              value: {{ .Values.streamEndpoint | quote }}
+          resources:
+            {{- toYaml .Values.consumer.resources | nindent 12 }}

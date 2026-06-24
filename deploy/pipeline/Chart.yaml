@@ -1,0 +1,6 @@
+apiVersion: v2
+name: doppler-pipeline
+description: doppler I/Q producer + autoscaled JetStream work-queue consumer
+type: application
+version: 0.1.0
+appVersion: "0.20.0"

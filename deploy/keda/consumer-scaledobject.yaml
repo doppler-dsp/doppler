@@ -1,0 +1,39 @@
+# KEDA ScaledObject — autoscale the doppler work-queue consumers on JetStream
+# lag.  This is the "eats HPA for breakfast" surface: KEDA generates the HPA
+# under the hood and drives it from the consumer's pending/unacked backlog.
+#
+#   helm repo add kedacore https://kedacore.github.io/charts
+#   helm upgrade --install keda kedacore/keda -n keda --create-namespace
+#   kubectl apply -f deploy/keda/consumer-scaledobject.yaml
+#
+# minReplicaCount: 2 — never below two workers, so a crashed consumer's
+# un-acked frames redeliver to an already-live peer (instant failover, no
+# cold-start).  Durability is NOT a function of replica count: it comes from
+# the durable R=3 file stream + explicit ack.  maxReplicaCount: 50.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: doppler-consumer
+  namespace: doppler
+spec:
+  scaleTargetRef:
+    name: doppler-consumer # the consumer Deployment (pipeline chart)
+  minReplicaCount: 2
+  maxReplicaCount: 50
+  cooldownPeriod: 60
+  pollingInterval: 5
+  triggers:
+    # Primary: scale on JetStream consumer lag (pending + un-acked).
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: "nats.doppler.svc.cluster.local:8222"
+        account: "$G"
+        stream: "DP_WORK_default"
+        consumer: "DP_PULL_default"
+        lagThreshold: "100"
+        activationLagThreshold: "10"
+    # Secondary: CPU headroom (KEDA emits this as an HPA metric too).
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"

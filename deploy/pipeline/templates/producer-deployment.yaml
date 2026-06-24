@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doppler-producer
+  labels:
+    {{- include "doppler-pipeline.labels" . | nindent 4 }}
+    app.kubernetes.io/component: producer
+spec:
+  replicas: {{ .Values.producer.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: producer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: producer
+    spec:
+      containers:
+        - name: producer
+          image: {{ include "doppler-pipeline.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.producer.command }}
+          command: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.producer.args }}
+          args: {{ toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: STREAM_ENDPOINT
+              value: {{ .Values.streamEndpoint | quote }}
+          resources:
+            {{- toYaml .Values.producer.resources | nindent 12 }}

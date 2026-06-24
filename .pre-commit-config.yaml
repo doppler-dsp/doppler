@@ -57,6 +57,8 @@ repos:
         # mkdocs.yml uses mkdocs-material's `!!python/name:` YAML tags; --unsafe
         # checks syntax only (the custom constructors aren't resolvable here).
         args: [--unsafe]
+        # Helm chart templates are Go templates, not parseable as plain YAML.
+        exclude: '^deploy/pipeline/templates/'
       - id: check-toml
       - id: check-merge-conflict
       - id: end-of-file-fixer

@@ -1,0 +1,33 @@
+# Values for the official NATS Helm chart (github.com/nats-io/k8s):
+#
+#   helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+#   helm upgrade --install nats nats/nats -n doppler --create-namespace \
+#     -f deploy/nats/values.yaml
+#
+# A 3-node JetStream cluster (RAFT quorum) with file storage.  Replicas=3 lets
+# a stream tolerate losing one server pod with NO data loss — the substrate the
+# zero-loss work-queue tier depends on.  Clients reach it at the Service DNS
+# nats://nats.doppler.svc.cluster.local:4222 (set as STREAM_ENDPOINT in the
+# pipeline chart).
+config:
+  jetstream:
+    enabled: true
+    fileStore:
+      enabled: true
+      pvc:
+        size: 10Gi
+  cluster:
+    enabled: true
+    replicas: 3
+  # HTTP monitoring endpoint (:8222) — KEDA's nats-jetstream scaler reads
+  # consumer lag from it (see deploy/keda/consumer-scaledobject.yaml).
+  monitor:
+    enabled: true
+
+# Pre-provision the work-queue stream at R=3 so the producer's idempotent
+# create attaches to it instead of making an R=1 one.  Stream/consumer names
+# match the C client's DP_WORK_<base> / DP_PULL_<base> for base "default".
+# (Apply this Job after the cluster is healthy, or create the stream with the
+# `nats` CLI:  nats stream add DP_WORK_default \
+#     --subjects 'work.default.>' --storage file --replicas 3 \
+#     --retention work --discard new --defaults)

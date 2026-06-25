@@ -87,6 +87,7 @@ endif
         wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
+        bench-stream \
         debug release blazing bump-version check-version tag-release \
         test-examples test-examples-python setup clean help
 
@@ -329,6 +330,18 @@ endif
 
 bench-docs:
 	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
+
+# ── bench-stream ──────────────────────────────────────────────────────────────
+# Transport (P0) bench: ZMQ vs NATS firehose throughput + status-plane RTT via
+# the bench_stream C harness. Self-contained — starts a JetStream broker on an
+# isolated port (temp store) and tears it down. Prints a table; pass
+# VERSION=X.Y.Z to stamp benchmarks/published/v<ver>/stream.json (rendered into
+# the Transport section of docs/benchmarks.md by `make bench-docs`).
+#
+#   make bench-stream                    # scratch run, prints the table
+#   make bench-stream VERSION=0.21.0     # publish stream.json for the release
+bench-stream:
+	uv run python scripts/bench_stream.py $(if $(VERSION),--publish $(VERSION),)
 
 bench-report:
 	uv run python scripts/bench_report.py

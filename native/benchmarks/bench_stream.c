@@ -61,6 +61,10 @@
 #define STATUS_MSG_BYTES 64 /* representative small status/control payload */
 #define WARMUP_BLKS 50      /* frames before timing starts */
 #define HIST_BINS 32768     /* 1 µs buckets → covers 0–32767 µs (32 ms) */
+#define RECV_TIMEOUT_MS                                                       \
+  2000 /* bounds a blocking recv so a producer send-                          \
+        * error (e.g. a frame over the NATS max_payload)                      \
+        * can't hang the bench forever */
 
 static const char *
 firehose_endpoint (void)
@@ -132,6 +136,12 @@ typedef struct
   uint64_t wall_ns_end;
 
   bench_barrier_t ready;
+
+  /* Set once the producer has stopped sending (all frames out, or a send
+   * error). The consumer reads it to know that a recv timeout means "no more
+   * frames are coming" rather than "still in flight", so it can stop instead
+   * of blocking forever. */
+  volatile int producer_done;
 } bench_state_t;
 
 /* ─── helpers ───────────────────────────────────────────────────────────── */
@@ -161,6 +171,7 @@ producer (void *arg)
     {
       fputs ("bench_stream: push create failed\n", stderr);
       free (buf);
+      s->producer_done = 1; /* let the consumer stop waiting */
       barrier_wait (&s->ready, 1);
       return NULL;
     }
@@ -178,8 +189,9 @@ producer (void *arg)
         }
     }
 
-  dp_push_destroy (ctx);
+  dp_push_destroy (ctx); /* flushes anything still pending (ZMQ linger) */
   free (buf);
+  s->producer_done = 1; /* signal the consumer: no more frames are coming */
   return NULL;
 }
 
@@ -211,15 +223,29 @@ consumer (void *arg)
 
   barrier_wait (&s->ready, 0);
 
+  /* Bound each recv so the loop can periodically re-check producer_done. */
+  dp_pull_set_timeout (ctx, RECV_TIMEOUT_MS);
+
   size_t timed = 0;
-  for (size_t i = 0; i < s->num_blks; i++)
+  size_t got   = 0;
+  while (got < s->num_blks)
     {
       dp_msg_t   *msg = NULL;
       dp_header_t hdr;
       int         rc = dp_pull_recv (ctx, &msg, &hdr);
+      if (rc == DP_ERR_TIMEOUT)
+        {
+          dp_msg_free (msg); /* NULL on timeout; free(NULL) is safe */
+          /* No frame this window. If the producer has finished or errored,
+           * the remaining frames will never arrive — stop instead of hanging.
+           * Otherwise it is still sending, so keep waiting. */
+          if (s->producer_done)
+            break;
+          continue;
+        }
       if (rc != DP_OK)
         {
-          fprintf (stderr, "bench_stream: recv error at block %zu: %s\n", i,
+          fprintf (stderr, "bench_stream: recv error at block %zu: %s\n", got,
                    dp_strerror (rc));
           dp_msg_free (msg);
           break;
@@ -227,10 +253,10 @@ consumer (void *arg)
 
       uint64_t recv_ns = now_ns ();
 
-      if (i == WARMUP_BLKS)
+      if (got == WARMUP_BLKS)
         s->wall_ns_start = recv_ns;
 
-      if (i >= WARMUP_BLKS)
+      if (got >= WARMUP_BLKS)
         {
           int64_t lat_ns = (int64_t)(recv_ns - hdr.timestamp_ns);
           if (lat_ns < 0)
@@ -249,6 +275,7 @@ consumer (void *arg)
        * stall the stream after the first window of unacked frames). */
       dp_msg_ack (msg);
       dp_msg_free (msg);
+      got++;
     }
 
   s->timed_blks = timed;
@@ -344,6 +371,10 @@ run_reqrep (bench_state_t *s)
       return 1;
     }
   barrier_wait (&s->ready, 1);
+
+  /* Bound the reply wait so a dead/absent replier ends the loop instead of
+   * blocking forever (recv returns DP_ERR_TIMEOUT, which breaks below). */
+  dp_req_set_timeout (req, RECV_TIMEOUT_MS);
 
   /* Core NATS REQ/REP delivers only to a subscription already registered on
    * the server. The barrier guarantees the replier's dp_rep_create returned,

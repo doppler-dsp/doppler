@@ -39,8 +39,10 @@ extern "C"
   /**
    * @brief LO state.
    *
-   * Allocate with lo_create().  The shared 65536-entry LUT is initialised
-   * lazily on the first lo_create() call and never freed.
+   * Allocate with lo_create(), or embed by value and lo_init() (see the
+   * inline composition API below).  The shared 65536-entry LUT is
+   * initialised lazily on the first lo_create()/lo_init() call and never
+   * freed.
    */
   typedef struct
   {
@@ -48,6 +50,72 @@ extern "C"
     uint32_t phase_inc; /* advance per sample = floor(norm_freq * 2^32) */
     double norm_freq;   /* normalised frequency (cycles/sample)           */
   } lo_state_t;
+
+/* ---- Inline composition API (C-only; not exposed as Python methods) ----
+ *
+ * lo_init / lo_step let a tracking loop embed lo_state_t BY VALUE and de-rotate
+ * a sample stream one sample at a time with zero call overhead — the block
+ * generators below (lo_steps) stay the fast path for bulk synthesis.  The
+ * shared sin LUT is exposed here so the inline step can index it directly.   */
+#define LO_LUT_BITS 16u
+#define LO_LUT_SIZE (1u << LO_LUT_BITS) /* 65536                    */
+#define LO_LUT_QTR (LO_LUT_SIZE >> 2u)  /* 16384  (π/2 phase shift) */
+
+  /**
+   * @brief Shared 2^16-entry sine LUT (read-only after init).
+   *
+   * Filled by the first lo_create()/lo_init().  Indexed by the top 16 bits of
+   * the phase accumulator; the quarter-cycle offset LO_LUT_QTR maps sin→cos.
+   * Do not write.  Exposed only so lo_step() can be a header inline.
+   */
+  extern float lo_sin_lut[LO_LUT_SIZE];
+
+  /**
+   * @brief Initialise an LO in place (no allocation).
+   *
+   * The by-value counterpart to lo_create(): a tracking loop that embeds an
+   * lo_state_t initialises it with lo_init() instead of owning a heap pointer.
+   * Sets phase=0, derives phase_inc from norm_freq, and fills the shared LUT
+   * on first use (same single-threaded caveat as lo_create()).
+   *
+   * @param state      LO state to initialise in place.  Must be non-NULL.
+   * @param norm_freq  Normalised frequency in cycles per sample (fractional
+   *                   part only).
+   * @code
+   * >>> from doppler.source import LO
+   * >>> lo = LO(0.25)            # the Python type uses lo_create internally
+   * >>> lo.phase_inc
+   * 1073741824
+   * @endcode
+   */
+  void lo_init (lo_state_t *state, double norm_freq);
+
+  /**
+   * @brief Emit the current CF32 phasor, then advance the accumulator.
+   *
+   * Single-sample form of lo_steps(), same emit-before-increment convention
+   * and bit-for-bit the same LUT math, suitable for inlining into a
+   * sample-by-sample loop (e.g. carrier wipe-off ahead of a matched filter).
+   * The caller must have run lo_create()/lo_init() so the LUT is populated.
+   *
+   * @param state  LO state.  Must be non-NULL with phase/phase_inc set.
+   * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
+   * @code
+   * lo_state_t lo;            // embedded by value, no heap
+   * lo_init (&lo, 0.25);
+   * float complex s0 = lo_step (&lo);   // 1 + 0j
+   * float complex s1 = lo_step (&lo);   // 0 + 1j
+   * @endcode
+   */
+  JM_FORCEINLINE JM_HOT float complex lo_step (lo_state_t *state)
+  {
+    uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
+    float complex out
+        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  lo_sin_lut[idx]);
+    state->phase += state->phase_inc;
+    return out;
+  }
 
   /**
    * @brief Create an LO instance.

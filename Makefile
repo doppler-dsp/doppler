@@ -38,9 +38,10 @@ CMAKE       := cmake
 COV_DIR       ?= build-cov
 LLVM_PROFDATA ?= llvm-profdata
 LLVM_COV      ?= llvm-cov
-# Excluded from the report: vendored code, jm-generated binding aggregators,
-# and the test/bench harnesses themselves — only first-party _core.c counts.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext\.c$$|/(tests|benchmarks)/
+# Excluded from the report: vendored code, jm-generated binding aggregators
+# (`<mod>_ext.c`) and per-object fragments (`<mod>_ext_<obj>.c`), and the
+# test/bench harnesses themselves — only first-party _core.c counts.
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 # Python executable used when building extensions with `make pyext`.
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:
@@ -405,7 +406,8 @@ GALLERY_SCRIPTS := \
     src/doppler/examples/wcdma_carriers_demo.py \
     src/doppler/examples/measure_demo.py \
     src/doppler/examples/measure_imd_npr_demo.py \
-    src/doppler/examples/wfm_write_demo.py
+    src/doppler/examples/wfm_write_demo.py \
+    src/doppler/examples/dsss_despread_demo.py
 
 gallery:
 	@echo "Regenerating gallery plots..."
@@ -413,7 +415,7 @@ gallery:
 	    printf "  %-45s" "$$script"; \
 	    uv run python $$script > /dev/null 2>&1 && echo "OK" || { echo "FAIL"; exit 1; }; \
 	done
-	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png wfm_composition_demo.png wcdma_carriers_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png docs/assets/
+	@mv -f agc_convergence.png cic_demo_spectrum.png corr_demo.png detection_curves.png detection_sim.png detection2d_demo.png rate_converter_demo.png ddc_fn_demo.png ddc_fn_scaling.png adc_demo.png hbdecim_q15_demo.png wfmgen_demo.png wfm_composition_demo.png wcdma_carriers_demo.png measure_demo.png measure_imd_npr_demo.png wfm_write_demo.png dsss_despread_demo.png docs/assets/
 	@rm -f burst.blue
 	@echo "Gallery plots written to docs/assets/."
 

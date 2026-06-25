@@ -1431,3 +1431,9 @@ values = ["cf32", "cf64", "ci32", "ci16", "ci8"]
 [[enum]]
 name = "endian"
 values = ["le", "be"]
+
+[module.track]
+objects = ["loop_filter"]
+
+[module.dsss]
+objects = ["despreader"]

@@ -66,5 +66,28 @@ jobs:
         uv sync --group dev
         make build
         make pyext
+        # The `*_1k` (1024-sample) benches are overhead-bound: per-call Python +
+        # scheduler cost dominates the tiny kernel work, so their min wall-time
+        # swings far past 30% from runner jitter alone (base and head are benched
+        # in separate steps, not interleaved). Across recent PRs they produced
+        # ~all the false positives — flagging +50–78% on changes that touch no
+        # hot path (coverage config, enum renames). Exempt the whole family so a
+        # surfaced regression is trustworthy; a real kernel regression still
+        # shows in the throughput-bound (64k/block) variants, which stay gated.
+        # `--allow` matches the bare test name, exempting it across all modules.
         uvx --refresh --from 'just-makeit==0.19.32' just-makeit bench --check \
-          --python-only --baseline base --threshold 0.30
+          --python-only --baseline base --threshold 0.30 \
+          --allow test_bench_decimate_1k \
+          --allow test_bench_execute_1k \
+          --allow test_bench_execute_cf32_1k \
+          --allow test_bench_execute_cf64_1k \
+          --allow test_bench_execute_decim_1k \
+          --allow test_bench_execute_interp_1k \
+          --allow test_bench_generate_1k \
+          --allow test_bench_interp_1k \
+          --allow test_bench_push_1k \
+          --allow test_bench_push_ptr_1k \
+          --allow test_bench_steps_1k \
+          --allow test_bench_steps_ctrl_1k \
+          --allow test_bench_steps_u32_1k \
+          --allow test_bench_steps_u32_ovf_1k

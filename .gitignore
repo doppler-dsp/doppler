@@ -39,3 +39,4 @@ xml/
 
 # jm re-materializes this Zensical scaffold file, but the site uses mkdocs.yml.
 zensical.toml
+build-cov/

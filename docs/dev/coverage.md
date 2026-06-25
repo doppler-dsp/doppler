@@ -16,8 +16,8 @@ every consumer carries instrumentation; each harness emits `.profraw`,
 `llvm-profdata merge` unifies them, and `llvm-cov` attributes the merged result
 back to `_core.c` — a single report showing what **C ∪ Python ∪ Rust** covers.
 
-> **Status:** Phases 1–3 (C tests **∪ Python ∪ Rust**) are wired. Phase 4 (a
-> `diff-cover` patch-coverage gate on PRs) is planned — see the roadmap.
+> **Status:** All four phases are wired — the merged C ∪ Python ∪ Rust report is
+> produced on every PR and **gates** it via a `diff-cover` patch-coverage check.
 
 ## Run it locally
 
@@ -76,11 +76,21 @@ environment-gated (`stream_nats.c` needs the broker).
 
 ## CI
 
-A non-gating `coverage (C + Python + Rust)` job (`.github/workflows/ci.yml`) runs
-`make coverage` on every PR (with a NATS broker so the `nats://` path counts) and
-uploads the HTML + `lcov` as the `coverage-report` artifact, with a `TOTAL` line
-in the job summary. It is **not** part of the `ci-passed` required set yet —
-coverage is informational until the phase-4 patch gate lands.
+The `coverage (C + Python + Rust)` job (`.github/workflows/ci.yml`) runs
+`make coverage` on every PR (with a NATS broker so the `nats://` path counts),
+uploads the HTML + `lcov` as the `coverage-report` artifact (+ a `TOTAL` line in
+the job summary), and then **gates** the PR:
+
+```sh
+make coverage-gate COV_BASE=origin/main   # diff-cover, --fail-under=90
+```
+
+`coverage` is in the `ci-passed` required set, so a PR whose **added/changed C
+lines** fall below `COV_PATCH_MIN` (90%) is blocked. It's a *patch* gate, not a
+global threshold — the existing tree is never retroactively gated, and pure
+`.py`/`.rs` diffs (no C coverage data) aren't counted. `diff-cover` is fetched
+on demand via `uvx` (self-contained — no external service). The lcov's `SF:`
+paths are relativized so they match the git diff.
 
 ## Notes / caveats
 
@@ -105,5 +115,6 @@ coverage is informational until the phase-4 patch gate lands.
     run against it, its `.profraw` merged in.
 1. **+ Rust** — done: the Rust FFI tests link the instrumented `libdoppler.so`
     (via `DOPPLER_BUILD_DIR`), which self-writes C `.profraw`; merged in.
-1. **Patch gate** — `diff-cover` over the merged report at `--fail-under=N` on
-    PRs; add `coverage` to `ci-passed`. Never a retroactive global threshold.
+1. **Patch gate** — done: `make coverage-gate` runs `diff-cover` over the merged
+    report at `--fail-under=90` vs `origin/main`; `coverage` is in `ci-passed`.
+    A *patch* gate, never a retroactive global threshold.

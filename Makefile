@@ -83,7 +83,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
   endif
 endif
 
-.PHONY: all build test coverage pyext \
+.PHONY: all build test coverage coverage-gate pyext \
         wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
@@ -167,7 +167,24 @@ coverage:
 	$(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
 		-ignore-filename-regex='$(COV_IGNORE)' -format=lcov \
 		> $(COV_DIR)/coverage.lcov
+	# Relativize the SF: paths (llvm-cov emits absolute) so the patch gate's
+	# git-relative diff paths match — see `make coverage-gate`.
+	sed -i 's|SF:$(CURDIR)/|SF:|' $(COV_DIR)/coverage.lcov
 	@echo "coverage: HTML -> $(COV_DIR)/html/index.html  lcov -> $(COV_DIR)/coverage.lcov"
+
+# ── coverage-gate (phase 4: diff-cover patch gate) ────────────────────────────
+# Fail if the C lines a PR adds/changes aren't covered by the merged report at
+# >= COV_PATCH_MIN%. Compares the working tree to COV_BASE (origin/main in CI).
+# Run after `make coverage`. .py/.rs changes carry no C coverage data and are
+# simply not counted here (no false failures); C is where the algorithms live.
+COV_BASE      ?= origin/main
+COV_PATCH_MIN ?= 90
+coverage-gate:
+	uvx diff-cover $(COV_DIR)/coverage.lcov \
+		--compare-branch=$(COV_BASE) \
+		--fail-under=$(COV_PATCH_MIN) \
+		--format html:$(COV_DIR)/patch.html \
+		--format markdown:$(COV_DIR)/patch.md
 
 # ── pyext ─────────────────────────────────────────────────────────────────────
 # Build Python C extensions into src/doppler/**/.

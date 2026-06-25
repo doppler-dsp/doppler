@@ -400,13 +400,14 @@ jobs:
       run: uvx --refresh --from 'just-makeit==0.19.32' just-makeit status --check
 
   # ------------------------------------------------------------------
-  # Code coverage (phases 1-3: C tests ∪ Python ∪ Rust). clang source-based
-  # instrumentation (-fprofile-instr-generate -fcoverage-mapping) on every
-  # first-party C object; the CTest suite, pytest (against the instrumented .so),
-  # and the Rust FFI tests (linking the instrumented libdoppler.so) each emit
-  # .profraw, merged into one llvm-cov report attributed to the hand-written
-  # _core.c. NON-GATING for now (not in ci-passed needs): publishes the HTML +
-  # lcov as an artifact. Phase 4 adds a diff-cover patch gate on PRs.
+  # Code coverage (C tests ∪ Python ∪ Rust). clang source-based instrumentation
+  # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object;
+  # the CTest suite, pytest (against the instrumented .so), and the Rust FFI
+  # tests (linking the instrumented libdoppler.so) each emit .profraw, merged
+  # into one llvm-cov report attributed to the hand-written _core.c. Publishes
+  # the HTML + lcov as an artifact, and GATES PRs via diff-cover: a PR's
+  # added/changed C lines must be >= 90% covered (it's in ci-passed needs). Pure
+  # .py/.rs diffs carry no C coverage data and aren't counted.
   # ------------------------------------------------------------------
   coverage:
     name: coverage (C + Python + Rust)
@@ -414,6 +415,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        # Full history so the patch gate can diff against origin/main.
+        fetch-depth: 0
 
     - name: Install jbx
       run: |
@@ -445,12 +449,20 @@ jobs:
         done
         echo "NATS JetStream broker ready on 127.0.0.1:4222"
 
-    - name: Coverage (clang source-based; C tests ∪ Python)
+    - name: Coverage (clang source-based; C ∪ Python ∪ Rust)
       run: make coverage | tee coverage.txt
 
     - name: Stop NATS broker
       if: always()
       run: docker rm -f nats 2>/dev/null || true
+
+    - name: Patch-coverage gate (changed C lines must be >= 90%)
+      # diff-cover fails the job (→ blocks ci-passed) when a PR's added/changed
+      # C lines aren't covered by the merged report. Pure .py/.rs diffs carry no
+      # C coverage data and aren't counted. Pushes to main diff empty → pass.
+      run: |
+        git fetch --no-tags origin main
+        make coverage-gate COV_BASE=origin/main
 
     - name: Coverage summary
       if: always()
@@ -487,6 +499,7 @@ jobs:
       - docker
       - pre-commit
       - manifest-drift
+      - coverage
     runs-on: ubuntu-latest
     if: always()
     steps:

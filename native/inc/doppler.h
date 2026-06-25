@@ -97,6 +97,10 @@ extern "C" {
 
 #include "acc_q8/acc_q8_core.h"
 
+#include "loop_filter/loop_filter_core.h"
+
+#include "despreader/despreader_core.h"
+
 #ifdef __cplusplus
 }
 #endif

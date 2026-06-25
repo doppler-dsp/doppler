@@ -155,6 +155,7 @@ nav:
       - AWGN: gallery/awgn.md
       - Measurement Suite: gallery/measure.md
       - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
+      - DSSS Acquisition & Despreading: gallery/dsss-despread.md
   - Examples:
       - Examples: examples/index.md
       - C: examples/c.md
@@ -184,6 +185,8 @@ nav:
       - "Python: DDC": api/python-ddc.md
       - "Python: Resample": api/python-resample.md
       - "Python: AGC": api/python-agc.md
+      - "Python: Loop Filter (track)": api/python-track.md
+      - "Python: DSSS Despreader": api/python-dsss.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
       - "Python: Delay": api/python-delay.md

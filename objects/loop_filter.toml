@@ -1,0 +1,66 @@
+[loop_filter]
+arg_type = "double"
+return_type = "double"
+mutable = "true"
+no_state = "true"
+no_step = "false"
+class_name = "LoopFilter"
+
+[[loop_filter.init_params]]
+name = "bn"
+type = "double"
+default = "0.01"
+
+[[loop_filter.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[loop_filter.init_params]]
+name = "t"
+type = "double"
+default = "1.0"
+
+[[loop_filter.methods]]
+name = "configure"
+doc = "Recompute the loop gains for a new (bn, zeta, t); preserves the integrator."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }, { name = "t", type = "double" }]
+
+[[loop_filter.methods]]
+name = "reset"
+doc = "Zero the integrator; keep the configured gains."
+arg_type = "void"
+return_type = "void"
+
+[[loop_filter.properties]]
+name = "kp"
+type = "double"
+field = true
+
+[[loop_filter.properties]]
+name = "ki"
+type = "double"
+field = true
+
+[[loop_filter.properties]]
+name = "integ"
+type = "double"
+writable = true
+field = true
+
+[[loop_filter.properties]]
+name = "bn"
+type = "double"
+field = true
+
+[[loop_filter.properties]]
+name = "zeta"
+type = "double"
+field = true
+
+[[loop_filter.properties]]
+name = "t"
+type = "double"
+field = true

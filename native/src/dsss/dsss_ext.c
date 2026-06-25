@@ -1,0 +1,41 @@
+/*
+ * dsss_ext.c — Python extension module dsss
+ *
+ * Objects: Despreader
+ * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ */
+
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+#include <complex.h>
+
+
+#include "dsss_ext_despreader.c"
+
+/* ======================================================== */
+/* Module                                                    */
+/* ======================================================== */
+
+static PyModuleDef dsss_moduledef = {
+    PyModuleDef_HEAD_INIT,
+    .m_name    = "dsss",
+    .m_doc     = "Dsss module.",
+    .m_size    = -1,
+    .m_methods = NULL,
+};
+
+PyMODINIT_FUNC
+PyInit_dsss(void)
+{
+    import_array();
+    if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
+    PyObject *m = PyModule_Create(&dsss_moduledef);
+    if (!m) return NULL;
+    Py_INCREF(&DespreaderObjType);
+    if (PyModule_AddObject(m, "Despreader", (PyObject *)&DespreaderObjType) < 0) {
+        Py_DECREF(&DespreaderObjType); Py_DECREF(m); return NULL;
+    }
+    return m;
+}

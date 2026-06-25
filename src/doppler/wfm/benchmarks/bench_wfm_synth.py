@@ -7,7 +7,6 @@ import pytest
 
 from doppler.wfm import Synth
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -18,14 +17,6 @@ def obj():
 
 def test_bench_step(benchmark, obj):
     benchmark(obj.step)
-
-
-def test_bench_steps_1k(benchmark, obj):
-    benchmark(obj.steps, BLOCK_1K)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
-        )
 
 
 def test_bench_steps_64k(benchmark, obj):

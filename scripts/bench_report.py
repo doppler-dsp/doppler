@@ -395,6 +395,8 @@ def cmd_page(published, out_path) -> int:
                 L.append(f"| `{disp}` | {pc} | {nc} | {spc} |")
             L.append("")
 
+    L += _transport_section(latest)
+
     if len(versions) >= 2:
         L += _history_section(published)
 
@@ -406,6 +408,65 @@ def cmd_page(published, out_path) -> int:
     else:
         print(text)
     return 0
+
+
+def _transport_section(version):
+    """Render the ZMQ-vs-NATS wire benchmark (scripts/bench_stream.py) if a
+    ``stream.json`` was captured for this release. Absent on releases predating
+    the transport bench — silently skipped."""
+    path = os.path.join(PUBLISHED, version, "stream.json")
+    if not os.path.exists(path):
+        return []
+    with open(path) as fh:
+        snap = json.load(fh)
+    t = snap.get("transports", {})
+    if "zmq" not in t:
+        return []
+    cfg = snap.get("config", {})
+
+    def cell(transport, sec, key):
+        v = t.get(transport, {}).get(sec, {}).get(key)
+        if v is None:
+            return "—"
+        return f"{v:,.1f}" if v < 1000 else f"{v:,.0f}"
+
+    has_nats = "nats" in t
+    rows = [
+        ("firehose throughput — MSa/s", "firehose", "tput_msa_s"),
+        ("firehose throughput — MB/s", "firehose", "tput_mb_s"),
+        ("status-plane RTT mean — µs", "reqrep", "rtt_mean_us"),
+        ("status-plane RTT p99 — µs", "reqrep", "rtt_p99_us"),
+    ]
+    L = [
+        "## Transport (P0)",
+        "",
+        "Wire throughput and control-plane latency for the two transports the "
+        "`stream` module ships, measured by the `bench_stream` C harness "
+        f"(block = {cfg.get('block_size', '?')} CF32 samples, "
+        f"{cfg.get('num_blocks', '?')} frames, best of "
+        f"{cfg.get('passes', '?')} passes) over TCP loopback.",
+        "",
+        "- **ZMQ** — brokerless PUSH/PULL, the streaming data plane.",
+        "- **NATS** — the durable JetStream work-queue tier (server-acked "
+        "publish + explicit-ack pull). Its lower throughput is the price of "
+        "exactly-once durability, not overhead.",
+        "",
+        f"| metric | ZMQ | {'NATS (JetStream)' if has_nats else 'NATS'} |",
+        "| --- | ---: | ---: |",
+    ]
+    for label, sec, key in rows:
+        nats = cell("nats", sec, key) if has_nats else "—"
+        L.append(f"| {label} | {cell('zmq', sec, key)} | {nats} |")
+    L += [
+        "",
+        "> JetStream is store-and-forward, so the harness one-way *firehose* "
+        "latency degenerates to queue residency there and is omitted; the "
+        "status-plane REQ/REP RTT is the comparable latency figure. Captured "
+        "with `make bench-stream` (a broker is started and torn down "
+        "automatically).",
+        "",
+    ]
+    return L
 
 
 def _history_section(published):

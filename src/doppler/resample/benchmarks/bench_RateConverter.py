@@ -9,7 +9,6 @@ import pytest
 
 from doppler.resample import RateConverter
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -36,11 +35,6 @@ def rc_cic_resamp():
 @pytest.fixture
 def rc_resamp():
     return RateConverter(1.0 / 3.0)  # Resampler only
-
-
-@pytest.fixture
-def rc_interp():
-    return RateConverter(2.0)  # Resampler (interpolation)
 
 
 def test_bench_hb_64k(benchmark, rc_hb):
@@ -85,13 +79,4 @@ def test_bench_resamp_64k(benchmark, rc_resamp):
     if benchmark.stats:
         benchmark.extra_info["MSa_s"] = (
             BLOCK_64K / benchmark.stats["mean"] / 1e6
-        )
-
-
-def test_bench_interp_1k(benchmark, rc_interp):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(rc_interp.execute, x)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
         )

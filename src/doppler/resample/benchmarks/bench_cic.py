@@ -8,22 +8,12 @@ import pytest
 
 from doppler.resample import CIC
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
 @pytest.fixture
 def cic_32():
     return CIC(32)
-
-
-def test_bench_decimate_1k(benchmark, cic_32):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(cic_32.decimate, x)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
-        )
 
 
 def test_bench_decimate_64k(benchmark, cic_32):

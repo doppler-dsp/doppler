@@ -8,7 +8,6 @@ import pytest
 
 from doppler.agc import AGC
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -19,15 +18,6 @@ def obj():
 
 def test_bench_step(benchmark, obj):
     benchmark(obj.step, 1.0 + 0.0j)
-
-
-def test_bench_steps_1k(benchmark, obj):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(obj.steps, x)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
-        )
 
 
 def test_bench_steps_64k(benchmark, obj):

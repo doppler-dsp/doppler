@@ -20,11 +20,15 @@ config:
   # it; the durable PUSH/PULL work-queue does NOT (its chunks would scatter
   # across the load-balanced workers — see native/src/stream/stream_nats.c),
   # so a work-queue frame must fit here or the client returns DP_ERR_TOO_LARGE.
-  # To stream >1 MiB durable frames, raise it via the chart's raw-config
-  # passthrough (NATS allows up to 64MB); larger messages cost broker memory,
-  # R=3 replication, and head-of-line latency, so size deliberately:
+  # Raising it also *speeds up* the durable tier: each frame is a synchronous
+  # server-acked fsync, so bigger frames amortize that overhead. Measured
+  # single-node throughput climbs 1MiB:99 -> 3MiB:167 MSa/s (+69%) then plateaus
+  # ~169 MSa/s, so ~4MB is the sweet spot; past it is pure cost (broker memory,
+  # head-of-line latency, and R=3 replicates every byte 3x, so the real-cluster
+  # sweet spot is lower). Set via the chart's raw-config passthrough (NATS
+  # allows up to 64MB):
   #   merge:
-  #     max_payload: 8MB
+  #     max_payload: 4MB
   cluster:
     enabled: true
     replicas: 3

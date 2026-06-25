@@ -1,0 +1,51 @@
+{
+ "doppler_meta": {
+  "measured_at": "",
+  "commit": "9527bce",
+  "compiler": "",
+  "flags": "",
+  "cpu": null,
+  "cores": 20,
+  "cpu_governor": "performance",
+  "cpu_boost": "on",
+  "kernel": "7.1.1-2-cachyos",
+  "python": "3.13.13",
+  "numpy": "2.4.5",
+  "glibc": "glibc 2.43",
+  "cmake": "4.3.4"
+ },
+ "config": {
+  "block_size": 65536,
+  "num_blocks": 600,
+  "reqrep_pings": 2000,
+  "passes": 3
+ },
+ "transports": {
+  "zmq": {
+   "firehose": {
+    "tput_msa_s": 945.69,
+    "tput_mb_s": 7215.1,
+    "lat_mean_us": 4588.9,
+    "lat_p99_us": 10455.0
+   },
+   "reqrep": {
+    "rtt_mean_us": 19.3,
+    "rtt_p99_us": 30.0,
+    "oneway_mean_us": 9.67
+   }
+  },
+  "nats": {
+   "firehose": {
+    "tput_msa_s": 61.11,
+    "tput_mb_s": 466.3,
+    "lat_mean_us": null,
+    "lat_p99_us": null
+   },
+   "reqrep": {
+    "rtt_mean_us": 35.5,
+    "rtt_p99_us": 43.0,
+    "oneway_mean_us": 17.74
+   }
+  }
+ }
+}

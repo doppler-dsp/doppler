@@ -225,6 +225,22 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 | `RateConverter::Interp(2.0)` | 77.7 MSa/s | 102.1 MSa/s | +31% |
 | `agc::step` | 36.1 MSa/s | 44.3 MSa/s | +23% |
 
+## Transport (P0)
+
+Wire throughput and control-plane latency for the two transports the `stream` module ships, measured by the `bench_stream` C harness (block = 65536 CF32 samples, 600 frames, best of 3 passes) over TCP loopback.
+
+- **ZMQ** — brokerless PUSH/PULL, the streaming data plane.
+- **NATS** — the durable JetStream work-queue tier (server-acked publish + explicit-ack pull). Its lower throughput is the price of exactly-once durability, not overhead.
+
+| metric | ZMQ | NATS (JetStream) |
+| --- | ---: | ---: |
+| firehose throughput — MSa/s | 945.7 | 61.1 |
+| firehose throughput — MB/s | 7,215 | 466.3 |
+| status-plane RTT mean — µs | 19.3 | 35.5 |
+| status-plane RTT p99 — µs | 30.0 | 43.0 |
+
+> JetStream is store-and-forward, so the harness one-way *firehose* latency degenerates to queue residency there and is omitted; the status-plane REQ/REP RTT is the comparable latency figure. Captured with `make bench-stream` (a broker is started and torn down automatically).
+
 ## Release history (portable build)
 
 Portable-build throughput across releases — the wheel numbers. Comparable only across releases measured on the same machine.

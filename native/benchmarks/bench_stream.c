@@ -50,11 +50,37 @@
 #include "stream/stream.h"
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
-#define ENDPOINT "tcp://127.0.0.1:5679"
-#define REQREP_ENDPOINT "tcp://127.0.0.1:5680"
+/* Endpoints default to brokerless ZMQ over TCP loopback. Override via the
+ * environment to bench another transport — e.g. the NATS JetStream work-queue
+ * tier against a broker on 4222 (start it with `nats-server -js`):
+ *   DP_BENCH_FIREHOSE_EP=nats://127.0.0.1:4222/firehose \
+ *   DP_BENCH_REQREP_EP=nats://127.0.0.1:4222/reqrep   bench_stream 4096 600
+ * The endpoint scheme selects the backend: tcp:// -> ZMQ, nats:// -> NATS. */
+#define FIREHOSE_EP_DEFAULT "tcp://127.0.0.1:5679"
+#define REQREP_EP_DEFAULT "tcp://127.0.0.1:5680"
 #define STATUS_MSG_BYTES 64 /* representative small status/control payload */
 #define WARMUP_BLKS 50      /* frames before timing starts */
 #define HIST_BINS 32768     /* 1 µs buckets → covers 0–32767 µs (32 ms) */
+
+static const char *
+firehose_endpoint (void)
+{
+  const char *e = getenv ("DP_BENCH_FIREHOSE_EP");
+  return (e && *e) ? e : FIREHOSE_EP_DEFAULT;
+}
+
+static const char *
+reqrep_endpoint (void)
+{
+  const char *e = getenv ("DP_BENCH_REQREP_EP");
+  return (e && *e) ? e : REQREP_EP_DEFAULT;
+}
+
+static int
+ep_is_nats (const char *ep)
+{
+  return strncmp (ep, "nats://", 7) == 0;
+}
 
 /* ─── portable 2-party barrier via a pair of semaphores ─────────────────── */
 typedef struct
@@ -130,7 +156,7 @@ producer (void *arg)
              + sinf (2.0f * (float)M_PI * (float)i / (float)n)
                    * (float _Complex)_Complex_I;
 
-  dp_push_t *ctx = dp_push_create (ENDPOINT, CF32);
+  dp_push_t *ctx = dp_push_create (firehose_endpoint (), CF32);
   if (!ctx)
     {
       fputs ("bench_stream: push create failed\n", stderr);
@@ -161,8 +187,21 @@ producer (void *arg)
 static void *
 consumer (void *arg)
 {
-  bench_state_t *s   = arg;
-  dp_pull_t     *ctx = dp_pull_create (ENDPOINT);
+  bench_state_t *s = arg;
+  /* The NATS JetStream pull consumer attaches to the work-queue stream that
+   * the producer's push_create provisions, so on nats:// the stream may not
+   * exist yet when this thread starts (the two create concurrently). Retry
+   * until it lands. ZMQ has no broker-side stream and succeeds first try. */
+  dp_pull_t *ctx = NULL;
+  for (int attempt = 0; attempt < 100 && !ctx; attempt++)
+    {
+      ctx = dp_pull_create (firehose_endpoint ());
+      if (!ctx)
+        {
+          struct timespec ts = { 0, 20L * 1000 * 1000 }; /* 20 ms */
+          nanosleep (&ts, NULL);
+        }
+    }
   if (!ctx)
     {
       fputs ("bench_stream: pull create failed\n", stderr);
@@ -205,6 +244,10 @@ consumer (void *arg)
         }
 
       s->wall_ns_end = recv_ns;
+      /* No-op on ZMQ; on the NATS JetStream pull tier this acks the frame so
+       * the durable consumer keeps delivering (MaxAckPending would otherwise
+       * stall the stream after the first window of unacked frames). */
+      dp_msg_ack (msg);
       dp_msg_free (msg);
     }
 
@@ -259,7 +302,7 @@ static void *
 replier (void *arg)
 {
   bench_state_t *s   = arg;
-  dp_rep_t      *rep = dp_rep_create (REQREP_ENDPOINT);
+  dp_rep_t      *rep = dp_rep_create (reqrep_endpoint ());
   if (!rep)
     {
       fputs ("bench_stream: rep create failed\n", stderr);
@@ -292,7 +335,7 @@ run_reqrep (bench_state_t *s)
   pthread_t rep_tid;
   pthread_create (&rep_tid, NULL, replier, s);
 
-  dp_req_t *req = dp_req_create (REQREP_ENDPOINT);
+  dp_req_t *req = dp_req_create (reqrep_endpoint ());
   if (!req)
     {
       fputs ("bench_stream: req create failed\n", stderr);
@@ -301,6 +344,16 @@ run_reqrep (bench_state_t *s)
       return 1;
     }
   barrier_wait (&s->ready, 1);
+
+  /* Core NATS REQ/REP delivers only to a subscription already registered on
+   * the server. The barrier guarantees the replier's dp_rep_create returned,
+   * but the SubscribeSync registration still has to propagate before the first
+   * request, so let it settle. ZMQ needs no such wait. */
+  if (ep_is_nats (reqrep_endpoint ()))
+    {
+      struct timespec ts = { 0, 200L * 1000 * 1000 }; /* 200 ms */
+      nanosleep (&ts, NULL);
+    }
 
   unsigned char payload[STATUS_MSG_BYTES] = { 0 };
   size_t        timed                     = 0;

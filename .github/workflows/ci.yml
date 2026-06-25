@@ -400,16 +400,16 @@ jobs:
       run: uvx --refresh --from 'just-makeit==0.19.32' just-makeit status --check
 
   # ------------------------------------------------------------------
-  # Code coverage (phases 1+2: C tests ∪ Python). clang source-based
+  # Code coverage (phases 1-3: C tests ∪ Python ∪ Rust). clang source-based
   # instrumentation (-fprofile-instr-generate -fcoverage-mapping) on every
-  # first-party C object; the CTest suite and pytest (against the instrumented
-  # .so) each emit .profraw, merged into one llvm-cov report attributed to the
-  # hand-written _core.c. NON-GATING for now (not in ci-passed needs): publishes
-  # the HTML + lcov as an artifact. Phase 3 folds in Rust; phase 4 adds a
-  # diff-cover patch gate on PRs.
+  # first-party C object; the CTest suite, pytest (against the instrumented .so),
+  # and the Rust FFI tests (linking the instrumented libdoppler.so) each emit
+  # .profraw, merged into one llvm-cov report attributed to the hand-written
+  # _core.c. NON-GATING for now (not in ci-passed needs): publishes the HTML +
+  # lcov as an artifact. Phase 4 adds a diff-cover patch gate on PRs.
   # ------------------------------------------------------------------
   coverage:
-    name: coverage (C + Python)
+    name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
 
     steps:
@@ -455,7 +455,7 @@ jobs:
     - name: Coverage summary
       if: always()
       run: |
-        echo '### Merged coverage (C ∪ Python)' >> "$GITHUB_STEP_SUMMARY"
+        echo '### Merged coverage (C ∪ Python ∪ Rust)' >> "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         grep -E '^TOTAL' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
         echo '```' >> "$GITHUB_STEP_SUMMARY"

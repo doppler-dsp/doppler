@@ -16,9 +16,8 @@ every consumer carries instrumentation; each harness emits `.profraw`,
 `llvm-profdata merge` unifies them, and `llvm-cov` attributes the merged result
 back to `_core.c` — a single report showing what **C ∪ Python ∪ Rust** covers.
 
-> **Status:** Phases 1–2 (C tests **∪ Python**) are wired. Phase 3 (fold in the
-> Rust `.profraw`) and Phase 4 (a `diff-cover` patch-coverage gate on PRs) are
-> planned — see the roadmap at the bottom.
+> **Status:** Phases 1–3 (C tests **∪ Python ∪ Rust**) are wired. Phase 4 (a
+> `diff-cover` patch-coverage gate on PRs) is planned — see the roadmap.
 
 ## Run it locally
 
@@ -46,9 +45,13 @@ The `coverage` target configures a dedicated `build-cov/` tree
     layered over the staged `.so` with `tar`;
 1. runs **pytest** against that staged package (`LLVM_PROFILE_FILE` →
     `py-*.profraw`), so the same cores get coverage from what Python exercises;
-1. `llvm-profdata merge`s C ∪ Python and emits the HTML + `lcov`, reported
-    against `libdoppler.so` **and** every module `.so` (a line only Python reaches
-    still attributes correctly).
+1. runs the **Rust FFI tests** against the instrumented `libdoppler.so`
+    (`DOPPLER_BUILD_DIR` points `build.rs` at `build-cov`); the `.so` self-writes
+    its C `.profraw` via its own profile runtime — no Rust instrumentation needed,
+    and rustc's LLVM matches clang's so the `.profraw` merges;
+1. `llvm-profdata merge`s C ∪ Python ∪ Rust and emits the HTML + `lcov`, reported
+    against `libdoppler.so` **and** every module `.so` (a line only one harness
+    reaches still attributes correctly).
 
 A live NATS broker on `127.0.0.1:4222` lets the `nats://` stream path count too
 (the CI job starts one); without it `stream_nats.c` self-skips and shows 0%.
@@ -73,7 +76,7 @@ environment-gated (`stream_nats.c` needs the broker).
 
 ## CI
 
-A non-gating `coverage (C + Python)` job (`.github/workflows/ci.yml`) runs
+A non-gating `coverage (C + Python + Rust)` job (`.github/workflows/ci.yml`) runs
 `make coverage` on every PR (with a NATS broker so the `nats://` path counts) and
 uploads the HTML + `lcov` as the `coverage-report` artifact, with a `TOTAL` line
 in the job summary. It is **not** part of the `ci-passed` required set yet —
@@ -100,7 +103,7 @@ coverage is informational until the phase-4 patch gate lands.
 1. **C tests** — done.
 1. **+ Python** — done: instrumented `.so` staged into `build-cov/pkg/`, pytest
     run against it, its `.profraw` merged in.
-1. **+ Rust** — `cargo test -Cinstrument-coverage`; merge the C `.profraw` from
-    `libdoppler.a`.
+1. **+ Rust** — done: the Rust FFI tests link the instrumented `libdoppler.so`
+    (via `DOPPLER_BUILD_DIR`), which self-writes C `.profraw`; merged in.
 1. **Patch gate** — `diff-cover` over the merged report at `--fail-under=N` on
     PRs; add `coverage` to `ci-passed`. Never a retroactive global threshold.

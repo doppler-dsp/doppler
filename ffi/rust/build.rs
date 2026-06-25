@@ -3,12 +3,15 @@ fn main() {
         .unwrap_or_default();
     let use_rpath = matches!(target_os.as_str(), "linux" | "macos");
 
-    // Locate the cmake build dir (ffi/rust/../../build).
+    // Locate the cmake build dir (ffi/rust/../../build). DOPPLER_BUILD_DIR
+    // overrides it — e.g. point at an instrumented `build-cov` so the Rust
+    // tests link the coverage libdoppler (see `make coverage`).
+    println!("cargo:rerun-if-env-changed=DOPPLER_BUILD_DIR");
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let build_dir = manifest
-        .join("../../build")
-        .canonicalize()
+    let build_dir = std::env::var("DOPPLER_BUILD_DIR")
+        .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| manifest.join("../../build"));
+    let build_dir = build_dir.canonicalize().unwrap_or(build_dir);
 
     println!("cargo:rustc-link-search=native={}", build_dir.display());
     // pocketfft_cxx is built as a subdir target; cmake puts its archive

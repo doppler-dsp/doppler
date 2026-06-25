@@ -145,8 +145,16 @@ coverage:
 		PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
 		$(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
 		-q -p no:cacheprovider --ignore-glob='*/benchmarks/*'
-	# Merge C ∪ Python and report against libdoppler.so + every module .so (the
-	# cores live in both; listing the .so captures lines only Python reaches).
+	# Rust FFI tests against the instrumented libdoppler.so. DOPPLER_BUILD_DIR
+	# points build.rs at build-cov; the .so self-writes its C .profraw via its
+	# own profile runtime (no Rust instrumentation needed — and rustc's LLVM
+	# matches clang's, so the .profraw merges). Skipped gracefully if no cargo.
+	-DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
+		LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
+		cargo test --manifest-path $(RUST_DIR)/Cargo.toml
+	# Merge C ∪ Python ∪ Rust and report against libdoppler.so + every module
+	# .so (the cores live in all; listing the .so captures lines only a wrapper
+	# reaches).
 	@objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
 		2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
 	$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \

@@ -60,11 +60,11 @@ class LoopFilter:
         Parameters
         ----------
         bn : float
-            Input.
+            Loop noise bandwidth, normalized cycles/sample (>= 0).
         zeta : float
-            Input.
+            Damping factor (typically 0.707).
         t : float
-            Input.
+            Update period in samples (> 0).
         """
 
     def reset(self) -> None:

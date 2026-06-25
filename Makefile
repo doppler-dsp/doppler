@@ -38,9 +38,10 @@ CMAKE       := cmake
 COV_DIR       ?= build-cov
 LLVM_PROFDATA ?= llvm-profdata
 LLVM_COV      ?= llvm-cov
-# Excluded from the report: vendored code, jm-generated binding aggregators,
-# and the test/bench harnesses themselves — only first-party _core.c counts.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext\.c$$|/(tests|benchmarks)/
+# Excluded from the report: vendored code, jm-generated binding aggregators
+# (`<mod>_ext.c`) and per-object fragments (`<mod>_ext_<obj>.c`), and the
+# test/bench harnesses themselves — only first-party _core.c counts.
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 # Python executable used when building extensions with `make pyext`.
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:

@@ -8,7 +8,6 @@ import pytest
 
 from doppler.dsss import Despreader
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 

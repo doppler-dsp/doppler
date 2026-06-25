@@ -208,6 +208,15 @@ do_send (void *ctx, int sample_type, send_ci32_fn fn_ci32,
                    (size_t)num_samples, sample_rate, center_freq);
   Py_END_ALLOW_THREADS;
 
+  if (rc == DP_ERR_TOO_LARGE)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "%s: this frame does not fit in one message on the NATS "
+                    "work-queue (PUSH/PULL) tier; raise the broker max_payload "
+                    "or use PUB/SUB, which chunks",
+                    dp_strerror (rc));
+      return NULL;
+    }
   if (rc != DP_OK)
     {
       PyErr_Format (PyExc_RuntimeError, "send failed: %s", dp_strerror (rc));

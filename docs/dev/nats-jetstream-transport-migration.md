@@ -143,6 +143,20 @@ CF64 block (1 MiB) already exceeds it — a naive port silently fails to publish
     variant: `malloc`'d, freed in `dp_msg_free`) so the caller API is unchanged.
     Small blocks (the common live case) stay single-message **and zero-copy**.
 
+> **Chunking is PUB/SUB-only.** A fan-out subscriber sees the whole in-order
+> chunk sequence and reassembles it. The durable **PUSH/PULL work-queue does
+> not chunk**: it load-balances frames across workers (KEDA scales them 2→50),
+> so a frame's chunks could land on different pullers that each see only a
+> subset and could never reassemble. A work-queue frame must therefore fit in
+> one message: `96-byte header + payload ≤ max_payload`. An oversized PUSH (or
+> REQ/REP) send returns **`DP_ERR_TOO_LARGE`** ("Frame exceeds transport
+> max_payload"), surfaced in Python as a `ValueError` — not a generic send
+> failure. To carry larger *durable* frames, raise the broker `max_payload`
+> (config-only and multi-worker-safe — a bigger *whole* frame is still one
+> atomic work item; NATS allows up to 64 MB). See `deploy/nats/values.yaml` and
+> `deploy/docker-compose.nats.yml`. For high-rate large frames prefer PUB/SUB
+> (chunks) or ZMQ (no limit).
+
 ______________________________________________________________________
 
 ## Phase 4 — JetStream PUSH/PULL + replay tier

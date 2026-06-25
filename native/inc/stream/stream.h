@@ -387,6 +387,13 @@ extern "C"
    * @param endpoint    ZMQ endpoint to bind, e.g. `"tcp://\*:5556"`.
    * @param sample_type Sample format that will be sent.
    * @return Non-NULL context on success, NULL on failure.
+   *
+   * @note On the NATS (`nats://`) work-queue tier the per-frame payload must
+   * fit one message: `header + data <= server max_payload` (default 1 MiB).
+   * Unlike PUB/SUB, PUSH does not chunk (the work-queue load-balances frames
+   * across workers, which cannot reassemble a split frame), so an oversized
+   * `dp_push_send_*` returns @ref DP_ERR_TOO_LARGE. Raise the broker
+   * `max_payload` for larger durable frames, or use PUB/SUB / ZMQ.
    */
   dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
 

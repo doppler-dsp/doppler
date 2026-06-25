@@ -172,6 +172,8 @@ dp_strerror (int err)
       return "Timeout";
     case DP_ERR_MEMORY:
       return "Memory allocation error";
+    case DP_ERR_TOO_LARGE:
+      return "Frame exceeds transport max_payload";
     default:
       return "Unknown error";
     }

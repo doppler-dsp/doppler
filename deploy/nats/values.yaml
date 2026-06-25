@@ -16,6 +16,15 @@ config:
       enabled: true
       pvc:
         size: 10Gi
+  # max_payload caps one message (default 1 MiB). PUB/SUB chunks frames over
+  # it; the durable PUSH/PULL work-queue does NOT (its chunks would scatter
+  # across the load-balanced workers — see native/src/stream/stream_nats.c),
+  # so a work-queue frame must fit here or the client returns DP_ERR_TOO_LARGE.
+  # To stream >1 MiB durable frames, raise it via the chart's raw-config
+  # passthrough (NATS allows up to 64MB); larger messages cost broker memory,
+  # R=3 replication, and head-of-line latency, so size deliberately:
+  #   merge:
+  #     max_payload: 8MB
   cluster:
     enabled: true
     replicas: 3

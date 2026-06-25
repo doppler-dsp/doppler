@@ -10,6 +10,16 @@
 services:
   nats:
     image: nats:2.10
+    # max_payload caps a single message (default 1 MiB). The PUB/SUB tier
+    # chunks frames over it, but the durable PUSH/PULL work-queue does NOT
+    # (its chunks would scatter across load-balanced workers), so a frame for
+    # the work-queue must fit here. To stream >1 MiB durable frames, raise it
+    # (NATS allows up to 64MB; larger messages cost broker memory and add
+    # head-of-line latency). max_payload is config-file-only (no CLI flag):
+    # write a conf and mount it, e.g.
+    #   echo 'max_payload: 8MB' > nats.conf
+    #   command: ["-js", "-m", "8222", "-c", "/etc/nats/nats.conf"]
+    #   volumes: ["./nats.conf:/etc/nats/nats.conf:ro"]
     command: ["-js", "-m", "8222"]
     ports:
       - "4222:4222" # client

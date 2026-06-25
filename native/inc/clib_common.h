@@ -38,6 +38,7 @@
 #define DP_ERR_INVALID (-4) /**< Invalid argument. */
 #define DP_ERR_TIMEOUT (-5) /**< Operation timed out. */
 #define DP_ERR_MEMORY (-6)  /**< Memory allocation failure. */
+#define DP_ERR_TOO_LARGE (-7) /**< Frame exceeds transport max payload. */
 
 #include "jm_perf.h"
 

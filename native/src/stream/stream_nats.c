@@ -350,7 +350,20 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
    * load-balanced work-queue (PUSH/PULL) a frame's chunks could land on
    * different workers, so PUSH sends one frame as one message (the resilient
    * tier relies on a generous server max_payload).  REQ/REP are small. */
-  if (ctx->u.nats.role != DP_ROLE_PUB || hdr_sz + data_size <= (size_t)maxp)
+  if (ctx->u.nats.role != DP_ROLE_PUB)
+    {
+      /* Non-fan-out roles never chunk, so a frame that won't fit in one
+       * message can't be sent — report it distinctly (the bare js_Publish
+       * failure is an opaque DP_ERR_SEND) so the caller knows to raise the
+       * broker max_payload or use PUB/SUB rather than chase a generic error.
+       */
+      if (hdr_sz + data_size > (size_t)maxp)
+        return DP_ERR_TOO_LARGE;
+      return dpn_publish_framed (ctx, header, samples, data_size);
+    }
+
+  /* PUB that already fits: one un-chunked message (the common case). */
+  if (hdr_sz + data_size <= (size_t)maxp)
     return dpn_publish_framed (ctx, header, samples, data_size);
 
   /* Large PUB frame: split into sample-aligned chunks that each fit, all

@@ -10,6 +10,17 @@
 services:
   nats:
     image: nats:2.10
+    # max_payload caps a single message (default 1 MiB). The PUB/SUB tier
+    # chunks frames over it, but the durable PUSH/PULL work-queue does NOT
+    # (its chunks would scatter across load-balanced workers), so a frame for
+    # the work-queue must fit here. Raising it also speeds up the durable tier
+    # (bigger frames amortize the per-publish fsync): measured throughput climbs
+    # 1MiB:99 -> 3MiB:167 MSa/s then plateaus, so ~4MB is the sweet spot; past
+    # that is pure cost. max_payload is config-file-only (no CLI flag): write a
+    # conf and mount it, e.g.
+    #   echo 'max_payload: 4MB' > nats.conf
+    #   command: ["-js", "-m", "8222", "-c", "/etc/nats/nats.conf"]
+    #   volumes: ["./nats.conf:/etc/nats/nats.conf:ro"]
     command: ["-js", "-m", "8222"]
     ports:
       - "4222:4222" # client

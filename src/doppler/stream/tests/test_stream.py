@@ -544,6 +544,24 @@ def test_nats_chunked_pub_sub():
 
 
 @requires_nats
+def test_nats_push_frame_too_large():
+    """A frame over the broker max_payload fails the PUSH work-queue with a
+    clear, actionable error instead of an opaque "send failed".
+
+    Chunking is a PUB/SUB-only feature (the work-queue load-balances frames
+    across workers, so a frame's chunks could land on different pullers and
+    never reassemble), so an oversized PUSH frame cannot be split.  The same
+    size succeeds over PUB/SUB — see ``test_nats_chunked_pub_sub``.
+    """
+    push = Push(_nats_ep("toobig"), CF64)
+    # 200k CF64 = 3.05 MiB > the stock 1 MiB max_payload.
+    big = np.zeros(200_000, dtype=np.complex128)
+    with pytest.raises(ValueError, match="max_payload"):
+        push.send(big, sample_rate=int(1e6))
+    push.close()
+
+
+@requires_nats
 def test_nats_jetstream_push_pull_ack():
     """Durable work-queue: every pushed frame is pulled and acked exactly."""
     ep = _nats_ep("wq")

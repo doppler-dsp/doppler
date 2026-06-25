@@ -65,7 +65,8 @@ typedef struct
 /**
  * @brief Create a despreader instance.
  *
- * @param code  Input uint8_t array (length passed as code_len).
+ * @param code  Data spreading code (0/1 chips), length @p code_len; copied.
+ * @param code_len  Length of @p code in chips (>= sf).
  * @param sf  sf (default: 1).
  * @param sps  sps (default: 2).
  * @param init_norm_freq  init_norm_freq (default: 0.0).

@@ -127,6 +127,27 @@ def test_preamble_aided_distinct_codes():
     assert abs(d.norm_freq - f0) < 5e-5
 
 
+def test_property_accessors():
+    d = Despreader(np.ones(16, np.uint8), sf=16, sps=2, init_norm_freq=0.001)
+    # getters
+    assert d.norm_freq == pytest.approx(0.001, abs=1e-6)
+    for attr in (
+        "bn_carrier",
+        "bn_code",
+        "code_phase",
+        "lock_metric",
+        "snr_est",
+    ):
+        assert isinstance(getattr(d, attr), float)
+    # setters round-trip (bn setters recompute the loop gains internally)
+    d.bn_carrier = 0.06
+    assert d.bn_carrier == pytest.approx(0.06)
+    d.bn_code = 0.02
+    assert d.bn_code == pytest.approx(0.02)
+    d.norm_freq = 0.0
+    assert d.norm_freq == pytest.approx(0.0, abs=1e-9)
+
+
 def test_context_manager_and_destroy():
     d = Despreader(np.ones(8, np.uint8), sf=8, sps=2)
     with d:

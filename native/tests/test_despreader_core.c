@@ -105,6 +105,25 @@ main (void)
   size_t   n2  = despreader_bits (d, burst, blen, rx2, nsym);
   CHECK (n2 == n_out);
   CHECK (amb_ber (rx2, tx, n2 / 4, n2) == 0.0);
+
+  /* (4) property accessors round-trip. */
+  despreader_set_bn_carrier (d, 0.06);
+  CHECK (despreader_get_bn_carrier (d) == 0.06);
+  despreader_set_bn_code (d, 0.02);
+  CHECK (despreader_get_bn_code (d) == 0.02);
+  despreader_set_norm_freq (d, 0.001);
+  CHECK (fabs (despreader_get_norm_freq (d) - 0.001) < 1e-9);
+  (void)despreader_get_code_phase (d);
+  (void)despreader_get_lock_metric (d);
+  (void)despreader_get_snr_est (d);
+
+  /* (5) set_acq enable then disable (payload-only). */
+  uint8_t acq[16];
+  for (size_t i = 0; i < 16; i++)
+    acq[i] = (uint8_t)(i & 1u);
+  despreader_set_acq (d, acq, 16, 3);
+  despreader_set_acq (d, NULL, 0, 0); /* disable */
+
   despreader_destroy (d);
   free (burst);
   free (rx2);

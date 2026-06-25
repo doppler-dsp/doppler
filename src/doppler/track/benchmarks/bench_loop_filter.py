@@ -8,7 +8,6 @@ import pytest
 
 from doppler.track import LoopFilter
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -19,11 +18,6 @@ def obj():
 
 def test_bench_step(benchmark, obj):
     benchmark(obj.step, 1.0)
-
-
-def test_bench_steps_1k(benchmark, obj):
-    x = np.ones(BLOCK_1K, dtype=np.float64)
-    benchmark(obj.steps, x)
 
 
 def test_bench_steps_64k(benchmark, obj):

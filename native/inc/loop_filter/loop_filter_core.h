@@ -81,6 +81,9 @@ extern "C"
   /**
    * @brief Recompute @c kp / @c ki for a new (bn, zeta, t); preserve @c integ.
    * @param state  Must be non-NULL.
+   * @param bn     Loop noise bandwidth, normalized cycles/sample (>= 0).
+   * @param zeta   Damping factor (typically 0.707).
+   * @param t      Update period in samples (> 0).
    */
   void loop_filter_configure(loop_filter_state_t *state, double bn, double zeta,
                              double t);

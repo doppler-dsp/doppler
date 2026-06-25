@@ -102,7 +102,11 @@ if(BUILD_PYTHON)
     find_package(Python3 REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 endif()
 
-set(PYTHON_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/src/doppler")
+# Where built Python .so modules are placed (the importable package dir).
+# Overridable so an instrumented coverage build can stage the .so into a throw-
+# away package tree instead of clobbering the dev's working src/doppler/ .so.
+set(PYTHON_PACKAGE_DIR "${CMAKE_SOURCE_DIR}/src/doppler"
+    CACHE PATH "Destination for built Python extension modules")
 
 # Stamp PROJECT_VERSION into doppler/version.h at configure time.
 configure_file(

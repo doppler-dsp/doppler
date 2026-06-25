@@ -400,15 +400,16 @@ jobs:
       run: uvx --refresh --from 'just-makeit==0.19.32' just-makeit status --check
 
   # ------------------------------------------------------------------
-  # Code coverage (phase 1: C tests). clang source-based instrumentation
-  # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object,
-  # then the CTest suite emits .profraw merged into one llvm-cov report attributed
-  # to the hand-written _core.c. NON-GATING for now (not in ci-passed needs):
-  # publishes the HTML + lcov as an artifact for visibility. Later phases fold in
-  # the Python .so and Rust .profraw and add a diff-cover patch gate on PRs.
+  # Code coverage (phases 1+2: C tests ∪ Python). clang source-based
+  # instrumentation (-fprofile-instr-generate -fcoverage-mapping) on every
+  # first-party C object; the CTest suite and pytest (against the instrumented
+  # .so) each emit .profraw, merged into one llvm-cov report attributed to the
+  # hand-written _core.c. NON-GATING for now (not in ci-passed needs): publishes
+  # the HTML + lcov as an artifact. Phase 3 folds in Rust; phase 4 adds a
+  # diff-cover patch gate on PRs.
   # ------------------------------------------------------------------
   coverage:
-    name: coverage (C tests)
+    name: coverage (C + Python)
     runs-on: ubuntu-latest
 
     steps:
@@ -419,20 +420,42 @@ jobs:
         curl -sSL https://just-buildit.github.io/get-jb.sh | bash
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-    - name: Install dependencies (Ubuntu)
+    - name: Install system deps
       run: |
         sudo apt-get update
         jbx just-bashit:install-deps -g runtime,dev -s apt
         # clang + the matching llvm tools (llvm-profdata / llvm-cov).
         sudo apt-get install -y clang llvm
 
-    - name: Coverage (clang source-based; C tests)
+    - name: Install uv + Python + package deps
+      uses: astral-sh/setup-uv@v4
+      with:
+        python-version: '3.13'
+
+    - name: Install Python dev deps
+      run: uv sync --group dev
+
+    - name: Start NATS JetStream broker (covers the nats:// stream path)
+      # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
+      # unreachable; start a JetStream broker so stream_nats.c is exercised.
+      run: |
+        docker run -d --name nats -p 4222:4222 nats:2.10 -js
+        for _ in $(seq 1 50); do
+          (exec 3<>/dev/tcp/127.0.0.1/4222) 2>/dev/null && break || sleep 0.2
+        done
+        echo "NATS JetStream broker ready on 127.0.0.1:4222"
+
+    - name: Coverage (clang source-based; C tests ∪ Python)
       run: make coverage | tee coverage.txt
+
+    - name: Stop NATS broker
+      if: always()
+      run: docker rm -f nats 2>/dev/null || true
 
     - name: Coverage summary
       if: always()
       run: |
-        echo '### C-test coverage (phase 1)' >> "$GITHUB_STEP_SUMMARY"
+        echo '### Merged coverage (C ∪ Python)' >> "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         grep -E '^TOTAL' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
         echo '```' >> "$GITHUB_STEP_SUMMARY"

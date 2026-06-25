@@ -195,6 +195,154 @@ main (void)
     lo_destroy (lo);
   }
 
+  /* ----------------------------------------------------------------
+   * 8. lo_step (inline single-sample) == lo_steps (block), bit-exact
+   *
+   * The inline composition step must reproduce the block generator
+   * sample-for-sample (same LUT, same phase advance) — not merely
+   * "near", but bit-identical.
+   * ---------------------------------------------------------------- */
+  {
+    const size_t N   = 257; /* not a multiple of any SIMD width */
+    lo_state_t  *blk = lo_create (0.123456);
+    lo_state_t   stp;
+    lo_init (&stp, 0.123456);
+
+    float complex ref[257], got[257];
+    lo_steps (blk, N, ref);
+    for (size_t i = 0; i < N; i++)
+      got[i] = lo_step (&stp);
+
+    int exact = 1;
+    for (size_t i = 0; i < N; i++)
+      if (crealf (got[i]) != crealf (ref[i])
+          || cimagf (got[i]) != cimagf (ref[i]))
+        exact = 0;
+    CHECK (exact); /* bit-exact, not just near */
+    /* phase accumulators must also have advanced identically */
+    CHECK (lo_get_phase (&stp) == lo_get_phase (blk));
+    lo_destroy (blk);
+  }
+
+  /* ----------------------------------------------------------------
+   * 9. lo_init (in place) == lo_create (heap), field- and output-exact
+   * ---------------------------------------------------------------- */
+  {
+    lo_state_t *heap = lo_create (0.3);
+    lo_state_t  byval;
+    lo_init (&byval, 0.3);
+    CHECK (byval.phase == heap->phase);
+    CHECK (byval.phase_inc == heap->phase_inc);
+    CHECK (byval.norm_freq == heap->norm_freq);
+
+    float complex a[64], b[64];
+    lo_steps (heap, 64, a);
+    for (int i = 0; i < 64; i++)
+      b[i] = lo_step (&byval);
+    int exact = 1;
+    for (int i = 0; i < 64; i++)
+      if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
+        exact = 0;
+    CHECK (exact);
+    lo_destroy (heap);
+  }
+
+  /* ----------------------------------------------------------------
+   * 10. Long-run integer-NCO stability — the headline guarantee.
+   *
+   * Stream tens of millions of samples through the inline step.  The
+   * uint32 accumulator wraps at 2^32 by construction, so — unlike a
+   * double-precision phase accumulator feeding cexpf — there is NO
+   * unbounded drift: the output stays unit-magnitude and finite for
+   * the whole run, and the phase visits the full [0, 2^32) range.
+   * ---------------------------------------------------------------- */
+  {
+    lo_state_t s;
+    lo_init (&s, 0.10000000017); /* odd inc → coprime with 2^32       */
+    const long     RUN     = 30000000L;
+    const uint32_t inc     = lo_get_phase_inc (&s);
+    int            bad_mag = 0, bad_nan = 0;
+    long           wraps = 0;
+    for (long k = 0; k < RUN; k++)
+      {
+        uint32_t      prev = s.phase;
+        float complex c    = lo_step (&s);
+        float         re = crealf (c), im = cimagf (c);
+        float         m2 = re * re + im * im;
+        if (!(m2 > 0.98f && m2 < 1.02f)) /* unit magnitude, bounded */
+          bad_mag++;
+        if (re != re || im != im) /* NaN check */
+          bad_nan++;
+        if (s.phase < prev) /* accumulator overflowed (clean wrap) */
+          wraps++;
+      }
+    CHECK (bad_mag == 0); /* never drifts off the unit circle       */
+    CHECK (bad_nan == 0); /* never produces NaN over 30M samples     */
+    /* The integer accumulator is EXACTLY predictable after N steps —
+     * the property a double-phase accumulator loses to rounding.    */
+    uint32_t expected = (uint32_t)((uint64_t)inc * (uint64_t)RUN);
+    CHECK (s.phase == expected);
+    /* and it wrapped ~RUN*norm_freq times with no stall/drift */
+    CHECK (wraps > 2900000L && wraps < 3100000L);
+  }
+
+  /* ----------------------------------------------------------------
+   * 11. Frequency-command path — the loop's actuators.
+   *
+   * A tracking loop drives the NCO by writing the increment
+   * (lo_set_norm_freq) and nudging the phase (lo_set_phase).  Changing
+   * the frequency must take effect on the NEXT step with NO phase
+   * discontinuity (the accumulator is untouched); a phase nudge must
+   * apply an exact integer delta.
+   * ---------------------------------------------------------------- */
+  {
+    lo_state_t s;
+    lo_init (&s, 0.1);
+    for (int i = 0; i < 5; i++)
+      (void)lo_step (&s);
+    uint32_t ph_before = lo_get_phase (&s);
+
+    lo_set_norm_freq (&s, 0.2);                   /* retune */
+    CHECK (lo_get_phase (&s) == ph_before);       /* no jump      */
+    CHECK (lo_get_phase_inc (&s) == 0x33333333u); /* 0.2 * 2^32   */
+    (void)lo_step (&s);
+    CHECK (lo_get_phase (&s) == ph_before + 0x33333333u); /* new inc  */
+
+    /* exact integer phase nudge (proportional term of a loop) */
+    uint32_t ph2 = lo_get_phase (&s);
+    lo_set_phase (&s, ph2 + 0x10000000u);
+    CHECK (lo_get_phase (&s) == ph2 + 0x10000000u);
+  }
+
+  /* ----------------------------------------------------------------
+   * 12. Edge frequencies — only the fractional part matters.
+   *
+   * Negative and >1 norm_freq must fold to the same phase_inc as their
+   * fractional part, and lo_step must match lo_steps for them too.
+   * ---------------------------------------------------------------- */
+  {
+    /* -0.25 folds to 0.75 → inc = 3 * 2^30 = 0xC0000000 */
+    lo_state_t neg;
+    lo_init (&neg, -0.25);
+    CHECK (lo_get_phase_inc (&neg) == 0xC0000000u);
+    /* 1.25 folds to 0.25 → inc = 0x40000000, same as 0.25 */
+    lo_state_t big;
+    lo_init (&big, 1.25);
+    CHECK (lo_get_phase_inc (&big) == 0x40000000u);
+
+    lo_state_t   *ref = lo_create (-0.25);
+    float complex a[16], b[16];
+    lo_steps (ref, 16, a);
+    for (int i = 0; i < 16; i++)
+      b[i] = lo_step (&neg);
+    int exact = 1;
+    for (int i = 0; i < 16; i++)
+      if (crealf (a[i]) != crealf (b[i]) || cimagf (a[i]) != cimagf (b[i]))
+        exact = 0;
+    CHECK (exact);
+    lo_destroy (ref);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);

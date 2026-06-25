@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.32"
+jm_version = "0.19.33"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -17,6 +17,14 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # measure.pyi is now jm-generated: the analyze() methods use single=true (gh-244),
 # so jm emits the PyStructSequence binding + the stub itself — no hand-maintenance.
 status_allow = ["zensical.toml"]
+
+# Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block
+# (_1k) bench suite library-wide in #234 — 1k blocks are dominated by call
+# overhead and only add noise to the perf-regression gate. Without this, every
+# newly scaffolded object reintroduced a `test_bench_steps_1k`, which had to be
+# hand-trimmed after each `jm apply`. Declaring it here stops the reintroduction.
+[project.bench]
+block_sizes = [65536]
 
 # ── Waveform enum single-source-of-truth (gh-285) ────────────────────────────
 # One string↔int table per synth enum; list order IS the C enum value

@@ -110,37 +110,55 @@ build: $(BUILD_DIR)/CMakeCache.txt
 test:
 	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
 
-# ── coverage (clang source-based; phase 1 = C tests → merged report) ──────────
-# Instruments every first-party C object once (DOPPLER_COVERAGE), runs the CTest
-# suite emitting per-process .profraw, merges them, and reports/HTMLs the result
-# attributed back to the hand-written _core.c. Because the instrumented OBJECT
-# libs also flow into the Python .so and libdoppler.a, later phases add the
-# pytest/cargo .profraw to the same merge. clang + clang++ (vendored zmq) and
-# matching llvm-profdata/llvm-cov are required.
+# ── coverage (clang source-based; phases 1+2 = C tests ∪ Python → merged) ─────
+# Instruments every first-party C object once (DOPPLER_COVERAGE). The same
+# OBJECT libs flow into the C-test exes AND the Python .so, so both harnesses
+# emit .profraw that merge into one report attributed back to the hand-written
+# _core.c. clang + clang++ (vendored zmq) and matching llvm-profdata/llvm-cov
+# are required. The Python .so is staged into a throwaway package
+# ($(COV_DIR)/pkg) so the instrumented build never clobbers the dev's
+# src/doppler/ .so. Phase 3 (Rust) folds cargo .profraw into the same merge.
 coverage:
 	$(CMAKE) -B $(COV_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
 		-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-		-DDOPPLER_COVERAGE=ON \
+		-DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
+		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
+		-DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		$(CMAKE_ARGS)
 	$(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
+	# Stage an importable package: the instrumented .so are already in
+	# pkg/doppler/<mod>/; layer the Python source (everything but .so) over them
+	# so pytest imports the instrumented extension. GNU tar (Linux coverage job).
+	mkdir -p $(COV_DIR)/pkg/doppler
+	(cd src/doppler && tar cf - --exclude='*.so' .) \
+		| (cd $(COV_DIR)/pkg/doppler && tar xf -)
 	rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
+	# C tests → per-process .profraw.
 	cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
 		$(CTEST) --output-on-failure
+	# Python tests against the instrumented .so. Coverage is not a correctness
+	# gate (the test jobs are), so a failing assert still counts the C lines it
+	# executed — don't abort the merge on it (leading `-`).
+	-LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
+		PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
+		$(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
+		-q -p no:cacheprovider --ignore-glob='*/benchmarks/*'
+	# Merge C ∪ Python and report against libdoppler.so + every module .so (the
+	# cores live in both; listing the .so captures lines only Python reaches).
+	@objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
+		2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
 	$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \
-		-o $(COV_DIR)/doppler.profdata
-	$(LLVM_COV) report $(COV_DIR)/libdoppler.so \
-		-instr-profile=$(COV_DIR)/doppler.profdata \
-		-ignore-filename-regex='$(COV_IGNORE)'
-	$(LLVM_COV) show $(COV_DIR)/libdoppler.so \
-		-instr-profile=$(COV_DIR)/doppler.profdata \
+		-o $(COV_DIR)/doppler.profdata; \
+	$(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+		-ignore-filename-regex='$(COV_IGNORE)'; \
+	$(LLVM_COV) show $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
 		-ignore-filename-regex='$(COV_IGNORE)' \
-		-format=html -output-dir=$(COV_DIR)/html
-	$(LLVM_COV) export $(COV_DIR)/libdoppler.so \
-		-instr-profile=$(COV_DIR)/doppler.profdata \
-		-ignore-filename-regex='$(COV_IGNORE)' \
-		-format=lcov > $(COV_DIR)/coverage.lcov
+		-format=html -output-dir=$(COV_DIR)/html; \
+	$(LLVM_COV) export $$objs -instr-profile=$(COV_DIR)/doppler.profdata \
+		-ignore-filename-regex='$(COV_IGNORE)' -format=lcov \
+		> $(COV_DIR)/coverage.lcov
 	@echo "coverage: HTML -> $(COV_DIR)/html/index.html  lcov -> $(COV_DIR)/coverage.lcov"
 
 # ── pyext ─────────────────────────────────────────────────────────────────────

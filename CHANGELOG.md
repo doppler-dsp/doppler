@@ -13,9 +13,19 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-06-25
+
 ### Added
 
 - **`wfmgen --version` / `-V`** prints `wfmgen (doppler) <version>`.
+- **Clearer NATS streaming errors** — a `Push` / `Requester` / `Replier` frame
+    larger than the broker `max_payload` now raises a `ValueError` that names the
+    limit (backed by a new `DP_ERR_TOO_LARGE` code in the C ABI) instead of an
+    opaque "send failed". The durable PUSH/PULL work-queue does not chunk frames
+    (unlike PUB/SUB, whose chunks would scatter across load-balanced workers), so
+    a work-queue frame must fit one message. Raise the broker `max_payload` to
+    stream larger durable frames — which is also faster (bigger frames amortize
+    the per-publish fsync); see `deploy/nats/values.yaml`.
 
 ### Changed (breaking)
 
@@ -1677,6 +1687,7 @@ ______________________________________________________________________
 [0.2.7]: https://github.com/doppler-dsp/doppler/compare/v0.2.6...v0.2.7
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
+[0.22.0]: https://github.com/doppler-dsp/doppler/compare/v0.21.0...v0.22.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
@@ -1696,4 +1707,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.19.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...HEAD

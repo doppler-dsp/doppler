@@ -221,5 +221,6 @@ nav:
       - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
       - "wfm validation findings": dev/wfm-validation-findings.md
       - Benchmarking: dev/benchmarking.md
+      - Coverage: dev/coverage.md
       - Release: dev/release.md
       - Build Internals: dev/build-internals.md

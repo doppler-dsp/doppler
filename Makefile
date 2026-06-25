@@ -31,6 +31,16 @@ NPROC       ?= $(shell nproc 2>/dev/null || \
                        sysctl -n hw.logicalcpu 2>/dev/null || echo 4)
 CTEST       := ctest
 CMAKE       := cmake
+# ── coverage (clang source-based) ─────────────────────────────────────────────
+# `make coverage` builds a dedicated instrumented tree and merges the harness
+# .profraw into one llvm-cov report. clang + matching llvm tools required;
+# override the tool names if they are version-suffixed (e.g. llvm-cov-22).
+COV_DIR       ?= build-cov
+LLVM_PROFDATA ?= llvm-profdata
+LLVM_COV      ?= llvm-cov
+# Excluded from the report: vendored code, jm-generated binding aggregators,
+# and the test/bench harnesses themselves — only first-party _core.c counts.
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext\.c$$|/(tests|benchmarks)/
 # Python executable used when building extensions with `make pyext`.
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:
@@ -73,7 +83,7 @@ ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
   endif
 endif
 
-.PHONY: all build test pyext \
+.PHONY: all build test coverage pyext \
         wheel just-build python-test rust-test test-all lint docs docs-serve gen-c-api doxygen \
         specan record-demo gallery \
         bench bench-report bench-publish bench-interleaved bench-docs \
@@ -99,6 +109,39 @@ build: $(BUILD_DIR)/CMakeCache.txt
 # Requires BUILD_PYTHON=ON (pyext configures native/ which registers tests).
 test:
 	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
+
+# ── coverage (clang source-based; phase 1 = C tests → merged report) ──────────
+# Instruments every first-party C object once (DOPPLER_COVERAGE), runs the CTest
+# suite emitting per-process .profraw, merges them, and reports/HTMLs the result
+# attributed back to the hand-written _core.c. Because the instrumented OBJECT
+# libs also flow into the Python .so and libdoppler.a, later phases add the
+# pytest/cargo .profraw to the same merge. clang + clang++ (vendored zmq) and
+# matching llvm-profdata/llvm-cov are required.
+coverage:
+	$(CMAKE) -B $(COV_DIR) -S . \
+		-DCMAKE_BUILD_TYPE=Debug \
+		-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+		-DDOPPLER_COVERAGE=ON \
+		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+		$(CMAKE_ARGS)
+	$(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
+	rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
+	cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
+		$(CTEST) --output-on-failure
+	$(LLVM_PROFDATA) merge -sparse $(COV_DIR)/prof/*.profraw \
+		-o $(COV_DIR)/doppler.profdata
+	$(LLVM_COV) report $(COV_DIR)/libdoppler.so \
+		-instr-profile=$(COV_DIR)/doppler.profdata \
+		-ignore-filename-regex='$(COV_IGNORE)'
+	$(LLVM_COV) show $(COV_DIR)/libdoppler.so \
+		-instr-profile=$(COV_DIR)/doppler.profdata \
+		-ignore-filename-regex='$(COV_IGNORE)' \
+		-format=html -output-dir=$(COV_DIR)/html
+	$(LLVM_COV) export $(COV_DIR)/libdoppler.so \
+		-instr-profile=$(COV_DIR)/doppler.profdata \
+		-ignore-filename-regex='$(COV_IGNORE)' \
+		-format=lcov > $(COV_DIR)/coverage.lcov
+	@echo "coverage: HTML -> $(COV_DIR)/html/index.html  lcov -> $(COV_DIR)/coverage.lcov"
 
 # ── pyext ─────────────────────────────────────────────────────────────────────
 # Build Python C extensions into src/doppler/**/.

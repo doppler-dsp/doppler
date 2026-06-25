@@ -78,6 +78,24 @@ if(ENABLE_SIMD AND NOT MSVC)
     add_compile_options(-ffast-math -fno-finite-math-only)
 endif()
 
+# Source-based code coverage (clang only) — driven by `make coverage`; see
+# docs/dev/coverage.md. Instruments every first-party C object exactly once.
+# Because the same <obj>_core OBJECT libraries are linked into the C tests, the
+# Python .so, AND libdoppler.a (Rust), a single instrumented build lets all
+# three harnesses emit .profraw that merge into one report attributed back to
+# the hand-written _core.c. OFF by default and never in a release/wheel build.
+option(DOPPLER_COVERAGE
+       "Instrument with clang source-based coverage (dev/CI only)" OFF)
+if(DOPPLER_COVERAGE)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR
+            "DOPPLER_COVERAGE=ON needs clang (CMAKE_C_COMPILER_ID is "
+            "${CMAKE_C_COMPILER_ID}); reconfigure with -DCMAKE_C_COMPILER=clang.")
+    endif()
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+    add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+endif()
+
 option(BUILD_PYTHON "Build Python C extensions" OFF)
 
 if(BUILD_PYTHON)

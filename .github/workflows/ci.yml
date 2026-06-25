@@ -400,6 +400,53 @@ jobs:
       run: uvx --refresh --from 'just-makeit==0.19.32' just-makeit status --check
 
   # ------------------------------------------------------------------
+  # Code coverage (phase 1: C tests). clang source-based instrumentation
+  # (-fprofile-instr-generate -fcoverage-mapping) on every first-party C object,
+  # then the CTest suite emits .profraw merged into one llvm-cov report attributed
+  # to the hand-written _core.c. NON-GATING for now (not in ci-passed needs):
+  # publishes the HTML + lcov as an artifact for visibility. Later phases fold in
+  # the Python .so and Rust .profraw and add a diff-cover patch gate on PRs.
+  # ------------------------------------------------------------------
+  coverage:
+    name: coverage (C tests)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install jbx
+      run: |
+        curl -sSL https://just-buildit.github.io/get-jb.sh | bash
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    - name: Install dependencies (Ubuntu)
+      run: |
+        sudo apt-get update
+        jbx just-bashit:install-deps -g runtime,dev -s apt
+        # clang + the matching llvm tools (llvm-profdata / llvm-cov).
+        sudo apt-get install -y clang llvm
+
+    - name: Coverage (clang source-based; C tests)
+      run: make coverage | tee coverage.txt
+
+    - name: Coverage summary
+      if: always()
+      run: |
+        echo '### C-test coverage (phase 1)' >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        grep -E '^TOTAL' coverage.txt >> "$GITHUB_STEP_SUMMARY" || true
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          build-cov/html
+          build-cov/coverage.lcov
+
+  # ------------------------------------------------------------------
   # Aggregator: a single "CI passed" check that is green only when every
   # required job above succeeded. The release workflow polls this check on the
   # tagged commit (verify-ci) instead of re-running the suite — the merge to

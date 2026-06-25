@@ -245,7 +245,14 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
  * glibc with no vector-math provider this stays unresolved (== NULL) and the
  * dispatcher falls back to scalar — the .so still loads. On modern glibc the
  * symbol resolves (libmvec / merged libm) and the AVX-512 path runs. */
-extern __m256 _ZGVdN8v_logf (__m256) __attribute__ ((weak));
+/* target("avx2"): libmvec's _ZGVdN8v_logf uses the AVX2 vector-call ABI for
+ * its
+ * __m256 argument. Annotate the declaration so it matches at a non-AVX
+ * baseline (e.g. -march=x86-64-v2): without it, clang rejects the call from
+ * the AVX-target dispatcher as an ABI-changing __m256-by-value pass. ABI-only
+ * — no codegen change (gcc text/data identical with and without it). */
+extern __m256 _ZGVdN8v_logf (__m256) __attribute__ ((weak))
+__attribute__ ((target ("avx2")));
 #else
 AWGN_AVX512_TARGET static inline __m256
 _ZGVdN8v_logf (__m256 x)

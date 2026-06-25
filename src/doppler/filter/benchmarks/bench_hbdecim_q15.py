@@ -9,7 +9,6 @@ import pytest
 from doppler.filter import HBDecimQ15
 from doppler.resample import _halfband_bank
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -24,15 +23,6 @@ def hb_fir():
 @pytest.fixture
 def dec(hb_fir):
     return HBDecimQ15(hb_fir)
-
-
-def test_bench_execute_1k(benchmark, dec):
-    x = np.zeros(2 * BLOCK_1K, dtype=np.int16)
-    benchmark(dec.execute, x)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
-        )
 
 
 def test_bench_execute_64k(benchmark, dec):

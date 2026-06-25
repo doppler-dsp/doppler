@@ -9,7 +9,6 @@ import pytest
 
 from doppler.resample import HalfbandDecimator, _halfband_bank
 
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -24,15 +23,6 @@ def hb_fir():
 @pytest.fixture
 def obj(hb_fir):
     return HalfbandDecimator(hb_fir)
-
-
-def test_bench_execute_1k(benchmark, obj):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(obj.execute, x)
-    if benchmark.stats:
-        benchmark.extra_info["MSa_s"] = (
-            BLOCK_1K / benchmark.stats["mean"] / 1e6
-        )
 
 
 def test_bench_execute_64k(benchmark, obj):

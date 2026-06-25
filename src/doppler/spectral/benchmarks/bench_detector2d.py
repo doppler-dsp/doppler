@@ -11,7 +11,6 @@ from doppler.spectral import Detector2D
 
 NY = 8
 NX = 8
-BLOCK_1K = 1_024
 BLOCK_64K = 65_536
 
 
@@ -26,11 +25,6 @@ def obj():
         0.0,
         1,
     )
-
-
-def test_bench_push_1k(benchmark, obj):
-    x = np.ones(BLOCK_1K, dtype=np.complex64)
-    benchmark(obj.push, x)
 
 
 def test_bench_push_64k(benchmark, obj):

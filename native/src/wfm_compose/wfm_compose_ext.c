@@ -192,9 +192,9 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     double freq = 0.0;
     double snr = 100.0;
     const char *snr_mode = "auto";
-    uint32_t seed = 1;
-    int sps = 8;
-    int pn_length = 7;
+    uint32_t seed = 0;
+    int sps = 1;
+    int pn_length = 15;
     uint64_t pn_poly = 0;
     const char *lfsr = "galois";
     double level = 0.0;
@@ -777,7 +777,7 @@ Segment_dealloc(SegmentObject *self)
 static int
 Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
 {
-    self->fs = 1e6;
+    self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
     PyObject *kw = kwds ? PyDict_Copy(kwds) : PyDict_New();
@@ -854,7 +854,7 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
         return NULL;
     }
     self->sources = list;
-    self->fs = 1e6;
+    self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
     PyObject *kw = kwds; /* borrowed; read-only */

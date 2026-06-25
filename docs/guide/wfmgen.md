@@ -19,8 +19,8 @@ generate a single waveform.
 
     ```sh
     wfmgen --type qpsk --snr 12 --count 100000 -o capture.cf32   # 100k QPSK samples @ 12 dB Es/No
-    wfmgen --type tone --freq 1e5 --count 4096                    # a tone → stdout (cf32)
-    wfmgen --type pn --pn_length 9 --file_type csv -o pn.csv      # length-9 MLS as text
+    wfmgen --type tone --freq 0.1 --count 4096                   # a 0.1·Fs tone → stdout (cf32)
+    wfmgen --type pn --pn-length 9 --file-type csv -o pn.csv      # length-9 MLS as text
     ```
 
 ______________________________________________________________________
@@ -51,16 +51,16 @@ ______________________________________________________________________
 | -------- | ---------------------------------------------------------- | ----------------------------------- |
 | `tone`   | a complex sinusoid at `--freq`                             | `--freq`                            |
 | `noise`  | complex AWGN (unit power)                                  | `--snr` (ignored — it *is* noise)   |
-| `pn`     | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn_length`, `--pn_poly`, `--sps` |
+| `pn`     | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn-length`, `--pn-poly`, `--sps` |
 | `bpsk`   | BPSK symbols (PN-sourced data), `--sps` samples/symbol     | `--sps`, `--snr`                    |
 | `qpsk`   | Gray-coded QPSK symbols (PN-sourced data)                  | `--sps`, `--snr`                    |
-| `chirp`  | linear-FM sweep `--freq` → `--f_end` over `--count`        | `--freq`, `--f_end`                 |
+| `chirp`  | linear-FM sweep `--freq` → `--f-end` over `--count`        | `--freq`, `--f-end`                 |
 | `bits`   | a user bit pattern, oversampled `--sps` and cycled         | `--bits`, `--modulation`, `--sps`   |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 `--seed`), so output is reproducible and receiver-correlatable. A `chirp` sweeps
-its instantaneous frequency linearly from `--freq` (the start) to `--f_end` over
-the `--count` samples, then holds at `--f_end`; `--f_end < --freq` is a
+its instantaneous frequency linearly from `--freq` (the start) to `--f-end` over
+the `--count` samples, then holds at `--f-end`; `--f-end < --freq` is a
 down-chirp. The phase is continuous across segments, so concatenated chirps join
 seamlessly (radar pulse compression, SAR, sonar). A `bits` waveform instead
 plays back **your** sequence — a preamble, sync word, or test vector — given as
@@ -72,7 +72,7 @@ for **root-raised-cosine** shaping to get a band-limited carrier (e.g. a WCDMA
 QPSK downlink at roll-off 0.22) straight from the generator.
 
 ```sh
-wfmgen --type chirp --freq 100e3 --f_end 300e3 --fs 1e6 --count 10000 -o chirp.cf32
+wfmgen --type chirp --freq 100e3 --f-end 300e3 --fs 1e6 --count 10000 -o chirp.cf32
 wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
 wfmgen --type bits --bits-hex AA55 --modulation none --sps 4 -o preamble.cf32
 wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --count 100000 -o wcdma.cf32
@@ -86,32 +86,32 @@ ______________________________________________________________________
 
 === ====
 
-| Flag           | Type                                 | Default  | Meaning                                                          |
-| -------------- | ------------------------------------ | -------- | ---------------------------------------------------------------- |
-| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                         |
-| `--fs`         | float (Hz)                           | `1e6`    | sample rate                                                      |
-| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start    |
-| `--f_end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                        |
-| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr_mode` (≈clean at 100)               |
-| `--snr_mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                           |
-| `--seed`       | uint32                               | `1`      | PRNG / LFSR seed (deterministic)                                 |
-| `--sps`        | int                                  | `8`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)             |
-| `--pn_length`  | int (2..64)                          | `7`      | LFSR register length → period `2ⁿ−1`                             |
-| `--pn_poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial              |
-| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)    |
-| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`) |
-| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                          |
-| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping       |
-| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                     |
-| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                    |
-| `--count`      | int                                  | `1024`   | number of complex samples to generate                            |
+| Flag           | Type                                 | Default  | Meaning                                                                        |
+| -------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------ |
+| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                                       |
+| `--fs`         | float (Hz)                           | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample) |
+| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start                  |
+| `--f-end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                                      |
+| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100)                             |
+| `--snr-mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                                         |
+| `--seed`       | uint32                               | `0`      | PRNG / LFSR seed (deterministic)                                               |
+| `--sps`        | int                                  | `1`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)                           |
+| `--pn-length`  | int (2..64)                          | `15`     | LFSR register length → period `2ⁿ−1`                                           |
+| `--pn-poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                            |
+| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)                  |
+| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)               |
+| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                                        |
+| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping                     |
+| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                                   |
+| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                                  |
+| `--count`      | int                                  | `1024`   | number of complex samples to generate                                          |
 
 ### Output
 
 | Flag              | Values                    | Default | Meaning                                   |
 | ----------------- | ------------------------- | ------- | ----------------------------------------- |
-| `--sample_type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0   |
-| `--file_type`     | `raw csv blue sigmf`      | `raw`   | container (see [Containers](#containers)) |
+| `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0   |
+| `--file-type`     | `raw csv blue sigmf`      | `raw`   | container (see [Containers](#containers)) |
 | `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)   |
 | `--output` / `-o` | path *(or `zmq://…`)*     | stdout  | sink                                      |
 | `--record`        | path                      | —       | write a JSON record of the resolved run   |
@@ -166,7 +166,7 @@ current set, **not** a design assumption:
 preserved. The integer types map **±1.0 → ±max-code** by **saturating each axis
 to ±1.0, then truncating toward zero** (a plain cast, not round-to-nearest):
 
-| `--sample_type` | Map                   | Full-scale code  |
+| `--sample-type` | Map                   | Full-scale code  |
 | --------------- | --------------------- | ---------------- |
 | `ci32`          | `clip(v, ±1)·(2³¹−1)` | `±2 147 483 647` |
 | `ci16`          | `clip(v, ±1)·32767`   | `±32 767`        |
@@ -208,7 +208,7 @@ ______________________________________________________________________
 
 ## SNR & noise
 
-`--snr` is applied as AWGN; `--snr_mode` chooses the reference:
+`--snr` is applied as AWGN; `--snr-mode` chooses the reference:
 
 | Mode   | `--snr` means                                               | Use for              |
 | ------ | ----------------------------------------------------------- | -------------------- |
@@ -230,52 +230,52 @@ baseband waveform is pure signal generation.
 !!! example "Same QPSK at three references"
 
     ```sh
-    wfmgen --type qpsk --snr 10 --snr_mode esno     # 10 dB Es/No (the auto default)
-    wfmgen --type qpsk --snr 7  --snr_mode ebno     # 7 dB Eb/No  (= 10 dB Es/No)
-    wfmgen --type qpsk --snr 1  --snr_mode fs        # 1 dB over fs (per-sample)
+    wfmgen --type qpsk --snr 10 --snr-mode esno     # 10 dB Es/No (the auto default)
+    wfmgen --type qpsk --snr 7  --snr-mode ebno     # 7 dB Eb/No  (= 10 dB Es/No)
+    wfmgen --type qpsk --snr 1  --snr-mode fs        # 1 dB over fs (per-sample)
     ```
 
 ______________________________________________________________________
 
 ## PN sequences & MLS
 
-`--type pn` emits a maximum-length sequence; `--pn_length n` sets the LFSR
+`--type pn` emits a maximum-length sequence; `--pn-length n` sets the LFSR
 register length (**2 to 64**, period `2ⁿ−1`). The register, polynomial, and
-`--pn_poly` are full 64-bit. Leave **`--pn_poly 0`** and the engine selects a
+`--pn-poly` are full 64-bit. Leave **`--pn-poly 0`** and the engine selects a
 primitive polynomial that yields a true MLS for that length (a built-in table of
 verified primitive polynomials for every length 2..64) — verified by
-period, balance, and the thumbtack autocorrelation. Supply `--pn_poly` only to
+period, balance, and the thumbtack autocorrelation. Supply `--pn-poly` only to
 force a specific tap set.
 
 ```sh
-wfmgen --type pn --pn_length 7   --sps 1 --count 127   # one full period (2⁷−1)
-wfmgen --type pn --pn_length 11  --sps 4               # length-11 MLS, 4× oversampled
-wfmgen --type pn --pn_length 7   --lfsr fibonacci      # Fibonacci realization
+wfmgen --type pn --pn-length 7   --sps 1 --count 127   # one full period (2⁷−1)
+wfmgen --type pn --pn-length 11  --sps 4               # length-11 MLS, 4× oversampled
+wfmgen --type pn --pn-length 7   --lfsr fibonacci      # Fibonacci realization
 ```
 
 `--lfsr` selects the LFSR realization: **`galois`** (default, internal XOR
 feedback) or **`fibonacci`** (external XOR of the tapped bits). Both use the same
 primitive polynomial and have the same period `2ⁿ−1`; they differ only in the
 chip sequence/phase. The Fibonacci taps are derived from the same polynomial, so
-`--pn_poly 0` still auto-selects the MLS for either mode.
+`--pn-poly 0` still auto-selects the MLS for either mode.
 
 ______________________________________________________________________
 
 ## Containers
 
-`--sample_type` (the *datatype*) is orthogonal to `--file_type` (the *container*)
+`--sample-type` (the *datatype*) is orthogonal to `--file-type` (the *container*)
 and `--endian` (byte order).
 
-| `--file_type` | Output                                        | Notes                                                      |
+| `--file-type` | Output                                        | Notes                                                      |
 | ------------- | --------------------------------------------- | ---------------------------------------------------------- |
-| `raw`         | interleaved I/Q in the chosen `--sample_type` | the SDR default; honors `--endian`                         |
+| `raw`         | interleaved I/Q in the chosen `--sample-type` | the SDR default; honors `--endian`                         |
 | `csv`         | one `I,Q` line per sample                     | `%0.9f` cf32, `%0.17g` cf64, `%d` integer; text, no endian |
 | `blue`        | **X-Midas / REDHAWK BLUE type-1000**          | *(`wfmgen` only)* self-describing 512-byte header          |
 | `sigmf`       | `<base>.sigmf-data` + `<base>.sigmf-meta`     | *(`wfmgen` only)* one annotation per segment               |
 
 **BLUE type-1000** writes a complete 512-byte X-Midas/REDHAWK Header Control
 Block so one file is fully self-describing: `data_rep`←`--endian`, `format`
-(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample_type`, and `xdelta = 1/fs`. Add
+(`CB`/`CI`/`CL`/`CF`/`CD`)←`--sample-type`, and `xdelta = 1/fs`. Add
 **`--detached`** to split it into a header + data pair — `<out>.hdr` (the HCB,
 with `detached=1` and `data_start=0`) and `<out>.det` (the raw samples). Detached
 output requires `--output` and a finite (non-`--continuous`) run; attached mode
@@ -288,11 +288,11 @@ params).
 
 ```sh
 # 16-bit big-endian into a self-describing BLUE file
-wfmgen --type qpsk --count 200000 --sample_type ci16 --endian be \
-       --file_type blue -o capture.blue
+wfmgen --type qpsk --count 200000 --sample-type ci16 --endian be \
+       --file-type blue -o capture.blue
 
 # a SigMF pair (capture.sigmf-data + capture.sigmf-meta)
-wfmgen --from-file scenario.json --sample_type ci16 --file_type sigmf -o capture
+wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 ```
 
 ### SigMF sidecar schema
@@ -601,7 +601,7 @@ pts = sym.reshape(-1, 8).mean(axis=1)    # boxcar matched filter per symbol
 
 ### Reading a capture back
 
-The `raw` container is **interleaved** I/Q in the chosen `--sample_type`, so a
+The `raw` container is **interleaved** I/Q in the chosen `--sample-type`, so a
 naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
 `read_iq` does the right thing — a zero-copy complex view for the float types, a
 SIMD rescale to ±1.0 for the integer types — or pass `raw=True` for the raw
@@ -622,14 +622,14 @@ ______________________________________________________________________
 ## Recipes
 
 ```sh
-# A clean tone at +100 kHz, 1 Msample, 16-bit I/Q to a file
-wfmgen --type tone --freq 1e5 --count 1000000 --sample_type ci16 -o tone.ci16
+# A clean tone at +100 kHz (1 MHz Fs), 1 Msample, 16-bit I/Q to a file
+wfmgen --type tone --freq 1e5 --fs 1e6 --count 1000000 --sample-type ci16 -o tone.ci16
 
 # Noisy BPSK at 6 dB Eb/No, as CSV for quick inspection
-wfmgen --type bpsk --snr 6 --snr_mode ebno --count 2000 --file_type csv -o bpsk.csv
+wfmgen --type bpsk --snr 6 --snr-mode ebno --count 2000 --file-type csv -o bpsk.csv
 
 # A scenario: tone burst, gap, then QPSK — recorded for reproducibility
-wfmgen --from-file scenario.json --record run.json --file_type blue -o scene.blue
+wfmgen --from-file scenario.json --record run.json --file-type blue -o scene.blue
 
 # Stream continuous QPSK to ZMQ for a live receiver
 wfmgen --type qpsk --snr 10 --continuous --output zmq://tcp://*:5555

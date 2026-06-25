@@ -60,7 +60,7 @@ EOF
 
 # From CLI: replay it
 wfmgen --from-file scene.json --output scene.cf32
-wfmgen --from-file scene.json --sample_type ci16 --output scene.ci16
+wfmgen --from-file scene.json --sample-type ci16 --output scene.ci16
 ```
 
 Or skip Python entirely — `wfmgen json-template` dumps an editable starter

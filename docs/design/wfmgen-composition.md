@@ -193,7 +193,7 @@ Clipping is made **observed and quantified** without burdening the hot path.
 
 ```text
 wfmgen: warning: peak +6.0 dBFS clipped in ci16.
-  remedy: add --headroom 6, or use --sample_type cf32.
+  remedy: add --headroom 6, or use --sample-type cf32.
 ```
 
 Float types never clip, but `peak_dbfs` is still reported so a `cf32` capture

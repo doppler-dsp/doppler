@@ -167,7 +167,9 @@ if(NOT WIN32)
     add_library(wfmgen_core OBJECT ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
     target_include_directories(wfmgen_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+        ${CMAKE_SOURCE_DIR}/native/inc/wfm
+        # configure-time doppler/version.h (DOPPLER_VERSION for --version)
+        ${CMAKE_BINARY_DIR}/native/inc)
 
     # Weak no-op fallbacks for the wfm_zmq_sink_* symbols wfmgen references, so
     # the pure-C core is self-contained and links everywhere with no special

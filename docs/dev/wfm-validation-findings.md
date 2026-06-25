@@ -80,14 +80,14 @@ docstring.
 **literally named `-`** in the cwd (2048 bytes) and writes nothing to stdout.
 
 ```console
-$ wfmgen --type tone --count 256 --sample_type cf32 --output - >/dev/null
+$ wfmgen --type tone --count 256 --sample-type cf32 --output - >/dev/null
 $ ls -l ./-          # a stray 2048-byte file appears
 ```
 
 The **omitted**-`--output` form *does* go to stdout correctly:
 
 ```console
-$ wfmgen --type tone --count 256 --sample_type cf32 > out.iq   # 2048 bytes, OK
+$ wfmgen --type tone --count 256 --sample-type cf32 > out.iq   # 2048 bytes, OK
 ```
 
 **Suspected root cause.** `native/src/app/wfmgen.c` treats the `-` argument as an

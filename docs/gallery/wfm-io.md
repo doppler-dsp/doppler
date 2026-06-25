@@ -4,7 +4,7 @@
 
 A waveform has to land somewhere. `doppler.wfm` writes the same `complex64`
 samples to four containers and reads each back — the same C codec behind the
-`wfmgen` CLI's `--file_type`. The trade is metadata for size and simplicity.
+`wfmgen` CLI's `--file-type`. The trade is metadata for size and simplicity.
 
 ## What you're seeing
 
@@ -48,7 +48,7 @@ open("cap.sigmf-meta", "w").write(
 )
 ```
 
-The CLI writes the same containers — `wfmgen --file_type raw|csv|blue|sigmf` —
+The CLI writes the same containers — `wfmgen --file-type raw|csv|blue|sigmf` —
 byte-for-byte identical to the Python `Writer`.
 
 ## BLUE detached (`.hdr` + `.det`)
@@ -70,7 +70,7 @@ with Writer("cap.det", file_type="raw", sample_type="cf32") as w:
     w.write(x)                       # raw interleaved I/Q body
 ```
 
-The CLI does the same in one shot with `--file_type blue --detached -o cap`
+The CLI does the same in one shot with `--file-type blue --detached -o cap`
 (writes `cap.hdr` + `cap.det`); detached output needs `--output` and a finite
 (non-`--continuous`) run.
 

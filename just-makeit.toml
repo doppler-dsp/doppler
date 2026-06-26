@@ -1441,7 +1441,7 @@ name = "endian"
 values = ["le", "be"]
 
 [module.track]
-objects = ["loop_filter"]
+objects = ["loop_filter", "costas"]
 
 [module.dsss]
 objects = ["despreader"]

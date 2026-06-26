@@ -56,4 +56,35 @@ lf.reset()                       # zero the integrator
 
 ______________________________________________________________________
 
+## Costas — carrier-tracking loop
+
+`Costas` is the first loop built on `LoopFilter`: a continuous BPSK
+carrier-recovery loop. Per sample it de-rotates the input with the integer-phase
+[`source.LO`](python-nco.md) NCO (carrier wipe-off); every `tsamps` samples it
+dumps the coherent integrate-and-dump accumulator, runs a decision-directed
+Costas phase discriminator, filters the error through an embedded `LoopFilter`,
+and steers the NCO frequency and phase. It tracks the small **residual** carrier
+offset left after FFT acquisition removes the bulk Doppler — an offset larger
+than the per-symbol integration bandwidth must be removed upstream, not by the
+loop. Because the steering NCO is integer-phase, the carrier phase is bounded and
+exactly reproducible (no `double`-accumulator drift).
+
+See the [carrier loop stress gallery page](../gallery/costas.md) for its pull-in
+and tracking behaviour vs loop bandwidth.
+
+```python
+from doppler.track import Costas
+
+c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16)
+symbols = c.steps(rx)        # one complex prompt symbol per tsamps samples
+f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
+locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
+```
+
+______________________________________________________________________
+
 ::: doppler.track.LoopFilter
+
+______________________________________________________________________
+
+::: doppler.track.Costas

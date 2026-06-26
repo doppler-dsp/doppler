@@ -1,7 +1,7 @@
 /*
  * track_ext.c — Python extension module track
  *
- * Objects: LoopFilter
+ * Objects: LoopFilter, Costas
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,7 @@
 
 
 #include "track_ext_loop_filter.c"
+#include "track_ext_costas.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -31,11 +32,16 @@ PyInit_track(void)
 {
     import_array();
     if (PyType_Ready(&LoopFilterObjType) < 0) return NULL;
+    if (PyType_Ready(&CostasObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&track_moduledef);
     if (!m) return NULL;
     Py_INCREF(&LoopFilterObjType);
     if (PyModule_AddObject(m, "LoopFilter", (PyObject *)&LoopFilterObjType) < 0) {
         Py_DECREF(&LoopFilterObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&CostasObjType);
+    if (PyModule_AddObject(m, "Costas", (PyObject *)&CostasObjType) < 0) {
+        Py_DECREF(&CostasObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

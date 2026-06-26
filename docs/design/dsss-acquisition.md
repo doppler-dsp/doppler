@@ -259,6 +259,21 @@ so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
 (`accum`/`nc_surface` are `ny·nx·4 B ≈ 80–160 kB`), so thousands of shards fit in
 RAM.
 
+**Plans and scratch are pre-allocated**, but FFT *size selection* is a **~5–6×
+lever** and a P0 sizing rule. `corr2d`/`fft2d`/`acq` build their plans and all
+work buffers (including the 2-D transpose scratch) at create — nothing in the
+execute/push path allocates. The FFT backend is **pffft** (pre-allocated SIMD
+work buffers, no per-call malloc) — *but only when both axes are a multiple of
+16 and 5-smooth (factors 2/3/5), `N≥16`*; otherwise it falls back to vendored
+pocketfft, which **mallocs/frees a work buffer per 1-D transform** and is slow on
+large prime factors. Measured: the GPS-class grid `ny=10, nx=2046`
+(`=2·3·11·31`) runs the allocating fallback at **~21 MSa/s**; padding to a
+pffft-friendly grid `ny=16, nx=2160` (`=2⁴·3³·5`) is malloc-free pffft at
+**~118 MSa/s**. So the engine should **zero-pad** the oversampled replica's `nx`
+(`=sf·spc`) and `ny` to the nearest pffft-friendly size — `nx` padding cleanly
+interpolates the code-phase axis, `ny` padding adds Doppler bins — to stay on the
+pre-allocated, malloc-free transform.
+
 The real-time consequence is load-bearing, not a footnote: the worked case needs
 `fs = 2 MSa/s` **per coarse channel**, so one core sustains `~16` channels and a
 12-core box `~120`. The **400-channel ±100 kHz** search therefore needs `~3–4`

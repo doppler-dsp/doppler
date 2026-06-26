@@ -39,6 +39,29 @@ main (void)
     detector_destroy (NULL); /* must not crash */
   }
 
+  /* ── noise_hi sentinel clamp ────────────────────────────────────── *
+   * The binding passes (size_t)-1 for the documented "n-1" default; it *
+   * must clamp to N-1, not overflow scratch sizing / read OOB.         */
+  {
+    float complex ref[N] = { 0 };
+    ref[0]               = 1.0f;
+
+    detector_state_t *det
+        = detector_create (ref, N, 1, 0, (size_t)-1, DET_NOISE_MEAN, 0.0f, 1);
+    CHECK (det != NULL);
+    CHECK (det->noise_lo == 0);
+    CHECK (det->noise_hi == N - 1);
+
+    det_result_t results[16];
+    size_t       ndet = detector_push (det, ref, N, results, 16);
+    CHECK (ndet == 1);
+    CHECK (results[0].lag == 0);
+    CHECK (isfinite (results[0].noise_est) && results[0].noise_est > 0.0f);
+    CHECK (isfinite (results[0].test_stat) && results[0].test_stat > 1.0f);
+
+    detector_destroy (det);
+  }
+
   /* ── impulse ref: push one full frame, threshold=0 always fires ───── *
    * corr(δ,δ)[τ] = δ[τ] → peak at lag 0, value 1.                      *
    * noise_lo=0 includes the peak in the noise estimate so that           *

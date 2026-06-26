@@ -75,9 +75,16 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   if (!state)
     return NULL;
 
-  state->n          = n;
-  state->noise_lo   = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
-  state->noise_hi   = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
+  state->n = n;
+
+  /* Clamp the noise window to the valid index range [0, n-1].  The binding
+     passes a SIZE_MAX sentinel (default_raw) for the documented "n-1"
+     full-window default; without this clamp it overflows the scratch sizing
+     below and reads mag_buf out of bounds in _noise_estimate. */
+  size_t hi         = (noise_hi < state->n) ? noise_hi : state->n - 1;
+  size_t lo         = (noise_lo < state->n) ? noise_lo : state->n - 1;
+  state->noise_lo   = (lo <= hi) ? lo : hi;
+  state->noise_hi   = (lo <= hi) ? hi : lo;
   state->noise_mode = noise_mode;
   state->threshold  = threshold;
 
@@ -86,7 +93,7 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr_create (ref, n, dwell, nthreads);
+  state->corr = corr_create (ref, n, dwell, nthreads, 0);
   if (!state->corr)
     goto fail;
 

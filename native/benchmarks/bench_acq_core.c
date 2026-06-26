@@ -1,5 +1,5 @@
-/* bench_corr_core.c — no step() to benchmark */
-#include "corr/corr_core.h"
+/* bench_acq_core.c — no step() to benchmark */
+#include "acq/acq_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,15 +18,15 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  corr_state_t   *obj = corr_create (NULL, 0, 1, 1, 0);
+  acq_state_t    *obj = acq_create (NULL, 0, 1, 1, 16, 1e-3, 0.9, 0.1, 0, 64);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  printf ("=== corr benchmark ===\n");
+  printf ("=== acq benchmark ===\n");
   printf ("  (no step(); methods below)\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  jm_bench_write_json (&_bench, "corr");
-  corr_destroy (obj);
+  jm_bench_write_json (&_bench, "acq");
+  acq_destroy (obj);
   return 0;
 }

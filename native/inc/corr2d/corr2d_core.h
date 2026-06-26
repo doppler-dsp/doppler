@@ -40,15 +40,24 @@ extern "C" {
  * are ``ny * nx`` complex floats stored in row-major order.
  */
 typedef struct {
-  fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1). */
-  fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1). */
-  float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.           */
-  float complex *work_fft;  /**< Scratch: FFT2(in) output.                */
-  float complex *work_ifft; /**< Scratch: IFFT2 output before accumulate. */
-  float complex *accum;     /**< Coherent integration accumulator.        */
+  fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1) at (ny, nx).   */
+  fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1) at (ny_out,…). */
+  float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.  (ny, nx)    */
+  float complex *work_fft;  /**< Scratch: FFT2(in) · ref_spec (product).     */
+  float complex *accum;     /**< Coherent product-spectrum accumulator.      */
+  /* Decoupled-inverse scratch — allocated only when (ny_out,nx_out) differ
+   * from (ny,nx); NULL on the native path.  zeropad goes accum → ztmp (rows)
+   * → work_pad (cols), then inverse(work_pad). */
+  float complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out).      */
+  float complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).      */
+  float complex *zcol;      /**< Column gather scratch, (ny).                */
+  float complex *zcolout;   /**< Column-padded scratch, (ny_out).            */
   size_t ny;                /**< Row count.                               */
   size_t nx;                /**< Column count.                            */
   size_t n;                 /**< ny * nx — total element count.           */
+  size_t ny_out;            /**< Output rows (== ny unless decoupled).    */
+  size_t nx_out;            /**< Output columns (== nx unless decoupled). */
+  size_t n_out;             /**< ny_out * nx_out — output element count.  */
   size_t dwell;             /**< Integration depth.                       */
   size_t count;             /**< Frames accumulated (0 … dwell-1).        */
 } corr2d_state_t;
@@ -76,8 +85,14 @@ typedef struct {
  * (4, 4, 1, 0)
  * @endcode
  */
+/* ny_out/nx_out: inverse/output size; 0 => native (ny/nx).  Must be >= ny/nx.
+ * A larger output zero-pads the cross-spectrum before the inverse, returning
+ * the band-limited (Dirichlet) interpolation of the correlation on a finer
+ * (ny_out, nx_out) grid — same peak, sub-bin resolution.  Native is bit-exact
+ * and allocates no extra buffers. */
 corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,
-                              size_t dwell, int nthreads);
+                              size_t dwell, int nthreads, size_t ny_out,
+                              size_t nx_out);
 
 /** @brief Destroy and free a corr2d instance.  @param state May be NULL. */
 void corr2d_destroy(corr2d_state_t *state);
@@ -117,10 +132,13 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
 
 /**
  * @brief Correlate one 2-D frame and optionally dump the coherent accumulator.
- * Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec →
- * IFFT2 → normalise (÷ ny*nx) → accumulate → conditional dump.  The Python
- * wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx
- * ndarray, a no-dump returns None.
+ * Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → accumulate
+ * the cross-spectrum; on dump, IFFT2 → normalise (÷ ny*nx).  Accumulating in
+ * the frequency domain and inverting once is exactly the per-frame inverse
+ * summed, by linearity of the IFFT — valid because the dwell is **coherent**
+ * (a complex sum); a non-coherent (magnitude) integration could not defer the
+ * inverse.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns
+ * a flat length-ny*nx ndarray, a no-dump returns None.
  *
  * @param state  Allocated 2-D correlator (non-NULL).
  * @param in     Input frame, flat row-major CF32, length ny*nx.

@@ -36,7 +36,7 @@ main (void)
     for (size_t i = 0; i < N; i++)
       ref[i] = 1.0f + 0.0f * I;
 
-    corr_state_t *obj = corr_create (ref, N, 1, 1);
+    corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
     CHECK (obj != NULL);
     CHECK (obj->n == N);
     CHECK (obj->dwell == 1);
@@ -57,7 +57,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f + 0.0f * I; /* unit impulse */
 
-    corr_state_t *obj = corr_create (ref, N, 1, 1);
+    corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
     CHECK (obj != NULL);
 
     float complex out[16];
@@ -83,7 +83,7 @@ main (void)
         ref[n]   = cosf (ph) + sinf (ph) * I;
       }
 
-    corr_state_t *obj = corr_create (ref, N, 1, 1);
+    corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
     float complex out[16];
     corr_execute (obj, ref, N, out);
 
@@ -105,7 +105,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
 
-    corr_state_t *obj = corr_create (ref, N, 3, 1);
+    corr_state_t *obj = corr_create (ref, N, 3, 1, 0);
     float complex out[16];
 
     size_t n1 = corr_execute (obj, ref, N, out);
@@ -136,7 +136,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
 
-    corr_state_t *obj = corr_create (ref, N, 4, 1);
+    corr_state_t *obj = corr_create (ref, N, 4, 1, 0);
     float complex out[16];
 
     corr_execute (obj, ref, N, out); /* count = 1 */
@@ -155,7 +155,7 @@ main (void)
     ref_a[0]                = 1.0f;
     ref_b[1]                = 1.0f; /* impulse at lag 1 */
 
-    corr_state_t *obj = corr_create (ref_a, N, 1, 1);
+    corr_state_t *obj = corr_create (ref_a, N, 1, 1, 0);
     float complex out[16];
 
     /* Correlate ref_b (impulse at 1) against ref_a (impulse at 0).
@@ -173,12 +173,35 @@ main (void)
     corr_destroy (obj);
   }
 
-  /* ── max_out always returns n ──────────────────────────────────────── */
+  /* ── max_out returns n_out (native = n) ────────────────────────────── */
   {
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
-    corr_state_t *obj     = corr_create (ref, N, 1, 1);
+    corr_state_t *obj     = corr_create (ref, N, 1, 1, 0);
     CHECK (corr_execute_max_out (obj) == N);
+    corr_destroy (obj);
+  }
+
+  /* ── decoupled inverse: interpolated output length + peak location ── *
+   * impulse ref, input shifted to lag 1 → native peak at 1; inverted on  *
+   * a 16→32 grid, the peak lands at 1·32/16 = 2.                         */
+  {
+    float complex ref[16] = { 0 };
+    ref[0]                = 1.0f;
+    float complex in[16]  = { 0 };
+    in[1]                 = 1.0f;
+    corr_state_t *obj     = corr_create (ref, N, 1, 1, 32);
+    CHECK (obj->n_out == 32);
+    CHECK (corr_execute_max_out (obj) == 32);
+
+    float complex out[32];
+    size_t        no = corr_execute (obj, in, N, out);
+    CHECK (no == 32);
+    size_t pk = 0;
+    for (size_t k = 1; k < 32; k++)
+      if (cabsf (out[k]) > cabsf (out[pk]))
+        pk = k;
+    CHECK (pk == 2);
     corr_destroy (obj);
   }
 

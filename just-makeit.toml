@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.33"
+jm_version = "0.19.34"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -1444,4 +1444,4 @@ values = ["le", "be"]
 objects = ["loop_filter", "costas", "dll", "channel", "symsync"]
 
 [module.dsss]
-objects = ["despreader"]
+objects = ["despreader", "acq"]

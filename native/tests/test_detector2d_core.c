@@ -43,6 +43,29 @@ main (void)
     detector2d_destroy (NULL);
   }
 
+  /* ── noise_hi sentinel clamp ────────────────────────────────────── *
+   * The binding passes (size_t)-1 for the documented "ny*nx-1" default. *
+   * It must clamp to N-1, not overflow the scratch sizing / OOB-read.   */
+  {
+    float complex ref[N] = { 0 };
+    ref[0]               = 1.0f;
+
+    detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, (size_t)-1,
+                                                 DET_NOISE_MEAN, 0.0f, 1);
+    CHECK (det != NULL);
+    CHECK (det->noise_lo == 0);
+    CHECK (det->noise_hi == N - 1);
+
+    det_result2d_t results[16];
+    size_t         ndet = detector2d_push (det, ref, N, results, 16);
+    CHECK (ndet == 1);
+    CHECK (results[0].row == 0 && results[0].col == 0);
+    CHECK (isfinite (results[0].noise_est) && results[0].noise_est > 0.0f);
+    CHECK (isfinite (results[0].test_stat) && results[0].test_stat > 1.0f);
+
+    detector2d_destroy (det);
+  }
+
   /* ── impulse ref: peak at (row=0, col=0) ────────────────────────── *
    * noise_lo=0 includes the peak so noise_est = 1/N > 0 and            *
    * test_stat = N >> 1.                                                 */

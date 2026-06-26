@@ -58,6 +58,13 @@ peak_lag = int(np.argmax(np.abs(output)))
 `(lag, peak_mag, noise_est, test_stat)` tuples directly from
 `det.push(block)` without managing the dwell counter yourself.
 
+`Corr2D` accumulates the `dwell` integration in the **frequency domain** — it
+sums the per-frame cross-spectra and inverts once on the dump rather than once
+per frame. The result is identical by linearity of the inverse FFT, but the
+single inverse amortizes over the dwell (~1.7× cheaper per frame at `dwell=8`,
+`bench_corr2d.py`). This holds only for *coherent* (complex-sum) integration;
+see the [2-D Acquisition gallery](detection2d.md) for the details.
+
 ```bash
 python src/doppler/examples/corr_demo.py   # → corr_demo.png
 ```

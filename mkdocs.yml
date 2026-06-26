@@ -206,6 +206,7 @@ nav:
   - Guides:
       - Guides: guide/index.md
       - Waveform Generator (wfmgen): guide/wfmgen.md
+      - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md
@@ -214,6 +215,8 @@ nav:
       - Repository Map: design/repository-map.md
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
+      - DSSS Acquisition: design/dsss-acquisition.md
+      - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
       - Streaming Roadmap: design/streaming-roadmap.md

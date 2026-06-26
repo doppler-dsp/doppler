@@ -47,17 +47,19 @@ extern "C" {
 /**
  * @brief 1-D FFT correlator state.
  *
- * Allocate with corr_create(); never stack-allocate.  The four heap buffers
- * (ref_spec, work_fft, work_ifft, accum) are each ``n`` complex floats.
+ * Allocate with corr_create(); never stack-allocate.  ref_spec/work_fft/accum
+ * are each ``n`` complex floats; work_pad (``n_out``) exists only on the
+ * decoupled-inverse path.
  */
 typedef struct {
-  fft_state_t *fwd;         /**< Forward plan (sign = -1). */
-  fft_state_t *inv;         /**< Inverse plan (sign = +1). */
-  float complex *ref_spec;  /**< conj(FFT(ref)), pre-computed at create. */
-  float complex *work_fft;  /**< Scratch: FFT(in) output.               */
-  float complex *work_ifft; /**< Scratch: IFFT output before accumulate. */
-  float complex *accum;     /**< Coherent integration accumulator.       */
-  size_t n;                 /**< FFT / reference length (samples).       */
+  fft_state_t *fwd;         /**< Forward plan (sign = -1) at n.            */
+  fft_state_t *inv;         /**< Inverse plan (sign = +1) at n_out.        */
+  float complex *ref_spec;  /**< conj(FFT(ref)), pre-computed at create.   */
+  float complex *work_fft;  /**< Scratch: FFT(in) · ref_spec (product).    */
+  float complex *accum;     /**< Coherent product-spectrum accumulator.    */
+  float complex *work_pad;  /**< Zero-padded product, n_out (NULL native). */
+  size_t n;                 /**< FFT / reference length (samples).         */
+  size_t n_out;             /**< Output length (== n unless decoupled).    */
   size_t dwell;             /**< Integration depth; dump every dwell calls. */
   size_t count;             /**< Frames accumulated so far (0 … dwell-1). */
 } corr_state_t;
@@ -74,6 +76,12 @@ typedef struct {
  * @param dwell     Integration depth; must be >= 1.  Pass 1 for immediate
  *                  output on every call.
  * @param nthreads  Accepted for API compatibility; ignored.
+ * @param n_out     Inverse/output length; 0 => native (n).  Must be >= n.  A
+ *                  larger value zero-pads the cross-spectrum before the inverse,
+ *                  returning the band-limited (Dirichlet) interpolation of the
+ *                  correlation on a finer length-n_out grid — same peak, sub-bin
+ *                  lag resolution.  Native is bit-exact and allocates no extra
+ *                  buffer.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @code
  * >>> from doppler.spectral import Corr
@@ -85,7 +93,7 @@ typedef struct {
  * @endcode
  */
 corr_state_t *corr_create(const float complex *ref, size_t n, size_t dwell,
-                          int nthreads);
+                          int nthreads, size_t n_out);
 
 /** @brief Destroy and free a corr instance.  @param state May be NULL. */
 void corr_destroy(corr_state_t *state);
@@ -123,24 +131,27 @@ void corr_reset(corr_state_t *state);
  */
 void corr_set_ref(corr_state_t *state, const float complex *ref);
 
-/** @brief Maximum output samples per execute call (always == n). */
+/** @brief Maximum output samples per execute call (== n_out). */
 size_t corr_execute_max_out(corr_state_t *state);
 
 /**
  * @brief Correlate one frame and optionally dump the coherent accumulator.
- * Runs the six-step pipeline: forward FFT → pointwise multiply with
- * ref_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump.
- * On the @p dwell-th call the accumulator is copied to @p out, zeroed, and
- * the counter resets; the function returns n.  All other calls return 0 and
- * leave @p out unmodified.  In Python, a dump returns an ndarray and a
- * no-dump returns None.
+ * Runs: forward FFT → pointwise multiply with ref_spec → accumulate the
+ * cross-spectrum; on dump, inverse FFT → normalise (÷ n).  Accumulating in the
+ * frequency domain and inverting once is exactly the per-frame inverse summed,
+ * by linearity of the IFFT — valid because the dwell is **coherent** (a complex
+ * sum); a non-coherent (magnitude) integration could not defer the inverse.
+ * On the @p dwell-th call @p out is written, the accumulator is zeroed, and the
+ * counter resets; the function returns n_out.  All other calls return 0 and
+ * leave @p out unmodified.  In Python, a dump returns an ndarray and a no-dump
+ * returns None.
  *
  * @param state  Allocated correlator (non-NULL).
  * @param in     Input frame, CF32, length state->n.
  * @param n_in   Number of input samples; must equal state->n.
- * @param out    Output buffer for the correlation map (CF32, length state->n);
+ * @param out    Output buffer for the correlation map (CF32, length n_out);
  *               written only on a dump call.
- * @return n on a dump call, 0 otherwise (None in Python).
+ * @return n_out on a dump call, 0 otherwise (None in Python).
  * @code
  * >>> from doppler.spectral import Corr
  * >>> import numpy as np

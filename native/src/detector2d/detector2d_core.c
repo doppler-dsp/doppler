@@ -55,11 +55,18 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
   if (!state)
     return NULL;
 
-  state->ny         = ny;
-  state->nx         = nx;
-  state->n          = ny * nx;
-  state->noise_lo   = (noise_lo <= noise_hi) ? noise_lo : noise_hi;
-  state->noise_hi   = (noise_lo <= noise_hi) ? noise_hi : noise_lo;
+  state->ny = ny;
+  state->nx = nx;
+  state->n  = ny * nx;
+
+  /* Clamp the noise window to the valid index range [0, n-1].  The binding
+     passes a SIZE_MAX sentinel (default_raw) for the documented "ny*nx-1"
+     full-surface default; without this clamp it overflows the scratch sizing
+     below and reads mag_buf out of bounds in _noise_estimate. */
+  size_t hi         = (noise_hi < state->n) ? noise_hi : state->n - 1;
+  size_t lo         = (noise_lo < state->n) ? noise_lo : state->n - 1;
+  state->noise_lo   = (lo <= hi) ? lo : hi;
+  state->noise_hi   = (lo <= hi) ? hi : lo;
   state->noise_mode = noise_mode;
   state->threshold  = threshold;
 
@@ -69,7 +76,7 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr2d_create (ref, ny, nx, dwell, nthreads);
+  state->corr = corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0);
   if (!state->corr)
     goto fail;
 

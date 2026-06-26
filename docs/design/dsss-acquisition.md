@@ -373,6 +373,16 @@ ______________________________________________________________________
 
 Priority: **sensitivity → span → dynamics.**
 
+**Status.** Landed (PR #241): the coherent `Acquirer` (auto-configured threshold
+
+- dwell), its streaming test + benchmarks, and two `corr2d` enablers that sit
+    *under* the roadmap — **frequency-domain coherent accumulation** (one inverse per
+    dump) and the **decoupled interpolated inverse** (`ny_out`/`nx_out`,
+    [spec](corr2d-interpolated-inverse.md)), which together give the cheap,
+    pffft-friendly, finer-grid inverse that P1/P2 build on. The GIL-release fix
+    (jm 0.19.34) unblocks the P4 thread-per-shard fan-out. **Not yet started:**
+    P0–P4 below; **P1 (non-coherent) is next** — the corr2d work was its enabler.
+
 | Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                            |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **P0 — stateless kernel + carry**         | Extract `acq_caf_tile` pure kernel + flat-POD carry (`accum`+`count`+leftover+`n0`); re-express `Acquirer` as a thin wrapper owning the carry.            | Refactored `Acquirer` is **bit-identical** to today on the existing C + Python tests; a **carry round-trip** (split a stream, serialize the carry, resume in a fresh kernel) yields identical hits; no ring inside the kernel. |

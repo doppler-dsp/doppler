@@ -161,6 +161,9 @@ nav:
       - Code Loop Tracking: gallery/dll.md
       - Tracking Channel: gallery/channel.md
       - Symbol Timing Recovery: gallery/symsync.md
+      - Costas Loop (theory): gallery/costas-theory.md
+      - Timing Loop (theory): gallery/symsync-theory.md
+      - DLL Code Loop (theory): gallery/dll-theory.md
   - Examples:
       - Examples: examples/index.md
       - C: examples/c.md

@@ -74,6 +74,25 @@ for *_, stat in det.push(signal_block):
 `(row, col, peak_mag, noise_est, test_stat)` for each dwell; compare
 `test_stat` against `theta` to declare acquisition.
 
+## Coherent integration is accumulated in the frequency domain
+
+The `dwell=M` coherent integration is the engine room of this demo, and `Corr2D`
+computes it cheaply: it sums the per-frame cross-spectra
+`P_k = FFT2(x_k)·conj(FFT2(ref))` and inverts **once** on the dump, instead of
+inverting every frame and summing the surfaces. By linearity of the inverse FFT,
+
+```
+Σ_k IFFT2(P_k)  =  IFFT2( Σ_k P_k )      (1/N applied once either way)
+```
+
+the result is identical — but it runs **one** FFT2 inverse per dump instead of
+`M`, so the per-frame cost falls toward forward-only as `M` grows: ~1.7× faster
+per frame at `M=8` on a pffft-friendly grid (see `bench_corr2d.py`).
+
+This deferral is valid **only for coherent integration** — a complex (linear)
+sum. A *non-coherent* combination (`Σ_k |IFFT2(P_k)|²`, accumulating magnitudes)
+is nonlinear and must transform each frame; it cannot defer the inverse.
+
 ```bash
 python src/doppler/examples/detection2d_demo.py  # → detection2d_demo.png  (~10 s)
 ```

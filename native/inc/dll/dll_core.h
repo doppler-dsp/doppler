@@ -10,8 +10,9 @@
  * `(|E| - |L|) / (|E| + |L|)`, filters it through an embedded 2nd-order
  * @ref loop_filter_state_t, and steers the code rate + phase.
  *
- * It pairs with @ref costas_core.h: a carrier loop wipes the carrier, the DLL
- * wipes the code. The block API (dll_steps) is the Python face; the
+ * It pairs with the carrier loop (costas_core.h): the carrier loop wipes the
+ * carrier, the DLL wipes the code. The block API (dll_steps) is the Python face;
+ * the
  * JM_FORCEINLINE dll_accumulate()/dll_update() are the C composition API a
  * tracking channel inlines into its own sample loop.
  *

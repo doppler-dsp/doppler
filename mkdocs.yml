@@ -206,6 +206,7 @@ nav:
   - Guides:
       - Guides: guide/index.md
       - Waveform Generator (wfmgen): guide/wfmgen.md
+      - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
       - Fixed-Point Arithmetic: guide/fixed-point.md

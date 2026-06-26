@@ -93,7 +93,7 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr_create (ref, n, dwell, nthreads);
+  state->corr = corr_create (ref, n, dwell, nthreads, 0);
   if (!state->corr)
     goto fail;
 

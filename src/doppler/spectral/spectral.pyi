@@ -302,9 +302,11 @@ class Corr:
         dwell constructor parameter.
     nthreads : int, default 1
         nthreads constructor parameter.
+    n_out : int, default 0
+        n_out constructor parameter.
 
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., n_out: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans.  Does NOT recompute ref_spec; use corr_set_ref() to replace the reference.
@@ -325,7 +327,7 @@ class Corr:
         """
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Correlate one frame and optionally dump the coherent accumulator. Runs the six-step pipeline: forward FFT → pointwise multiply with ref_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump. On the @p dwell-th call the accumulator is copied to @p out, zeroed, and the counter resets; the function returns n.  All other calls return 0 and leave @p out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
+        """Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the @p dwell-th call @p out is written, the accumulator is zeroed, and the counter resets; the function returns n_out.  All other calls return 0 and leave @p out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
 
         Parameters
         ----------
@@ -335,7 +337,7 @@ class Corr:
         Returns
         -------
         NDArray[np.complex64]
-            n on a dump call, 0 otherwise (None in Python).
+            n_out on a dump call, 0 otherwise (None in Python).
 
         Examples
         --------
@@ -354,6 +356,10 @@ class Corr:
     @property
     def n(self) -> int:
         """N."""
+
+    @property
+    def n_out(self) -> int:
+        """N out."""
 
     @property
     def dwell(self) -> int:

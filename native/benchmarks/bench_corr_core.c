@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  corr_state_t   *obj = corr_create (NULL, 0, 1, 1);
+  corr_state_t   *obj = corr_create (NULL, 0, 1, 1, 0);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 

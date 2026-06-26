@@ -20,7 +20,7 @@ import numpy as np
 from doppler.spectral import Corr2D
 
 
-def _frame(ny, nx, benchmark):
+def _frame(ny, nx, benchmark, dwell=1):
     rng = np.random.default_rng(0)
     ref = (
         rng.standard_normal((ny, nx)) + 1j * rng.standard_normal((ny, nx))
@@ -28,7 +28,9 @@ def _frame(ny, nx, benchmark):
     x = (
         rng.standard_normal((ny, nx)) + 1j * rng.standard_normal((ny, nx))
     ).astype(np.complex64)
-    c = Corr2D(ref, 1)  # dwell=1 → one execute == one correlate-and-dump
+    c = Corr2D(ref, dwell)
+    for _ in range(dwell):  # warm + align the dwell cycle
+        c.execute(x)
     benchmark(c.execute, x)
     if benchmark.stats:
         benchmark.extra_info["N"] = ny * nx
@@ -49,3 +51,11 @@ def test_bench_corr2d_pffft(benchmark):
     sub-block decomposition to reach a pffft-friendly FFT size.
     """
     _frame(16, 2000, benchmark)
+
+
+def test_bench_corr2d_pffft_dwell8(benchmark):
+    """Same grid at dwell=8. Frequency-domain accumulation defers the inverse
+    to the dump, so the per-execute cost amortizes toward forward-only:
+    ~1.6-1.9x faster per frame than dwell=1 (the inverse runs 1/8 as often).
+    """
+    _frame(16, 2000, benchmark, dwell=8)

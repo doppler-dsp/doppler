@@ -85,6 +85,50 @@ _bind_det_snr(PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_det_threshold_noncoherent(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"pfa", "n_noncoh", NULL};
+    double pfa = 0.0;
+    int n_noncoh = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "di",
+            _kwlist, &pfa, &n_noncoh))
+        return NULL;
+    return PyFloat_FromDouble(det_threshold_noncoherent(pfa, n_noncoh));
+}
+
+static PyObject *
+_bind_det_pd_noncoherent(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"snr", "n_coh", "n_noncoh", "threshold", NULL};
+    double snr = 0.0;
+    int n_coh = 0;
+    int n_noncoh = 0;
+    double threshold = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "diid",
+            _kwlist, &snr, &n_coh, &n_noncoh, &threshold))
+        return NULL;
+    return PyFloat_FromDouble(det_pd_noncoherent(snr, n_coh, n_noncoh, threshold));
+}
+
+static PyObject *
+_bind_det_n_noncoh(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"snr", "n_coh", "pd_min", "pfa", "max_n_noncoh", NULL};
+    double snr = 0.0;
+    int n_coh = 0;
+    double pd_min = 0.0;
+    double pfa = 0.0;
+    int max_n_noncoh = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "diddi",
+            _kwlist, &snr, &n_coh, &pd_min, &pfa, &max_n_noncoh))
+        return NULL;
+    return PyLong_FromLong((long)det_n_noncoh(snr, n_coh, pd_min, pfa, max_n_noncoh));
+}
+
+static PyObject *
 _bind_det_threshold_power(PyObject *self, PyObject *args, PyObject *kwds)
 {
     (void)self;
@@ -150,6 +194,9 @@ static PyMethodDef detection_module_methods[] = {
     {"det_pd", (PyCFunction)(void *)_bind_det_pd, METH_VARARGS | METH_KEYWORDS, "det_pd."},
     {"det_dwell", (PyCFunction)(void *)_bind_det_dwell, METH_VARARGS | METH_KEYWORDS, "det_dwell."},
     {"det_snr", (PyCFunction)(void *)_bind_det_snr, METH_VARARGS | METH_KEYWORDS, "det_snr."},
+    {"det_threshold_noncoherent", (PyCFunction)(void *)_bind_det_threshold_noncoherent, METH_VARARGS | METH_KEYWORDS, "det_threshold_noncoherent."},
+    {"det_pd_noncoherent", (PyCFunction)(void *)_bind_det_pd_noncoherent, METH_VARARGS | METH_KEYWORDS, "det_pd_noncoherent."},
+    {"det_n_noncoh", (PyCFunction)(void *)_bind_det_n_noncoh, METH_VARARGS | METH_KEYWORDS, "det_n_noncoh."},
     {"det_threshold_power", (PyCFunction)(void *)_bind_det_threshold_power, METH_VARARGS | METH_KEYWORDS, "det_threshold_power."},
     {"det_pd_power", (PyCFunction)(void *)_bind_det_pd_power, METH_VARARGS | METH_KEYWORDS, "det_pd_power."},
     {"det_dwell_power", (PyCFunction)(void *)_bind_det_dwell_power, METH_VARARGS | METH_KEYWORDS, "det_dwell_power."},

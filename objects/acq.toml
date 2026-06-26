@@ -61,6 +61,20 @@ name = "max_dwell"
 type = "size_t"
 default = "64"
 
+# Non-coherent integration. n_noncoh = 0 auto-splits (coherent dwell up to
+# max_dwell, then magnitude-summed looks up to max_noncoh to close Pd); n_noncoh
+# > 0 pins the look count. Trailing + defaults (0, 1) keep the engine purely
+# coherent and backward-compatible.
+[[acq.init_params]]
+name = "n_noncoh"
+type = "size_t"
+default = "0"
+
+[[acq.init_params]]
+name = "max_noncoh"
+type = "size_t"
+default = "1"
+
 [[acq.methods]]
 name = "push"
 arg_type = "float _Complex"
@@ -105,6 +119,16 @@ type = "size_t"
 field = true
 
 [[acq.properties]]
+name = "n_noncoh"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "max_noncoh"
+type = "size_t"
+field = true
+
+[[acq.properties]]
 name = "ring_cap"
 type = "size_t"
 field = true
@@ -126,6 +150,11 @@ field = true
 
 [[acq.properties]]
 name = "eta"
+type = "float"
+field = true
+
+[[acq.properties]]
+name = "eta_nc"
 type = "float"
 field = true
 

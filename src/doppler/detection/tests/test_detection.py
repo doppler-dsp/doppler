@@ -12,16 +12,20 @@ are best expressed as parametrized invariants.
 
 import math
 
+import numpy as np
 import pytest
 
 from doppler.detection import (
     det_dwell,
     det_dwell_power,
+    det_n_noncoh,
     det_pd,
+    det_pd_noncoherent,
     det_pd_power,
     det_snr,
     det_snr_power,
     det_threshold,
+    det_threshold_noncoherent,
     det_threshold_power,
     marcum_q,
 )
@@ -400,3 +404,103 @@ class TestDetSnrPower:
 
     def test_returns_float(self):
         assert isinstance(det_snr_power(4, 0.9, 1e-6), float)
+
+
+class TestNonCoherent:
+    """Non-coherent integration: order-N_nc Marcum-Q helpers.
+
+    These package the generalized Marcum-Q for N_nc magnitude-summed looks and
+    must reduce exactly to the coherent (order-1) helpers at n_noncoh == 1.
+    """
+
+    # ── reduce-to-coherent (n_noncoh == 1) ──────────────────────────────────
+    @pytest.mark.parametrize("pfa", [1e-2, 1e-3, 1e-6, 1e-9])
+    def test_threshold_reduces_to_coherent(self, pfa):
+        assert det_threshold_noncoherent(pfa, 1) == det_threshold(pfa)
+
+    @pytest.mark.parametrize("snr,n_coh", [(0.0, 8), (0.5, 8), (1.6, 16)])
+    def test_pd_reduces_to_coherent(self, snr, n_coh):
+        eta = det_threshold(1e-6)
+        assert det_pd_noncoherent(snr, n_coh, 1, eta) == det_pd(
+            snr, n_coh, eta
+        )
+
+    # ── threshold defining property + monotonicity ──────────────────────────
+    @pytest.mark.parametrize("n_noncoh", [1, 2, 4, 8, 16])
+    def test_threshold_solves_pfa(self, n_noncoh):
+        pfa = 1e-3
+        eta = det_threshold_noncoherent(pfa, n_noncoh)
+        # eta is the b solving marcum_q(n_noncoh, 0, b) = pfa
+        assert marcum_q(n_noncoh, 0.0, eta) == pytest.approx(pfa, rel=1e-6)
+
+    def test_threshold_increases_with_looks(self):
+        pfa = 1e-3
+        etas = [det_threshold_noncoherent(pfa, m) for m in (1, 2, 4, 8, 16)]
+        assert all(a < b for a, b in zip(etas, etas[1:]))
+
+    # ── Pd properties ───────────────────────────────────────────────────────
+    @pytest.mark.parametrize("n_noncoh", [2, 4, 8])
+    def test_pd_snr_zero_equals_pfa(self, n_noncoh):
+        pfa = 1e-3
+        eta = det_threshold_noncoherent(pfa, n_noncoh)
+        assert det_pd_noncoherent(0.0, 16, n_noncoh, eta) == pytest.approx(
+            pfa, rel=1e-6
+        )
+
+    def test_pd_monotone_in_snr(self):
+        eta = det_threshold_noncoherent(1e-3, 4)
+        vals = [
+            det_pd_noncoherent(s, 16, 4, eta) for s in (0.0, 0.2, 0.4, 0.8)
+        ]
+        assert all(a < b for a, b in zip(vals, vals[1:]))
+
+    def test_pd_bounded(self):
+        eta = det_threshold_noncoherent(1e-3, 4)
+        for s in (0.0, 0.5, 5.0):
+            assert 0.0 <= det_pd_noncoherent(s, 16, 4, eta) <= 1.0
+
+    # ── det_n_noncoh (the look-count inverse) ───────────────────────────────
+    def test_n_noncoh_strong_signal_one_look(self):
+        assert det_n_noncoh(2.0, 16, 0.9, 1e-3, 64) == 1
+
+    def test_n_noncoh_weaker_needs_more(self):
+        n_strong = det_n_noncoh(0.4, 16, 0.9, 1e-3, 256)
+        n_weak = det_n_noncoh(0.25, 16, 0.9, 1e-3, 256)
+        assert 1 < n_strong < n_weak
+
+    def test_n_noncoh_meets_pd(self):
+        snr, n_coh, pd_min, pfa = 0.25, 16, 0.9, 1e-3
+        k = det_n_noncoh(snr, n_coh, pd_min, pfa, 256)
+        eta = det_threshold_noncoherent(pfa, k)
+        assert det_pd_noncoherent(snr, n_coh, k, eta) >= pd_min
+        # one fewer look must fall short (it is the *minimum*)
+        eta_m1 = det_threshold_noncoherent(pfa, k - 1)
+        assert det_pd_noncoherent(snr, n_coh, k - 1, eta_m1) < pd_min
+
+    def test_n_noncoh_infeasible_returns_minus_one(self):
+        assert det_n_noncoh(1e-4, 1, 0.99, 1e-9, 4) == -1
+
+    def test_return_types(self):
+        assert isinstance(det_threshold_noncoherent(1e-3, 4), float)
+        assert isinstance(det_pd_noncoherent(0.3, 16, 4, 5.0), float)
+        assert isinstance(det_n_noncoh(0.4, 16, 0.9, 1e-3, 64), int)
+
+    # ── Monte-Carlo validation (P1 acceptance: match Q_{N_nc} < 1%) ──────────
+    @pytest.mark.parametrize(
+        "snr,n_coh,n_noncoh", [(0.0, 16, 4), (0.3, 16, 4), (0.25, 16, 8)]
+    )
+    def test_pd_matches_monte_carlo(self, snr, n_coh, n_noncoh):
+        pfa = 1e-3
+        eta = det_threshold_noncoherent(pfa, n_noncoh)
+        theory = det_pd_noncoherent(snr, n_coh, n_noncoh, eta)
+        # Simulate the normalized statistic R = sqrt(sum_looks |z|^2): each
+        # look is unit-variance complex, non-centrality a = sqrt(2*n_coh)*snr.
+        rng = np.random.default_rng(0)
+        trials = 200_000
+        a = math.sqrt(2.0 * n_coh) * snr
+        x = rng.standard_normal((trials, n_noncoh)) + a
+        y = rng.standard_normal((trials, n_noncoh))
+        r = np.sqrt((x * x + y * y).sum(axis=1))
+        mc = float((r > eta).mean())
+        # absolute agreement to <1% (and within MC sampling error)
+        assert abs(theory - mc) < 0.01

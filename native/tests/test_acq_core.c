@@ -36,14 +36,16 @@ main (void)
   const size_t n  = ny * nx;  /* 112 */
 
   /* ── argument validation ────────────────────────────────────────────── */
-  CHECK (acq_create (NULL, 0, sf, spc, ny, 1e-3, 0.9, 0.1, 0, 64) == NULL);
-  CHECK (acq_create (CODE7, 6, sf, spc, ny, 1e-3, 0.9, 0.1, 0, 64)
+  CHECK (acq_create (NULL, 0, sf, spc, ny, 1e-3, 0.9, 0.1, 0, 64, 0, 1)
+         == NULL);
+  CHECK (acq_create (CODE7, 6, sf, spc, ny, 1e-3, 0.9, 0.1, 0, 64, 0, 1)
          == NULL); /* code_len != sf */
-  CHECK (acq_create (CODE7, 7, sf, spc, ny, 0.0, 0.9, 0.1, 0, 64)
+  CHECK (acq_create (CODE7, 7, sf, spc, ny, 0.0, 0.9, 0.1, 0, 64, 0, 1)
          == NULL); /* pfa out of range */
 
   /* ── auto-config ────────────────────────────────────────────────────── */
-  acq_state_t *a = acq_create (CODE7, 7, sf, spc, ny, 1e-2, 0.9, 1.0, 0, 64);
+  acq_state_t *a
+      = acq_create (CODE7, 7, sf, spc, ny, 1e-2, 0.9, 1.0, 0, 64, 0, 1);
   CHECK (a != NULL);
   if (!a)
     return 1;

@@ -1147,6 +1147,62 @@ name = "pfa"
 type = "double"
 
 [[module.detection.functions]]
+name = "det_threshold_noncoherent"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_noncoh"
+type = "int"
+
+[[module.detection.functions]]
+name = "det_pd_noncoherent"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_coh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "n_noncoh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_n_noncoh"
+return_type = "int"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_coh"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "pd_min"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "max_n_noncoh"
+type = "int"
+
+[[module.detection.functions]]
 name = "det_threshold_power"
 return_type = "double"
 

@@ -380,8 +380,18 @@ Priority: **sensitivity → span → dynamics.**
     dump) and the **decoupled interpolated inverse** (`ny_out`/`nx_out`,
     [spec](corr2d-interpolated-inverse.md)), which together give the cheap,
     pffft-friendly, finer-grid inverse that P1/P2 build on. The GIL-release fix
-    (jm 0.19.34) unblocks the P4 thread-per-shard fan-out. **Not yet started:**
-    P0–P4 below; **P1 (non-coherent) is next** — the corr2d work was its enabler.
+    (jm 0.19.34) unblocks the P4 thread-per-shard fan-out.
+
+**P1 (non-coherent) — landed.** `doppler.detection` gained the order-`N_nc`
+helpers `det_threshold_noncoherent` / `det_pd_noncoherent` / `det_n_noncoh`
+(thin wrappers over the existing generalized `marcum_q`, validated against
+Monte-Carlo to \<1%). `Acquisition` gained `n_noncoh` (override) + `max_noncoh`
+(auto-split cap): the auto-config grows coherent dwell to `max_dwell`, then adds
+magnitude-summed looks to close the Pd gap; the `N_nc>1` push path accumulates
+`|·|²` and gates the normalized order-`N_nc` statistic. The pure-coherent
+(`N_nc=1`) path is unchanged. The associative pod-merge (`acq_nc_merge`) is left
+to **P4**. **Not yet started:** P0 (stateless kernel), P2 (sub-block), P3
+(Doppler-rate), P4 (orchestration).
 
 | Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                               |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

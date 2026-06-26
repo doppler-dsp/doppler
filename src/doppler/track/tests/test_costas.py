@@ -40,6 +40,9 @@ def test_properties():
     assert c.norm_freq == pytest.approx(0.01)
     c.bn = 0.03
     assert c.bn == pytest.approx(0.03)
+    assert c.bn_fll == pytest.approx(0.0)
+    c.bn_fll = 0.02
+    assert c.bn_fll == pytest.approx(0.02)
 
 
 def test_one_prompt_per_symbol():

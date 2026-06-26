@@ -43,9 +43,8 @@ typedef struct {
   fft2d_state_t *fwd;       /**< Forward 2-D plan (sign = -1). */
   fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1). */
   float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.           */
-  float complex *work_fft;  /**< Scratch: FFT2(in) output.                */
-  float complex *work_ifft; /**< Scratch: IFFT2 output before accumulate. */
-  float complex *accum;     /**< Coherent integration accumulator.        */
+  float complex *work_fft;  /**< Scratch: FFT2(in) · ref_spec (product).  */
+  float complex *accum;     /**< Coherent product-spectrum accumulator.   */
   size_t ny;                /**< Row count.                               */
   size_t nx;                /**< Column count.                            */
   size_t n;                 /**< ny * nx — total element count.           */
@@ -117,10 +116,13 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
 
 /**
  * @brief Correlate one 2-D frame and optionally dump the coherent accumulator.
- * Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec →
- * IFFT2 → normalise (÷ ny*nx) → accumulate → conditional dump.  The Python
- * wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx
- * ndarray, a no-dump returns None.
+ * Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → accumulate
+ * the cross-spectrum; on dump, IFFT2 → normalise (÷ ny*nx).  Accumulating in
+ * the frequency domain and inverting once is exactly the per-frame inverse
+ * summed, by linearity of the IFFT — valid because the dwell is **coherent**
+ * (a complex sum); a non-coherent (magnitude) integration could not defer the
+ * inverse.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns
+ * a flat length-ny*nx ndarray, a no-dump returns None.
  *
  * @param state  Allocated 2-D correlator (non-NULL).
  * @param in     Input frame, flat row-major CF32, length ny*nx.

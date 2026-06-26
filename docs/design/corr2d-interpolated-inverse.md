@@ -107,11 +107,24 @@ ______________________________________________________________________
 
 ## 4. State + algorithm
 
-Recommend **frequency-domain accumulation**: accumulate the product `P` over
-`dwell` frames, then zero-pad + invert **once per dump**. Coherent accumulation
-is linear (`Σ IFFT(P_k) = IFFT(Σ P_k)`), so the result is identical to today's
-per-frame inverse — but it cuts the (now-friendly) inverse FFTs by the `dwell`
-factor and is the natural home for the pad.
+**Frequency-domain accumulation** (✅ implemented; the larger inverse below is
+the remaining work): accumulate the product `P` over `dwell` frames, then
+(zero-pad +) invert **once per dump** instead of inverting every frame.
+
+**When this is valid.** The deferral relies on the inverse DFT being **linear**,
+`Σₖ IFFT(Pₖ) = IFFT(Σₖ Pₖ)`, with the single `1/n` applied once either way. The
+load-bearing requirement is that the per-dump combination is **coherent — a
+complex (linear) sum**. A **non-coherent** dump (`Σₖ |IFFT(Pₖ)|²`, a
+magnitude/energy sum) is *nonlinear* and **cannot** defer the inverse: it must
+transform each frame and accumulate magnitudes. So this optimization is specific
+to corr2d's coherent `dwell`; any future non-coherent integration (the
+acquisition `N_noncoh`) inverts per frame. A single inverse plan + normalization
+across the dwell is the only other condition (trivially met — the grid and `1/n`
+are constant). Equivalence is exact in real arithmetic; in cf32 it differs from
+the per-frame sum only by accumulation-order rounding (~1e-5 relative).
+
+It also composes with the interpolated inverse: zero-padding is linear too, so
+`zeropad(Σ Pₖ)` then one inverse is the natural home for the pad.
 
 State (sizes): `fwd` plan `(ny,nx)`; **`inv` plan `(ny_out,nx_out)`**; `ref_spec`,
 `work_fft`, `accum_P` all `(ny,nx)`; **`work_pad`, `work_ifft` `(ny_out,nx_out)`**;

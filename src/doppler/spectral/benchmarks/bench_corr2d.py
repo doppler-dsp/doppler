@@ -3,11 +3,14 @@
 ``Corr2D.execute`` processes exactly one ``(ny, nx)`` frame per call (FFT2 →
 multiply by the conjugate reference spectrum → IFFT2 → accumulate, dumping
 every ``dwell`` frames). It is the dominant cost inside an acquisition tile
-(``Acquirer``): at the worked grid below it is ~95-100% of the whole tile, so
-the engine is 2-D-FFT bound.
+(``Acquirer``): ~95-100% of the whole tile, so the engine is 2-D-FFT bound.
 
-These benchmark one frame at ``dwell=1`` (dump every call) at the
-acquisition-relevant grids and record per-frame sample throughput.
+The 2-D FFT runs on **pffft** (pre-allocated SIMD work buffers, no per-call
+allocation) **only when both axes are a multiple of 16 and 5-smooth (2/3/5),
+N≥16**; otherwise it falls back to vendored pocketfft, which mallocs/frees a
+work buffer per 1-D transform and is slow on large prime factors. Real DSSS
+code lengths are 2**n-1 (1023 = 3·11·31), so a naive grid hits the fallback —
+the two benchmarks below show the ~5x gap.
 
 Run: pytest src/doppler/spectral/benchmarks/bench_corr2d.py --benchmark-only
 """
@@ -32,16 +35,17 @@ def _frame(ny, nx, benchmark):
         benchmark.extra_info["MSa_s"] = ny * nx / benchmark.stats["mean"] / 1e6
 
 
-def test_bench_corr2d_test_grid(benchmark):
-    """Test-suite grid: ny=16, nx=124 → N=1984."""
-    _frame(16, 124, benchmark)
-
-
-def test_bench_corr2d_worked(benchmark):
-    """Worked-case grid: ny=10, nx=2046 (GPS-class length-1023 code, spc=2).
-
-    Measured (12-core x86, this machine): ~0.6 ms/frame, ~30 MSa/s per core —
-    essentially the entire Acquirer tile (the slow-time FFT + ring + CFAR add
-    only a few percent).
+def test_bench_corr2d_fallback(benchmark):
+    """GPS-class grid ny=10, nx=2046 (length-1023 code, spc=2) → pocketfft
+    fallback (both axes prime/odd). Measured ~21 MSa/s (mallocs per transform).
     """
     _frame(10, 2046, benchmark)
+
+
+def test_bench_corr2d_pffft(benchmark):
+    """pffft-friendly grid ny=16, nx=2000 (=2**4·5**3) → pre-allocated, SIMD,
+    malloc-free path. Measured ~100 MSa/s — ~5x the fallback. Achievable only
+    when the code length is 2/3/5-smooth (e.g. L=1000); 2**n-1 codes need the
+    sub-block decomposition to reach a pffft-friendly FFT size.
+    """
+    _frame(16, 2000, benchmark)

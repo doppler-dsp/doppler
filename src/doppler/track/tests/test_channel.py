@@ -1,0 +1,129 @@
+"""Integration tests for doppler.track.Channel (Costas + DLL receiver)."""
+
+import numpy as np
+import pytest
+
+from doppler.track import Channel
+
+SF, SPS = 127, 8
+TSAMPS = SF * SPS
+
+
+def _code(seed=1):
+    return np.random.default_rng(seed).integers(0, 2, SF).astype(np.uint8)
+
+
+def _signal(code, nper, nav_period=1, f0=0.0, sigma=0.0, seed=3):
+    """Continuous PN-spread BPSK x carrier (+ optional AWGN)."""
+    rng = np.random.default_rng(seed)
+    nbits = nper // nav_period
+    data = rng.integers(0, 2, nbits) * 2 - 1
+    n = TSAMPS * nper
+    rx = np.empty(n, np.complex64)
+    cph = 0.0
+    k = 0
+    for p in range(nper):
+        bit = data[p // nav_period]
+        for _ in range(TSAMPS):
+            idx = int(cph % SF)
+            rx[k] = bit * (-1.0 if code[idx] & 1 else 1.0)
+            cph += 1.0 / SPS
+            k += 1
+    rx = rx * np.exp(2j * np.pi * f0 * np.arange(n))
+    if sigma:
+        rx = rx + (rng.normal(0, sigma, n) + 1j * rng.normal(0, sigma, n))
+    return rx.astype(np.complex64), data
+
+
+def _amb_ber(dec, truth):
+    err = int(np.sum(dec != truth))
+    return min(err, len(dec) - err) / len(dec)
+
+
+def test_create_and_guard():
+    assert Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+
+
+def test_context_manager_and_destroy():
+    with Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1):
+        pass
+    c = Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c.destroy()
+
+
+def test_properties():
+    c = Channel(_code(), SPS, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    assert c.norm_freq == pytest.approx(0.001)
+    assert c.code_rate == pytest.approx(1.0)
+    assert c.bn_carrier == pytest.approx(0.05)
+    assert c.bn_code == pytest.approx(0.005)
+    c.bn_carrier = 0.03
+    c.bn_code = 0.004
+    assert c.bn_carrier == pytest.approx(0.03)
+    assert c.bn_code == pytest.approx(0.004)
+
+
+def test_full_receiver_locks_and_despreads():
+    code = _code()
+    rx, data = _signal(code, 500, f0=5e-5, seed=3)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    sym = c.steps(rx)
+    assert c.norm_freq == pytest.approx(5e-5, abs=1e-5)
+    assert c.lock_metric > 0.9
+    dec = np.where(sym[len(sym) // 2 :].real >= 0, 1, -1)
+    assert _amb_ber(dec, data[len(sym) // 2 : len(sym)]) == 0.0
+
+
+def test_fll_assist_widens_pull_in():
+    code = _code()
+    f0 = 0.2 / TSAMPS  # 0.2 cycles/epoch — beyond the bare PLL
+    rx, data = _signal(code, 700, f0=f0, seed=11)
+
+    pll = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    pll.steps(rx)
+    assert pll.lock_metric < 0.8
+
+    fll = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
+    sym = fll.steps(rx)
+    assert fll.norm_freq == pytest.approx(f0, abs=2e-5)
+    assert fll.lock_metric > 0.9
+    dec = np.where(sym[len(sym) // 2 :].real >= 0, 1, -1)
+    assert _amb_ber(dec, data[len(sym) // 2 : len(sym)]) == 0.0
+
+
+def test_hard_bits_nav_period_1():
+    code = _code()
+    rx, data = _signal(code, 400, f0=4e-5, seed=17)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c.steps(rx)  # prompts
+    hb = c.bits(_signal(code, 400, f0=4e-5, seed=17)[0])  # fresh run
+    assert hb.dtype == np.uint8
+    dec = np.where(hb > 0, 1, -1)
+    assert (
+        _amb_ber(dec[len(dec) // 2 :], data[len(dec) // 2 : len(dec)]) == 0.0
+    )
+
+
+def test_bit_sync_recovers_nav_bits():
+    code = _code()
+    N, nbits = 20, 120
+    rx, data = _signal(code, N * nbits, nav_period=N, f0=3e-5, seed=23)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, N)
+    bits = c.bits(rx)
+    assert len(bits) >= nbits - 3
+    assert c.bit_phase == 0  # data boundary at epoch 0
+    dec = np.where(bits > 0, 1, -1)
+    tail = len(dec) // 3
+    assert _amb_ber(dec[tail:], data[tail : len(dec)]) == 0.0
+
+
+def test_reset_reproducible():
+    code = _code()
+    rx, _ = _signal(code, 300, f0=5e-5, seed=5)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    s1 = c.steps(rx)
+    f1 = c.norm_freq
+    c.reset()
+    s2 = c.steps(rx)
+    assert np.array_equal(s1, s2)
+    assert f1 == c.norm_freq

@@ -169,6 +169,91 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
  */
 double det_snr(int dwell, double pd_min, double pfa);
 
+/* ── Non-coherent integration ────────────────────────────────────────────── */
+/*                                                                            */
+/* Non-coherent integration sums the squared magnitude of n_noncoh coherent  */
+/* "looks", each itself an n_coh-sample coherent integration.  The normalized */
+/* statistic R = sqrt(sum |z_k|^2 / noise) has, under H0, P(R > b) =          */
+/* marcum_q(n_noncoh, 0, b) (order-M central Marcum-Q), and under H1          */
+/* P(R > b) = marcum_q(n_noncoh, sqrt(2*n_coh*n_noncoh)*snr, b).  All three    */
+/* helpers reduce to their coherent (order-1) counterparts at n_noncoh = 1.   */
+
+/**
+ * @brief CFAR threshold eta_nc for a non-coherent detector of n_noncoh looks.
+ *
+ * Solves marcum_q(n_noncoh, 0, eta_nc) = pfa (the order-M central tail,
+ * monotone decreasing in eta_nc) by bisection.  For n_noncoh = 1 this is the
+ * exact closed form sqrt(-2 ln pfa) (== det_threshold).
+ *
+ * @param pfa       Per-test false-alarm probability in (0, 1).
+ * @param n_noncoh  Number of non-coherent looks; must be >= 1.
+ * @return          Threshold eta_nc on the normalized statistic R.
+ *
+ * @code
+ * >>> from doppler.detection import det_threshold_noncoherent, det_threshold
+ * >>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
+ * 5.111
+ * >>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)
+ * True
+ *
+ * @endcode
+ */
+double det_threshold_noncoherent(double pfa, int n_noncoh);
+
+/**
+ * @brief Detection probability for n_noncoh non-coherent looks.
+ *
+ * Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality
+ * a = sqrt(2 * n_coh * n_noncoh) * snr.  At n_noncoh = 1 this is exactly
+ * det_pd(snr, n_coh, threshold); at snr = 0 it returns the per-test Pfa.
+ *
+ * @param snr        Per-sample amplitude SNR (signal / noise amplitude).
+ * @param n_coh      Coherent integration length in samples (dwell * N).
+ * @param n_noncoh   Number of non-coherent looks; must be >= 1.
+ * @param threshold  Threshold eta_nc, e.g. from det_threshold_noncoherent().
+ * @return           Detection probability in &#91;0, 1&#93;.
+ *
+ * @code
+ * >>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold
+ * >>> from doppler.detection import det_threshold_noncoherent
+ * >>> eta = det_threshold(pfa=1e-6)
+ * >>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
+ * ...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent
+ * True
+ * >>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
+ * >>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
+ * 0.19
+ *
+ * @endcode
+ */
+double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
+                          double threshold);
+
+/**
+ * @brief Minimum non-coherent looks achieving Pd >= pd_min at fixed n_coh.
+ *
+ * Iterates n_noncoh = 1, 2, ..., max_n_noncoh, recomputing the threshold
+ * (det_threshold_noncoherent, which grows with the look count) at each step.
+ * Returns the first look count that meets the Pd requirement, or -1 if none
+ * does within max_n_noncoh.  Used by the acquisition engine's (M, N_nc) split.
+ *
+ * @param snr            Per-sample amplitude SNR (linear).
+ * @param n_coh          Coherent integration length in samples (dwell * N).
+ * @param pd_min         Required detection probability, e.g. 0.9.
+ * @param pfa            Per-test false-alarm probability.
+ * @param max_n_noncoh   Search upper bound on the look count.
+ * @return               Minimum n_noncoh >= 1, or -1 if not achievable.
+ *
+ * @code
+ * >>> from doppler.detection import det_n_noncoh
+ * >>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
+ * 1
+ *
+ * @endcode
+ */
+int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
+                 int max_n_noncoh);
+
 /* ── Power detector ──────────────────────────────────────────────────────── */
 /*                                                                            */
 /* The power detector uses power_stat = |R[0]|² / mean(|R[τ]|²) instead of  */

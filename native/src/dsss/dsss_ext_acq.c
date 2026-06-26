@@ -37,8 +37,8 @@ static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "code", "noise_mode", "sf",      "spc",       "ny",
-          "pfa",  "pd",         "min_snr", "max_dwell", NULL };
+      = { "code", "noise_mode", "sf",        "spc",      "ny",         "pfa",
+          "pd",   "min_snr",    "max_dwell", "n_noncoh", "max_noncoh", NULL };
   PyObject          *code_obj       = NULL;
   const char        *noise_mode_str = "mean";
   unsigned long long sf_raw         = 1;
@@ -48,10 +48,13 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   double             pd             = 0.9;
   double             min_snr        = 0.1;
   unsigned long long max_dwell_raw  = 64;
+  unsigned long long n_noncoh_raw   = 0;
+  unsigned long long max_noncoh_raw = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|sKKKdddK", kwlist, &code_obj, &noise_mode_str,
-          &sf_raw, &spc_raw, &ny_raw, &pfa, &pd, &min_snr, &max_dwell_raw))
+          args, kwds, "O|sKKKdddKKK", kwlist, &code_obj, &noise_mode_str,
+          &sf_raw, &spc_raw, &ny_raw, &pfa, &pd, &min_snr, &max_dwell_raw,
+          &n_noncoh_raw, &max_noncoh_raw))
     return -1;
   int noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
@@ -70,20 +73,22 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  size_t         sf        = (size_t)sf_raw;
-  size_t         spc       = (size_t)spc_raw;
-  size_t         ny        = (size_t)ny_raw;
-  size_t         max_dwell = (size_t)max_dwell_raw;
-  PyArrayObject *code_arr  = (PyArrayObject *)PyArray_FROM_OTF (
+  size_t         sf         = (size_t)sf_raw;
+  size_t         spc        = (size_t)spc_raw;
+  size_t         ny         = (size_t)ny_raw;
+  size_t         max_dwell  = (size_t)max_dwell_raw;
+  size_t         n_noncoh   = (size_t)n_noncoh_raw;
+  size_t         max_noncoh = (size_t)max_noncoh_raw;
+  PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle
-      = acq_create ((const uint8_t *)PyArray_DATA (code_arr), code_len, sf,
-                    spc, ny, pfa, pd, min_snr, noise_mode, max_dwell);
+  self->handle    = acq_create ((const uint8_t *)PyArray_DATA (code_arr),
+                                code_len, sf, spc, ny, pfa, pd, min_snr,
+                                noise_mode, max_dwell, n_noncoh, max_noncoh);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -223,6 +228,30 @@ Acquisition_getprop_max_dwell (AcquisitionObject *self,
       (unsigned long long)self->handle->max_dwell);
 }
 static PyObject *
+Acquisition_getprop_n_noncoh (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_noncoh);
+}
+static PyObject *
+Acquisition_getprop_max_noncoh (AcquisitionObject *self,
+                                void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->max_noncoh);
+}
+static PyObject *
 Acquisition_getprop_ring_cap (AcquisitionObject *self,
                               void              *Py_UNUSED (closure))
 {
@@ -280,6 +309,16 @@ Acquisition_getprop_eta (AcquisitionObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble ((double)self->handle->eta);
 }
 static PyObject *
+Acquisition_getprop_eta_nc (AcquisitionObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)self->handle->eta_nc);
+}
+static PyObject *
 Acquisition_getprop_pfa_cell (AcquisitionObject *self,
                               void              *Py_UNUSED (closure))
 {
@@ -311,6 +350,10 @@ static PyGetSetDef Acquisition_getset[]
         { "dwell", (getter)Acquisition_getprop_dwell, NULL, "Dwell.\n", NULL },
         { "max_dwell", (getter)Acquisition_getprop_max_dwell, NULL,
           "Max dwell.\n", NULL },
+        { "n_noncoh", (getter)Acquisition_getprop_n_noncoh, NULL,
+          "N noncoh.\n", NULL },
+        { "max_noncoh", (getter)Acquisition_getprop_max_noncoh, NULL,
+          "Max noncoh.\n", NULL },
         { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
           "Ring cap.\n", NULL },
         { "noise_lo", (getter)Acquisition_getprop_noise_lo, NULL,
@@ -320,6 +363,8 @@ static PyGetSetDef Acquisition_getset[]
         { "threshold", (getter)Acquisition_getprop_threshold, NULL,
           "Threshold.\n", NULL },
         { "eta", (getter)Acquisition_getprop_eta, NULL, "Eta.\n", NULL },
+        { "eta_nc", (getter)Acquisition_getprop_eta_nc, NULL, "Eta nc.\n",
+          NULL },
         { "pfa_cell", (getter)Acquisition_getprop_pfa_cell, NULL,
           "Pfa cell.\n", NULL },
         { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
@@ -369,7 +414,7 @@ static PyMethodDef AcquisitionObj_methods[]
           "    >>> import numpy as np\n"
           "    >>> from doppler import Acquisition\n"
           "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), \"mean\", "
-          "1, 1, 16, 1e-3, 0.9, 0.1, 64)\n"
+          "1, 1, 16, 1e-3, 0.9, 0.1, 64, 0, 1)\n"
           "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
           "    >>> isinstance(results, list)\n"
           "    True\n" },

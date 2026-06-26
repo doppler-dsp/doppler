@@ -31,7 +31,12 @@ import math
 import numpy as np
 import pytest
 
-from doppler.detection import det_pd, det_threshold
+from doppler.detection import (
+    det_pd,
+    det_pd_noncoherent,
+    det_threshold,
+    det_threshold_noncoherent,
+)
 from doppler.dsss import Acquisition
 from doppler.examples.detector2d_acq_demo import (
     NX,
@@ -237,3 +242,105 @@ def test_empirical_pfa():
     hits = _collect(a, rng, noise)
     pfa_emp = len(hits) / frames
     assert pfa_emp < 5e-2  # loose: validates the analytic mean-mode gate
+
+
+# ── Non-coherent integration ─────────────────────────────────────────────────
+
+
+def test_config_noncoherent_autosplit():
+    """Weak SNR unreachable by coherent dwell alone auto-splits into looks."""
+    pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
+    eta = det_threshold(pfa_cell)
+    # min_snr / max_dwell chosen so coherent-only misses Pd at the dwell cap.
+    a = Acquisition(
+        CODE,
+        sf=SF,
+        spc=SPS,
+        ny=NY,
+        pfa=PFA,
+        pd=PD,
+        min_snr=0.05,
+        max_dwell=2,
+        max_noncoh=64,
+    )
+    assert det_pd(0.05, a.max_dwell * N, eta) < PD  # coherent-only falls short
+    assert a.dwell == a.max_dwell  # coherent grown to the cap
+    assert a.n_noncoh > 1  # ... then non-coherent looks
+    # threshold is the order-N_nc Marcum null, not the coherent Rayleigh gate
+    assert a.eta_nc == pytest.approx(
+        det_threshold_noncoherent(pfa_cell, a.n_noncoh), rel=1e-5
+    )
+    # the split now meets the Pd target
+    assert a.pd_predicted >= PD
+    assert a.pd_predicted == pytest.approx(
+        det_pd_noncoherent(0.05, a.dwell * N, a.n_noncoh, a.eta_nc), rel=1e-4
+    )
+
+
+def test_config_noncoherent_override():
+    """Explicit n_noncoh pins the look count regardless of max_noncoh."""
+    a = Acquisition(
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=0.2, n_noncoh=4
+    )
+    assert a.n_noncoh == 4
+    assert a.eta_nc == pytest.approx(
+        det_threshold_noncoherent(a.pfa_cell, 4), rel=1e-5
+    )
+
+
+def test_config_strong_stays_coherent():
+    """A strong target needs no looks: pure-coherent path (N_nc == 1)."""
+    a = Acquisition(
+        CODE,
+        sf=SF,
+        spc=SPS,
+        ny=NY,
+        pfa=PFA,
+        pd=PD,
+        min_snr=1.0,
+        max_dwell=64,
+        max_noncoh=16,
+    )
+    assert a.n_noncoh == 1
+    assert a.eta_nc == 0.0  # non-coherent gate unused
+    assert a.threshold == pytest.approx(a.eta * SQRT_2_OVER_PI, rel=1e-5)
+
+
+def test_noncoherent_detects_burst():
+    """The non-coherent path accumulates looks and fires at the true cell."""
+    rng = np.random.default_rng(7)
+    # dwell == 1 (one frame per look), 3 magnitude-summed looks per dump.
+    a = Acquisition(
+        CODE,
+        sf=SF,
+        spc=SPS,
+        ny=NY,
+        pfa=PFA,
+        pd=PD,
+        min_snr=MIN_SNR_D1,
+        n_noncoh=3,
+    )
+    assert a.dwell == 1 and a.n_noncoh == 3
+    stream = _stream(rng, l_pre=0, sigma=_sigma(SNR_DB), with_payload=False)
+    true_n, fa_n = _split(_collect(a, rng, stream), CODE_PHASE)
+    assert true_n >= 1  # the burst is found through the order-3 gate
+    assert fa_n <= 1  # at most a single boundary straddle
+
+
+def test_noncoherent_empirical_pfa():
+    """Noise-only through the N_nc>1 gate stays within the Pfa budget."""
+    rng = np.random.default_rng(99)
+    a = Acquisition(
+        CODE,
+        sf=SF,
+        spc=SPS,
+        ny=NY,
+        pfa=PFA,
+        pd=PD,
+        min_snr=MIN_SNR_D1,
+        n_noncoh=3,
+    )
+    # ~200 non-coherent dumps of pure noise; expected FA ~ 200 * PFA = 0.2.
+    noise = _awgn(rng, a.n_noncoh * 200 * N, _sigma(SNR_DB))
+    fa = len(_collect(a, rng, noise.astype(np.complex64)))
+    assert fa <= 4  # generous bound on a ~0.2-expectation Poisson

@@ -174,6 +174,107 @@ def det_snr(dwell: int, pd_min: float, pfa: float) -> float:
 
     """
 
+def det_threshold_noncoherent(pfa: float, n_noncoh: int) -> float:
+    """CFAR threshold eta_nc for a non-coherent detector of n_noncoh looks.
+
+    Solves marcum_q(n_noncoh, 0, eta_nc) = pfa (the order-M central tail,
+    monotone decreasing in eta_nc) by bisection. For n_noncoh = 1 this is
+    the exact closed form sqrt(-2 ln pfa) (== det_threshold).
+
+    Parameters
+    ----------
+    pfa : float
+        Per-test false-alarm probability in (0, 1).
+    n_noncoh : int
+        Number of non-coherent looks; must be >= 1.
+
+    Returns
+    -------
+    float
+        Threshold eta_nc on the normalized statistic R.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_threshold_noncoherent, det_threshold
+    >>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
+    5.111
+    >>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)
+    True
+
+    """
+
+def det_pd_noncoherent(snr: float, n_coh: int, n_noncoh: int, threshold: float) -> float:
+    """Detection probability for n_noncoh non-coherent looks.
+
+    Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality a =
+    sqrt(2 * n_coh * n_noncoh) * snr. At n_noncoh = 1 this is exactly
+    det_pd(snr, n_coh, threshold); at snr = 0 it returns the per-test Pfa.
+
+    Parameters
+    ----------
+    snr : float
+        Per-sample amplitude SNR (signal / noise amplitude).
+    n_coh : int
+        Coherent integration length in samples (dwell * N).
+    n_noncoh : int
+        Number of non-coherent looks; must be >= 1.
+    threshold : float
+        Threshold eta_nc, e.g. from det_threshold_noncoherent().
+
+    Returns
+    -------
+    float
+        Detection probability in &#91;0, 1&#93;.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold
+    >>> from doppler.detection import det_threshold_noncoherent
+    >>> eta = det_threshold(pfa=1e-6)
+    >>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
+    ...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent
+    True
+    >>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
+    >>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
+    0.19
+
+    """
+
+def det_n_noncoh(snr: float, n_coh: int, pd_min: float, pfa: float, max_n_noncoh: int) -> int:
+    """Minimum non-coherent looks achieving Pd >= pd_min at fixed n_coh.
+
+    Iterates n_noncoh = 1, 2, ..., max_n_noncoh, recomputing the threshold
+    (det_threshold_noncoherent, which grows with the look count) at each
+    step. Returns the first look count that meets the Pd requirement, or -1
+    if none does within max_n_noncoh. Used by the acquisition engine's (M,
+    N_nc) split.
+
+    Parameters
+    ----------
+    snr : float
+        Per-sample amplitude SNR (linear).
+    n_coh : int
+        Coherent integration length in samples (dwell * N).
+    pd_min : float
+        Required detection probability, e.g. 0.9.
+    pfa : float
+        Per-test false-alarm probability.
+    max_n_noncoh : int
+        Search upper bound on the look count.
+
+    Returns
+    -------
+    int
+        Minimum n_noncoh >= 1, or -1 if not achievable.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_n_noncoh
+    >>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
+    1
+
+    """
+
 def det_threshold_power(pfa: float) -> float:
     """Power threshold p from Pfa for the power detector.
 

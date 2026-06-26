@@ -163,6 +163,7 @@ nav:
       - Symbol Timing Recovery: gallery/symsync.md
       - Costas Loop (theory): gallery/costas-theory.md
       - Timing Loop (theory): gallery/symsync-theory.md
+      - DLL Code Loop (theory): gallery/dll-theory.md
   - Examples:
       - Examples: examples/index.md
       - C: examples/c.md

@@ -287,11 +287,13 @@ precomputed and stored) → `R = IFFT(P)`. Two halves with very different freedo
     `1024`). Canonical DSSS lengths are **`2ⁿ−1`** (127, 511, 1023, 2047 …), all
     large-prime, so **no `spc` makes the forward friendly**.
 
-So the IFFT-padding (a clean baseline kernel feature) removes ~half the unfriendly
-work plus the inverse's per-call malloc and adds free resolution; the remaining
-forward `FFT_nx(signal)` at the prime period is what only **P2 sub-block chopping**
-fixes — it makes the *forward* lengths (sub-block size and `ny·K`) free, smooth,
-pre-allocated, SIMD. Together: both transforms friendly + interpolated.
+So the IFFT-padding (a clean baseline kernel feature — specced in
+[Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md)) removes ~half the
+unfriendly work plus the inverse's per-call malloc and adds free resolution; the
+remaining forward `FFT_nx(signal)` at the prime period is what only **P2 sub-block
+chopping** fixes — it makes the *forward* lengths (sub-block size and `ny·K`)
+free, smooth, pre-allocated, SIMD. Together: both transforms friendly +
+interpolated.
 
 The real-time consequence is load-bearing, not a footnote: the worked case needs
 `fs = 2 MSa/s` **per coarse channel**, so one core sustains `~16` channels and a

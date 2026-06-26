@@ -216,6 +216,7 @@ nav:
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
       - DSSS Acquisition: design/dsss-acquisition.md
+      - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
       - Streaming Roadmap: design/streaming-roadmap.md

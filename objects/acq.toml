@@ -65,8 +65,7 @@ default = "64"
 name = "push"
 arg_type = "float _Complex"
 return_type = "acq_result_t"
-# GIL release is hand-patched in dsss_ext_acq.c: jm 0.19.33 does not emit
-# nogil for the max_results/result_fields push path (same gap as detector2d).
+nogil = true
 max_results = 64
 result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "snr_est", type = "float"}]
 

@@ -191,3 +191,78 @@ class Costas:
     def __enter__(self) -> "Costas": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class Dll:
+    """Create a DLL instance (COPIES @p code).
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        code constructor parameter.
+    sps : int, default 2
+        sps constructor parameter.
+    init_chip : float, default 0.0
+        init_chip constructor parameter.
+    bn : float, default 0.01
+        bn constructor parameter.
+    zeta : float, default 0.707
+        zeta constructor parameter.
+    spacing : float, default 0.5
+        spacing constructor parameter.
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) discriminator each code period, steer the code NCO, and emit one prompt symbol per period.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the loop to the create-time code phase; preserve config.
+        """
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def code_phase(self) -> float:
+        """Code phase."""
+
+    @property
+    def code_rate(self) -> float:
+        """Code rate."""
+
+    @property
+    def last_error(self) -> float:
+        """Last error."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Dll": ...
+
+    def __exit__(self, *args: object) -> None: ...

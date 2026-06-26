@@ -101,6 +101,8 @@ extern "C" {
 
 #include "costas/costas_core.h"
 
+#include "dll/dll_core.h"
+
 #include "despreader/despreader_core.h"
 
 #ifdef __cplusplus

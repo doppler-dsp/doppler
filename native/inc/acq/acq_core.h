@@ -84,21 +84,27 @@ typedef struct {
   float complex *out_buf; /**< corr2d dump output (ny*nx).                   */
   float *mag_buf;         /**< |out_buf| (ny*nx).                            */
   float *noise_scratch;   /**< Scratch for the median sort (ny*nx).          */
+  float *nc_surface;      /**< Non-coherent |·|² accumulator (ny*nx); NULL
+                               unless n_noncoh > 1.                          */
 
   size_t ny;        /**< Slow-time segments = Doppler search bins.           */
   size_t nx;        /**< One segment in samples = sf*spc = code-phase bins.  */
   size_t n;         /**< ny * nx — frame size in samples.                    */
   size_t sf;        /**< Chips per PN segment.                               */
   size_t spc;       /**< Samples per chip (chip-rate oversample factor).     */
-  size_t dwell;     /**< Frames coherently integrated per CFAR dump.         */
-  size_t max_dwell; /**< Search cap used by the auto-config.                 */
+  size_t dwell;      /**< Frames coherently integrated per CFAR dump.        */
+  size_t max_dwell;  /**< Coherent-dwell search cap (the T_coh ceiling).     */
+  size_t n_noncoh;   /**< Non-coherent looks per dump (1 = pure coherent).   */
+  size_t max_noncoh; /**< Cap on the auto-split non-coherent look count.     */
+  size_t nc_count;   /**< Coherent dumps in the current look (0…n_noncoh-1). */
   size_t ring_cap;  /**< Ring capacity in complex samples.                   */
   size_t noise_lo;  /**< First CFAR reference bin (inclusive).               */
   size_t noise_hi;  /**< Last CFAR reference bin (inclusive).                */
   det_noise_mode_t noise_mode; /**< CFAR aggregation mode.                   */
 
-  float threshold;     /**< CFAR gate on test_stat (theta).                  */
+  float threshold;     /**< CFAR gate on test_stat (theta); coherent path.   */
   float eta;           /**< Raw per-cell Rayleigh amplitude threshold.       */
+  float eta_nc;        /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
   double pfa_cell;     /**< Bonferroni per-cell false-alarm probability.     */
   double pd_predicted; /**< Predicted Pd at min_snr and the chosen dwell.    */
 
@@ -127,11 +133,19 @@ typedef struct {
  * @param min_snr     Expected per-sample amplitude SNR (linear, > 0).
  * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
  * @param max_dwell   Upper bound on the coherent dwell search (frames).
+ * @param n_noncoh    Non-coherent look override: 0 = auto-split, k>0 forces k
+ *                    magnitude-summed looks per CFAR dump.  Auto-split grows the
+ *                    coherent dwell to @p max_dwell first, then adds looks (up to
+ *                    @p max_noncoh) to close the Pd gap.  N_nc = 1 is the pure-
+ *                    coherent path (unchanged amplitude CFAR).
+ * @param max_noncoh  Cap on the auto-split look count (>= 1; default 1 disables
+ *                    non-coherent integration).
  * @return Heap-allocated state, or NULL on bad arguments / allocation failure.
  */
 acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t sf,
                          size_t spc, size_t ny, double pfa, double pd,
-                         double min_snr, int noise_mode, size_t max_dwell);
+                         double min_snr, int noise_mode, size_t max_dwell,
+                         size_t n_noncoh, size_t max_noncoh);
 
 /** @brief Destroy and free an engine.  @param state May be NULL. */
 void acq_destroy (acq_state_t *state);

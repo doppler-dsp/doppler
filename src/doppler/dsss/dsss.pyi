@@ -155,9 +155,13 @@ class Acquisition:
         noise_mode constructor parameter.
     max_dwell : int, default 64
         max_dwell constructor parameter.
+    n_noncoh : int, default 0
+        n_noncoh constructor parameter.
+    max_noncoh : int, default 1
+        max_noncoh constructor parameter.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., spc: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., spc: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ..., n_noncoh: int = ..., max_noncoh: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -211,6 +215,14 @@ class Acquisition:
         """Max dwell."""
 
     @property
+    def n_noncoh(self) -> int:
+        """N noncoh."""
+
+    @property
+    def max_noncoh(self) -> int:
+        """Max noncoh."""
+
+    @property
     def ring_cap(self) -> int:
         """Ring cap."""
 
@@ -229,6 +241,10 @@ class Acquisition:
     @property
     def eta(self) -> float:
         """Eta."""
+
+    @property
+    def eta_nc(self) -> float:
+        """Eta nc."""
 
     @property
     def pfa_cell(self) -> float:

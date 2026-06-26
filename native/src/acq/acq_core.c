@@ -53,29 +53,95 @@ _compute_stat (acq_state_t *st)
       = (st->noise_est > 0.0f) ? (st->peak_mag / st->noise_est) : 0.0f;
 }
 
-/* Bonferroni threshold + minimum dwell from the (pfa, pd) target. */
+/* Non-coherent CFAR: peak + normalized order-N_nc statistic from nc_surface
+ * (the per-cell sum of |dump|^2 over n_noncoh coherent looks).
+ *
+ * Under H0 each look's |z|^2 = sigma^2 * chi2(2)/2, so nc_surface ~
+ * (sigma^2/2)*chi2(2*n_noncoh).  Estimating the per-look power sigma^2 from
+ * the mean reference-cell power (noise_pow / n_noncoh), the normalized
+ * statistic R = sqrt(2 * n_noncoh * peak / noise_pow) has P(R > b) =
+ * marcum_q(n_noncoh, 0, b) under H0 — exactly the order-N_nc threshold eta_nc.
+ * Validated against Monte-Carlo to <1% (det_pd_noncoherent tests). */
 static void
-_auto_config (acq_state_t *st, double pfa, double pd, double min_snr)
+_compute_stat_nc (acq_state_t *st)
+{
+  const size_t n = st->n;
+
+  size_t peak = 0;
+  for (size_t k = 1; k < n; k++)
+    if (st->nc_surface[k] > st->nc_surface[peak])
+      peak = k;
+
+  st->peak_row = peak / st->nx;
+  st->peak_col = peak % st->nx;
+  st->peak_mag = sqrtf (st->nc_surface[peak]);
+
+  float noise_pow
+      = _noise_estimate (st->nc_surface, st->noise_lo, st->noise_hi,
+                         st->noise_scratch, st->noise_mode);
+  st->noise_est = sqrtf (noise_pow);
+  st->test_stat = (noise_pow > 0.0f)
+                      ? sqrtf (2.0f * (float)st->n_noncoh
+                               * st->nc_surface[peak] / noise_pow)
+                      : 0.0f;
+}
+
+/* Bonferroni threshold, coherent dwell, and the (M, N_nc) split from the
+ * (pfa, pd) target.  override_noncoh > 0 pins the look count; 0 = auto-split.
+ */
+static void
+_auto_config (acq_state_t *st, double pfa, double pd, double min_snr,
+              size_t override_noncoh)
 {
   const double N = (double)st->n;
 
-  st->pfa_cell  = 1.0 - pow (1.0 - pfa, 1.0 / N);
-  st->eta       = (float)det_threshold (st->pfa_cell);
-  st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
+  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / N);
+  st->eta      = (float)det_threshold (st->pfa_cell);
 
-  /* Smallest dwell (frames) whose dwell*n coherent samples meet Pd at min_snr.
-   * det_pd's dwell argument is the model integration length in samples. */
-  size_t d = st->max_dwell;
+  /* Coherent dwell: smallest dwell (frames) whose dwell*n coherent samples
+   * meet Pd alone, capped at max_dwell (the T_coh ceiling). */
+  size_t d         = st->max_dwell;
+  int    coh_meets = 0;
   for (size_t cand = 1; cand <= st->max_dwell; cand++)
+    if (det_pd (min_snr, (int)(cand * st->n), st->eta) >= pd)
+      {
+        d         = cand;
+        coh_meets = 1;
+        break;
+      }
+  st->dwell = d;
+
+  /* Non-coherent looks: override wins; else 1 when coherent already meets Pd;
+   * else grow looks at the dwell ceiling (up to max_noncoh) to close the gap.
+   */
+  size_t nc;
+  if (override_noncoh > 0)
+    nc = override_noncoh;
+  else if (coh_meets)
+    nc = 1;
+  else
     {
-      if (det_pd (min_snr, (int)(cand * st->n), st->eta) >= pd)
-        {
-          d = cand;
-          break;
-        }
+      int k = det_n_noncoh (min_snr, (int)(st->dwell * st->n), pd,
+                            st->pfa_cell, (int)st->max_noncoh);
+      nc    = (k > 0) ? (size_t)k
+                      : st->max_noncoh; /* best effort if infeasible */
     }
-  st->dwell        = d;
-  st->pd_predicted = det_pd (min_snr, (int)(st->dwell * st->n), st->eta);
+  st->n_noncoh = nc;
+
+  if (nc > 1)
+    {
+      double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
+      st->eta_nc    = (float)e;
+      st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
+      st->pd_predicted
+          = det_pd_noncoherent (min_snr, (int)(st->dwell * st->n), (int)nc, e);
+    }
+  else
+    {
+      st->eta_nc       = 0.0f;
+      st->threshold    = st->eta * ACQ_SQRT_2_OVER_PI;
+      st->pd_predicted = det_pd (min_snr, (int)(st->dwell * st->n), st->eta);
+    }
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -83,10 +149,14 @@ _auto_config (acq_state_t *st, double pfa, double pd, double min_snr)
 acq_state_t *
 acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
             size_t ny, double pfa, double pd, double min_snr, int noise_mode,
-            size_t max_dwell)
+            size_t max_dwell, size_t n_noncoh, size_t max_noncoh)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
-   * MemoryError) rather than undefined behaviour downstream. */
+   * MemoryError) rather than undefined behaviour downstream.  max_noncoh
+   * defaults to 1 (no non-coherent integration); an override of 0 means auto.
+   */
+  if (max_noncoh < 1)
+    max_noncoh = 1;
   if (!code || code_len != sf || sf < 1 || spc < 1 || ny < 1 || max_dwell < 1
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
       || !(min_snr > 0.0))
@@ -102,11 +172,12 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
   st->nx         = sf * spc;
   st->n          = ny * st->nx;
   st->max_dwell  = max_dwell;
+  st->max_noncoh = max_noncoh;
   st->noise_mode = (det_noise_mode_t)noise_mode;
   st->noise_lo   = 0;
   st->noise_hi   = st->n - 1;
 
-  _auto_config (st, pfa, pd, min_snr);
+  _auto_config (st, pfa, pd, min_snr, n_noncoh);
 
   const size_t n = st->n;
 
@@ -145,6 +216,14 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
       || !st->noise_scratch)
     goto fail;
 
+  /* Non-coherent power accumulator — only on the N_nc > 1 path. */
+  if (st->n_noncoh > 1)
+    {
+      st->nc_surface = (float *)calloc (n, sizeof (float));
+      if (!st->nc_surface)
+        goto fail;
+    }
+
   return st;
 
 fail:
@@ -170,6 +249,7 @@ acq_destroy (acq_state_t *st)
   free (st->colout);
   free (st->mag_buf);
   free (st->noise_scratch);
+  free (st->nc_surface);
   free (st);
 }
 
@@ -179,6 +259,9 @@ acq_reset (acq_state_t *st)
   DP_STORE_REL (&st->ring->head, 0);
   DP_STORE_REL (&st->ring->tail, 0);
   corr2d_reset (st->corr);
+  if (st->nc_surface)
+    memset (st->nc_surface, 0, st->n * sizeof (float));
+  st->nc_count = 0;
   st->peak_row = st->peak_col = 0;
   st->peak_mag = st->noise_est = st->test_stat = 0.0f;
 }
@@ -235,18 +318,46 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
 
           size_t n_out = corr2d_execute (st->corr, st->yframe, n, st->out_buf);
           if (n_out == 0)
-            continue; /* mid-dwell — accumulating, no dump yet */
+            continue; /* mid-dwell — coherent accumulation, no dump yet */
 
-          _compute_stat (st);
-
-          if (st->test_stat > st->threshold)
+          if (st->n_noncoh <= 1)
             {
-              float snr_est = st->test_stat / ACQ_SQRT_2_OVER_PI
-                              / sqrtf (2.0f * (float)(st->dwell * n));
+              /* Coherent path (unchanged): amplitude mean-CFAR per dump. */
+              _compute_stat (st);
+              if (st->test_stat > st->threshold)
+                {
+                  float snr_est = st->test_stat / ACQ_SQRT_2_OVER_PI
+                                  / sqrtf (2.0f * (float)(st->dwell * n));
+                  result[ndet++]
+                      = (acq_result_t){ st->peak_row,  st->peak_col,
+                                        st->peak_mag,  st->noise_est,
+                                        st->test_stat, snr_est };
+                }
+              continue;
+            }
+
+          /* Non-coherent path: magnitude-square accumulate each coherent look;
+           * gate the order-N_nc statistic once n_noncoh looks are in. */
+          for (size_t k = 0; k < n; k++)
+            {
+              float m = cabsf (st->out_buf[k]);
+              st->nc_surface[k] += m * m;
+            }
+          if (++st->nc_count < st->n_noncoh)
+            continue; /* still accumulating looks */
+
+          _compute_stat_nc (st);
+          if (st->test_stat > st->eta_nc)
+            {
+              float snr_est = st->test_stat
+                              / sqrtf (2.0f * (float)(st->dwell * n)
+                                       * (float)st->n_noncoh);
               result[ndet++]
                   = (acq_result_t){ st->peak_row,  st->peak_col,  st->peak_mag,
                                     st->noise_est, st->test_stat, snr_est };
             }
+          memset (st->nc_surface, 0, n * sizeof (float));
+          st->nc_count = 0;
         }
 
       if (to_write == 0)

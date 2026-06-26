@@ -45,17 +45,19 @@ CostasObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 CostasObj_init (CostasObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "bn", "zeta", "init_norm_freq", "tsamps", NULL };
-  double       bn       = 0.05;
-  double       zeta     = 0.707;
-  double       init_norm_freq   = 0.0;
-  unsigned long long tsamps_raw = 64;
+  static char *kwlist[]
+      = { "bn", "zeta", "init_norm_freq", "tsamps", "bn_fll", NULL };
+  double             bn             = 0.05;
+  double             zeta           = 0.707;
+  double             init_norm_freq = 0.0;
+  unsigned long long tsamps_raw     = 64;
+  double             bn_fll         = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dddK", kwlist, &bn, &zeta,
-                                    &init_norm_freq, &tsamps_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|dddKd", kwlist, &bn, &zeta,
+                                    &init_norm_freq, &tsamps_raw, &bn_fll))
     return -1;
   size_t tsamps = (size_t)tsamps_raw;
-  self->handle  = costas_create (bn, zeta, init_norm_freq, tsamps);
+  self->handle  = costas_create (bn, zeta, init_norm_freq, tsamps, bn_fll);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "costas_create returned NULL");
@@ -250,6 +252,32 @@ Costas_getprop_last_error (CostasObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (costas_get_last_error (self->handle));
 }
+static PyObject *
+Costas_getprop_bn_fll (CostasObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (costas_get_bn_fll (self->handle));
+}
+static int
+Costas_setprop_bn_fll (CostasObject *self, PyObject *value,
+                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  double v = 0.0;
+  if (!PyArg_Parse (value, "d", &v))
+    return -1;
+  costas_set_bn_fll (self->handle, v);
+  return 0;
+}
 
 static PyGetSetDef Costas_getset[]
     = { { "bn", (getter)Costas_getprop_bn, (setter)Costas_setprop_bn, "Bn.\n",
@@ -260,6 +288,8 @@ static PyGetSetDef Costas_getset[]
           "Lock metric.\n", NULL },
         { "last_error", (getter)Costas_getprop_last_error, NULL,
           "Last error.\n", NULL },
+        { "bn_fll", (getter)Costas_getprop_bn_fll,
+          (setter)Costas_setprop_bn_fll, "Bn fll.\n", NULL },
         { NULL } };
 
 static PyObject *
@@ -303,7 +333,7 @@ static PyMethodDef CostasObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Costas\n"
-    "    >>> obj = Costas(0.05, 0.707, 0.0, 64)\n"
+    "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -316,7 +346,7 @@ static PyMethodDef CostasObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Costas\n"
-    "    >>> obj = Costas(0.05, 0.707, 0.0, 64)\n"
+    "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
   { "reset", (PyCFunction)CostasObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -324,7 +354,7 @@ static PyMethodDef CostasObj_methods[] = {
     "Re-seed the loop to the create-time frequency/phase; preserve config.\n"
     "\n"
     "    >>> from doppler import Costas\n"
-    "    >>> obj = Costas(0.05, 0.707, 0.0, 64)\n"
+    "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
     "    >>> obj.reset()\n" },
   { "destroy", (PyCFunction)CostasObj_destroy, METH_NOARGS,
     "Release resources." },

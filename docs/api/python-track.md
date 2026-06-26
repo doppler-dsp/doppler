@@ -69,13 +69,21 @@ than the per-symbol integration bandwidth must be removed upstream, not by the
 loop. Because the steering NCO is integer-phase, the carrier phase is bounded and
 exactly reproducible (no `double`-accumulator drift).
 
-See the [carrier loop stress gallery page](../gallery/costas.md) for its pull-in
-and tracking behaviour vs loop bandwidth.
+**FLL assist.** Setting `bn_fll > 0` enables a frequency-lock-loop assist: a
+data-wiped cross-product frequency discriminator over consecutive prompts whose
+linear range is far wider than the phase discriminator's. It pulls the loop's
+frequency integrator onto a large or fast-moving residual the bare PLL cannot
+acquire, then the PLL refines phase (an FLL-assisted PLL). `bn_fll = 0` (the
+default) is a pure Costas PLL.
+
+See the [carrier loop stress gallery page](../gallery/costas.md) for the bare
+PLL stalling on a large residual while the FLL assist pulls it in.
 
 ```python
 from doppler.track import Costas
 
-c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16)
+# bn_fll > 0 adds the FLL assist for large/fast-moving residuals
+c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.03)
 symbols = c.steps(rx)        # one complex prompt symbol per tsamps samples
 f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
 locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked

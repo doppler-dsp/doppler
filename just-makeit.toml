@@ -1444,4 +1444,4 @@ values = ["le", "be"]
 objects = ["loop_filter", "costas", "dll", "channel", "symsync"]
 
 [module.dsss]
-objects = ["despreader"]
+objects = ["despreader", "acq"]

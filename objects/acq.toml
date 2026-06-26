@@ -1,0 +1,139 @@
+[acq]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Acquirer"
+# OBJECT-library object files do not propagate transitively through corr2d, so
+# fft2d/fft must be linked explicitly (as the spectral module does) for the
+# slow-time fft_create + corr2d FFTs. detection_core supplies det_threshold/
+# det_pd for the auto-config. det_private.h / the detector2d header are
+# header-only (statics + the enum) → no link line needed for them.
+depends_on = [
+    { name = "corr2d", link = true },
+    { name = "fft2d", link = true },
+    { name = "fft", link = true },
+    { name = "detection", link = true },
+]
+
+[[acq.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[acq.init_params]]
+name = "sf"
+type = "size_t"
+default = "1"
+
+[[acq.init_params]]
+name = "sps"
+type = "size_t"
+default = "1"
+
+[[acq.init_params]]
+name = "ny"
+type = "size_t"
+default = "16"
+
+[[acq.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[acq.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[acq.init_params]]
+name = "min_snr"
+type = "double"
+default = "0.1"
+
+[[acq.init_params]]
+name = "noise_mode"
+type = "string_enum:mean,median,min,max"
+default = "mean"
+
+[[acq.init_params]]
+name = "max_dwell"
+type = "size_t"
+default = "64"
+
+[[acq.methods]]
+name = "push"
+arg_type = "float _Complex"
+return_type = "acq_result_t"
+max_results = 64
+result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "snr_est", type = "float"}]
+
+[[acq.properties]]
+name = "ny"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "nx"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "n"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "sf"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "sps"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "dwell"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "max_dwell"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "ring_cap"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "noise_lo"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "noise_hi"
+type = "size_t"
+field = true
+
+[[acq.properties]]
+name = "threshold"
+type = "float"
+field = true
+
+[[acq.properties]]
+name = "eta"
+type = "float"
+field = true
+
+[[acq.properties]]
+name = "pfa_cell"
+type = "double"
+field = true
+
+[[acq.properties]]
+name = "pd_predicted"
+type = "double"
+field = true

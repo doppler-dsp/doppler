@@ -111,6 +111,8 @@ extern "C" {
 
 #include "despreader/despreader_core.h"
 
+#include "acq/acq_core.h"
+
 #ifdef __cplusplus
 }
 #endif

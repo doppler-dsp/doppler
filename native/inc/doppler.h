@@ -103,6 +103,8 @@ extern "C" {
 
 #include "dll/dll_core.h"
 
+#include "channel/channel_core.h"
+
 #include "despreader/despreader_core.h"
 
 #ifdef __cplusplus

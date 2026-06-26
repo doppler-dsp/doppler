@@ -49,11 +49,15 @@ ______________________________________________________________________
 | **Δf narrow** | `Acquisition`, `ny`=few                                  | `Acquisition` alone (fine + gain)                                                                |
 | **Δf wide**   | **2-D roll** (one op, all bins) + non-coherent over reps | 2-D-roll *coarse* **or** mixer-tile, then column-FFT *fine*; pick by channel-count vs one 2-D op |
 
-The cost asymmetry that decides the wide-Δf row: a 2-D roll sweeps all `~Δf/(1/T_epoch)`
-Doppler bins from **one** epoch, so it is **~`ny`× cheaper** than a mixer bank
-that runs `~Δf/(1/T_epoch)` channels each integrating `ny` epochs — at the price
-of one epoch's gain and `1/nx` (coarse) resolution. So: **roll when SNR lets one
-epoch acquire; column-FFT/mixer when you must buy the coherent gain.**
+The cost asymmetry that decides the wide-Δf row: a 2-D roll sweeps all
+`~Δf/(1/T_epoch)` Doppler bins from **one** epoch, whereas the fine mixer bank
+runs that many channels, each a `Corr2D` tile **integrating `ny` epochs and
+resolving `ny`× finer bins**. So the bank costs roughly `ny`× more *per Doppler
+window* — and measurably more once the finer bin count is included: **≈40×** on a
+`16×2046` (`ny=16`) grid, **≈10×** on a `5×4094` (`ny=5`) grid — the factor
+tracks `ny` (`bench_widedoppler.py`). The roll pays for it with one epoch's
+gain and `1/nx` (coarse) resolution. So: **roll when SNR lets one epoch acquire;
+column-FFT/mixer when you must buy the coherent gain.**
 
 ______________________________________________________________________
 
@@ -106,10 +110,10 @@ the payload.
 
 **Approach — speed-driven (latency-bound, wide Δf, few reps):**
 
-- **2-D roll is the fit:** one `Corr2D` 2-D op per epoch sweeps **all ~49 Doppler
-    bins** at the coarse `1/nx` (2.44 kHz) resolution — **~`ny`× cheaper** than
-    running ~98 mixer channels each integrating 5 epochs, which a 2-ms latency
-    budget cannot afford serially.
+- **2-D roll is the fit:** one 2-D op per epoch sweeps **all ~49 Doppler bins**
+    at the coarse `1/nx` (2.44 kHz) resolution — **≈10× cheaper** on this `5×4094`
+    grid (`bench_widedoppler.py`) than running ~98 fine mixer channels each
+    integrating 5 epochs, which a 2-ms latency budget cannot afford serially.
 - **Refine only if needed:** if the despreader's pull-in can't swallow a 2.44 kHz
     residual, column-FFT over the 5 reps **within** the winning coarse bin (one
     channel) for the fine `1/(5·T_epoch)` ≈ 490 Hz Doppler.
@@ -126,18 +130,21 @@ ______________________________________________________________________
 
 For a Doppler span `Δf` requiring `C = Δf / (1/T_epoch)` native windows:
 
-- **Mixer + column-FFT:** `C` channels × `ny`-epoch tiles ≈ `C · ny` 2-D
-    correlations — fine resolution, full coherent gain, but `C·ny` FFT2 work.
-- **2-D roll:** `C` Doppler bins from **one** epoch ≈ `C` inverse FFTs over the
-    single forward — coarse resolution, one epoch's gain, **~`ny`× less work**.
+- **Mixer + column-FFT:** `C` channels, each a `Corr2D(ny, nx)` tile — `C·ny`
+    **fine** bins, full `10·log10(ny·N)` coherent gain, but a 2-D FFT over `ny`
+    epochs per channel.
+- **2-D roll:** `C` **coarse** bins from **one** epoch — one forward `FFT_nx`
+    shared across `C` inverse `FFT_nx` — one epoch's gain, `1/nx` resolution.
 
-So the choice is gain vs speed at fixed span: spend `ny` epochs of compute to buy
-`10·log10(ny)` of coherent gain (UC1, sensitivity-bound), or take the one-epoch
-roll when the SNR already supports a single-epoch detection (UC2, latency-bound).
-The non-coherent layer (P1) is what extends UC1's reach when the coherent ceiling
-is the data bit. Measured throughput for each method on a common grid lives in
-the validating benchmark (`bench_acq.py` / a wide-Doppler bench); see
-[Benchmarking](benchmarking.md).
+Measured (`bench_widedoppler.py`): the fine bank is **≈40×** the roll on the GPS
+`16×2046` grid (`C=79`) and **≈10×** on the burst `5×4094` grid (`C=49`) — it
+pays for `ny`× finer bins *and* `ny` epochs of integration, so the gap grows with
+`ny`. So the
+choice is gain vs speed at fixed span: spend the compute (and `ny` epochs of
+latency) to buy `10·log10(ny)` of coherent gain (UC1, sensitivity-bound), or take
+the one-epoch roll when the SNR already supports a single-epoch detection (UC2,
+latency-bound). The non-coherent layer (P1) extends UC1's reach when the coherent
+ceiling is the data bit. See [Benchmarking](benchmarking.md).
 
 ______________________________________________________________________
 

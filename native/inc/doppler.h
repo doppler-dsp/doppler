@@ -91,6 +91,8 @@ extern "C" {
 
 #include "RateConverter/RateConverter_core.h"
 
+#include "farrow/farrow_core.h"
+
 #include "agc/agc_core.h"
 
 #include "acc_q15/acc_q15_core.h"

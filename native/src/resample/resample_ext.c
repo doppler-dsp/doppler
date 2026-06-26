@@ -1,7 +1,7 @@
 /*
  * resample_ext.c — Python extension module resample
  *
- * Objects: Resampler, HalfbandDecimator, CIC, RateConverter
+ * Objects: Resampler, HalfbandDecimator, CIC, RateConverter, Farrow
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -17,6 +17,7 @@
 #include "resample_ext_HalfbandDecimator.c"
 #include "resample_ext_cic.c"
 #include "resample_ext_RateConverter.c"
+#include "resample_ext_farrow.c"
 #include "resample_ext_extra.c"  /* hand-written — jm never modifies */
 
 static PyObject *
@@ -95,6 +96,7 @@ PyInit_resample(void)
     if (PyType_Ready(&HalfbandDecimatorObjType) < 0) return NULL;
     if (PyType_Ready(&CICObjType) < 0) return NULL;
     if (PyType_Ready(&RateConverterObjType) < 0) return NULL;
+    if (PyType_Ready(&FarrowObjType) < 0) return NULL;
     if (PyType_Ready(&HalfbandDecimatorDpType) < 0) return NULL;
     if (PyType_Ready(&HalfbandDecimatorR2CType) < 0) return NULL;
     PyObject *m = PyModule_Create(&resample_moduledef);
@@ -114,6 +116,10 @@ PyInit_resample(void)
     Py_INCREF(&RateConverterObjType);
     if (PyModule_AddObject(m, "RateConverter", (PyObject *)&RateConverterObjType) < 0) {
         Py_DECREF(&RateConverterObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&FarrowObjType);
+    if (PyModule_AddObject(m, "Farrow", (PyObject *)&FarrowObjType) < 0) {
+        Py_DECREF(&FarrowObjType); Py_DECREF(m); return NULL;
     }
     Py_INCREF(&HalfbandDecimatorDpType);
     if (PyModule_AddObject(m, "HalfbandDecimatorDp", (PyObject *)&HalfbandDecimatorDpType) < 0) {

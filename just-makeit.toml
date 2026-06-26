@@ -1015,7 +1015,7 @@ objects = ["specan"]
 extra_link_libs = ["m"]
 
 [module.resample]
-objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter"]
+objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
 # Composed cores reach the resample .so via per-object depends_on link=true
 # (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c

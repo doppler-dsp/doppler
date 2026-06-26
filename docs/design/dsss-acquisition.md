@@ -249,7 +249,11 @@ today; the C ABI is the parallel substrate regardless).
 **Compute model — measured** (`L=1023`, `spc=2` → `nx≈2046`, `ny=10`,
 `N≈20k`; 12-core x86, `bench_acq.py`). One coherent **tile** — ring write,
 slow-time FFT, single-row `corr2d`, CFAR — costs **~0.62 ms**, i.e. **~33 MSa/s
-per core**. `Acquirer.push` releases the GIL, so thread-per-shard scaling is
+per core**. That cost is **almost entirely the `corr2d` 2-D FFT**: a bare
+`corr2d.execute` on the same grid is ~95–100% of the tile (`bench_corr2d.py`),
+so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
+**2-D-FFT bound** — optimization effort belongs in the transform, not the glue.
+`Acquirer.push` releases the GIL, so thread-per-shard scaling is
 **~3.4× on 8 cores, ~4.9× on 12** (memory-bandwidth bound past a few cores, like
 `ddc_fn`) → **~240 MSa/s aggregate** on this box. Per-shard memory is tiny
 (`accum`/`nc_surface` are `ny·nx·4 B ≈ 80–160 kB`), so thousands of shards fit in

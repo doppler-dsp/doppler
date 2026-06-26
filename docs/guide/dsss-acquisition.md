@@ -100,9 +100,8 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
     With `sf=31, spc=4 → nx=124` and `ny=16`: bins are `1/1984` cycles/sample
     apart, spanning `±1/248`. Since `nx = sf·spc` and `spc ≥ 1`, the widest native
     span is `±1/(2·sf)` (at `spc=1`) — fixed by the code. To search *wider* than
-    that, precede `Acquirer` with a coarse spectral-rotation search (rolling the
-    code spectrum) and subdivide each coarse bin here — a natural extension, not
-    built in yet.
+    that, sweep a coarse Doppler grid in front of `Acquirer` — see
+    [Widening the Doppler search](#widening-the-doppler-search).
 
 ______________________________________________________________________
 
@@ -243,6 +242,80 @@ The genuine receiver / operator knobs:
 
 `ny` changes Doppler **resolution** (`1/(ny·nx)`), not span — the span is fixed
 by the waveform above.
+
+______________________________________________________________________
+
+## Widening the Doppler search
+
+The native search spans only `±1/(2·nx)` — one slow-time Nyquist, set by the code
+period. When the true Doppler exceeds that, tile the wider range with a sequence
+of **coarse Doppler hypotheses**: mix the raw stream down by each `f_coarse` and
+run `Acquirer` on the result. The engine's fine FFT then resolves the residual
+within `±1/(2·nx)`, and the absolute Doppler is `f_coarse +` the fine bin.
+
+```python
+import numpy as np
+
+fs = 2e6                                   # = spc · chip_rate
+coarse = np.arange(-100e3, 100e3, 500.0)   # coarse grid (Hz) — see step rule below
+bank = [Acquirer(code, sf=1000, spc=2, ny=10, pfa=1e-3, pd=0.9, min_snr=0.3)
+        for _ in coarse]                   # one engine per channel (own integration state)
+
+n0 = 0
+for chunk in iq_stream:                                  # any cf32 block
+    n = n0 + np.arange(len(chunk))
+    for f_coarse, acq in zip(coarse, bank):
+        mixed = (chunk * np.exp(-2j * np.pi * f_coarse / fs * n)).astype(np.complex64)
+        for dop, phase, *_rest, snr in acq.push(mixed):
+            doppler_hz = f_coarse + doppler_cps(dop, acq.ny, acq.nx) * fs
+            print(f"hit: {doppler_hz:+.0f} Hz, code phase {phase}")
+    n0 += len(chunk)
+```
+
+- **Coarse step.** Within-segment carrier rotation (`residual · code-period`
+    cycles) sinc-rolls the code correlation, so keep the residual under ~0.25 cycle
+    for \<1 dB loss. Stepping by the **full** native window (`1/nx`) abuts the tiles
+    but leaves a `±1/(2·nx)` residual at each edge — 0.5 cycle, ~4 dB down. Halving
+    the step to `1/(2·nx)` (50% overlap) drops the residual to `±1/(4·nx)`
+    (0.25 cycle, \<1 dB) at twice the channel count.
+- **Relation to the roll method.** Mixing the input is the continuous-frequency
+    dual of rolling `conj(FFT(code))` by integer bins (each bin = one native
+    window, `1/nx`); mixing just lets you choose a finer, half-window step.
+- **Cost** scales linearly with the number of coarse channels; the inner fine
+    search is unchanged.
+
+### Worked example — 1 Mcps, length-1000 code, ±100 kHz
+
+| quantity                 | value                                   |
+| ------------------------ | --------------------------------------- |
+| chip rate `Rc`           | 1 Mcps                                  |
+| code length `L` (= `sf`) | 1000 chips                              |
+| code period              | `L/Rc` = 1 ms                           |
+| segments `ny`            | 10 → 10 ms coherent integration         |
+| samples/chip `spc`       | 2 → `fs` = 2 Msps, `nx = sf·spc` = 2000 |
+
+**Fine (native) search** — the Doppler figures depend only on the waveform, not
+`spc` (it cancels):
+
+- resolution = `1 / (ny · code-period)` = `1/10 ms` = **100 Hz** ( = `fs/(ny·nx)` )
+- span = `±1 / (2 · code-period)` = **±500 Hz** (10 bins; = `±fs/(2·nx)`)
+- code-phase bins = `nx` = **2000** (half-chip, because `spc = 2`)
+
+**Reaching ±100 kHz** — that is 200× the native ±500 Hz window, so sweep a coarse
+grid (`200 kHz` total to cover):
+
+- abutting tiles: step = native window = `Rc/L` = **1 kHz** → `200 kHz / 1 kHz` =
+    **200 channels**, but the `±500 Hz` edge residual costs ~4 dB.
+- low-loss (50% overlap): step = `Rc/(2L)` = `fs/(2·nx)` = **500 Hz** →
+    `200 kHz / 500 Hz` = **400 channels**, residual `±250 Hz` (≤ 0.25 cycle, \<1 dB)
+    — this is the grid in the snippet above.
+- each channel searches a `10 × 2000` (Doppler × code-phase) surface at the native
+    **100 Hz** resolution, with full 10 ms coherent gain.
+
+So acquisition is **200–400 fine searches**, one per coarse mix — `Acquirer` runs
+the inner search and CFAR; your loop sweeps `f_coarse`. Halving the requirement
+(e.g. ±50 kHz) halves the channel count; a shorter code (smaller `L`) widens the
+native window and cuts the coarse sweep proportionally.
 
 ______________________________________________________________________
 

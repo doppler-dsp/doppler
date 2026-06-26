@@ -2,7 +2,7 @@ add_library(resample_core OBJECT resample_core.c ciccompmf.c kaiser_beta.c kaise
 target_include_directories(resample_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# resample Python module — aggregates: Resampler, HalfbandDecimator, CIC, RateConverter
+# resample Python module — aggregates: Resampler, HalfbandDecimator, CIC, RateConverter, Farrow
 Python3_add_library(resample MODULE WITH_SOABI resample_ext.c)
 target_link_libraries(resample PRIVATE
     resample_core
@@ -10,6 +10,7 @@ target_link_libraries(resample PRIVATE
     HalfbandDecimator_core
     cic_core
     RateConverter_core
+    farrow_core
     hbdecim_core
     hbdecim_r2c_core
     resamp_core

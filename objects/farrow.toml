@@ -1,0 +1,32 @@
+[farrow]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "true"
+no_state = "true"
+no_step = "true"
+class_name = "Farrow"
+
+[[farrow.init_params]]
+name = "order"
+type = "string_enum:linear,parabolic,cubic"
+default = "cubic"
+
+[[farrow.methods]]
+name = "delay"
+doc = "Apply a constant fractional delay of `mu` samples to a cf32 block via the Farrow interpolator; output[i] is the input interpolated at i - group_delay + mu. The first group_delay samples are filling-transient."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }, { name = "mu", type = "double" }]
+
+[[farrow.methods]]
+name = "reset"
+doc = "Clear the interpolator delay line."
+arg_type = "void"
+return_type = "void"
+
+[[farrow.properties]]
+name = "group_delay"
+type = "size_t"

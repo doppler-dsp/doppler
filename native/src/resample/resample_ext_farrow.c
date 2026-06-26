@@ -1,0 +1,261 @@
+/*
+ * resample_ext_farrow.c — Farrow type for the resample module.
+ *
+ * Included by resample_ext.c (the module aggregator).
+ * Hand-patches to this file are preserved across jm commands.
+ * Do NOT compile this file directly — only resample_ext.c is compiled.
+ */
+/* ======================================================== */
+/* FarrowObject — wraps farrow_state_t *       */
+/* ======================================================== */
+
+#include "farrow/farrow_core.h"
+
+typedef struct
+{
+  PyObject_HEAD farrow_state_t *handle;
+  float complex *_delay_buf;     /* pre-allocated output for delay */
+  size_t         _delay_buf_cap; /* allocated capacity for delay */
+  void         **_delay_retired; /* gh-219 deferred free */
+  size_t         _delay_retired_n;
+  size_t         _delay_retired_cap;
+} FarrowObject;
+
+static void
+FarrowObj_dealloc (FarrowObject *self)
+{
+  if (self->handle)
+    farrow_destroy (self->handle);
+  free (self->_delay_buf);
+  for (size_t _i = 0; _i < self->_delay_retired_n; _i++)
+    free (self->_delay_retired[_i]);
+  free (self->_delay_retired);
+  Py_TYPE (self)->tp_free ((PyObject *)self);
+}
+
+static PyObject *
+FarrowObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  FarrowObject *self = (FarrowObject *)type->tp_alloc (type, 0);
+  if (self)
+    self->handle = NULL;
+  return (PyObject *)self;
+}
+
+static int
+FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
+{
+  static char *kwlist[]  = { "order", NULL };
+  const char  *order_str = "cubic";
+
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|s", kwlist, &order_str))
+    return -1;
+  int order = 0;
+  if (strcmp (order_str, "linear") == 0)
+    order = 0;
+  else if (strcmp (order_str, "parabolic") == 0)
+    order = 1;
+  else if (strcmp (order_str, "cubic") == 0)
+    order = 2;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "order must be one of \"linear\", \"parabolic\", "
+                    "\"cubic\", got '%s'",
+                    order_str);
+      return -1;
+    }
+  self->handle = farrow_create (order);
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_MemoryError, "farrow_create returned NULL");
+      return -1;
+    }
+  {
+    size_t _max = farrow_delay_max_out (self->handle);
+    if (_max)
+      {
+        self->_delay_buf = malloc (_max * sizeof (float complex));
+        if (!self->_delay_buf)
+          {
+            PyErr_NoMemory ();
+            return -1;
+          }
+        self->_delay_buf_cap = _max;
+      }
+  }
+  return 0;
+}
+
+static PyObject *
+FarrowObj_delay (FarrowObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject      *x_obj = NULL;
+  PyArrayObject *x_arr = NULL;
+  double         mu    = 0;
+  if (!PyArg_ParseTuple (args, "Od", &x_obj, &mu))
+    return NULL;
+  x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
+                                             NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    return NULL;
+  size_t _need = (size_t)PyArray_SIZE (x_arr);
+  if (!self->_delay_buf || self->_delay_buf_cap < _need)
+    {
+      size_t _max = farrow_delay_max_out (self->handle);
+      if (!_max || _max < _need)
+        _max = _need;
+      if (self->_delay_buf
+          && self->_delay_retired_n == self->_delay_retired_cap)
+        {
+          size_t _rcap
+              = self->_delay_retired_cap ? self->_delay_retired_cap * 2 : 4;
+          void **_rt = realloc (self->_delay_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              Py_DECREF (x_arr);
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_delay_retired     = _rt;
+          self->_delay_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
+      if (!_tmp)
+        {
+          Py_DECREF (x_arr);
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      if (self->_delay_buf)
+        self->_delay_retired[self->_delay_retired_n++] = self->_delay_buf;
+      self->_delay_buf     = _tmp;
+      self->_delay_buf_cap = _max;
+    }
+  /* nogil: GIL released across the pure-C kernel — sound only when
+   * this object is not shared across threads concurrently (one
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
+  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
+  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t               n_out;
+  Py_BEGIN_ALLOW_THREADS
+    n_out = farrow_delay (self->handle, _ng0, _ng1, mu, self->_delay_buf,
+                          self->_delay_buf_cap);
+  Py_END_ALLOW_THREADS
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_delay_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
+  Py_DECREF (x_arr);
+  return arr;
+}
+
+static PyObject *
+FarrowObj_reset (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  farrow_reset (self->handle);
+  Py_RETURN_NONE;
+}
+static PyObject *
+Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)farrow_get_group_delay (self->handle));
+}
+
+static PyGetSetDef Farrow_getset[]
+    = { { "group_delay", (getter)Farrow_getprop_group_delay, NULL,
+          "Group delay.\n", NULL },
+        { NULL } };
+
+static PyObject *
+FarrowObj_destroy (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      farrow_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+FarrowObj_enter (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+FarrowObj_exit (FarrowObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      farrow_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyMethodDef FarrowObj_methods[] = {
+
+  { "delay", (PyCFunction)FarrowObj_delay, METH_VARARGS,
+    "delay(x) -> ndarray\n"
+    "\n"
+    "Apply a constant fractional delay of `mu` samples to a cf32 block via "
+    "the Farrow interpolator; output[i] is the input interpolated at i - "
+    "group_delay + mu. The first group_delay samples are filling-transient.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Farrow\n"
+    "    >>> obj = Farrow(\"cubic\")\n"
+    "    >>> y = obj.delay(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "reset", (PyCFunction)FarrowObj_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Clear the interpolator delay line.\n"
+    "\n"
+    "    >>> from doppler import Farrow\n"
+    "    >>> obj = Farrow(\"cubic\")\n"
+    "    >>> obj.reset()\n" },
+  { "destroy", (PyCFunction)FarrowObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)FarrowObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)FarrowObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
+
+static PyTypeObject FarrowObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.Farrow",
+  .tp_basicsize                           = sizeof (FarrowObject),
+  .tp_dealloc                             = (destructor)FarrowObj_dealloc,
+  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+  .tp_doc                                 = "Create a Farrow interpolator.\n",
+  .tp_methods                             = FarrowObj_methods,
+  .tp_getset                              = Farrow_getset,
+  .tp_new                                 = FarrowObj_new,
+  .tp_init                                = (initproc)FarrowObj_init,
+};

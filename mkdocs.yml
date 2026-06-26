@@ -151,6 +151,7 @@ nav:
       - Monte Carlo: gallery/detection-sim.md
       - 2-D Acquisition: gallery/detection2d.md
       - RateConverter: gallery/rate-converter.md
+      - Farrow Interpolator: gallery/farrow.md
       - Functional DDCR: gallery/ddc-fn.md
       - AWGN: gallery/awgn.md
       - Measurement Suite: gallery/measure.md

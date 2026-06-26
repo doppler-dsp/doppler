@@ -213,6 +213,29 @@ Valid M: odd 1–19, even 2–18. Out-of-range M returns all-zeros.
 
 ______________________________________________________________________
 
+## Farrow — fractional-delay interpolator
+
+`Farrow` is a lightweight **selectable-order** fractional-delay interpolator
+(`linear` / `parabolic` / `cubic`) — the lean alternative to a full polyphase
+resampler when all you need is a fractional tap, e.g. the interpolator inside a
+symbol-timing loop. All three orders share one 4-tap delay line and a fixed
+2-sample group delay (so a driving loop is order-agnostic) and are symmetric
+about the interpolation point (linear-phase → no delay bias). The fractional
+offset `µ ∈ [0,1)` is meant to come from an integer timing NCO, so timing stays
+exact while only the interpolation is floating point.
+
+See the [Farrow gallery page](../gallery/farrow.md) for the response of each
+order.
+
+```python
+from doppler.resample import Farrow
+
+f = Farrow(order="cubic")   # "linear" | "parabolic" | "cubic"
+y = f.delay(x, mu=0.3)      # constant fractional delay of a cf32 block
+```
+
+______________________________________________________________________
+
 ::: doppler.resample
 options:
 members:
@@ -224,3 +247,4 @@ members:
 \- HalfbandDecimatorR2C
 \- CIC
 \- ciccompmf
+\- Farrow

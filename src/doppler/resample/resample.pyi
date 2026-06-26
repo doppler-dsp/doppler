@@ -1,4 +1,5 @@
 # resample/resample.pyi — type stubs for the resample C extension.
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -334,6 +335,55 @@ class RateConverter:
         """Release C resources immediately."""
 
     def __enter__(self) -> "RateConverter": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class Farrow:
+    """Create a Farrow interpolator.
+
+    Parameters
+    ----------
+    order : Literal["linear", "parabolic", "cubic"], default "cubic"
+        order constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.resample import Farrow
+    >>> obj = Farrow(order="cubic")
+
+    """
+    def __init__(self, order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
+
+    def delay(self, x: NDArray[np.complex64], mu: float) -> NDArray[np.complex64]:
+        """Apply a constant fractional delay of `mu` samples to a cf32 block via the Farrow interpolator; output[i] is the input interpolated at i - group_delay + mu. The first group_delay samples are filling-transient.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+        mu : float
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def reset(self) -> None:
+        """Clear the interpolator delay line.
+        """
+
+    @property
+    def group_delay(self) -> int:
+        """Group delay."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Farrow": ...
 
     def __exit__(self, *args: object) -> None: ...
 

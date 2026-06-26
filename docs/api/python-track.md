@@ -91,8 +91,40 @@ locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
 
 ______________________________________________________________________
 
+## Dll — code-tracking loop
+
+`Dll` is the code-loop counterpart to `Costas`: a delay-lock loop that tracks
+the phase of a continuous, repeating spreading code (PN / Gold sequence) on a
+**carrier-wiped** sample stream. Per sample it correlates the input against
+three taps of the local code — early (`+spacing` chips), prompt, late
+(`-spacing` chips) — accumulating an integrate-and-dump over one code period;
+per period it runs the non-coherent envelope discriminator
+`(|E| - |L|) / (|E| + |L|)`, filters it through an embedded `LoopFilter`, and
+steers the code rate and phase. The half-chip discriminator is steep, so the
+loop bandwidth is small (a few thousandths); `Dll` is data-insensitive (it works
+on envelopes, so BPSK data flips don't matter).
+
+In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
+wipes the code; a channel composes the two.
+
+```python
+from doppler.track import Dll
+
+# code: 0/1 chips for one period; sps samples per chip
+d = Dll(code, sps=4, init_chip=0.0, bn=0.005, zeta=0.707, spacing=0.5)
+symbols = d.steps(rx)        # one prompt symbol per code period
+phase   = d.code_phase       # tracked code phase (chips)
+rate    = d.code_rate        # tracked chip rate (~1.0 + code Doppler)
+```
+
+______________________________________________________________________
+
 ::: doppler.track.LoopFilter
 
 ______________________________________________________________________
 
 ::: doppler.track.Costas
+
+______________________________________________________________________
+
+::: doppler.track.Dll

@@ -1,0 +1,77 @@
+[dll]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Dll"
+depends_on = [{ name = "loop_filter", link = true }]
+
+[[dll.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[dll.init_params]]
+name = "sps"
+type = "size_t"
+default = "2"
+
+[[dll.init_params]]
+name = "init_chip"
+type = "double"
+default = "0.0"
+
+[[dll.init_params]]
+name = "bn"
+type = "double"
+default = "0.01"
+
+[[dll.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[dll.init_params]]
+name = "spacing"
+type = "double"
+default = "0.5"
+
+[[dll.methods]]
+name = "steps"
+doc = "Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) discriminator each code period, steer the code NCO, and emit one prompt symbol per period."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[dll.methods]]
+name = "configure"
+doc = "Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[dll.methods]]
+name = "reset"
+doc = "Re-seed the loop to the create-time code phase; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[dll.properties]]
+name = "bn"
+type = "double"
+writable = true
+
+[[dll.properties]]
+name = "code_phase"
+type = "double"
+
+[[dll.properties]]
+name = "code_rate"
+type = "double"
+
+[[dll.properties]]
+name = "last_error"
+type = "double"

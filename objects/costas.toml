@@ -1,0 +1,72 @@
+[costas]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "Costas"
+depends_on = [
+  { name = "lo", link = true },
+  { name = "loop_filter", link = true },
+]
+
+[[costas.init_params]]
+name = "bn"
+type = "double"
+default = "0.05"
+
+[[costas.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[costas.init_params]]
+name = "init_norm_freq"
+type = "double"
+default = "0.0"
+
+[[costas.init_params]]
+name = "tsamps"
+type = "size_t"
+default = "64"
+
+[[costas.methods]]
+name = "steps"
+doc = "De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[costas.methods]]
+name = "configure"
+doc = "Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[costas.methods]]
+name = "reset"
+doc = "Re-seed the loop to the create-time frequency/phase; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[costas.properties]]
+name = "bn"
+type = "double"
+writable = true
+
+[[costas.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[costas.properties]]
+name = "lock_metric"
+type = "double"
+
+[[costas.properties]]
+name = "last_error"
+type = "double"

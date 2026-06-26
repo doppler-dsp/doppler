@@ -99,6 +99,8 @@ extern "C" {
 
 #include "loop_filter/loop_filter_core.h"
 
+#include "costas/costas_core.h"
+
 #include "despreader/despreader_core.h"
 
 #ifdef __cplusplus

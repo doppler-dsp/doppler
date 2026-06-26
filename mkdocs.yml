@@ -156,6 +156,7 @@ nav:
       - Measurement Suite: gallery/measure.md
       - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
       - DSSS Acquisition & Despreading: gallery/dsss-despread.md
+      - Carrier Loop Stress: gallery/costas.md
   - Examples:
       - Examples: examples/index.md
       - C: examples/c.md

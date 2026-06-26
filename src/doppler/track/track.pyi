@@ -103,3 +103,83 @@ class LoopFilter:
     def __enter__(self) -> "LoopFilter": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class Costas:
+    """Costas component.
+
+    Parameters
+    ----------
+    bn : float, default 0.05
+        bn constructor parameter.
+    zeta : float, default 0.707
+        zeta constructor parameter.
+    init_norm_freq : float, default 0.0
+        init_norm_freq constructor parameter.
+    tsamps : int, default 64
+        tsamps constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import Costas
+    >>> obj = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=64)
+
+    """
+    def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the loop to the create-time frequency/phase; preserve config.
+        """
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def lock_metric(self) -> float:
+        """Lock metric."""
+
+    @property
+    def last_error(self) -> float:
+        """Last error."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Costas": ...
+
+    def __exit__(self, *args: object) -> None: ...

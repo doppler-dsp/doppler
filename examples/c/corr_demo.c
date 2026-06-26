@@ -80,7 +80,7 @@ demo_corr_1d (void)
   for (size_t k = 0; k < N; k++)
     x[k] = ref[(k + N - LAG) % N];
 
-  corr_state_t *c = corr_create (ref, N, 1, 1);
+  corr_state_t *c = corr_create (ref, N, 1, 1, 0);
   corr_execute (c, x, N, out);
   corr_destroy (c);
 
@@ -132,7 +132,7 @@ demo_corr_dwell (void)
           " N=%zu per frame; after dwell=%zu: %.1f.\n\n",
           N, DWELL, (float)(DWELL * N));
 
-  corr_state_t *c = corr_create (ref, N, DWELL, 1);
+  corr_state_t *c = corr_create (ref, N, DWELL, 1, 0);
   for (size_t i = 0; i < DWELL; i++)
     {
       size_t n_out = corr_execute (c, ref, N, out);
@@ -160,7 +160,7 @@ demo_corr2d (void)
   fill_pn (ref, N);
   circ_shift_2d (x, ref, NY, NX, DR, DC);
 
-  corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1);
+  corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
   corr2d_execute (c, x, N, out);
   corr2d_destroy (c);
 

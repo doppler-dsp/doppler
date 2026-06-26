@@ -510,3 +510,6 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
 # identical to it (see native/tests/wfmgen_cli_test.cmake), so the composer
 # `wfmgen` (native/src/wfmcompose/) is the one CLI. See docs/dev/wfmgen/api.md.
 # ── App end ───────────────────────────────────────────────────────────
+# ── Validation harnesses (hand-owned, Monte-Carlo vs theory) ─────────
+add_subdirectory(native/validation)
+# ── Validation end ──────────────────────────────────────────────────

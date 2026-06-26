@@ -1,4 +1,4 @@
-"""Streaming acquisition tests for ``doppler.dsss.Acquirer``.
+"""Streaming acquisition tests for ``doppler.dsss.Acquisition``.
 
 Drives the engine with a realistic receive stream — silence (AWGN) of varying
 length, then a burst of repeated BPSK PN segments at an unknown code phase and
@@ -32,7 +32,7 @@ import numpy as np
 import pytest
 
 from doppler.detection import det_pd, det_threshold
-from doppler.dsss import Acquirer
+from doppler.dsss import Acquisition
 from doppler.examples.detector2d_acq_demo import (
     NX,
     NY,
@@ -141,7 +141,9 @@ def _full_frames(l_pre):
     [(MIN_SNR_D1, 1), (MIN_SNR_D2, 2), (0.3, 1)],
 )
 def test_config_math(min_snr, want_dwell):
-    a = Acquirer(CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=min_snr)
+    a = Acquisition(
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=min_snr
+    )
     assert (a.n, a.nx, a.ny) == (N, NX, NY)
 
     pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
@@ -167,7 +169,7 @@ def test_config_math(min_snr, want_dwell):
 def test_stream_aligned_hits(l_pre):
     """Frame-aligned silence: exactly F hits at the unshifted code phase."""
     rng = np.random.default_rng(1234)
-    a = Acquirer(
+    a = Acquisition(
         CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     assert a.dwell == 1
@@ -181,7 +183,7 @@ def test_stream_aligned_hits(l_pre):
 def test_stream_misaligned_hits(l_pre):
     """Non-aligned silence: F..F+2 hits, code phase shifted by l_pre % NX."""
     rng = np.random.default_rng(1234)
-    a = Acquirer(
+    a = Acquisition(
         CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     cp_expected = (CODE_PHASE + l_pre) % NX
@@ -195,7 +197,7 @@ def test_stream_misaligned_hits(l_pre):
 def test_stream_dwell2_hits():
     """dwell=2, dump-aligned silence: exactly 3 coherent-dump hits."""
     rng = np.random.default_rng(1234)
-    a = Acquirer(
+    a = Acquisition(
         CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D2
     )
     assert a.dwell == 2
@@ -212,7 +214,7 @@ def test_payload_decorrelates():
     the true cell.
     """
     rng = np.random.default_rng(7)
-    a = Acquirer(
+    a = Acquisition(
         CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     l_pre = N
@@ -227,7 +229,7 @@ def test_payload_decorrelates():
 def test_empirical_pfa():
     """Noise-only stream respects the auto-configured false-alarm budget."""
     rng = np.random.default_rng(99)
-    a = Acquirer(
+    a = Acquisition(
         CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     frames = 400

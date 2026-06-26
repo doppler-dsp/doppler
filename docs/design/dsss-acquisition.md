@@ -2,7 +2,7 @@
 
 **Status:** draft / for discussion
 **Scope:** the receive-side acquisition *architecture* — beyond today's
-all-coherent streaming `Acquirer`. This is theory, trade-space, and a phased
+all-coherent streaming `Acquisition`. This is theory, trade-space, and a phased
 roadmap; for how to *use* the current engine see the
 [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md).
 
@@ -10,7 +10,7 @@ ______________________________________________________________________
 
 ## 1. Context
 
-`doppler.dsss.Acquirer` (`native/src/acq/acq_core.c`) acquires a DSSS burst —
+`doppler.dsss.Acquisition` (`native/src/acq/acq_core.c`) acquires a DSSS burst —
 repeated BPSK PN epochs — under unknown code phase and Doppler. It frames the
 stream into `(ny, nx)` (one PN epoch per row), FFTs down the columns for Doppler,
 correlates each row against the code, and coherently integrates `dwell` frames
@@ -209,7 +209,7 @@ that POD (the `ddc_fn` precedent: opaque state across free functions, GIL releas
 via `nogil`); processes and pods serialize the **same bytes**. One representation,
 two faces — no second format to maintain.
 
-**`Acquirer` becomes a thin wrapper.** It keeps the ring (leftover + offset) and
+**`Acquisition` becomes a thin wrapper.** It keeps the ring (leftover + offset) and
 the carry buffers; `acq_push` drains the ring into `ny·nx` blocks, calls
 `acq_caf_tile` per shard, feeds dumps to `acq_nc_accumulate`, and gates after
 `N_nc` looks. The hot math lives entirely in the pure kernel; the wrapper owns the
@@ -253,7 +253,7 @@ per core**. That cost is **almost entirely the `corr2d` 2-D FFT**: a bare
 `corr2d.execute` on the same grid is ~95–100% of the tile (`bench_corr2d.py`),
 so the slow-time FFT, ring, and CFAR are a few-percent tail and the engine is
 **2-D-FFT bound** — optimization effort belongs in the transform, not the glue.
-`Acquirer.push` releases the GIL, so thread-per-shard scaling is
+`Acquisition.push` releases the GIL, so thread-per-shard scaling is
 **~3.4× on 8 cores, ~4.9× on 12** (memory-bandwidth bound past a few cores, like
 `ddc_fn`) → **~240 MSa/s aggregate** on this box. Per-shard memory is tiny
 (`accum`/`nc_surface` are `ny·nx·4 B ≈ 80–160 kB`), so thousands of shards fit in
@@ -356,7 +356,7 @@ ______________________________________________________________________
 ## 9. Honest tradeoffs
 
 - **Statelessness vs the shipped API.** P0 moves the hot path into a pure kernel.
-    We hold the `Acquirer` Python API and bit-exactness as a hard contract, so the
+    We hold the `Acquisition` Python API and bit-exactness as a hard contract, so the
     refactor is invisible to users — at the cost of carrying the wrapper.
 - **Squaring loss.** Non-coherent integration buys phase-robustness and weak-signal
     reach, but only `~5·log10(N_nc)` versus `10·log10` coherent. It is a fallback
@@ -373,7 +373,7 @@ ______________________________________________________________________
 
 Priority: **sensitivity → span → dynamics.**
 
-**Status.** Landed (PR #241): the coherent `Acquirer` (auto-configured threshold
+**Status.** Landed (PR #241): the coherent `Acquisition` (auto-configured threshold
 
 - dwell), its streaming test + benchmarks, and two `corr2d` enablers that sit
     *under* the roadmap — **frequency-domain coherent accumulation** (one inverse per
@@ -383,14 +383,14 @@ Priority: **sensitivity → span → dynamics.**
     (jm 0.19.34) unblocks the P4 thread-per-shard fan-out. **Not yet started:**
     P0–P4 below; **P1 (non-coherent) is next** — the corr2d work was its enabler.
 
-| Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                            |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **P0 — stateless kernel + carry**         | Extract `acq_caf_tile` pure kernel + flat-POD carry (`accum`+`count`+leftover+`n0`); re-express `Acquirer` as a thin wrapper owning the carry.            | Refactored `Acquirer` is **bit-identical** to today on the existing C + Python tests; a **carry round-trip** (split a stream, serialize the carry, resume in a fresh kernel) yields identical hits; no ring inside the kernel. |
-| **P1 — non-coherent + order-M detection** | `acq_nc_accumulate`/`acq_nc_merge`; `det_pd_noncoherent(snr, n_coh, n_noncoh)` + inverse in `doppler.detection`; auto-split `(M, N_nc)`.                  | The helper matches a Monte-Carlo `Q_{N_nc}` reference to \<1%; a weak-signal case unreachable coherent-only is now detected at the target `(Pfa, Pd)`; measured non-coherent gain is within the predicted `~5·log10(N_nc)`.    |
-| **P2 — sub-block / wide Doppler**         | The `K` knob (segment = `epoch/K`, long `ny·K` FFT); document the roll as the integer-bin dual.                                                           | Span = `±K/(2·T_epoch)` on a swept-Doppler signal; resolution invariant in `K`; partial-correlation loss matches prediction; channel-count reduction vs the mixer bank demonstrated.                                           |
-| **P3 — Doppler-rate search**              | A `rate` de-chirp axis in `acq_caf_tile`; grid auto-sizer `Δrdot = 4/T_coh²`.                                                                             | A chirped burst that smears at `rate = 0` is recovered with the grid; grid size matches the `T_coh²` table; `(coarse × rate)` shards are order-independent (any merge order → same surface).                                   |
-| **P4 — orchestration**                    | Python thread-per-shard (GIL released in the kernel) + process/pod POD-carry fan-out with hierarchical `acq_nc_merge`; reuse the streaming wire envelope. | Thread scaling ≥ 4–5× on 8 (the `ddc_fn` precedent); the process/pod path reduces serialized partial surfaces to a result **bit-identical** to single-process; the compute model (§7) validated against measured throughput.   |
-| *(P5 — later)*                            | Code-Doppler dilation (code-NCO stretch); Tong / sequential verification dwell (declare → confirm) to cut false alarms.                                   | —                                                                                                                                                                                                                              |
+| Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0 — stateless kernel + carry**         | Extract `acq_caf_tile` pure kernel + flat-POD carry (`accum`+`count`+leftover+`n0`); re-express `Acquisition` as a thin wrapper owning the carry.         | Refactored `Acquisition` is **bit-identical** to today on the existing C + Python tests; a **carry round-trip** (split a stream, serialize the carry, resume in a fresh kernel) yields identical hits; no ring inside the kernel. |
+| **P1 — non-coherent + order-M detection** | `acq_nc_accumulate`/`acq_nc_merge`; `det_pd_noncoherent(snr, n_coh, n_noncoh)` + inverse in `doppler.detection`; auto-split `(M, N_nc)`.                  | The helper matches a Monte-Carlo `Q_{N_nc}` reference to \<1%; a weak-signal case unreachable coherent-only is now detected at the target `(Pfa, Pd)`; measured non-coherent gain is within the predicted `~5·log10(N_nc)`.       |
+| **P2 — sub-block / wide Doppler**         | The `K` knob (segment = `epoch/K`, long `ny·K` FFT); document the roll as the integer-bin dual.                                                           | Span = `±K/(2·T_epoch)` on a swept-Doppler signal; resolution invariant in `K`; partial-correlation loss matches prediction; channel-count reduction vs the mixer bank demonstrated.                                              |
+| **P3 — Doppler-rate search**              | A `rate` de-chirp axis in `acq_caf_tile`; grid auto-sizer `Δrdot = 4/T_coh²`.                                                                             | A chirped burst that smears at `rate = 0` is recovered with the grid; grid size matches the `T_coh²` table; `(coarse × rate)` shards are order-independent (any merge order → same surface).                                      |
+| **P4 — orchestration**                    | Python thread-per-shard (GIL released in the kernel) + process/pod POD-carry fan-out with hierarchical `acq_nc_merge`; reuse the streaming wire envelope. | Thread scaling ≥ 4–5× on 8 (the `ddc_fn` precedent); the process/pod path reduces serialized partial surfaces to a result **bit-identical** to single-process; the compute model (§7) validated against measured throughput.      |
+| *(P5 — later)*                            | Code-Doppler dilation (code-NCO stretch); Tong / sequential verification dwell (declare → confirm) to cut false alarms.                                   | —                                                                                                                                                                                                                                 |
 
 ______________________________________________________________________
 
@@ -415,7 +415,7 @@ ______________________________________________________________________
 ## 12. See also
 
 - [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) — how to use today's
-    `Acquirer` (parameters, streaming, the coarse-mix widening loop).
+    `Acquisition` (parameters, streaming, the coarse-mix widening loop).
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` /
     `det_pd` / `det_dwell` / `marcum_q` (the order-`M` primitive).
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `Detector2D`

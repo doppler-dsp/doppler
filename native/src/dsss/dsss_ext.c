@@ -1,7 +1,7 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, Acquirer
+ * Objects: Despreader, Acquisition
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -32,16 +32,16 @@ PyInit_dsss(void)
 {
     import_array();
     if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
-    if (PyType_Ready(&AcquirerObjType) < 0) return NULL;
+    if (PyType_Ready(&AcquisitionObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&dsss_moduledef);
     if (!m) return NULL;
     Py_INCREF(&DespreaderObjType);
     if (PyModule_AddObject(m, "Despreader", (PyObject *)&DespreaderObjType) < 0) {
         Py_DECREF(&DespreaderObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&AcquirerObjType);
-    if (PyModule_AddObject(m, "Acquirer", (PyObject *)&AcquirerObjType) < 0) {
-        Py_DECREF(&AcquirerObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&AcquisitionObjType);
+    if (PyModule_AddObject(m, "Acquisition", (PyObject *)&AcquisitionObjType) < 0) {
+        Py_DECREF(&AcquisitionObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

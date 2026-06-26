@@ -377,7 +377,7 @@ class Corr:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr2D:
-    """Corr2D component.
+    """Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of corr_create().  The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The Python wrapper requires @p ref to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C.
 
     Parameters
     ----------

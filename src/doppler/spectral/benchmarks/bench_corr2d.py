@@ -3,7 +3,7 @@
 ``Corr2D.execute`` processes exactly one ``(ny, nx)`` frame per call (FFT2 →
 multiply by the conjugate reference spectrum → IFFT2 → accumulate, dumping
 every ``dwell`` frames). It is the dominant cost inside an acquisition tile
-(``Acquirer``): ~95-100% of the whole tile, so the engine is 2-D-FFT bound.
+(``Acquisition``): ~95-100% of the whole tile, so the engine is 2-D-FFT bound.
 
 The 2-D FFT runs on **pffft** (pre-allocated SIMD work buffers, no per-call
 allocation) **only when both axes are a multiple of 16 and 5-smooth (2/3/5),

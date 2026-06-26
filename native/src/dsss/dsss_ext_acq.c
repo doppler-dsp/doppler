@@ -1,12 +1,12 @@
 /*
- * dsss_ext_acq.c — Acquirer type for the dsss module.
+ * dsss_ext_acq.c — Acquisition type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* AcquirerObject — wraps acq_state_t *       */
+/* AcquisitionObject — wraps acq_state_t *       */
 /* ======================================================== */
 
 #include "acq/acq_core.h"
@@ -14,10 +14,10 @@
 typedef struct
 {
   PyObject_HEAD acq_state_t *handle;
-} AcquirerObject;
+} AcquisitionObject;
 
 static void
-AcquirerObj_dealloc (AcquirerObject *self)
+AcquisitionObj_dealloc (AcquisitionObject *self)
 {
   if (self->handle)
     acq_destroy (self->handle);
@@ -25,16 +25,16 @@ AcquirerObj_dealloc (AcquirerObject *self)
 }
 
 static PyObject *
-AcquirerObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  AcquirerObject *self = (AcquirerObject *)type->tp_alloc (type, 0);
+  AcquisitionObject *self = (AcquisitionObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
+AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "code", "noise_mode", "sf",      "spc",       "ny",
@@ -94,7 +94,7 @@ AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-AcquirerObj_reset (AcquirerObject *self, PyObject *Py_UNUSED (ignored))
+AcquisitionObj_reset (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -106,7 +106,7 @@ AcquirerObj_reset (AcquirerObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AcquirerObj_push (AcquirerObject *self, PyObject *args)
+AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -151,7 +151,7 @@ AcquirerObj_push (AcquirerObject *self, PyObject *args)
   return lst;
 }
 static PyObject *
-Acquirer_getprop_ny (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_ny (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -161,7 +161,7 @@ Acquirer_getprop_ny (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->ny);
 }
 static PyObject *
-Acquirer_getprop_nx (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_nx (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -171,7 +171,7 @@ Acquirer_getprop_nx (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nx);
 }
 static PyObject *
-Acquirer_getprop_n (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_n (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -181,7 +181,7 @@ Acquirer_getprop_n (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
 }
 static PyObject *
-Acquirer_getprop_sf (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -191,7 +191,7 @@ Acquirer_getprop_sf (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->sf);
 }
 static PyObject *
-Acquirer_getprop_spc (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_spc (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -201,7 +201,7 @@ Acquirer_getprop_spc (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->spc);
 }
 static PyObject *
-Acquirer_getprop_dwell (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_dwell (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -211,7 +211,8 @@ Acquirer_getprop_dwell (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->dwell);
 }
 static PyObject *
-Acquirer_getprop_max_dwell (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_max_dwell (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -222,7 +223,8 @@ Acquirer_getprop_max_dwell (AcquirerObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->max_dwell);
 }
 static PyObject *
-Acquirer_getprop_ring_cap (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_ring_cap (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -233,7 +235,8 @@ Acquirer_getprop_ring_cap (AcquirerObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->ring_cap);
 }
 static PyObject *
-Acquirer_getprop_noise_lo (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_noise_lo (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -244,7 +247,8 @@ Acquirer_getprop_noise_lo (AcquirerObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->noise_lo);
 }
 static PyObject *
-Acquirer_getprop_noise_hi (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_noise_hi (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -255,7 +259,8 @@ Acquirer_getprop_noise_hi (AcquirerObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->noise_hi);
 }
 static PyObject *
-Acquirer_getprop_threshold (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_threshold (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -265,7 +270,7 @@ Acquirer_getprop_threshold (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble ((double)self->handle->threshold);
 }
 static PyObject *
-Acquirer_getprop_eta (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_eta (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -275,7 +280,8 @@ Acquirer_getprop_eta (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble ((double)self->handle->eta);
 }
 static PyObject *
-Acquirer_getprop_pfa_cell (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_pfa_cell (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -285,7 +291,8 @@ Acquirer_getprop_pfa_cell (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (self->handle->pfa_cell);
 }
 static PyObject *
-Acquirer_getprop_pd_predicted (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_pd_predicted (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -295,29 +302,32 @@ Acquirer_getprop_pd_predicted (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (self->handle->pd_predicted);
 }
 
-static PyGetSetDef Acquirer_getset[] = {
-  { "ny", (getter)Acquirer_getprop_ny, NULL, "Ny.\n", NULL },
-  { "nx", (getter)Acquirer_getprop_nx, NULL, "Nx.\n", NULL },
-  { "n", (getter)Acquirer_getprop_n, NULL, "N.\n", NULL },
-  { "sf", (getter)Acquirer_getprop_sf, NULL, "Sf.\n", NULL },
-  { "spc", (getter)Acquirer_getprop_spc, NULL, "Spc.\n", NULL },
-  { "dwell", (getter)Acquirer_getprop_dwell, NULL, "Dwell.\n", NULL },
-  { "max_dwell", (getter)Acquirer_getprop_max_dwell, NULL, "Max dwell.\n",
-    NULL },
-  { "ring_cap", (getter)Acquirer_getprop_ring_cap, NULL, "Ring cap.\n", NULL },
-  { "noise_lo", (getter)Acquirer_getprop_noise_lo, NULL, "Noise lo.\n", NULL },
-  { "noise_hi", (getter)Acquirer_getprop_noise_hi, NULL, "Noise hi.\n", NULL },
-  { "threshold", (getter)Acquirer_getprop_threshold, NULL, "Threshold.\n",
-    NULL },
-  { "eta", (getter)Acquirer_getprop_eta, NULL, "Eta.\n", NULL },
-  { "pfa_cell", (getter)Acquirer_getprop_pfa_cell, NULL, "Pfa cell.\n", NULL },
-  { "pd_predicted", (getter)Acquirer_getprop_pd_predicted, NULL,
-    "Pd predicted.\n", NULL },
-  { NULL }
-};
+static PyGetSetDef Acquisition_getset[]
+    = { { "ny", (getter)Acquisition_getprop_ny, NULL, "Ny.\n", NULL },
+        { "nx", (getter)Acquisition_getprop_nx, NULL, "Nx.\n", NULL },
+        { "n", (getter)Acquisition_getprop_n, NULL, "N.\n", NULL },
+        { "sf", (getter)Acquisition_getprop_sf, NULL, "Sf.\n", NULL },
+        { "spc", (getter)Acquisition_getprop_spc, NULL, "Spc.\n", NULL },
+        { "dwell", (getter)Acquisition_getprop_dwell, NULL, "Dwell.\n", NULL },
+        { "max_dwell", (getter)Acquisition_getprop_max_dwell, NULL,
+          "Max dwell.\n", NULL },
+        { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
+          "Ring cap.\n", NULL },
+        { "noise_lo", (getter)Acquisition_getprop_noise_lo, NULL,
+          "Noise lo.\n", NULL },
+        { "noise_hi", (getter)Acquisition_getprop_noise_hi, NULL,
+          "Noise hi.\n", NULL },
+        { "threshold", (getter)Acquisition_getprop_threshold, NULL,
+          "Threshold.\n", NULL },
+        { "eta", (getter)Acquisition_getprop_eta, NULL, "Eta.\n", NULL },
+        { "pfa_cell", (getter)Acquisition_getprop_pfa_cell, NULL,
+          "Pfa cell.\n", NULL },
+        { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
+          "Pd predicted.\n", NULL },
+        { NULL } };
 
 static PyObject *
-AcquirerObj_destroy (AcquirerObject *self, PyObject *Py_UNUSED (ignored))
+AcquisitionObj_destroy (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -328,14 +338,14 @@ AcquirerObj_destroy (AcquirerObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AcquirerObj_enter (AcquirerObject *self, PyObject *Py_UNUSED (ignored))
+AcquisitionObj_enter (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-AcquirerObj_exit (AcquirerObject *self, PyObject *args)
+AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -346,37 +356,37 @@ AcquirerObj_exit (AcquirerObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef AcquirerObj_methods[]
-    = { { "reset", (PyCFunction)AcquirerObj_reset, METH_NOARGS,
+static PyMethodDef AcquisitionObj_methods[]
+    = { { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
 
-        { "push", (PyCFunction)AcquirerObj_push, METH_VARARGS,
+        { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
           "push(x) -> list[tuple]\n"
           "\n"
           "Returns list of (doppler_bin, code_phase, peak_mag, noise_est, "
           "test_stat, snr_est,) tuples.\n"
           "\n"
           "    >>> import numpy as np\n"
-          "    >>> from doppler import Acquirer\n"
-          "    >>> obj = Acquirer(np.zeros(1, dtype=np.uint8), \"mean\", 1, "
-          "1, 16, 1e-3, 0.9, 0.1, 64)\n"
+          "    >>> from doppler import Acquisition\n"
+          "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), \"mean\", "
+          "1, 1, 16, 1e-3, 0.9, 0.1, 64)\n"
           "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
           "    >>> isinstance(results, list)\n"
           "    True\n" },
-        { "destroy", (PyCFunction)AcquirerObj_destroy, METH_NOARGS,
+        { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
           "Release resources." },
-        { "__enter__", (PyCFunction)AcquirerObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)AcquirerObj_exit, METH_VARARGS, NULL },
+        { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },
+        { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS, NULL },
         { NULL } };
 
-static PyTypeObject AcquirerObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.Acquirer",
-  .tp_basicsize                           = sizeof (AcquirerObject),
-  .tp_dealloc                             = (destructor)AcquirerObj_dealloc,
+static PyTypeObject AcquisitionObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.Acquisition",
+  .tp_basicsize                           = sizeof (AcquisitionObject),
+  .tp_dealloc                             = (destructor)AcquisitionObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc     = "Create a streaming DSSS acquisition engine.\n",
-  .tp_methods = AcquirerObj_methods,
-  .tp_getset  = Acquirer_getset,
-  .tp_new     = AcquirerObj_new,
-  .tp_init    = (initproc)AcquirerObj_init,
+  .tp_methods = AcquisitionObj_methods,
+  .tp_getset  = Acquisition_getset,
+  .tp_new     = AcquisitionObj_new,
+  .tp_init    = (initproc)AcquisitionObj_init,
 };

@@ -1,19 +1,19 @@
-"""Benchmark for Acquirer — the acquisition unit of work (one CAF tile).
+"""Benchmark for Acquisition — the acquisition unit of work (one CAF tile).
 
 One ``push`` of ``N = ny*nx`` samples (at ``dwell=1``) is the engine's smallest
 reusable unit: ring write → slow-time Doppler FFT → single-row corr2d → CFAR.
 These benchmarks measure its latency and derive per-core sample throughput,
 which feeds the compute model in ``docs/design/dsss-acquisition.md``.
 
-``Acquirer.push`` releases the GIL, so the same kernel scales thread-per-shard
-across cores.
+``Acquisition.push`` releases the GIL, so the same kernel scales
+thread-per-shard across cores.
 
 Run: pytest src/doppler/dsss/benchmarks/bench_acq.py --benchmark-only
 """
 
 import numpy as np
 
-from doppler.dsss import Acquirer
+from doppler.dsss import Acquisition
 from doppler.wfm import PN, mls_poly
 
 
@@ -36,7 +36,7 @@ def _tile(a, benchmark):
 def test_bench_tile_test_grid(benchmark):
     """Test-suite grid: sf=31, spc=4, ny=16 → N=1984 (nx=124)."""
     # min_snr high → dwell=1, so one push == one coherent dump (one tile).
-    a = Acquirer(_code(31, 5), sf=31, spc=4, ny=16, min_snr=1.0)
+    a = Acquisition(_code(31, 5), sf=31, spc=4, ny=16, min_snr=1.0)
     _tile(a, benchmark)
 
 
@@ -47,5 +47,5 @@ def test_bench_tile_worked(benchmark):
     ~22-29 MSa/s per core for the tile; thread-per-shard scaling ~3.4x on 8,
     ~4.9x on 12 (memory-bandwidth bound past a few cores, like ddc_fn).
     """
-    a = Acquirer(_code(1023, 10), sf=1023, spc=2, ny=10, min_snr=1.0)
+    a = Acquisition(_code(1023, 10), sf=1023, spc=2, ny=10, min_snr=1.0)
     _tile(a, benchmark)

@@ -107,6 +107,8 @@ extern "C" {
 
 #include "channel/channel_core.h"
 
+#include "symsync/symsync_core.h"
+
 #include "despreader/despreader_core.h"
 
 #ifdef __cplusplus

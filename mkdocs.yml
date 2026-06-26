@@ -160,6 +160,7 @@ nav:
       - Carrier Loop Stress: gallery/costas.md
       - Code Loop Tracking: gallery/dll.md
       - Tracking Channel: gallery/channel.md
+      - Symbol Timing Recovery: gallery/symsync.md
   - Examples:
       - Examples: examples/index.md
       - C: examples/c.md

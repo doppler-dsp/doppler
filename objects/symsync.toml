@@ -1,0 +1,68 @@
+[symsync]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "SymbolSync"
+depends_on = [
+  { name = "nco", link = true },
+  { name = "farrow", link = true },
+  { name = "loop_filter", link = true },
+]
+
+[[symsync.init_params]]
+name = "sps"
+type = "size_t"
+default = "4"
+
+[[symsync.init_params]]
+name = "bn"
+type = "double"
+default = "0.01"
+
+[[symsync.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[symsync.init_params]]
+name = "order"
+type = "string_enum:linear,parabolic,cubic"
+default = "cubic"
+
+[[symsync.methods]]
+name = "steps"
+doc = "Recover symbol timing from an oversampled cf32 baseband block: a Gardner timing-error detector drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[symsync.methods]]
+name = "configure"
+doc = "Recompute the loop gains for a new (bn, zeta); preserve the timing estimate."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[symsync.methods]]
+name = "reset"
+doc = "Re-seed the timing loop to its nominal rate and zero phase."
+arg_type = "void"
+return_type = "void"
+
+[[symsync.properties]]
+name = "bn"
+type = "double"
+writable = true
+
+[[symsync.properties]]
+name = "timing_error"
+type = "double"
+
+[[symsync.properties]]
+name = "rate"
+type = "double"

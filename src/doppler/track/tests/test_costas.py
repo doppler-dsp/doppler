@@ -76,6 +76,23 @@ def test_reset_reproducible():
     assert (f1, lk1) == (c.norm_freq, c.lock_metric)
 
 
+def test_fll_assist_widens_pull_in():
+    # ~0.9 rad/symbol residual: too large for the bare PLL at any bandwidth,
+    # acquired once the FLL assist is enabled.
+    rx, _ = _bpsk_with_carrier(6000, 0.009, seed=5)
+
+    pll = Costas(0.01, 0.707, 0.0, TSAMPS, 0.0)
+    pll.steps(rx)
+    assert pll.lock_metric < 0.8  # bare PLL fails to acquire it
+    assert abs(pll.norm_freq - 0.009) > 1e-3
+
+    fll = Costas(0.01, 0.707, 0.0, TSAMPS, bn_fll=0.03)
+    fll.steps(rx)
+    assert fll.norm_freq == pytest.approx(0.009, abs=5e-4)
+    assert fll.lock_metric > 0.9
+    assert fll.bn_fll == pytest.approx(0.03)
+
+
 def test_locks_under_noise():
     rx, bits = _bpsk_with_carrier(5000, 0.0015, seed=7, sigma=1.0)
     c = Costas(0.03, 0.707, 0.0, TSAMPS)

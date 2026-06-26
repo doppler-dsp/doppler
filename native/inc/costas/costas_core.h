@@ -18,8 +18,12 @@
  * Lifecycle: costas_create -> [steps / configure / reset]* -> costas_destroy,
  * or embed by value with costas_init().
  *
+ * Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop
+ * aiding the PLL) for large or fast-moving residuals; `bn_fll = 0` is a pure
+ * Costas PLL.
+ *
  * @code
- * costas_state_t *c = costas_create(0.05, 0.707, 0.01, 64);
+ * costas_state_t *c = costas_create(0.05, 0.707, 0.01, 64, 0.0);
  * float complex sym[16];
  * size_t k = costas_steps(c, rx, rx_len, sym, 16);  // one prompt per symbol
  * double f = c->nco.norm_freq;                       // tracked residual
@@ -53,15 +57,19 @@ extern "C" {
  */
 typedef struct {
     lo_state_t nco;          /**< integer carrier NCO (uint32 phase).      */
-    loop_filter_state_t lf;  /**< 2nd-order carrier PI loop.               */
+    loop_filter_state_t lf;  /**< 2nd-order carrier PI loop (PLL).         */
     size_t tsamps;           /**< samples per symbol (integrate-and-dump). */
     double seed_norm_freq;   /**< create-time carrier freq, for reset.     */
-    double bn;               /**< loop noise bandwidth (retained).         */
+    double bn;               /**< PLL loop noise bandwidth (retained).     */
     double zeta;             /**< damping factor (retained).               */
+    double bn_fll;           /**< FLL-assist bandwidth (0 = pure PLL).     */
+    double k_fll;            /**< derived FLL gain (per-symbol freq pull).  */
     float complex acc;       /**< running coherent I&D accumulator.        */
     size_t acc_n;            /**< samples accumulated into `acc`.          */
+    float complex prev;      /**< previous symbol's prompt (FLL cross).    */
+    int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
-    double last_error;       /**< last discriminator output (loop stress). */
+    double last_error;       /**< last PLL discriminator (loop stress).    */
 } costas_state_t;
 
 /**
@@ -77,9 +85,10 @@ typedef struct {
  * @param zeta            Damping factor (0.707 = critically damped).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample.
  * @param tsamps          Samples per symbol (the integrate-and-dump period).
+ * @param bn_fll          FLL-assist bandwidth (0 = pure PLL).
  */
 void costas_init(costas_state_t *s, double bn, double zeta,
-                 double init_norm_freq, size_t tsamps);
+                 double init_norm_freq, size_t tsamps, double bn_fll);
 
 /**
  * @brief Per-sample carrier wipe-off: de-rotate @p x by the NCO, advance it.
@@ -115,6 +124,26 @@ costas_update(costas_state_t *s, float complex P)
     float aP = cabsf(P) + COSTAS_EPS;
     double e = (double)(((reP >= 0.0f) ? imP : -imP) / aP);
     s->last_error = e;
+    /* FLL assist: a decision-directed cross-product frequency discriminator
+     * has a far wider linear range than the phase discriminator, so it pulls
+     * the loop's frequency integrator onto a large/moving residual the bare
+     * PLL cannot. Both prompts are data-wiped (multiplied by their Re sign)
+     * so a BPSK bit flip between symbols does not corrupt the cross product.
+     * The result (~Delta-phase per symbol, rad) nudges integ directly. */
+    if (s->k_fll > 0.0 && s->have_prev)
+    {
+        float rpr = crealf(s->prev), ipr = cimagf(s->prev);
+        float sc = (reP >= 0.0f) ? 1.0f : -1.0f;
+        float sp = (rpr >= 0.0f) ? 1.0f : -1.0f;
+        float ic = reP * sc, qc = imP * sc;       /* data-wiped current */
+        float ip = rpr * sp, qp = ipr * sp;       /* data-wiped previous */
+        float cross = ip * qc - qp * ic;          /* Im(conj(prev)*cur) */
+        float apr = cabsf(s->prev) + COSTAS_EPS;
+        double freq_err = (double)cross / ((double)aP * (double)apr);
+        s->lf.integ += s->k_fll * freq_err;
+    }
+    s->prev = P;
+    s->have_prev = 1;
     loop_filter_step(&s->lf, e);
     /* per-symbol freq estimate (rad/symbol) -> rad/sample -> cycles/sample */
     double car_w = s->lf.integ / (double)s->tsamps;
@@ -133,10 +162,11 @@ costas_update(costas_state_t *s, float complex P)
  * @param zeta            Damping factor (default 0.707).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample (default 0.0).
  * @param tsamps          Samples per symbol (default 64).
+ * @param bn_fll          FLL-assist bandwidth (default 0.0 = pure PLL).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call costas_destroy() when done.
  */
-costas_state_t *costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps);
+costas_state_t *costas_create(double bn, double zeta, double init_norm_freq, size_t tsamps, double bn_fll);
 
 /**
  * @brief Destroy a Costas instance and release all memory.
@@ -159,6 +189,8 @@ double costas_get_norm_freq(const costas_state_t *state);
 void costas_set_norm_freq(costas_state_t *state, double val);
 double costas_get_lock_metric(const costas_state_t *state);
 double costas_get_last_error(const costas_state_t *state);
+double costas_get_bn_fll(const costas_state_t *state);
+void costas_set_bn_fll(costas_state_t *state, double val);
 #ifdef __cplusplus
 }
 #endif

@@ -113,7 +113,7 @@ main (void)
    * 1. Lifecycle, gain math, init==create parity                     *
    * ---------------------------------------------------------------- */
   {
-    costas_state_t *c = costas_create (0.05, 0.707, 0.01, 16);
+    costas_state_t *c = costas_create (0.05, 0.707, 0.01, 16, 0.0);
     CHECK (c != NULL);
     if (!c)
       return 1;
@@ -123,7 +123,7 @@ main (void)
     CHECK (fabs (costas_get_norm_freq (c) - 0.01) < 1e-12);
 
     costas_state_t v;
-    costas_init (&v, 0.05, 0.707, 0.01, 16);
+    costas_init (&v, 0.05, 0.707, 0.01, 16, 0.0);
     CHECK (v.lf.kp == c->lf.kp && v.lf.ki == c->lf.ki);
     CHECK (v.nco.phase_inc == c->nco.phase_inc);
     costas_destroy (c);
@@ -140,7 +140,7 @@ main (void)
     for (int t = 0; t < 4; t++)
       {
         make_signal (rx, bits, nsym, tsamps, f0s[t], 0.0, 0.0f, 12345u);
-        costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps);
+        costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps, 0.0);
         double          f, lk;
         int             be;
         run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
@@ -162,7 +162,7 @@ main (void)
     float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
     int           *bits = malloc (nsym * sizeof (*bits));
     make_signal (rx, bits, nsym, tsamps, 0.002, 0.0, 0.0f, 777u);
-    costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps);
+    costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps, 0.0);
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
@@ -184,7 +184,7 @@ main (void)
     /* sigma=1.0 per component → ~ -3 dB per-sample SNR; +12 dB from the
      * 16-fold I&D → comfortably locked. */
     make_signal (rx, bits, nsym, tsamps, 0.0015, 0.0, 1.0f, 2024u);
-    costas_state_t *c = costas_create (0.03, 0.707, 0.0, tsamps);
+    costas_state_t *c = costas_create (0.03, 0.707, 0.0, tsamps, 0.0);
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
@@ -208,7 +208,7 @@ main (void)
     double ramp = 5e-9; /* cycles/sample per sample */
     make_signal (rx, bits, nsym, tsamps, 0.0, ramp, 0.0f, 99u);
     double          final_f0 = ramp * (double)(nsym * tsamps);
-    costas_state_t *c        = costas_create (0.06, 0.707, 0.0, tsamps);
+    costas_state_t *c        = costas_create (0.06, 0.707, 0.0, tsamps, 0.0);
     double          f, lk;
     int             be;
     run (c, rx, bits, nsym, tsamps, &f, &lk, &be);
@@ -228,7 +228,7 @@ main (void)
     float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
     int           *bits = malloc (nsym * sizeof (*bits));
     make_signal (rx, bits, nsym, tsamps, 0.002, 0.0, 0.0f, 55u);
-    costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps);
+    costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps, 0.0);
     double          f1, lk1;
     int             be1;
     run (c, rx, bits, nsym, tsamps, &f1, &lk1, &be1);
@@ -238,6 +238,39 @@ main (void)
     run (c, rx, bits, nsym, tsamps, &f2, &lk2, &be2);
     CHECK (f1 == f2 && lk1 == lk2 && be1 == be2);
     costas_destroy (c);
+    free (rx);
+    free (bits);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 7. FLL assist widens pull-in — a residual too large for the bare *
+   * PLL is acquired once the FLL assist is enabled.                  *
+   * ---------------------------------------------------------------- */
+  {
+    const size_t   tsamps = 16, nsym = 6000;
+    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int           *bits = malloc (nsym * sizeof (*bits));
+    /* ~0.8 rad/symbol residual — beyond the narrow PLL's pull-in. */
+    double f0 = 0.008;
+    make_signal (rx, bits, nsym, tsamps, f0, 0.0, 0.0f, 31u);
+    double f, lk;
+    int    be;
+
+    /* Pure PLL (bn_fll = 0): fails to lock onto the large residual. */
+    costas_state_t *pll = costas_create (0.01, 0.707, 0.0, tsamps, 0.0);
+    run (pll, rx, bits, nsym, tsamps, &f, &lk, &be);
+    int pll_locked = (fabs (f - f0) < 5e-4) && (lk > 0.9);
+    CHECK (!pll_locked); /* the bare PLL does NOT acquire it */
+    costas_destroy (pll);
+
+    /* FLL-assisted (bn_fll > 0): the wide frequency discriminator pulls
+     * the integrator on, and the loop locks. */
+    costas_state_t *fll = costas_create (0.01, 0.707, 0.0, tsamps, 0.03);
+    run (fll, rx, bits, nsym, tsamps, &f, &lk, &be);
+    CHECK (fabs (f - f0) < 5e-4); /* tracked the large residual */
+    CHECK (lk > 0.9);             /* locked */
+    CHECK (be == 0);              /* zero bit errors on the tail */
+    costas_destroy (fll);
     free (rx);
     free (bits);
   }

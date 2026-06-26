@@ -117,16 +117,18 @@ class Costas:
         init_norm_freq constructor parameter.
     tsamps : int, default 64
         tsamps constructor parameter.
+    bn_fll : float, default 0.0
+        bn_fll constructor parameter.
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.track import Costas
-    >>> obj = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=64)
+    >>> obj = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=64, bn_fll=0.0)
 
     """
-    def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ...) -> None: ...
+    def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ..., bn_fll: float = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol.
@@ -176,6 +178,12 @@ class Costas:
     @property
     def last_error(self) -> float:
         """Last error."""
+
+    @property
+    def bn_fll(self) -> float:
+        """Bn fll."""
+    @bn_fll.setter
+    def bn_fll(self, value: float) -> None: ...
 
     def destroy(self) -> None:
         """Release C resources immediately."""

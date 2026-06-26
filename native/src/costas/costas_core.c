@@ -11,29 +11,34 @@ seed (costas_state_t *s, double init_norm_freq)
   s->lf.integ    = init_norm_freq * 2.0 * M_PI * (double)s->tsamps;
   s->acc         = 0.0f;
   s->acc_n       = 0;
+  s->prev        = 0.0f;
+  s->have_prev   = 0;
   s->lock_metric = 0.0;
   s->last_error  = 0.0;
 }
 
 void
 costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
-             size_t tsamps)
+             size_t tsamps, double bn_fll)
 {
   s->tsamps         = tsamps ? tsamps : 1;
   s->bn             = bn;
   s->zeta           = zeta;
+  s->bn_fll         = bn_fll;
+  s->k_fll          = 4.0 * bn_fll; /* 1st-order FLL aiding gain */
   s->seed_norm_freq = init_norm_freq;
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
   seed (s, init_norm_freq);
 }
 
 costas_state_t *
-costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps)
+costas_create (double bn, double zeta, double init_norm_freq, size_t tsamps,
+               double bn_fll)
 {
   costas_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  costas_init (obj, bn, zeta, init_norm_freq, tsamps);
+  costas_init (obj, bn, zeta, init_norm_freq, tsamps, bn_fll);
   return obj;
 }
 
@@ -124,4 +129,17 @@ double
 costas_get_last_error (const costas_state_t *state)
 {
   return state->last_error;
+}
+
+double
+costas_get_bn_fll (const costas_state_t *state)
+{
+  return state->bn_fll;
+}
+
+void
+costas_set_bn_fll (costas_state_t *state, double val)
+{
+  state->bn_fll = val;
+  state->k_fll  = 4.0 * val;
 }

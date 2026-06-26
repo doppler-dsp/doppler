@@ -30,6 +30,11 @@ name = "tsamps"
 type = "size_t"
 default = "64"
 
+[[costas.init_params]]
+name = "bn_fll"
+type = "double"
+default = "0.0"
+
 [[costas.methods]]
 name = "steps"
 doc = "De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol."
@@ -70,3 +75,8 @@ type = "double"
 [[costas.properties]]
 name = "last_error"
 type = "double"
+
+[[costas.properties]]
+name = "bn_fll"
+type = "double"
+writable = true

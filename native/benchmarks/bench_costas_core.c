@@ -60,7 +60,7 @@ main (void)
 
   /* --- steps throughput --- */
   {
-    costas_state_t *c = costas_create (0.05, 0.707, 0.0, TSAMPS);
+    costas_state_t *c = costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
     costas_steps (c, rx, TSAMPS * 4, out, BENCH_N); /* warmup */
 
     double times[ITERATIONS];
@@ -83,7 +83,7 @@ main (void)
 
   /* --- acquisition time: samples to lock_metric > 0.9 --- */
   {
-    costas_state_t *c       = costas_create (0.05, 0.707, 0.0, TSAMPS);
+    costas_state_t *c       = costas_create (0.05, 0.707, 0.0, TSAMPS, 0.0);
     long            acq_smp = -1;
     for (int s = 0; s < BENCH_N / TSAMPS; s++)
       {

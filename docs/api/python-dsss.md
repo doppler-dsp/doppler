@@ -1,17 +1,37 @@
-# Python DSSS Despreader API
+# Python DSSS API
 
-The `doppler.dsss` module provides `Despreader` — the tracking receiver that
-follows direct-sequence spread-spectrum (DSSS) BPSK acquisition. Seeded with a
-coarse frequency and code-phase estimate (from the `Corr2D`/`Detector2D`
-acquisition engine), it locks the signal with a code-tracking **delay-locked
-loop** and a carrier-tracking **Costas loop**, despreads the payload, and emits
-symbols.
+The `doppler.dsss` module provides the two halves of a DSSS receiver:
+**`Acquisition`** — the streaming burst-acquisition engine that finds an unknown
+code phase and Doppler — and **`Despreader`** — the tracking receiver that locks
+and despreads the payload once acquired.
 
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/__init__.py)
 
 See the [DSSS acquisition & despreading gallery page](../gallery/dsss-despread.md)
 for the full acquire → track → despread chain with plots.
+
+______________________________________________________________________
+
+## `Acquisition` — streaming burst acquisition
+
+`Acquisition` searches a streamed cf32 signal for a repeated BPSK PN burst over the
+joint (Doppler × code-phase) grid, auto-configuring its CFAR threshold and
+coherent dwell from a target `(pfa, pd, min_snr)` using `doppler.detection`. Push
+arbitrary-length blocks; it yields one record per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, snr_est)` — whose `(doppler_bin, code_phase)` seed the `Despreader`. See the
+[DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) for the search-space
+sizing and a worked example.
+
+::: doppler.dsss.Acquisition
+
+______________________________________________________________________
+
+## `Despreader` — tracking receiver
+
+Seeded with a coarse frequency and code-phase estimate (from the
+`Corr2D`/`Detector2D` acquisition engine or `Acquisition`), the `Despreader` locks
+the signal with a code-tracking **delay-locked loop** and a carrier-tracking
+**Costas loop**, despreads the payload, and emits symbols.
 
 ______________________________________________________________________
 

@@ -386,9 +386,15 @@ static PyTypeObject Corr2DObjType = {
   .tp_basicsize                           = sizeof (Corr2DObject),
   .tp_dealloc                             = (destructor)Corr2DObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Corr2D type.\n",
-  .tp_methods                             = Corr2DObj_methods,
-  .tp_getset                              = Corr2D_getset,
-  .tp_new                                 = Corr2DObj_new,
-  .tp_init                                = (initproc)Corr2DObj_init,
+  .tp_doc
+  = "Allocate a 2-D FFT correlator with coherent integrate-and-dump. "
+    "Two-dimensional extension of corr_create().  The reference is a flat "
+    "row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once "
+    "so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. "
+    "The Python wrapper requires @p ref to be a 2-D ndarray with shape (ny, "
+    "nx); it passes a flat view to C.\n",
+  .tp_methods = Corr2DObj_methods,
+  .tp_getset  = Corr2D_getset,
+  .tp_new     = Corr2DObj_new,
+  .tp_init    = (initproc)Corr2DObj_init,
 };

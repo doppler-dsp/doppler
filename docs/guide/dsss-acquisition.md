@@ -1,6 +1,6 @@
 # DSSS Burst Acquisition
 
-`doppler.dsss.Acquirer` acquires a direct-sequence spread-spectrum burst — a run
+`doppler.dsss.Acquisition` acquires a direct-sequence spread-spectrum burst — a run
 of repeated, BPSK-modulated PN-code segments — arriving with an **unknown code
 phase** and an **unknown carrier-frequency (Doppler) offset**, buried in noise.
 It owns the whole receive-side acquisition pipeline:
@@ -22,12 +22,12 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
 
     ```python
     import numpy as np
-    from doppler.dsss import Acquirer
+    from doppler.dsss import Acquisition
     from doppler.wfm import PN, mls_poly
 
     code = PN(poly=mls_poly(5), seed=1, length=5).generate(31)  # 31-chip PN
 
-    acq = Acquirer(
+    acq = Acquisition(
         code, sf=31, spc=4, ny=16,   # search grid: 16 Doppler × 124 code-phase
         pfa=1e-3, pd=0.9,            # target false-alarm / detection rates
         min_snr=0.2,                # expected per-sample amplitude SNR
@@ -54,14 +54,14 @@ is the 2-D search that recovers both at once:
     lag), and
 - **Doppler bin** — *how far* the carrier has shifted.
 
-`Acquirer` evaluates the entire (Doppler × code-phase) grid per dwell and reports
+`Acquisition` evaluates the entire (Doppler × code-phase) grid per dwell and reports
 the cells whose detection statistic crosses an automatically set CFAR gate.
 
 ______________________________________________________________________
 
 ## How it works — slow-time / fast-time
 
-Acquisition is a delay–Doppler search, and `Acquirer` factors it into two FFTs
+Acquisition is a delay–Doppler search, and `Acquisition` factors it into two FFTs
 over the repeated-segment structure. It frames the stream into a `(ny, nx)`
 matrix where each **row is one PN segment** and there are `ny` of them:
 
@@ -100,7 +100,7 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
     With `sf=31, spc=4 → nx=124` and `ny=16`: bins are `1/1984` cycles/sample
     apart, spanning `±1/248`. Since `nx = sf·spc` and `spc ≥ 1`, the widest native
     span is `±1/(2·sf)` (at `spc=1`) — fixed by the code. To search *wider* than
-    that, sweep a coarse Doppler grid in front of `Acquirer` — see
+    that, sweep a coarse Doppler grid in front of `Acquisition` — see
     [Widening the Doppler search](#widening-the-doppler-search).
 
 ______________________________________________________________________
@@ -124,7 +124,7 @@ One frame coherently integrates `N` samples, so a dwell of `d` frames integrates
 are exposed as **read-only** properties:
 
 ```python
-acq = Acquirer(code, sf=31, spc=4, ny=16, pfa=1e-3, pd=0.9, min_snr=0.2)
+acq = Acquisition(code, sf=31, spc=4, ny=16, pfa=1e-3, pd=0.9, min_snr=0.2)
 
 acq.ny, acq.nx, acq.n          # 16, 124, 1984  — the search grid
 acq.pfa_cell                   # per-cell false-alarm prob (Bonferroni)
@@ -250,7 +250,7 @@ ______________________________________________________________________
 The native search spans only `±1/(2·nx)` — one slow-time Nyquist, set by the code
 period. When the true Doppler exceeds that, tile the wider range with a sequence
 of **coarse Doppler hypotheses**: mix the raw stream down by each `f_coarse` and
-run `Acquirer` on the result. The engine's fine FFT then resolves the residual
+run `Acquisition` on the result. The engine's fine FFT then resolves the residual
 within `±1/(2·nx)`, and the absolute Doppler is `f_coarse +` the fine bin.
 
 ```python
@@ -258,7 +258,7 @@ import numpy as np
 
 fs = 2e6                                   # = spc · chip_rate
 coarse = np.arange(-100e3, 100e3, 500.0)   # coarse grid (Hz) — see step rule below
-bank = [Acquirer(code, sf=1000, spc=2, ny=10, pfa=1e-3, pd=0.9, min_snr=0.3)
+bank = [Acquisition(code, sf=1000, spc=2, ny=10, pfa=1e-3, pd=0.9, min_snr=0.3)
         for _ in coarse]                   # one engine per channel (own integration state)
 
 n0 = 0
@@ -312,7 +312,7 @@ grid (`200 kHz` total to cover):
 - each channel searches a `10 × 2000` (Doppler × code-phase) surface at the native
     **100 Hz** resolution, with full 10 ms coherent gain.
 
-So acquisition is **200–400 fine searches**, one per coarse mix — `Acquirer` runs
+So acquisition is **200–400 fine searches**, one per coarse mix — `Acquisition` runs
 the inner search and CFAR; your loop sweeps `f_coarse`. Halving the requirement
 (e.g. ±50 kHz) halves the channel count; a shorter code (smaller `L`) widens the
 native window and cuts the coarse sweep proportionally.
@@ -321,21 +321,21 @@ ______________________________________________________________________
 
 ## The DSSS receive chain
 
-`Acquirer` is the front of a two-stage receiver: **acquire**, then **track**.
+`Acquisition` is the front of a two-stage receiver: **acquire**, then **track**.
 Once it reports a `(Doppler bin, code phase)`, hand the coarse estimate to the
 [`Despreader`](../api/python-dsss.md), which closes a DLL + Costas loop to track
 code phase and carrier and recover the payload bits. Both live in
 `doppler.dsss`:
 
 ```python
-from doppler.dsss import Acquirer, Despreader
+from doppler.dsss import Acquisition, Despreader
 ```
 
 ______________________________________________________________________
 
 ## See also
 
-- [Python: DSSS API](../api/python-dsss.md) — full `Acquirer` + `Despreader` reference
+- [Python: DSSS API](../api/python-dsss.md) — full `Acquisition` + `Despreader` reference
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `Detector2D` matched-filter surface
 - [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo

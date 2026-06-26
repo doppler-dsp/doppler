@@ -132,7 +132,7 @@ class Despreader:
 
     def __exit__(self, *args: object) -> None: ...
 
-class Acquirer:
+class Acquisition:
     """Create a streaming DSSS acquisition engine.
 
     Parameters
@@ -241,6 +241,6 @@ class Acquirer:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Acquirer": ...
+    def __enter__(self) -> "Acquisition": ...
 
     def __exit__(self, *args: object) -> None: ...

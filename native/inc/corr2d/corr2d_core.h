@@ -75,6 +75,13 @@ typedef struct {
  * @param nx        Number of columns in the reference and input frames.
  * @param dwell     Integration depth; must be >= 1.
  * @param nthreads  Accepted for API compatibility; ignored.
+ * @param ny_out    Inverse/output rows; 0 => native (ny).  Must be >= ny.  A
+ *                  larger output zero-pads the cross-spectrum before the
+ *                  inverse, returning the band-limited (Dirichlet) interpolation
+ *                  of the correlation on a finer (ny_out, nx_out) grid — same
+ *                  peak, sub-bin resolution.  Native is bit-exact and allocates
+ *                  no extra buffers.
+ * @param nx_out    Inverse/output columns; 0 => native (nx).  Must be >= nx.
  * @return Heap-allocated state, or NULL on failure.
  * @code
  * >>> from doppler.spectral import Corr2D
@@ -85,11 +92,6 @@ typedef struct {
  * (4, 4, 1, 0)
  * @endcode
  */
-/* ny_out/nx_out: inverse/output size; 0 => native (ny/nx).  Must be >= ny/nx.
- * A larger output zero-pads the cross-spectrum before the inverse, returning
- * the band-limited (Dirichlet) interpolation of the correlation on a finer
- * (ny_out, nx_out) grid — same peak, sub-bin resolution.  Native is bit-exact
- * and allocates no extra buffers. */
 corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
                               size_t nx_out);

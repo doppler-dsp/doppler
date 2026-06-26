@@ -141,8 +141,8 @@ class Acquirer:
         code constructor parameter.
     sf : int, default 1
         sf constructor parameter.
-    sps : int, default 1
-        sps constructor parameter.
+    spc : int, default 1
+        spc constructor parameter.
     ny : int, default 16
         ny constructor parameter.
     pfa : float, default 1e-3
@@ -157,7 +157,7 @@ class Acquirer:
         max_dwell constructor parameter.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., sps: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., spc: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -199,8 +199,8 @@ class Acquirer:
         """Sf."""
 
     @property
-    def sps(self) -> int:
-        """Sps."""
+    def spc(self) -> int:
+        """Spc."""
 
     @property
     def dwell(self) -> int:

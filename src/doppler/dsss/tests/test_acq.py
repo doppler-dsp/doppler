@@ -141,7 +141,7 @@ def _full_frames(l_pre):
     [(MIN_SNR_D1, 1), (MIN_SNR_D2, 2), (0.3, 1)],
 )
 def test_config_math(min_snr, want_dwell):
-    a = Acquirer(CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=min_snr)
+    a = Acquirer(CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=min_snr)
     assert (a.n, a.nx, a.ny) == (N, NX, NY)
 
     pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
@@ -168,7 +168,7 @@ def test_stream_aligned_hits(l_pre):
     """Frame-aligned silence: exactly F hits at the unshifted code phase."""
     rng = np.random.default_rng(1234)
     a = Acquirer(
-        CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     assert a.dwell == 1
     stream = _stream(rng, l_pre=l_pre, sigma=_sigma(SNR_DB), with_payload=True)
@@ -182,7 +182,7 @@ def test_stream_misaligned_hits(l_pre):
     """Non-aligned silence: F..F+2 hits, code phase shifted by l_pre % NX."""
     rng = np.random.default_rng(1234)
     a = Acquirer(
-        CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     cp_expected = (CODE_PHASE + l_pre) % NX
     stream = _stream(rng, l_pre=l_pre, sigma=_sigma(SNR_DB), with_payload=True)
@@ -196,7 +196,7 @@ def test_stream_dwell2_hits():
     """dwell=2, dump-aligned silence: exactly 3 coherent-dump hits."""
     rng = np.random.default_rng(1234)
     a = Acquirer(
-        CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D2
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D2
     )
     assert a.dwell == 2
     # l_pre = 2N = one full dump of silence; burst = 6N = 3 clean dumps.
@@ -213,7 +213,7 @@ def test_payload_decorrelates():
     """
     rng = np.random.default_rng(7)
     a = Acquirer(
-        CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     l_pre = N
     with_pay = _stream(
@@ -228,7 +228,7 @@ def test_empirical_pfa():
     """Noise-only stream respects the auto-configured false-alarm budget."""
     rng = np.random.default_rng(99)
     a = Acquirer(
-        CODE, sf=SF, sps=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
+        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
     )
     frames = 400
     noise = _awgn(rng, frames * N, 1.0).astype(np.complex64)

@@ -15,7 +15,7 @@
  *   single-row PN reference (corr2d, coherently integrated over `dwell`
  *   frames) -> argmax + CFAR noise estimate -> threshold gate -> acq_result_t.
  *
- * The fast-time axis (nx = sf*sps columns) is the circular code matched
+ * The fast-time axis (nx = sf*spc columns) is the circular code matched
  * filter; the slow-time axis (ny rows) is the Doppler search.  A carrier
  * offset f (cycles/sample) lands the peak at row = round(f*nx*ny) mod ny,
  * column = code phase (integer samples).
@@ -29,7 +29,7 @@
  * @code
  * // 31-chip PN, 4x oversample, 16-segment Doppler search; aim Pfa=1e-3, Pd=0.9
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
- * acq_state_t *a = acq_create(code, 31, 31, 4, 16,
+ * acq_state_t *a = acq_create(code, 31, 31, 4, 16,   // sf=31, spc=4, ny=16
  *                             1e-3, 0.9, 0.126, 0, 64);
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
@@ -86,10 +86,10 @@ typedef struct {
   float *noise_scratch;   /**< Scratch for the median sort (ny*nx).          */
 
   size_t ny;        /**< Slow-time segments = Doppler search bins.           */
-  size_t nx;        /**< One segment in samples = sf*sps = code-phase bins.  */
+  size_t nx;        /**< One segment in samples = sf*spc = code-phase bins.  */
   size_t n;         /**< ny * nx — frame size in samples.                    */
   size_t sf;        /**< Chips per PN segment.                               */
-  size_t sps;       /**< Samples per chip.                                   */
+  size_t spc;       /**< Samples per chip (chip-rate oversample factor).     */
   size_t dwell;     /**< Frames coherently integrated per CFAR dump.         */
   size_t max_dwell; /**< Search cap used by the auto-config.                 */
   size_t ring_cap;  /**< Ring capacity in complex samples.                   */
@@ -120,7 +120,7 @@ typedef struct {
  * @param code        PN chips (0/1), length @p code_len; must equal @p sf.
  * @param code_len    Number of chips supplied.
  * @param sf          Chips per PN segment (>= 1).
- * @param sps         Samples per chip (>= 1).
+ * @param spc         Samples per chip (>= 1).
  * @param ny          Slow-time segments = Doppler bins (>= 1).
  * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
  * @param pd          Target detection probability (0,1).
@@ -130,7 +130,7 @@ typedef struct {
  * @return Heap-allocated state, or NULL on bad arguments / allocation failure.
  */
 acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t sf,
-                         size_t sps, size_t ny, double pfa, double pd,
+                         size_t spc, size_t ny, double pfa, double pd,
                          double min_snr, int noise_mode, size_t max_dwell);
 
 /** @brief Destroy and free an engine.  @param state May be NULL. */

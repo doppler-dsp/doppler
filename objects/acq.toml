@@ -27,7 +27,7 @@ type = "size_t"
 default = "1"
 
 [[acq.init_params]]
-name = "sps"
+name = "spc"
 type = "size_t"
 default = "1"
 
@@ -89,7 +89,7 @@ type = "size_t"
 field = true
 
 [[acq.properties]]
-name = "sps"
+name = "spc"
 type = "size_t"
 field = true
 

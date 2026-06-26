@@ -37,12 +37,12 @@ static int
 AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "code", "noise_mode", "sf",      "sps",       "ny",
+      = { "code", "noise_mode", "sf",      "spc",       "ny",
           "pfa",  "pd",         "min_snr", "max_dwell", NULL };
   PyObject          *code_obj       = NULL;
   const char        *noise_mode_str = "mean";
   unsigned long long sf_raw         = 1;
-  unsigned long long sps_raw        = 1;
+  unsigned long long spc_raw        = 1;
   unsigned long long ny_raw         = 16;
   double             pfa            = 1e-3;
   double             pd             = 0.9;
@@ -51,7 +51,7 @@ AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (
           args, kwds, "O|sKKKdddK", kwlist, &code_obj, &noise_mode_str,
-          &sf_raw, &sps_raw, &ny_raw, &pfa, &pd, &min_snr, &max_dwell_raw))
+          &sf_raw, &spc_raw, &ny_raw, &pfa, &pd, &min_snr, &max_dwell_raw))
     return -1;
   int noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
@@ -71,7 +71,7 @@ AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t         sf        = (size_t)sf_raw;
-  size_t         sps       = (size_t)sps_raw;
+  size_t         spc       = (size_t)spc_raw;
   size_t         ny        = (size_t)ny_raw;
   size_t         max_dwell = (size_t)max_dwell_raw;
   PyArrayObject *code_arr  = (PyArrayObject *)PyArray_FROM_OTF (
@@ -83,7 +83,7 @@ AcquirerObj_init (AcquirerObject *self, PyObject *args, PyObject *kwds)
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle
       = acq_create ((const uint8_t *)PyArray_DATA (code_arr), code_len, sf,
-                    sps, ny, pfa, pd, min_snr, noise_mode, max_dwell);
+                    spc, ny, pfa, pd, min_snr, noise_mode, max_dwell);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -185,14 +185,14 @@ Acquirer_getprop_sf (AcquirerObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->sf);
 }
 static PyObject *
-Acquirer_getprop_sps (AcquirerObject *self, void *Py_UNUSED (closure))
+Acquirer_getprop_spc (AcquirerObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->sps);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->spc);
 }
 static PyObject *
 Acquirer_getprop_dwell (AcquirerObject *self, void *Py_UNUSED (closure))
@@ -294,7 +294,7 @@ static PyGetSetDef Acquirer_getset[] = {
   { "nx", (getter)Acquirer_getprop_nx, NULL, "Nx.\n", NULL },
   { "n", (getter)Acquirer_getprop_n, NULL, "N.\n", NULL },
   { "sf", (getter)Acquirer_getprop_sf, NULL, "Sf.\n", NULL },
-  { "sps", (getter)Acquirer_getprop_sps, NULL, "Sps.\n", NULL },
+  { "spc", (getter)Acquirer_getprop_spc, NULL, "Spc.\n", NULL },
   { "dwell", (getter)Acquirer_getprop_dwell, NULL, "Dwell.\n", NULL },
   { "max_dwell", (getter)Acquirer_getprop_max_dwell, NULL, "Max dwell.\n",
     NULL },

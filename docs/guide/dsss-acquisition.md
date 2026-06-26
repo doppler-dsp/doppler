@@ -28,7 +28,7 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
     code = PN(poly=mls_poly(5), seed=1, length=5).generate(31)  # 31-chip PN
 
     acq = Acquirer(
-        code, sf=31, sps=4, ny=16,   # search grid: 16 Doppler × 124 code-phase
+        code, sf=31, spc=4, ny=16,   # search grid: 16 Doppler × 124 code-phase
         pfa=1e-3, pd=0.9,            # target false-alarm / detection rates
         min_snr=0.2,                # expected per-sample amplitude SNR
     )
@@ -65,13 +65,13 @@ Acquisition is a delay–Doppler search, and `Acquirer` factors it into two FFTs
 over the repeated-segment structure. It frames the stream into a `(ny, nx)`
 matrix where each **row is one PN segment** and there are `ny` of them:
 
-- **fast-time** — *within* one segment (`nx = sf·sps` samples). A circular
+- **fast-time** — *within* one segment (`nx = sf·spc` samples). A circular
     correlation against the known code → the **code-phase** axis.
 - **slow-time** — *across* the `ny` segments. An FFT along that axis resolves the
     per-segment carrier phase ramp → the **Doppler** axis.
 
 ```
-                fast-time  (nx = sf·sps samples, one segment)
+                fast-time  (nx = sf·spc samples, one segment)
               ┌───────────────────────────────────────────┐
    slow-time  │ seg 0   · · · · · · · · · · · · · · · · · · │
    (ny rows = │ seg 1   · · · · · · · · · · · · · · · · · · │   FFT down ──► Doppler
@@ -90,18 +90,19 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
 
 !!! note "Doppler resolution and range"
 
-    Integrating over `ny` segments sets both:
+    Two independent quantities:
 
-    - **bin spacing** = `1 / (ny·nx)` cycles/sample — finer the more segments you
-        integrate, and
-    - **search span** = `±1 / (2·nx)` cycles/sample — one segment's worth of band,
-        split into `ny` bins.
+    - **bin spacing** = `1 / (ny·nx)` cycles/sample — set by how many segments
+        `ny` you integrate (more segments → finer bins, the receiver's choice).
+    - **search span** = `±1 / (2·nx)` cycles/sample — set by the segment length
+        `nx`, i.e. the *waveform*, and independent of `ny`.
 
-    With `sf=31, sps=4 → nx=124` and `ny=16`: bins are `1/1984` cycles/sample
-    apart, spanning `±1/248`. To search a *wider* Doppler range you increase the
-    span by shortening the segment, or precede `Acquirer` with a coarse
-    spectral-rotation search (rolling the code spectrum) and subdivide each coarse
-    bin here — a natural extension, not built in yet.
+    With `sf=31, spc=4 → nx=124` and `ny=16`: bins are `1/1984` cycles/sample
+    apart, spanning `±1/248`. Since `nx = sf·spc` and `spc ≥ 1`, the widest native
+    span is `±1/(2·sf)` (at `spc=1`) — fixed by the code. To search *wider* than
+    that, precede `Acquirer` with a coarse spectral-rotation search (rolling the
+    code spectrum) and subdivide each coarse bin here — a natural extension, not
+    built in yet.
 
 ______________________________________________________________________
 
@@ -124,7 +125,7 @@ One frame coherently integrates `N` samples, so a dwell of `d` frames integrates
 are exposed as **read-only** properties:
 
 ```python
-acq = Acquirer(code, sf=31, sps=4, ny=16, pfa=1e-3, pd=0.9, min_snr=0.2)
+acq = Acquirer(code, sf=31, spc=4, ny=16, pfa=1e-3, pd=0.9, min_snr=0.2)
 
 acq.ny, acq.nx, acq.n          # 16, 124, 1984  — the search grid
 acq.pfa_cell                   # per-cell false-alarm prob (Bonferroni)
@@ -178,7 +179,7 @@ def doppler_cps(dop, ny, nx):
     k = (dop + ny // 2) % ny - ny // 2
     return k / (ny * nx)
 
-delay_chips = phase / acq.sps          # code phase in chips
+delay_chips = phase / acq.spc          # code phase in chips
 ```
 
 `reset()` drains the ring and the coherent accumulator (use it between
@@ -217,15 +218,31 @@ ______________________________________________________________________
 
 ## Choosing parameters
 
-| Goal                                 | Lever                                        |
-| ------------------------------------ | -------------------------------------------- |
-| Tighter false-alarm rate             | smaller **`pfa`** (raises `threshold`)       |
-| Hold `pd` at lower SNR               | smaller **`min_snr`** (raises `dwell`)       |
-| Finer Doppler resolution             | more segments — larger **`ny`**              |
-| Wider Doppler search span            | shorter segment — smaller **`sf`**/**`sps`** |
-| More code-phase resolution           | more samples/chip — larger **`sps`**         |
-| Robust noise estimate (uncalibrated) | **`noise_mode="median"`**                    |
-| Bound the coherent integration       | **`max_dwell`**                              |
+Some parameters describe the **transmitted waveform** — the receiver must match
+them, they are not knobs:
+
+- **`code`, `sf`** — the PN sequence and its length in chips. Fixed by the
+    transmitter (`len(code) == sf`).
+- **`spc`** — **samples per chip** (chip-rate oversampling; *not* samples per
+    *symbol* — that is `sps`) = your `sample_rate / chip_rate`. The chip rate is
+    the transmitter's, so you only move `spc` by resampling the front end. It sets
+    the segment length `nx = sf·spc` and therefore the Doppler **span**
+    `±1/(2·nx)` — at `spc=1` that bottoms out at `±1/(2·sf)`, the widest *native*
+    search. Going wider needs a coarse spectral-roll pre-search, not a tweak here.
+
+The genuine receiver / operator knobs:
+
+| Goal                                   | Lever                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| Tighter false-alarm rate               | smaller **`pfa`** (raises `threshold`)                                      |
+| Hold `pd` at lower SNR                 | smaller **`min_snr`** (raises `dwell`)                                      |
+| Finer Doppler resolution + more gain   | integrate more segments — larger **`ny`**, up to the K present in the burst |
+| Lower latency / shorter required burst | fewer segments — smaller **`ny`** (coarser Doppler, less gain)              |
+| Robust noise estimate (uncalibrated)   | **`noise_mode="median"`**                                                   |
+| Bound the coherent integration         | **`max_dwell`**                                                             |
+
+`ny` changes Doppler **resolution** (`1/(ny·nx)`), not span — the span is fixed
+by the waveform above.
 
 ______________________________________________________________________
 

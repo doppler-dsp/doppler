@@ -81,13 +81,13 @@ _auto_config (acq_state_t *st, double pfa, double pd, double min_snr)
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 acq_state_t *
-acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t sps,
+acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
             size_t ny, double pfa, double pd, double min_snr, int noise_mode,
             size_t max_dwell)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream. */
-  if (!code || code_len != sf || sf < 1 || sps < 1 || ny < 1 || max_dwell < 1
+  if (!code || code_len != sf || sf < 1 || spc < 1 || ny < 1 || max_dwell < 1
       || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
       || !(min_snr > 0.0))
     return NULL;
@@ -97,9 +97,9 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t sps,
     return NULL;
 
   st->sf         = sf;
-  st->sps        = sps;
+  st->spc        = spc;
   st->ny         = ny;
-  st->nx         = sf * sps;
+  st->nx         = sf * spc;
   st->n          = ny * st->nx;
   st->max_dwell  = max_dwell;
   st->noise_mode = (det_noise_mode_t)noise_mode;
@@ -111,15 +111,15 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t sps,
   const size_t n = st->n;
 
   /* Single-row oversampled BPSK reference: row 0 carries the replica
-   * (chip 0 -> +1, chip 1 -> -1, each held for sps samples), rest zero. */
+   * (chip 0 -> +1, chip 1 -> -1, each held for spc samples), rest zero. */
   st->ref = (float complex *)calloc (n, sizeof (float complex));
   if (!st->ref)
     goto fail;
   for (size_t c = 0; c < sf; c++)
     {
       float sign = (code[c] & 1u) ? -1.0f : 1.0f;
-      for (size_t s = 0; s < sps; s++)
-        st->ref[c * sps + s] = sign;
+      for (size_t s = 0; s < spc; s++)
+        st->ref[c * spc + s] = sign;
     }
 
   st->corr = corr2d_create (st->ref, ny, st->nx, st->dwell, 1);

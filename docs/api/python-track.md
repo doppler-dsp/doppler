@@ -150,6 +150,32 @@ bits    = ch.bits(rx)    # hard data bits (bit-synced when nav_period > 1)
 
 ______________________________________________________________________
 
+## SymbolSync — symbol timing recovery
+
+`SymbolSync` recovers the symbol clock of an **asynchronous** data stream (a
+symbol rate not locked to the sample clock). It is a Gardner timing-error
+detector closing a PI loop around an **integer timing NCO** and a `Farrow`
+interpolator: the NCO's post-wrap value is the interpolation fraction µ (free, no
+floating-point timing phase), so timing stays exact while only the interpolation
+is floating point. Two interpolants per symbol (on-time + mid) are derived from
+the phase value, and the loop steers the NCO **frequency** only — slip-free, so
+the strobe count never drifts.
+
+`steps()` emits one timing-corrected symbol per recovered instant; `rate` is the
+tracked samples/symbol; `order` picks the Farrow interpolator. See the
+[symbol-timing gallery page](../gallery/symsync.md) for the loop locking and
+tracking an asynchronous clock end to end.
+
+```python
+from doppler.track import SymbolSync
+
+ss = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic")
+symbols = ss.steps(rx)   # timing-corrected symbols
+ss.rate                  # recovered samples/symbol
+```
+
+______________________________________________________________________
+
 ::: doppler.track.LoopFilter
 
 ______________________________________________________________________
@@ -163,3 +189,7 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.track.Channel
+
+______________________________________________________________________
+
+::: doppler.track.SymbolSync

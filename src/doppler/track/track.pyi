@@ -1,4 +1,5 @@
 # track/track.pyi — type stubs for the track C extension.
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -366,5 +367,79 @@ class Channel:
         """Release C resources immediately."""
 
     def __enter__(self) -> "Channel": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class SymbolSync:
+    """SymbolSync component.
+
+    Parameters
+    ----------
+    sps : int, default 4
+        sps constructor parameter.
+    bn : float, default 0.01
+        bn constructor parameter.
+    zeta : float, default 0.707
+        zeta constructor parameter.
+    order : Literal["linear", "parabolic", "cubic"], default "cubic"
+        order constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import SymbolSync
+    >>> obj = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic")
+
+    """
+    def __init__(self, sps: int = ..., bn: float = ..., zeta: float = ..., order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Recover symbol timing from an oversampled cf32 baseband block: a Gardner timing-error detector drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the timing loop to its nominal rate and zero phase.
+        """
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def timing_error(self) -> float:
+        """Timing error."""
+
+    @property
+    def rate(self) -> float:
+        """Rate."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "SymbolSync": ...
 
     def __exit__(self, *args: object) -> None: ...

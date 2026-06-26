@@ -13,3 +13,12 @@ add_test(NAME validate_ber_despreader
 # dot product; sign decision is insensitive to reassociation).
 target_compile_options(validate_ber_despreader PRIVATE
                        -O3 -funroll-loops -ffast-math)
+
+add_executable(validate_costas_jitter
+               ${CMAKE_CURRENT_SOURCE_DIR}/costas_jitter.c)
+target_include_directories(validate_costas_jitter
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_costas_jitter PRIVATE doppler_lib_static m)
+target_compile_options(validate_costas_jitter PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_costas_jitter
+         COMMAND validate_costas_jitter --check)

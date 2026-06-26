@@ -269,18 +269,29 @@ otherwise it falls back to vendored pocketfft, which **mallocs/frees a work
 buffer per 1-D transform** and is slow on large primes. Measured: `ny=10, nx=2046` runs the fallback at **~21 MSa/s**; a pffft-friendly `ny=16, nx=2000`
 (`=2⁴·5³`) is malloc-free pffft at **~102 MSa/s**.
 
-The catch is structural for DSSS. `nx = sf·spc` is the code *period* and the code
-correlation is **circular**, so `nx` cannot be zero-padded — padding turns the
-circular correlation into a linear one with edge loss for code phases near the
-wrap. The only `nx` lever is `spc`, and that lands on a smooth size only when the
-code length itself is 2/3/5-smooth (`L=1000`, `1024`). The canonical DSSS lengths
-are **`2ⁿ−1`** (127, 511, 1023, 2047 …) — all large-prime — so **no `spc` makes
-them pffft-friendly** and the direct `corr2d` is *stuck* on the allocating
-fallback. This is the strongest performance argument for **P2 sub-block
-chopping**: it makes the FFT lengths (sub-block size and `ny·K`) **free**
-parameters you choose pffft-friendly — pre-allocated, SIMD, malloc-free —
-regardless of the awkward code length. (`ny`, the slow-time FFT length, must also
-be smooth for the 2-D path; it is freely chosen.)
+For DSSS the constraint is **only on the forward transform**. Per frame the
+pipeline is `S = FFT(signal)` → `P = S·conj(FFT(code))` (the code FFT is
+precomputed and stored) → `R = IFFT(P)`. Two halves with very different freedom:
+
+- **Inverse — free.** The IFFT length is decoupled from the forward length:
+    zero-pad the product `P` (length `nx`) to any `nx'` and `IFFT_{nx'}` gives the
+    band-limited (Dirichlet) **interpolation** of the circular correlation —
+    peak and value preserved, on a finer `nx'`-point code-phase grid. So pick
+    `nx'` pffft-friendly: the inverse is malloc-free **and** you get sub-chip code
+    phase for free, with **no** correlation loss. Same for the slow-time inverse
+    (`ny'` interpolates Doppler).
+- **Forward — fixed.** `S = FFT(signal)` must be at the code *period* `nx = sf·spc`
+    for the correlation to stay **circular** (zero-padding the signal in *time*
+    makes it linear, with edge loss near the wrap). The only `nx` lever is `spc`,
+    and that lands smooth only when the code length is 2/3/5-smooth (`L=1000`,
+    `1024`). Canonical DSSS lengths are **`2ⁿ−1`** (127, 511, 1023, 2047 …), all
+    large-prime, so **no `spc` makes the forward friendly**.
+
+So the IFFT-padding (a clean baseline kernel feature) removes ~half the unfriendly
+work plus the inverse's per-call malloc and adds free resolution; the remaining
+forward `FFT_nx(signal)` at the prime period is what only **P2 sub-block chopping**
+fixes — it makes the *forward* lengths (sub-block size and `ny·K`) free, smooth,
+pre-allocated, SIMD. Together: both transforms friendly + interpolated.
 
 The real-time consequence is load-bearing, not a footnote: the worked case needs
 `fs = 2 MSa/s` **per coarse channel**, so one core sustains `~16` channels and a

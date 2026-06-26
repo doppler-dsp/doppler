@@ -122,9 +122,15 @@ AcquirerObj_push (AcquirerObject *self, PyObject *args)
     return NULL;
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   acq_result_t results[64];
-  size_t       n_out
-      = acq_push (self->handle, (const float complex *)PyArray_DATA (in_arr),
-                  n_in, results, 64);
+  size_t       n_out;
+  /* Hand-added GIL release (jm's max_results push path omits nogil): the
+   * kernel touches only its own handle + the caller's input/result buffers,
+   * no Python objects, so a thread-per-shard worker scales across cores. */
+  Py_BEGIN_ALLOW_THREADS
+    n_out
+        = acq_push (self->handle, (const float complex *)PyArray_DATA (in_arr),
+                    n_in, results, 64);
+  Py_END_ALLOW_THREADS
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)

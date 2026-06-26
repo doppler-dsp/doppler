@@ -246,12 +246,25 @@ Start **Python-first** — thread-per-shard, mirroring the coarse-bank loop alre
 in the usage guide — and promote to Rust later (the FFI layer has no acq/detection
 today; the C ABI is the parallel substrate regardless).
 
-**Compute model** (1 Mcps, `L=1000`, `spc=2` → `nx=2000`, `ny=10`): a coherent
-tile is a couple of `(ny×nx)` FFT pairs plus the code multiply — order a few
-Mflop. A 10 ms dump across **400 coarse channels** is roughly a Gflop; real-time
-single-rate is order `~100 Gflop/s`, well within a multicore CPU and trivially
-shardable. Per-shard memory is tiny — the accumulator and non-coherent surfaces
-are `ny·nx·4 B ≈ 80–160 kB` each, so thousands of shards fit in RAM.
+**Compute model — measured** (`L=1023`, `spc=2` → `nx≈2046`, `ny=10`,
+`N≈20k`; 12-core x86, `bench_acq.py`). One coherent **tile** — ring write,
+slow-time FFT, single-row `corr2d`, CFAR — costs **~0.62 ms**, i.e. **~33 MSa/s
+per core**. `Acquirer.push` releases the GIL, so thread-per-shard scaling is
+**~3.4× on 8 cores, ~4.9× on 12** (memory-bandwidth bound past a few cores, like
+`ddc_fn`) → **~240 MSa/s aggregate** on this box. Per-shard memory is tiny
+(`accum`/`nc_surface` are `ny·nx·4 B ≈ 80–160 kB`), so thousands of shards fit in
+RAM.
+
+The real-time consequence is load-bearing, not a footnote: the worked case needs
+`fs = 2 MSa/s` **per coarse channel**, so one core sustains `~16` channels and a
+12-core box `~120`. The **400-channel ±100 kHz** search therefore needs `~3–4`
+such boxes (the **pod fan-out**, not optional) — or **sub-block `K≈4`** to cut the
+bank to `~100` channels and fit one box. This is exactly why P2 (sub-block) and P4
+(orchestration) carry real weight.
+
+> Note: the GIL release on `push` was missing in the first cut (jm's
+> `max_results` push codegen omits `nogil`) — found by this benchmark, which
+> measured *zero* thread scaling until it was hand-added in `dsss_ext_acq.c`.
 
 ______________________________________________________________________
 

@@ -37,7 +37,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1);
+    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     CHECK (obj != NULL);
     CHECK (obj->ny == NY);
     CHECK (obj->nx == NX);
@@ -57,7 +57,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f + 0.0f * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1);
+    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     float complex   out[16];
     size_t          n_out = corr2d_execute (obj, ref, N, out);
 
@@ -74,7 +74,7 @@ main (void)
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 2, 1);
+    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 2, 1, 0, 0);
     float complex   out[16];
 
     size_t n1 = corr2d_execute (obj, ref, N, out);
@@ -101,7 +101,7 @@ main (void)
     ref[0]                = 1.0f;
     in[NX]                = 1.0f; /* row 1, col 0 */
 
-    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1);
+    corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     float complex   out[16];
     corr2d_execute (obj, in, N, out);
 
@@ -117,12 +117,35 @@ main (void)
     corr2d_destroy (obj);
   }
 
-  /* ── max_out always returns ny*nx ────────────────────────────────── */
+  /* ── max_out returns n_out (native = ny*nx) ──────────────────────── */
   {
     float complex ref[16] = { 0 };
     ref[0]                = 1.0f;
-    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1);
+    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     CHECK (corr2d_execute_max_out (obj) == N);
+    corr2d_destroy (obj);
+  }
+
+  /* ── decoupled inverse: interpolated output size + peak location ──── *
+   * impulse ref, input shifted to (row 1, col 0) → native peak at (1,0); *
+   * inverted on a 4→8 grid, the peak lands at (1·8/4, 0) = (2, 0).       */
+  {
+    float complex ref[16] = { 0 };
+    ref[0]                = 1.0f;
+    float complex in[16]  = { 0 };
+    in[NX]                = 1.0f; /* row 1, col 0 */
+    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1, 8, 8);
+    CHECK (obj->ny_out == 8 && obj->nx_out == 8);
+    CHECK (corr2d_execute_max_out (obj) == 64);
+
+    float complex out[64];
+    size_t        no = corr2d_execute (obj, in, N, out);
+    CHECK (no == 64);
+    size_t pk = 0;
+    for (size_t k = 1; k < 64; k++)
+      if (cabsf (out[k]) > cabsf (out[pk]))
+        pk = k;
+    CHECK (pk / 8 == 2 && pk % 8 == 0);
     corr2d_destroy (obj);
   }
 

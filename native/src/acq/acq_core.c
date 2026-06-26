@@ -122,7 +122,7 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
         st->ref[c * spc + s] = sign;
     }
 
-  st->corr = corr2d_create (st->ref, ny, st->nx, st->dwell, 1);
+  st->corr = corr2d_create (st->ref, ny, st->nx, st->dwell, 1, 0, 0);
   if (!st->corr)
     goto fail;
 

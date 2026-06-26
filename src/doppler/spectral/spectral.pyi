@@ -371,7 +371,7 @@ class Corr:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr2D:
-    """Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of corr_create().  The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The Python wrapper requires @p ref to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C.
+    """Corr2D component.
 
     Parameters
     ----------
@@ -381,9 +381,13 @@ class Corr2D:
         dwell constructor parameter.
     nthreads : int, default 1
         nthreads constructor parameter.
+    ny_out : int, default 0
+        ny_out constructor parameter.
+    nx_out : int, default 0
+        nx_out constructor parameter.
 
     """
-    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ...) -> None: ...
+    def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., ny_out: int = ..., nx_out: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref_spec.
@@ -404,7 +408,7 @@ class Corr2D:
         """
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → IFFT2 → normalise (÷ ny*nx) → accumulate → conditional dump.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx ndarray, a no-dump returns None.
+        """Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny*nx).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx ndarray, a no-dump returns None.
 
         Parameters
         ----------
@@ -437,6 +441,18 @@ class Corr2D:
     @property
     def nx(self) -> int:
         """Nx."""
+
+    @property
+    def ny_out(self) -> int:
+        """Ny out."""
+
+    @property
+    def nx_out(self) -> int:
+        """Nx out."""
+
+    @property
+    def n_out(self) -> int:
+        """N out."""
 
     @property
     def dwell(self) -> int:

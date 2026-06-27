@@ -235,3 +235,97 @@ def test_segments_carrier_present_output_recoverable():
     )
     dec = np.where(use[2:1998] >= 0, 1, -1)
     assert min(np.mean(dec != data[2:1998]), np.mean(dec == data[2:1998])) == 0
+
+
+# --- always-on code-lock detector (reuses acquisition's non-coherent test) ---
+
+
+def _noise(n, seed):
+    rng = np.random.default_rng(seed)
+    return (
+        (rng.standard_normal(n) + 1j * rng.standard_normal(n)) / np.sqrt(2)
+    ).astype(np.complex64)
+
+
+def test_lock_defaults_unlocked():
+    # a fresh loop reports a clean, unlocked detector before any input
+    d = Dll(_code(), SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
+    assert d.locked is False
+    assert d.lock_stat == 0.0
+    assert d.noise_est == 0.0
+
+
+def test_lock_acquires_on_signal():
+    # a despread signal (carrier and async data present) drives the
+    # non-coherent statistic well above the default CFAR threshold
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(rx)
+    assert d.locked is True
+    assert d.lock_stat > 8.5  # > det_threshold_noncoherent(1e-3, 20)
+
+
+def test_lock_acquires_segments_one():
+    # the detector also runs in the coherent full-epoch (segments=1) mode
+    code = _code(11)
+    rx = _signal(code, 0.0, 1500, const_data=True)
+    d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)  # segments=1
+    d.steps(rx)
+    assert d.locked is True
+
+
+def test_lock_stays_low_on_noise():
+    # noise only: prompt power matches the off-peak (noise) reference, so the
+    # statistic sits near sqrt(2*N)~6.3 under H0 and stays below threshold
+    code = _code(11)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(_noise(1500 * TE, seed=2))
+    assert d.locked is False
+    assert d.lock_stat < 8.5
+    assert d.lock_stat == pytest.approx(np.sqrt(2 * 20), rel=0.4)
+
+
+def test_configure_lock_changes_only_threshold():
+    # configure_lock(pfa, n_looks) sets the decision threshold; the statistic
+    # itself is config-independent for a given stream + n_looks, so two pfas
+    # yield the same R and decisions consistent with their thresholds
+    from doppler.detection import det_threshold_noncoherent
+
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    a = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    a.configure_lock(1e-3, 20)
+    a.steps(rx)
+    b = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    b.configure_lock(1e-12, 20)
+    b.steps(rx)
+    assert b.lock_stat == pytest.approx(a.lock_stat, rel=1e-6)
+    assert a.locked == (a.lock_stat > det_threshold_noncoherent(1e-3, 20))
+    assert b.locked == (b.lock_stat > det_threshold_noncoherent(1e-12, 20))
+
+
+def test_configure_lock_rejects_bad_pfa():
+    d = Dll(_code(), SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
+    with pytest.raises(ValueError):
+        d.configure_lock(0.0, 20)
+    with pytest.raises(ValueError):
+        d.configure_lock(1.0, 20)
+
+
+def test_lock_reset_clears():
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(rx)
+    assert d.locked is True
+    d.reset()
+    assert d.locked is False
+    assert d.lock_stat == 0.0
+    assert d.noise_est == 0.0

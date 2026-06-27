@@ -9,7 +9,11 @@ mid-epoch data flip cannot collapse the non-coherent code discriminator. A
 small **residual carrier** rides out on the output — carrier recovery and
 symbol-timing recovery are *downstream*, not this object's job.
 
-Three views (saved to a PNG):
+Writes TWO figures. The despread story is noiseless so the envelope is clean;
+the lock detector needs noise to be meaningful, so it gets its own figure on
+its own noisy signal — the two are never conflated.
+
+``<out>.png`` — the despreader, three noiseless views:
   * **Oversampled async BPSK out** — the despread partial stream at `K`
     samples/symbol; the symbol edges (dashed) slide through the code epochs
     because the symbol clock is independent of the code clock.
@@ -19,6 +23,11 @@ Three views (saved to a PNG):
   * **Code stays locked under the carrier** — the non-coherent ``(|E|-|L|)``
     discriminator is carrier-blind, so the code rate tracks the code Doppler
     with the residual carrier still on the samples.
+
+``<out>_lock.png`` — the always-on lock detector on a SEPARATE noisy run: the
+  non-coherent lock statistic ``R = sqrt(2*sum|P|^2 / E|O|^2)`` (acquisition's
+  test, with a random off-peak EMA noise reference) climbing past the CFAR
+  threshold at several SNRs, beside the noisy despread output it ran on.
 
 Run:  python -m doppler.examples.async_despread_demo  [out.png]
 """
@@ -161,6 +170,115 @@ def main(out_path="async_despread_demo.png"):
         fontsize=10,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.savefig(out_path, dpi=120)
+    print(f"wrote {out_path}")
+
+    # The lock detector is a SEPARATE experiment — it needs noise to be
+    # meaningful, whereas the panels above are noiseless so the envelope story
+    # stays clean. Draw it in its own figure (on its own noisy signal) so the
+    # two are never conflated.
+    lock_path = (
+        out_path[:-4] + "_lock.png"
+        if out_path.endswith(".png")
+        else out_path + "_lock.png"
+    )
+    _lock_figure(code, plt, lock_path)
+
+
+def _lock_figure(code, plt, out_path):
+    """Always-on lock detector on its OWN noisy run (distinct from main()).
+
+    Two panels: the lock statistic ``R`` climbing past the CFAR threshold at a
+    few per-sample SNRs (with a noise-only trace that stays below), and the
+    noisy despread output that produced the middle trace — so it is clearly a
+    *different, noisy* signal from the noiseless despread figure.
+    """
+    from doppler.detection import det_threshold_noncoherent
+
+    rx, _ = _signal(code)
+    nep = len(rx) // TE
+    thr = det_threshold_noncoherent(1e-3, 20)  # default lock config
+    rng = np.random.default_rng(5)
+
+    def add_noise(namp):
+        z = rng.standard_normal(len(rx)) + 1j * rng.standard_normal(len(rx))
+        return (rx + namp * z / np.sqrt(2)).astype(np.complex64)
+
+    def noise_only(namp):
+        z = rng.standard_normal(len(rx)) + 1j * rng.standard_normal(len(rx))
+        return (namp * z / np.sqrt(2)).astype(np.complex64)
+
+    fig, (a, b) = plt.subplots(1, 2, figsize=(11.5, 4.4))
+
+    # --- left: R vs epoch at several SNRs, + noise-only, vs threshold ---
+    runs = [
+        ("strong (namp 3)", add_noise(3.0), "#1f77b4", None),
+        ("weak (namp 9)", add_noise(9.0), "#2ca02c", "mid"),
+        ("very weak (namp 16)", add_noise(16.0), "#ff7f0e", None),
+        ("noise only", noise_only(9.0), "#d62728", None),
+    ]
+    mid_part = None
+    for label, rxn, col, tag in runs:
+        dl = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=K)
+        R = np.empty(nep)
+        chunks = []
+        for e in range(nep):
+            out = dl.steps(rxn[e * TE : (e + 1) * TE])
+            R[e] = dl.lock_stat
+            if tag == "mid":
+                chunks.append(out)
+        a.plot(np.arange(nep), R, color=col, lw=1.0, label=label)
+        if tag == "mid":
+            mid_part = np.concatenate(chunks)
+    a.axhline(thr, color="k", ls="--", lw=1.3, label=f"η={thr:.1f} (pfa=1e-3)")
+    a.set_ylim(0, None)
+    a.set_title(
+        "Lock statistic R vs epoch (noisy)\n"
+        "R = √(2·Σ|P|²/E|O|²); SF=127 → signal sits far above η",
+        fontsize=9,
+    )
+    a.set_xlabel("code epoch")
+    a.set_ylabel("lock statistic R")
+    a.legend(fontsize=7, loc="center right")
+    a.grid(alpha=0.25)
+
+    # --- right: the noisy despread output behind the "weak" trace ---
+    off = (len(mid_part) * 6 // 10) // K * K
+    span = 24 * K
+    pp = np.arange(off, off + span)
+    sl = slice(off, off + span)
+    a2 = mid_part[sl]
+    a2 = a2 * np.exp(-0.5j * np.angle(np.mean(a2**2)))  # genie axis align
+    b.plot(
+        pp,
+        a2.real,
+        "-o",
+        color="#2ca02c",
+        ms=3,
+        lw=0.9,
+        label="despread (real)",
+    )
+    b.plot(
+        pp, np.abs(mid_part[sl]), color="#999999", lw=0.8, label="|despread|"
+    )
+    b.axhline(0, color="k", lw=0.6)
+    b.set_xlim(off, off + span)
+    b.set_title(
+        "Noisy despread output (the 'weak' run)\n"
+        "BPSK still recoverable; the detector reports lock on it",
+        fontsize=9,
+    )
+    b.set_xlabel("partial index (= output sample)")
+    b.set_ylabel("despread output")
+    b.legend(fontsize=7, loc="lower right")
+    b.grid(alpha=0.25)
+
+    fig.suptitle(
+        "track.Dll always-on code-lock detector "
+        "(separate noisy run — not the noiseless figure)",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
     fig.savefig(out_path, dpi=120)
     print(f"wrote {out_path}")
 

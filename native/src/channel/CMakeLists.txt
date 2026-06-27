@@ -7,7 +7,8 @@ target_link_libraries(channel_core PUBLIC
     costas_core
     lo_core
     loop_filter_core
-    dll_core)
+    dll_core
+    detection_core)
 
 add_executable(test_channel_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_channel_core.c)
@@ -16,6 +17,7 @@ target_link_libraries(test_channel_core
     lo_core
     loop_filter_core
     dll_core
+    detection_core
     m)
 target_include_directories(test_channel_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -29,6 +31,7 @@ target_link_libraries(bench_channel_core
     lo_core
     loop_filter_core
     dll_core
+    detection_core
     m)
 target_include_directories(
   bench_channel_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

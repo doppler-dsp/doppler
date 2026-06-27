@@ -35,6 +35,7 @@
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
 #include <complex.h>
+#include "detection/detection_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -72,6 +73,20 @@ typedef struct {
     size_t seg_idx;          /**< current partial index within the epoch.   */
     double sum_e;            /**< non-coherent early sum over the epoch.     */
     double sum_l;            /**< non-coherent late sum over the epoch.      */
+    /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
+    float complex acc_o;     /**< offset (noise) correlator accumulator.     */
+    double off_chips;        /**< this look's offset code phase, whole chips. */
+    double noise_guard;      /**< chips around P/E/L the offset must avoid.   */
+    uint32_t rng;            /**< xorshift32 state for the random offset.    */
+    double noise_ema;        /**< EMA of offset power; estimates E|O|^2.      */
+    double lock_alpha;       /**< EMA coefficient 1/L_eff (L_eff >> n_looks). */
+    double lock_sum;         /**< running sum|P_k|^2 over the current window. */
+    size_t lock_count;       /**< looks accumulated in the current window.    */
+    size_t n_looks;          /**< non-coherent integration depth N.          */
+    double lock_thresh;      /**< CFAR threshold eta on R (det_threshold_nc). */
+    double lock_stat;        /**< last statistic R = sqrt(2 sum|P|^2/E|O|^2). */
+    size_t lock_nz;          /**< noise looks folded in (cumulative-mean boot).*/
+    int locked;              /**< last lock decision (R > eta).               */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
 } dll_state_t;
 
@@ -239,6 +254,47 @@ double dll_get_code_phase(const dll_state_t *state);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);
+
+/**
+ * @brief Configure the always-on code-lock detector.
+ *
+ * The DLL carries a lock detector that reuses acquisition's non-coherent test
+ * statistic. Every emitted look (a partial in segments mode, or the full-epoch
+ * prompt when segments == 1) is also correlated at a *random off-peak* code
+ * phase — re-drawn each epoch and kept `noise_guard` chips clear of the
+ * prompt/early/late lobe — to give a signal-free CFAR noise sample (valid for a
+ * low-sidelobe code, e.g. Gold). The offset power feeds an EMA reference
+ * `E|O|^2`; the prompt powers of @p n_looks consecutive looks are summed into
+ * `S = sum|P_k|^2`, and the detector declares lock when
+ *
+ *   R = sqrt(2 * S / E|O|^2)  >  @p threshold
+ *
+ * which under H0 has `P(R > threshold) = marcum_q(n_looks, 0, threshold)` — so a
+ * caller sizes @p threshold = det_threshold_noncoherent(pfa, n_looks) and
+ * @p n_looks = det_n_noncoh(snr, ...) to meet a target (Pfa, Pd). The threshold
+ * is passed in (not derived) so the core stays dependency-free; the Python
+ * binding converts a `pfa` via the detection module. The EMA must average many
+ * more cells than the test integrates (`1/alpha >> n_looks`) or the noise
+ * estimate's own variance inflates Pfa; the binding defaults `1/alpha` to
+ * `max(1024, 32*n_looks)`.
+ *
+ * @param state      DLL state.  Must be non-NULL.
+ * @param threshold  CFAR threshold eta on the statistic R.
+ * @param n_looks    Non-coherent integration depth N (looks); clamped to >= 1.
+ * @param alpha      EMA coefficient for the noise reference, in (0, 1].
+ */
+void dll_configure_lock(dll_state_t *state, double threshold, size_t n_looks,
+                        double alpha);
+
+/** @brief Last lock decision (1 = locked, 0 = not). */
+int dll_get_locked(const dll_state_t *state);
+
+/** @brief Last lock test statistic R (compare against the configured eta). */
+double dll_get_lock_stat(const dll_state_t *state);
+
+/** @brief Current CFAR noise-power estimate E|O|^2 (offset-tap EMA). */
+double dll_get_noise_est(const dll_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

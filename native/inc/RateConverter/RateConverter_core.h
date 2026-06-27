@@ -110,6 +110,18 @@ void RateConverter_destroy (RateConverter_state_t *s);
  */
 void RateConverter_reset (RateConverter_state_t *s);
 
+/* Serializable state (reusable elastic-resume convention): the concatenated
+ * mutable state of the active cascade stages (HB / CIC[+comp FIR] / Resampler),
+ * in cascade order.  The stage plan is config (rebuilt from rate on the resumed
+ * instance), so a same-rate RateConverter round-trips exactly. */
+
+/** @brief Bytes RateConverter_get_state() writes for @p s. */
+size_t RateConverter_state_bytes (const RateConverter_state_t *s);
+/** @brief Serialize @p s's active-stage state into @p blob. */
+void RateConverter_get_state (const RateConverter_state_t *s, void *blob);
+/** @brief Restore active-stage state from @p blob (same rate).  @return 0. */
+int RateConverter_set_state (RateConverter_state_t *s, const void *blob);
+
 /**
  * @brief Convert a block of CF32 samples through the cascade.
  * Passes input through each stage in order, ping-ponging between two

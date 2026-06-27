@@ -240,6 +240,88 @@ _stage_reset (rc_stage_t type, void *ptr)
     }
 }
 
+/* ── Serializable state — compose the active stages' leaf serializers ────────
+ */
+
+static size_t
+_stage_state_bytes (rc_stage_t type, const void *ptr)
+{
+  switch (type)
+    {
+    case RC_STAGE_HB:
+      return hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+    case RC_STAGE_CIC:
+      {
+        const rc_cic_stage_t *cs = (const rc_cic_stage_t *)ptr;
+        size_t                b  = cic_state_bytes (cs->cic);
+        if (cs->fir)
+          b += fir_state_bytes (cs->fir);
+        return b;
+      }
+    case RC_STAGE_RESAMP:
+      return resamp_state_bytes ((const resamp_state_t *)ptr);
+    }
+  return 0;
+}
+
+static char *
+_stage_get_state (rc_stage_t type, const void *ptr, char *p)
+{
+  switch (type)
+    {
+    case RC_STAGE_HB:
+      hbdecim_get_state ((const hbdecim_state_t *)ptr, p);
+      p += hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+      break;
+    case RC_STAGE_CIC:
+      {
+        const rc_cic_stage_t *cs = (const rc_cic_stage_t *)ptr;
+        cic_get_state (cs->cic, p);
+        p += cic_state_bytes (cs->cic);
+        if (cs->fir)
+          {
+            fir_get_state (cs->fir, p);
+            p += fir_state_bytes (cs->fir);
+          }
+      }
+      break;
+    case RC_STAGE_RESAMP:
+      resamp_get_state ((const resamp_state_t *)ptr, p);
+      p += resamp_state_bytes ((const resamp_state_t *)ptr);
+      break;
+    }
+  return p;
+}
+
+static const char *
+_stage_set_state (rc_stage_t type, void *ptr, const char *p)
+{
+  switch (type)
+    {
+    case RC_STAGE_HB:
+      hbdecim_set_state ((hbdecim_state_t *)ptr, p);
+      p += hbdecim_state_bytes ((const hbdecim_state_t *)ptr);
+      break;
+    case RC_STAGE_CIC:
+      {
+        rc_cic_stage_t *cs = (rc_cic_stage_t *)ptr;
+        cic_set_state (cs->cic, p);
+        p += cic_state_bytes (cs->cic);
+        if (cs->fir)
+          {
+            fir_set_state (cs->fir, p);
+            p += fir_state_bytes (cs->fir);
+          }
+      }
+      break;
+    case RC_STAGE_RESAMP:
+      resamp_set_state ((resamp_state_t *)ptr, p);
+      p += resamp_state_bytes ((const resamp_state_t *)ptr);
+      break;
+    }
+  return p;
+}
+
 /*
  * Execute stage from (in, n_in) into (out, max_out).
  * Returns the number of output samples produced.
@@ -409,6 +491,35 @@ RateConverter_reset (RateConverter_state_t *s)
 {
   for (int i = 0; i < s->n_stages; i++)
     _stage_reset (s->stage_types[i], s->stage_ptrs[i]);
+}
+
+/* ── Serializable state — concatenate the active stages in cascade order ────
+ */
+
+size_t
+RateConverter_state_bytes (const RateConverter_state_t *s)
+{
+  size_t b = 0;
+  for (int i = 0; i < s->n_stages; i++)
+    b += _stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
+  return b;
+}
+
+void
+RateConverter_get_state (const RateConverter_state_t *s, void *blob)
+{
+  char *p = (char *)blob;
+  for (int i = 0; i < s->n_stages; i++)
+    p = _stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
+}
+
+int
+RateConverter_set_state (RateConverter_state_t *s, const void *blob)
+{
+  const char *p = (const char *)blob;
+  for (int i = 0; i < s->n_stages; i++)
+    p = _stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
+  return 0;
 }
 
 size_t

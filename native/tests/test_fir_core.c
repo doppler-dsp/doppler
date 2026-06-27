@@ -70,6 +70,41 @@ main (void)
 
   fir_destroy (f);
 
+  /* ── Serializable state round-trip — the elastic-resume guarantee ─────────
+   * Split a stream, hand the FIR's delay line to a fresh FIR (same taps), and
+   * continue: the concatenated output equals an uninterrupted run exactly. */
+  {
+    const float taps[7] = { 0.05f, -0.12f, 0.30f, 0.6f, 0.30f, -0.12f, 0.05f };
+    const size_t  L = 128, cut = 53;
+    float complex in[128], outA[128], outB[128];
+    for (size_t i = 0; i < L; i++)
+      in[i] = (float)(i % 9) - 4.0f + I * ((float)(i % 5) - 2.0f);
+
+    fir_state_t *ra = fir_create_real (taps, 7);
+    fir_execute (ra, in, L, outA);
+    fir_destroy (ra);
+
+    fir_state_t *r1 = fir_create_real (taps, 7);
+    fir_execute (r1, in, cut, outB);
+    size_t        sb = fir_state_bytes (r1);
+    unsigned char blob[64];
+    CHECK (sb <= sizeof blob);
+    fir_get_state (r1, blob);
+    fir_destroy (r1);
+
+    fir_state_t *r2 = fir_create_real (taps, 7);
+    CHECK (fir_set_state (r2, blob) == 0);
+    fir_execute (r2, in + cut, L - cut, outB + cut);
+    fir_destroy (r2);
+
+    int ok = 1;
+    for (size_t i = 0; i < L; i++)
+      if (crealf (outA[i]) != crealf (outB[i])
+          || cimagf (outA[i]) != cimagf (outB[i]))
+        ok = 0;
+    CHECK (ok);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_fir_core FAILED (%d)\n", _fails);

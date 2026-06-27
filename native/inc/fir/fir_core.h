@@ -99,6 +99,16 @@ extern "C"
    */
   void fir_reset (fir_state_t *state);
 
+  /* Serializable state (reusable elastic-resume convention): the delay line
+   * (num_taps-1 samples); taps/scratch are config (rebuilt on the instance). */
+
+  /** @brief Bytes fir_get_state() writes for @p state. */
+  size_t fir_state_bytes (const fir_state_t *state);
+  /** @brief Serialize @p state's delay line into @p blob. */
+  void fir_get_state (const fir_state_t *state, void *blob);
+  /** @brief Restore the delay line from @p blob (same num_taps).  @return 0. */
+  int fir_set_state (fir_state_t *state, const void *blob);
+
   /**
    * @brief Release all heap resources owned by the filter state.
    * Frees the tap array, delay line, and scratch buffer, then the state

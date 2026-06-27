@@ -12,14 +12,14 @@
  *   - `dp_state_validate()` — the one check every `set_state` opens with, so a
  *     wrong-object / wrong-config / foreign-endian blob is rejected, never
  *     silently reinterpreted, and
- *   - `DP_DEFINE_RUN()` — the identical `<obj>_run` pure-transducer wrapper.
+ *   - `DP_DEFINE_RUN()` — the identical `obj_run` pure-transducer wrapper.
  *
  * The per-object ABI (the contract jm's `serializable` binding and the Rust FFI
  * call) stays:
  *
- *   size_t <obj>_state_bytes(const <obj>_state_t *);
- *   void   <obj>_get_state  (const <obj>_state_t *, void *blob);
- *   int    <obj>_set_state  (<obj>_state_t *, const void *blob);  // DP_OK / -<err>
+ *   size_t obj_state_bytes(const obj_state_t *);
+ *   void   obj_get_state  (const obj_state_t *, void *blob);
+ *   int    obj_set_state  (obj_state_t *, const void *blob);  // DP_OK / -err
  *
  * Blob layout, every object:   [ dp_state_hdr_t ] [ module payload ]
  * Compositions embed children as self-contained sub-blobs (each carries its own
@@ -60,14 +60,14 @@ typedef struct
   uint16_t version; /**< Per-object blob format version.                    */
   uint8_t  endian;  /**< DP_STATE_ENDIAN at serialize time.                 */
   uint8_t  flags;   /**< Reserved; 0.                                       */
-  uint32_t bytes;   /**< Total blob size; equals <obj>_state_bytes().       */
+  uint32_t bytes;   /**< Total blob size; equals obj_state_bytes().       */
   uint32_t _pad;    /**< Reserved; 0.                                       */
 } dp_state_hdr_t;
 
 /* ── writer cursor ──────────────────────────────────────────────────────────
  * Sticky-error model: a bounds overrun sets `err` and subsequent writes no-op,
  * so call sites stay flat (check `w.err` once at the end if desired). Overrun
- * cannot happen when the caller allocated <obj>_state_bytes() — it is a guard. */
+ * cannot happen when the caller allocated obj_state_bytes() — it is a guard. */
 typedef struct
 {
   uint8_t *buf;
@@ -136,7 +136,7 @@ dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
   dp_w_bytes (w, p, n * sizeof (float));
 }
 
-/** Stamp the standard envelope. @p total must equal <obj>_state_bytes(). */
+/** Stamp the standard envelope. @p total must equal obj_state_bytes(). */
 static inline void
 dp_w_hdr (dp_writer_t *w, uint32_t magic, uint16_t version, size_t total)
 {
@@ -223,8 +223,8 @@ dp_r_f32 (dp_reader_t *r, float *p, size_t n)
 /**
  * @brief Validate a blob's envelope before trusting its payload.
  *
- * Every <obj>_set_state opens with this.  @p expect_bytes is the receiving
- * object's <obj>_state_bytes() — a blob from a different object (magic),
+ * Every obj_set_state opens with this.  @p expect_bytes is the receiving
+ * object's obj_state_bytes() — a blob from a different object (magic),
  * format (version), endianness, or config/size (bytes) is rejected rather than
  * reinterpreted.
  *

@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "CIC"
+serializable = "true"
 
 [[cic.init_params]]
 name = "R"

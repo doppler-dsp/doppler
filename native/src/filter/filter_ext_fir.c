@@ -231,6 +231,59 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (in_arr);
   return arr;
 }
+
+static PyObject *
+FIRObj_state_bytes (FIRObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (fir_state_bytes (self->handle));
+}
+
+static PyObject *
+FIRObj_get_state (FIRObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = fir_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  fir_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+FIRObj_set_state (FIRObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != fir_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (fir_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
 static PyObject *
 FIR_getprop_num_taps (FIRObject *self, void *Py_UNUSED (closure))
 {
@@ -322,6 +375,12 @@ static PyMethodDef FIRObj_methods[] = {
   { "execute_max_out", (PyCFunction)FIRObj_execute_max_out, METH_NOARGS,
     "execute_max_out() -> int\n\nMax output length execute() can produce for "
     "the current state.\nUse to size the ``out=`` buffer." },
+  { "state_bytes", (PyCFunction)FIRObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)FIRObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)FIRObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { "destroy", (PyCFunction)FIRObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)FIRObj_enter, METH_NOARGS, NULL },
@@ -336,8 +395,8 @@ static PyTypeObject FIRObjType = {
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Create a FIR filter from complex CF32 tap coefficients. Implements a "
-    "direct-form FIR convolution: y[n] = sum_k h[k]*x[n-k]. The tap array is "
-    "copied at creation; the caller may free it afterward. Use "
+    "direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap "
+    "array is copied at creation; the caller may free it afterward. Use "
     "fir_create_real() instead when all imaginary parts are zero — that path "
     "costs 1 FMA/tap versus 2 FMA + permute + mul here.\n",
   .tp_methods = FIRObj_methods,

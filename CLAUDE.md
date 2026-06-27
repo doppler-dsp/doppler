@@ -226,6 +226,40 @@ doctests on every public method; the CI doctest gate (`pytest --doctest-glob`)
 runs them. NB: a method's `@code` block needs nothing special, but jm leaves a
 blank line before the closing `"""` so the text-mode doctest doesn't swallow it.
 
+### 0.19.37 adoptions — `serializable` flag + LO/CIC/FIR adoption (gh-400, pin: 0.19.37)
+
+The CI drift gate now pins **0.19.37** (`ci.yml` + `perf-regression.yml`);
+`jm_version` is stamped 0.19.37. **Drive doppler with `uvx --from 'just-makeit==0.19.37' just-makeit …`.** The pin bump is pure tooling — fully additive, `jm status --check` clean across all 6495 files before any flag flip.
+
+0.19.37 ships **gh-400** (doppler-filed, jm #401): a `serializable = "true"`
+object key makes jm generate the Python binding triplet for a hand-written C
+state ABI (sibling to `reset`, no struct knowledge by jm) — the elastic /
+pure-transducer face:
+
+```c
+size_t <c>_state_bytes(const T *);            /* serialized size */
+void   <c>_get_state(const T *, void *blob);  /* serialize       */
+int    <c>_set_state(T *, const void *blob);  /* restore (0 ok)  */
+```
+
+↓ generates `state_bytes() -> int`, `get_state() -> bytes`,
+`set_state(bytes) -> None` (size-mismatch / rejected-blob `ValueError`,
+non-`bytes` `TypeError`).
+
+**Adopted on `LO`, `CIC`, `FIR`** (the C triplets land via the #261 leaf
+serializers): set `serializable = "true"` in `objects/<obj>.toml`, delete the
+per-object `_ext_<obj>.c` fragment, `jm apply`, **clang-format the fragment**
+(GNU 2-space — jm emits K&R 4-space). Verified: the leaf C round-trip tests
+(`test_<obj>_core.c`) + a Python random-stream mid-sequence split → bit-exact
+restore into a fresh instance (FIR delay line, CIC integ/comb, LO phase).
+Regenerating each fragment also re-emits jm's current `variable_output`
+machinery (LO/CIC pick up the gh-219 retired-list deferred-free + CIC gains the
+`out=` kwarg on `decimate`); `test_lo.py`'s #116 large-n regressions confirm the
+regenerated `steps()` is correct, so LO's bespoke independent-array `steps()` is
+retired in favour of the declarative form. `ddcr` is NOT eligible (hand-owned
+`ddc_fn`, `no_generate`); `hbdecim`/`resamp` are composed under
+`HalfbandDecimator`/`Resampler` and stay C-level for now.
+
 ### 0.19.7 adoptions — additive collocated `link=true` (gh-254) (pin: 0.19.7)
 
 The CI drift gate now pins **0.19.7** (`ci.yml` + `perf-regression.yml`);

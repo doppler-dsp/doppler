@@ -121,14 +121,61 @@ SNR; `K = 8` loses more gain than variance). `K` must divide `TE`.
 
 ______________________________________________________________________
 
-## 4. Next steps
+## 4. The full async tracking channel (carrier + code + symbol)
 
-- **C primitive — done.** Shipped as `Dll(..., segments=K)`: `segments=1` is the
-    classic coherent full-epoch DLL; `segments>1` emits `K` partial prompts per
-    epoch and tracks the code non-coherently across them. Reuses the sub-chip
-    DLL, `loop_filter`, and composes with `SymbolSync` + `Farrow` downstream.
-- **Close the ~1–2 dB gap.** Match the boxcar length to the *tracked* symbol
-    period (not a fixed `K`); evaluate a triangular/RC symbol MF.
-- **Closed-loop code validation.** Extend the jitter asset to drive the
-    non-coherent partial DLL under async data + code Doppler and confirm lock
-    retention end to end.
+Sections 1–3 cover the **code + symbol** path on a carrier-wiped input. A
+complete receiver adds the **carrier** loop, and *where* the carrier is corrected
+turns out to be decisive. Validated end to end (genie-carrier prototype) under
+carrier offset + code Doppler + an asynchronous data clock + AWGN, the
+architecture is:
+
+```
+Costas NCO ── de-rotate PER SAMPLE (before the code integration) ── carrier wipe
+   → Dll(segments=K, low bn) → K partial prompts/epoch   (non-coherent code)
+   → boxcar symbol matched filter → SymbolSync → symbols  (full SNR)
+   → carrier discriminator on the SYMBOLS → steer the Costas NCO   (feedback)
+```
+
+**Predetection de-rotation, postdetection discrimination** (the standard GPS
+carrier loop), and two rules that the prototype made concrete:
+
+- **De-rotate per sample, before the code integrate-and-dump.** If the carrier
+    rotates during the despread accumulation, the correlation sums rotating chips
+    and rolls off (a sinc loss) — it filters out signal energy. De-rotating later
+    (the despread *partials*, or the *symbols* after the symbol matched filter) is
+    too late; the energy is already gone. Placing the carrier wipe on the partials
+    or on the post-integration symbols both floored the BER.
+- **Take the carrier error from the full-SNR symbol**, not the raw samples or the
+    low-SNR partials — that minimises phase jitter. The loop steers the per-sample
+    NCO from this symbol-rate discriminator.
+- **The code loop is carrier-blind** (its `|E|−|L|` discriminator is
+    non-coherent), so it locks regardless of the carrier — but it needs a **low
+    loop bandwidth at low SNR** (e.g. `bn≈0.002` lost code lock at 6 dB Es/N0,
+    `bn≈1e-5` held to 4 dB).
+
+With the carrier removed per sample (genie) and a low-bandwidth code loop, the
+chain lands **within ~1.6× of the BPSK matched-filter bound at 4–6 dB Es/N0**
+(4 dB: 1.8e-2 vs 1.25e-2; 6 dB: 4.1e-3 vs 2.4e-3) — near optimal.
+
+The carrier loop closes a feedback path (symbol-rate discriminator → per-sample
+NCO), so unlike the §3 code+symbol cascade it cannot be a pipeline of block
+calls — it must be a per-sample inline loop, i.e. a C object.
+
+## 5. Next steps
+
+- **Build the C inline async-channel object.** Mirror `channel` (which already
+    inlines `costas_wipeoff` + `dll_accumulate`), generalized to: per sample wipe
+    the carrier and accumulate the code; per segment dump a partial and run the
+    boxcar/symbol stage; take the carrier discriminator from the recovered symbol.
+    Composes `Costas`, `Dll(segments)`, `SymbolSync`, `Farrow`, `loop_filter`.
+- **Close the ~1–2 dB symbol-MF gap.** Match the boxcar length to the *tracked*
+    symbol period (not a fixed `K`); evaluate a triangular/RC symbol MF.
+- **Investigate the high-SNR floor.** The prototype showed a ~2e-4 floor at
+    9.6 dB (worse, relative to the bound, than 8 dB) — likely cycle slips or a
+    symbol-alignment artifact; characterise before the C build.
+- **Closed-loop code-jitter asset.** Extend the jitter asset to drive the
+    non-coherent partial code loop under async data + code Doppler and confirm lock
+    retention and the low-SNR threshold.
+
+The code+symbol path (§3) is shipped as `Dll(..., segments=K)` (`segments=1` =
+the classic coherent DLL); the carrier loop (§4) is the remaining build.

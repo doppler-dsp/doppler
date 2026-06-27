@@ -91,6 +91,38 @@ locked  = c.lock_metric      # |Re P|/|P| EMA, ~1.0 when phase-locked
 
 ______________________________________________________________________
 
+## CarrierMpsk — M-PSK carrier-tracking loop
+
+`CarrierMpsk` is the M-ary generalization of `Costas`: the same integer-NCO
+wipe-off, coherent integrate-and-dump, embedded `LoopFilter`, and FLL assist,
+but with a **decision-directed M-PSK** phase discriminator instead of the BPSK
+one. Each symbol it slices the prompt to the nearest constellation point
+`ahat` and forms `e = Im(P · conj(ahat)) / |P|` (the sine of the residual phase
+error near lock). `m` selects the constellation — `2` (BPSK), `4` (QPSK), or
+`8` (8PSK); **at `m = 2` it is byte-for-byte the `Costas` loop** (same prompt
+stream, same tracked frequency), which is the loop's validation anchor.
+
+The loop locks to **one of `m` phases** — an M-fold ambiguity on absolute
+phase. Resolve it downstream with differential demapping
+([`mpsk.mpsk_diff_demap`](python-mpsk.md)) or a sync word; this loop only
+recovers the carrier and emits the prompts. The FLL assist (`bn_fll > 0`)
+matters more as `m` grows: 8PSK's phase discriminator is linear only over
+±π/8, so a sizeable residual needs the wide cross-product frequency
+discriminator to pull in before the PLL can refine phase.
+
+```python
+from doppler.track import CarrierMpsk
+
+# QPSK carrier loop, 16 samples/symbol, FLL-assisted; all params keyword-capable
+c = CarrierMpsk(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.01, m=4)
+symbols = c.steps(rx)        # one complex prompt symbol per tsamps samples
+f_est   = c.norm_freq        # tracked residual carrier (cycles/sample)
+locked  = c.lock_metric      # Re(P conj ahat)/|P| EMA, ~1.0 when phase-locked
+# resolve the M-fold ambiguity downstream, e.g. mpsk_diff_demap(mpsk_demap(...))
+```
+
+______________________________________________________________________
+
 ## Dll — code-tracking loop
 
 `Dll` is the code-loop counterpart to `Costas`: a delay-lock loop that tracks
@@ -205,6 +237,10 @@ ss.rate                  # recovered samples/symbol
 ______________________________________________________________________
 
 ::: doppler.track.Costas
+
+______________________________________________________________________
+
+::: doppler.track.CarrierMpsk
 
 ______________________________________________________________________
 

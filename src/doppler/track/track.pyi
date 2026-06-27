@@ -493,3 +493,97 @@ class SymbolSync:
     def __enter__(self) -> "SymbolSync": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class CarrierMpsk:
+    """Create an M-PSK carrier loop instance.
+
+    Parameters
+    ----------
+    bn : float, default 0.05
+        Loop noise bandwidth (default 0.05).
+    zeta : float, default 0.707
+        Damping factor (default 0.707).
+    init_norm_freq : float, default 0.0
+        Seed carrier frequency, cycles/sample (default 0.0).
+    tsamps : int, default 64
+        Samples per symbol (default 64).
+    bn_fll : float, default 0.0
+        FLL-assist bandwidth (default 0.0 = pure PLL).
+    m : int, default 4
+        Constellation order M, 2/4/8 (default 4 = QPSK).
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import CarrierMpsk
+    >>> obj = CarrierMpsk(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=64, bn_fll=0.0, m=4)
+
+    """
+    def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ..., bn_fll: float = ..., m: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed M-PSK discriminator (slice to the nearest constellation point, error Im(P*conj(ahat))/|P|), and emit one complex prompt symbol per symbol. The loop tracks a small residual carrier (bulk Doppler removed upstream); it locks to one of m phases, so resolve the M-fold ambiguity downstream (mpsk_diff_demap or a sync word). At m=2 this is exactly the BPSK Costas loop.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def configure(self, bn: float, zeta: float) -> None:
+        """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
+
+        Parameters
+        ----------
+        bn : float
+            Input.
+        zeta : float
+            Input.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the loop to the create-time frequency/phase; preserve config.
+        """
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def lock_metric(self) -> float:
+        """Lock metric."""
+
+    @property
+    def last_error(self) -> float:
+        """Last error."""
+
+    @property
+    def bn_fll(self) -> float:
+        """Bn fll."""
+    @bn_fll.setter
+    def bn_fll(self, value: float) -> None: ...
+
+    @property
+    def m(self) -> int:
+        """M."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "CarrierMpsk": ...
+
+    def __exit__(self, *args: object) -> None: ...

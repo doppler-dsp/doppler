@@ -40,6 +40,7 @@
 #define RESAMP_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -93,16 +94,19 @@ extern "C"
    *  Rate and bank are preserved. */
   void resamp_reset (resamp_state_t *state);
 
-  /* Serializable state (reusable elastic-resume convention): the polyphase
-   * phase, the fractional ctrl accumulator, the delay-line write head, and the
-   * three delay buffers (delay_buf, decim_iad, decim_tfd).  Rate, bank, phase
-   * increment and sizes are config (rebuilt from rate on the resumed instance). */
+  /* Serializable state (standard bytes interface; see dp_state.h): after the
+   * envelope, the polyphase phase, the fractional ctrl accumulator, the
+   * delay-line write head, and the three delay buffers (delay_buf, decim_iad,
+   * decim_tfd).  Rate, bank, phase increment and sizes are config. */
+#define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
+#define RESAMP_STATE_VERSION 1u
 
-  /** @brief Bytes resamp_get_state() writes for @p state. */
+  /** @brief Bytes resamp_get_state() writes for @p state (envelope + payload). */
   size_t resamp_state_bytes (const resamp_state_t *state);
   /** @brief Serialize @p state's mutable state into @p blob. */
   void resamp_get_state (const resamp_state_t *state, void *blob);
-  /** @brief Restore mutable state from @p blob (same rate).  @return 0. */
+  /** @brief Restore mutable state from @p blob (same rate).
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
   int resamp_set_state (resamp_state_t *state, const void *blob);
 
   /* ------------------------------------------------------------------

@@ -114,31 +114,39 @@ fir_reset (fir_state_t *state)
     memset (state->delay, 0, (state->num_taps - 1) * sizeof (float complex));
 }
 
-/* ── Serializable state — the delay line (num_taps-1 samples) ────────────────
- */
+/* ── Serializable state — standard envelope + delay line (num_taps-1
+ * samples); see dp_state.h. ─────────────────────────────────────────────── */
 
 size_t
 fir_state_bytes (const fir_state_t *state)
 {
-  return (state->num_taps > 1) ? (state->num_taps - 1) * sizeof (float complex)
-                               : 0;
+  size_t payload = (state->num_taps > 1)
+                       ? (state->num_taps - 1) * sizeof (float complex)
+                       : 0;
+  return sizeof (dp_state_hdr_t) + payload;
 }
 
 void
 fir_get_state (const fir_state_t *state, void *blob)
 {
+  dp_writer_t w = dp_writer_init (blob, fir_state_bytes (state));
+  dp_w_hdr (&w, FIR_STATE_MAGIC, FIR_STATE_VERSION, fir_state_bytes (state));
   if (state->num_taps > 1)
-    memcpy (blob, state->delay,
-            (state->num_taps - 1) * sizeof (float complex));
+    dp_w_cf32 (&w, state->delay, state->num_taps - 1);
 }
 
 int
 fir_set_state (fir_state_t *state, const void *blob)
 {
+  int rc = dp_state_validate (blob, fir_state_bytes (state), FIR_STATE_MAGIC,
+                              FIR_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, fir_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
   if (state->num_taps > 1)
-    memcpy (state->delay, blob,
-            (state->num_taps - 1) * sizeof (float complex));
-  return 0;
+    dp_r_cf32 (&r, state->delay, state->num_taps - 1);
+  return DP_OK;
 }
 
 size_t

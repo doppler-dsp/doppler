@@ -165,44 +165,50 @@ hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
 }
 
-/* ── Serializable state ─────────────────────────────────────────────────────
+/* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
  * Order: even_head, odd_head, has_pending, pending, parity, then the two
  * dual-write delay rings (2*even_cap floats each). */
 
 size_t
 hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r)
 {
-  return 2 * sizeof (size_t) + 2 * sizeof (int) + sizeof (float)
-         + 2 * (2 * r->even_cap * sizeof (float));
+  return sizeof (dp_state_hdr_t) + 2 * sizeof (size_t) + 2 * sizeof (int)
+         + sizeof (float) + 2 * (2 * r->even_cap * sizeof (float));
 }
 
 void
 hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob)
 {
-  char        *p  = (char *)blob;
-  const size_t bb = 2 * r->even_cap * sizeof (float);
-  memcpy (p, &r->even_head, sizeof (size_t)), p += sizeof (size_t);
-  memcpy (p, &r->odd_head, sizeof (size_t)), p += sizeof (size_t);
-  memcpy (p, &r->has_pending, sizeof (int)), p += sizeof (int);
-  memcpy (p, &r->pending, sizeof (float)), p += sizeof (float);
-  memcpy (p, &r->parity, sizeof (int)), p += sizeof (int);
-  memcpy (p, r->even_buf, bb), p += bb;
-  memcpy (p, r->odd_buf, bb);
+  dp_writer_t w = dp_writer_init (blob, hbdecim_r2c_state_bytes (r));
+  dp_w_hdr (&w, HBDECIM_R2C_STATE_MAGIC, HBDECIM_R2C_STATE_VERSION,
+            hbdecim_r2c_state_bytes (r));
+  dp_w_bytes (&w, &r->even_head, sizeof (size_t));
+  dp_w_bytes (&w, &r->odd_head, sizeof (size_t));
+  dp_w_bytes (&w, &r->has_pending, sizeof (int));
+  dp_w_f32 (&w, &r->pending, 1);
+  dp_w_bytes (&w, &r->parity, sizeof (int));
+  dp_w_f32 (&w, r->even_buf, 2 * r->even_cap);
+  dp_w_f32 (&w, r->odd_buf, 2 * r->even_cap);
 }
 
 int
 hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
 {
-  const char  *p  = (const char *)blob;
-  const size_t bb = 2 * r->even_cap * sizeof (float);
-  memcpy (&r->even_head, p, sizeof (size_t)), p += sizeof (size_t);
-  memcpy (&r->odd_head, p, sizeof (size_t)), p += sizeof (size_t);
-  memcpy (&r->has_pending, p, sizeof (int)), p += sizeof (int);
-  memcpy (&r->pending, p, sizeof (float)), p += sizeof (float);
-  memcpy (&r->parity, p, sizeof (int)), p += sizeof (int);
-  memcpy (r->even_buf, p, bb), p += bb;
-  memcpy (r->odd_buf, p, bb);
-  return 0;
+  int rc
+      = dp_state_validate (blob, hbdecim_r2c_state_bytes (r),
+                           HBDECIM_R2C_STATE_MAGIC, HBDECIM_R2C_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t rd = dp_reader_init (blob, hbdecim_r2c_state_bytes (r));
+  rd.off         = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&rd, &r->even_head, sizeof (size_t));
+  dp_r_bytes (&rd, &r->odd_head, sizeof (size_t));
+  dp_r_bytes (&rd, &r->has_pending, sizeof (int));
+  dp_r_f32 (&rd, &r->pending, 1);
+  dp_r_bytes (&rd, &r->parity, sizeof (int));
+  dp_r_f32 (&rd, r->even_buf, 2 * r->even_cap);
+  dp_r_f32 (&rd, r->odd_buf, 2 * r->even_cap);
+  return DP_OK;
 }
 
 double

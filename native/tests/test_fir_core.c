@@ -93,7 +93,11 @@ main (void)
     fir_destroy (r1);
 
     fir_state_t *r2 = fir_create_real (taps, 7);
-    CHECK (fir_set_state (r2, blob) == 0);
+    CHECK (fir_set_state (r2, blob) == DP_OK);
+    /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
+    blob[0] ^= (unsigned char)0xFF;
+    CHECK (fir_set_state (r2, blob) == DP_ERR_INVALID);
+    blob[0] ^= (unsigned char)0xFF;
     fir_execute (r2, in + cut, L - cut, outB + cut);
     fir_destroy (r2);
 

@@ -40,6 +40,7 @@
 #define CIC_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 
 #ifdef __cplusplus
@@ -108,11 +109,17 @@ void cic_reset(cic_state_t *state);
  * comb accumulators plus the decimation phase counter — R/shift are config
  * (rebuilt from R on the resumed instance). */
 
-/** @brief Bytes cic_get_state() writes. */
+/* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][integ_re/im,
+ * comb_re/im (CIC_N u64 each)][u32 phase]. */
+#define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
+#define CIC_STATE_VERSION 1u
+
+/** @brief Bytes cic_get_state() writes (envelope + payload). */
 size_t cic_state_bytes(const cic_state_t *state);
 /** @brief Serialize the integrator/comb/phase state into @p blob. */
 void cic_get_state(const cic_state_t *state, void *blob);
-/** @brief Restore the integrator/comb/phase state from @p blob.  @return 0. */
+/** @brief Restore the integrator/comb/phase state from @p blob.
+ *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
 int cic_set_state(cic_state_t *state, const void *blob);
 
 /**

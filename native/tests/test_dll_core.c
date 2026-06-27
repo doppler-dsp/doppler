@@ -75,6 +75,26 @@ make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
   return k;
 }
 
+/* Unit-variance complex Gaussian (Box-Muller from xorshift); 0.5 variance per
+ * component so E|z|^2 = 1 — a noise-only stream for the lock detector. */
+static float complex
+cgauss (uint32_t *st)
+{
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t a = *st;
+  *st ^= *st << 13;
+  *st ^= *st >> 17;
+  *st ^= *st << 5;
+  uint32_t b   = *st;
+  double   u1  = ((double)a + 1.0) / 4294967297.0;
+  double   u2  = ((double)b + 1.0) / 4294967297.0;
+  double   mag = sqrt (-log (u1)); /* sqrt(-2 ln u1)/sqrt(2) */
+  double   th  = 6.283185307179586 * u2;
+  return (float)(mag * cos (th)) + (float)(mag * sin (th)) * I;
+}
+
 int
 main (void)
 {
@@ -265,6 +285,51 @@ main (void)
     free (rx);
     free (out);
     free (data);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 7. Always-on lock detector: locks on signal, not on noise        *
+   * ---------------------------------------------------------------- */
+  {
+    const size_t sf = 63, sps = 4, K = 4, nper = 3000;
+    size_t       te   = sf * sps;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    float complex *rx  = malloc (te * nper * sizeof (*rx));
+    float complex *out = malloc (te * nper * sizeof (*out));
+
+    /* signal present (const data, code-aligned): strong despread -> lock.
+       The default config (pfa=1e-3, 20 looks, threshold ~8.567) is applied at
+       create, so the detector works with no configure_lock call. */
+    size_t       n = make_signal (rx, code, sf, sps, 0.0, nper, 9u, 1);
+    dll_state_t *d = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    CHECK (dll_get_locked (d) == 0); /* fresh: unlocked */
+    CHECK (dll_get_lock_stat (d) == 0.0);
+    dll_steps (d, rx, n, out, te * nper);
+    CHECK (dll_get_locked (d) == 1);
+    CHECK (dll_get_lock_stat (d) > 8.567); /* default CFAR threshold */
+    dll_destroy (d);
+
+    /* noise only: prompt power matches the off-peak reference, so the
+       statistic sits near sqrt(2*N) ~ 6.3 and stays below threshold. */
+    uint32_t st = 4242u;
+    for (size_t i = 0; i < te * nper; i++)
+      rx[i] = cgauss (&st);
+    dll_state_t *dn = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    dll_steps (dn, rx, te * nper, out, te * nper);
+    CHECK (dll_get_locked (dn) == 0);
+    CHECK (dll_get_lock_stat (dn) < 8.567);
+    CHECK (dll_get_lock_stat (dn) > 3.0); /* near sqrt(40), not degenerate */
+    CHECK (dll_get_noise_est (dn) > 0.0);
+    /* configure_lock retunes the threshold; an unreachable one never locks. */
+    dll_configure_lock (dn, 1e9, 20, 1.0 / 1024.0);
+    CHECK (dll_get_lock_stat (dn) == 0.0); /* retune clears the statistic */
+    dll_steps (dn, rx, te * nper, out, te * nper);
+    CHECK (dll_get_locked (dn) == 0);
+    dll_destroy (dn);
+    free (rx);
+    free (out);
     free (code);
   }
 

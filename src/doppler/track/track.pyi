@@ -241,6 +241,38 @@ class Dll:
             Input.
         """
 
+    def configure_lock(self, pfa: float, n_looks: int) -> None:
+        """Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The default is pfa=1e-3 over 20 looks. Read the result from the locked / lock_stat / noise_est properties.
+
+        The DLL carries a lock detector that reuses acquisition's non-coherent
+        test statistic. Every emitted look (a partial in segments mode, or the
+        full-epoch prompt when segments == 1) is also correlated at a *random
+        off-peak* code phase — re-drawn each epoch and kept `noise_guard` chips
+        clear of the prompt/early/late lobe — to give a signal-free CFAR noise
+        sample (valid for a low-sidelobe code, e.g. Gold). The offset power
+        feeds an EMA reference `E|O|^2`; the prompt powers of n_looks
+        consecutive looks are summed into `S = sum|P_k|^2`, and the detector
+        declares lock when
+
+        R = sqrt(2 * S / E|O|^2) > threshold
+
+        which under H0 has `P(R > threshold) = marcum_q(n_looks, 0, threshold)`
+        — so a caller sizes threshold = det_threshold_noncoherent(pfa, n_looks)
+        and n_looks = det_n_noncoh(snr, ...) to meet a target (Pfa, Pd). The
+        threshold is passed in (not derived) so the core stays dependency-free;
+        the Python binding converts a `pfa` via the detection module. The EMA
+        must average many more cells than the test integrates (`1/alpha >>
+        n_looks`) or the noise estimate's own variance inflates Pfa; the binding
+        defaults `1/alpha` to `max(1024, 32*n_looks)`.
+
+        Parameters
+        ----------
+        pfa : float
+            Input.
+        n_looks : int
+            Non-coherent integration depth N (looks); clamped to >= 1.
+        """
+
     def reset(self) -> None:
         """Re-seed the loop to the create-time code phase; preserve config.
         """
@@ -266,6 +298,18 @@ class Dll:
     @property
     def segments(self) -> int:
         """Segments."""
+
+    @property
+    def locked(self) -> bool:
+        """True when the code-lock detector's statistic exceeds its CFAR threshold (latched at each n_looks-look decision; see configure_lock)."""
+
+    @property
+    def lock_stat(self) -> float:
+        """Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare against det_threshold_noncoherent(pfa, n_looks)."""
+
+    @property
+    def noise_est(self) -> float:
+        """Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap EMA."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

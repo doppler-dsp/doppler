@@ -12,6 +12,7 @@ target_link_libraries(track PRIVATE
     channel_core
     symsync_core
     lo_core
+    detection_core
     nco_core
     farrow_core
     Python3::NumPy)

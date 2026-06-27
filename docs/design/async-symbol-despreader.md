@@ -164,7 +164,55 @@ a downstream `Costas` loop removes it at full symbol SNR. Putting a carrier loop
 *inside* the despreader would only matter for long coherent integration — which
 partials deliberately avoid.
 
-## 5. Status
+## 5. Code-lock detection (always on)
+
+A tracking channel must always answer one question: *am I locked?* The DLL
+carries an **always-on** lock detector that reuses **acquisition's** non-coherent
+test statistic, so acquire and track agree on what "detected" means.
+
+**Statistic.** Each emitted look (a partial in `segments` mode, the full-epoch
+prompt when `segments=1`) contributes its prompt power `|P_k|²`. The detector
+sums `N = n_looks` consecutive looks and forms
+
+```
+R = sqrt( 2 · Σ_{k=1}^{N} |P_k|²  /  E|O|² )
+```
+
+which under H0 (noise only) has `P(R > η) = marcum_q(N, 0, η)` — exactly the
+acquisition tail. So a caller sizes the threshold `η = det_threshold_noncoherent(pfa, N)` and the depth `N = det_n_noncoh(snr, …)` to
+meet a target `(Pfa, Pd)`; `configure_lock(pfa, n_looks)` does the conversion
+(default `pfa=1e-3`, `N=20`).
+
+**The noise reference `E|O|²`.** Instead of a separate noise channel, the loop
+correlates each look a second time at a **random off-peak code phase** — a whole
+chip offset re-drawn every epoch and kept clear of the prompt/early/late lobe by
+`noise_guard` chips. For a low-sidelobe code (Gold, long PN) that offset
+correlation is signal-free, so `|O_k|²` is a sample of the per-look noise power.
+Cycling the offset and averaging recovers the same noise estimate a bank of
+fixed off-peak taps would, with O(1) state.
+
+**Why an EMA, and why it must be long.** The reference is an EMA of `|O_k|²`
+(`E|O|² += α(|O_k|² − E|O|²)`), which is adaptive (tracks a drifting noise floor)
+and O(1) — matching the `Costas` lock-metric pattern. The subtlety, found by
+Monte-Carlo: the *detection* integrates a fixed `N` looks (that sets the χ²(2N)
+threshold), but the *noise estimate* must average **many more** cells than `N`,
+or its own variance inflates Pfa. One offset cell per look (`L=N`) drives Pfa
+~400× high; `1/α = max(1024, 32·N)` (`L_eff ≫ N`) holds Pfa at target with
+`Pd ≈ 0.98`. So the integration depth and the noise-averaging length are
+**decoupled**: `N` is the test, `1/α` is the reference. The reference uses a
+**cumulative-mean bootstrap** — it is the running average until `1/α` looks have
+accrued, then relaxes to the fixed-α EMA — so the noise floor is unbiased from
+the first look instead of seed-dominated for the ~`1/α`-look warm-up (otherwise
+Pfa runs ~10× high until the EMA settles, ~hundreds of epochs in). Verified
+end-to-end: empirical Pfa ≈ `9e-4` against the `1e-3` target right from the
+start of a noise stream.
+
+**Readouts.** `Dll.locked` (bool, latched each `N`-look decision), `Dll.lock_stat`
+(the last `R`), `Dll.noise_est` (`E|O|²`). The detector runs inside the normal
+`steps()` — no separate method, no opt-in. The threshold conversion (the one
+`detection`-module call) lives in the binding so `dll_core` links only `-lm`.
+
+## 6. Status
 
 - **Shipped — the despreader.** `Dll(..., segments=K)` (the §3 code+symbol path;
     `segments=1` = the classic coherent DLL). Validated **carrier-present**: code
@@ -174,6 +222,10 @@ partials deliberately avoid.
     an independent array per call (block-size invariant).
 - **Shipped — the inline symbol-loop primitive.** `symsync_step()` (the
     per-sample SymbolSync composition API); `symsync_steps()` is it in a loop.
+- **Shipped — the always-on code-lock detector** (§5). `Dll.locked` /
+    `lock_stat` / `noise_est`, tuned by `configure_lock(pfa, n_looks)`; reuses
+    acquisition's non-coherent statistic with a random off-peak EMA noise
+    reference. Validated signal-vs-noise in `test_dll.py` / `test_dll_core.c`.
 - **Downstream, already available:** `Costas` (carrier recovery) and
     `SymbolSync` (Gardner + Farrow symbol timing). A receiver is the pipeline
     `Dll(segments) → Costas → SymbolSync`; the §3 study and the

@@ -46,6 +46,32 @@ the residual carrier. The despreader does not touch it — a downstream
 code-rate estimate rings in and settles onto the true code Doppler with the
 residual carrier still on the samples.
 
+*(All three panels above are **noiseless** so the envelope and ring stay legible
+— they are one and the same signal.)*
+
+## Always-on lock detector
+
+![Async despreader: lock detector](../assets/async_despread_demo_lock.png)
+
+A tracking channel must always know whether it is locked, so the DLL carries a
+lock detector that reuses *acquisition's* non-coherent statistic. This is a
+**separate, noisy experiment** (the despread figure above is noiseless; a lock
+statistic is only meaningful against noise), so it gets its own figure on its own
+signal.
+
+It forms `R = √(2·Σ|P|²/E|O|²)` over `N` looks — prompt power over a CFAR noise
+reference taken from a **random off-peak correlation** (re-drawn each epoch,
+EMA-averaged) — and latches `Dll.locked` when `R` crosses
+`det_threshold_noncoherent(pfa, N)`. **Left:** `R` per epoch at several SNRs; with
+SF = 127's ~21 dB despread gain the signal traces sit far above the threshold
+even when very weak, while the noise-only trace hugs `√(2N) ≈ 6.3` below it.
+**Right:** the noisy despread output behind the "weak" trace — the BPSK is still
+recoverable and the detector reports lock on it. Because the noise reference rides
+an EMA much longer than the `N`-look test (and is cumulative-mean-bootstrapped so
+it is unbiased from the first look), the false-alarm rate holds at the target
+`pfa` (default `1e-3`) from the start. The statistic and threshold are the *same*
+ones the FFT acquisition uses, so acquire and track agree on "detected".
+
 ## How it works
 
 `Dll(segments=K)` splits each code epoch into `K` partial integrate-and-dumps.
@@ -64,6 +90,11 @@ d = Dll(code, sps=8, init_chip=0.0, bn=0.002, zeta=0.707, spacing=0.5,
         segments=4)
 part = d.steps(rx)        # oversampled async BPSK out (PN removed)
 rate = d.code_rate        # tracked code rate (carrier-blind)
+
+# always-on lock detector (acquisition's non-coherent test):
+d.configure_lock(pfa=1e-3, n_looks=20)   # size n_looks via detection.det_n_noncoh
+if d.locked:              # latched each n_looks-look decision
+    print(d.lock_stat, d.noise_est)      # statistic R and the CFAR noise ref
 
 # downstream — carrier + symbol recovery on the partials:
 from doppler.track import Costas, SymbolSync

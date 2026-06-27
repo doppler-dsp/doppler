@@ -25,6 +25,87 @@
 /* A length-7 maximal-length sequence (one period). */
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
+/* ── acq_run pure-transducer (state in/out) round-trip ─────────────────────
+ * The stateless elastic face: state_in == NULL resets then processes; a fresh
+ * engine + state_in reproduces an uninterrupted run; a corrupted blob is
+ * rejected (acq_run returns 0). Driven at two operating points so both the
+ * coherent and the non-coherent (nc_surface) serialization paths are covered:
+ * a strong cn0 (coherent-only) and a weak cn0 + max_noncoh (n_noncoh > 1).
+ * @p s0d is the oversampled, code-phase-rolled BPSK replica (length @p nx). */
+static int
+_acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
+                    double crate, double cn0, size_t max_noncoh, int want_nc)
+{
+  int          _fails = 0;
+  const double PI     = acos (-1.0);
+
+  acq_state_t *ra = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
+                                0, max_noncoh);
+  CHECK (ra != NULL);
+  if (!ra)
+    return _fails;
+  /* The weak-cn0 call must actually engage non-coherent integration, else it
+   * wouldn't exercise the nc_surface serialization branches. */
+  CHECK (want_nc ? (ra->n_noncoh > 1) : (ra->n_noncoh == 1));
+
+  const size_t rn = ra->n;
+  /* A non-coherent dump lands every n_noncoh frames; size for >= 2 dumps. */
+  const size_t L   = (2 * ra->n_noncoh + 1) * rn + 5;
+  const size_t cut = rn + rn / 2; /* split mid first accumulation         */
+  const double rf  = 1.0 / (double)rn; /* inject Doppler bin u = 1 */
+
+  float complex *s = malloc (L * sizeof (float complex));
+  for (size_t k = 0; k < L; k++)
+    {
+      double ph = 2.0 * PI * rf * (double)k;
+      s[k]      = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+    }
+
+  /* reference: the whole stream via acq_run, state_in == NULL (-> reset). */
+  acq_result_t hA[16];
+  size_t       nA = acq_run (ra, NULL, NULL, s, L, hA, 16);
+  acq_destroy (ra);
+
+  /* split: engine1 emits state_out; a fresh engine2 restores it via state_in.
+   */
+  acq_state_t *r1 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
+                                0, max_noncoh);
+  acq_state_t *r2 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2, 0.9,
+                                0, max_noncoh);
+  CHECK (r1 && r2);
+  if (r1 && r2)
+    {
+      size_t       cb   = acq_state_bytes (r1);
+      void        *blob = malloc (cb);
+      acq_result_t hB[16];
+      size_t       nB = acq_run (r1, NULL, blob, s, cut, hB, 16);
+      nB += acq_run (r2, blob, NULL, s + cut, L - cut, hB + nB, 16 - nB);
+
+      CHECK (nA >= 1 && nB == nA);
+      for (size_t i = 0; i < nA && i < nB; i++)
+        {
+          CHECK (hA[i].doppler_bin == hB[i].doppler_bin);
+          CHECK (hA[i].code_phase == hB[i].code_phase);
+          CHECK (fabsf (hA[i].test_stat - hB[i].test_stat) < 1e-4f);
+        }
+
+      /* a corrupted blob must make acq_run reject (set_state != 0) -> 0 out.
+       */
+      acq_state_t *r3 = acq_create (CODE7, 7, 8, spc, crate, cn0, 0.0, 1e-2,
+                                    0.9, 0, max_noncoh);
+      acq_get_state (r3, blob);
+      ((char *)blob)[0] ^= (char)0xFF; /* clobber the state header magic */
+      CHECK (acq_run (r3, blob, NULL, s, cut, hB, 16) == 0);
+      acq_destroy (r3);
+
+      free (blob);
+    }
+  acq_destroy (r1);
+  acq_destroy (r2);
+  free (s);
+  return _fails;
+}
+
 int
 main (void)
 {
@@ -120,6 +201,74 @@ main (void)
   free (burst);
   acq_destroy (b);
   acq_destroy (NULL); /* must not crash */
+
+  /* ── state round-trip: split a stream across two engines ─────────────────
+   * A fresh engine + the state blob must reproduce an uninterrupted run
+   * exactly — the elastic-resume (pod handoff) guarantee. */
+  {
+    acq_state_t *ra
+        = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+    CHECK (ra != NULL);
+    if (ra)
+      {
+        const size_t rn  = ra->n;       /* frame size (ny*nx)            */
+        const size_t L3  = 3 * rn + 5;  /* 3 full frames + a partial tail */
+        const size_t cut = rn + rn / 2; /* split mid-frame (1.5 frames)   */
+        const double rf  = 1.0 / (double)rn; /* Doppler bin u=1 (rf*rn = 1)  */
+
+        float complex *s = malloc (L3 * sizeof (float complex));
+        for (size_t k = 0; k < L3; k++)
+          {
+            double ph = 2.0 * PI * rf * (double)k;
+            s[k] = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+          }
+
+        /* Run A — uninterrupted. */
+        acq_result_t hA[8];
+        size_t       nA = acq_push (ra, s, L3, hA, 8);
+
+        /* Run B — engine1 takes [0,cut), hands its state to a fresh engine2
+         * which takes [cut,L3). */
+        acq_state_t *r1
+            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+        acq_state_t *r2
+            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+        CHECK (r1 && r2);
+        if (r1 && r2)
+          {
+            acq_result_t hB[8];
+            size_t       nB = acq_push (r1, s, cut, hB, 8);
+
+            size_t cb   = acq_state_bytes (r1);
+            void  *blob = malloc (cb);
+            acq_get_state (r1, blob);
+            CHECK (acq_set_state (r2, blob) == 0);
+
+            nB += acq_push (r2, s + cut, L3 - cut, hB + nB, 8 - nB);
+
+            CHECK (nA == 3 && nB == nA); /* both see all 3 full frames */
+            for (size_t i = 0; i < nA && i < nB; i++)
+              {
+                CHECK (hA[i].doppler_bin == hB[i].doppler_bin);
+                CHECK (hA[i].code_phase == hB[i].code_phase);
+                CHECK (fabsf (hA[i].peak_mag - hB[i].peak_mag) < 1e-5f);
+                CHECK (fabsf (hA[i].test_stat - hB[i].test_stat) < 1e-5f);
+                CHECK (fabsf (hA[i].snr_est - hB[i].snr_est) < 1e-5f);
+              }
+            free (blob);
+          }
+        acq_destroy (r1);
+        acq_destroy (r2);
+        free (s);
+      }
+    acq_destroy (ra);
+  }
+
+  /* acq_run pure-transducer round-trip at two operating points: coherent
+   * (n_noncoh == 1) and non-coherent (weak cn0 + max_noncoh -> n_noncoh > 1),
+   * the latter covering the nc_surface serialize/restore paths. */
+  _fails += _acq_run_roundtrip (s0d, nx, spc, crate, 20.0, 1, 0);
+  _fails += _acq_run_roundtrip (s0d, nx, spc, crate, 30.0, 8, 1);
 
   if (_fails)
     {

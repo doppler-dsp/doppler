@@ -8,19 +8,19 @@ class ToneMeasure:
     Parameters
     ----------
     n : int, default 8192
-        n constructor parameter.
+        Capture/frame length (>= 2).
     fs : float, default 1.0
-        fs constructor parameter.
+        Sample rate (Hz, > 0).
     n_harmonics : int, default 8
-        n_harmonics constructor parameter.
+        Harmonics to track (k = 2..n_harmonics).
     full_scale : float, default 1.0
-        full_scale constructor parameter.
+        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
     bits : int, default 0
-        bits constructor parameter.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target (6.02*bits + 1.76 + headroom).
     dynamic_range_db : float, default 0.0
-        dynamic_range_db constructor parameter.
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits (or a deep default when both are 0).
     dc_guard : int, default 0
-        dc_guard constructor parameter.
+        Extra bins excluded beyond L around DC.
 
     Examples
     --------
@@ -182,15 +182,15 @@ class NPRMeasure:
     Parameters
     ----------
     n : int, default 8192
-        n constructor parameter.
+        Capture/frame length (>= 2).
     fs : float, default 1.0
-        fs constructor parameter.
+        Sample rate (Hz, > 0).
     full_scale : float, default 1.0
-        full_scale constructor parameter.
+        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
     bits : int, default 0
-        bits constructor parameter.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target.
     dynamic_range_db : float, default 0.0
-        dynamic_range_db constructor parameter.
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits.
 
     Examples
     --------
@@ -290,15 +290,15 @@ class IMDMeasure:
     Parameters
     ----------
     n : int, default 8192
-        n constructor parameter.
+        Capture/frame length (>= 2).
     fs : float, default 1.0
-        fs constructor parameter.
+        Sample rate (Hz, > 0).
     full_scale : float, default 1.0
-        full_scale constructor parameter.
+        Amplitude that equals 0 dBFS (> 0).  Ignored if bits > 0.
     bits : int, default 0
-        bits constructor parameter.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target.
     dynamic_range_db : float, default 0.0
-        dynamic_range_db constructor parameter.
+        Explicit sidelobe/dynamic-range target (dB); used when > 0, else derived from bits.
 
     Examples
     --------
@@ -379,8 +379,8 @@ def measure_min_samples(fs: float, target_rbw: float, bits: int, dynamic_range_d
     """Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; target_rbw<=0 -> span/1000).
 
     Plans a capture for the same auto-Kaiser window the measurement objects
-    use: the dynamic-range target (from @p dynamic_range_db, else @p bits)
-    selects the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
+    use: the dynamic-range target (from dynamic_range_db, else bits) selects
+    the Kaiser beta, whose ENBW (measured via kaiser_enbw) sets the
     bins-per-RBW. RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
 
     Parameters
@@ -388,7 +388,7 @@ def measure_min_samples(fs: float, target_rbw: float, bits: int, dynamic_range_d
     fs : float
         Sample rate (Hz, > 0).
     target_rbw : float
-        Desired resolution bandwidth (Hz).  When <= 0 it defaults to span/1000, where span = fs/2 for real captures and fs for complex (@p complex_input).
+        Desired resolution bandwidth (Hz).  When <= 0 it defaults to span/1000, where span = fs/2 for real captures and fs for complex (complex_input).
     bits : int
         ADC depth: sets the dynamic-range target when no explicit override is given.
     dynamic_range_db : float

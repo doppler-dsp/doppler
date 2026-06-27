@@ -36,9 +36,14 @@ name = "spacing"
 type = "double"
 default = "0.5"
 
+[[dll.init_params]]
+name = "segments"
+type = "size_t"
+default = "1"
+
 [[dll.methods]]
 name = "steps"
-doc = "Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) discriminator each code period, steer the code NCO, and emit one prompt symbol per period."
+doc = "Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate, for a downstream symbol matched filter + SymbolSync) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock)."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -75,3 +80,7 @@ type = "double"
 [[dll.properties]]
 name = "last_error"
 type = "double"
+
+[[dll.properties]]
+name = "segments"
+type = "size_t"

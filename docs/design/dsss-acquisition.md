@@ -12,18 +12,21 @@ ______________________________________________________________________
 
 `doppler.dsss.Acquisition` (`native/src/acq/acq_core.c`) acquires a DSSS burst —
 repeated BPSK PN epochs — under unknown code phase and Doppler. It frames the
-stream into `(ny, nx)` (one PN epoch per row), FFTs down the columns for Doppler,
-correlates each row against the code, and coherently integrates `dwell` frames
-before a CFAR gate. It works, and it is the right tool for a static, low-Doppler
-signal.
+stream into `(doppler_bins, nx)` (one PN epoch per row), FFTs down the columns
+for Doppler, correlates each row against the code, and CFAR-gates the surface. It
+is parameterised by **physics** — `chip_rate`, `cn0_dbhz`, `reps`, `pfa`, `pd` —
+and sizes its own grid: the coherent depth `doppler_bins` is the smallest in
+`[1, reps]` that meets `pd` (see [the guide](../guide/dsss-acquisition.md)). Below,
+`ny ≡ doppler_bins` is the slow-time / coherent-depth axis. It works, and it is
+the right tool for a static, low-Doppler signal.
 
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
-| Gap                  | Today                                                                                                                             | Why it matters                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry. | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
-| **All-coherent**     | The slow-time FFT and the `dwell` accumulate are both coherent. No magnitude (`non-coherent`) integration.                        | Coherent time is bounded (below); weak signals beyond that bound are simply unreachable.            |
-| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                    | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
+| Gap                  | Today                                                                                                                                           | Why it matters                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.               | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
+| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent (`max_noncoh>1`) looks extend it, but the coherent depth is the primary lever. | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
+| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                  | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
 
 This document defines the problem and terms precisely, frames every acquisition
 method as one **cross-ambiguity function (CAF)**, lays out the trade space, and
@@ -154,9 +157,9 @@ is the price of phase-robustness.
 primitives — `det_threshold(pfa)` → `eta`, `det_pd(snr, dwell, eta)` (coherent,
 order 1), and crucially `marcum_q(m, a, b)` with **arbitrary integer order `m`**,
 which *is* the non-coherent detector for `m = N_nc` looks (`native/inc/detection/`).
-The only missing piece is a packaged `det_pd_noncoherent(snr, n_coh, n_noncoh)`
-(plus its dwell/look inverse) so the engine can **auto-split** `(M, N_nc)` from
-`(Pfa, Pd, min_snr)` and the ceilings.
+The packaged `det_pd_noncoherent(snr, n_coh, n_noncoh)` (plus its look inverse
+`det_n_noncoh`) lets the engine **auto-split** `(M, N_nc)` from `(Pfa, Pd, cn0_dbhz)` and the ceilings — `cn0_dbhz` is converted to the per-sample amplitude
+`snr = sqrt(10^(cn0_dbhz/10)/fs)` at construction.
 
 ______________________________________________________________________
 
@@ -385,12 +388,21 @@ Priority: **sensitivity → span → dynamics.**
 **P1 (non-coherent) — landed.** `doppler.detection` gained the order-`N_nc`
 helpers `det_threshold_noncoherent` / `det_pd_noncoherent` / `det_n_noncoh`
 (thin wrappers over the existing generalized `marcum_q`, validated against
-Monte-Carlo to \<1%). `Acquisition` gained `n_noncoh` (override) + `max_noncoh`
-(auto-split cap): the auto-config grows coherent dwell to `max_dwell`, then adds
-magnitude-summed looks to close the Pd gap; the `N_nc>1` push path accumulates
+Monte-Carlo to \<1%). `Acquisition` takes `max_noncoh` (auto-split cap): the
+auto-config grows the coherent depth to `reps`, then adds magnitude-summed looks
+(up to `max_noncoh`) to close the Pd gap; the `N_nc>1` push path accumulates
 `|·|²` and gates the normalized order-`N_nc` statistic. The pure-coherent
 (`N_nc=1`) path is unchanged. The associative pod-merge (`acq_nc_merge`) is left
-to **P4**. **Not yet started:** P0 (stateless kernel), P2 (sub-block), P3
+to **P4**.
+
+**Physics-only constructor — landed.** The grid-and-SNR API
+(`sf`/`ny`/`min_snr`/`max_dwell`/`n_noncoh`) was replaced by physics:
+`reps`/`spc`/`chip_rate`/`cn0_dbhz`/`doppler_uncertainty`. `sf` is inferred from
+`len(code)`; the engine picks the smallest coherent depth `doppler_bins ≤ reps`
+meeting `pd`; `doppler_uncertainty` narrows the scanned Doppler band (fewer
+Bonferroni cells → lower gate, with a matching masked argmax); an infeasible
+operating point builds best-effort, flags `underpowered`, and warns.
+**Not yet started:** P0 (stateless kernel), P2 (sub-block), P3
 (Doppler-rate), P4 (orchestration).
 
 | Phase                                     | Deliverable                                                                                                                                               | Acceptance criteria                                                                                                                                                                                                               |

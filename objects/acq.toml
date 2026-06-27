@@ -17,24 +17,40 @@ depends_on = [
     { name = "detection", link = true },
 ]
 
+# ── Construction: physics in, grid out ───────────────────────────────────────
+# The user states the waveform, front end, and operating point in real units;
+# the engine derives the whole search grid (coherent depth, threshold, looks).
+# chip_rate / cn0_dbhz carry valid nonzero placeholder defaults so jm's auto-
+# doctest builds a non-NULL object; acq_create still rejects an explicit 0.
+
 [[acq.init_params]]
 name = "code"
 type = "uint8_t[]"
 
 [[acq.init_params]]
-name = "sf"
+name = "reps"
 type = "size_t"
 default = "1"
 
 [[acq.init_params]]
 name = "spc"
 type = "size_t"
-default = "1"
+default = "4"
 
 [[acq.init_params]]
-name = "ny"
-type = "size_t"
-default = "16"
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[acq.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "50.0"
+
+[[acq.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "0.0"
 
 [[acq.init_params]]
 name = "pfa"
@@ -47,29 +63,12 @@ type = "double"
 default = "0.9"
 
 [[acq.init_params]]
-name = "min_snr"
-type = "double"
-default = "0.1"
-
-[[acq.init_params]]
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
 
-[[acq.init_params]]
-name = "max_dwell"
-type = "size_t"
-default = "64"
-
-# Non-coherent integration. n_noncoh = 0 auto-splits (coherent dwell up to
-# max_dwell, then magnitude-summed looks up to max_noncoh to close Pd); n_noncoh
-# > 0 pins the look count. Trailing + defaults (0, 1) keep the engine purely
-# coherent and backward-compatible.
-[[acq.init_params]]
-name = "n_noncoh"
-type = "size_t"
-default = "0"
-
+# Advanced: non-coherent look cap. 1 (default) = coherent-only; raise it to let
+# auto-config add magnitude-summed looks when reps coherent alone can't reach pd.
 [[acq.init_params]]
 name = "max_noncoh"
 type = "size_t"
@@ -83,87 +82,130 @@ nogil = true
 max_results = 64
 result_fields = [{name = "doppler_bin", type = "size_t"}, {name = "code_phase", type = "size_t"}, {name = "peak_mag", type = "float"}, {name = "noise_est", type = "float"}, {name = "test_stat", type = "float"}, {name = "snr_est", type = "float"}]
 
-[[acq.properties]]
-name = "ny"
-type = "size_t"
-field = true
+# ── Read-back grid the engine derived ────────────────────────────────────────
 
 [[acq.properties]]
-name = "nx"
+name = "code_bins"
 type = "size_t"
 field = true
+doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
 
 [[acq.properties]]
-name = "n"
+name = "doppler_bins"
 type = "size_t"
 field = true
+doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."
 
 [[acq.properties]]
 name = "sf"
 type = "size_t"
 field = true
+doc = "Chips per PN segment, inferred from len(code)."
 
 [[acq.properties]]
 name = "spc"
 type = "size_t"
 field = true
+doc = "Samples per chip (chip-rate oversample factor)."
 
 [[acq.properties]]
-name = "dwell"
+name = "reps"
 type = "size_t"
 field = true
-
-[[acq.properties]]
-name = "max_dwell"
-type = "size_t"
-field = true
+doc = "Max coherent code repetitions (the coherence ceiling)."
 
 [[acq.properties]]
 name = "n_noncoh"
 type = "size_t"
 field = true
-
-[[acq.properties]]
-name = "max_noncoh"
-type = "size_t"
-field = true
+doc = "Non-coherent looks per detection (1 = pure coherent)."
 
 [[acq.properties]]
 name = "ring_cap"
 type = "size_t"
 field = true
+doc = "Input ring capacity in complex samples."
 
 [[acq.properties]]
 name = "noise_lo"
 type = "size_t"
 field = true
+doc = "First CFAR reference bin (inclusive)."
 
 [[acq.properties]]
 name = "noise_hi"
 type = "size_t"
 field = true
+doc = "Last CFAR reference bin (inclusive)."
 
 [[acq.properties]]
 name = "threshold"
 type = "float"
 field = true
+doc = "CFAR gate on the test statistic (coherent path)."
 
 [[acq.properties]]
 name = "eta"
 type = "float"
 field = true
+doc = "Raw per-cell Rayleigh amplitude threshold."
 
 [[acq.properties]]
 name = "eta_nc"
 type = "float"
 field = true
+doc = "Non-coherent CFAR threshold (order-N_nc Marcum)."
 
 [[acq.properties]]
 name = "pfa_cell"
 type = "double"
 field = true
+doc = "Bonferroni per-cell false-alarm probability over the searched cells."
 
 [[acq.properties]]
 name = "pd_predicted"
 type = "double"
 field = true
+doc = "Predicted Pd at cn0_dbhz and the chosen grid."
+
+[[acq.properties]]
+name = "fs"
+type = "double"
+field = true
+doc = "Sample rate (Hz) = chip_rate * spc."
+
+[[acq.properties]]
+name = "chip_rate"
+type = "double"
+field = true
+doc = "Chip rate (Hz)."
+
+[[acq.properties]]
+name = "cn0_dbhz"
+type = "double"
+field = true
+doc = "Carrier-to-noise density used to size the search (dB-Hz)."
+
+[[acq.properties]]
+name = "doppler_span_hz"
+type = "double"
+field = true
+doc = "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."
+
+[[acq.properties]]
+name = "doppler_res_hz"
+type = "double"
+field = true
+doc = "Doppler bin width = chip_rate/(sf*doppler_bins) Hz."
+
+[[acq.properties]]
+name = "pd"
+type = "double"
+field = true
+doc = "Target detection probability."
+
+[[acq.properties]]
+name = "underpowered"
+type = "bool"
+field = true
+doc = "True when pd_predicted < pd (the search cannot meet the target)."

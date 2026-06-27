@@ -219,28 +219,26 @@ ddcr_reset (ddcr_state_t *s)
   RateConverter_reset (s->rc);
 }
 
-/* ── Serializable state — compose the chain's leaf serializers ──────────────
- * Layout: [ddcr_state_hdr_t][r2c][lo][rc...], children in signal-chain order.
- */
+/* ── Serializable state — standard envelope + the chain's leaf serializers ───
+ * Layout: [dp_state_hdr_t][ddcr_extra_t][r2c][lo][rc], children in
+ * signal-chain order; see dp_state.h. */
 
 size_t
 ddcr_state_bytes (const ddcr_state_t *s)
 {
-  return sizeof (ddcr_state_hdr_t) + hbdecim_r2c_state_bytes (s->r2c)
-         + lo_state_bytes (s->lo) + RateConverter_state_bytes (s->rc);
+  return sizeof (dp_state_hdr_t) + sizeof (ddcr_extra_t)
+         + hbdecim_r2c_state_bytes (s->r2c) + lo_state_bytes (s->lo)
+         + RateConverter_state_bytes (s->rc);
 }
 
 void
 ddcr_get_state (const ddcr_state_t *s, void *blob)
 {
-  ddcr_state_hdr_t *hd = (ddcr_state_hdr_t *)blob;
-  hd->magic            = DDCR_STATE_MAGIC;
-  hd->version          = (uint16_t)DDCR_STATE_VERSION;
-  hd->_pad             = 0;
-  hd->rate             = s->rate;
-  hd->bytes            = (uint64_t)ddcr_state_bytes (s);
+  dp_writer_t w = dp_writer_init (blob, ddcr_state_bytes (s));
+  dp_w_hdr (&w, DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
+  dp_w_f64 (&w, s->rate); /* ddcr_extra_t */
 
-  char *p = (char *)blob + sizeof (ddcr_state_hdr_t);
+  char *p = (char *)blob + w.off;
   hbdecim_r2c_get_state (s->r2c, p);
   p += hbdecim_r2c_state_bytes (s->r2c);
   lo_get_state (s->lo, p);
@@ -251,34 +249,25 @@ ddcr_get_state (const ddcr_state_t *s, void *blob)
 int
 ddcr_set_state (ddcr_state_t *s, const void *blob)
 {
-  const ddcr_state_hdr_t *hd = (const ddcr_state_hdr_t *)blob;
-  if (hd->magic != DDCR_STATE_MAGIC || hd->version != DDCR_STATE_VERSION
-      || hd->rate != s->rate || hd->bytes != (uint64_t)ddcr_state_bytes (s))
-    return -1;
+  int rc = dp_state_validate (blob, ddcr_state_bytes (s), DDCR_STATE_MAGIC,
+                              DDCR_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, ddcr_state_bytes (s));
+  r.off         = sizeof (dp_state_hdr_t);
+  if (dp_r_f64 (&r) != s->rate) /* ddcr_extra_t.rate is the layout key */
+    return DP_ERR_INVALID;
 
-  const char *p = (const char *)blob + sizeof (ddcr_state_hdr_t);
+  const char *p = (const char *)blob + r.off;
   hbdecim_r2c_set_state (s->r2c, p);
   p += hbdecim_r2c_state_bytes (s->r2c);
   lo_set_state (s->lo, p);
   p += lo_state_bytes (s->lo);
   RateConverter_set_state (s->rc, p);
-  return 0;
+  return DP_OK;
 }
 
-size_t
-ddcr_run (ddcr_state_t *s, const void *state_in, void *state_out,
-          const float *in, size_t n_in, float _Complex *out, size_t max_out)
-{
-  if (state_in)
-    {
-      if (ddcr_set_state (s, state_in) != 0)
-        return 0;
-    }
-  size_t n_out = ddcr_execute (s, in, n_in, out, max_out);
-  if (state_out)
-    ddcr_get_state (s, state_out);
-  return n_out;
-}
+DP_DEFINE_RUN (ddcr, ddcr_state_t, float, float _Complex)
 
 double
 ddcr_get_norm_freq (const ddcr_state_t *s)

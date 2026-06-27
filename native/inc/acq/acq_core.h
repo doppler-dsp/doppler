@@ -48,6 +48,7 @@
 
 #include "buffer/buffer.h"
 #include "clib_common.h"
+#include "dp_state.h"
 #include "corr2d/corr2d_core.h"
 #include "detection/detection_core.h"
 #include "fft/fft_core.h"
@@ -139,36 +140,33 @@ extern "C"
   } acq_state_t;
 
   /**
-   * @brief Serializable header for an engine's cross-call state.
+   * @brief Per-object extra header for an engine's cross-call state.
    *
    * The state blob is the *only* thing a fresh engine needs to continue a
    * stream from `(descriptor, state, input)` — it makes the engine a pure
-   * transducer for the elastic fan-out (thread / process / pod).  Layout,
-   * contiguous and flat:
+   * transducer for the elastic fan-out (thread / process / pod).  Standard
+   * bytes interface (see dp_state.h); layout, contiguous and flat:
    *
-   *   [ acq_state_hdr_t ]
-   *   [ float complex unconsumed[n_unconsumed] ]   (partial frame, < n
-   * samples) [ float          nc_surface[n] ]             (only when n_noncoh
-   * > 1)
+   *   [ dp_state_hdr_t ] [ acq_extra_t ]
+   *   [ float complex unconsumed[n_unconsumed] ]   (partial frame, < n samples)
+   *   [ float          nc_surface[n] ]             (only when n_noncoh > 1)
    *
-   * Build the byte buffer with acq_state_bytes(); a node validates
-   * @ref magic / @ref version / @ref n before trusting it and rejects a
-   * mismatch rather than reinterpreting it.
+   * Build the byte buffer with acq_state_bytes(); set_state validates the
+   * envelope (magic/version/size) plus n / n_noncoh below, rejecting a mismatch
+   * rather than reinterpreting it.
    */
   typedef struct
   {
-    uint32_t magic;   /**< ACQ_STATE_MAGIC.                              */
-    uint16_t version; /**< ACQ_STATE_VERSION.                            */
     uint16_t has_nc;  /**< 1 if nc_surface[n] follows the samples.       */
-    uint64_t n;       /**< Frame size; must equal engine's n.            */
-    uint64_t samples_consumed; /**< Stream offset framed so far. */
-    uint32_t n_noncoh; /**< Non-coherent looks (engine consistency).      */
-    uint32_t nc_count; /**< Looks accumulated in the current dump.        */
-    uint32_t n_unconsumed; /**< Partial-frame samples that follow (< n). */
-    uint32_t _pad;
-  } acq_state_hdr_t;
+    uint16_t _pad;
+    uint32_t n_noncoh;         /**< Non-coherent looks (consistency).     */
+    uint64_t n;                /**< Frame size; must equal engine's n.    */
+    uint64_t samples_consumed; /**< Stream offset framed so far.          */
+    uint32_t nc_count;     /**< Looks accumulated in the current dump.    */
+    uint32_t n_unconsumed; /**< Partial-frame samples that follow (< n).  */
+  } acq_extra_t;
 
-#define ACQ_STATE_MAGIC 0x41435152u /* 'ACQR' */
+#define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
 #define ACQ_STATE_VERSION 1u
 
   /**

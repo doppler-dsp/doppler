@@ -29,6 +29,7 @@
 #define RATE_CONVERTER_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #include <complex.h>
 #include <stddef.h>
@@ -110,16 +111,20 @@ void RateConverter_destroy (RateConverter_state_t *s);
  */
 void RateConverter_reset (RateConverter_state_t *s);
 
-/* Serializable state (reusable elastic-resume convention): the concatenated
- * mutable state of the active cascade stages (HB / CIC[+comp FIR] / Resampler),
- * in cascade order.  The stage plan is config (rebuilt from rate on the resumed
- * instance), so a same-rate RateConverter round-trips exactly. */
+/* Serializable state (standard bytes interface; see dp_state.h): the standard
+ * envelope followed by the concatenated mutable state of the active cascade
+ * stages (HB / CIC[+comp FIR] / Resampler), in cascade order — each a
+ * self-contained sub-blob with its own leaf envelope.  The stage plan is config
+ * (rebuilt from rate), so a same-rate RateConverter round-trips exactly. */
+#define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
+#define RC_STATE_VERSION 1u
 
-/** @brief Bytes RateConverter_get_state() writes for @p s. */
+/** @brief Bytes RateConverter_get_state() writes for @p s (envelope + stages). */
 size_t RateConverter_state_bytes (const RateConverter_state_t *s);
 /** @brief Serialize @p s's active-stage state into @p blob. */
 void RateConverter_get_state (const RateConverter_state_t *s, void *blob);
-/** @brief Restore active-stage state from @p blob (same rate).  @return 0. */
+/** @brief Restore active-stage state from @p blob (same rate).
+ *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
 int RateConverter_set_state (RateConverter_state_t *s, const void *blob);
 
 /**

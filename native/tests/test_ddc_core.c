@@ -138,10 +138,10 @@ main (void)
     ddcr_destroy (r1);
 
     ddcr_state_t *r2 = ddcr_create (norm_freq, rate);
-    CHECK (ddcr_set_state (r2, blob) == 0);
+    CHECK (ddcr_set_state (r2, blob) == DP_OK);
     /* a mismatched-rate engine must reject the blob */
     ddcr_state_t *rbad = ddcr_create (norm_freq, 0.2);
-    CHECK (ddcr_set_state (rbad, blob) == -1);
+    CHECK (ddcr_set_state (rbad, blob) == DP_ERR_INVALID);
     ddcr_destroy (rbad);
 
     nB += ddcr_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);

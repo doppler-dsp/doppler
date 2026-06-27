@@ -1,0 +1,77 @@
+[pdespread]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "PartialDespreader"
+depends_on = [
+  { name = "dll", link = true },
+  { name = "loop_filter", link = true },
+]
+
+[[pdespread.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[pdespread.init_params]]
+name = "sps"
+type = "size_t"
+default = "4"
+
+[[pdespread.init_params]]
+name = "k"
+type = "size_t"
+default = "4"
+
+[[pdespread.init_params]]
+name = "init_chip"
+type = "double"
+default = "0.0"
+
+[[pdespread.init_params]]
+name = "bn"
+type = "double"
+default = "0.002"
+
+[[pdespread.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[pdespread.init_params]]
+name = "spacing"
+type = "double"
+default = "0.5"
+
+[[pdespread.methods]]
+name = "steps"
+doc = "Despread a carrier-wiped cf32 block, emitting k sub-epoch partial prompts per code period and steering the code NCO once per period on the non-coherent early-late discriminator (robust to an asynchronous data-symbol clock). The partial-prompt stream feeds a downstream symbol matched filter + SymbolSync."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[pdespread.methods]]
+name = "reset"
+doc = "Re-seed the code loop to the create-time code phase; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[pdespread.properties]]
+name = "code_phase"
+type = "double"
+
+[[pdespread.properties]]
+name = "code_rate"
+type = "double"
+
+[[pdespread.properties]]
+name = "last_error"
+type = "double"
+
+[[pdespread.properties]]
+name = "k"
+type = "size_t"

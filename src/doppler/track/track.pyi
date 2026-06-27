@@ -443,3 +443,72 @@ class SymbolSync:
     def __enter__(self) -> "SymbolSync": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class PartialDespreader:
+    """Create a partial-correlation despreader (COPIES code).
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        Spreading code (0/1 chips), one period; copied internally.
+    sps : int, default 4
+        Samples per chip.
+    k : int, default 4
+        Partial correlations per code epoch; must be >= 1.
+    init_chip : float, default 0.0
+        Seed code phase, chips.
+    bn : float, default 0.002
+        Code-loop noise bandwidth (per code epoch).
+    zeta : float, default 0.707
+        Damping factor (0.707 = critically damped).
+    spacing : float, default 0.5
+        Early/late tap offset, chips (0.5 = half-chip).
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., k: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Despread a carrier-wiped cf32 block, emitting k sub-epoch partial prompts per code period and steering the code NCO once per period on the non-coherent early-late discriminator (robust to an asynchronous data-symbol clock). The partial-prompt stream feeds a downstream symbol matched filter + SymbolSync.
+
+        Correlates each input sample against the early/prompt/late code taps
+        (dll_accumulate), dumping a partial prompt every `sf/k` chips and
+        steering the code NCO once per epoch on the non-coherent early-late
+        discriminator.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Carrier-wiped input samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of partial prompts written (<= max_out).
+        """
+
+    def reset(self) -> None:
+        """Re-seed the code loop to the create-time code phase; preserve config.
+        """
+
+    @property
+    def code_phase(self) -> float:
+        """Tracked code phase, chips."""
+
+    @property
+    def code_rate(self) -> float:
+        """Tracked code rate (chips advanced per nominal chip, ~1.0)."""
+
+    @property
+    def last_error(self) -> float:
+        """Last non-coherent discriminator output (loop stress)."""
+
+    @property
+    def k(self) -> int:
+        """Partial correlations per code epoch."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "PartialDespreader": ...
+
+    def __exit__(self, *args: object) -> None: ...

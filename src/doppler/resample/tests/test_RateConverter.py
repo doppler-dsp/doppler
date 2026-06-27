@@ -204,3 +204,33 @@ def test_compensate_reduces_passband_droop():
     assert abs(amp_comp - 1.0) <= abs(amp_plain - 1.0) + 0.02, (
         f"compensate=1 not flatter: plain={amp_plain:.4f} comp={amp_comp:.4f}"
     )
+
+
+def test_rateconverter_state_roundtrip_resume():
+    """Serializable (elastic) face: serialize the cascade mid-stream, restore
+    into a fresh RateConverter at the same rate, and resume — the continuation
+    matches an uninterrupted run bit-for-bit; a wrong-size or clobbered blob is
+    rejected."""
+    rng = np.random.default_rng(11)
+    x = (rng.standard_normal(3000) + 1j * rng.standard_normal(3000)).astype(
+        np.complex64
+    )
+    cut = 1100
+
+    ref = RateConverter(0.5)
+    ref.execute(x[:cut])
+    tail = np.array(ref.execute(x[cut:]))  # copy: execute returns a view
+
+    a = RateConverter(0.5)
+    a.execute(x[:cut])
+    blob = a.get_state()
+    assert isinstance(blob, bytes) and len(blob) == a.state_bytes()
+
+    b = RateConverter(0.5)
+    b.set_state(blob)
+    assert np.array_equal(np.array(b.execute(x[cut:])), tail)
+
+    with pytest.raises(ValueError):
+        b.set_state(blob[:-1])
+    with pytest.raises(ValueError):
+        b.set_state(bytes([blob[0] ^ 0xFF]) + blob[1:])

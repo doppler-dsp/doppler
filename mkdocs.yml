@@ -165,6 +165,7 @@ nav:
       - M-PSK Constellation: gallery/mpsk.md
       - Costas Loop (theory): gallery/costas-theory.md
       - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
+      - NDA Carrier Loop (theory): gallery/carrier-nda.md
       - Timing Loop (theory): gallery/symsync-theory.md
       - DLL Code Loop (theory): gallery/dll-theory.md
   - Examples:
@@ -225,6 +226,7 @@ nav:
       - State Serialization: design/state-serialization.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Async Symbol Despreader: design/async-symbol-despreader.md
+      - MPSK Receiver: design/mpsk.md
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md

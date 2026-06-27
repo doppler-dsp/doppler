@@ -1,0 +1,87 @@
+[carrier_nda]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "CarrierNda"
+depends_on = [
+  { name = "lo", link = true },
+  { name = "loop_filter", link = true },
+]
+
+[[carrier_nda.init_params]]
+name = "bn"
+type = "double"
+default = "0.01"
+
+[[carrier_nda.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[carrier_nda.init_params]]
+name = "init_norm_freq"
+type = "double"
+default = "0.0"
+
+[[carrier_nda.init_params]]
+name = "sps"
+type = "size_t"
+default = "8"
+
+[[carrier_nda.init_params]]
+name = "n"
+type = "int"
+default = "4"
+
+[[carrier_nda.init_params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[carrier_nda.methods]]
+name = "steps"
+doc = "De-rotate a cf32 block with the integer-NCO carrier and return the de-rotated samples (one per input sample). Internally the loop runs a non-data-aided M-th-power discriminator on an I/Q arm integrate-and-dump at n dumps per symbol and steers the NCO, so it acquires the carrier with no symbol timing and no data present (it strips the M-PSK modulation by raising the arm sample to the Mth power). It locks to one of m phases (M-fold ambiguity), resolved downstream. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[carrier_nda.methods]]
+name = "reset"
+doc = "Re-seed the loop to the create-time frequency/phase; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[carrier_nda.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[carrier_nda.properties]]
+name = "lock"
+type = "double"
+
+[[carrier_nda.properties]]
+name = "last_error"
+type = "double"
+
+[[carrier_nda.properties]]
+name = "bn"
+type = "double"
+writable = true
+
+[[carrier_nda.properties]]
+name = "m"
+type = "int"
+
+[[carrier_nda.properties]]
+name = "n"
+type = "int"
+
+[[carrier_nda.properties]]
+name = "sps"
+type = "size_t"

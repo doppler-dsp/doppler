@@ -587,3 +587,88 @@ class CarrierMpsk:
     def __enter__(self) -> "CarrierMpsk": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class CarrierNda:
+    """Create an NDA carrier loop instance.
+
+    Parameters
+    ----------
+    bn : float, default 0.01
+        Loop noise bandwidth (default 0.01).
+    zeta : float, default 0.707
+        Damping factor (default 0.707).
+    init_norm_freq : float, default 0.0
+        Seed carrier frequency, cycles/sample (default 0.0).
+    sps : int, default 8
+        Samples per symbol (default 8).
+    n : int, default 4
+        Arm dumps per symbol (default 4; sps % n == 0).
+    m : int, default 4
+        Constellation order M, 2/4/8 (default 4 = QPSK).
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import CarrierNda
+    >>> obj = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
+
+    """
+    def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., sps: int = ..., n: int = ..., m: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """De-rotate a cf32 block with the integer-NCO carrier and return the de-rotated samples (one per input sample). Internally the loop runs a non-data-aided M-th-power discriminator on an I/Q arm integrate-and-dump at n dumps per symbol and steers the NCO, so it acquires the carrier with no symbol timing and no data present (it strips the M-PSK modulation by raising the arm sample to the Mth power). It locks to one of m phases (M-fold ambiguity), resolved downstream. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the loop to the create-time frequency/phase; preserve config.
+        """
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def lock(self) -> float:
+        """Lock."""
+
+    @property
+    def last_error(self) -> float:
+        """Last error."""
+
+    @property
+    def bn(self) -> float:
+        """Bn."""
+    @bn.setter
+    def bn(self, value: float) -> None: ...
+
+    @property
+    def m(self) -> int:
+        """M."""
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    @property
+    def sps(self) -> int:
+        """Sps."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "CarrierNda": ...
+
+    def __exit__(self, *args: object) -> None: ...

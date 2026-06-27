@@ -111,6 +111,8 @@ extern "C" {
 
 #include "carrier_mpsk/carrier_mpsk_core.h"
 
+#include "carrier_nda/carrier_nda_core.h"
+
 #include "despreader/despreader_core.h"
 
 #include "acq/acq_core.h"

@@ -11,6 +11,7 @@
  *   6. LUT accuracy — at quarter-rate, |out|² ≈ 1 and Im/Re quadrature
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
  */
+#include "dp_state_test.h"
 #include "lo/lo_core.h"
 #include <math.h>
 #include <stdio.h>
@@ -361,13 +362,13 @@ main (void)
     float complex tmp[256];
     lo_steps (a, N, tmp); /* advance N */
 
-    CHECK (lo_state_bytes (a) == sizeof (uint32_t));
-    unsigned char blob[8];
+    CHECK (lo_state_bytes (a) == sizeof (dp_state_hdr_t) + sizeof (uint32_t));
+    unsigned char blob[32];
     lo_get_state (a, blob);
     lo_destroy (a);
 
     lo_state_t *b = lo_create (0.123456); /* fresh, from the descriptor */
-    CHECK (lo_set_state (b, blob) == 0);
+    CHECK (lo_set_state (b, blob) == DP_OK);
     float complex resumed[256];
     lo_steps (b, M, resumed);
     lo_destroy (b);
@@ -378,6 +379,17 @@ main (void)
           || cimagf (resumed[i]) != cimagf (full[N + i]))
         exact = 0;
     CHECK (exact); /* bit-exact resume from the serialized state */
+  }
+
+  /* 14. Standard envelope round-trip + reject (the shared bytes-interface
+   * gate): get_state -> set_state succeeds; a magic-clobbered blob rejects. */
+  {
+    lo_state_t *a = lo_create (0.2);
+    lo_state_t *b = lo_create (0.2);
+    lo_steps (a, 37, (float complex[37]){ 0 });
+    DP_STATE_ROUNDTRIP_TEST (lo, a, b);
+    lo_destroy (a);
+    lo_destroy (b);
   }
 
   if (_fails)

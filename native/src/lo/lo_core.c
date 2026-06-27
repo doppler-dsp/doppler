@@ -124,30 +124,35 @@ lo_set_phase (lo_state_t *state, uint32_t phase)
   state->phase = phase;
 }
 
-/* ── Serializable state — phase is the only per-sample state ─────────────────
- */
+/* ── Serializable state — standard envelope + phase (the only per-sample
+ * state); see dp_state.h. ───────────────────────────────────────────────── */
 
 size_t
 lo_state_bytes (const lo_state_t *state)
 {
   (void)state;
-  return sizeof (uint32_t);
+  return sizeof (dp_state_hdr_t) + sizeof (uint32_t);
 }
 
 void
 lo_get_state (const lo_state_t *state, void *blob)
 {
-  uint32_t phase = state->phase;
-  memcpy (blob, &phase, sizeof phase);
+  dp_writer_t w = dp_writer_init (blob, lo_state_bytes (state));
+  dp_w_hdr (&w, LO_STATE_MAGIC, LO_STATE_VERSION, lo_state_bytes (state));
+  dp_w_u32 (&w, state->phase);
 }
 
 int
 lo_set_state (lo_state_t *state, const void *blob)
 {
-  uint32_t phase;
-  memcpy (&phase, blob, sizeof phase);
-  state->phase = phase;
-  return 0;
+  int rc = dp_state_validate (blob, lo_state_bytes (state), LO_STATE_MAGIC,
+                              LO_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, lo_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  state->phase  = dp_r_u32 (&r);
+  return DP_OK;
 }
 
 uint32_t

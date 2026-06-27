@@ -37,24 +37,24 @@ static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "code", "noise_mode", "sf",        "spc",      "ny",         "pfa",
-          "pd",   "min_snr",    "max_dwell", "n_noncoh", "max_noncoh", NULL };
-  PyObject          *code_obj       = NULL;
-  const char        *noise_mode_str = "mean";
-  unsigned long long sf_raw         = 1;
-  unsigned long long spc_raw        = 1;
-  unsigned long long ny_raw         = 16;
-  double             pfa            = 1e-3;
-  double             pd             = 0.9;
-  double             min_snr        = 0.1;
-  unsigned long long max_dwell_raw  = 64;
-  unsigned long long n_noncoh_raw   = 0;
-  unsigned long long max_noncoh_raw = 1;
+      = { "code",     "noise_mode",          "reps", "spc", "chip_rate",
+          "cn0_dbhz", "doppler_uncertainty", "pfa",  "pd",  "max_noncoh",
+          NULL };
+  PyObject          *code_obj            = NULL;
+  const char        *noise_mode_str      = "mean";
+  unsigned long long reps_raw            = 1;
+  unsigned long long spc_raw             = 4;
+  double             chip_rate           = 1000000.0;
+  double             cn0_dbhz            = 50.0;
+  double             doppler_uncertainty = 0.0;
+  double             pfa                 = 1e-3;
+  double             pd                  = 0.9;
+  unsigned long long max_noncoh_raw      = 1;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|sKKKdddKKK", kwlist, &code_obj, &noise_mode_str,
-          &sf_raw, &spc_raw, &ny_raw, &pfa, &pd, &min_snr, &max_dwell_raw,
-          &n_noncoh_raw, &max_noncoh_raw))
+          args, kwds, "O|sKKdddddK", kwlist, &code_obj, &noise_mode_str,
+          &reps_raw, &spc_raw, &chip_rate, &cn0_dbhz, &doppler_uncertainty,
+          &pfa, &pd, &max_noncoh_raw))
     return -1;
   int noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
@@ -73,11 +73,8 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  size_t         sf         = (size_t)sf_raw;
+  size_t         reps       = (size_t)reps_raw;
   size_t         spc        = (size_t)spc_raw;
-  size_t         ny         = (size_t)ny_raw;
-  size_t         max_dwell  = (size_t)max_dwell_raw;
-  size_t         n_noncoh   = (size_t)n_noncoh_raw;
   size_t         max_noncoh = (size_t)max_noncoh_raw;
   PyArrayObject *code_arr   = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
@@ -86,14 +83,28 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = acq_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                code_len, sf, spc, ny, pfa, pd, min_snr,
-                                noise_mode, max_dwell, n_noncoh, max_noncoh);
+  self->handle    = acq_create (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, reps, spc, chip_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, max_noncoh);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "acq_create returned NULL");
       return -1;
+    }
+  /* Hand-patch (sacred fragment): C cannot raise a Python warning, so surface
+   * an under-powered search here — the auto-config built a best-effort grid
+   * whose pd_predicted falls short of the requested pd. */
+  if (self->handle->underpowered)
+    {
+      if (PyErr_WarnEx (
+              PyExc_UserWarning,
+              "Acquisition is under-powered: pd_predicted < pd at this "
+              "reps/cn0_dbhz. Raise reps or cn0_dbhz, set max_noncoh>1, "
+              "or narrow doppler_uncertainty.",
+              1)
+          < 0)
+        return -1;
     }
   return 0;
 }
@@ -156,34 +167,28 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   return lst;
 }
 static PyObject *
-Acquisition_getprop_ny (AcquisitionObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_code_bins (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->ny);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->code_bins);
 }
 static PyObject *
-Acquisition_getprop_nx (AcquisitionObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_doppler_bins (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nx);
-}
-static PyObject *
-Acquisition_getprop_n (AcquisitionObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->doppler_bins);
 }
 static PyObject *
 Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -206,26 +211,14 @@ Acquisition_getprop_spc (AcquisitionObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->spc);
 }
 static PyObject *
-Acquisition_getprop_dwell (AcquisitionObject *self, void *Py_UNUSED (closure))
+Acquisition_getprop_reps (AcquisitionObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->dwell);
-}
-static PyObject *
-Acquisition_getprop_max_dwell (AcquisitionObject *self,
-                               void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->max_dwell);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->reps);
 }
 static PyObject *
 Acquisition_getprop_n_noncoh (AcquisitionObject *self,
@@ -238,18 +231,6 @@ Acquisition_getprop_n_noncoh (AcquisitionObject *self,
     }
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)self->handle->n_noncoh);
-}
-static PyObject *
-Acquisition_getprop_max_noncoh (AcquisitionObject *self,
-                                void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->max_noncoh);
 }
 static PyObject *
 Acquisition_getprop_ring_cap (AcquisitionObject *self,
@@ -340,36 +321,132 @@ Acquisition_getprop_pd_predicted (AcquisitionObject *self,
     }
   return PyFloat_FromDouble (self->handle->pd_predicted);
 }
+static PyObject *
+Acquisition_getprop_fs (AcquisitionObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->fs);
+}
+static PyObject *
+Acquisition_getprop_chip_rate (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->chip_rate);
+}
+static PyObject *
+Acquisition_getprop_cn0_dbhz (AcquisitionObject *self,
+                              void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->cn0_dbhz);
+}
+static PyObject *
+Acquisition_getprop_doppler_span_hz (AcquisitionObject *self,
+                                     void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->doppler_span_hz);
+}
+static PyObject *
+Acquisition_getprop_doppler_res_hz (AcquisitionObject *self,
+                                    void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->doppler_res_hz);
+}
+static PyObject *
+Acquisition_getprop_pd (AcquisitionObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->pd);
+}
+static PyObject *
+Acquisition_getprop_underpowered (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->underpowered));
+}
 
-static PyGetSetDef Acquisition_getset[]
-    = { { "ny", (getter)Acquisition_getprop_ny, NULL, "Ny.\n", NULL },
-        { "nx", (getter)Acquisition_getprop_nx, NULL, "Nx.\n", NULL },
-        { "n", (getter)Acquisition_getprop_n, NULL, "N.\n", NULL },
-        { "sf", (getter)Acquisition_getprop_sf, NULL, "Sf.\n", NULL },
-        { "spc", (getter)Acquisition_getprop_spc, NULL, "Spc.\n", NULL },
-        { "dwell", (getter)Acquisition_getprop_dwell, NULL, "Dwell.\n", NULL },
-        { "max_dwell", (getter)Acquisition_getprop_max_dwell, NULL,
-          "Max dwell.\n", NULL },
-        { "n_noncoh", (getter)Acquisition_getprop_n_noncoh, NULL,
-          "N noncoh.\n", NULL },
-        { "max_noncoh", (getter)Acquisition_getprop_max_noncoh, NULL,
-          "Max noncoh.\n", NULL },
-        { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
-          "Ring cap.\n", NULL },
-        { "noise_lo", (getter)Acquisition_getprop_noise_lo, NULL,
-          "Noise lo.\n", NULL },
-        { "noise_hi", (getter)Acquisition_getprop_noise_hi, NULL,
-          "Noise hi.\n", NULL },
-        { "threshold", (getter)Acquisition_getprop_threshold, NULL,
-          "Threshold.\n", NULL },
-        { "eta", (getter)Acquisition_getprop_eta, NULL, "Eta.\n", NULL },
-        { "eta_nc", (getter)Acquisition_getprop_eta_nc, NULL, "Eta nc.\n",
-          NULL },
-        { "pfa_cell", (getter)Acquisition_getprop_pfa_cell, NULL,
-          "Pfa cell.\n", NULL },
-        { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
-          "Pd predicted.\n", NULL },
-        { NULL } };
+static PyGetSetDef Acquisition_getset[] = {
+  { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
+    "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
+  { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
+    "Coherent depth chosen: the slow-time FFT length in code reps (<= "
+    "reps).\n",
+    NULL },
+  { "sf", (getter)Acquisition_getprop_sf, NULL,
+    "Chips per PN segment, inferred from len(code).\n", NULL },
+  { "spc", (getter)Acquisition_getprop_spc, NULL,
+    "Samples per chip (chip-rate oversample factor).\n", NULL },
+  { "reps", (getter)Acquisition_getprop_reps, NULL,
+    "Max coherent code repetitions (the coherence ceiling).\n", NULL },
+  { "n_noncoh", (getter)Acquisition_getprop_n_noncoh, NULL,
+    "Non-coherent looks per detection (1 = pure coherent).\n", NULL },
+  { "ring_cap", (getter)Acquisition_getprop_ring_cap, NULL,
+    "Input ring capacity in complex samples.\n", NULL },
+  { "noise_lo", (getter)Acquisition_getprop_noise_lo, NULL,
+    "First CFAR reference bin (inclusive).\n", NULL },
+  { "noise_hi", (getter)Acquisition_getprop_noise_hi, NULL,
+    "Last CFAR reference bin (inclusive).\n", NULL },
+  { "threshold", (getter)Acquisition_getprop_threshold, NULL,
+    "CFAR gate on the test statistic (coherent path).\n", NULL },
+  { "eta", (getter)Acquisition_getprop_eta, NULL,
+    "Raw per-cell Rayleigh amplitude threshold.\n", NULL },
+  { "eta_nc", (getter)Acquisition_getprop_eta_nc, NULL,
+    "Non-coherent CFAR threshold (order-N_nc Marcum).\n", NULL },
+  { "pfa_cell", (getter)Acquisition_getprop_pfa_cell, NULL,
+    "Bonferroni per-cell false-alarm probability over the searched cells.\n",
+    NULL },
+  { "pd_predicted", (getter)Acquisition_getprop_pd_predicted, NULL,
+    "Predicted Pd at cn0_dbhz and the chosen grid.\n", NULL },
+  { "fs", (getter)Acquisition_getprop_fs, NULL,
+    "Sample rate (Hz) = chip_rate * spc.\n", NULL },
+  { "chip_rate", (getter)Acquisition_getprop_chip_rate, NULL,
+    "Chip rate (Hz).\n", NULL },
+  { "cn0_dbhz", (getter)Acquisition_getprop_cn0_dbhz, NULL,
+    "Carrier-to-noise density used to size the search (dB-Hz).\n", NULL },
+  { "doppler_span_hz", (getter)Acquisition_getprop_doppler_span_hz, NULL,
+    "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz.\n",
+    NULL },
+  { "doppler_res_hz", (getter)Acquisition_getprop_doppler_res_hz, NULL,
+    "Doppler bin width = chip_rate/(sf*doppler_bins) Hz.\n", NULL },
+  { "pd", (getter)Acquisition_getprop_pd, NULL,
+    "Target detection probability.\n", NULL },
+  { "underpowered", (getter)Acquisition_getprop_underpowered, NULL,
+    "True when pd_predicted < pd (the search cannot meet the target).\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 AcquisitionObj_destroy (AcquisitionObject *self, PyObject *Py_UNUSED (ignored))
@@ -414,7 +491,7 @@ static PyMethodDef AcquisitionObj_methods[]
           "    >>> import numpy as np\n"
           "    >>> from doppler import Acquisition\n"
           "    >>> obj = Acquisition(np.zeros(1, dtype=np.uint8), \"mean\", "
-          "1, 1, 16, 1e-3, 0.9, 0.1, 64, 0, 1)\n"
+          "1, 4, 1000000.0, 50.0, 0.0, 1e-3, 0.9, 1)\n"
           "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
           "    >>> isinstance(results, list)\n"
           "    True\n" },

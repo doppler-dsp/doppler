@@ -16,8 +16,8 @@ ______________________________________________________________________
 ## `Acquisition` — streaming burst acquisition
 
 `Acquisition` searches a streamed cf32 signal for a repeated BPSK PN burst over the
-joint (Doppler × code-phase) grid, auto-configuring its CFAR threshold and
-coherent dwell from a target `(pfa, pd, min_snr)` using `doppler.detection`. Push
+joint (Doppler × code-phase) grid, sizing its own search grid — coherent depth,
+CFAR threshold, non-coherent looks — from the physics `(chip_rate, cn0_dbhz, pfa, pd)` using `doppler.detection`. Push
 arbitrary-length blocks; it yields one record per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, snr_est)` — whose `(doppler_bin, code_phase)` seed the `Despreader`. See the
 [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) for the search-space
 sizing and a worked example.

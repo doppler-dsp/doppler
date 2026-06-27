@@ -19,7 +19,7 @@ non-coherent layer:
 | **Column-FFT** (slow-time)                          | `dsss.Acquisition`                                  | `1/(ny·nx)` / `±1/(2nx)`              | ny epochs **coherent** | many coherent reps; need the gain                        |
 | **2-D roll** (2-D code FFT × signal FFT → 2-D IFFT) | `spectral.Corr2D` / `Detector2D`                    | `1/nx` / `±1/2`                       | **1 epoch**            | wide Δf, few reps, enough SNR — whole grid in one 2-D op |
 | **Mixer bank**                                      | caller loop ([guide](../guide/dsss-acquisition.md)) | tiles either, `1/(2nx)` step          | —                      | widen Δf at a fine resolution; linear cost               |
-| **Non-coherent**                                    | `Acquisition(n_noncoh=…)`                           | sensitivity past the coherent ceiling | `N_nc` looks           | data-bit / burst-limited `M_coh`                         |
+| **Non-coherent**                                    | `Acquisition(max_noncoh=…)`                         | sensitivity past the coherent ceiling | `N_nc` looks           | data-bit / burst-limited `M_coh`                         |
 
 The two primitives are **exact duals**: the roll's *resolution* (`1/nx`) equals
 the column-FFT's *span* (`±1/(2nx)`). Roll = **coarse + wide** from one epoch;
@@ -38,15 +38,15 @@ ______________________________________________________________________
     column-FFT's fine resolution + `10·log10(ny·N)` gain is worth its narrow span.
     Small (≈1) → the column-FFT is wasted; the roll gives the whole grid for the
     cost of one epoch.
-1. **Sensitivity (`min_snr`)** — can one epoch acquire, or do you need the gain?
-    High SNR → roll (fast). Low SNR → coherent gain (column-FFT) and/or
-    **non-coherent** looks (`n_noncoh`) when the coherent ceiling is the data bit.
+1. **Sensitivity (`cn0_dbhz`)** — can one epoch acquire, or do you need the gain?
+    High C/N0 → roll (fast). Low C/N0 → coherent gain (column-FFT) and/or
+    **non-coherent** looks (`max_noncoh`) when the coherent ceiling is the data bit.
 
 **Decision table** (`Δf` vs native span × `M_coh`):
 
 |               | `M_coh` small (≈1)                                       | `M_coh` large                                                                                    |
 | ------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Δf narrow** | `Acquisition`, `ny`=few                                  | `Acquisition` alone (fine + gain)                                                                |
+| **Δf narrow** | `Acquisition`, `reps`=few                                | `Acquisition` alone (fine + gain)                                                                |
 | **Δf wide**   | **2-D roll** (one op, all bins) + non-coherent over reps | 2-D-roll *coarse* **or** mixer-tile, then column-FFT *fine*; pick by channel-count vs one 2-D op |
 
 The cost asymmetry that decides the wide-Δf row: a 2-D roll sweeps all
@@ -81,7 +81,7 @@ stretches; the **periodic code-only epochs** are the coherent windows
 
 - **Coherent inner:** run `Acquisition` over the code-only pilot windows for the
     fine `1/(ny·T_epoch)` Doppler and full coherent gain.
-- **Non-coherent across:** `Acquisition(n_noncoh=…)` (**P1**) accumulates looks
+- **Non-coherent across:** `Acquisition(max_noncoh=…)` (**P1**) accumulates looks
     across the always-on stream — the data-bit ceiling makes this the real
     sensitivity engine; "plenty of time" means you can spend many looks.
 - **Wide Δf:** a coarse layer in front — either a **mixer bank** (~158 channels

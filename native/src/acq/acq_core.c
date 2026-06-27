@@ -3,12 +3,13 @@
  * @brief Streaming DSSS burst-acquisition engine implementation.
  *
  * Owns the full receive-side acquisition pipeline: a raw cf32 ring, the
- * slow-time Doppler FFT, a single-row-reference 2-D code correlator (corr2d,
- * coherently integrating `dwell` frames), and a CFAR threshold gate whose
- * threshold and dwell are auto-configured from a target (Pfa, Pd) using the
- * detection-theory functions.  The CFAR helpers (_noise_estimate,
- * _ring_create) are reused header-only from det_private.h — no link to
- * detector_core.
+ * slow-time Doppler FFT, a single-row-reference 2-D code correlator (corr2d),
+ * and a CFAR threshold gate whose grid (coherent depth, threshold,
+ * non-coherent looks) is auto-configured from the physics — C/N0, chip rate,
+ * and a target (Pfa, Pd) — using the detection-theory functions.  The CFAR
+ * helpers
+ * (_noise_estimate, _ring_create) are reused header-only from det_private.h —
+ * no link to detector_core.
  */
 
 #include "acq/acq_core.h"
@@ -28,6 +29,22 @@
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 
+/* Doppler-band mask: with a doppler_uncertainty prior the engine scans only
+ * searched_bins rows centred on DC, so the peak search must match (else the
+ * lowered Bonferroni threshold over-counts and realized Pfa exceeds target).
+ * Returns 1 if the cell at flat index k is inside the scanned band.  The
+ * folded distance |k_row| from DC (rows >doppler_bins/2 are negative Doppler)
+ * must not exceed half = (searched_bins-1)/2.  When searched_bins ==
+ * doppler_bins this admits every row (byte-identical to the full search). */
+static inline int
+_in_doppler_band (const acq_state_t *st, size_t k)
+{
+  const size_t row = k / st->code_bins;
+  const size_t fold
+      = (row <= st->doppler_bins - row) ? row : st->doppler_bins - row;
+  return fold <= (st->searched_bins - 1) / 2;
+}
+
 /* Peak, CFAR noise, and test statistic from the coherent dump in out_buf. */
 static void
 _compute_stat (acq_state_t *st)
@@ -39,11 +56,11 @@ _compute_stat (acq_state_t *st)
 
   size_t peak = 0;
   for (size_t k = 1; k < n; k++)
-    if (st->mag_buf[k] > st->mag_buf[peak])
+    if (st->mag_buf[k] > st->mag_buf[peak] && _in_doppler_band (st, k))
       peak = k;
 
-  st->peak_row = peak / st->nx;
-  st->peak_col = peak % st->nx;
+  st->peak_row = peak / st->code_bins;
+  st->peak_col = peak % st->code_bins;
   st->peak_mag = st->mag_buf[peak];
 
   st->noise_est = _noise_estimate (st->mag_buf, st->noise_lo, st->noise_hi,
@@ -69,11 +86,11 @@ _compute_stat_nc (acq_state_t *st)
 
   size_t peak = 0;
   for (size_t k = 1; k < n; k++)
-    if (st->nc_surface[k] > st->nc_surface[peak])
+    if (st->nc_surface[k] > st->nc_surface[peak] && _in_doppler_band (st, k))
       peak = k;
 
-  st->peak_row = peak / st->nx;
-  st->peak_col = peak % st->nx;
+  st->peak_row = peak / st->code_bins;
+  st->peak_col = peak % st->code_bins;
   st->peak_mag = sqrtf (st->nc_surface[peak]);
 
   float noise_pow
@@ -86,45 +103,66 @@ _compute_stat_nc (acq_state_t *st)
                       : 0.0f;
 }
 
-/* Bonferroni threshold, coherent dwell, and the (M, N_nc) split from the
- * (pfa, pd) target.  override_noncoh > 0 pins the look count; 0 = auto-split.
+/* Scanned Doppler bins for a coherent depth D under a doppler_uncertainty
+ * prior du (Hz, one-sided half-range).  The slow-time FFT always spans the
+ * full +/- span = chip_rate/(2*sf); a tighter du restricts the search to the
+ * central band, shrinking the Bonferroni cell count.  Returns an odd count
+ * (2*half+1) centred on DC, capped at D; du <= 0 (or >= span) means full. */
+static size_t
+_searched_bins (size_t D, double du, double span)
+{
+  if (du <= 0.0 || du >= span)
+    return D;
+  double frac = du / span; /* fraction of half-range */
+  size_t half = (size_t)ceil (0.5 * frac * (double)D);
+  size_t sb   = 2 * half + 1;
+  return (sb > D) ? D : sb;
+}
+
+/* Size the search grid from the physics.  Picks the smallest coherent depth
+ * doppler_bins in [1, reps] whose doppler_bins*code_bins coherent samples meet
+ * Pd at the (doppler_uncertainty-shrunk) Bonferroni threshold; if the full
+ * coherent ceiling still falls short, adds non-coherent looks (up to
+ * max_noncoh).  Commits doppler_bins / n / searched_bins / threshold ladder.
  */
 static void
-_auto_config (acq_state_t *st, double pfa, double pd, double min_snr,
-              size_t override_noncoh)
+_auto_config (acq_state_t *st, double pfa, double pd, double snr, double du)
 {
-  const double N = (double)st->n;
+  const size_t cb   = st->code_bins;
+  const double span = st->doppler_span_hz;
 
-  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / N);
+  /* Smallest coherent depth D meeting Pd (minimum latency for strong signals);
+   * Bonferroni uses only the cells actually scanned at that depth. */
+  size_t best_d    = st->reps;
+  int    coh_meets = 0;
+  for (size_t D = 1; D <= st->reps; D++)
+    {
+      size_t sb  = _searched_bins (D, du, span);
+      double pc  = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+      double eta = det_threshold (pc);
+      if (det_pd (snr, (int)(D * cb), eta) >= pd)
+        {
+          best_d    = D;
+          coh_meets = 1;
+          break;
+        }
+    }
+
+  st->doppler_bins   = best_d;
+  st->n              = best_d * cb;
+  st->searched_bins  = _searched_bins (best_d, du, span);
+  st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)best_d);
+  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
   st->eta      = (float)det_threshold (st->pfa_cell);
 
-  /* Coherent dwell: smallest dwell (frames) whose dwell*n coherent samples
-   * meet Pd alone, capped at max_dwell (the T_coh ceiling). */
-  size_t d         = st->max_dwell;
-  int    coh_meets = 0;
-  for (size_t cand = 1; cand <= st->max_dwell; cand++)
-    if (det_pd (min_snr, (int)(cand * st->n), st->eta) >= pd)
-      {
-        d         = cand;
-        coh_meets = 1;
-        break;
-      }
-  st->dwell = d;
-
-  /* Non-coherent looks: override wins; else 1 when coherent already meets Pd;
-   * else grow looks at the dwell ceiling (up to max_noncoh) to close the gap.
-   */
-  size_t nc;
-  if (override_noncoh > 0)
-    nc = override_noncoh;
-  else if (coh_meets)
-    nc = 1;
-  else
+  /* Non-coherent looks only if the coherent ceiling fell short and the caller
+   * raised the cap above 1 (best effort if even max_noncoh is infeasible). */
+  size_t nc = 1;
+  if (!coh_meets && st->max_noncoh > 1)
     {
-      int k = det_n_noncoh (min_snr, (int)(st->dwell * st->n), pd,
-                            st->pfa_cell, (int)st->max_noncoh);
-      nc    = (k > 0) ? (size_t)k
-                      : st->max_noncoh; /* best effort if infeasible */
+      int k = det_n_noncoh (snr, (int)st->n, pd, st->pfa_cell,
+                            (int)st->max_noncoh);
+      nc    = (k > 0) ? (size_t)k : st->max_noncoh;
     }
   st->n_noncoh = nc;
 
@@ -133,53 +171,64 @@ _auto_config (acq_state_t *st, double pfa, double pd, double min_snr,
       double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
       st->eta_nc    = (float)e;
       st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
-      st->pd_predicted
-          = det_pd_noncoherent (min_snr, (int)(st->dwell * st->n), (int)nc, e);
+      st->pd_predicted = det_pd_noncoherent (snr, (int)st->n, (int)nc, e);
     }
   else
     {
       st->eta_nc       = 0.0f;
       st->threshold    = st->eta * ACQ_SQRT_2_OVER_PI;
-      st->pd_predicted = det_pd (min_snr, (int)(st->dwell * st->n), st->eta);
+      st->pd_predicted = det_pd (snr, (int)st->n, st->eta);
     }
+
+  st->underpowered = (uint8_t)(st->pd_predicted < pd);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 acq_state_t *
-acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
-            size_t ny, double pfa, double pd, double min_snr, int noise_mode,
-            size_t max_dwell, size_t n_noncoh, size_t max_noncoh)
+acq_create (const uint8_t *code, size_t code_len, size_t reps, size_t spc,
+            double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+            double pfa, double pd, int noise_mode, size_t max_noncoh)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
-   * MemoryError) rather than undefined behaviour downstream.  max_noncoh
-   * defaults to 1 (no non-coherent integration); an override of 0 means auto.
-   */
+   * MemoryError) rather than undefined behaviour downstream.  chip_rate /
+   * cn0_dbhz > 0 act as the required sentinels (their toml placeholder
+   * defaults are valid, but an explicit 0 is rejected). */
   if (max_noncoh < 1)
     max_noncoh = 1;
-  if (!code || code_len != sf || sf < 1 || spc < 1 || ny < 1 || max_dwell < 1
-      || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
-      || !(min_snr > 0.0))
+  const size_t sf   = code_len; /* sf is inferred from the code length */
+  const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
+  if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
+      || !(cn0_dbhz > 0.0) || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
+      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
+      || doppler_uncertainty > span)
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));
   if (!st)
     return NULL;
 
-  st->sf         = sf;
-  st->spc        = spc;
-  st->ny         = ny;
-  st->nx         = sf * spc;
-  st->n          = ny * st->nx;
-  st->max_dwell  = max_dwell;
-  st->max_noncoh = max_noncoh;
-  st->noise_mode = (det_noise_mode_t)noise_mode;
-  st->noise_lo   = 0;
-  st->noise_hi   = st->n - 1;
+  st->sf              = sf;
+  st->spc             = spc;
+  st->reps            = reps;
+  st->code_bins       = sf * spc;
+  st->chip_rate       = chip_rate;
+  st->fs              = chip_rate * (double)spc;
+  st->cn0_dbhz        = cn0_dbhz;
+  st->doppler_span_hz = span;
+  st->pd              = pd;
+  st->max_noncoh      = max_noncoh;
+  st->noise_mode      = (det_noise_mode_t)noise_mode;
 
-  _auto_config (st, pfa, pd, min_snr, n_noncoh);
+  /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
+   * detection model's non-centrality is a = sqrt(2M)*snr (amplitude). */
+  const double snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
+  _auto_config (st, pfa, pd, snr, doppler_uncertainty);
 
-  const size_t n = st->n;
+  const size_t n  = st->n; /* doppler_bins * code_bins (post-config) */
+  const size_t db = st->doppler_bins;
+  st->noise_lo    = 0;
+  st->noise_hi    = n - 1;
 
   /* Single-row oversampled BPSK reference: row 0 carries the replica
    * (chip 0 -> +1, chip 1 -> -1, each held for spc samples), rest zero. */
@@ -193,11 +242,11 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
         st->ref[c * spc + s] = sign;
     }
 
-  st->corr = corr2d_create (st->ref, ny, st->nx, st->dwell, 1, 0, 0);
+  st->corr = corr2d_create (st->ref, db, st->code_bins, 1, 1, 0, 0);
   if (!st->corr)
     goto fail;
 
-  st->slow_fft = fft_create (ny, -1, 1);
+  st->slow_fft = fft_create (db, -1, 1);
   if (!st->slow_fft)
     goto fail;
 
@@ -208,8 +257,8 @@ acq_create (const uint8_t *code, size_t code_len, size_t sf, size_t spc,
 
   st->yframe        = (float complex *)malloc (n * sizeof (float complex));
   st->out_buf       = (float complex *)malloc (n * sizeof (float complex));
-  st->colbuf        = (float complex *)malloc (ny * sizeof (float complex));
-  st->colout        = (float complex *)malloc (ny * sizeof (float complex));
+  st->colbuf        = (float complex *)malloc (db * sizeof (float complex));
+  st->colout        = (float complex *)malloc (db * sizeof (float complex));
   st->mag_buf       = (float *)malloc (n * sizeof (float));
   st->noise_scratch = (float *)malloc (n * sizeof (float));
   if (!st->yframe || !st->out_buf || !st->colbuf || !st->colout || !st->mag_buf
@@ -275,8 +324,8 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
   size_t       ndet = 0;
   size_t       off  = 0;
   const size_t n    = st->n;
-  const size_t ny   = st->ny;
-  const size_t nx   = st->nx;
+  const size_t ny   = st->doppler_bins;
+  const size_t nx   = st->code_bins;
 
   while (off < n_in && ndet < max_results)
     {
@@ -327,7 +376,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
               if (st->test_stat > st->threshold)
                 {
                   float snr_est = st->test_stat / ACQ_SQRT_2_OVER_PI
-                                  / sqrtf (2.0f * (float)(st->dwell * n));
+                                  / sqrtf (2.0f * (float)n);
                   result[ndet++]
                       = (acq_result_t){ st->peak_row,  st->peak_col,
                                         st->peak_mag,  st->noise_est,
@@ -350,8 +399,7 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
           if (st->test_stat > st->eta_nc)
             {
               float snr_est = st->test_stat
-                              / sqrtf (2.0f * (float)(st->dwell * n)
-                                       * (float)st->n_noncoh);
+                              / sqrtf (2.0f * (float)n * (float)st->n_noncoh);
               result[ndet++]
                   = (acq_result_t){ st->peak_row,  st->peak_col,  st->peak_mag,
                                     st->noise_est, st->test_stat, snr_est };

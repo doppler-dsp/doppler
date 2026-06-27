@@ -79,6 +79,17 @@ extern "C"
    *  num_taps and coefficients are preserved. */
   void hbdecim_reset (hbdecim_state_t *r);
 
+  /* Serializable state (reusable elastic-resume convention): the even/odd
+   * dual-write delay rings, their heads, and the pending even sample.  Coeffs
+   * and sizes are config (rebuilt from num_taps on the resumed instance). */
+
+  /** @brief Bytes hbdecim_get_state() writes for @p r. */
+  size_t hbdecim_state_bytes (const hbdecim_state_t *r);
+  /** @brief Serialize @p r's mutable state into @p blob. */
+  void hbdecim_get_state (const hbdecim_state_t *r, void *blob);
+  /** @brief Restore mutable state from @p blob (same num_taps).  @return 0. */
+  int hbdecim_set_state (hbdecim_state_t *r, const void *blob);
+
   /**
    * @brief Decimate a block of CF32 samples by 2.
    *

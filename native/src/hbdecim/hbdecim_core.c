@@ -8,6 +8,8 @@
  */
 #include "hbdecim/hbdecim_core.h"
 
+#include <string.h>
+
 /* ================================================================== */
 /* Delay-line helpers (dual-write circular buffers)                   */
 /* ================================================================== */
@@ -143,6 +145,46 @@ hbdecim_reset (hbdecim_state_t *r)
   r->has_pending = 0;
   memset (r->even_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float _Complex));
+}
+
+/* ── Serializable state ─────────────────────────────────────────────────────
+ * Order: even_head, odd_head, has_pending, pending, then the two dual-write
+ * delay rings (2*even_cap cf32 each). */
+
+size_t
+hbdecim_state_bytes (const hbdecim_state_t *r)
+{
+  return 2 * sizeof (size_t) + sizeof (int) + sizeof (float _Complex)
+         + 2 * (2 * r->even_cap * sizeof (float _Complex));
+}
+
+void
+hbdecim_get_state (const hbdecim_state_t *r, void *blob)
+{
+  char        *p  = (char *)blob;
+  const size_t bb = 2 * r->even_cap * sizeof (float _Complex);
+  memcpy (p, &r->even_head, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (p, &r->odd_head, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (p, &r->has_pending, sizeof (int)), p += sizeof (int);
+  memcpy (p, &r->pending, sizeof (float _Complex)),
+      p += sizeof (float _Complex);
+  memcpy (p, r->even_buf, bb), p += bb;
+  memcpy (p, r->odd_buf, bb);
+}
+
+int
+hbdecim_set_state (hbdecim_state_t *r, const void *blob)
+{
+  const char  *p  = (const char *)blob;
+  const size_t bb = 2 * r->even_cap * sizeof (float _Complex);
+  memcpy (&r->even_head, p, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (&r->odd_head, p, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (&r->has_pending, p, sizeof (int)), p += sizeof (int);
+  memcpy (&r->pending, p, sizeof (float _Complex)),
+      p += sizeof (float _Complex);
+  memcpy (r->even_buf, p, bb), p += bb;
+  memcpy (r->odd_buf, p, bb);
+  return 0;
 }
 
 /* ================================================================== */

@@ -261,6 +261,48 @@ test_alias_rejection (void)
 }
 
 /* ================================================================== */
+/* State serialization: round-trip resume                              */
+/* ================================================================== */
+
+static void
+test_state_roundtrip (void)
+{
+  printf ("\n-- Serializable state round-trip --\n");
+
+  const size_t L = 400;
+  float _Complex in[400], outA[200], outB[200];
+  tone (in, L, 0.07);
+
+  /* Run A — uninterrupted. */
+  hbdecim_state_t *ra = hbdecim_create (N_TAPS, H4_FIR);
+  size_t           nA = hbdecim_execute (ra, in, L, outA, 200);
+  hbdecim_destroy (ra);
+
+  /* Run B — split at an odd cut (exercises has_pending), hand the state to
+   * a fresh decimator built from the same num_taps/coeffs. */
+  const size_t     cut  = 157;
+  hbdecim_state_t *r1   = hbdecim_create (N_TAPS, H4_FIR);
+  size_t           nB   = hbdecim_execute (r1, in, cut, outB, 200);
+  size_t           sb   = hbdecim_state_bytes (r1);
+  void            *blob = malloc (sb);
+  hbdecim_get_state (r1, blob);
+  hbdecim_destroy (r1);
+
+  hbdecim_state_t *r2 = hbdecim_create (N_TAPS, H4_FIR);
+  CHECK (hbdecim_set_state (r2, blob) == 0, "set_state accepts the blob");
+  nB += hbdecim_execute (r2, in + cut, L - cut, outB + nB, 200 - nB);
+  hbdecim_destroy (r2);
+  free (blob);
+
+  int ok = (nA == nB);
+  for (size_t k = 0; k < nA && k < nB; k++)
+    if (crealf (outA[k]) != crealf (outB[k])
+        || cimagf (outA[k]) != cimagf (outB[k]))
+      ok = 0;
+  CHECK (ok, "resume from serialized state is bit-exact");
+}
+
+/* ================================================================== */
 /* main                                                                */
 /* ================================================================== */
 
@@ -275,6 +317,7 @@ main (void)
   test_reset ();
   test_dc_passthrough ();
   test_alias_rejection ();
+  test_state_roundtrip ();
 
   printf ("\n%d passed, %d failed\n", g_pass, g_fail);
   return g_fail ? 1 : 0;

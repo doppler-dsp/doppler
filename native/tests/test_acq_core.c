@@ -121,6 +121,68 @@ main (void)
   acq_destroy (b);
   acq_destroy (NULL); /* must not crash */
 
+  /* ── carry round-trip: split a stream across two engines ─────────────────
+   * A fresh engine + the carry blob must reproduce an uninterrupted run
+   * exactly — the elastic-resume (pod handoff) guarantee. */
+  {
+    acq_state_t *ra
+        = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+    CHECK (ra != NULL);
+    if (ra)
+      {
+        const size_t rn  = ra->n;       /* frame size (ny*nx)            */
+        const size_t L3  = 3 * rn + 5;  /* 3 full frames + a partial tail */
+        const size_t cut = rn + rn / 2; /* split mid-frame (1.5 frames)   */
+        const double rf  = 1.0 / (double)rn; /* Doppler bin u=1 (rf*rn = 1)  */
+
+        float complex *s = malloc (L3 * sizeof (float complex));
+        for (size_t k = 0; k < L3; k++)
+          {
+            double ph = 2.0 * PI * rf * (double)k;
+            s[k] = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+          }
+
+        /* Run A — uninterrupted. */
+        acq_result_t hA[8];
+        size_t       nA = acq_push (ra, s, L3, hA, 8);
+
+        /* Run B — engine1 takes [0,cut), hands its carry to a fresh engine2
+         * which takes [cut,L3). */
+        acq_state_t *r1
+            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+        acq_state_t *r2
+            = acq_create (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0, 1);
+        CHECK (r1 && r2);
+        if (r1 && r2)
+          {
+            acq_result_t hB[8];
+            size_t       nB = acq_push (r1, s, cut, hB, 8);
+
+            size_t cb    = acq_carry_bytes (r1);
+            void  *carry = malloc (cb);
+            acq_get_carry (r1, carry);
+            CHECK (acq_set_carry (r2, carry) == 0);
+
+            nB += acq_push (r2, s + cut, L3 - cut, hB + nB, 8 - nB);
+
+            CHECK (nA == 3 && nB == nA); /* both see all 3 full frames */
+            for (size_t i = 0; i < nA && i < nB; i++)
+              {
+                CHECK (hA[i].doppler_bin == hB[i].doppler_bin);
+                CHECK (hA[i].code_phase == hB[i].code_phase);
+                CHECK (fabsf (hA[i].peak_mag - hB[i].peak_mag) < 1e-5f);
+                CHECK (fabsf (hA[i].test_stat - hB[i].test_stat) < 1e-5f);
+                CHECK (fabsf (hA[i].snr_est - hB[i].snr_est) < 1e-5f);
+              }
+            free (carry);
+          }
+        acq_destroy (r1);
+        acq_destroy (r2);
+        free (s);
+      }
+    acq_destroy (ra);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_acq_core FAILED (%d)\n", _fails);

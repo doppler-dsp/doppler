@@ -120,6 +120,8 @@ typedef struct {
   double pd_predicted; /**< Predicted Pd at cn0_dbhz and the chosen grid.    */
   uint8_t underpowered; /**< 1 when pd_predicted < pd.                       */
 
+  uint64_t samples_consumed; /**< Total framed samples (the carry's offset).   */
+
   /* Last-dump bookkeeping (for inspection). */
   size_t peak_row;
   size_t peak_col;
@@ -127,6 +129,36 @@ typedef struct {
   float noise_est;
   float test_stat;
 } acq_state_t;
+
+/**
+ * @brief Serializable header for an engine's carry (cross-call state).
+ *
+ * The carry is the *only* state a fresh engine needs to continue a stream from
+ * `(descriptor, carry, input)` — it makes the engine a pure transducer for the
+ * elastic fan-out (thread / process / pod).  Layout, contiguous and flat:
+ *
+ *   [ acq_carry_hdr_t ]
+ *   [ float complex unconsumed[n_unconsumed] ]   (partial frame, < n samples)
+ *   [ float          nc_surface[n] ]             (only when n_noncoh > 1)
+ *
+ * Build the byte buffer with acq_carry_bytes(); a node validates
+ * @ref magic / @ref version / @ref n before trusting it and rejects a mismatch
+ * rather than reinterpreting it.
+ */
+typedef struct {
+  uint32_t magic;          /**< ACQ_CARRY_MAGIC.                              */
+  uint16_t version;        /**< ACQ_CARRY_VERSION.                            */
+  uint16_t has_nc;         /**< 1 if nc_surface[n] follows the samples.       */
+  uint64_t n;              /**< Frame size; must equal engine's n.            */
+  uint64_t samples_consumed; /**< Stream offset framed so far.                */
+  uint32_t n_noncoh;       /**< Non-coherent looks (engine consistency).      */
+  uint32_t nc_count;       /**< Looks accumulated in the current dump.        */
+  uint32_t n_unconsumed;   /**< Partial-frame samples that follow (< n).      */
+  uint32_t _pad;
+} acq_carry_hdr_t;
+
+#define ACQ_CARRY_MAGIC 0x41435152u /* 'ACQR' */
+#define ACQ_CARRY_VERSION 1u
 
 /**
  * @brief Create a streaming DSSS acquisition engine.
@@ -186,6 +218,43 @@ void acq_reset (acq_state_t *state);
  */
 size_t acq_push (acq_state_t *state, const float complex *in, size_t n_in,
                  acq_result_t *result, size_t max_results);
+
+/* ── Serializable carry — the elastic / pure-transducer face ─────────────────
+ *
+ * The OO engine above is convenient but stateful.  These four make the same
+ * engine a pure transducer for the fleet: serialize a channel's cross-call
+ * state to a flat POD, ship (descriptor, carry, input) to any thread/process/
+ * pod, rebuild the engine from the descriptor (acq_create), inject the carry,
+ * and continue — bit-identical to an uninterrupted run.
+ */
+
+/** @brief Byte size of @p state's carry blob (header + unconsumed + nc). */
+size_t acq_carry_bytes (const acq_state_t *state);
+
+/**
+ * @brief Serialize @p state's cross-call state into @p carry (caller-owned,
+ *        acq_carry_bytes() long).  Call between pushes (no partial dump pending).
+ */
+void acq_get_carry (const acq_state_t *state, void *carry);
+
+/**
+ * @brief Restore cross-call state from @p carry into @p state (replacing it).
+ * @return 0 on success, -1 if the carry's magic/version/n/n_noncoh disagree
+ *         with @p state (rebuild the engine from the matching descriptor first).
+ */
+int acq_set_carry (acq_state_t *state, const void *carry);
+
+/**
+ * @brief Pure run: inject @p carry_in, stream @p in, emit hits, export
+ *        @p carry_out — `(state_in, input) -> (state_out, output)` over an
+ *        engine treated as immutable config + scratch.  @p carry_in / @p
+ *        carry_out may alias.  Either carry may be NULL (NULL in = fresh;
+ *        NULL out = discard).
+ * @return Number of events written (0 … max_results).
+ */
+size_t acq_run (acq_state_t *state, const void *carry_in, void *carry_out,
+                const float complex *in, size_t n_in, acq_result_t *result,
+                size_t max_results);
 
 #ifdef __cplusplus
 }

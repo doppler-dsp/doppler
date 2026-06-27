@@ -8,7 +8,7 @@ class FIR:
     Parameters
     ----------
     taps : NDArray[np.complex64], default ...
-        taps constructor parameter.
+        Array of num_taps CF32 coefficients (I+jQ each), copied.
 
     """
     def __init__(self, taps: NDArray[np.complex64] = ...) -> None: ...
@@ -82,7 +82,7 @@ class HBDecimQ15:
     Parameters
     ----------
     h : NDArray[np.float32], default ...
-        h constructor parameter.
+        Float FIR branch coefficients of length num_taps. Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
 
     """
     def __init__(self, h: NDArray[np.float32] = ...) -> None: ...

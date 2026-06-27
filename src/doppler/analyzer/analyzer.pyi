@@ -9,25 +9,25 @@ class Specan:
     Parameters
     ----------
     fs : float
-        fs constructor parameter (required).
+        Input sample rate (Hz).  Must be > 0.
     span : float
-        span constructor parameter (required).
+        Display span (Hz).  Must be > 0.
     rbw : float
-        rbw constructor parameter (required).
+        Resolution bandwidth (Hz).  Must be > 0.
     src_center : float, default 0.0
-        src_center constructor parameter.
+        Source center frequency (Hz); the input band is centred here, so the analyzer mixes (center − src_center) to DC.
     center : float, default 0.0
-        center constructor parameter.
+        Desired display center frequency (Hz).
     offset_db : float, default 0.0
-        offset_db constructor parameter.
+        Additive dB offset on the display spectrum, applied on top of dBFS (e.g. a dBm calibration the application computes from a reference level).
     full_scale : float, default 1.0
-        full_scale constructor parameter.
+        Amplitude that reads 0 dBFS (> 0).  Ignored if bits > 0.
     bits : int, default 0
-        bits constructor parameter.
+        ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the shared PSD core (the single source of truth for the dBFS reference).
     window : Literal["hann", "kaiser"], default "kaiser"
-        window constructor parameter.
+        Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).
     navg : int, default 1
-        navg constructor parameter.
+        Segments averaged per emitted frame (>= 1).
 
     Examples
     --------
@@ -42,10 +42,10 @@ class Specan:
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.float32]:
         """Mix, decimate, average; return one DC-centred dB display frame, or None.
 
-        Feeds @p x through the Ddc, buffers the decimated output, and once
-        `n·navg` decimated samples are available windows + FFTs + averages them
-        into a fresh frame, crops the central ±span/2 band and writes it in dB
-        (+ ref_db). Returns 0 (writing nothing) until a frame is ready — the
+        Feeds x through the Ddc, buffers the decimated output, and once `n·navg`
+        decimated samples are available windows + FFTs + averages them into a
+        fresh frame, crops the central ±span/2 band and writes it in dB (+
+        ref_db). Returns 0 (writing nothing) until a frame is ready — the
         binding maps that to Python ``None``.
 
         Parameters

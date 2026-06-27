@@ -26,7 +26,7 @@ class LoopFilter:
     def __init__(self, bn: float = ..., zeta: float = ..., t: float = ...) -> None: ...
 
     def step(self, x: float) -> float:
-        """Advance the loop one update with error @p x; return the control.
+        """Advance the loop one update with error x; return the control.
 
         `integ += ki*x; return integ + kp*x`.
 
@@ -194,22 +194,22 @@ class Costas:
     def __exit__(self, *args: object) -> None: ...
 
 class Dll:
-    """Create a DLL instance (COPIES @p code).
+    """Create a DLL instance (COPIES code).
 
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        code constructor parameter.
+        Spreading code (0/1 chips), one period; copied internally.
     sps : int, default 2
-        sps constructor parameter.
+        Samples per chip (default 2).
     init_chip : float, default 0.0
-        init_chip constructor parameter.
+        Seed code phase, chips (default 0.0).
     bn : float, default 0.01
-        bn constructor parameter.
+        Loop noise bandwidth (default 0.01).
     zeta : float, default 0.707
-        zeta constructor parameter.
+        Damping factor (default 0.707).
     spacing : float, default 0.5
-        spacing constructor parameter.
+        Early/late tap offset, chips (default 0.5).
 
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
@@ -269,7 +269,7 @@ class Dll:
     def __exit__(self, *args: object) -> None: ...
 
 class Channel:
-    """Create a tracking channel (COPIES @p code).
+    """Create a tracking channel (COPIES code).
 
     Parameters
     ----------

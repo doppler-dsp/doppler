@@ -29,10 +29,10 @@ class F32ToI16:
     def steps(self, x: NDArray[np.float32], out: NDArray[np.int16] | None = None) -> NDArray[np.int16]:
         """Process a block of float samples to int16.
 
-        Applies step() to every element. The @c clipped flag is updated
+        Applies step() to every element. The clipped flag is updated
         cumulatively across the block — a single saturating sample raises it for
         the entire call. Accepts an optional pre-allocated output array;
-        allocates a fresh one when @p output is NULL.
+        allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -93,7 +93,7 @@ class I16ToF32:
         """Process a block of int16 samples to float32.
 
         Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when @p output is NULL.
+        output array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -142,7 +142,7 @@ class I32ToF32:
     def reset(self) -> None:
         """Reset I32ToF32 to its post-create state.
 
-        No mutable state exists beyond the immutable @c iscale; reset is a no-op
+        No mutable state exists beyond the immutable iscale; reset is a no-op
         provided for lifecycle symmetry with other converters.
         """
 
@@ -153,7 +153,7 @@ class I32ToF32:
         """Process a block of int32 samples to float32.
 
         Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when @p output is NULL.
+        output array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -202,7 +202,7 @@ class I8ToF32:
     def reset(self) -> None:
         """Reset I8ToF32 to its post-create state.
 
-        No mutable state exists beyond the immutable @c iscale; reset is a no-op
+        No mutable state exists beyond the immutable iscale; reset is a no-op
         provided for lifecycle symmetry with other converters.
         """
 
@@ -213,7 +213,7 @@ class I8ToF32:
         """Process a block of int8 samples to float32.
 
         Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when @p output is NULL.
+        output array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -268,9 +268,9 @@ class F32ToI16U32:
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint32] | None = None) -> NDArray[np.uint32]:
         """Process a block of float samples to Q15-in-uint32.
 
-        Applies step() to every element. The @c clipped flag is updated
+        Applies step() to every element. The clipped flag is updated
         cumulatively across the block. Accepts an optional pre-allocated output
-        array; allocates a fresh one when @p output is NULL.
+        array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -329,9 +329,9 @@ class F32ToI16U64:
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint64] | None = None) -> NDArray[np.uint64]:
         """Process a block of float samples to Q15-in-uint64.
 
-        Applies step() to every element. The @c clipped flag is updated
+        Applies step() to every element. The clipped flag is updated
         cumulatively across the block. Accepts an optional pre-allocated output
-        array; allocates a fresh one when @p output is NULL.
+        array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -391,7 +391,7 @@ class I16U32ToF32:
         """Process a block of Q15-in-uint32 samples to float32.
 
         Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when @p output is NULL.
+        output array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -447,7 +447,7 @@ class I16U64ToF32:
         """Process a block of Q15-in-uint64 samples to float32.
 
         Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when @p output is NULL.
+        output array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -502,9 +502,9 @@ class F32ToUQ15:
     def steps(self, x: NDArray[np.float32], out: NDArray[np.uint16] | None = None) -> NDArray[np.uint16]:
         """Process a block of float samples to UQ15 uint16.
 
-        Applies step() to every element. The @c clipped flag is updated
+        Applies step() to every element. The clipped flag is updated
         cumulatively across the block. Accepts an optional pre-allocated output
-        array; allocates a fresh one when @p output is NULL.
+        array; allocates a fresh one when output is NULL.
 
         Parameters
         ----------
@@ -565,7 +565,7 @@ class UQ15ToF32:
 
         Applies step() to every element. State is not mutated (no clipped flag).
         Accepts an optional pre-allocated output array; allocates a fresh one
-        when @p output is NULL.
+        when output is NULL.
 
         Parameters
         ----------
@@ -599,11 +599,11 @@ class ADC:
     Parameters
     ----------
     bits : int, default 16
-        bits constructor parameter.
+        ADC resolution in bits (1..64).
     dbfs : float, default -10.0
-        dbfs constructor parameter.
+        Full-scale reference level in dBFS (typically negative, e.g. -10.0).  A signal with amplitude 10^(dbfs/20) fills the converter's integer range exactly.
     dithering : int, default 0
-        dithering constructor parameter.
+        0 = no dither; non-zero = TPDF dither before rounding.
 
     Examples
     --------
@@ -628,7 +628,7 @@ class ADC:
         widening (jm_simd.h); the int64_t conversion and clamp remain scalar.
         When dithering is enabled the loop is scalar to preserve sequential PRNG
         state. Accepts an optional pre-allocated output array; allocates a fresh
-        one when @p output is NULL.
+        one when output is NULL.
 
         Parameters
         ----------

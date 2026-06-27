@@ -8,9 +8,9 @@ class NCO:
     Parameters
     ----------
     norm_freq : float, default 0.0
-        norm_freq constructor parameter.
+        Normalised frequency in cycles per sample. Any real value; only the fractional part matters. Negative values fold correctly (−0.25 → 3×2^30).
     nmax : int, default 0
-        nmax constructor parameter.
+        Wrap target for nco_steps_u32_scaled. Pass 0 to return the raw 32-bit accumulator.
 
     Examples
     --------
@@ -131,7 +131,7 @@ class LO:
     Parameters
     ----------
     norm_freq : float, default 0.0
-        norm_freq constructor parameter.
+        Normalised frequency in cycles per sample. Any real value; only the fractional part matters.
 
     Examples
     --------
@@ -241,9 +241,9 @@ class AWGN:
     Parameters
     ----------
     seed : int, default 0
-        seed constructor parameter.
+        64-bit RNG seed.  Two generators with different seeds produce statistically independent noise streams.
     amplitude : float, default 1.0
-        amplitude constructor parameter.
+        Per-component (Re, Im) standard deviation.  Must be ≥ 0; total complex power = 2 × amplitude².
 
     Examples
     --------

@@ -9,7 +9,7 @@ class Resampler:
     Parameters
     ----------
     rate : float, default 0.0
-        rate constructor parameter.
+        Output-to-input sample rate ratio (any positive float). Values >= 1.0 interpolate; values < 1.0 decimate.
 
     Examples
     --------
@@ -115,7 +115,7 @@ class Halfbanddecimator:
     Parameters
     ----------
     h : NDArray[np.float32], default ...
-        h constructor parameter.
+        Float32 FIR branch coefficients, length num_taps. Must be a symmetric halfband prototype (antisymmetric even-indexed taps zeroed).
 
     """
     def __init__(self, h: NDArray[np.float32] = ...) -> None: ...
@@ -184,7 +184,7 @@ class CIC:
     Parameters
     ----------
     R : int, default 16
-        R constructor parameter.
+        Decimation ratio.  Must be a power of two in `[2, 4096]`. Returns NULL for R=0, non-power-of-two, or R > 4096.
 
     Examples
     --------
@@ -274,9 +274,9 @@ class RateConverter:
     Parameters
     ----------
     rate : float, default 1.0
-        rate constructor parameter.
+        Output-to-input sample rate ratio. Any positive float.
     compensate : int, default 0
-        compensate constructor parameter.
+        Non-zero to append a CIC passband-droop compensating FIR after any CIC stage.
 
     Examples
     --------
@@ -344,7 +344,7 @@ class Farrow:
     Parameters
     ----------
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
-        order constructor parameter.
+        0 = linear, 1 = parabolic, 2 = cubic.
 
     Examples
     --------

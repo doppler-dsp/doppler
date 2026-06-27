@@ -4,16 +4,16 @@ import numpy as np
 from numpy.typing import NDArray
 
 class FFT:
-    """Allocate a reusable 1-D FFT engine for a fixed length and sign. Two pocketfft plans are created at construction time — one for CF64 and one for CF32 — so execute calls carry no plan-setup overhead.  The same instance may be called repeatedly for independent input vectors of the same length.  @p nthreads is accepted for API parity but is ignored; pocketfft plans are single-threaded.
+    """Allocate a reusable 1-D FFT engine for a fixed length and sign. Two pocketfft plans are created at construction time — one for CF64 and one for CF32 — so execute calls carry no plan-setup overhead.  The same instance may be called repeatedly for independent input vectors of the same length.  nthreads is accepted for API parity but is ignored; pocketfft plans are single-threaded.
 
     Parameters
     ----------
     n : int, default 1024
-        n constructor parameter.
+        Transform length in samples (power of two recommended).
     sign : int, default -1
-        sign constructor parameter.
+        -1 for the forward DFT, +1 for the inverse DFT.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
 
     Examples
     --------
@@ -30,7 +30,7 @@ class FFT:
         """
 
     def execute_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
-        """Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer; @p in and @p out must not alias.  The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n.  Both buffers must be exactly state->n elements long.
+        """Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer; in and out must not alias.  The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n.  Both buffers must be exactly state->n elements long.
 
         Parameters
         ----------
@@ -54,7 +54,7 @@ class FFT:
         """
 
     def execute_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to fft_execute_cf64() but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised; @p in and @p out must not alias.
+        """Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to fft_execute_cf64() but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised; in and out must not alias.
 
         Parameters
         ----------
@@ -78,7 +78,7 @@ class FFT:
         """
 
     def execute_inplace_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
-        """Copy @p in into @p out, then transform @p out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate @p in / @p out pointers; use this variant when the caller already owns @p out and wants the result there without a second allocation.
+        """Copy in into out, then transform out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate in / out pointers; use this variant when the caller already owns out and wants the result there without a second allocation.
 
         Parameters
         ----------
@@ -102,7 +102,7 @@ class FFT:
         """
 
     def execute_inplace_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Copy @p in into @p out, then transform @p out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from @p in to @p out, then transforms @p out with the CF32 pocketfft plan.  @p in is left unmodified.
+        """Copy in into out, then transform out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from in to out, then transforms out with the CF32 pocketfft plan.  in is left unmodified.
 
         Parameters
         ----------
@@ -141,18 +141,18 @@ class FFT:
     def __exit__(self, *args: object) -> None: ...
 
 class FFT2D:
-    """Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32.  All execute calls accept and return flat row-major arrays of length ny*nx; the Python layer may reshape them with .reshape(ny, nx). @p nthreads is accepted for API parity but ignored.
+    """Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft 2-D plans are built at construction time — one CF64, one CF32.  All execute calls accept and return flat row-major arrays of length ny*nx; the Python layer may reshape them with .reshape(ny, nx). nthreads is accepted for API parity but ignored.
 
     Parameters
     ----------
     ny : int, default 64
-        ny constructor parameter.
+        Number of rows (outer dimension).
     nx : int, default 64
-        nx constructor parameter.
+        Number of columns (inner dimension).
     sign : int, default -1
-        sign constructor parameter.
+        -1 for the forward DFT, +1 for the inverse DFT.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
 
     Examples
     --------
@@ -169,7 +169,7 @@ class FFT2D:
         """
 
     def execute_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
-        """Compute an out-of-place 2-D DFT on a double-precision complex grid. @p in is a flat row-major CF64 array of length ny*nx.  The output is written to the caller-supplied @p out buffer (also ny*nx); the two must not alias.  The transform is unnormalised.
+        """Compute an out-of-place 2-D DFT on a double-precision complex grid. in is a flat row-major CF64 array of length ny*nx.  The output is written to the caller-supplied out buffer (also ny*nx); the two must not alias.  The transform is unnormalised.
 
         Parameters
         ----------
@@ -196,7 +196,7 @@ class FFT2D:
         """
 
     def execute_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of fft2d_execute_cf64().  Accepts and returns flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; @p in and @p out must not alias.
+        """Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of fft2d_execute_cf64().  Accepts and returns flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; in and out must not alias.
 
         Parameters
         ----------
@@ -223,7 +223,7 @@ class FFT2D:
         """
 
     def execute_inplace_cf64(self, x: NDArray[np.complex128]) -> NDArray[np.complex128]:
-        """Copy @p in into @p out, then transform @p out in-place (CF64 2-D). The ny*nx CF64 samples from @p in are first memcpy'd to @p out; the 2-D DFT is then applied to @p out in-place.  @p in is left unmodified. Useful when the caller owns @p out and wants to preserve @p in.
+        """Copy in into out, then transform out in-place (CF64 2-D). The ny*nx CF64 samples from in are first memcpy'd to out; the 2-D DFT is then applied to out in-place.  in is left unmodified. Useful when the caller owns out and wants to preserve in.
 
         Parameters
         ----------
@@ -248,7 +248,7 @@ class FFT2D:
         """
 
     def execute_inplace_cf32(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Copy @p in into @p out, then transform @p out in-place (CF32 2-D). Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to @p out.
+        """Copy in into out, then transform out in-place (CF32 2-D). Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to out.
 
         Parameters
         ----------
@@ -292,18 +292,18 @@ class FFT2D:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr:
-    """Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies.  @p ref may be freed after this returns.  With @p dwell == 1 every call produces output; with larger values the accumulator absorbs @p dwell frames before dumping.
+    """Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies.  ref may be freed after this returns.  With dwell == 1 every call produces output; with larger values the accumulator absorbs dwell frames before dumping.
 
     Parameters
     ----------
     ref : NDArray[np.complex64], default ...
-        ref constructor parameter.
+        Reference signal, CF32, length n.
     dwell : int, default 1
-        dwell constructor parameter.
+        Integration depth; must be >= 1.  Pass 1 for immediate output on every call.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
     n_out : int, default 0
-        n_out constructor parameter.
+        Inverse/output length; 0 => native (n).  Must be >= n.  A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n_out grid — same peak, sub-bin lag resolution.  Native is bit-exact and allocates no extra buffer.
 
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., n_out: int = ...) -> None: ...
@@ -327,7 +327,7 @@ class Corr:
         """
 
     def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the @p dwell-th call @p out is written, the accumulator is zeroed, and the counter resets; the function returns n_out.  All other calls return 0 and leave @p out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
+        """Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the dwell-th call out is written, the accumulator is zeroed, and the counter resets; the function returns n_out.  All other calls return 0 and leave out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
 
         Parameters
         ----------
@@ -377,20 +377,20 @@ class Corr:
     def __exit__(self, *args: object) -> None: ...
 
 class Corr2D:
-    """Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of corr_create().  The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The Python wrapper requires @p ref to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C.
+    """Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of corr_create().  The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny*nx complex multiplies. The Python wrapper requires ref to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C.
 
     Parameters
     ----------
     ref : NDArray[np.complex64], default ...
-        ref constructor parameter.
+        Reference image, 2-D (ny, nx) CF32 ndarray in Python.
     dwell : int, default 1
-        dwell constructor parameter.
+        Integration depth; must be >= 1.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
     ny_out : int, default 0
-        ny_out constructor parameter.
+        Inverse/output rows; 0 => native (ny).  Must be >= ny.  A larger output zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer (ny_out, nx_out) grid — same peak, sub-bin resolution.  Native is bit-exact and allocates no extra buffers.
     nx_out : int, default 0
-        nx_out constructor parameter.
+        Inverse/output columns; 0 => native (nx).  Must be >= nx.
 
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., nthreads: int = ..., ny_out: int = ..., nx_out: int = ...) -> None: ...
@@ -476,24 +476,24 @@ class Corr2D:
     def __exit__(self, *args: object) -> None: ...
 
 class Detector:
-    """Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a corr_state_t with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed.  After every int-dump the peak-to-noise test statistic is compared against @p threshold; a det_result_t is emitted when it passes.  Setting @p threshold to 0.0 unconditionally fires on every dump. The ring capacity is next_pow2(max(n, 512)) complex samples.
+    """Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a corr_state_t with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed.  After every int-dump the peak-to-noise test statistic is compared against threshold; a det_result_t is emitted when it passes.  Setting threshold to 0.0 unconditionally fires on every dump. The ring capacity is next_pow2(max(n, 512)) complex samples.
 
     Parameters
     ----------
     ref : NDArray[np.complex64], default ...
-        ref constructor parameter.
+        Reference signal, CF32 ndarray of length n.
     dwell : int, default 1
-        dwell constructor parameter.
+        Int-dump depth; must be >= 1.
     noise_lo : int, default 0
-        noise_lo constructor parameter.
+        Lower noise bin index (inclusive, 0-based).
     noise_hi : int, default n-1
-        noise_hi constructor parameter.
+        Upper noise bin index (inclusive, < n).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        noise_mode constructor parameter.
+        Noise aggregation: "mean", "median", "min", or "max".
     threshold : float, default 0.0
-        threshold constructor parameter.
+        Test-stat gate; 0.0 = always emit.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
 
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
@@ -526,7 +526,7 @@ class Detector:
         Returns
         -------
         list[tuple[int, float, float, float]]
-            Number of det_result_t entries written to @p result.
+            Number of det_result_t entries written to result.
 
         Examples
         --------
@@ -584,24 +584,24 @@ class Detector:
     def __exit__(self, *args: object) -> None: ...
 
 class Detector2D:
-    """Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of detector_create().  Input frames are flat row-major CF32 arrays of length ny*nx streamed through a ring buffer.  On every int-dump the peak flat index is decomposed into (row, col) and a det_result2d_t is emitted when test_stat > threshold.  The Python wrapper accepts a (ny, nx) CF32 ndarray for both @p ref and the push input.
+    """Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of detector_create().  Input frames are flat row-major CF32 arrays of length ny*nx streamed through a ring buffer.  On every int-dump the peak flat index is decomposed into (row, col) and a det_result2d_t is emitted when test_stat > threshold.  The Python wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push input.
 
     Parameters
     ----------
     ref : NDArray[np.complex64], default ...
-        ref constructor parameter.
+        2-D reference image, (ny, nx) CF32 ndarray in Python.
     dwell : int, default 1
-        dwell constructor parameter.
+        Int-dump depth; must be >= 1.
     noise_lo : int, default 0
-        noise_lo constructor parameter.
+        Lower flat-index noise bin (inclusive, 0-based).
     noise_hi : int, default ny*nx-1
-        noise_hi constructor parameter.
+        Upper flat-index noise bin (inclusive, < ny*nx).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        noise_mode constructor parameter.
+        Noise aggregation: "mean", "median", "min", or "max".
     threshold : float, default 0.0
-        threshold constructor parameter.
+        Test-stat gate; 0.0 = always emit.
     nthreads : int, default 1
-        nthreads constructor parameter.
+        Accepted for API compatibility; ignored.
 
     """
     def __init__(self, ref: NDArray[np.complex64] = ..., dwell: int = ..., noise_lo: int = ..., noise_hi: int = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", threshold: float = ..., nthreads: int = ...) -> None: ...
@@ -634,7 +634,7 @@ class Detector2D:
         Returns
         -------
         list[tuple[int, int, float, float, float]]
-            Number of det_result2d_t entries written to @p result.
+            Number of det_result2d_t entries written to result.
 
         Examples
         --------
@@ -705,23 +705,23 @@ class PSD:
     Parameters
     ----------
     n : int, default 1024
-        n constructor parameter.
+        Window / frame length in samples.  Must be >= 2.
     fs : float, default 1.0
-        fs constructor parameter.
+        Sample rate in Hz (used for dB/Hz and band frequencies).
     window : Literal["hann", "kaiser", "blackman-harris"], default "hann"
-        window constructor parameter.
+        Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.
     beta : float, default 0.0
-        beta constructor parameter.
+        Kaiser beta (ignored for Hann/Blackman-Harris).
     pad : int, default 1
-        pad constructor parameter.
+        Zero-pad factor (>= 1); nfft = next_pow2(n * pad).
     full_scale : float, default 1.0
-        full_scale constructor parameter.
+        Amplitude that reads 0 dBFS in the dB getters (> 0). Ignored when bits > 0.
     bits : int, default 0
-        bits constructor parameter.
+        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use full_scale directly.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        mode constructor parameter.
+        Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
-        alpha constructor parameter.
+        EMA smoothing factor (exp mode only).
 
     Examples
     --------
@@ -981,7 +981,7 @@ def kaiser_enbw(w: NDArray[np.float32]) -> float:
     """
 
 def kaiser_window(w: NDArray[np.float32], beta: float) -> None:
-    """Fill @p w with a Kaiser window of shape parameter @p beta. I0 is computed via the converging power-series expansion.  Increasing @p beta raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection).  The output is normalised so that `w[0]` = `w[N-1]` = I0(0)/I0(beta).
+    """Fill w with a Kaiser window of shape parameter beta. I0 is computed via the converging power-series expansion.  Increasing beta raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection).  The output is normalised so that `w[0]` = `w[N-1]` = I0(0)/I0(beta).
 
     Parameters
     ----------
@@ -1038,7 +1038,7 @@ def kaiser_beta_for_sidelobe(atten_db: float) -> float:
     """
 
 def hann_window(w: NDArray[np.float32]) -> None:
-    """Fill @p w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 - cos(2π k/(N-1))) for k = 0..N-1.  The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection.  Takes no shape parameter; use Kaiser for adjustable roll-off.
+    """Fill w with a Hann (raised-cosine) window. Computes w(k) = 0.5*(1 - cos(2π k/(N-1))) for k = 0..N-1.  The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection.  Takes no shape parameter; use Kaiser for adjustable roll-off.
 
     Parameters
     ----------
@@ -1057,7 +1057,7 @@ def hann_window(w: NDArray[np.float32]) -> None:
     """
 
 def blackman_harris_window(w: NDArray[np.float32]) -> None:
-    """Fill @p w with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829*cos(2πk/(N-1)) + 0.14128*cos(4πk/(N-1)) - 0.01168*cos(6πk/(N-1)) for k = 0..N-1.  Provides approximately 92 dB first-sidelobe rejection, far deeper than Hann (~31 dB) or Kaiser at β=8 (~80 dB).  Use for quantization and decimation spectra where you need to see low-level artefacts below the noise floor.
+    """Fill w with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829*cos(2πk/(N-1)) + 0.14128*cos(4πk/(N-1)) - 0.01168*cos(6πk/(N-1)) for k = 0..N-1.  Provides approximately 92 dB first-sidelobe rejection, far deeper than Hann (~31 dB) or Kaiser at β=8 (~80 dB).  Use for quantization and decimation spectra where you need to see low-level artefacts below the noise floor.
 
     Parameters
     ----------
@@ -1076,12 +1076,12 @@ def blackman_harris_window(w: NDArray[np.float32]) -> None:
     """
 
 def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
-    """Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20*log10(max(|x(k)|, lin_floor)) + offset_db for each bin.  The @p lin_floor guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor.  @p offset_db shifts the entire output for calibration (e.g., normalise to 0 dBFS).
+    """Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20*log10(max(|x(k)|, lin_floor)) + offset_db for each bin.  The lin_floor guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor.  offset_db shifts the entire output for calibration (e.g., normalise to 0 dBFS).
 
     Parameters
     ----------
     x : NDArray[np.complex64]
-        CF32 complex spectrum array, length @p x_len.
+        CF32 complex spectrum array, length x_len.
     lin_floor : float
         Linear amplitude floor (must be > 0, e.g. 1e-12).
     offset_db : float
@@ -1103,12 +1103,12 @@ def magnitude_db_cf32(x: NDArray[np.complex64], lin_floor: float, offset_db: flo
     """
 
 def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: float) -> NDArray[np.float32]:
-    """Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of magnitude_db_cf32().  Accepts a CF64 input array and a double @p lin_floor; output is still F32 because downstream display code typically works in single precision.  The formula and @p offset_db semantics are identical.
+    """Convert a CF64 complex spectrum to F32 dB magnitudes. Double-precision variant of magnitude_db_cf32().  Accepts a CF64 input array and a double lin_floor; output is still F32 because downstream display code typically works in single precision.  The formula and offset_db semantics are identical.
 
     Parameters
     ----------
     x : NDArray[np.complex128]
-        CF64 complex spectrum array, length @p x_len.
+        CF64 complex spectrum array, length x_len.
     lin_floor : float
         Linear amplitude floor (double, must be > 0).
     offset_db : float
@@ -1130,7 +1130,7 @@ def magnitude_db_cf64(x: NDArray[np.complex128], lin_floor: float, offset_db: fl
     """
 
 def find_peaks_f32(db: NDArray[np.float32], n_peaks: int, min_db: float) -> Any:
-    """Find up to @p n_peaks local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan — `db[k]` > `db[k-1]` && `db[k]` >= `db[k+1]` with `db[k]` > min_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq_norm accuracy; (3) sort descending and return the top @p n_peaks.  freq_norm is DC-centred: bin i maps to freq_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5.  The spectrum must have at least 3 bins.
+    """Find up to n_peaks local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan — `db[k]` > `db[k-1]` && `db[k]` >= `db[k+1]` with `db[k]` > min_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq_norm accuracy; (3) sort descending and return the top n_peaks.  freq_norm is DC-centred: bin i maps to freq_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5.  The spectrum must have at least 3 bins.
 
     Parameters
     ----------
@@ -1144,7 +1144,7 @@ def find_peaks_f32(db: NDArray[np.float32], n_peaks: int, min_db: float) -> Any:
     Returns
     -------
     Any
-        Number of dp_peak_t entries written to @p result.
+        Number of dp_peak_t entries written to result.
 
     Examples
     --------

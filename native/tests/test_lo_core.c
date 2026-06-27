@@ -343,6 +343,43 @@ main (void)
     lo_destroy (ref);
   }
 
+  /* ----------------------------------------------------------------
+   * 13. Serializable state round-trip — the elastic-resume guarantee.
+   *
+   * Serialize the LO's state mid-stream, restore it into a FRESH LO
+   * (same norm_freq, rebuilt from the descriptor), and continue: the
+   * resumed output must equal an uninterrupted run bit-for-bit.
+   * ---------------------------------------------------------------- */
+  {
+    const size_t  N = 100, M = 156;
+    lo_state_t   *ref = lo_create (0.123456);
+    float complex full[256];
+    lo_steps (ref, N + M, full);
+    lo_destroy (ref);
+
+    lo_state_t   *a = lo_create (0.123456);
+    float complex tmp[256];
+    lo_steps (a, N, tmp); /* advance N */
+
+    CHECK (lo_state_bytes (a) == sizeof (uint32_t));
+    unsigned char blob[8];
+    lo_get_state (a, blob);
+    lo_destroy (a);
+
+    lo_state_t *b = lo_create (0.123456); /* fresh, from the descriptor */
+    CHECK (lo_set_state (b, blob) == 0);
+    float complex resumed[256];
+    lo_steps (b, M, resumed);
+    lo_destroy (b);
+
+    int exact = 1;
+    for (size_t i = 0; i < M; i++)
+      if (crealf (resumed[i]) != crealf (full[N + i])
+          || cimagf (resumed[i]) != cimagf (full[N + i]))
+        exact = 0;
+    CHECK (exact); /* bit-exact resume from the serialized state */
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_lo_core FAILED (%d)\n", _fails);

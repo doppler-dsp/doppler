@@ -126,14 +126,21 @@ stream at ~`segments` samples/symbol (since symbol ≈ epoch) for a downstream
 symbol matched filter + `SymbolSync` — and the code is tracked **non-coherently**
 across the partials (`(Σ|E| − Σ|L|)/(Σ|E| + Σ|L|)`), which a data flip cannot
 collapse. `segments=1` (default) is the plain coherent DLL above; choose `≥ 2`
-for symbol-timing recovery. See the
+for symbol-timing recovery. This `segments` mode is the **streaming despreader**:
+its job is to remove the PN code and output samples. Because the code loop is
+non-coherent it is **carrier-blind** — it locks with a residual carrier still on
+the samples, and (a short partial window being carrier-tolerant) the residual
+just rides out on the partials. **Carrier recovery (`Costas`) and symbol
+extraction (`SymbolSync`) are downstream**, fed from this output. See the
+[streaming async despreader gallery](../gallery/async-despread.md) and the
 [async despreader design note](../design/async-symbol-despreader.md).
 
 ```python
-# 4 partial correlations per epoch -> non-coherent code tracking + a partial
-# prompt stream for SymbolSync (asynchronous data-symbol clock)
+# 4 partial correlations per epoch -> non-coherent (carrier-blind) code tracking
+# + an oversampled async-BPSK stream; carrier + symbol recovery are downstream.
 d = Dll(code, sps=8, bn=0.002, zeta=0.707, spacing=0.5, segments=4)
-partials = d.steps(rx)       # 4 partial prompts per code epoch
+partials = d.steps(rx)       # 4 partial prompts per code epoch (PN removed)
+# downstream: Costas(...).steps(partials) -> SymbolSync(...).steps(...) -> bits
 ```
 
 ______________________________________________________________________

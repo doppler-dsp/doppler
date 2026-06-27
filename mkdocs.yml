@@ -164,6 +164,7 @@ nav:
       - Symbol Timing Recovery: gallery/symsync.md
       - M-PSK Constellation: gallery/mpsk.md
       - Costas Loop (theory): gallery/costas-theory.md
+      - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
       - Timing Loop (theory): gallery/symsync-theory.md
       - DLL Code Loop (theory): gallery/dll-theory.md
   - Examples:

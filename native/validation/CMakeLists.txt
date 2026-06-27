@@ -31,3 +31,21 @@ target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static m)
 target_compile_options(validate_dll_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_dll_jitter
          COMMAND validate_dll_jitter --check)
+
+add_executable(validate_carrier_mpsk_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_mpsk_scurve.c)
+target_include_directories(validate_carrier_mpsk_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_mpsk_scurve PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_mpsk_scurve PRIVATE -O3)
+add_test(NAME validate_carrier_mpsk_scurve
+         COMMAND validate_carrier_mpsk_scurve --check)
+
+add_executable(validate_carrier_mpsk_jitter
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_mpsk_jitter.c)
+target_include_directories(validate_carrier_mpsk_jitter
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_mpsk_jitter PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_mpsk_jitter PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_carrier_mpsk_jitter
+         COMMAND validate_carrier_mpsk_jitter --check)

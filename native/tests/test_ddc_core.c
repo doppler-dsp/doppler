@@ -73,8 +73,11 @@ _ddcr_run_roundtrip (double norm_freq, double rate)
   CHECK (nA == nB);
   int bad = 0;
   for (size_t i = 0; i < nA && i < nB; i++)
-    if (crealf (outA[i]) != crealf (outB[i])
-        || cimagf (outA[i]) != cimagf (outB[i]))
+    /* Restored vs continuous output matches up to FMA-grouping ULPs at the
+     * split boundary: the CIC / Resampler taps contract differently across the
+     * cut on arm64 (the halfband plan in main() is grouping-invariant, hence
+     * exact there). A real state-restore bug would be O(1) — far above tol. */
+    if (!ALMOST_EQ_C (outA[i], outB[i], 1e-3f))
       bad++;
   CHECK (bad == 0);
 

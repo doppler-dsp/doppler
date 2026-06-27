@@ -121,79 +121,69 @@ SNR; `K = 8` loses more gain than variance). `K` must divide `TE`.
 
 ______________________________________________________________________
 
-## 4. The full async tracking channel (carrier + code + symbol)
+## 4. Scope: the despreader removes the code and outputs samples
 
-Sections 1–3 cover the **code + symbol** path on a carrier-wiped input. A
-complete receiver adds the **carrier** loop, and *where* the carrier is corrected
-turns out to be decisive. Validated end to end (genie-carrier prototype) under
-carrier offset + code Doppler + an asynchronous data clock + AWGN, the
-architecture is:
+The despreader's one job is to **remove the PN code and output samples**. The
+asynchronous symbol clock is merely *why* it despreads in `K` partial
+correlations (§3) — it is not a reason to recover symbols here. **Carrier
+recovery and symbol extraction are downstream problems**, handled by separate
+objects fed from the despreader's output:
 
 ```
-Costas NCO ── de-rotate PER SAMPLE (before the code integration) ── carrier wipe
-   → Dll(segments=K, low bn) → K partial prompts/epoch   (non-coherent code)
-   → boxcar symbol matched filter → SymbolSync → symbols  (full SNR)
-   → carrier discriminator on the SYMBOLS → steer the Costas NCO   (feedback)
+              ┌──────────────── the despreader ───────────────┐
+acq seed →    Dll(segments=K):  E/P/L correlate · partial dump · non-coherent
+   (code phase)                 (|E|−|L|) code loop
+              └───────────────── partial stream out ──────────┘
+                         │  K oversampled async BPSK samples/symbol
+                         │  (PN removed; residual carrier + data still on them)
+                         ▼
+   downstream:  Costas (carrier recovery)  →  SymbolSync (symbol timing) → bits
 ```
 
-**Predetection de-rotation, postdetection discrimination** (the standard GPS
-carrier loop), and two rules that the prototype made concrete:
+This is **`track.Dll(..., segments=K)`** — no new object. `segments=1` is the
+classic coherent full-epoch DLL; `segments=K>1` is the streaming async
+despreader. It composes downstream with `Costas` and `SymbolSync`, which already
+exist (the data path of §3 is exactly that composition).
 
-- **De-rotate per sample, before the code integrate-and-dump.** If the carrier
-    rotates during the despread accumulation, the correlation sums rotating chips
-    and rolls off (a sinc loss) — it filters out signal energy. De-rotating later
-    (the despread *partials*, or the *symbols* after the symbol matched filter) is
-    too late; the energy is already gone. Placing the carrier wipe on the partials
-    or on the post-integration symbols both floored the BER.
-- **Take the carrier error from the full-SNR symbol**, not the raw samples or the
-    low-SNR partials — that minimises phase jitter. The loop steers the per-sample
-    NCO from this symbol-rate discriminator.
-- **The code loop is carrier-blind** (its `|E|−|L|` discriminator is
-    non-coherent), so it locks regardless of the carrier — but it needs a **low
-    loop bandwidth at low SNR** (e.g. `bn≈0.002` lost code lock at 6 dB Es/N0,
-    `bn≈1e-5` held to 4 dB).
+### Why the carrier belongs downstream
 
-With the carrier removed per sample (genie) and a low-bandwidth code loop, the
-chain lands **within ~1.6× of the BPSK matched-filter bound at 4–6 dB Es/N0**
-(4 dB: 1.8e-2 vs 1.25e-2; 6 dB: 4.1e-3 vs 2.4e-3) — near optimal.
+The DLL's `|E|−|L|` discriminator is **non-coherent**, so code tracking is
+**carrier-blind** — it locks with a residual carrier still on the samples. And
+because each output is a *partial* (a `TE/K`-sample integrate-and-dump, not a
+full epoch), a residual carrier barely dents it. For a ½-Doppler-bin residual
+after acquisition the I&D loss is `sinc(Δφ/2)` with `Δφ = π/segments`:
 
-The carrier loop closes a feedback path (symbol-rate discriminator → per-sample
-NCO), so unlike the §3 code+symbol cascade it cannot be a pipeline of block
-calls — it must be a per-sample inline loop, i.e. a C object.
+| segments | window | Δφ at ½-bin residual | despread loss |
+| -------- | ------ | -------------------- | ------------- |
+| 1        | `TE`   | `π`                  | **−3.9 dB**   |
+| 4        | `TE/4` | `π/4`                | **−0.2 dB**   |
 
-## 5. Build status & next steps
+So short partials make the despread carrier-tolerant: the small residual just
+rides out on the output (a ring in the constellation; see the gallery demo), and
+a downstream `Costas` loop removes it at full symbol SNR. Putting a carrier loop
+*inside* the despreader would only matter for long coherent integration — which
+partials deliberately avoid.
 
-**Done — the inline symbol-loop primitive.** `symsync_step()` (the per-sample
-SymbolSync composition API, mirroring `dll_accumulate`/`costas_wipeoff`) is added
-so the channel can drive the carrier loop on recovered symbols inline;
-`symsync_steps()` is now exactly it in a loop (byte-identical).
+## 5. Status
 
-**In progress — the C inline async-channel object.** Mirror `channel` (which
-already inlines `costas_wipeoff` + `dll_accumulate`), generalized to: per sample
-wipe the carrier and accumulate the code; per segment dump a partial, run the
-boxcar, and `symsync_step`; on a recovered symbol take the carrier discriminator
-and steer the NCO. Composes `Costas`, `Dll(segments)`, `SymbolSync`, `Farrow`,
-`loop_filter`. Two obstacles the standalone prototype surfaced, to resolve in the
-build:
+- **Shipped — the despreader.** `Dll(..., segments=K)` (the §3 code+symbol path;
+    `segments=1` = the classic coherent DLL). Validated **carrier-present**: code
+    lock holds with a residual carrier on the samples, and the partial output is
+    losslessly recoverable by a downstream carrier wipe + symbol despread
+    (`test_dll.py::test_segments_carrier_present_*`). The streaming binding returns
+    an independent array per call (block-size invariant).
+- **Shipped — the inline symbol-loop primitive.** `symsync_step()` (the
+    per-sample SymbolSync composition API); `symsync_steps()` is it in a loop.
+- **Downstream, already available:** `Costas` (carrier recovery) and
+    `SymbolSync` (Gardner + Farrow symbol timing). A receiver is the pipeline
+    `Dll(segments) → Costas → SymbolSync`; the §3 study and the
+    `async_despread_demo` gallery example show the composition.
 
-- **Carrier-loop latency.** The carrier discriminator comes from the symbol,
-    which lags the samples by the boxcar + SymbolSync group delay. A seeded carrier
-    holds, but closing the loop on the *delayed* symbol introduces a phase lag
-    (≈ `fc · latency`); needs reduced latency and/or an FLL-tolerant design so the
-    residual stays well inside the phase-detector's linear range.
-- **Inline symbol count.** The inline boxcar→`symsync_step` path emitted a few
-    more symbols than the reference Python cascade (which is exact and BER-clean) —
-    a boxcar-alignment / edge-transient detail to reconcile so the symbol stream is
-    1:1 with the data.
+### Possible refinements
 
-**Then:**
-
-- **Close the ~1–2 dB symbol-MF gap.** Match the boxcar length to the *tracked*
-    symbol period (not a fixed `K`); evaluate a triangular/RC symbol MF.
-- **Investigate the high-SNR floor** (~2e-4 at 9.6 dB) — cycle slips or alignment.
+- **Symbol MF length.** A downstream length-`K` boxcar matched filter follows the
+    BPSK bound within ~1–2 dB; matching it to the *tracked* symbol period closes
+    the gap.
 - **Closed-loop code-jitter asset.** Drive the non-coherent partial code loop
     under async data + code Doppler; confirm lock retention and the low-SNR
-    threshold.
-
-The code+symbol path (§3) is shipped as `Dll(..., segments=K)` (`segments=1` =
-the classic coherent DLL); the carrier loop (§4) is the remaining build.
+    threshold (`bn≈1e-5` held to 4 dB Es/N0; `bn≈0.002` lost lock at 6 dB).

@@ -14,11 +14,8 @@
 typedef struct
 {
   PyObject_HEAD dll_state_t *handle;
-  float complex             *_steps_buf; /* pre-allocated output for steps */
+  float complex             *_steps_buf;     /* internal scratch for steps */
   size_t                     _steps_buf_cap; /* allocated capacity for steps */
-  void                     **_steps_retired; /* gh-219 deferred free */
-  size_t                     _steps_retired_n;
-  size_t                     _steps_retired_cap;
 } DllObject;
 
 static void
@@ -27,9 +24,6 @@ DllObj_dealloc (DllObject *self)
   if (self->handle)
     dll_destroy (self->handle);
   free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -112,33 +106,20 @@ DllObj_steps (DllObject *self, PyObject *args)
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_steps_buf || self->_steps_buf_cap < _need)
     {
+      /* Grow-on-demand internal scratch. The returned array is an independent
+       * copy (below), so no view ever aliases this buffer — a plain realloc is
+       * safe; the old contents are not needed after the kernel runs. */
       size_t _max = dll_steps_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
+      float complex *_tmp
+          = realloc (self->_steps_buf, _max * sizeof (float complex));
       if (!_tmp)
         {
           Py_DECREF (x_arr);
           PyErr_NoMemory ();
           return NULL;
         }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
       self->_steps_buf     = _tmp;
       self->_steps_buf_cap = _max;
     }
@@ -153,13 +134,19 @@ DllObj_steps (DllObject *self, PyObject *args)
     n_out = dll_steps (self->handle, _ng0, _ng1, self->_steps_buf,
                        self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal scratch. A reused/grown scratch buffer must never be exposed as a
+   * view — successive steps() calls would alias the same memory (a streaming
+   * despreader keeps every block), and a realloc would dangle prior views. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_steps_buf,
+          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }

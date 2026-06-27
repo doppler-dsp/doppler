@@ -49,3 +49,21 @@ target_link_libraries(validate_carrier_mpsk_jitter PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_mpsk_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_mpsk_jitter
          COMMAND validate_carrier_mpsk_jitter --check)
+
+add_executable(validate_carrier_nda_scurve
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_scurve.c)
+target_include_directories(validate_carrier_nda_scurve
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_nda_scurve PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_nda_scurve PRIVATE -O3)
+add_test(NAME validate_carrier_nda_scurve
+         COMMAND validate_carrier_nda_scurve --check)
+
+add_executable(validate_carrier_nda_pullin
+               ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_pullin.c)
+target_include_directories(validate_carrier_nda_pullin
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_carrier_nda_pullin PRIVATE doppler_lib_static m)
+target_compile_options(validate_carrier_nda_pullin PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_carrier_nda_pullin
+         COMMAND validate_carrier_nda_pullin --check)

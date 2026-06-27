@@ -20,23 +20,34 @@ ______________________________________________________________________
 One **per-sample inline loop** (mirrors `channel_core.h`), not a block cascade —
 a block cascade cannot feed the carrier error back per sample.
 
-```
-                ┌──────────────────── MpskReceiver (one per-sample loop) ───────────────────┐
- in (cf32) ───► carrier wipe-off (per-sample integer NCO)                                    │
-                  │                                                                           │
-                  ├───────────────► I/Q arm I&D @ N×/symbol ─► NDA M-th-power discriminator   │
-                  │                   (data- & timing-free)     → phase_error + lock_signal   │
-                  │                                                    │                       │
-                  │                                          ┌─────────┴── loop filter ──► steer NCO
-                  │                                          │   (acquisition path)            │
-                  │                                          │                                  │
-                  └───► matched filter ─► symsync ─► symbol y_k                                 │
-                         (I&D default,    (Gardner,     │                                       │
-                          RRC opt-in)    carrier-blind) decision-directed e = Im(y·conj(â))/|y| │
-                                                          │   (tracking path)                   │
-                                                          └────── loop filter ──► steer NCO ────┘
-                └───────────────────────────────────────────────────────────────────────────┘
-   symbols() → cf32 y_k          bits() → hard Gray bits (log2 M / symbol)
+```mermaid
+flowchart TB
+    IN["rx (cf32)"]
+    subgraph RX["MpskReceiver — one per-sample inline loop"]
+        direction TB
+        WIPE["carrier wipe-off<br/>per-sample integer NCO"]
+        ARM["I/Q arm I&D<br/>(N× per symbol)"]
+        NDA["NDA M-th-power disc<br/>z² → z⁴ → z⁸<br/>→ phase_error + lock"]
+        MF["matched filter<br/>I&D default / RRC opt-in"]
+        SS["symsync<br/>Gardner + Farrow<br/>(carrier-blind)"]
+        DD["decision-directed disc<br/>e = Im(y·conj â)/|y|"]
+        SEL{"carrier error<br/>opt-in auto-handover on lock"}
+        LF["loop filter (PI)"]
+        STEER["steer shared NCO<br/>(freq + phase)"]
+        WIPE -->|"de-rotated d"| ARM
+        WIPE -->|"de-rotated d"| MF
+        ARM --> NDA
+        MF --> SS
+        SS -->|"symbol y_k"| DD
+        NDA -->|"acquisition"| SEL
+        DD -->|"tracking"| SEL
+        SEL --> LF
+        LF --> STEER
+        STEER -.->|"feedback"| WIPE
+    end
+    IN --> WIPE
+    SS -->|"y_k"| OUT["symbols() → cf32 y_k"]
+    SS --> BITS["bits() → Gray bits<br/>(opt-in differential)"]
 ```
 
 - **Matched filter:** **integrate-and-dump (boxcar) is the default**; RRC is

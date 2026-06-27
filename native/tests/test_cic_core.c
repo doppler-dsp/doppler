@@ -334,13 +334,19 @@ main (void)
     cic_state_t *r1  = cic_create (R);
     size_t       nB  = cic_decimate (r1, in, cut, outB);
     size_t       sb  = cic_state_bytes (r1);
-    CHECK (sb == 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t));
+    CHECK (sb
+           == sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
+                  + sizeof (uint32_t));
     void *blob = malloc (sb);
     cic_get_state (r1, blob);
     cic_destroy (r1);
 
     cic_state_t *r2 = cic_create (R);
-    CHECK (cic_set_state (r2, blob) == 0);
+    CHECK (cic_set_state (r2, blob) == DP_OK);
+    /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
+    ((char *)blob)[0] ^= (char)0xFF;
+    CHECK (cic_set_state (r2, blob) == DP_ERR_INVALID);
+    ((char *)blob)[0] ^= (char)0xFF;
     nB += cic_decimate (r2, in + cut, L - cut, outB + nB);
     cic_destroy (r2);
     free (blob);

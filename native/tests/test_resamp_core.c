@@ -48,7 +48,11 @@ rt_resamp (double rate)
   resamp_destroy (r1);
 
   resamp_state_t *r2 = resamp_create (rate);
-  int             ok = (resamp_set_state (r2, blob) == 0);
+  int             ok = (resamp_set_state (r2, blob) == DP_OK);
+  /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
+  ((char *)blob)[0] ^= (char)0xFF;
+  ok = ok && (resamp_set_state (r2, blob) == DP_ERR_INVALID);
+  ((char *)blob)[0] ^= (char)0xFF;
   nB += resamp_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
   resamp_destroy (r2);
   free (blob);

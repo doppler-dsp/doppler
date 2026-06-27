@@ -289,7 +289,12 @@ test_state_roundtrip (void)
   hbdecim_destroy (r1);
 
   hbdecim_state_t *r2 = hbdecim_create (N_TAPS, H4_FIR);
-  CHECK (hbdecim_set_state (r2, blob) == 0, "set_state accepts the blob");
+  CHECK (hbdecim_set_state (r2, blob) == DP_OK, "set_state accepts the blob");
+  /* standard envelope: a magic-clobbered blob is rejected, r2 untouched */
+  ((char *)blob)[0] ^= (char)0xFF;
+  CHECK (hbdecim_set_state (r2, blob) == DP_ERR_INVALID,
+         "set_state rejects a clobbered envelope");
+  ((char *)blob)[0] ^= (char)0xFF;
   nB += hbdecim_execute (r2, in + cut, L - cut, outB + nB, 200 - nB);
   hbdecim_destroy (r2);
   free (blob);

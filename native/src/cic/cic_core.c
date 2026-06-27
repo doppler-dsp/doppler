@@ -74,39 +74,46 @@ cic_reset (cic_state_t *state)
   state->phase = 0;
 }
 
-/* ── Serializable state ─────────────────────────────────────────────────────
+/* ── Serializable state — standard envelope (see dp_state.h) ─────────────────
  * Order: integ_re, integ_im, comb_re, comb_im (each CIC_N u64), then phase. */
 
 size_t
 cic_state_bytes (const cic_state_t *state)
 {
   (void)state;
-  return 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t);
+  return sizeof (dp_state_hdr_t) + 4 * CIC_N * sizeof (uint64_t)
+         + sizeof (uint32_t);
 }
 
 void
 cic_get_state (const cic_state_t *state, void *blob)
 {
-  char        *p  = (char *)blob;
   const size_t ab = CIC_N * sizeof (uint64_t);
-  memcpy (p, state->integ_re, ab), p += ab;
-  memcpy (p, state->integ_im, ab), p += ab;
-  memcpy (p, state->comb_re, ab), p += ab;
-  memcpy (p, state->comb_im, ab), p += ab;
-  memcpy (p, &state->phase, sizeof (uint32_t));
+  dp_writer_t  w  = dp_writer_init (blob, cic_state_bytes (state));
+  dp_w_hdr (&w, CIC_STATE_MAGIC, CIC_STATE_VERSION, cic_state_bytes (state));
+  dp_w_bytes (&w, state->integ_re, ab);
+  dp_w_bytes (&w, state->integ_im, ab);
+  dp_w_bytes (&w, state->comb_re, ab);
+  dp_w_bytes (&w, state->comb_im, ab);
+  dp_w_u32 (&w, state->phase);
 }
 
 int
 cic_set_state (cic_state_t *state, const void *blob)
 {
-  const char  *p  = (const char *)blob;
+  int rc = dp_state_validate (blob, cic_state_bytes (state), CIC_STATE_MAGIC,
+                              CIC_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
   const size_t ab = CIC_N * sizeof (uint64_t);
-  memcpy (state->integ_re, p, ab), p += ab;
-  memcpy (state->integ_im, p, ab), p += ab;
-  memcpy (state->comb_re, p, ab), p += ab;
-  memcpy (state->comb_im, p, ab), p += ab;
-  memcpy (&state->phase, p, sizeof (uint32_t));
-  return 0;
+  dp_reader_t  r  = dp_reader_init (blob, cic_state_bytes (state));
+  r.off           = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&r, state->integ_re, ab);
+  dp_r_bytes (&r, state->integ_im, ab);
+  dp_r_bytes (&r, state->comb_re, ab);
+  dp_r_bytes (&r, state->comb_im, ab);
+  state->phase = dp_r_u32 (&r);
+  return DP_OK;
 }
 
 /* ── decimate ──────────────────────────────────────────────────────────── */

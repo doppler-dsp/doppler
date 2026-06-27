@@ -24,6 +24,7 @@
 #define FIR_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 
 #include <complex.h>
@@ -99,14 +100,17 @@ extern "C"
    */
   void fir_reset (fir_state_t *state);
 
-  /* Serializable state (reusable elastic-resume convention): the delay line
-   * (num_taps-1 samples); taps/scratch are config (rebuilt on the instance). */
+  /* Serializable state (standard bytes interface; see dp_state.h): the delay
+   * line (num_taps-1 samples) after the envelope; taps/scratch are config. */
+#define FIR_STATE_MAGIC DP_FOURCC ('F', 'I', 'R', '_')
+#define FIR_STATE_VERSION 1u
 
-  /** @brief Bytes fir_get_state() writes for @p state. */
+  /** @brief Bytes fir_get_state() writes for @p state (envelope + payload). */
   size_t fir_state_bytes (const fir_state_t *state);
   /** @brief Serialize @p state's delay line into @p blob. */
   void fir_get_state (const fir_state_t *state, void *blob);
-  /** @brief Restore the delay line from @p blob (same num_taps).  @return 0. */
+  /** @brief Restore the delay line from @p blob (same num_taps).
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
   int fir_set_state (fir_state_t *state, const void *blob);
 
   /**

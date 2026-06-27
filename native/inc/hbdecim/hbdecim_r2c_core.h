@@ -67,6 +67,19 @@ extern "C"
                               size_t num_in, float _Complex *out,
                               size_t max_out);
 
+  /* ── Serializable state (reusable elastic-resume convention) ──────────────
+   * Mutable per-stream state only — the even/odd delay rings, their write
+   * heads, the pending odd sample, and the output parity.  Coefficients and
+   * sizes are config (rebuilt from num_taps on the resumed instance).  Size is
+   * derived from even_cap, so a same-num_taps instance round-trips exactly. */
+
+  /** @brief Bytes hbdecim_r2c_get_state() writes for @p r. */
+  size_t hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r);
+  /** @brief Serialize @p r's mutable state into @p blob. */
+  void hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob);
+  /** @brief Restore mutable state from @p blob (same num_taps).  @return 0. */
+  int hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

@@ -165,6 +165,46 @@ hbdecim_r2c_reset (hbdecim_r2c_state_t *r)
   memset (r->odd_buf, 0, 2 * r->even_cap * sizeof (float));
 }
 
+/* ── Serializable state ─────────────────────────────────────────────────────
+ * Order: even_head, odd_head, has_pending, pending, parity, then the two
+ * dual-write delay rings (2*even_cap floats each). */
+
+size_t
+hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r)
+{
+  return 2 * sizeof (size_t) + 2 * sizeof (int) + sizeof (float)
+         + 2 * (2 * r->even_cap * sizeof (float));
+}
+
+void
+hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob)
+{
+  char        *p  = (char *)blob;
+  const size_t bb = 2 * r->even_cap * sizeof (float);
+  memcpy (p, &r->even_head, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (p, &r->odd_head, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (p, &r->has_pending, sizeof (int)), p += sizeof (int);
+  memcpy (p, &r->pending, sizeof (float)), p += sizeof (float);
+  memcpy (p, &r->parity, sizeof (int)), p += sizeof (int);
+  memcpy (p, r->even_buf, bb), p += bb;
+  memcpy (p, r->odd_buf, bb);
+}
+
+int
+hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob)
+{
+  const char  *p  = (const char *)blob;
+  const size_t bb = 2 * r->even_cap * sizeof (float);
+  memcpy (&r->even_head, p, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (&r->odd_head, p, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (&r->has_pending, p, sizeof (int)), p += sizeof (int);
+  memcpy (&r->pending, p, sizeof (float)), p += sizeof (float);
+  memcpy (&r->parity, p, sizeof (int)), p += sizeof (int);
+  memcpy (r->even_buf, p, bb), p += bb;
+  memcpy (r->odd_buf, p, bb);
+  return 0;
+}
+
 double
 hbdecim_r2c_get_rate (const hbdecim_r2c_state_t *r)
 {

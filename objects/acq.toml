@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Acquisition"
+serializable = "true"
 # OBJECT-library object files do not propagate transitively through corr2d, so
 # fft2d/fft must be linked explicitly (as the spectral module does) for the
 # slow-time fft_create + corr2d FFTs. detection_core supplies det_threshold/

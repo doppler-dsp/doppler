@@ -166,6 +166,61 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
     }
   return lst;
 }
+
+static PyObject *
+AcquisitionObj_state_bytes (AcquisitionObject *self,
+                            PyObject          *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (acq_state_bytes (self->handle));
+}
+
+static PyObject *
+AcquisitionObj_get_state (AcquisitionObject *self,
+                          PyObject          *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = acq_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  acq_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+AcquisitionObj_set_state (AcquisitionObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != acq_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (acq_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
 static PyObject *
 Acquisition_getprop_code_bins (AcquisitionObject *self,
                                void              *Py_UNUSED (closure))
@@ -495,6 +550,12 @@ static PyMethodDef AcquisitionObj_methods[]
           "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
           "    >>> isinstance(results, list)\n"
           "    True\n" },
+        { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
+          "Serialize the engine's mutable state to bytes." },
+        { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
         { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS, NULL },

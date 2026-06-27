@@ -366,6 +366,38 @@ def test_payload_decorrelates():
     assert fa_with <= 2  # nor a flood of false ones
 
 
+def test_state_roundtrip_resume():
+    """The serializable (elastic / pure-transducer) face: serialize
+    mid-stream, restore into a *fresh* engine, and resume — the concatenated
+    detections must match an uninterrupted run (the pod-handoff guarantee).
+    Mirrors the C ``acq_run`` round-trip; compares detection cells (Doppler
+    bin, code phase), which are exact across the split.
+    """
+    rng = np.random.default_rng(2024)
+    stream = _stream(rng, l_pre=N, sigma=_sigma(SNR_DB), with_payload=True)
+    cut = len(stream) // 2
+
+    ref = _stream_acq().push(stream)  # uninterrupted reference
+
+    e1 = _stream_acq()  # split: e1 pushes [:cut], hands its state to e2
+    hb = e1.push(stream[:cut])
+    blob = e1.get_state()
+    assert isinstance(blob, bytes) and len(blob) == e1.state_bytes()
+    e2 = _stream_acq()
+    e2.set_state(blob)
+    hb = hb + e2.push(stream[cut:])
+
+    def cells(hs):
+        return [(h[0], h[1]) for h in hs]  # (doppler_bin, code_phase)
+
+    assert cells(hb) == cells(ref)
+
+    with pytest.raises(ValueError):  # size mismatch
+        e2.set_state(b"\x00")
+    with pytest.raises(TypeError):  # not bytes
+        e2.set_state(42)
+
+
 def test_empirical_pfa():
     """Noise-only stream respects the auto-configured false-alarm budget."""
     rng = np.random.default_rng(99)

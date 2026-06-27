@@ -38,7 +38,7 @@ class Despreader:
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input CF32 samples, length @p x_len.
+            Input CF32 samples, length x_len.
 
         Returns
         -------
@@ -65,7 +65,7 @@ class Despreader:
         Parameters
         ----------
         x : NDArray[np.complex64]
-            Input CF32 samples, length @p x_len.
+            Input CF32 samples, length x_len.
 
         Returns
         -------
@@ -76,10 +76,10 @@ class Despreader:
     def set_acq(self, acq_code: NDArray[np.uint8], acq_reps: int) -> None:
         """Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed.
 
-        Track @p acq_reps periods of @p acq_code coherently (the unmodulated,
-        repeated acquisition preamble — a full ±pi phase discriminator, so the
-        loops pull in even a wide residual) before switching to the data code
-        for the payload. Call before feeding the burst; the acq mode clears
+        Track acq_reps periods of acq_code coherently (the unmodulated, repeated
+        acquisition preamble — a full ±pi phase discriminator, so the loops pull
+        in even a wide residual) before switching to the data code for the
+        payload. Call before feeding the burst; the acq mode clears
         automatically once the preamble is consumed, and re-arms on
         despreader_reset().
 
@@ -138,27 +138,27 @@ class Acquisition:
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        code constructor parameter.
+        PN chips (0/1), length code_len; must equal sf.
     sf : int, default 1
-        sf constructor parameter.
+        Chips per PN segment (>= 1).
     spc : int, default 1
-        spc constructor parameter.
+        Samples per chip (>= 1).
     ny : int, default 16
-        ny constructor parameter.
+        Slow-time segments = Doppler bins (>= 1).
     pfa : float, default 1e-3
-        pfa constructor parameter.
+        Target system (max-of-N) false-alarm probability (0,1).
     pd : float, default 0.9
-        pd constructor parameter.
+        Target detection probability (0,1).
     min_snr : float, default 0.1
-        min_snr constructor parameter.
+        Expected per-sample amplitude SNR (linear, > 0).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
-        noise_mode constructor parameter.
+        CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
     max_dwell : int, default 64
-        max_dwell constructor parameter.
+        Upper bound on the coherent dwell search (frames).
     n_noncoh : int, default 0
-        n_noncoh constructor parameter.
+        Non-coherent look override: 0 = auto-split, k>0 forces k magnitude-summed looks per CFAR dump.  Auto-split grows the coherent dwell to max_dwell first, then adds looks (up to max_noncoh) to close the Pd gap.  N_nc = 1 is the pure- coherent path (unchanged amplitude CFAR).
     max_noncoh : int, default 1
-        max_noncoh constructor parameter.
+        Cap on the auto-split look count (>= 1; default 1 disables non-coherent integration).
 
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., spc: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ..., n_noncoh: int = ..., max_noncoh: int = ...) -> None: ...
@@ -170,10 +170,10 @@ class Acquisition:
     def push(self, x: complex) -> list[tuple[int, int, float, float, float, float]]:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
-        Buffers @p in, then for every complete frame applies the slow-time
-        Doppler FFT, correlates against the PN reference, and — every @p dwell
-        frames — dumps the coherent surface, gates the peak on the
-        auto-configured threshold, and appends an acq_result_t.
+        Buffers in, then for every complete frame applies the slow-time Doppler
+        FFT, correlates against the PN reference, and — every dwell frames —
+        dumps the coherent surface, gates the peak on the auto-configured
+        threshold, and appends an acq_result_t.
 
         Parameters
         ----------

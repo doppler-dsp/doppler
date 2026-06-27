@@ -8,9 +8,9 @@ class DDC:
     Parameters
     ----------
     norm_freq : float, default 0.0
-        norm_freq constructor parameter.
+        LO frequency in cycles/sample at the input rate. Set to -f_carrier to shift a carrier at f_carrier to DC.  Any real value is accepted.
     rate : float, default 0.25
-        rate constructor parameter.
+        Output rate / input rate.  Must be > 0.  Values ≥ 1 are up-sampling; typical use is decimation (0 < rate < 1).
 
     Examples
     --------

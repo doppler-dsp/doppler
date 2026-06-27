@@ -386,16 +386,16 @@ class AccCf64:
     def __exit__(self, *args: object) -> None: ...
 
 class AccTrace:
-    """Create a length-@p n trace accumulator.
+    """Create a length-n trace accumulator.
 
     Parameters
     ----------
     n : int, default 1024
-        n constructor parameter.
+        Trace length in bins.  Must be > 0; returns NULL otherwise.
     mode : Literal["mean", "exp", "maxhold", "minhold"], default "mean"
-        mode constructor parameter.
+        Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).
     alpha : float, default 0.1
-        alpha constructor parameter.
+        EMA smoothing factor used only by exp mode (0 < alpha <= 1).
 
     Examples
     --------

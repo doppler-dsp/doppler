@@ -8,7 +8,7 @@ class DelayCf64:
     Parameters
     ----------
     num_taps : int, default 1
-        num_taps constructor parameter.
+        Number of delay taps (window length, >= 1). Internally rounded up to the next power of two.
 
     Examples
     --------

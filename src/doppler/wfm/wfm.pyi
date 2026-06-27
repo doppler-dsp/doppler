@@ -9,13 +9,13 @@ class PN:
     Parameters
     ----------
     poly : int, default 96
-        poly constructor parameter.
+        Galois feedback tap polynomial (right-shift convention). The LSB is the tap at position 0 (always 1 for a primitive poly); bit k=1 means tap at position k. Default 96 (0x60) is primitive for length=7, giving period 127. The Fibonacci taps are derived automatically so you only supply one value.
     seed : int, default 1
-        seed constructor parameter.
+        Initial LFSR register state; must be non-zero (the all-zero state is a fixed point). Default 1.
     length : int, default 7
-        length constructor parameter.
+        Register width in bits, 1..64. The sequence period is 2^length - 1 for a primitive polynomial. Default 7.
     lfsr : Literal["galois", "fibonacci"], default "galois"
-        lfsr constructor parameter.
+        Realization: PN_GALOIS (0, default) or PN_FIBONACCI (1).
 
     Examples
     --------
@@ -76,27 +76,27 @@ class _SynthEngine:
     Parameters
     ----------
     type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"], default "tone"
-        type constructor parameter.
+        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits.  The Python binding accepts strings "tone"| "noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits".  For "bits" attach the pattern with wfm_synth_set_bits() after create().
     fs : float, default 1000000.0
-        fs constructor parameter.
+        Sample rate in Hz.  Sets the carrier frequency normalisation and the noise bandwidth.  Default 1 000 000.0.
     freq : float, default 0.0
-        freq constructor parameter.
+        Carrier frequency offset in Hz (−fs/2 … fs/2).  A complex LO is created only when freq != 0.  For a chirp this is the start frequency f_start (the instantaneous frequency at t=0).  Default 0.0.
     snr : float, default 100.0
-        snr constructor parameter.
+        Target SNR in dB, interpreted per ``snr_mode``.  Values >= WFM_SYNTH_SNR_CLEAN (100) disable AWGN.  Default 100.0.
     snr_mode : Literal["auto", "fs", "ebno", "esno"], default "auto"
-        snr_mode constructor parameter.
+        SNR reference: 0=auto, 1=fs (full-band), 2=ebno, 3=esno.  The Python binding accepts strings "auto"|"fs"|"ebno"|"esno".  Default 0.
     seed : int, default 1
-        seed constructor parameter.
+        PRNG seed shared by AWGN and the PN LFSR.  Default 1.
     sps : int, default 8
-        sps constructor parameter.
+        Samples per symbol for modulated types (BPSK, QPSK, PN). Ignored for tone/noise.  Default 8.
     pn_length : int, default 7
-        pn_length constructor parameter.
+        LFSR register length (1..64); period = 2^pn_length - 1. Default 7 (period 127).
     pn_poly : int, default 0
-        pn_poly constructor parameter.
+        Galois tap polynomial for the LFSR.  0 means "look up the canonical MLS polynomial for pn_length" from the wfm_synth_mls_poly table.  Default 0.
     lfsr : Literal["galois", "fibonacci"], default "galois"
-        lfsr constructor parameter.
+        LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).
     f_end : float, default 0.0
-        f_end constructor parameter.
+        Chirp end frequency in Hz (type=chirp only; ignored otherwise). With ``freq`` as the start, the instantaneous frequency sweeps linearly from ``freq`` to ``f_end`` over the span (set by wfm_synth_set_chirp_span() or the first wfm_synth_steps() call), then holds at ``f_end``.  ``f_end < freq`` is a down-chirp. Default 0.0.
 
     Examples
     --------
@@ -291,7 +291,7 @@ def mls_poly(n: int) -> int:
     Returns
     -------
     int
-        Primitive-polynomial tap mask, or 0 if @p n is out of range.
+        Primitive-polynomial tap mask, or 0 if n is out of range.
 
     Examples
     --------

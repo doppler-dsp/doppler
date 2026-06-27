@@ -149,6 +149,50 @@ ddc_execute (ddc_state_t *s, const float _Complex *in, size_t n_in,
   return nout;
 }
 
+/* ── Serializable state — standard envelope + LO + RateConverter ─────────────
+ * Layout: [dp_state_hdr_t][ddc_extra_t][lo][rc]; see dp_state.h. */
+
+size_t
+ddc_state_bytes (const ddc_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (ddc_extra_t)
+         + lo_state_bytes (s->lo) + RateConverter_state_bytes (s->rc);
+}
+
+void
+ddc_get_state (const ddc_state_t *s, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, ddc_state_bytes (s));
+  dp_w_hdr (&w, DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
+  dp_w_f64 (&w, s->rc->rate); /* ddc_extra_t */
+
+  char *p = (char *)blob + w.off;
+  lo_get_state (s->lo, p);
+  p += lo_state_bytes (s->lo);
+  RateConverter_get_state (s->rc, p);
+}
+
+int
+ddc_set_state (ddc_state_t *s, const void *blob)
+{
+  int rc = dp_state_validate (blob, ddc_state_bytes (s), DDC_STATE_MAGIC,
+                              DDC_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, ddc_state_bytes (s));
+  r.off         = sizeof (dp_state_hdr_t);
+  if (dp_r_f64 (&r) != s->rc->rate) /* ddc_extra_t.rate is the layout key */
+    return DP_ERR_INVALID;
+
+  const char *p = (const char *)blob + r.off;
+  lo_set_state (s->lo, p);
+  p += lo_state_bytes (s->lo);
+  RateConverter_set_state (s->rc, p);
+  return DP_OK;
+}
+
+DP_DEFINE_RUN (ddc, ddc_state_t, float _Complex, float _Complex)
+
 /* ================================================================== */
 /* DdcR                                                               */
 /* ================================================================== */

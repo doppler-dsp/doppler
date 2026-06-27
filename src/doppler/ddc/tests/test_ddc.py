@@ -162,3 +162,33 @@ def test_ddc_execute_result_survives_buffer_grow():
     )
     assert y1.ctypes.data != big.ctypes.data  # independent buffers
     assert np.array_equal(y1, snapshot)  # no use-after-free
+
+
+def test_ddc_state_roundtrip_resume():
+    """The serializable (elastic) face: serialize the complex DDC mid-stream,
+    restore into a fresh DDC from the same (norm_freq, rate), and resume — the
+    continuation matches an uninterrupted run bit-for-bit; a wrong-size or
+    clobbered blob is rejected."""
+    rng = np.random.default_rng(7)
+    x = (rng.standard_normal(2400) + 1j * rng.standard_normal(2400)).astype(
+        np.complex64
+    )
+    cut = 900
+
+    ref = DDC(-0.1, 0.25)
+    ref.execute(x[:cut])
+    tail_ref = ref.execute(x[cut:])
+
+    a = DDC(-0.1, 0.25)
+    a.execute(x[:cut])
+    blob = a.get_state()
+    assert isinstance(blob, bytes) and len(blob) == a.state_bytes()
+
+    b = DDC(-0.1, 0.25)
+    b.set_state(blob)
+    assert np.array_equal(b.execute(x[cut:]), tail_ref)
+
+    with pytest.raises(ValueError):  # size mismatch
+        b.set_state(blob[:-1])
+    with pytest.raises(ValueError):  # clobbered envelope magic
+        b.set_state(bytes([blob[0] ^ 0xFF]) + blob[1:])

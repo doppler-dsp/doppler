@@ -111,6 +111,52 @@ main (void)
 
   ddc_destroy (obj);
 
+  /* ── complex DDC serializable-state round-trip (LO + RateConverter) ───────
+   * Mid-stream serialize, rebuild a fresh DDC from the same (norm_freq, rate),
+   * restore, and resume — the concatenated CF32 output equals an uninterrupted
+   * run, and a clobbered envelope is rejected. */
+  {
+    const double    norm_freq = -0.1, rate = 0.25;
+    const size_t    L = 4096, cut = 1201, CAP = 4096;
+    float _Complex *in   = malloc (L * sizeof (float _Complex));
+    float _Complex *outA = malloc (CAP * sizeof (float _Complex));
+    float _Complex *outB = malloc (CAP * sizeof (float _Complex));
+    for (size_t i = 0; i < L; i++)
+      in[i]
+          = (float)cos (0.17 * (double)i) + I * (float)sin (0.013 * (double)i);
+
+    ddc_state_t *ra = ddc_create (norm_freq, rate);
+    size_t       nA = ddc_execute (ra, in, L, outA, CAP);
+    ddc_destroy (ra);
+
+    ddc_state_t *r1   = ddc_create (norm_freq, rate);
+    size_t       nB   = ddc_execute (r1, in, cut, outB, CAP);
+    size_t       sb   = ddc_state_bytes (r1);
+    void        *blob = malloc (sb);
+    ddc_get_state (r1, blob);
+    ddc_destroy (r1);
+
+    ddc_state_t *r2 = ddc_create (norm_freq, rate);
+    CHECK (ddc_set_state (r2, blob) == DP_OK);
+    ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
+    CHECK (ddc_set_state (r2, blob) == DP_ERR_INVALID);
+    ((char *)blob)[0] ^= (char)0xFF;
+    nB += ddc_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
+    ddc_destroy (r2);
+    free (blob);
+
+    CHECK (nA == nB);
+    int bad = 0;
+    for (size_t i = 0; i < nA && i < nB; i++)
+      if (crealf (outA[i]) != crealf (outB[i])
+          || cimagf (outA[i]) != cimagf (outB[i]))
+        bad++;
+    CHECK (bad == 0);
+    free (in);
+    free (outA);
+    free (outB);
+  }
+
   /* ── DDCR full-chain serializable-state round-trip ────────────────────────
    * The integration gate for the elastic ddc_fn: serialize the whole chain
    * (hbdecim_r2c -> LO -> RateConverter) mid-stream, rebuild a fresh DDCR from

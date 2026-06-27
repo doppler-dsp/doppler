@@ -138,30 +138,28 @@ class Acquisition:
     Parameters
     ----------
     code : NDArray[np.uint8], default ...
-        PN chips (0/1), length code_len; must equal sf.
-    sf : int, default 1
-        Chips per PN segment (>= 1).
-    spc : int, default 1
+        PN chips (0/1), length code_len.
+    reps : int, default 1
+        Max coherent code repetitions, the coherence ceiling (>=1).
+    spc : int, default 4
         Samples per chip (>= 1).
-    ny : int, default 16
-        Slow-time segments = Doppler bins (>= 1).
+    chip_rate : float, default 1000000.0
+        Chip rate in Hz (> 0).
+    cn0_dbhz : float, default 50.0
+        Carrier-to-noise density in dB-Hz (> 0).
+    doppler_uncertainty : float, default 0.0
+        One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip_rate/(2*sf).  Must be <= span.
     pfa : float, default 1e-3
         Target system (max-of-N) false-alarm probability (0,1).
     pd : float, default 0.9
         Target detection probability (0,1).
-    min_snr : float, default 0.1
-        Expected per-sample amplitude SNR (linear, > 0).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
-    max_dwell : int, default 64
-        Upper bound on the coherent dwell search (frames).
-    n_noncoh : int, default 0
-        Non-coherent look override: 0 = auto-split, k>0 forces k magnitude-summed looks per CFAR dump.  Auto-split grows the coherent dwell to max_dwell first, then adds looks (up to max_noncoh) to close the Pd gap.  N_nc = 1 is the pure- coherent path (unchanged amplitude CFAR).
     max_noncoh : int, default 1
-        Cap on the auto-split look count (>= 1; default 1 disables non-coherent integration).
+        Cap on the auto-split non-coherent look count (>= 1; default 1 keeps the engine purely coherent).
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., spc: int = ..., ny: int = ..., pfa: float = ..., pd: float = ..., min_snr: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_dwell: int = ..., n_noncoh: int = ..., max_noncoh: int = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., reps: int = ..., spc: int = ..., chip_rate: float = ..., cn0_dbhz: float = ..., doppler_uncertainty: float = ..., pfa: float = ..., pd: float = ..., noise_mode: Literal["mean", "median", "min", "max"] = "mean", max_noncoh: int = ...) -> None: ...
 
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
@@ -171,9 +169,10 @@ class Acquisition:
         """Stream raw samples; emit one event per CFAR dump above threshold.
 
         Buffers in, then for every complete frame applies the slow-time Doppler
-        FFT, correlates against the PN reference, and — every dwell frames —
-        dumps the coherent surface, gates the peak on the auto-configured
-        threshold, and appends an acq_result_t.
+        FFT, correlates against the PN reference, dumps the coherent surface
+        (or, when n_noncoh > 1, accumulates |·|² over n_noncoh looks first),
+        gates the peak on the auto-configured threshold, and appends an
+        acq_result_t.
 
         Parameters
         ----------
@@ -187,72 +186,88 @@ class Acquisition:
         """
 
     @property
-    def ny(self) -> int:
-        """Ny."""
+    def code_bins(self) -> int:
+        """Code-phase hypotheses searched (= sf*spc, one code period)."""
 
     @property
-    def nx(self) -> int:
-        """Nx."""
-
-    @property
-    def n(self) -> int:
-        """N."""
+    def doppler_bins(self) -> int:
+        """Coherent depth chosen: the slow-time FFT length in code reps (<= reps)."""
 
     @property
     def sf(self) -> int:
-        """Sf."""
+        """Chips per PN segment, inferred from len(code)."""
 
     @property
     def spc(self) -> int:
-        """Spc."""
+        """Samples per chip (chip-rate oversample factor)."""
 
     @property
-    def dwell(self) -> int:
-        """Dwell."""
-
-    @property
-    def max_dwell(self) -> int:
-        """Max dwell."""
+    def reps(self) -> int:
+        """Max coherent code repetitions (the coherence ceiling)."""
 
     @property
     def n_noncoh(self) -> int:
-        """N noncoh."""
-
-    @property
-    def max_noncoh(self) -> int:
-        """Max noncoh."""
+        """Non-coherent looks per detection (1 = pure coherent)."""
 
     @property
     def ring_cap(self) -> int:
-        """Ring cap."""
+        """Input ring capacity in complex samples."""
 
     @property
     def noise_lo(self) -> int:
-        """Noise lo."""
+        """First CFAR reference bin (inclusive)."""
 
     @property
     def noise_hi(self) -> int:
-        """Noise hi."""
+        """Last CFAR reference bin (inclusive)."""
 
     @property
     def threshold(self) -> float:
-        """Threshold."""
+        """CFAR gate on the test statistic (coherent path)."""
 
     @property
     def eta(self) -> float:
-        """Eta."""
+        """Raw per-cell Rayleigh amplitude threshold."""
 
     @property
     def eta_nc(self) -> float:
-        """Eta nc."""
+        """Non-coherent CFAR threshold (order-N_nc Marcum)."""
 
     @property
     def pfa_cell(self) -> float:
-        """Pfa cell."""
+        """Bonferroni per-cell false-alarm probability over the searched cells."""
 
     @property
     def pd_predicted(self) -> float:
-        """Pd predicted."""
+        """Predicted Pd at cn0_dbhz and the chosen grid."""
+
+    @property
+    def fs(self) -> float:
+        """Sample rate (Hz) = chip_rate * spc."""
+
+    @property
+    def chip_rate(self) -> float:
+        """Chip rate (Hz)."""
+
+    @property
+    def cn0_dbhz(self) -> float:
+        """Carrier-to-noise density used to size the search (dB-Hz)."""
+
+    @property
+    def doppler_span_hz(self) -> float:
+        """Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."""
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """Doppler bin width = chip_rate/(sf*doppler_bins) Hz."""
+
+    @property
+    def pd(self) -> float:
+        """Target detection probability."""
+
+    @property
+    def underpowered(self) -> bool:
+        """True when pd_predicted < pd (the search cannot meet the target)."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

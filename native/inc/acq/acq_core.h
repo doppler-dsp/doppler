@@ -10,27 +10,31 @@
  * configured threshold.
  *
  * Pipeline (owned end to end, one object):
- *   push(raw cf32) -> ring buffer -> reframe to (ny, nx) -> slow-time Doppler
- *   FFT (FFT along the ny segment axis) -> 2-D code correlation against a
- *   single-row PN reference (corr2d, coherently integrated over `dwell`
- *   frames) -> argmax + CFAR noise estimate -> threshold gate -> acq_result_t.
+ *   push(raw cf32) -> ring buffer -> reframe to (doppler_bins, code_bins) ->
+ *   slow-time Doppler FFT (FFT along the segment axis) -> 2-D code correlation
+ *   against a single-row PN reference (corr2d) -> argmax + CFAR noise estimate
+ *   -> threshold gate -> acq_result_t.
  *
- * The fast-time axis (nx = sf*spc columns) is the circular code matched
- * filter; the slow-time axis (ny rows) is the Doppler search.  A carrier
- * offset f (cycles/sample) lands the peak at row = round(f*nx*ny) mod ny,
- * column = code phase (integer samples).
+ * The fast-time axis (code_bins = sf*spc columns) is the circular code matched
+ * filter; the slow-time axis (doppler_bins rows, one row per code repetition)
+ * is the Doppler search.  A carrier offset f (cycles/sample) lands the peak at
+ * row = round(f*code_bins*doppler_bins) mod doppler_bins, column = code phase.
  *
- * Auto-configuration: given the PN @p code and a target (@p pfa, @p pd) plus
- * the expected per-sample amplitude SNR @p min_snr, create() computes the CFAR
- * threshold and the coherent @p dwell from the detection-theory functions
- * (det_threshold / det_pd).  One frame integrates n = ny*nx samples, so a dump
- * of `dwell` frames integrates dwell*n samples in the Marcum-Q model.
+ * Physics-only construction: the user gives the PN @p code, the front-end
+ * geometry (@p reps, @p spc, @p chip_rate), the sensitivity (@p cn0_dbhz), and
+ * the detection targets (@p pfa, @p pd, optional @p doppler_uncertainty).  The
+ * engine converts C/N0 to a per-sample amplitude SNR
+ * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))) and picks the *smallest*
+ * coherent depth doppler_bins in [1, reps] whose doppler_bins*code_bins
+ * coherent samples meet @p pd (det_threshold / det_pd) — minimum latency for a
+ * strong signal.  A tighter @p doppler_uncertainty shrinks the searched cell
+ * count, lowering the Bonferroni threshold (more sensitive).
  *
  * @code
- * // 31-chip PN, 4x oversample, 16-segment Doppler search; aim Pfa=1e-3, Pd=0.9
+ * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
- * acq_state_t *a = acq_create(code, 31, 31, 4, 16,   // sf=31, spc=4, ny=16
- *                             1e-3, 0.9, 0.126, 0, 64);
+ * acq_state_t *a = acq_create(code, 31, 16, 4, 1.0e6, 45.0,
+ *                             0.0, 1e-3, 0.9, 0, 1);
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
@@ -60,8 +64,8 @@ extern "C" {
  * @brief One acquisition detection event.
  */
 typedef struct {
-  size_t doppler_bin; /**< Peak row: slow-time Doppler bin (0 … ny-1).      */
-  size_t code_phase;  /**< Peak col: integer-sample code phase (0 … nx-1).  */
+  size_t doppler_bin; /**< Peak row: Doppler bin (0 … doppler_bins-1).      */
+  size_t code_phase;  /**< Peak col: code phase (0 … code_bins-1).          */
   float peak_mag;     /**< max |R[i,j]| over the surface (linear).          */
   float noise_est;    /**< CFAR noise estimate over [noise_lo, noise_hi].   */
   float test_stat;    /**< peak_mag / noise_est; 0 if noise_est == 0.       */
@@ -74,39 +78,47 @@ typedef struct {
  * Allocate with acq_create(); never stack-allocate.
  */
 typedef struct {
-  corr2d_state_t *corr;   /**< Single-row-ref correlator; dwell-integrating. */
-  fft_state_t *slow_fft;  /**< Length-ny forward FFT (slow-time Doppler).    */
+  corr2d_state_t *corr;   /**< Single-row-ref correlator (dwell=1).          */
+  fft_state_t *slow_fft;  /**< Length-doppler_bins forward FFT (slow time).  */
   dp_f32_t *ring;         /**< Raw cf32 input ring (the only ring).          */
-  float complex *ref;     /**< Single-row reference (ny*nx), owned.          */
-  float complex *yframe;  /**< Slow-time-FFT'd frame (ny*nx) fed to corr.    */
-  float complex *colbuf;  /**< Gathered column scratch (ny).                 */
-  float complex *colout;  /**< FFT'd column scratch (ny).                    */
-  float complex *out_buf; /**< corr2d dump output (ny*nx).                   */
-  float *mag_buf;         /**< |out_buf| (ny*nx).                            */
-  float *noise_scratch;   /**< Scratch for the median sort (ny*nx).          */
-  float *nc_surface;      /**< Non-coherent |·|² accumulator (ny*nx); NULL
+  float complex *ref;     /**< Single-row reference (n), owned.              */
+  float complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.        */
+  float complex *colbuf;  /**< Gathered column scratch (doppler_bins).       */
+  float complex *colout;  /**< FFT'd column scratch (doppler_bins).          */
+  float complex *out_buf; /**< corr2d dump output (n).                       */
+  float *mag_buf;         /**< |out_buf| (n).                                */
+  float *noise_scratch;   /**< Scratch for the median sort (n).              */
+  float *nc_surface;      /**< Non-coherent |·|² accumulator (n); NULL
                                unless n_noncoh > 1.                          */
 
-  size_t ny;        /**< Slow-time segments = Doppler search bins.           */
-  size_t nx;        /**< One segment in samples = sf*spc = code-phase bins.  */
-  size_t n;         /**< ny * nx — frame size in samples.                    */
-  size_t sf;        /**< Chips per PN segment.                               */
-  size_t spc;       /**< Samples per chip (chip-rate oversample factor).     */
-  size_t dwell;      /**< Frames coherently integrated per CFAR dump.        */
-  size_t max_dwell;  /**< Coherent-dwell search cap (the T_coh ceiling).     */
-  size_t n_noncoh;   /**< Non-coherent looks per dump (1 = pure coherent).   */
-  size_t max_noncoh; /**< Cap on the auto-split non-coherent look count.     */
-  size_t nc_count;   /**< Coherent dumps in the current look (0…n_noncoh-1). */
-  size_t ring_cap;  /**< Ring capacity in complex samples.                   */
-  size_t noise_lo;  /**< First CFAR reference bin (inclusive).               */
-  size_t noise_hi;  /**< Last CFAR reference bin (inclusive).                */
+  size_t doppler_bins; /**< Coherent depth = slow-time FFT length (<= reps). */
+  size_t code_bins;    /**< One segment in samples = sf*spc.                 */
+  size_t n;            /**< doppler_bins * code_bins — frame size in samples.*/
+  size_t sf;           /**< Chips per PN segment (= len(code)).              */
+  size_t spc;          /**< Samples per chip (chip-rate oversample factor).  */
+  size_t reps;         /**< Max coherent code repetitions (the ceiling).     */
+  size_t searched_bins; /**< Doppler bins scanned (<= doppler_bins; du prior).*/
+  size_t n_noncoh;     /**< Non-coherent looks per detection (1 = coherent). */
+  size_t max_noncoh;   /**< Cap on the auto-split non-coherent look count.   */
+  size_t nc_count;     /**< Coherent dumps in the current look (0…n_noncoh-1).*/
+  size_t ring_cap;     /**< Ring capacity in complex samples.                */
+  size_t noise_lo;     /**< First CFAR reference bin (inclusive).            */
+  size_t noise_hi;     /**< Last CFAR reference bin (inclusive).             */
   det_noise_mode_t noise_mode; /**< CFAR aggregation mode.                   */
+
+  double chip_rate;       /**< Chip rate (Hz).                               */
+  double fs;              /**< Sample rate (Hz) = chip_rate * spc.           */
+  double cn0_dbhz;        /**< Sensitivity used to size the search (dB-Hz).  */
+  double doppler_span_hz; /**< Native Doppler half-range = chip_rate/(2*sf). */
+  double doppler_res_hz;  /**< Doppler bin width = chip_rate/(sf*doppler_bins).*/
 
   float threshold;     /**< CFAR gate on test_stat (theta); coherent path.   */
   float eta;           /**< Raw per-cell Rayleigh amplitude threshold.       */
   float eta_nc;        /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
   double pfa_cell;     /**< Bonferroni per-cell false-alarm probability.     */
-  double pd_predicted; /**< Predicted Pd at min_snr and the chosen dwell.    */
+  double pd;           /**< Target detection probability.                    */
+  double pd_predicted; /**< Predicted Pd at cn0_dbhz and the chosen grid.    */
+  uint8_t underpowered; /**< 1 when pd_predicted < pd.                       */
 
   /* Last-dump bookkeeping (for inspection). */
   size_t peak_row;
@@ -119,33 +131,34 @@ typedef struct {
 /**
  * @brief Create a streaming DSSS acquisition engine.
  *
- * Builds the single-row oversampled BPSK reference from @p code and
- * auto-configures the CFAR threshold and coherent dwell from the target
- * (@p pfa, @p pd) at the expected SNR @p min_snr.
+ * Builds the single-row oversampled BPSK reference from @p code, infers
+ * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR
+ * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))), and auto-configures the
+ * search grid: the smallest coherent depth doppler_bins in [1, @p reps] whose
+ * doppler_bins*code_bins coherent samples meet @p pd at the Bonferroni
+ * threshold, plus non-coherent looks (up to @p max_noncoh) if the coherent
+ * depth alone falls short.  A tighter @p doppler_uncertainty narrows the
+ * scanned Doppler band, lowering the per-cell threshold (more sensitive).
  *
- * @param code        PN chips (0/1), length @p code_len; must equal @p sf.
- * @param code_len    Number of chips supplied.
- * @param sf          Chips per PN segment (>= 1).
+ * @param code        PN chips (0/1), length @p code_len.
+ * @param code_len    Number of chips supplied (= sf, the spreading factor).
+ * @param reps        Max coherent code repetitions, the coherence ceiling (>=1).
  * @param spc         Samples per chip (>= 1).
- * @param ny          Slow-time segments = Doppler bins (>= 1).
+ * @param chip_rate   Chip rate in Hz (> 0).
+ * @param cn0_dbhz    Carrier-to-noise density in dB-Hz (> 0).
+ * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0 uses
+ *                    the full native span +/- chip_rate/(2*sf).  Must be <= span.
  * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
  * @param pd          Target detection probability (0,1).
- * @param min_snr     Expected per-sample amplitude SNR (linear, > 0).
  * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
- * @param max_dwell   Upper bound on the coherent dwell search (frames).
- * @param n_noncoh    Non-coherent look override: 0 = auto-split, k>0 forces k
- *                    magnitude-summed looks per CFAR dump.  Auto-split grows the
- *                    coherent dwell to @p max_dwell first, then adds looks (up to
- *                    @p max_noncoh) to close the Pd gap.  N_nc = 1 is the pure-
- *                    coherent path (unchanged amplitude CFAR).
- * @param max_noncoh  Cap on the auto-split look count (>= 1; default 1 disables
- *                    non-coherent integration).
+ * @param max_noncoh  Cap on the auto-split non-coherent look count (>= 1;
+ *                    default 1 keeps the engine purely coherent).
  * @return Heap-allocated state, or NULL on bad arguments / allocation failure.
  */
-acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t sf,
-                         size_t spc, size_t ny, double pfa, double pd,
-                         double min_snr, int noise_mode, size_t max_dwell,
-                         size_t n_noncoh, size_t max_noncoh);
+acq_state_t *acq_create (const uint8_t *code, size_t code_len, size_t reps,
+                         size_t spc, double chip_rate, double cn0_dbhz,
+                         double doppler_uncertainty, double pfa, double pd,
+                         int noise_mode, size_t max_noncoh);
 
 /** @brief Destroy and free an engine.  @param state May be NULL. */
 void acq_destroy (acq_state_t *state);
@@ -160,9 +173,9 @@ void acq_reset (acq_state_t *state);
  * @brief Stream raw samples; emit one event per CFAR dump above threshold.
  *
  * Buffers @p in, then for every complete frame applies the slow-time Doppler
- * FFT, correlates against the PN reference, and — every @p dwell frames —
- * dumps the coherent surface, gates the peak on the auto-configured threshold,
- * and appends an acq_result_t.
+ * FFT, correlates against the PN reference, dumps the coherent surface (or,
+ * when n_noncoh > 1, accumulates |·|² over n_noncoh looks first), gates the
+ * peak on the auto-configured threshold, and appends an acq_result_t.
  *
  * @param state        Allocated engine (non-NULL).
  * @param in           Raw input, interleaved CF32, @p n_in complex samples.

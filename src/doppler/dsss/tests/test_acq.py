@@ -4,11 +4,22 @@ Drives the engine with a realistic receive stream — silence (AWGN) of varying
 length, then a burst of repeated BPSK PN segments at an unknown code phase and
 carrier (Doppler) offset, then an appended DSSS payload using a *different*
 data code, then trailing silence — and checks the **number of detection hits
-against a derived expectation**, plus the auto-configured threshold/dwell math.
+against a derived expectation**, plus the physics auto-config math (C/N0 → snr,
+the chosen coherent depth ``doppler_bins``, threshold, non-coherent looks).
 
 The engine ingests **raw** cf32 and applies the slow-time Doppler FFT
 internally, so (unlike the Detector2D demo) these builders never call
 ``np.fft``.
+
+Construction is physics-only: ``Acquisition`` derives the search grid from
+``(reps, spc, chip_rate, cn0_dbhz, pfa, pd, doppler_uncertainty)``.  The
+streaming tests pin the coherent depth to ``reps`` with a deliberately low
+sizing ``cn0_dbhz`` (so ``doppler_bins == reps``); the injected burst is much
+stronger than that sizing, so it clears the gate deterministically. The
+resulting grid (doppler_bins 16, code_bins NX, n == N) matches the demo's fixed
+grid, so the hit-count algebra below is unchanged.
+Because the sizing ``cn0_dbhz`` cannot meet ``pd`` on that grid, construction
+emits an under-powered ``UserWarning`` — filtered in the streaming helper.
 
 Frame-grid geometry (the basis for the expected hit counts)
 -----------------------------------------------------------
@@ -19,21 +30,21 @@ preceded by ``l_pre`` silence samples the full-gain frame count is::
 
     F = (l_pre + R * NX) // N - ceil(l_pre / N)
 
-With ``dwell=1`` each full frame yields one dump (one hit).  A non-aligned
-``l_pre`` also shifts the apparent code phase by ``l_pre % NX`` — the silence
-offset is extra propagation delay — so the true cell is
-``(CODE_PHASE + l_pre) % NX``.  Boundary frames straddling the burst edge can
-add up to two extra hits at strong SNR; aligned bursts give exactly ``F``.
+Each full frame yields one dump (one hit).  A non-aligned ``l_pre`` also shifts
+the apparent code phase by ``l_pre % NX`` — the silence offset is extra
+propagation delay — so the true cell is ``(CODE_PHASE + l_pre) % NX``. Boundary
+frames straddling the burst edge can add up to two extra hits at strong SNR;
+aligned bursts give exactly ``F``.
 """
 
 import math
+import warnings
 
 import numpy as np
 import pytest
 
 from doppler.detection import (
     det_pd,
-    det_pd_noncoherent,
     det_threshold,
     det_threshold_noncoherent,
 )
@@ -58,11 +69,42 @@ CODE_PHASE = 37  # integer-sample code delay
 SNR_DB = -18.0  # per-sample power SNR; full frames fire reliably (Pd~1)
 PFA = 1e-3
 PD = 0.9
-MIN_SNR_D1 = 0.2  # -> dwell == 1
-MIN_SNR_D2 = 0.09  # -> dwell == 2
+CHIP_RATE = 1.0e6  # Hz; fs = CHIP_RATE * SPS = 4 MHz
+REPS = NY  # 16 — pins doppler_bins to reps in the streaming tests
+CN0_SIZE = 30.0  # dB-Hz; deliberately low so doppler_bins exhausts to reps
 R_SEG = 6 * NY  # burst length in segments -> R_SEG*NX = 6*N samples
 N_PAY_SYM = 160  # payload data symbols (one segment each)
 SQRT_2_OVER_PI = math.sqrt(2.0 / math.pi)
+
+
+def _cn0_for_snr(snr_amp, fs):
+    """C/N0 (dB-Hz) yielding per-sample amplitude SNR ``snr_amp`` at ``fs``."""
+    return 10.0 * math.log10(snr_amp**2 * fs)
+
+
+def _stream_acq(**kw):
+    """Construct with doppler_bins pinned to REPS (low sizing C/N0).
+
+    The conservative sizing C/N0 can't meet pd on the reps-deep grid, so an
+    "under-powered" UserWarning is expected here — the injected burst is far
+    stronger.  Filtered so the streaming assertions stay clean.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        a = Acquisition(
+            CODE,
+            reps=REPS,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=CN0_SIZE,
+            pfa=PFA,
+            pd=PD,
+            **kw,
+        )
+    # Geometry must match the demo's fixed grid for the hit-count algebra.
+    assert (a.code_bins, a.doppler_bins) == (NX, NY)
+    assert a.code_bins * a.doppler_bins == N
+    return a
 
 
 def _sigma(snr_db):
@@ -138,33 +180,147 @@ def _full_frames(l_pre):
     return (l_pre + R_SEG * NX) // N - math.ceil(l_pre / N)
 
 
-# ── Auto-config math ─────────────────────────────────────────────────────────
+# ── Physics auto-config math ─────────────────────────────────────────────────
 
 
 @pytest.mark.parametrize(
-    "min_snr, want_dwell",
-    [(MIN_SNR_D1, 1), (MIN_SNR_D2, 2), (0.3, 1)],
+    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 2), (53.0, 4)]
 )
-def test_config_math(min_snr, want_dwell):
+def test_config_physics(cn0_dbhz, want_db):
+    """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
     a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=min_snr
+        CODE,
+        reps=16,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=cn0_dbhz,
+        pfa=PFA,
+        pd=PD,
     )
-    assert (a.n, a.nx, a.ny) == (N, NX, NY)
+    # Physical read-backs.
+    assert a.sf == SF and a.code_bins == NX
+    assert a.fs == pytest.approx(CHIP_RATE * SPS)
+    assert a.doppler_span_hz == pytest.approx(CHIP_RATE / (2 * SF))
+    assert a.doppler_res_hz == pytest.approx(CHIP_RATE / (SF * a.doppler_bins))
 
-    pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
+    # The engine picks the *smallest* coherent depth meeting Pd (min latency).
+    assert a.doppler_bins == want_db
+    assert not a.underpowered and a.pd_predicted >= PD
+
+    nx, db = a.code_bins, a.doppler_bins
+    db * nx
+    snr = math.sqrt(10.0 ** (cn0_dbhz / 10.0) / a.fs)
+
+    # Bonferroni over the searched cells (du=0 → all db Doppler bins).
+    pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / (db * nx))
     eta = det_threshold(pfa_cell)
     assert a.pfa_cell == pytest.approx(pfa_cell, rel=1e-9)
     assert a.eta == pytest.approx(eta, rel=1e-5)
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
-    # dwell is the smallest frame count meeting Pd at min_snr.
-    assert a.dwell == want_dwell
-    assert det_pd(min_snr, a.dwell * N, eta) >= PD
-    if a.dwell > 1:
-        assert det_pd(min_snr, (a.dwell - 1) * N, eta) < PD
-    assert a.pd_predicted == pytest.approx(
-        det_pd(min_snr, a.dwell * N, eta), rel=1e-5
+    # Boundary: db meets Pd; db-1 (at its own threshold) does not.
+    assert det_pd(snr, db * nx, eta) >= PD
+    if db > 1:
+        pc = 1.0 - (1.0 - PFA) ** (1.0 / ((db - 1) * nx))
+        assert det_pd(snr, (db - 1) * nx, det_threshold(pc)) < PD
+    assert a.pd_predicted == pytest.approx(det_pd(snr, db * nx, eta), rel=1e-5)
+
+
+def test_d_selection_monotone():
+    """Weaker C/N0 needs a deeper coherent grid (more reps)."""
+    strong = Acquisition(
+        CODE,
+        reps=16,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=65.0,
+        pfa=PFA,
+        pd=PD,
     )
+    mid = Acquisition(
+        CODE,
+        reps=16,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=53.0,
+        pfa=PFA,
+        pd=PD,
+    )
+    assert strong.doppler_bins < mid.doppler_bins
+    assert not strong.underpowered and not mid.underpowered
+
+
+def test_doppler_uncertainty_sharpens_gate():
+    """A tighter Doppler prior → fewer cells → lower threshold, higher Pd."""
+    # Both are under-powered at this weak C/N0 (the point is the *relative*
+    # threshold change from the Doppler prior), so the warning is expected.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        full = Acquisition(
+            CODE,
+            reps=16,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=44.0,
+            pfa=PFA,
+            pd=PD,
+            doppler_uncertainty=0.0,
+        )
+        narrow = Acquisition(
+            CODE,
+            reps=16,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=44.0,
+            pfa=PFA,
+            pd=PD,
+            doppler_uncertainty=full.doppler_span_hz / 4,
+        )
+    assert narrow.pfa_cell > full.pfa_cell  # fewer cells → higher per-cell pfa
+    assert narrow.eta < full.eta  # ... → lower amplitude threshold
+    assert narrow.pd_predicted >= full.pd_predicted
+
+    # Beyond the native span there is nothing to search → rejected.
+    with pytest.raises(MemoryError):
+        Acquisition(
+            CODE,
+            reps=4,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=50.0,
+            pfa=PFA,
+            pd=PD,
+            doppler_uncertainty=full.doppler_span_hz * 2,
+        )
+
+
+def test_underpowered_warns():
+    """An infeasible operating point still builds, but warns + self-flags."""
+    with pytest.warns(UserWarning, match="under-powered"):
+        a = Acquisition(
+            CODE,
+            reps=2,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=20.0,
+            pfa=PFA,
+            pd=PD,
+        )
+    assert a.underpowered and a.pd_predicted < a.pd
+
+    # A comfortably powered build emits no warning.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        b = Acquisition(
+            CODE,
+            reps=16,
+            spc=SPS,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=65.0,
+            pfa=PFA,
+            pd=PD,
+        )
+    assert not b.underpowered
 
 
 # ── Streaming hit counts ─────────────────────────────────────────────────────
@@ -174,10 +330,7 @@ def test_config_math(min_snr, want_dwell):
 def test_stream_aligned_hits(l_pre):
     """Frame-aligned silence: exactly F hits at the unshifted code phase."""
     rng = np.random.default_rng(1234)
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
-    )
-    assert a.dwell == 1
+    a = _stream_acq()
     stream = _stream(rng, l_pre=l_pre, sigma=_sigma(SNR_DB), with_payload=True)
     true_n, fa_n = _split(_collect(a, rng, stream), CODE_PHASE)
     assert true_n == _full_frames(l_pre)  # aligned -> exact
@@ -188,9 +341,7 @@ def test_stream_aligned_hits(l_pre):
 def test_stream_misaligned_hits(l_pre):
     """Non-aligned silence: F..F+2 hits, code phase shifted by l_pre % NX."""
     rng = np.random.default_rng(1234)
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
-    )
+    a = _stream_acq()
     cp_expected = (CODE_PHASE + l_pre) % NX
     stream = _stream(rng, l_pre=l_pre, sigma=_sigma(SNR_DB), with_payload=True)
     true_n, fa_n = _split(_collect(a, rng, stream), cp_expected)
@@ -199,29 +350,13 @@ def test_stream_misaligned_hits(l_pre):
     assert fa_n <= 2
 
 
-def test_stream_dwell2_hits():
-    """dwell=2, dump-aligned silence: exactly 3 coherent-dump hits."""
-    rng = np.random.default_rng(1234)
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D2
-    )
-    assert a.dwell == 2
-    # l_pre = 2N = one full dump of silence; burst = 6N = 3 clean dumps.
-    stream = _stream(rng, l_pre=2 * N, sigma=_sigma(SNR_DB), with_payload=True)
-    true_n, fa_n = _split(_collect(a, rng, stream), CODE_PHASE)
-    assert true_n == 3
-    assert fa_n <= 2
-
-
 def test_payload_decorrelates():
     """The distinct-code payload does not masquerade as the preamble burst:
-    the burst is still detected (>= F) and the payload adds no flood of hits at
+    the burst is still detected (== F) and the payload adds no flood of hits at
     the true cell.
     """
     rng = np.random.default_rng(7)
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
-    )
+    a = _stream_acq()
     l_pre = N
     with_pay = _stream(
         rng, l_pre=l_pre, sigma=_sigma(SNR_DB), with_payload=True
@@ -234,9 +369,7 @@ def test_payload_decorrelates():
 def test_empirical_pfa():
     """Noise-only stream respects the auto-configured false-alarm budget."""
     rng = np.random.default_rng(99)
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=MIN_SNR_D1
-    )
+    a = _stream_acq()
     frames = 400
     noise = _awgn(rng, frames * N, 1.0).astype(np.complex64)
     hits = _collect(a, rng, noise)
@@ -248,57 +381,42 @@ def test_empirical_pfa():
 
 
 def test_config_noncoherent_autosplit():
-    """Weak SNR unreachable by coherent dwell alone auto-splits into looks."""
+    """A C/N0 unreachable by coherent reps alone auto-splits into looks."""
     pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
     eta = det_threshold(pfa_cell)
-    # min_snr / max_dwell chosen so coherent-only misses Pd at the dwell cap.
+    cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
+    snr = math.sqrt(10.0 ** (cn0 / 10.0) / (CHIP_RATE * SPS))
     a = Acquisition(
         CODE,
-        sf=SF,
+        reps=16,
         spc=SPS,
-        ny=NY,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=cn0,
         pfa=PFA,
         pd=PD,
-        min_snr=0.05,
-        max_dwell=2,
         max_noncoh=64,
     )
-    assert det_pd(0.05, a.max_dwell * N, eta) < PD  # coherent-only falls short
-    assert a.dwell == a.max_dwell  # coherent grown to the cap
+    assert a.doppler_bins == 16  # coherent grown to the reps ceiling
+    assert det_pd(snr, N, eta) < PD  # coherent-only falls short
     assert a.n_noncoh > 1  # ... then non-coherent looks
     # threshold is the order-N_nc Marcum null, not the coherent Rayleigh gate
     assert a.eta_nc == pytest.approx(
-        det_threshold_noncoherent(pfa_cell, a.n_noncoh), rel=1e-5
+        det_threshold_noncoherent(a.pfa_cell, a.n_noncoh), rel=1e-5
     )
-    # the split now meets the Pd target
-    assert a.pd_predicted >= PD
-    assert a.pd_predicted == pytest.approx(
-        det_pd_noncoherent(0.05, a.dwell * N, a.n_noncoh, a.eta_nc), rel=1e-4
-    )
-
-
-def test_config_noncoherent_override():
-    """Explicit n_noncoh pins the look count regardless of max_noncoh."""
-    a = Acquisition(
-        CODE, sf=SF, spc=SPS, ny=NY, pfa=PFA, pd=PD, min_snr=0.2, n_noncoh=4
-    )
-    assert a.n_noncoh == 4
-    assert a.eta_nc == pytest.approx(
-        det_threshold_noncoherent(a.pfa_cell, 4), rel=1e-5
-    )
+    assert a.pd_predicted >= PD  # the split now meets the Pd target
+    assert not a.underpowered
 
 
 def test_config_strong_stays_coherent():
     """A strong target needs no looks: pure-coherent path (N_nc == 1)."""
     a = Acquisition(
         CODE,
-        sf=SF,
+        reps=16,
         spc=SPS,
-        ny=NY,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
-        min_snr=1.0,
-        max_dwell=64,
         max_noncoh=16,
     )
     assert a.n_noncoh == 1
@@ -306,41 +424,43 @@ def test_config_strong_stays_coherent():
     assert a.threshold == pytest.approx(a.eta * SQRT_2_OVER_PI, rel=1e-5)
 
 
+# Sizing that yields doppler_bins == NY with a small auto-split look count
+# (n_noncoh == 2), so the burst's frames complete several non-coherent dumps.
+NC_CN0 = 45.0
+NC_MAX_NONCOH = 4
+
+
+def _noncoherent_acq():
+    a = Acquisition(
+        CODE,
+        reps=REPS,
+        spc=SPS,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=NC_CN0,
+        pfa=PFA,
+        pd=PD,
+        max_noncoh=NC_MAX_NONCOH,
+    )
+    assert a.doppler_bins == NY and a.n_noncoh > 1 and not a.underpowered
+    return a
+
+
 def test_noncoherent_detects_burst():
     """The non-coherent path accumulates looks and fires at the true cell."""
     rng = np.random.default_rng(7)
-    # dwell == 1 (one frame per look), 3 magnitude-summed looks per dump.
-    a = Acquisition(
-        CODE,
-        sf=SF,
-        spc=SPS,
-        ny=NY,
-        pfa=PFA,
-        pd=PD,
-        min_snr=MIN_SNR_D1,
-        n_noncoh=3,
-    )
-    assert a.dwell == 1 and a.n_noncoh == 3
+    a = _noncoherent_acq()
     stream = _stream(rng, l_pre=0, sigma=_sigma(SNR_DB), with_payload=False)
     true_n, fa_n = _split(_collect(a, rng, stream), CODE_PHASE)
-    assert true_n >= 1  # the burst is found through the order-3 gate
+    assert true_n >= 1  # the burst is found through the order-N_nc gate
     assert fa_n <= 1  # at most a single boundary straddle
 
 
 def test_noncoherent_empirical_pfa():
     """Noise-only through the N_nc>1 gate stays within the Pfa budget."""
     rng = np.random.default_rng(99)
-    a = Acquisition(
-        CODE,
-        sf=SF,
-        spc=SPS,
-        ny=NY,
-        pfa=PFA,
-        pd=PD,
-        min_snr=MIN_SNR_D1,
-        n_noncoh=3,
-    )
+    a = _noncoherent_acq()
+    nnc = a.n_noncoh
     # ~200 non-coherent dumps of pure noise; expected FA ~ 200 * PFA = 0.2.
-    noise = _awgn(rng, a.n_noncoh * 200 * N, _sigma(SNR_DB))
+    noise = _awgn(rng, nnc * 200 * N, _sigma(SNR_DB))
     fa = len(_collect(a, rng, noise.astype(np.complex64)))
     assert fa <= 4  # generous bound on a ~0.2-expectation Poisson

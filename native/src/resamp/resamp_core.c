@@ -1,5 +1,6 @@
 #include "resamp/resamp_core.h"
 #include <math.h>
+#include <string.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -220,6 +221,52 @@ resamp_reset (resamp_state_t *s)
   memset (s->decim_iad, 0, s->num_taps * sizeof (float _Complex));
   if (s->num_taps > 1)
     memset (s->decim_tfd, 0, (s->num_taps - 1) * sizeof (float _Complex));
+}
+
+/* ── Serializable state ─────────────────────────────────────────────────────
+ * Order: phase, delay_head, ctrl_acc, then delay_buf (2*delay_cap),
+ * decim_iad (num_taps), decim_tfd (num_taps-1 when num_taps>1). */
+
+size_t
+resamp_state_bytes (const resamp_state_t *s)
+{
+  size_t b = sizeof (uint32_t) + sizeof (size_t) + sizeof (double)
+             + 2 * s->delay_cap * sizeof (float _Complex)
+             + s->num_taps * sizeof (float _Complex);
+  if (s->num_taps > 1)
+    b += (s->num_taps - 1) * sizeof (float _Complex);
+  return b;
+}
+
+void
+resamp_get_state (const resamp_state_t *s, void *blob)
+{
+  char        *p   = (char *)blob;
+  const size_t db  = 2 * s->delay_cap * sizeof (float _Complex);
+  const size_t iad = s->num_taps * sizeof (float _Complex);
+  memcpy (p, &s->phase, sizeof (uint32_t)), p += sizeof (uint32_t);
+  memcpy (p, &s->delay_head, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (p, &s->ctrl_acc, sizeof (double)), p += sizeof (double);
+  memcpy (p, s->delay_buf, db), p += db;
+  memcpy (p, s->decim_iad, iad), p += iad;
+  if (s->num_taps > 1)
+    memcpy (p, s->decim_tfd, (s->num_taps - 1) * sizeof (float _Complex));
+}
+
+int
+resamp_set_state (resamp_state_t *s, const void *blob)
+{
+  const char  *p   = (const char *)blob;
+  const size_t db  = 2 * s->delay_cap * sizeof (float _Complex);
+  const size_t iad = s->num_taps * sizeof (float _Complex);
+  memcpy (&s->phase, p, sizeof (uint32_t)), p += sizeof (uint32_t);
+  memcpy (&s->delay_head, p, sizeof (size_t)), p += sizeof (size_t);
+  memcpy (&s->ctrl_acc, p, sizeof (double)), p += sizeof (double);
+  memcpy (s->delay_buf, p, db), p += db;
+  memcpy (s->decim_iad, p, iad), p += iad;
+  if (s->num_taps > 1)
+    memcpy (s->decim_tfd, p, (s->num_taps - 1) * sizeof (float _Complex));
+  return 0;
 }
 
 /* ------------------------------------------------------------------ */

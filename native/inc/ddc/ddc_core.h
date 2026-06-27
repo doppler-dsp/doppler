@@ -419,6 +419,32 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
    */
 size_t ddc_execute_max_out(ddc_state_t *state);
 
+  /* ── Serializable state — complex DDC (LO + RateConverter) ─────────────────
+   * Standard bytes interface (see dp_state.h):
+   * `[dp_state_hdr_t][ddc_extra_t][lo][rc]`.  Like ddcr without the real-input
+   * halfband front end; `rate` is the layout key. */
+
+  typedef struct
+  {
+    double rate; /**< Total rate; must equal the engine's (layout key). */
+  } ddc_extra_t;
+
+#define DDC_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', '_')
+#define DDC_STATE_VERSION 1u
+
+  /** @brief Byte size of @p state's blob (envelope + extra + lo + rc). */
+  size_t ddc_state_bytes (const ddc_state_t *state);
+  /** @brief Serialize @p state's LO + RateConverter state into @p blob. */
+  void ddc_get_state (const ddc_state_t *state, void *blob);
+  /** @brief Restore LO + RateConverter state from @p blob.
+   *  @return DP_OK, or DP_ERR_INVALID if the envelope/rate rejects. */
+  int ddc_set_state (ddc_state_t *state, const void *blob);
+  /** @brief Pure run: `(state_in, input) -> (state_out, output)`; either blob
+   *  may be NULL (NULL in = current; NULL out = discard). */
+  size_t ddc_run (ddc_state_t *state, const void *state_in, void *state_out,
+                  const float complex *in, size_t n_in, float complex *out,
+                  size_t max_out);
+
 #ifdef __cplusplus
 }
 #endif

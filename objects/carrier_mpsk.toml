@@ -1,0 +1,91 @@
+[carrier_mpsk]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "CarrierMpsk"
+depends_on = [
+  { name = "lo", link = true },
+  { name = "loop_filter", link = true },
+]
+
+[[carrier_mpsk.init_params]]
+name = "bn"
+type = "double"
+default = "0.05"
+
+[[carrier_mpsk.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[carrier_mpsk.init_params]]
+name = "init_norm_freq"
+type = "double"
+default = "0.0"
+
+[[carrier_mpsk.init_params]]
+name = "tsamps"
+type = "size_t"
+default = "64"
+
+[[carrier_mpsk.init_params]]
+name = "bn_fll"
+type = "double"
+default = "0.0"
+
+[[carrier_mpsk.init_params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[carrier_mpsk.methods]]
+name = "steps"
+doc = "De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed M-PSK discriminator (slice to the nearest constellation point, error Im(P*conj(ahat))/|P|), and emit one complex prompt symbol per symbol. The loop tracks a small residual carrier (bulk Doppler removed upstream); it locks to one of m phases, so resolve the M-fold ambiguity downstream (mpsk_diff_demap or a sync word). At m=2 this is exactly the BPSK Costas loop."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[carrier_mpsk.methods]]
+name = "configure"
+doc = "Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[carrier_mpsk.methods]]
+name = "reset"
+doc = "Re-seed the loop to the create-time frequency/phase; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[carrier_mpsk.properties]]
+name = "bn"
+type = "double"
+writable = true
+
+[[carrier_mpsk.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[carrier_mpsk.properties]]
+name = "lock_metric"
+type = "double"
+
+[[carrier_mpsk.properties]]
+name = "last_error"
+type = "double"
+
+[[carrier_mpsk.properties]]
+name = "bn_fll"
+type = "double"
+writable = true
+
+[[carrier_mpsk.properties]]
+name = "m"
+type = "int"

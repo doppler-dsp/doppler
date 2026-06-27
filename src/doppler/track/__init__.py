@@ -6,6 +6,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .track import LoopFilter, Costas, Dll, Channel, SymbolSync  # noqa: E402
+from .track import LoopFilter, Costas, Dll, Channel, SymbolSync, CarrierMpsk  # noqa: E402
 
-__all__ = ["LoopFilter", "Costas", "Dll", "Channel", "SymbolSync"]
+__all__ = ["LoopFilter", "Costas", "Dll", "Channel", "SymbolSync", "CarrierMpsk"]

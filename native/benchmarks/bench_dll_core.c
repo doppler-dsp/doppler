@@ -52,7 +52,7 @@ main (void)
   printf ("=== dll benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  dll_state_t *d = dll_create (code, SF, SPS, 0.0, 0.005, 0.707, 0.5);
+  dll_state_t *d = dll_create (code, SF, SPS, 0.0, 0.005, 0.707, 0.5, 1);
   dll_steps (d, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];

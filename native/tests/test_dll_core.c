@@ -84,11 +84,11 @@ main (void)
    * 1. Lifecycle, NULL-code guard, init==create parity               *
    * ---------------------------------------------------------------- */
   {
-    CHECK (dll_create (NULL, 0, 2, 0.0, 0.01, 0.707, 0.5) == NULL);
+    CHECK (dll_create (NULL, 0, 2, 0.0, 0.01, 0.707, 0.5, 1) == NULL);
 
     uint8_t code[31];
     make_code (code, 31, 1u);
-    dll_state_t *c = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5);
+    dll_state_t *c = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
     CHECK (c != NULL);
     if (!c)
       return 1;
@@ -114,7 +114,7 @@ main (void)
     float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
     size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 3u, 0);
 
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5);
+    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
     float complex *sym = malloc (nper * sizeof (*sym));
     size_t         k   = dll_steps (d, rx, n, sym, nper);
     CHECK (k >= nper - 2 && k <= nper);           /* ~one prompt per period */
@@ -138,7 +138,7 @@ main (void)
     size_t         n     = make_signal (rx, code, sf, sps, delta, nper, 9u, 1);
 
     /* half-chip E/L discriminator is steep — keep the loop BW low. */
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5);
+    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
     float complex *sym = malloc (nper * sizeof (*sym));
     size_t         k   = dll_steps (d, rx, n, sym, nper);
     /* the loop must speed its replica up to match the incoming rate */
@@ -168,7 +168,7 @@ main (void)
     size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 17u, 0);
 
     /* seed the replica 0.4 chips off — the loop must realign it */
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.4, 0.005, 0.707, 0.5);
+    dll_state_t   *d   = dll_create (code, sf, sps, 0.4, 0.005, 0.707, 0.5, 1);
     float complex *sym = malloc (nper * sizeof (*sym));
     /* early discriminator (first few periods) should be non-trivial */
     dll_steps (d, rx, sf * sps * 3, sym, 3);
@@ -193,7 +193,7 @@ main (void)
     float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
     size_t         n  = make_signal (rx, code, sf, sps, 3e-4, nper, 5u, 0);
 
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5);
+    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
     float complex *sym = malloc (nper * sizeof (*sym));
     dll_steps (d, rx, n, sym, nper);
     double r1 = dll_get_code_rate (d), e1 = dll_get_last_error (d);
@@ -204,6 +204,67 @@ main (void)
     dll_destroy (d);
     free (rx);
     free (sym);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 6. segments > 1: sub-epoch partials recover an async symbol clock *
+   * ---------------------------------------------------------------- */
+  {
+    const size_t sf = 63, sps = 4, K = 4, nsym = 2000;
+    size_t       te   = sf * sps;
+    double       dsym = 3e-3, tsym = (double)te * (1.0 + dsym);
+    double       phi  = 0.37 * (double)te;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    size_t         N    = (size_t)(nsym * tsym) + 2 * te;
+    float complex *rx   = malloc (N * sizeof (*rx));
+    float complex *out  = malloc (N * sizeof (*out));
+    int           *data = malloc ((nsym + 8) * sizeof (int));
+    uint32_t       ds   = 7u;
+    for (size_t i = 0; i < nsym + 6; i++)
+      {
+        ds ^= ds << 13;
+        ds ^= ds >> 17;
+        ds ^= ds << 5;
+        data[i] = (ds & 1u) ? 1 : -1;
+      }
+    for (size_t nn = 0; nn < N; nn++)
+      {
+        long s = (long)floor (((double)nn - phi) / tsym);
+        if (s < 0)
+          s = 0;
+        if (s >= (long)nsym + 6)
+          s = nsym + 5;
+        size_t ci = (nn / sps) % sf; /* code-aligned (no code Doppler) */
+        float  cs = (code[ci] & 1u) ? -1.0f : 1.0f;
+        rx[nn]    = (float)data[s] * cs;
+      }
+    dll_state_t *d   = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    size_t       np  = dll_steps (d, rx, N, out, N);
+    size_t       nep = N / te;
+    CHECK (dll_get_segments (d) == K);
+    CHECK (np >= (nep - 1) * K && np <= (nep + 1) * K);
+    /* genie symbol despread on the partials (known timing) recovers the data
+     */
+    double *acc = calloc (nsym + 8, sizeof (double));
+    for (size_t pp = 0; pp < np; pp++)
+      {
+        double t = (double)te * ((double)pp + 0.5) / (double)K;
+        long   s = (long)floor ((t - phi) / tsym);
+        if (s >= 0 && s < (long)nsym)
+          acc[s] += creal (out[pp]);
+      }
+    long err = 0;
+    for (size_t s = 2; s < nsym - 2; s++)
+      if ((acc[s] >= 0 ? 1 : -1) != data[s])
+        err++;
+    CHECK (err == 0); /* partials recover the asynchronous data */
+    dll_destroy (d);
+    free (acc);
+    free (rx);
+    free (out);
+    free (data);
     free (code);
   }
 

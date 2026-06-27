@@ -210,12 +210,14 @@ class Dll:
         Damping factor (default 0.707).
     spacing : float, default 0.5
         Early/late tap offset, chips (default 0.5).
+    segments : int, default 1
+        Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). >1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and tracks the code non-coherently across them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose >= 2 for symbol-timing recovery.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ..., segments: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) discriminator each code period, steer the code NCO, and emit one prompt symbol per period.
+        """Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate, for a downstream symbol matched filter + SymbolSync) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock).
 
         Parameters
         ----------
@@ -260,6 +262,10 @@ class Dll:
     @property
     def last_error(self) -> float:
         """Last error."""
+
+    @property
+    def segments(self) -> int:
+        """Segments."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

@@ -294,29 +294,27 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
   /* ── Serializable state — the elastic / pure-transducer face ───────────────
    *
    * Composes the leaf serializers of the whole chain (hbdecim_r2c -> LO ->
-   * RateConverter) into one flat, versioned POD, so a fresh DDCR built from the
-   * same (norm_freq, rate) descriptor resumes a stream bit-exactly on any
-   * thread/process/pod.  The blob is `[ddcr_state_hdr_t][r2c][lo][rc...]`. */
+   * RateConverter) into one flat POD, so a fresh DDCR built from the same
+   * (norm_freq, rate) descriptor resumes a stream bit-exactly on any
+   * thread/process/pod.  Standard bytes interface (see dp_state.h): the blob is
+   * `[dp_state_hdr_t][ddcr_extra_t][r2c][lo][rc]`, each child a self-contained
+   * sub-blob with its own envelope.  `rate` is the layout key. */
 
   typedef struct
   {
-    uint32_t magic;   /**< DDCR_STATE_MAGIC.                                */
-    uint16_t version; /**< DDCR_STATE_VERSION.                             */
-    uint16_t _pad;
-    double   rate; /**< Total rate; must equal the engine's (layout key). */
-    uint64_t bytes; /**< Total blob size (header + children).             */
-  } ddcr_state_hdr_t;
+    double rate; /**< Total rate; must equal the engine's (layout key). */
+  } ddcr_extra_t;
 
-#define DDCR_STATE_MAGIC 0x44444352u /* 'DDCR' */
+#define DDCR_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', 'R')
 #define DDCR_STATE_VERSION 1u
 
-  /** @brief Byte size of @p s's state blob (header + chain). */
+  /** @brief Byte size of @p s's state blob (envelope + extra + chain). */
   size_t ddcr_state_bytes (const ddcr_state_t *s);
   /** @brief Serialize @p s's full-chain state into @p blob. */
   void ddcr_get_state (const ddcr_state_t *s, void *blob);
   /**
    * @brief Restore full-chain state from @p blob into @p s.
-   * @return 0 on success, -1 if magic/version/rate/size disagree with @p s
+   * @return DP_OK, or DP_ERR_INVALID if the envelope/rate disagree with @p s
    *         (rebuild the engine from the matching descriptor first).
    */
   int ddcr_set_state (ddcr_state_t *s, const void *blob);

@@ -427,23 +427,27 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
  * preserved so the resume processes them).
  */
 
+/* Offset to the ring-samples region: standard envelope + acq's extra header.
+ */
+#define ACQ_BODY_OFF (sizeof (dp_state_hdr_t) + sizeof (acq_extra_t))
+
 static float complex *
 _state_samples (void *blob)
 {
-  return (float complex *)((char *)blob + sizeof (acq_state_hdr_t));
+  return (float complex *)((char *)blob + ACQ_BODY_OFF);
 }
 
 static float *
 _state_nc (void *blob, size_t ring_cap)
 {
-  return (float *)((char *)blob + sizeof (acq_state_hdr_t)
+  return (float *)((char *)blob + ACQ_BODY_OFF
                    + ring_cap * sizeof (float complex));
 }
 
 size_t
 acq_state_bytes (const acq_state_t *st)
 {
-  size_t b = sizeof (acq_state_hdr_t) + st->ring_cap * sizeof (float complex);
+  size_t b = ACQ_BODY_OFF + st->ring_cap * sizeof (float complex);
   if (st->n_noncoh > 1)
     b += st->n * sizeof (float);
   return b;
@@ -457,16 +461,16 @@ acq_get_state (const acq_state_t *st, void *blob)
   size_t       t   = DP_LOAD_RLX (&st->ring->tail);
   size_t       nun = h - t;
 
-  acq_state_hdr_t *hd  = (acq_state_hdr_t *)blob;
-  hd->magic            = ACQ_STATE_MAGIC;
-  hd->version          = (uint16_t)ACQ_STATE_VERSION;
-  hd->has_nc           = (uint16_t)(st->n_noncoh > 1);
-  hd->n                = (uint64_t)n;
-  hd->samples_consumed = st->samples_consumed;
-  hd->n_noncoh         = (uint32_t)st->n_noncoh;
-  hd->nc_count         = (uint32_t)st->nc_count;
-  hd->n_unconsumed     = (uint32_t)nun;
-  hd->_pad             = 0;
+  dp_writer_t w = dp_writer_init (blob, acq_state_bytes (st));
+  dp_w_hdr (&w, ACQ_STATE_MAGIC, ACQ_STATE_VERSION, acq_state_bytes (st));
+  acq_extra_t ex = { .has_nc           = (uint16_t)(st->n_noncoh > 1),
+                     ._pad             = 0,
+                     .n_noncoh         = (uint32_t)st->n_noncoh,
+                     .n                = (uint64_t)n,
+                     .samples_consumed = st->samples_consumed,
+                     .nc_count         = (uint32_t)st->nc_count,
+                     .n_unconsumed     = (uint32_t)nun };
+  dp_w_bytes (&w, &ex, sizeof ex);
 
   float complex *dst = _state_samples (blob);
   for (size_t i = 0; i < nun; i++)
@@ -474,7 +478,7 @@ acq_get_state (const acq_state_t *st, void *blob)
       size_t idx = (t + i) & st->ring->mask;
       dst[i]     = st->ring->data[idx * 2] + I * st->ring->data[idx * 2 + 1];
     }
-  if (hd->has_nc)
+  if (ex.has_nc)
     memcpy (_state_nc (blob, st->ring_cap), st->nc_surface,
             n * sizeof (float));
 }
@@ -482,32 +486,36 @@ acq_get_state (const acq_state_t *st, void *blob)
 int
 acq_set_state (acq_state_t *st, const void *blob)
 {
-  const acq_state_hdr_t *hd = (const acq_state_hdr_t *)blob;
-  if (hd->magic != ACQ_STATE_MAGIC || hd->version != ACQ_STATE_VERSION
-      || hd->n != (uint64_t)st->n || hd->n_noncoh != (uint32_t)st->n_noncoh
-      || hd->n_unconsumed > (uint32_t)st->ring_cap)
-    return -1;
+  int rc = dp_state_validate (blob, acq_state_bytes (st), ACQ_STATE_MAGIC,
+                              ACQ_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  acq_extra_t ex;
+  memcpy (&ex, (const char *)blob + sizeof (dp_state_hdr_t), sizeof ex);
+  if (ex.n != (uint64_t)st->n || ex.n_noncoh != (uint32_t)st->n_noncoh
+      || ex.n_unconsumed > (uint32_t)st->ring_cap)
+    return DP_ERR_INVALID;
 
   /* Reset the live state, then replay the blob's buffered samples + nc. */
   DP_STORE_REL (&st->ring->head, 0);
   DP_STORE_REL (&st->ring->tail, 0);
   corr2d_reset (st->corr);
-  st->samples_consumed = hd->samples_consumed;
-  st->nc_count         = hd->nc_count;
+  st->samples_consumed = ex.samples_consumed;
+  st->nc_count         = ex.nc_count;
 
   const float complex *src = _state_samples ((void *)blob);
-  if (hd->n_unconsumed > 0)
-    dp_f32_write (st->ring, (const float *)src, hd->n_unconsumed);
+  if (ex.n_unconsumed > 0)
+    dp_f32_write (st->ring, (const float *)src, ex.n_unconsumed);
 
   if (st->nc_surface)
     {
-      if (hd->has_nc)
+      if (ex.has_nc)
         memcpy (st->nc_surface, _state_nc ((void *)blob, st->ring_cap),
                 st->n * sizeof (float));
       else
         memset (st->nc_surface, 0, st->n * sizeof (float));
     }
-  return 0;
+  return DP_OK;
 }
 
 size_t

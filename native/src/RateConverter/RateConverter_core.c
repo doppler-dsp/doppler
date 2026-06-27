@@ -499,7 +499,7 @@ RateConverter_reset (RateConverter_state_t *s)
 size_t
 RateConverter_state_bytes (const RateConverter_state_t *s)
 {
-  size_t b = 0;
+  size_t b = sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     b += _stage_state_bytes (s->stage_types[i], s->stage_ptrs[i]);
   return b;
@@ -508,7 +508,10 @@ RateConverter_state_bytes (const RateConverter_state_t *s)
 void
 RateConverter_get_state (const RateConverter_state_t *s, void *blob)
 {
-  char *p = (char *)blob;
+  dp_writer_t w = dp_writer_init (blob, RateConverter_state_bytes (s));
+  dp_w_hdr (&w, RC_STATE_MAGIC, RC_STATE_VERSION,
+            RateConverter_state_bytes (s));
+  char *p = (char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     p = _stage_get_state (s->stage_types[i], s->stage_ptrs[i], p);
 }
@@ -516,10 +519,14 @@ RateConverter_get_state (const RateConverter_state_t *s, void *blob)
 int
 RateConverter_set_state (RateConverter_state_t *s, const void *blob)
 {
-  const char *p = (const char *)blob;
+  int rc = dp_state_validate (blob, RateConverter_state_bytes (s),
+                              RC_STATE_MAGIC, RC_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  const char *p = (const char *)blob + sizeof (dp_state_hdr_t);
   for (int i = 0; i < s->n_stages; i++)
     p = _stage_set_state (s->stage_types[i], s->stage_ptrs[i], p);
-  return 0;
+  return DP_OK;
 }
 
 size_t

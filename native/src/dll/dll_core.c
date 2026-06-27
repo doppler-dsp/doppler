@@ -36,6 +36,12 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
           double init_chip, double bn, double zeta, double spacing)
 {
   configure_geometry (s, code_len, sps, init_chip, bn, zeta, spacing);
+  /* In-place init of a caller-owned (possibly stack) state: loop_filter_init
+     preserves the integrator (it doubles as a reconfigure), so zero it here —
+     seed() sets code_rate = 1.0 and assumes integ == 0. dll_create() gets this
+     free via calloc; an embedded/stack dll_state_t would otherwise start with
+     a garbage code rate. */
+  loop_filter_reset (&s->lf);
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   seed (s);

@@ -77,6 +77,47 @@ dll_chip_sign(uint8_t c)
 }
 
 /**
+ * @brief Sub-chip code replica at fractional code phase @p c (one tap).
+ *
+ * Evaluates the ±1 code at chip phase @p c over the chip-phase extent
+ * `[c, c + adv)` swept by one input sample (`adv = code_rate / sps`). Away from
+ * a chip transition this is just `sign(code[floor(c)])`. When the sample's
+ * extent straddles the boundary into the next chip, it returns the
+ * overlap-weighted blend of the two chip signs — `frac` of the sample lies in
+ * chip `floor(c)`, `1 - frac` in the next chip. Because the chips are ±1 and
+ * constant away from a transition, this is the *exact* matched-filter integral
+ * over a window whose edge falls at a fractional sample position: it makes the
+ * correlation (hence the E-L discriminator) vary continuously with sub-sample
+ * code phase instead of stepping in integer-sample quanta, with no loss of
+ * despread SNR (the chip interior is still fully integrated). The blend is the
+ * linear (trapezoidal) interpolant of the correlation; for ±1 chips no signal
+ * interpolation is needed — only the lone straddling sample is reweighted.
+ *
+ * @param s    DLL state (for the code and period length).
+ * @param c    Code phase of the tap, chips, in [0, sf).
+ * @param adv  Chip-phase advance per input sample (`code_rate / sps`).
+ * @return Blended ±1 replica value for this tap and sample.
+ */
+JM_FORCEINLINE float
+dll_replica(const dll_state_t *s, double c, double adv)
+{
+    size_t i = (size_t)c;
+    if (i >= s->sf)
+        i = s->sf - 1;
+    /* Distance from this sample to the next chip boundary. When it is at least
+       one sample (adv), no transition falls inside the sample and the replica
+       is a clean single chip sign — the common path, no divide. */
+    double rem = (double)(i + 1) - c;
+    if (rem >= adv)
+        return dll_chip_sign(s->code[i]);
+    /* Rare: the sample straddles the boundary; blend by the in-chip fraction. */
+    double frac = rem / adv;
+    size_t j = (i + 1 >= s->sf) ? 0 : i + 1; /* next chip, wraps the period */
+    return (float)(frac * dll_chip_sign(s->code[i])
+                   + (1.0 - frac) * dll_chip_sign(s->code[j]));
+}
+
+/**
  * @brief Initialise a DLL in place (no allocation); BORROWS @p code.
  *
  * The by-value counterpart to dll_create(): a tracking channel that embeds a
@@ -108,27 +149,22 @@ void dll_init(dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
 JM_FORCEINLINE JM_HOT void
 dll_accumulate(dll_state_t *s, float complex d)
 {
+    double adv = s->code_rate * s->inv_sps;
     double cp = s->chip_pos;
     double sfd = (double)s->sf;
-    size_t pj = (size_t)cp;
-    if (pj >= s->sf)
-        pj = s->sf - 1;
     double ce = cp + s->spacing;
     if (ce >= sfd)
         ce -= sfd;
     double cl = cp - s->spacing;
     if (cl < 0.0)
         cl += sfd;
-    size_t ej = (size_t)ce;
-    size_t lj = (size_t)cl;
-    if (ej >= s->sf)
-        ej = s->sf - 1;
-    if (lj >= s->sf)
-        lj = s->sf - 1;
-    s->acc_p += d * dll_chip_sign(s->code[pj]);
-    s->acc_e += d * dll_chip_sign(s->code[ej]);
-    s->acc_l += d * dll_chip_sign(s->code[lj]);
-    s->chip_pos += s->code_rate * s->inv_sps;
+    /* Fractional-boundary integrate-and-dump: each tap's replica blends across a
+       chip transition that falls inside the sample (dll_replica), so the E/P/L
+       correlations vary continuously with sub-sample code phase. */
+    s->acc_p += d * dll_replica(s, cp, adv);
+    s->acc_e += d * dll_replica(s, ce, adv);
+    s->acc_l += d * dll_replica(s, cl, adv);
+    s->chip_pos += adv;
 }
 
 /**

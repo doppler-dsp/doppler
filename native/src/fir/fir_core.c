@@ -114,6 +114,33 @@ fir_reset (fir_state_t *state)
     memset (state->delay, 0, (state->num_taps - 1) * sizeof (float complex));
 }
 
+/* ── Serializable state — the delay line (num_taps-1 samples) ────────────────
+ */
+
+size_t
+fir_state_bytes (const fir_state_t *state)
+{
+  return (state->num_taps > 1) ? (state->num_taps - 1) * sizeof (float complex)
+                               : 0;
+}
+
+void
+fir_get_state (const fir_state_t *state, void *blob)
+{
+  if (state->num_taps > 1)
+    memcpy (blob, state->delay,
+            (state->num_taps - 1) * sizeof (float complex));
+}
+
+int
+fir_set_state (fir_state_t *state, const void *blob)
+{
+  if (state->num_taps > 1)
+    memcpy (state->delay, blob,
+            (state->num_taps - 1) * sizeof (float complex));
+  return 0;
+}
+
 size_t
 fir_get_num_taps (const fir_state_t *state)
 {

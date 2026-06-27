@@ -5,7 +5,10 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Dll"
-depends_on = [{ name = "loop_filter", link = true }]
+depends_on = [
+  { name = "loop_filter", link = true },
+  { name = "detection", link = true },
+]
 
 [[dll.init_params]]
 name = "code"
@@ -43,7 +46,7 @@ default = "1"
 
 [[dll.methods]]
 name = "steps"
-doc = "Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate, for a downstream symbol matched filter + SymbolSync) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock)."
+doc = "Correlate a cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock). segments>1 is the streaming despreader: it removes the PN code and outputs samples. The non-coherent loop is carrier-blind, so it tracks with a residual carrier still on the input; carrier recovery (Costas) and symbol-timing recovery (SymbolSync) are downstream stages fed from the partial output. The output is an independent array per call (block-size invariant)."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -57,6 +60,13 @@ doc = "Recompute the loop gains for a new (bn, zeta); preserves the code phase/r
 arg_type = "void"
 return_type = "void"
 params = [{ name = "bn", type = "double" }, { name = "zeta", type = "double" }]
+
+[[dll.methods]]
+name = "configure_lock"
+doc = "Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The default is pfa=1e-3 over 20 looks. Read the result from the locked / lock_stat / noise_est properties."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "pfa", type = "double" }, { name = "n_looks", type = "size_t" }]
 
 [[dll.methods]]
 name = "reset"
@@ -84,3 +94,18 @@ type = "double"
 [[dll.properties]]
 name = "segments"
 type = "size_t"
+
+[[dll.properties]]
+name = "locked"
+type = "bool"
+doc = "True when the code-lock detector's statistic exceeds its CFAR threshold (latched at each n_looks-look decision; see configure_lock)."
+
+[[dll.properties]]
+name = "lock_stat"
+type = "double"
+doc = "Last code-lock test statistic R = sqrt(2*sum|P|^2 / E|O|^2); compare against det_threshold_noncoherent(pfa, n_looks)."
+
+[[dll.properties]]
+name = "noise_est"
+type = "double"
+doc = "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap EMA."

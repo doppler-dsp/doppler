@@ -1,6 +1,8 @@
 #include "resamp/resamp_impl.h"
+#include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -14,6 +16,50 @@
   while (0)
 
 #define ALMOST_EQ(a, b, tol) (fabsf ((float)(a) - (float)(b)) <= (float)(tol))
+
+/* Serializable-state round-trip: split a stream at `cut`, hand the resampler's
+ * state to a fresh instance (same rate), and resume — the concatenated output
+ * must equal an uninterrupted run bit-for-bit.  Returns 1 on success. */
+static int
+rt_resamp (double rate)
+{
+  enum
+  {
+    L   = 400,
+    CAP = 1024
+  };
+  const size_t cut = 157; /* odd → mid-fractional-phase split */
+  float _Complex in[L], outA[CAP], outB[CAP];
+  for (size_t i = 0; i < (size_t)L; i++)
+    {
+      double ph = 2.0 * M_PI * 0.031 * (double)i;
+      in[i]     = CMPLXF ((float)cos (ph), (float)sin (ph));
+    }
+
+  resamp_state_t *ra = resamp_create (rate);
+  size_t          nA = resamp_execute (ra, in, L, outA, CAP);
+  resamp_destroy (ra);
+
+  resamp_state_t *r1   = resamp_create (rate);
+  size_t          nB   = resamp_execute (r1, in, cut, outB, CAP);
+  size_t          sb   = resamp_state_bytes (r1);
+  void           *blob = malloc (sb);
+  resamp_get_state (r1, blob);
+  resamp_destroy (r1);
+
+  resamp_state_t *r2 = resamp_create (rate);
+  int             ok = (resamp_set_state (r2, blob) == 0);
+  nB += resamp_execute (r2, in + cut, L - cut, outB + nB, CAP - nB);
+  resamp_destroy (r2);
+  free (blob);
+
+  ok = ok && (nA == nB);
+  for (size_t i = 0; i < nA && i < nB; i++)
+    if (crealf (outA[i]) != crealf (outB[i])
+        || cimagf (outA[i]) != cimagf (outB[i]))
+      ok = 0;
+  return ok;
+}
 
 int
 main (void)
@@ -105,6 +151,12 @@ main (void)
   n = resamp_execute_ctrl (r, in, ctrl, N, out, N);
   CHECK (n == N);
   resamp_destroy (r);
+
+  /* Serializable-state round-trip across rates (decimate, interpolate,
+   * non-integer) — bit-exact resume from the handed-off state blob. */
+  CHECK (rt_resamp (0.5)); /* decimation: decim_iad/decim_tfd path */
+  CHECK (rt_resamp (2.0)); /* interpolation: delay_buf path        */
+  CHECK (rt_resamp (0.4)); /* non-integer: fractional phase + ctrl */
 
   if (_fails)
     {

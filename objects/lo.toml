@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "LO"
+serializable = "true"
 
 [[lo.init_params]]
 name = "norm_freq"

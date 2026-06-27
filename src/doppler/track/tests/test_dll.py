@@ -143,3 +143,189 @@ def test_segments_recover_async_data():
             acc[s] += part[pp].real
     dec = np.where(acc[2:1998] >= 0, 1, -1)
     assert min(np.mean(dec != data[2:1998]), np.mean(dec == data[2:1998])) == 0
+
+
+# --- carrier-present: the despreader removes only the code; the non-coherent
+# code loop is carrier-blind and carrier recovery is a downstream stage. ---
+
+
+def _carrier_async_signal(
+    code, nsym, dsym, phi, f0, dcode=0.0, const_data=False, seed=0
+):
+    """Async-data DSSS with a residual CARRIER (``f0`` cyc/sample) on it.
+
+    Models the despreader's realistic input: acquisition has removed the bulk
+    Doppler, leaving a small residual carrier (``f0`` ≲ ½ an epoch FFT bin),
+    plus a code-rate offset ``dcode`` and a data clock ``Tsym=TE*(1+dsym)`` at
+    phase ``phi``.  Carrier recovery is a *downstream* problem, so the carrier
+    is left on the samples here.
+    """
+    rng = np.random.default_rng(seed)
+    csign = np.where(code & 1, -1.0, 1.0)
+    tsym = TE * (1.0 + dsym)
+    n = int(nsym * tsym) + 2 * TE
+    idx = np.arange(n)
+    if const_data:
+        data = np.ones(nsym + 6)
+    else:
+        data = (rng.integers(0, 2, nsym + 6) * 2 - 1).astype(float)
+    si = np.clip(np.floor((idx - phi) / tsym).astype(int), 0, len(data) - 1)
+    cph = (idx * (1.0 + dcode) / SPS).astype(int) % SF
+    carrier = np.exp(2j * np.pi * f0 * idx)
+    rx = (data[si] * csign[cph] * carrier).astype(np.complex64)
+    return rx, data, tsym
+
+
+def test_segments_streaming_block_invariant():
+    # a streaming despreader feeds blocks and keeps every result, so steps()
+    # must be block-size invariant and return independent arrays. (Regression:
+    # the binding returned a view into a reused scratch buffer -> successive
+    # blocks aliased and the output depended on the chunking.)
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 300, 3e-3, 0.37 * TE, f0=2e-3, seed=4
+    )
+    full = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4).steps(rx)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    blocks = [d.steps(rx[i : i + TE]) for i in range(0, len(rx), TE)]
+    chunked = np.concatenate(blocks)
+    n = min(len(full), len(chunked))
+    assert np.allclose(full[:n], chunked[:n], atol=1e-6)
+    assert not np.shares_memory(blocks[0], blocks[1])  # independent arrays
+
+
+def test_segments_carrier_present_holds_code_lock():
+    # the non-coherent (|E|-|L|) discriminator is carrier-blind, so the loop
+    # tracks a code-rate offset with a residual carrier still on the samples
+    # (const data isolates code tracking from the async-symbol straddle).
+    code = _code(11)
+    dcode = 3e-4
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 0.0, 0.0, f0=1e-3, dcode=dcode, const_data=True, seed=7
+    )
+    d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
+    d.steps(rx)
+    assert d.code_rate == pytest.approx(1.0 + dcode, abs=1e-4)
+
+
+def test_segments_carrier_present_output_recoverable():
+    # despread partials carry the async BPSK with the residual carrier still on
+    # them; a downstream carrier wipe (genie) + known-timing symbol despread
+    # recovers every bit -> the despreader removed the code losslessly.
+    code = _code(11)
+    phi, f0 = 0.37 * TE, 1e-3
+    rx, data, tsym = _carrier_async_signal(
+        code, 2000, 3e-3, phi, f0=f0, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    part = d.steps(rx)
+    acc = np.zeros(2000 + 8, dtype=complex)
+    for pp in range(len(part)):
+        t = TE * (pp + 0.5) / 4
+        s = int(np.floor((t - phi) / tsym))
+        if 0 <= s < 2000:
+            acc[s] += part[pp] * np.exp(
+                -2j * np.pi * f0 * t
+            )  # downstream wipe
+    # a constant integration phase remains; the data is on the dominant axis
+    use = (
+        acc.real
+        if np.sum(np.abs(acc.real)) >= np.sum(np.abs(acc.imag))
+        else acc.imag
+    )
+    dec = np.where(use[2:1998] >= 0, 1, -1)
+    assert min(np.mean(dec != data[2:1998]), np.mean(dec == data[2:1998])) == 0
+
+
+# --- always-on code-lock detector (reuses acquisition's non-coherent test) ---
+
+
+def _noise(n, seed):
+    rng = np.random.default_rng(seed)
+    return (
+        (rng.standard_normal(n) + 1j * rng.standard_normal(n)) / np.sqrt(2)
+    ).astype(np.complex64)
+
+
+def test_lock_defaults_unlocked():
+    # a fresh loop reports a clean, unlocked detector before any input
+    d = Dll(_code(), SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
+    assert d.locked is False
+    assert d.lock_stat == 0.0
+    assert d.noise_est == 0.0
+
+
+def test_lock_acquires_on_signal():
+    # a despread signal (carrier and async data present) drives the
+    # non-coherent statistic well above the default CFAR threshold
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(rx)
+    assert d.locked is True
+    assert d.lock_stat > 8.5  # > det_threshold_noncoherent(1e-3, 20)
+
+
+def test_lock_acquires_segments_one():
+    # the detector also runs in the coherent full-epoch (segments=1) mode
+    code = _code(11)
+    rx = _signal(code, 0.0, 1500, const_data=True)
+    d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)  # segments=1
+    d.steps(rx)
+    assert d.locked is True
+
+
+def test_lock_stays_low_on_noise():
+    # noise only: prompt power matches the off-peak (noise) reference, so the
+    # statistic sits near sqrt(2*N)~6.3 under H0 and stays below threshold
+    code = _code(11)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(_noise(1500 * TE, seed=2))
+    assert d.locked is False
+    assert d.lock_stat < 8.5
+    assert d.lock_stat == pytest.approx(np.sqrt(2 * 20), rel=0.4)
+
+
+def test_configure_lock_changes_only_threshold():
+    # configure_lock(pfa, n_looks) sets the decision threshold; the statistic
+    # itself is config-independent for a given stream + n_looks, so two pfas
+    # yield the same R and decisions consistent with their thresholds
+    from doppler.detection import det_threshold_noncoherent
+
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    a = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    a.configure_lock(1e-3, 20)
+    a.steps(rx)
+    b = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    b.configure_lock(1e-12, 20)
+    b.steps(rx)
+    assert b.lock_stat == pytest.approx(a.lock_stat, rel=1e-6)
+    assert a.locked == (a.lock_stat > det_threshold_noncoherent(1e-3, 20))
+    assert b.locked == (b.lock_stat > det_threshold_noncoherent(1e-12, 20))
+
+
+def test_configure_lock_rejects_bad_pfa():
+    d = Dll(_code(), SPS, 0.0, 0.005, 0.707, 0.5, segments=4)
+    with pytest.raises(ValueError):
+        d.configure_lock(0.0, 20)
+    with pytest.raises(ValueError):
+        d.configure_lock(1.0, 20)
+
+
+def test_lock_reset_clears():
+    code = _code(11)
+    rx, _, _ = _carrier_async_signal(
+        code, 1500, 3e-3, 0.37 * TE, f0=1e-3, seed=3
+    )
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.steps(rx)
+    assert d.locked is True
+    d.reset()
+    assert d.locked is False
+    assert d.lock_stat == 0.0
+    assert d.noise_est == 0.0

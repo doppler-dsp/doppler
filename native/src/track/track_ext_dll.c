@@ -9,17 +9,33 @@
 /* DllObject — wraps dll_state_t *       */
 /* ======================================================== */
 
+#include "detection/detection_core.h"
 #include "dll/dll_core.h"
 
 typedef struct
 {
   PyObject_HEAD dll_state_t *handle;
-  float complex             *_steps_buf; /* pre-allocated output for steps */
+  float complex             *_steps_buf;     /* internal scratch for steps */
   size_t                     _steps_buf_cap; /* allocated capacity for steps */
-  void                     **_steps_retired; /* gh-219 deferred free */
-  size_t                     _steps_retired_n;
-  size_t                     _steps_retired_cap;
 } DllObject;
+
+/* Convert a (pfa, n_looks) target into the core's (threshold, n_looks, alpha)
+ * lock config.  The pfa->threshold map is the detection module's non-coherent
+ * CFAR threshold; the EMA noise reference averages 1/alpha cells, kept well
+ * above n_looks (max(1024, 32*n_looks)) so its own variance does not inflate
+ * Pfa.  Policy lives here in the (hand-owned) binding so dll_core links -lm.
+ */
+static void
+dll_apply_lock_pfa (dll_state_t *handle, double pfa, size_t n_looks)
+{
+  if (n_looks < 1)
+    n_looks = 1;
+  double thr  = det_threshold_noncoherent (pfa, (int)n_looks);
+  double leff = 32.0 * (double)n_looks;
+  if (leff < 1024.0)
+    leff = 1024.0;
+  dll_configure_lock (handle, thr, n_looks, 1.0 / leff);
+}
 
 static void
 DllObj_dealloc (DllObject *self)
@@ -27,9 +43,6 @@ DllObj_dealloc (DllObject *self)
   if (self->handle)
     dll_destroy (self->handle);
   free (self->_steps_buf);
-  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
-    free (self->_steps_retired[_i]);
-  free (self->_steps_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -77,6 +90,10 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "dll_create returned NULL");
       return -1;
     }
+  /* Apply the exact default lock config (pfa=1e-3, 20 looks) via the detection
+     module, overriding the core's baked-constant default with the precise
+     threshold. */
+  dll_apply_lock_pfa (self->handle, 1e-3, 20);
   {
     size_t _max = dll_steps_max_out (self->handle);
     if (_max)
@@ -112,33 +129,20 @@ DllObj_steps (DllObject *self, PyObject *args)
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_steps_buf || self->_steps_buf_cap < _need)
     {
+      /* Grow-on-demand internal scratch. The returned array is an independent
+       * copy (below), so no view ever aliases this buffer — a plain realloc is
+       * safe; the old contents are not needed after the kernel runs. */
       size_t _max = dll_steps_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      if (self->_steps_buf
-          && self->_steps_retired_n == self->_steps_retired_cap)
-        {
-          size_t _rcap
-              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              Py_DECREF (x_arr);
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_steps_retired     = _rt;
-          self->_steps_retired_cap = _rcap;
-        }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
+      float complex *_tmp
+          = realloc (self->_steps_buf, _max * sizeof (float complex));
       if (!_tmp)
         {
           Py_DECREF (x_arr);
           PyErr_NoMemory ();
           return NULL;
         }
-      if (self->_steps_buf)
-        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
       self->_steps_buf     = _tmp;
       self->_steps_buf_cap = _max;
     }
@@ -153,13 +157,19 @@ DllObj_steps (DllObject *self, PyObject *args)
     n_out = dll_steps (self->handle, _ng0, _ng1, self->_steps_buf,
                        self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal scratch. A reused/grown scratch buffer must never be exposed as a
+   * view — successive steps() calls would alias the same memory (a streaming
+   * despreader keeps every block), and a realloc would dangle prior views. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_steps_buf,
+          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }
@@ -178,6 +188,28 @@ DllObj_configure (DllObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &bn, &zeta))
     return NULL;
   dll_configure (self->handle, bn, zeta);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_configure_lock (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "pfa", "n_looks", NULL };
+  double             pfa       = 1e-3;
+  unsigned long long n_looks   = 20;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dK", _kwlist, &pfa, &n_looks))
+    return NULL;
+  if (!(pfa > 0.0 && pfa < 1.0))
+    {
+      PyErr_SetString (PyExc_ValueError, "pfa must be in (0, 1)");
+      return NULL;
+    }
+  dll_apply_lock_pfa (self->handle, pfa, (size_t)n_looks);
   Py_RETURN_NONE;
 }
 
@@ -263,6 +295,37 @@ Dll_getprop_segments (DllObject *self, void *Py_UNUSED (closure))
       (unsigned long long)dll_get_segments (self->handle));
 }
 
+static PyObject *
+Dll_getprop_locked (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong (dll_get_locked (self->handle));
+}
+static PyObject *
+Dll_getprop_lock_stat (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_lock_stat (self->handle));
+}
+static PyObject *
+Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (dll_get_noise_est (self->handle));
+}
+
 static PyGetSetDef Dll_getset[] = {
   { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn, "Bn.\n", NULL },
   { "code_phase", (getter)Dll_getprop_code_phase, NULL, "Code phase.\n",
@@ -271,6 +334,14 @@ static PyGetSetDef Dll_getset[] = {
   { "last_error", (getter)Dll_getprop_last_error, NULL, "Last error.\n",
     NULL },
   { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
+  { "locked", (getter)Dll_getprop_locked, NULL,
+    "True when the code-lock detector's statistic exceeds its CFAR "
+    "threshold.\n",
+    NULL },
+  { "lock_stat", (getter)Dll_getprop_lock_stat, NULL,
+    "Last code-lock test statistic R.\n", NULL },
+  { "noise_est", (getter)Dll_getprop_noise_est, NULL,
+    "CFAR noise-power estimate from the off-peak tap EMA.\n", NULL },
   { NULL }
 };
 
@@ -340,6 +411,27 @@ static PyMethodDef DllObj_methods[] = {
     "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
     "1)\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
+  { "configure_lock", (PyCFunction)(void *)DllObj_configure_lock,
+    METH_VARARGS | METH_KEYWORDS,
+    "configure_lock(pfa, n_looks) -> None\n"
+    "\n"
+    "Tune the always-on code-lock detector to a target (pfa, n_looks). The "
+    "detector reuses acquisition's non-coherent statistic "
+    "R = sqrt(2*sum|P|^2 / E|O|^2): the prompt powers of n_looks consecutive "
+    "looks are summed and E|O|^2 is an EMA of a random off-peak (noise) "
+    "correlation re-drawn each epoch; it declares lock when R exceeds "
+    "det_threshold_noncoherent(pfa, n_looks). Size n_looks with "
+    "detection.det_n_noncoh(snr, ...) for your operating C/N0. The default is "
+    "pfa=1e-3 over 20 looks. Read the result from locked / lock_stat / "
+    "noise_est.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Dll\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
+    "    >>> obj.configure_lock(1e-3, 20)\n"
+    "    >>> obj.locked\n"
+    "    False\n" },
   { "reset", (PyCFunction)DllObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

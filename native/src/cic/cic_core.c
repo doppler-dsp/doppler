@@ -74,6 +74,41 @@ cic_reset (cic_state_t *state)
   state->phase = 0;
 }
 
+/* ── Serializable state ─────────────────────────────────────────────────────
+ * Order: integ_re, integ_im, comb_re, comb_im (each CIC_N u64), then phase. */
+
+size_t
+cic_state_bytes (const cic_state_t *state)
+{
+  (void)state;
+  return 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t);
+}
+
+void
+cic_get_state (const cic_state_t *state, void *blob)
+{
+  char        *p  = (char *)blob;
+  const size_t ab = CIC_N * sizeof (uint64_t);
+  memcpy (p, state->integ_re, ab), p += ab;
+  memcpy (p, state->integ_im, ab), p += ab;
+  memcpy (p, state->comb_re, ab), p += ab;
+  memcpy (p, state->comb_im, ab), p += ab;
+  memcpy (p, &state->phase, sizeof (uint32_t));
+}
+
+int
+cic_set_state (cic_state_t *state, const void *blob)
+{
+  const char  *p  = (const char *)blob;
+  const size_t ab = CIC_N * sizeof (uint64_t);
+  memcpy (state->integ_re, p, ab), p += ab;
+  memcpy (state->integ_im, p, ab), p += ab;
+  memcpy (state->comb_re, p, ab), p += ab;
+  memcpy (state->comb_im, p, ab), p += ab;
+  memcpy (&state->phase, p, sizeof (uint32_t));
+  return 0;
+}
+
 /* ── decimate ──────────────────────────────────────────────────────────── */
 
 size_t

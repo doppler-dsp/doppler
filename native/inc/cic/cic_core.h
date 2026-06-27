@@ -104,6 +104,17 @@ void cic_destroy(cic_state_t *state);
  */
 void cic_reset(cic_state_t *state);
 
+/* Serializable state (reusable elastic-resume convention): the integrator and
+ * comb accumulators plus the decimation phase counter — R/shift are config
+ * (rebuilt from R on the resumed instance). */
+
+/** @brief Bytes cic_get_state() writes. */
+size_t cic_state_bytes(const cic_state_t *state);
+/** @brief Serialize the integrator/comb/phase state into @p blob. */
+void cic_get_state(const cic_state_t *state, void *blob);
+/** @brief Restore the integrator/comb/phase state from @p blob.  @return 0. */
+int cic_set_state(cic_state_t *state, const void *blob);
+
 /**
  * @brief Upper bound on decimate output — returns 0 (lazy-alloc signal).
  *

@@ -1,7 +1,7 @@
 /*
  * track_ext.c — Python extension module track
  *
- * Objects: LoopFilter, Costas, Dll, Channel, SymbolSync, CarrierMpsk
+ * Objects: LoopFilter, Costas, Dll, Channel, SymbolSync, CarrierMpsk, CarrierNda
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -18,6 +18,7 @@
 #include "track_ext_channel.c"
 #include "track_ext_symsync.c"
 #include "track_ext_carrier_mpsk.c"
+#include "track_ext_carrier_nda.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -41,6 +42,7 @@ PyInit_track(void)
     if (PyType_Ready(&ChannelObjType) < 0) return NULL;
     if (PyType_Ready(&SymbolSyncObjType) < 0) return NULL;
     if (PyType_Ready(&CarrierMpskObjType) < 0) return NULL;
+    if (PyType_Ready(&CarrierNdaObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&track_moduledef);
     if (!m) return NULL;
     Py_INCREF(&LoopFilterObjType);
@@ -66,6 +68,10 @@ PyInit_track(void)
     Py_INCREF(&CarrierMpskObjType);
     if (PyModule_AddObject(m, "CarrierMpsk", (PyObject *)&CarrierMpskObjType) < 0) {
         Py_DECREF(&CarrierMpskObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&CarrierNdaObjType);
+    if (PyModule_AddObject(m, "CarrierNda", (PyObject *)&CarrierNdaObjType) < 0) {
+        Py_DECREF(&CarrierNdaObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

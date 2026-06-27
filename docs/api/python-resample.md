@@ -84,6 +84,61 @@ for block in iq_stream:        # CF32 blocks, any length
     consume-then-next loop above needs no copy. This is the convention for every
     `variable_output` execute in doppler (`Resampler`, `FIR`, the DDC chain, …).
 
+### Serializable state — elastic resume
+
+A `RateConverter` can hand its entire running state to a fresh instance and
+resume **bit-for-bit** — the basis for checkpointing, migrating a stream between
+processes, or scaling a pipeline across pods. `get_state()` returns a `bytes`
+blob; `set_state()` restores it into an identically-built converter:
+
+```python
+>>> import numpy as np
+>>> from doppler.resample import RateConverter
+>>> rng = np.random.default_rng(0)
+>>> x = (rng.standard_normal(6000)
+...      + 1j * rng.standard_normal(6000)).astype(np.complex64)
+
+>>> # Worker A processes the first half, checkpoints its state, then exits.
+>>> a = RateConverter(0.5)
+>>> head = np.array(a.execute(x[:2600]))
+>>> blob = a.get_state()          # bytes — persist or ship to another worker
+>>> len(blob) == a.state_bytes()
+True
+>>> del a
+
+>>> # Worker B restores the exact mid-stream state and resumes.
+>>> b = RateConverter(0.5)        # same rate ⇒ same cascade
+>>> b.set_state(blob)
+>>> tail = np.array(b.execute(x[2600:]))
+
+>>> # The hand-off is seamless: identical to one uninterrupted run.
+>>> ref = RateConverter(0.5)
+>>> reference = np.array(ref.execute(x))
+>>> np.array_equal(np.concatenate([head, tail]), reference)
+True
+
+```
+
+The blob carries a self-describing envelope, so a truncated, corrupted, or
+wrong-configuration blob is **rejected** (`ValueError`) rather than silently
+reinterpreted — `set_state` either restores exactly or leaves the converter
+untouched:
+
+```python
+>>> for bad in [blob[:-1],                          # truncated
+...             RateConverter(0.25).get_state()]:   # different rate ⇒ different size
+...     try:
+...         RateConverter(0.5).set_state(bad)
+...     except ValueError:
+...         print("rejected")
+rejected
+rejected
+
+```
+
+`get_state`/`set_state`/`state_bytes` are uniform across every serializable
+doppler type — see the [State Serialization design](../design/state-serialization.md).
+
 ### Functional wrapper
 
 `rate_convert()` creates a `RateConverter` on the first call and returns it

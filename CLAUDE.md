@@ -461,6 +461,39 @@ the `ddcr_*` names via the `reexports` key above. See the gallery walkthrough
 
 ______________________________________________________________________
 
+## State serialization
+
+Every stateful object resumes bit-for-bit from a serialized blob (thread /
+process / pod hand-off). The rule: **serialization is module-specific; the
+bytes interface is not.** The universal layer lives once in
+`native/inc/dp_state.h`; each module packs only its own fields. See
+`docs/design/state-serialization.md` for the full design.
+
+- **ABI triplet** (sibling to `reset`, hand-written in `<obj>_core.c`):
+    `size_t <obj>_state_bytes(const T*)`, `void <obj>_get_state(const T*, void*)`,
+    `int <obj>_set_state(T*, const void*)` → `DP_OK` / `DP_ERR_INVALID`. Optional
+    `DP_DEFINE_RUN(pfx, STATE_T, IN_T, OUT_T)` emits the pure-transducer
+    `<obj>_run` (frame/push shapes like `acq` keep a hand-written `run`).
+- **Envelope**: every blob is `[dp_state_hdr_t][payload]`; compositions nest
+    self-validating child sub-blobs (`[hdr][extra?][child]…`, `state_bytes = hdr + extra + Σ child_state_bytes`). Pack via the `dp_writer_t`/`dp_reader_t`
+    cursors; **every `set_state` opens with `dp_state_validate`** (magic / version
+    / endian / size) so a wrong blob is rejected, never reinterpreted. Per-object
+    `<OBJ>_STATE_MAGIC = DP_FOURCC(...)` + `<OBJ>_STATE_VERSION`.
+- **Python**: set `serializable = "true"` in `objects/<obj>.toml` → `jm apply`
+    generates the `state_bytes`/`get_state`/`set_state` binding + `.pyi`. For a
+    **sacred** `_ext_<obj>.c` fragment (DDC, RateConverter) the flag still
+    generates the `.pyi`, but hand-add the three methods to match jm's form (jm
+    #404 will transplant them). `kind="handle"` modules (`Ddcr`) can't auto-bind
+    yet — jm #403.
+- **Tests**: C uses `DP_STATE_ROUNDTRIP_TEST` (`native/tests/dp_state_test.h`);
+    Python uses the parametrized matrix `src/doppler/tests/test_state_serialization.py`.
+    Both assert bit-exact resume + envelope rejects. Add new types to both.
+
+Blobs are native-endian POD (no cross-endian swap; endian byte rejected on
+mismatch). The format is unreleased — layouts can still change freely.
+
+______________________________________________________________________
+
 ## Build
 
 ```sh

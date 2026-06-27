@@ -1,0 +1,268 @@
+/**
+ * dp_state.h — the standard state **bytes interface** for doppler.
+ *
+ * Serialization is module-specific (only `lo` knows it holds a phase, only
+ * `fir` knows it holds a delay line); the *bytes interface* around it is not.
+ * This header owns that universal layer, once, for every serializable object:
+ *
+ *   - a self-describing envelope (`dp_state_hdr_t`: magic / version / endian /
+ *     size) that prefixes every state blob,
+ *   - writer / reader cursors that turn hand-packing into a few bounds-checked
+ *     calls,
+ *   - `dp_state_validate()` — the one check every `set_state` opens with, so a
+ *     wrong-object / wrong-config / foreign-endian blob is rejected, never
+ *     silently reinterpreted, and
+ *   - `DP_DEFINE_RUN()` — the identical `<obj>_run` pure-transducer wrapper.
+ *
+ * The per-object ABI (the contract jm's `serializable` binding and the Rust FFI
+ * call) stays:
+ *
+ *   size_t <obj>_state_bytes(const <obj>_state_t *);
+ *   void   <obj>_get_state  (const <obj>_state_t *, void *blob);
+ *   int    <obj>_set_state  (<obj>_state_t *, const void *blob);  // DP_OK / -<err>
+ *
+ * Blob layout, every object:   [ dp_state_hdr_t ] [ module payload ]
+ * Compositions embed children as self-contained sub-blobs (each carries its own
+ * header): [ hdr ] [ extra? ] [ child blob ]...  with
+ * state_bytes = sizeof(hdr) + sizeof(extra) + Σ child_state_bytes.
+ *
+ * Blobs are native-endian POD for same-machine / same-arch resume (thread,
+ * process, pod).  The endian byte is stamped and rejected on mismatch; there is
+ * deliberately no cross-endian byte-swap.
+ */
+#ifndef DP_STATE_H
+#define DP_STATE_H
+
+#include "clib_common.h" /* DP_OK, DP_ERR_INVALID, fixed-width ints, memcpy */
+
+/* FourCC type tag, e.g. DP_FOURCC('A','C','Q','R'). Stored little-end-first so
+ * the bytes read as "ACQR" in a hex dump on a little-endian host. */
+#define DP_FOURCC(a, b, c, d)                                                 \
+  ((uint32_t) ((uint32_t) (uint8_t) (a) | ((uint32_t) (uint8_t) (b) << 8)     \
+               | ((uint32_t) (uint8_t) (c) << 16)                             \
+               | ((uint32_t) (uint8_t) (d) << 24)))
+
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#  define DP_STATE_ENDIAN 2u
+#else
+#  define DP_STATE_ENDIAN 1u /* little-endian (x86-64, arm64 — doppler targets) */
+#endif
+
+/**
+ * @brief Common 16-byte envelope at the head of every state blob.
+ *
+ * 16 bytes keeps a following `double`/`uint64_t` (a composition's extra header)
+ * naturally 8-aligned.
+ */
+typedef struct
+{
+  uint32_t magic;   /**< Per-object FourCC type tag (DP_FOURCC).            */
+  uint16_t version; /**< Per-object blob format version.                    */
+  uint8_t  endian;  /**< DP_STATE_ENDIAN at serialize time.                 */
+  uint8_t  flags;   /**< Reserved; 0.                                       */
+  uint32_t bytes;   /**< Total blob size; equals <obj>_state_bytes().       */
+  uint32_t _pad;    /**< Reserved; 0.                                       */
+} dp_state_hdr_t;
+
+/* ── writer cursor ──────────────────────────────────────────────────────────
+ * Sticky-error model: a bounds overrun sets `err` and subsequent writes no-op,
+ * so call sites stay flat (check `w.err` once at the end if desired). Overrun
+ * cannot happen when the caller allocated <obj>_state_bytes() — it is a guard. */
+typedef struct
+{
+  uint8_t *buf;
+  size_t   cap;
+  size_t   off;
+  int      err;
+} dp_writer_t;
+
+static inline dp_writer_t
+dp_writer_init (void *blob, size_t cap)
+{
+  dp_writer_t w = { (uint8_t *) blob, cap, 0, 0 };
+  return w;
+}
+
+static inline void
+dp_w_bytes (dp_writer_t *w, const void *src, size_t n)
+{
+  if (w->err || w->off + n > w->cap)
+    {
+      w->err = 1;
+      return;
+    }
+  memcpy (w->buf + w->off, src, n);
+  w->off += n;
+}
+
+/** Reserve @p n bytes and return the region (for a child's get_state to fill);
+ *  NULL on overrun. */
+static inline void *
+dp_w_reserve (dp_writer_t *w, size_t n)
+{
+  if (w->err || w->off + n > w->cap)
+    {
+      w->err = 1;
+      return NULL;
+    }
+  void *p = w->buf + w->off;
+  w->off += n;
+  return p;
+}
+
+static inline void
+dp_w_u32 (dp_writer_t *w, uint32_t v)
+{
+  dp_w_bytes (w, &v, sizeof v);
+}
+static inline void
+dp_w_u64 (dp_writer_t *w, uint64_t v)
+{
+  dp_w_bytes (w, &v, sizeof v);
+}
+static inline void
+dp_w_f64 (dp_writer_t *w, double v)
+{
+  dp_w_bytes (w, &v, sizeof v);
+}
+static inline void
+dp_w_cf32 (dp_writer_t *w, const float _Complex *p, size_t n)
+{
+  dp_w_bytes (w, p, n * sizeof (float _Complex));
+}
+static inline void
+dp_w_f32 (dp_writer_t *w, const float *p, size_t n)
+{
+  dp_w_bytes (w, p, n * sizeof (float));
+}
+
+/** Stamp the standard envelope. @p total must equal <obj>_state_bytes(). */
+static inline void
+dp_w_hdr (dp_writer_t *w, uint32_t magic, uint16_t version, size_t total)
+{
+  dp_state_hdr_t h
+      = { magic, version, (uint8_t) DP_STATE_ENDIAN, 0, (uint32_t) total, 0 };
+  dp_w_bytes (w, &h, sizeof h);
+}
+
+/* ── reader cursor ──────────────────────────────────────────────────────── */
+typedef struct
+{
+  const uint8_t *buf;
+  size_t         cap;
+  size_t         off;
+  int            err;
+} dp_reader_t;
+
+static inline dp_reader_t
+dp_reader_init (const void *blob, size_t cap)
+{
+  dp_reader_t r = { (const uint8_t *) blob, cap, 0, 0 };
+  return r;
+}
+
+static inline void
+dp_r_bytes (dp_reader_t *r, void *dst, size_t n)
+{
+  if (r->err || r->off + n > r->cap)
+    {
+      r->err = 1;
+      return;
+    }
+  memcpy (dst, r->buf + r->off, n);
+  r->off += n;
+}
+
+/** Borrow @p n bytes in place (for a child's set_state to read); NULL on
+ *  overrun. */
+static inline const void *
+dp_r_reserve (dp_reader_t *r, size_t n)
+{
+  if (r->err || r->off + n > r->cap)
+    {
+      r->err = 1;
+      return NULL;
+    }
+  const void *p = r->buf + r->off;
+  r->off += n;
+  return p;
+}
+
+static inline uint32_t
+dp_r_u32 (dp_reader_t *r)
+{
+  uint32_t v = 0;
+  dp_r_bytes (r, &v, sizeof v);
+  return v;
+}
+static inline uint64_t
+dp_r_u64 (dp_reader_t *r)
+{
+  uint64_t v = 0;
+  dp_r_bytes (r, &v, sizeof v);
+  return v;
+}
+static inline double
+dp_r_f64 (dp_reader_t *r)
+{
+  double v = 0.0;
+  dp_r_bytes (r, &v, sizeof v);
+  return v;
+}
+static inline void
+dp_r_cf32 (dp_reader_t *r, float _Complex *p, size_t n)
+{
+  dp_r_bytes (r, p, n * sizeof (float _Complex));
+}
+static inline void
+dp_r_f32 (dp_reader_t *r, float *p, size_t n)
+{
+  dp_r_bytes (r, p, n * sizeof (float));
+}
+
+/**
+ * @brief Validate a blob's envelope before trusting its payload.
+ *
+ * Every <obj>_set_state opens with this.  @p expect_bytes is the receiving
+ * object's <obj>_state_bytes() — a blob from a different object (magic),
+ * format (version), endianness, or config/size (bytes) is rejected rather than
+ * reinterpreted.
+ *
+ * @return DP_OK, or DP_ERR_INVALID on any mismatch.
+ */
+static inline int
+dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
+                   uint16_t version)
+{
+  if (expect_bytes < sizeof (dp_state_hdr_t))
+    return DP_ERR_INVALID;
+  const dp_state_hdr_t *h = (const dp_state_hdr_t *) blob;
+  if (h->magic != magic || h->version != version
+      || h->endian != (uint8_t) DP_STATE_ENDIAN
+      || h->bytes != (uint32_t) expect_bytes)
+    return DP_ERR_INVALID;
+  return DP_OK;
+}
+
+/**
+ * @brief Define the standard `<pfx>_run` pure-transducer wrapper.
+ *
+ * Generates `size_t <pfx>_run(state, state_in, state_out, in, n_in, out,
+ * max_out)`: restore @p state_in (or keep current), call `<pfx>_execute`, then
+ * export @p state_out — the `(state_in, input) -> (state_out, output)` face for
+ * elastic fan-out.  For objects whose middle step is a single `_execute`; an
+ * object with a different step shape (e.g. acq's frame/push) defines its own.
+ */
+#define DP_DEFINE_RUN(pfx, STATE_T, IN_T, OUT_T)                              \
+  size_t pfx##_run (STATE_T *s, const void *state_in, void *state_out,        \
+                    const IN_T *in, size_t n_in, OUT_T *out, size_t max_out)  \
+  {                                                                           \
+    if (state_in && pfx##_set_state (s, state_in) != DP_OK)                   \
+      return 0;                                                               \
+    size_t _n_out = pfx##_execute (s, in, n_in, out, max_out);               \
+    if (state_out)                                                           \
+      pfx##_get_state (s, state_out);                                         \
+    return _n_out;                                                           \
+  }
+
+#endif /* DP_STATE_H */

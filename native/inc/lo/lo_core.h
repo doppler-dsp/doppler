@@ -30,6 +30,7 @@
 #define LO_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #ifdef __cplusplus
 extern "C"
@@ -197,19 +198,22 @@ extern "C"
   uint32_t lo_get_phase (const lo_state_t *state);
   void lo_set_phase (lo_state_t *state, uint32_t phase);
 
-  /* ── Serializable state (the reusable elastic-resume convention) ──────────
+  /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
    * Every composable filter exposes this triplet so a pure transducer
    * (ddc_fn / acq_fn) can serialize a channel's *mutable* state to a flat POD
    * and resume it bit-exactly on any thread/process/pod.  The blob holds only
    * what evolves per sample (here: the phase accumulator) — config (phase_inc,
-   * norm_freq) is rebuilt from the descriptor.  Sized per instance via
-   * lo_state_bytes(); the composing engine stamps the version/validation. */
+   * norm_freq) is rebuilt from the descriptor.  Layout is the standard
+   * envelope: [dp_state_hdr_t][uint32 phase]. */
+#define LO_STATE_MAGIC DP_FOURCC ('L', 'O', '_', '_')
+#define LO_STATE_VERSION 1u
 
-  /** @brief Bytes lo_get_state() writes for @p state. */
+  /** @brief Bytes lo_get_state() writes for @p state (envelope + payload). */
   size_t lo_state_bytes (const lo_state_t *state);
   /** @brief Serialize @p state's mutable state into @p blob (>= lo_state_bytes). */
   void lo_get_state (const lo_state_t *state, void *blob);
-  /** @brief Restore mutable state from @p blob.  @return 0 (always succeeds). */
+  /** @brief Restore mutable state from @p blob.
+   *  @return DP_OK, or DP_ERR_INVALID if the blob's envelope rejects. */
   int lo_set_state (lo_state_t *state, const void *blob);
 
   /**

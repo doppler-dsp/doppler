@@ -117,6 +117,25 @@ phase   = d.code_phase       # tracked code phase (chips)
 rate    = d.code_rate        # tracked chip rate (~1.0 + code Doppler)
 ```
 
+**Sub-epoch partials for an asynchronous symbol clock (`segments`).** When the
+data-symbol rate is on the order of the code-epoch rate but *asynchronous* to it,
+a coherent full-epoch despread straddles data transitions and collapses. Set
+`segments > 1` to split each epoch into that many sub-epoch **partial
+correlations**: `steps()` then emits `segments` partial prompts per period — a
+stream at ~`segments` samples/symbol (since symbol ≈ epoch) for a downstream
+symbol matched filter + `SymbolSync` — and the code is tracked **non-coherently**
+across the partials (`(Σ|E| − Σ|L|)/(Σ|E| + Σ|L|)`), which a data flip cannot
+collapse. `segments=1` (default) is the plain coherent DLL above; choose `≥ 2`
+for symbol-timing recovery. See the
+[async despreader design note](../design/async-symbol-despreader.md).
+
+```python
+# 4 partial correlations per epoch -> non-coherent code tracking + a partial
+# prompt stream for SymbolSync (asynchronous data-symbol clock)
+d = Dll(code, sps=8, bn=0.002, zeta=0.707, spacing=0.5, segments=4)
+partials = d.steps(rx)       # 4 partial prompts per code epoch
+```
+
 ______________________________________________________________________
 
 ## Channel — full tracking channel
@@ -174,30 +193,6 @@ symbols = ss.steps(rx)   # timing-corrected symbols
 ss.rate                  # recovered samples/symbol
 ```
 
-## PartialDespreader — async-capable despreader
-
-`PartialDespreader` despreads when the data-symbol rate is on the order of the
-code-epoch rate but **asynchronous** to it, where a coherent integrate-and-dump
-over one code epoch would straddle data transitions and collapse. It splits each
-epoch into `k` sub-epoch **partial correlations** and (1) emits the `k` partial
-prompts per epoch — a stream at ~`k` samples/symbol that a downstream symbol
-matched filter + `SymbolSync` turn into symbols — and (2) tracks the code
-**non-coherently** (`(Σ|Eₖ| − Σ|Lₖ|)/(Σ|Eₖ| + Σ|Lₖ|)`), which a data flip cannot
-collapse. It embeds a `Dll` code loop; the input is carrier-wiped upstream by a
-`Costas` loop. See the
-[async despreader design note](../design/async-symbol-despreader.md).
-
-```python
-from doppler.track import PartialDespreader
-
-p = PartialDespreader(code, sps=8, k=4, init_chip=0.0, bn=0.002, zeta=0.707,
-                      spacing=0.5)
-partials = p.steps(rx)   # k partial prompts per code epoch
-p.code_rate              # tracked code rate
-```
-
-______________________________________________________________________
-
 ::: doppler.track.LoopFilter
 
 ______________________________________________________________________
@@ -215,7 +210,3 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.track.SymbolSync
-
-______________________________________________________________________
-
-::: doppler.track.PartialDespreader

@@ -210,12 +210,14 @@ class Dll:
         Damping factor (default 0.707).
     spacing : float, default 0.5
         Early/late tap offset, chips (default 0.5).
+    segments : int, default 1
+        Partial correlations per code epoch (default 1). 1 = a coherent full-epoch integrate-and-dump (one prompt/period). >1 splits each epoch into that many sub-epoch partials: it emits that many partial prompts/period and tracks the code non-coherently across them (robust to an asynchronous data-symbol clock). segments/epoch ~ samples/symbol at a downstream SymbolSync when the symbol rate is near the code rate, so choose >= 2 for symbol-timing recovery.
 
     """
-    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
+    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ..., segments: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) discriminator each code period, steer the code NCO, and emit one prompt symbol per period.
+        """Correlate a carrier-wiped cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate, for a downstream symbol matched filter + SymbolSync) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock).
 
         Parameters
         ----------
@@ -260,6 +262,10 @@ class Dll:
     @property
     def last_error(self) -> float:
         """Last error."""
+
+    @property
+    def segments(self) -> int:
+        """Segments."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -441,74 +447,5 @@ class SymbolSync:
         """Release C resources immediately."""
 
     def __enter__(self) -> "SymbolSync": ...
-
-    def __exit__(self, *args: object) -> None: ...
-
-class PartialDespreader:
-    """Create a partial-correlation despreader (COPIES code).
-
-    Parameters
-    ----------
-    code : NDArray[np.uint8], default ...
-        Spreading code (0/1 chips), one period; copied internally.
-    sps : int, default 4
-        Samples per chip.
-    k : int, default 4
-        Partial correlations per code epoch; must be >= 1.
-    init_chip : float, default 0.0
-        Seed code phase, chips.
-    bn : float, default 0.002
-        Code-loop noise bandwidth (per code epoch).
-    zeta : float, default 0.707
-        Damping factor (0.707 = critically damped).
-    spacing : float, default 0.5
-        Early/late tap offset, chips (0.5 = half-chip).
-
-    """
-    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., k: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ...) -> None: ...
-
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Despread a carrier-wiped cf32 block, emitting k sub-epoch partial prompts per code period and steering the code NCO once per period on the non-coherent early-late discriminator (robust to an asynchronous data-symbol clock). The partial-prompt stream feeds a downstream symbol matched filter + SymbolSync.
-
-        Correlates each input sample against the early/prompt/late code taps
-        (dll_accumulate), dumping a partial prompt every `sf/k` chips and
-        steering the code NCO once per epoch on the non-coherent early-late
-        discriminator.
-
-        Parameters
-        ----------
-        x : NDArray[np.complex64]
-            Carrier-wiped input samples.
-
-        Returns
-        -------
-        NDArray[np.complex64]
-            Number of partial prompts written (<= max_out).
-        """
-
-    def reset(self) -> None:
-        """Re-seed the code loop to the create-time code phase; preserve config.
-        """
-
-    @property
-    def code_phase(self) -> float:
-        """Tracked code phase, chips."""
-
-    @property
-    def code_rate(self) -> float:
-        """Tracked code rate (chips advanced per nominal chip, ~1.0)."""
-
-    @property
-    def last_error(self) -> float:
-        """Last non-coherent discriminator output (loop stress)."""
-
-    @property
-    def k(self) -> int:
-        """Partial correlations per code epoch."""
-
-    def destroy(self) -> None:
-        """Release C resources immediately."""
-
-    def __enter__(self) -> "PartialDespreader": ...
 
     def __exit__(self, *args: object) -> None: ...

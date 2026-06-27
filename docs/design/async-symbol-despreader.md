@@ -123,10 +123,10 @@ ______________________________________________________________________
 
 ## 4. Next steps
 
-- **C primitive.** A partial-correlation despreader: emit `K` partial E/P/L per
-    epoch, with a non-coherent-combine path for the DLL discriminator and the
-    partial-prompt stream exposed for the symbol loop. Reuses the sub-chip DLL,
-    `SymbolSync`, `Farrow`, and `loop_filter`.
+- **C primitive — done.** Shipped as `Dll(..., segments=K)`: `segments=1` is the
+    classic coherent full-epoch DLL; `segments>1` emits `K` partial prompts per
+    epoch and tracks the code non-coherently across them. Reuses the sub-chip
+    DLL, `loop_filter`, and composes with `SymbolSync` + `Farrow` downstream.
 - **Close the ~1–2 dB gap.** Match the boxcar length to the *tracked* symbol
     period (not a fixed `K`); evaluate a triangular/RC symbol MF.
 - **Closed-loop code validation.** Extend the jitter asset to drive the

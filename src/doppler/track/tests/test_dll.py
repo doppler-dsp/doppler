@@ -94,3 +94,52 @@ def test_reset_reproducible():
     d.reset()
     d.steps(rx)
     assert (r1, e1) == (d.code_rate, d.last_error)
+
+
+# --- segments > 1: sub-epoch partial despreading for an async symbol clock ---
+TE = SF * SPS
+
+
+def _async_signal(code, nsym, dsym, phi, seed=0):
+    """Carrier-free DSSS, code-aligned, data on an independent clock
+    Tsym=TE*(1+dsym), phase phi (samples)."""
+    rng = np.random.default_rng(seed)
+    csign = np.where(code & 1, -1.0, 1.0)
+    chip = np.repeat(csign, SPS)
+    tsym = TE * (1.0 + dsym)
+    n = int(nsym * tsym) + 2 * TE
+    data = (rng.integers(0, 2, nsym + 6) * 2 - 1).astype(float)
+    idx = np.arange(n)
+    si = np.clip(np.floor((idx - phi) / tsym).astype(int), 0, len(data) - 1)
+    return (data[si] * chip[idx % TE]).astype(np.complex64), data, tsym
+
+
+def test_segments_default_is_one():
+    assert Dll(_code(), SPS, 0.0, 0.005, 0.707, 0.5).segments == 1
+
+
+def test_segments_emits_partials_per_epoch():
+    code = _code(11)
+    rx, _, _ = _async_signal(code, 400, 0.0, 0.0)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    part = d.steps(rx)
+    nep = len(rx) // TE
+    assert d.segments == 4
+    assert (nep - 1) * 4 <= len(part) <= (nep + 1) * 4
+
+
+def test_segments_recover_async_data():
+    # the partials carry an async symbol clock that a coherent full-epoch
+    # despread would collapse; a known-timing symbol despread recovers it
+    code = _code(11)
+    phi = 0.37 * TE
+    rx, data, tsym = _async_signal(code, 2000, 3e-3, phi)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    part = d.steps(rx)
+    acc = np.zeros(2000 + 8)
+    for pp in range(len(part)):
+        s = int(np.floor((TE * (pp + 0.5) / 4 - phi) / tsym))
+        if 0 <= s < 2000:
+            acc[s] += part[pp].real
+    dec = np.where(acc[2:1998] >= 0, 1, -1)
+    assert min(np.mean(dec != data[2:1998]), np.mean(dec == data[2:1998])) == 0

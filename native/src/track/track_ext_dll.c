@@ -45,20 +45,22 @@ DllObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "code", "sps", "init_chip", "bn", "zeta", "spacing", NULL };
-  PyObject          *code_obj  = NULL;
-  unsigned long long sps_raw   = 2;
-  double             init_chip = 0.0;
-  double             bn        = 0.01;
-  double             zeta      = 0.707;
-  double             spacing   = 0.5;
+  static char       *kwlist[]     = { "code", "sps",     "init_chip", "bn",
+                                      "zeta", "spacing", "segments",  NULL };
+  PyObject          *code_obj     = NULL;
+  unsigned long long sps_raw      = 2;
+  double             init_chip    = 0.0;
+  double             bn           = 0.01;
+  double             zeta         = 0.707;
+  double             spacing      = 0.5;
+  unsigned long long segments_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Kdddd", kwlist, &code_obj,
-                                    &sps_raw, &init_chip, &bn, &zeta,
-                                    &spacing))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KddddK", kwlist, &code_obj,
+                                    &sps_raw, &init_chip, &bn, &zeta, &spacing,
+                                    &segments_raw))
     return -1;
   size_t         sps      = (size_t)sps_raw;
+  size_t         segments = (size_t)segments_raw;
   PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
@@ -66,8 +68,9 @@ DllObj_init (DllObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = dll_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                code_len, sps, init_chip, bn, zeta, spacing);
+  self->handle
+      = dll_create ((const uint8_t *)PyArray_DATA (code_arr), code_len, sps,
+                    init_chip, bn, zeta, spacing, segments);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -247,6 +250,18 @@ Dll_getprop_last_error (DllObject *self, void *Py_UNUSED (closure))
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (dll_get_last_error (self->handle));
 }
+static PyObject *
+Dll_getprop_segments (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dll_get_segments (self->handle));
+}
 
 static PyGetSetDef Dll_getset[] = {
   { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn, "Bn.\n", NULL },
@@ -255,6 +270,7 @@ static PyGetSetDef Dll_getset[] = {
   { "code_rate", (getter)Dll_getprop_code_rate, NULL, "Code rate.\n", NULL },
   { "last_error", (getter)Dll_getprop_last_error, NULL, "Last error.\n",
     NULL },
+  { "segments", (getter)Dll_getprop_segments, NULL, "Segments.\n", NULL },
   { NULL }
 };
 
@@ -294,14 +310,21 @@ static PyMethodDef DllObj_methods[] = {
     "steps(x) -> ndarray\n"
     "\n"
     "Correlate a carrier-wiped cf32 block against the local code with "
-    "early/prompt/late taps, run the non-coherent (|E|-|L|)/(|E|+|L|) "
-    "discriminator each code period, steer the code NCO, and emit one prompt "
-    "symbol per period.\n"
+    "early/prompt/late taps and steer the code NCO each code period on the "
+    "non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With "
+    "segments=1 (default) this is a coherent full-epoch integrate-and-dump: "
+    "one prompt symbol per period. With segments>1 each epoch is split into "
+    "that many sub-epoch partial correlations: it emits that many partial "
+    "prompts per period (a stream at ~segments samples/symbol when the symbol "
+    "rate is near the code rate, for a downstream symbol matched filter + "
+    "SymbolSync) and tracks the code non-coherently across the partials, "
+    "which a data flip cannot collapse (robust to an asynchronous data-symbol "
+    "clock).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
-    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, "
-    "0.5)\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -314,8 +337,8 @@ static PyMethodDef DllObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Dll\n"
-    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, "
-    "0.5)\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
   { "reset", (PyCFunction)DllObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -323,8 +346,8 @@ static PyMethodDef DllObj_methods[] = {
     "Re-seed the loop to the create-time code phase; preserve config.\n"
     "\n"
     "    >>> from doppler import Dll\n"
-    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, "
-    "0.5)\n"
+    "    >>> obj = Dll(np.zeros(1, dtype=np.uint8), 2, 0.0, 0.01, 0.707, 0.5, "
+    "1)\n"
     "    >>> obj.reset()\n" },
   { "destroy", (PyCFunction)DllObj_destroy, METH_NOARGS,
     "Release resources." },
@@ -338,7 +361,7 @@ static PyTypeObject DllObjType = {
   .tp_basicsize                           = sizeof (DllObject),
   .tp_dealloc                             = (destructor)DllObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a DLL instance (COPIES @p code).\n",
+  .tp_doc     = "Create a DLL instance (COPIES code).\n",
   .tp_methods = DllObj_methods,
   .tp_getset  = Dll_getset,
   .tp_new     = DllObj_new,

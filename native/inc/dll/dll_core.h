@@ -66,6 +66,12 @@ typedef struct {
     float complex acc_p;     /**< prompt correlator accumulator.           */
     float complex acc_l;     /**< late correlator accumulator.             */
     double last_error;       /**< last discriminator output (loop stress). */
+    size_t segments;         /**< partial correlations per epoch (1 = full). */
+    double seg_chips;        /**< code phase per partial segment = sf/segments.*/
+    double seg_norm;         /**< nominal samples per segment (prompt scale). */
+    size_t seg_idx;          /**< current partial index within the epoch.   */
+    double sum_e;            /**< non-coherent early sum over the epoch.     */
+    double sum_l;            /**< non-coherent late sum over the epoch.      */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
 } dll_state_t;
 
@@ -199,10 +205,18 @@ dll_update(dll_state_t *s)
  * @param bn         Loop noise bandwidth (default 0.01).
  * @param zeta       Damping factor (default 0.707).
  * @param spacing    Early/late tap offset, chips (default 0.5).
+ * @param segments   Partial correlations per code epoch (default 1). 1 = a
+ *                   coherent full-epoch integrate-and-dump (one prompt/period).
+ *                   >1 splits each epoch into that many sub-epoch partials: it
+ *                   emits that many partial prompts/period and tracks the code
+ *                   non-coherently across them (robust to an asynchronous
+ *                   data-symbol clock). segments/epoch ~ samples/symbol at a
+ *                   downstream SymbolSync when the symbol rate is near the code
+ *                   rate, so choose >= 2 for symbol-timing recovery.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call dll_destroy() when done.
  */
-dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing);
+dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
 
 /**
  * @brief Destroy a DLL instance and release all memory (incl. the code copy).
@@ -224,6 +238,7 @@ void dll_set_bn(dll_state_t *state, double val);
 double dll_get_code_phase(const dll_state_t *state);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
+size_t dll_get_segments(const dll_state_t *state);
 #ifdef __cplusplus
 }
 #endif

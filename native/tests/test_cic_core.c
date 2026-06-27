@@ -315,6 +315,41 @@ main (void)
     free (out);
   }
 
+  /* ── Serializable state round-trip — the elastic-resume guarantee ─────────
+   * Split a stream at a mid-decimation-cycle cut, hand the state to a fresh
+   * CIC, and continue: output equals an uninterrupted run byte-for-byte. */
+  {
+    const uint32_t R  = 16;
+    const size_t   L  = 320;
+    float complex *in = malloc (L * sizeof (float complex));
+    for (size_t i = 0; i < L; i++)
+      in[i] = (float)(i % 7) - 3.0f + I * ((float)(i % 5) - 2.0f);
+    float complex outA[64], outB[64];
+
+    cic_state_t *ra = cic_create (R);
+    size_t       nA = cic_decimate (ra, in, L, outA);
+    cic_destroy (ra);
+
+    const size_t cut = 173; /* not a multiple of R → mid-cycle phase */
+    cic_state_t *r1  = cic_create (R);
+    size_t       nB  = cic_decimate (r1, in, cut, outB);
+    size_t       sb  = cic_state_bytes (r1);
+    CHECK (sb == 4 * CIC_N * sizeof (uint64_t) + sizeof (uint32_t));
+    void *blob = malloc (sb);
+    cic_get_state (r1, blob);
+    cic_destroy (r1);
+
+    cic_state_t *r2 = cic_create (R);
+    CHECK (cic_set_state (r2, blob) == 0);
+    nB += cic_decimate (r2, in + cut, L - cut, outB + nB);
+    cic_destroy (r2);
+    free (blob);
+
+    CHECK (nA == nB);
+    CHECK (nA > 0 && memcmp (outA, outB, nA * sizeof (float complex)) == 0);
+    free (in);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_cic_core FAILED (%d)\n", _fails);

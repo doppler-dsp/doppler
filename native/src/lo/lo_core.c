@@ -9,6 +9,7 @@
 #include "lo/lo_core.h"
 
 #include <math.h>
+#include <string.h>
 
 #ifdef __AVX512F__
 #include <immintrin.h>
@@ -121,6 +122,32 @@ void
 lo_set_phase (lo_state_t *state, uint32_t phase)
 {
   state->phase = phase;
+}
+
+/* ── Serializable state — phase is the only per-sample state ─────────────────
+ */
+
+size_t
+lo_state_bytes (const lo_state_t *state)
+{
+  (void)state;
+  return sizeof (uint32_t);
+}
+
+void
+lo_get_state (const lo_state_t *state, void *blob)
+{
+  uint32_t phase = state->phase;
+  memcpy (blob, &phase, sizeof phase);
+}
+
+int
+lo_set_state (lo_state_t *state, const void *blob)
+{
+  uint32_t phase;
+  memcpy (&phase, blob, sizeof phase);
+  state->phase = phase;
+  return 0;
 }
 
 uint32_t

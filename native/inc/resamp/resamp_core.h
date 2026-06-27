@@ -93,6 +93,18 @@ extern "C"
    *  Rate and bank are preserved. */
   void resamp_reset (resamp_state_t *state);
 
+  /* Serializable state (reusable elastic-resume convention): the polyphase
+   * phase, the fractional ctrl accumulator, the delay-line write head, and the
+   * three delay buffers (delay_buf, decim_iad, decim_tfd).  Rate, bank, phase
+   * increment and sizes are config (rebuilt from rate on the resumed instance). */
+
+  /** @brief Bytes resamp_get_state() writes for @p state. */
+  size_t resamp_state_bytes (const resamp_state_t *state);
+  /** @brief Serialize @p state's mutable state into @p blob. */
+  void resamp_get_state (const resamp_state_t *state, void *blob);
+  /** @brief Restore mutable state from @p blob (same rate).  @return 0. */
+  int resamp_set_state (resamp_state_t *state, const void *blob);
+
   /* ------------------------------------------------------------------
    * Execute
    * ------------------------------------------------------------------ */

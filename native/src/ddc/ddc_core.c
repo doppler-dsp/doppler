@@ -219,6 +219,67 @@ ddcr_reset (ddcr_state_t *s)
   RateConverter_reset (s->rc);
 }
 
+/* ── Serializable state — compose the chain's leaf serializers ──────────────
+ * Layout: [ddcr_state_hdr_t][r2c][lo][rc...], children in signal-chain order.
+ */
+
+size_t
+ddcr_state_bytes (const ddcr_state_t *s)
+{
+  return sizeof (ddcr_state_hdr_t) + hbdecim_r2c_state_bytes (s->r2c)
+         + lo_state_bytes (s->lo) + RateConverter_state_bytes (s->rc);
+}
+
+void
+ddcr_get_state (const ddcr_state_t *s, void *blob)
+{
+  ddcr_state_hdr_t *hd = (ddcr_state_hdr_t *)blob;
+  hd->magic            = DDCR_STATE_MAGIC;
+  hd->version          = (uint16_t)DDCR_STATE_VERSION;
+  hd->_pad             = 0;
+  hd->rate             = s->rate;
+  hd->bytes            = (uint64_t)ddcr_state_bytes (s);
+
+  char *p = (char *)blob + sizeof (ddcr_state_hdr_t);
+  hbdecim_r2c_get_state (s->r2c, p);
+  p += hbdecim_r2c_state_bytes (s->r2c);
+  lo_get_state (s->lo, p);
+  p += lo_state_bytes (s->lo);
+  RateConverter_get_state (s->rc, p);
+}
+
+int
+ddcr_set_state (ddcr_state_t *s, const void *blob)
+{
+  const ddcr_state_hdr_t *hd = (const ddcr_state_hdr_t *)blob;
+  if (hd->magic != DDCR_STATE_MAGIC || hd->version != DDCR_STATE_VERSION
+      || hd->rate != s->rate || hd->bytes != (uint64_t)ddcr_state_bytes (s))
+    return -1;
+
+  const char *p = (const char *)blob + sizeof (ddcr_state_hdr_t);
+  hbdecim_r2c_set_state (s->r2c, p);
+  p += hbdecim_r2c_state_bytes (s->r2c);
+  lo_set_state (s->lo, p);
+  p += lo_state_bytes (s->lo);
+  RateConverter_set_state (s->rc, p);
+  return 0;
+}
+
+size_t
+ddcr_run (ddcr_state_t *s, const void *state_in, void *state_out,
+          const float *in, size_t n_in, float _Complex *out, size_t max_out)
+{
+  if (state_in)
+    {
+      if (ddcr_set_state (s, state_in) != 0)
+        return 0;
+    }
+  size_t n_out = ddcr_execute (s, in, n_in, out, max_out);
+  if (state_out)
+    ddcr_get_state (s, state_out);
+  return n_out;
+}
+
 double
 ddcr_get_norm_freq (const ddcr_state_t *s)
 {

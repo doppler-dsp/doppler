@@ -3,8 +3,9 @@
 Validates the non-coherent early-minus-late code discriminator
 (|E|-|L|)/(|E|+|L|):
   * the S-curve matches the triangular-autocorrelation E-L reference, is
-    zero at the lock with a restoring slope, and its sub-chip quantization
-    asymmetry halves with each sps doubling (vanishing in the limit);
+    zero at the lock with a restoring slope, and — thanks to the
+    fractional-boundary integrate-and-dump — is smooth and antisymmetric
+    across sub-chip offsets at every sps (no integer-sample staircase);
   * the code-error variance follows a 1/SNR law.
 """
 
@@ -57,15 +58,21 @@ def test_scurve_matches_triangular_reference():
     assert np.corrcoef(m, ref)[0, 1] > 0.99
 
 
-def test_subchip_asymmetry_halves_with_sps():
+def test_subchip_scurve_is_smooth_and_antisymmetric():
+    # The fractional-boundary integrate-and-dump weights the lone sample that
+    # straddles a chip transition by its overlap, so the correlation varies
+    # continuously with sub-sample code phase. The old integer-sample
+    # staircase (whose antisymmetry error shrank only as ~1/sps) is gone: at
+    # every sps the S-curve is antisymmetric to round-off and free of jumps.
     taus = np.linspace(-1, 1, 41)
-    asym = [
-        np.max(np.abs(_scurve(s, taus) + _scurve(s, taus)[::-1]))
-        for s in (8, 16, 32)
-    ]
-    # each sps doubling roughly halves the antisymmetry error
-    assert asym[1] < 0.6 * asym[0]
-    assert asym[2] < 0.6 * asym[1]
+    for s in (8, 16, 32):
+        m = _scurve(s, taus)
+        assert (
+            np.max(np.abs(m + m[::-1])) < 1e-3
+        )  # antisymmetric, no staircase
+        assert (
+            np.max(np.abs(np.diff(m))) < 0.15
+        )  # smooth, no sample-quantum jump
 
 
 def _disc_var(snr_db, sps=16, nper=400):

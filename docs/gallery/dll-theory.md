@@ -9,9 +9,10 @@ non-coherent early-minus-late code discriminator `(|E|-|L|)/(|E|+|L|)`.
 code-phase error, bn → 0) follows the **triangular-autocorrelation E-L
 reference** `(R(τ+s)-R(τ-s))/(R(τ+s)+R(τ-s))`, `R(τ)=max(0,1-|τ|)`: zero with a
 restoring (negative) slope at the lock, linear within the early-late span, and
-saturating beyond ±½ chip. The visible staircase is sub-chip code-phase
-quantization at `sps=16`; its asymmetry **halves with each `sps` doubling**
-(0.25 → 0.13 → 0.06), i.e. vanishes in the continuous limit.
+saturating beyond ±½ chip. The **fractional-boundary integrate-and-dump**
+overlap-weights the lone sample straddling each chip transition, so the curve is
+**smooth and antisymmetric to round-off at any `sps`** — no integer-sample
+code-phase staircase, giving the loop true sub-chip resolution.
 
 **Right — Code-error variance vs SNR.** At the lock the early-late discriminator
 variance follows a clean **`1/SNR`** law (the per-epoch code-error noise) — the

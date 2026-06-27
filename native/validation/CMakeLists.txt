@@ -22,3 +22,12 @@ target_link_libraries(validate_costas_jitter PRIVATE doppler_lib_static m)
 target_compile_options(validate_costas_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_jitter
          COMMAND validate_costas_jitter --check)
+
+add_executable(validate_dll_jitter
+               ${CMAKE_CURRENT_SOURCE_DIR}/dll_jitter.c)
+target_include_directories(validate_dll_jitter
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static m)
+target_compile_options(validate_dll_jitter PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_dll_jitter
+         COMMAND validate_dll_jitter --check)

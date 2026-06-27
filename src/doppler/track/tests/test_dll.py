@@ -12,14 +12,21 @@ def _code(seed=1):
     return np.random.default_rng(seed).integers(0, 2, SF).astype(np.uint8)
 
 
-def _signal(code, delta, nper, seed=9):
-    """Carrier-free spread signal at code rate (1+delta), BPSK data/period."""
+def _signal(code, delta, nper, seed=9, const_data=False):
+    """Carrier-free spread signal at code rate (1+delta), BPSK data/period.
+
+    With ``const_data`` the per-period BPSK symbol is held at +1, isolating
+    code tracking from the data-symbol vs code-period timing (a separate
+    symbol-sync concern): under a code-rate offset the code period slowly
+    slides against the data-symbol clock, so a per-period data flip can split
+    a prompt integration across two opposite symbols and cut the despread.
+    """
     rng = np.random.default_rng(seed)
     n = SF * SPS * nper
     rx = np.empty(n, np.complex64)
     cph = 0.0
     for p in range(nper):
-        data = 1 if rng.integers(0, 2) else -1
+        data = 1 if const_data else (1 if rng.integers(0, 2) else -1)
         for i in range(SF * SPS):
             idx = int(cph % SF)
             rx[p * SF * SPS + i] = data * (-1.0 if code[idx] & 1 else 1.0)
@@ -58,12 +65,14 @@ def test_one_prompt_per_period():
 def test_tracks_code_doppler():
     code = _code(11)
     delta = 5e-4
-    rx = _signal(code, delta, 1500, seed=9)
+    # const_data isolates code-Doppler tracking from data-symbol/code-period
+    # async; the replica speeds up to match the incoming chip rate and the
+    # fractional-boundary discriminator holds sub-chip lock (clean despread).
+    rx = _signal(code, delta, 1500, seed=9, const_data=True)
     d = Dll(code, SPS, 0.0, 0.005, 0.707, 0.5)
-    d.steps(rx)
-    # the replica speeds up to match the incoming chip rate
+    sym = d.steps(rx)
     assert d.code_rate == pytest.approx(1.0 + delta, abs=1e-4)
-    assert abs(d.last_error) < 0.1
+    assert np.mean(np.abs(sym[len(sym) // 2 :].real)) > 0.9
 
 
 def test_pulls_in_static_offset():

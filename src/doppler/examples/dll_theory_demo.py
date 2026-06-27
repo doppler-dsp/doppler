@@ -7,9 +7,10 @@ non-coherent early-minus-late code discriminator `(|E|-|L|)/(|E|+|L|)`:
     static code-phase error and read the discriminator, vs the triangular
     autocorrelation reference, R(t)=max(0,1-|t|): zero at the lock t=0
     with a restoring (negative) slope.
-    Zero (stable lock) at t=0 with a restoring (negative) slope. The small
-    asymmetry is sub-chip code-phase quantization: it halves with each sps
-    doubling (shown), i.e. vanishes in the continuous limit.
+    Zero (stable lock) at t=0 with a restoring (negative) slope. The
+    fractional-boundary integrate-and-dump (overlap-weighting the lone sample
+    that straddles a chip transition) makes the curve smooth and antisymmetric
+    to round-off at any sps — no integer-sample code-phase staircase.
 
   * **Code-error variance vs SNR** — at lock the early-late discriminator
     variance follows a clean `1/SNR` law (the per-epoch code-error noise).

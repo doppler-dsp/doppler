@@ -47,11 +47,13 @@ make_code (uint8_t *code, size_t sf, uint32_t seed)
     code[i] = prbs (&st) > 0 ? 0u : 1u;
 }
 
-/* Carrier-free spread signal at code rate (1+delta), random BPSK data per
- * period. `sps` samples per nominal chip. Returns the sample count. */
+/* Carrier-free spread signal at code rate (1+delta), BPSK data per period
+ * (random, or held at +1 when `const_data` to isolate code tracking from the
+ * data-symbol vs code-period async). `sps` samples per nominal chip. Returns
+ * the sample count. */
 static size_t
 make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
-             double delta, size_t nper, uint32_t seed)
+             double delta, size_t nper, uint32_t seed, int const_data)
 {
   uint32_t dst    = seed;
   size_t   tsamps = sf * sps;
@@ -61,7 +63,7 @@ make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
   double   cph    = 0.0; /* incoming code phase, chips */
   for (size_t p = 0; p < nper; p++)
     {
-      data = prbs (&dst);
+      data = const_data ? 1 : prbs (&dst);
       for (size_t i = 0; i < tsamps; i++, k++)
         {
           size_t idx  = (size_t)fmod (cph, (double)sf);
@@ -110,7 +112,7 @@ main (void)
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 7u);
     float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 3u);
+    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 3u, 0);
 
     dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5);
     float complex *sym = malloc (nper * sizeof (*sym));
@@ -133,15 +135,22 @@ main (void)
     make_code (code, sf, 11u);
     float complex *rx    = malloc (sf * sps * nper * sizeof (*rx));
     double         delta = 5e-4; /* incoming code runs 0.05% fast */
-    size_t         n     = make_signal (rx, code, sf, sps, delta, nper, 9u);
+    size_t         n     = make_signal (rx, code, sf, sps, delta, nper, 9u, 1);
 
     /* half-chip E/L discriminator is steep — keep the loop BW low. */
     dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5);
     float complex *sym = malloc (nper * sizeof (*sym));
-    dll_steps (d, rx, n, sym, nper);
+    size_t         k   = dll_steps (d, rx, n, sym, nper);
     /* the loop must speed its replica up to match the incoming rate */
     CHECK (fabs (dll_get_code_rate (d) - (1.0 + delta)) < 1e-4);
-    CHECK (fabs (dll_get_last_error (d)) < 0.1); /* stays locked */
+    /* sub-chip lock holds: the prompt despreads cleanly over the run tail
+       (mean |Re prompt| near 1; the fractional-boundary discriminator tracks
+       the sliding code phase without the integer-sample staircase). */
+    size_t lo = k / 2;
+    double pm = 0.0;
+    for (size_t j = lo; j < k; j++)
+      pm += fabs (crealf (sym[j]));
+    CHECK (k > lo && pm / (double)(k - lo) > 0.9);
     dll_destroy (d);
     free (rx);
     free (sym);
@@ -156,7 +165,7 @@ main (void)
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 13u);
     float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 17u);
+    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 17u, 0);
 
     /* seed the replica 0.4 chips off — the loop must realign it */
     dll_state_t   *d   = dll_create (code, sf, sps, 0.4, 0.005, 0.707, 0.5);
@@ -182,7 +191,7 @@ main (void)
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 21u);
     float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 3e-4, nper, 5u);
+    size_t         n  = make_signal (rx, code, sf, sps, 3e-4, nper, 5u, 0);
 
     dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5);
     float complex *sym = malloc (nper * sizeof (*sym));

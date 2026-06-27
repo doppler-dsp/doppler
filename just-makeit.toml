@@ -1497,7 +1497,7 @@ name = "endian"
 values = ["le", "be"]
 
 [module.track]
-objects = ["loop_filter", "costas", "dll", "channel", "symsync"]
+objects = ["loop_filter", "costas", "dll", "channel", "symsync", "pdespread"]
 
 [module.dsss]
 objects = ["despreader", "acq"]

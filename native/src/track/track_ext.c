@@ -1,7 +1,7 @@
 /*
  * track_ext.c — Python extension module track
  *
- * Objects: LoopFilter, Costas, Dll, Channel, SymbolSync
+ * Objects: LoopFilter, Costas, Dll, Channel, SymbolSync, PartialDespreader
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -17,6 +17,7 @@
 #include "track_ext_dll.c"
 #include "track_ext_channel.c"
 #include "track_ext_symsync.c"
+#include "track_ext_pdespread.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -39,6 +40,7 @@ PyInit_track(void)
     if (PyType_Ready(&DllObjType) < 0) return NULL;
     if (PyType_Ready(&ChannelObjType) < 0) return NULL;
     if (PyType_Ready(&SymbolSyncObjType) < 0) return NULL;
+    if (PyType_Ready(&PartialDespreaderObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&track_moduledef);
     if (!m) return NULL;
     Py_INCREF(&LoopFilterObjType);
@@ -60,6 +62,10 @@ PyInit_track(void)
     Py_INCREF(&SymbolSyncObjType);
     if (PyModule_AddObject(m, "SymbolSync", (PyObject *)&SymbolSyncObjType) < 0) {
         Py_DECREF(&SymbolSyncObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&PartialDespreaderObjType);
+    if (PyModule_AddObject(m, "PartialDespreader", (PyObject *)&PartialDespreaderObjType) < 0) {
+        Py_DECREF(&PartialDespreaderObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

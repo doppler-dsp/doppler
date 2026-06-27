@@ -109,6 +109,8 @@ extern "C" {
 
 #include "symsync/symsync_core.h"
 
+#include "pdespread/pdespread_core.h"
+
 #include "despreader/despreader_core.h"
 
 #include "acq/acq_core.h"

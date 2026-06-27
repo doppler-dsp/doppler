@@ -162,6 +162,7 @@ nav:
       - Streaming Async Despreader: gallery/async-despread.md
       - Tracking Channel: gallery/channel.md
       - Symbol Timing Recovery: gallery/symsync.md
+      - M-PSK Constellation: gallery/mpsk.md
       - Costas Loop (theory): gallery/costas-theory.md
       - Timing Loop (theory): gallery/symsync-theory.md
       - DLL Code Loop (theory): gallery/dll-theory.md
@@ -188,6 +189,7 @@ nav:
       - "Python: Correlation & Detection": api/python-spectral.md
       - "Python: Spectrum Analyzer (Specan)": api/python-analyzer.md
       - "Python: Detection Statistics": api/python-detection.md
+      - "Python: M-PSK Constellation": api/python-mpsk.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Waveform Generator (Synth / PN)": api/python-wfmgen.md
       - "Python: FIR Filter": api/python-filter.md

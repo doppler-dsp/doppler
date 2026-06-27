@@ -417,49 +417,49 @@ acq_push (acq_state_t *st, const float complex *in, size_t n_in,
   return ndet;
 }
 
-/* ── Serializable carry — the pure-transducer face ──────────────────────────
+/* ── Serializable state — the pure-transducer face ─────────────────────────
  *
- * Fixed flat layout (offsets depend only on the ring capacity), so the blob is
- * portable POD:
+ * Fixed flat layout (offsets depend only on the ring capacity), so the state
+ * blob is portable POD:
  *   [hdr][ float complex unconsumed[ring_cap] ][ float nc_surface[n] (if nc) ]
- * Only the first hdr.n_unconsumed of the unconsumed region carry data; that
+ * Only the first hdr.n_unconsumed of the unconsumed region holds data; that
  * may exceed n (undrained full frames from a max_results-saturated run,
  * preserved so the resume processes them).
  */
 
 static float complex *
-_carry_samples (void *carry)
+_state_samples (void *blob)
 {
-  return (float complex *)((char *)carry + sizeof (acq_carry_hdr_t));
+  return (float complex *)((char *)blob + sizeof (acq_state_hdr_t));
 }
 
 static float *
-_carry_nc (void *carry, size_t ring_cap)
+_state_nc (void *blob, size_t ring_cap)
 {
-  return (float *)((char *)carry + sizeof (acq_carry_hdr_t)
+  return (float *)((char *)blob + sizeof (acq_state_hdr_t)
                    + ring_cap * sizeof (float complex));
 }
 
 size_t
-acq_carry_bytes (const acq_state_t *st)
+acq_state_bytes (const acq_state_t *st)
 {
-  size_t b = sizeof (acq_carry_hdr_t) + st->ring_cap * sizeof (float complex);
+  size_t b = sizeof (acq_state_hdr_t) + st->ring_cap * sizeof (float complex);
   if (st->n_noncoh > 1)
     b += st->n * sizeof (float);
   return b;
 }
 
 void
-acq_get_carry (const acq_state_t *st, void *carry)
+acq_get_state (const acq_state_t *st, void *blob)
 {
   const size_t n   = st->n;
   size_t       h   = DP_LOAD_ACQ (&st->ring->head);
   size_t       t   = DP_LOAD_RLX (&st->ring->tail);
   size_t       nun = h - t;
 
-  acq_carry_hdr_t *hd  = (acq_carry_hdr_t *)carry;
-  hd->magic            = ACQ_CARRY_MAGIC;
-  hd->version          = (uint16_t)ACQ_CARRY_VERSION;
+  acq_state_hdr_t *hd  = (acq_state_hdr_t *)blob;
+  hd->magic            = ACQ_STATE_MAGIC;
+  hd->version          = (uint16_t)ACQ_STATE_VERSION;
   hd->has_nc           = (uint16_t)(st->n_noncoh > 1);
   hd->n                = (uint64_t)n;
   hd->samples_consumed = st->samples_consumed;
@@ -468,41 +468,41 @@ acq_get_carry (const acq_state_t *st, void *carry)
   hd->n_unconsumed     = (uint32_t)nun;
   hd->_pad             = 0;
 
-  float complex *dst = _carry_samples (carry);
+  float complex *dst = _state_samples (blob);
   for (size_t i = 0; i < nun; i++)
     {
       size_t idx = (t + i) & st->ring->mask;
       dst[i]     = st->ring->data[idx * 2] + I * st->ring->data[idx * 2 + 1];
     }
   if (hd->has_nc)
-    memcpy (_carry_nc (carry, st->ring_cap), st->nc_surface,
+    memcpy (_state_nc (blob, st->ring_cap), st->nc_surface,
             n * sizeof (float));
 }
 
 int
-acq_set_carry (acq_state_t *st, const void *carry)
+acq_set_state (acq_state_t *st, const void *blob)
 {
-  const acq_carry_hdr_t *hd = (const acq_carry_hdr_t *)carry;
-  if (hd->magic != ACQ_CARRY_MAGIC || hd->version != ACQ_CARRY_VERSION
+  const acq_state_hdr_t *hd = (const acq_state_hdr_t *)blob;
+  if (hd->magic != ACQ_STATE_MAGIC || hd->version != ACQ_STATE_VERSION
       || hd->n != (uint64_t)st->n || hd->n_noncoh != (uint32_t)st->n_noncoh
       || hd->n_unconsumed > (uint32_t)st->ring_cap)
     return -1;
 
-  /* Reset the live state, then replay the carry's buffered samples + nc. */
+  /* Reset the live state, then replay the blob's buffered samples + nc. */
   DP_STORE_REL (&st->ring->head, 0);
   DP_STORE_REL (&st->ring->tail, 0);
   corr2d_reset (st->corr);
   st->samples_consumed = hd->samples_consumed;
   st->nc_count         = hd->nc_count;
 
-  const float complex *src = _carry_samples ((void *)carry);
+  const float complex *src = _state_samples ((void *)blob);
   if (hd->n_unconsumed > 0)
     dp_f32_write (st->ring, (const float *)src, hd->n_unconsumed);
 
   if (st->nc_surface)
     {
       if (hd->has_nc)
-        memcpy (st->nc_surface, _carry_nc ((void *)carry, st->ring_cap),
+        memcpy (st->nc_surface, _state_nc ((void *)blob, st->ring_cap),
                 st->n * sizeof (float));
       else
         memset (st->nc_surface, 0, st->n * sizeof (float));
@@ -511,13 +511,13 @@ acq_set_carry (acq_state_t *st, const void *carry)
 }
 
 size_t
-acq_run (acq_state_t *st, const void *carry_in, void *carry_out,
+acq_run (acq_state_t *st, const void *state_in, void *state_out,
          const float complex *in, size_t n_in, acq_result_t *result,
          size_t max_results)
 {
-  if (carry_in)
+  if (state_in)
     {
-      if (acq_set_carry (st, carry_in) != 0)
+      if (acq_set_state (st, state_in) != 0)
         return 0;
     }
   else
@@ -525,7 +525,7 @@ acq_run (acq_state_t *st, const void *carry_in, void *carry_out,
 
   size_t ndet = acq_push (st, in, n_in, result, max_results);
 
-  if (carry_out)
-    acq_get_carry (st, carry_out);
+  if (state_out)
+    acq_get_state (st, state_out);
   return ndet;
 }

@@ -1261,6 +1261,75 @@ type = "double"
 [[module.detection.functions.params]]
 name = "pfa"
 type = "double"
+[module.mpsk]
+objects = []
+
+# M-PSK constellation map/demap (Gray-coded; BPSK/QPSK/8PSK). Element-wise free
+# functions (one symbol-label byte <-> one cf32 point) + differential variants
+# (array-sequential). Inline slice/constellation helpers live in mpsk_core.h for
+# the carrier loop + receiver to compose. Docstrings (incl. @code doctests) are
+# synthesized from the mpsk_core.h Doxygen.
+[[module.mpsk.functions]]
+name = "mpsk_map"
+out_type = "float _Complex"
+
+[[module.mpsk.functions.params]]
+name = "sym"
+type = "uint8_t[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_demap"
+out_type = "uint8_t"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_diff_map"
+out_type = "float _Complex"
+
+[[module.mpsk.functions.params]]
+name = "sym"
+type = "uint8_t[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_diff_demap"
+out_type = "uint8_t"
+
+[[module.mpsk.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
+[[module.mpsk.functions]]
+name = "mpsk_bits_per_symbol"
+return_type = "int"
+
+[[module.mpsk.functions.params]]
+name = "m"
+type = "int"
+default = "4"
+
 [module.agc]
 objects = ["agc"]
 

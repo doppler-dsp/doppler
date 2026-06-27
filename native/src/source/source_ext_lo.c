@@ -14,6 +14,16 @@
 typedef struct
 {
   PyObject_HEAD lo_state_t *handle;
+  float complex            *_steps_buf; /* pre-allocated output for steps */
+  size_t                    _steps_buf_cap; /* allocated capacity for steps */
+  void                    **_steps_retired; /* gh-219 deferred free */
+  size_t                    _steps_retired_n;
+  size_t                    _steps_retired_cap;
+  float complex *_steps_ctrl_buf;     /* pre-allocated output for steps_ctrl */
+  size_t         _steps_ctrl_buf_cap; /* allocated capacity for steps_ctrl */
+  void         **_steps_ctrl_retired; /* gh-219 deferred free */
+  size_t         _steps_ctrl_retired_n;
+  size_t         _steps_ctrl_retired_cap;
 } LOObject;
 
 static void
@@ -21,6 +31,14 @@ LOObj_dealloc (LOObject *self)
 {
   if (self->handle)
     lo_destroy (self->handle);
+  free (self->_steps_buf);
+  for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
+    free (self->_steps_retired[_i]);
+  free (self->_steps_retired);
+  free (self->_steps_ctrl_buf);
+  for (size_t _i = 0; _i < self->_steps_ctrl_retired_n; _i++)
+    free (self->_steps_ctrl_retired[_i]);
+  free (self->_steps_ctrl_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -47,6 +65,32 @@ LOObj_init (LOObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "lo_create returned NULL");
       return -1;
     }
+  {
+    size_t _max = lo_steps_max_out (self->handle);
+    if (_max)
+      {
+        self->_steps_buf = malloc (_max * sizeof (float complex));
+        if (!self->_steps_buf)
+          {
+            PyErr_NoMemory ();
+            return -1;
+          }
+        self->_steps_buf_cap = _max;
+      }
+  }
+  {
+    size_t _max = lo_steps_ctrl_max_out (self->handle);
+    if (_max)
+      {
+        self->_steps_ctrl_buf = malloc (_max * sizeof (float complex));
+        if (!self->_steps_ctrl_buf)
+          {
+            PyErr_NoMemory ();
+            return -1;
+          }
+        self->_steps_ctrl_buf_cap = _max;
+      }
+  }
   return 0;
 }
 
@@ -63,31 +107,100 @@ LOObj_reset (LOObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-LOObj_steps (LOObject *self, PyObject *args)
+LOObj_steps_max_out (LOObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 1;
-  if (!PyArg_ParseTuple (args, "|n", &n))
-    return NULL;
-  if (n < 0)
+  return PyLong_FromSize_t (lo_steps_max_out (self->handle));
+}
+
+static PyObject *
+LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
     {
-      PyErr_SetString (PyExc_ValueError, "n must be >= 0");
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* NumPy owns the output: allocate exactly n and write into it. Each call
-   * returns an independent array (sizing a shared reuse buffer to a fixed cap
-   * overflowed for large n — #116; and a grown shared buffer aliases/dangles
-   * earlier results across calls). lo_steps writes exactly n samples. */
-  npy_intp  dim = (npy_intp)n;
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax = lo_steps_max_out (self->handle);
+      if (_cap < _omax)
+        {
+          PyErr_Format (PyExc_ValueError,
+                        "out has %zu elements, need >= %zu (steps_max_out)",
+                        _cap, _omax);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t    n_out  = lo_steps (self->handle, (size_t)n,
+                                   (float complex *)PyArray_DATA (out_arr));
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)n;
+  if (!self->_steps_buf || self->_steps_buf_cap < _need)
+    {
+      size_t _max = lo_steps_max_out (self->handle);
+      if (!_max || _max < _need)
+        _max = _need;
+      if (self->_steps_buf
+          && self->_steps_retired_n == self->_steps_retired_cap)
+        {
+          size_t _rcap
+              = self->_steps_retired_cap ? self->_steps_retired_cap * 2 : 4;
+          void **_rt = realloc (self->_steps_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_steps_retired     = _rt;
+          self->_steps_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
+      if (!_tmp)
+        {
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      if (self->_steps_buf)
+        self->_steps_retired[self->_steps_retired_n++] = self->_steps_buf;
+      self->_steps_buf     = _tmp;
+      self->_steps_buf_cap = _max;
+    }
+  size_t    n_out = lo_steps (self->handle, (size_t)n, self->_steps_buf);
+  npy_intp  dim   = (npy_intp)n_out;
+  PyObject *arr
+      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
   if (!arr)
     return NULL;
-  lo_steps (self->handle, (size_t)n,
-            (float complex *)PyArray_DATA ((PyArrayObject *)arr));
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
   return arr;
 }
 
@@ -107,19 +220,107 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args)
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
-  /* Output is one phasor per control sample; NumPy owns it (see steps). */
-  npy_intp  dim = (npy_intp)PyArray_SIZE (ctrl_arr);
-  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
-  if (!arr)
+  size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
+  if (!self->_steps_ctrl_buf || self->_steps_ctrl_buf_cap < _need)
     {
-      Py_DECREF (ctrl_arr);
-      return NULL;
+      size_t _max = lo_steps_ctrl_max_out (self->handle);
+      if (!_max || _max < _need)
+        _max = _need;
+      if (self->_steps_ctrl_buf
+          && self->_steps_ctrl_retired_n == self->_steps_ctrl_retired_cap)
+        {
+          size_t _rcap = self->_steps_ctrl_retired_cap
+                             ? self->_steps_ctrl_retired_cap * 2
+                             : 4;
+          void **_rt
+              = realloc (self->_steps_ctrl_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              Py_DECREF (ctrl_arr);
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_steps_ctrl_retired     = _rt;
+          self->_steps_ctrl_retired_cap = _rcap;
+        }
+      float complex *_tmp = malloc (_max * sizeof (float complex));
+      if (!_tmp)
+        {
+          Py_DECREF (ctrl_arr);
+          PyErr_NoMemory ();
+          return NULL;
+        }
+      if (self->_steps_ctrl_buf)
+        self->_steps_ctrl_retired[self->_steps_ctrl_retired_n++]
+            = self->_steps_ctrl_buf;
+      self->_steps_ctrl_buf     = _tmp;
+      self->_steps_ctrl_buf_cap = _max;
     }
-  lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
-                 (size_t)PyArray_SIZE (ctrl_arr),
-                 (float complex *)PyArray_DATA ((PyArrayObject *)arr));
+  size_t n_out
+      = lo_steps_ctrl (self->handle, (const float *)PyArray_DATA (ctrl_arr),
+                       (size_t)PyArray_SIZE (ctrl_arr), self->_steps_ctrl_buf);
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64,
+                                             self->_steps_ctrl_buf);
+  if (!arr)
+    return NULL;
+  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
+  Py_INCREF (self);
   Py_DECREF (ctrl_arr);
   return arr;
+}
+
+static PyObject *
+LOObj_state_bytes (LOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (lo_state_bytes (self->handle));
+}
+
+static PyObject *
+LOObj_get_state (LOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = lo_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  lo_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+LOObj_set_state (LOObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != lo_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (lo_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 LO_getprop_norm_freq (LOObject *self, void *Py_UNUSED (closure))
@@ -195,7 +396,7 @@ static PyGetSetDef LO_getset[]
           NULL },
         { "phase", (getter)LO_getprop_phase, (setter)LO_setprop_phase,
           "Current phase accumulator value (read/write). Returns the current "
-          "integer phase in [0, 2^32).  Writing overrides the accumulator "
+          "integer phase in `[0, 2^32)`.  Writing overrides the accumulator "
           "directly for phase-coherent frequency switching.\n",
           NULL },
         { "phase_inc", (getter)LO_getprop_phase_inc, NULL,
@@ -235,46 +436,68 @@ LOObj_exit (LOObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef LOObj_methods[]
-    = { { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+static PyMethodDef LOObj_methods[] = {
+  { "reset", (PyCFunction)LOObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
 
-        { "steps", (PyCFunction)LOObj_steps, METH_VARARGS,
-          "steps(n=1) -> ndarray\n"
-          "\n"
-          "Generate n CF32 phasors at the current norm_freq.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LO\n"
-          "    >>> obj = LO(0.0)\n"
-          "    >>> y = obj.steps(4)\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
-        { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS,
-          "steps_ctrl(ctrl) -> ndarray\n"
-          "\n"
-          "Generate CF32 phasors with per-sample FM deviation.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import LO\n"
-          "    >>> obj = LO(0.0)\n"
-          "    >>> y = obj.steps_ctrl(np.zeros(4))\n"
-          "    >>> y.dtype\n"
-          "    dtype('complex64')\n" },
-        { "destroy", (PyCFunction)LOObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)LOObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)LOObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "steps", (PyCFunction)LOObj_steps, METH_VARARGS | METH_KEYWORDS,
+    "steps(n=1) -> ndarray\n"
+    "\n"
+    "Generate n CF32 phasors at the current norm_freq. Each sample is cos(θ) "
+    "+ j·sin(θ) where θ is the phase BEFORE the accumulator is advanced, "
+    "giving a unit-magnitude complex sinusoid via the 65536-entry LUT.  SFDR "
+    "≈ 96 dBc.  Returns n.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import LO\n"
+    "    >>> obj = LO(0.0)\n"
+    "    >>> y = obj.steps(4)\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
+    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
+    "current state.\nUse to size the ``out=`` buffer." },
+  { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS,
+    "steps_ctrl(ctrl) -> ndarray\n"
+    "\n"
+    "Generate CF32 phasors with per-sample FM deviation. For each sample i, "
+    "`ctrl[i]`'s fractional part is converted to a delta phase-increment "
+    "(delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base "
+    "phase_inc for that one step only.  The base norm_freq and phase_inc are "
+    "NOT modified; the deviation is transient per sample, making this the "
+    "natural API for FM synthesis and frequency-hopping.  Output length "
+    "equals ctrl_len.  Returns ctrl_len.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import LO\n"
+    "    >>> obj = LO(0.0)\n"
+    "    >>> y = obj.steps_ctrl(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('complex64')\n" },
+  { "state_bytes", (PyCFunction)LOObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)LOObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)LOObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)LOObj_destroy, METH_NOARGS, "Release resources." },
+  { "__enter__", (PyCFunction)LOObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)LOObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject LOObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "source.LO",
   .tp_basicsize                           = sizeof (LOObject),
   .tp_dealloc                             = (destructor)LOObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create an LO instance.\n",
-  .tp_methods                             = LOObj_methods,
-  .tp_getset                              = LO_getset,
-  .tp_new                                 = LOObj_new,
-  .tp_init                                = (initproc)LOObj_init,
+  .tp_doc
+  = "Create an LO instance. Allocates state, sets phase to 0, and derives "
+    "phase_inc from norm_freq.  Initialises the shared 65536-entry float LUT "
+    "on the first call (single-threaded concern: call lo_create() before "
+    "spawning threads that share LO instances).\n",
+  .tp_methods = LOObj_methods,
+  .tp_getset  = LO_getset,
+  .tp_new     = LOObj_new,
+  .tp_init    = (initproc)LOObj_init,
 };

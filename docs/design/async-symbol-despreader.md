@@ -161,21 +161,39 @@ The carrier loop closes a feedback path (symbol-rate discriminator → per-sampl
 NCO), so unlike the §3 code+symbol cascade it cannot be a pipeline of block
 calls — it must be a per-sample inline loop, i.e. a C object.
 
-## 5. Next steps
+## 5. Build status & next steps
 
-- **Build the C inline async-channel object.** Mirror `channel` (which already
-    inlines `costas_wipeoff` + `dll_accumulate`), generalized to: per sample wipe
-    the carrier and accumulate the code; per segment dump a partial and run the
-    boxcar/symbol stage; take the carrier discriminator from the recovered symbol.
-    Composes `Costas`, `Dll(segments)`, `SymbolSync`, `Farrow`, `loop_filter`.
+**Done — the inline symbol-loop primitive.** `symsync_step()` (the per-sample
+SymbolSync composition API, mirroring `dll_accumulate`/`costas_wipeoff`) is added
+so the channel can drive the carrier loop on recovered symbols inline;
+`symsync_steps()` is now exactly it in a loop (byte-identical).
+
+**In progress — the C inline async-channel object.** Mirror `channel` (which
+already inlines `costas_wipeoff` + `dll_accumulate`), generalized to: per sample
+wipe the carrier and accumulate the code; per segment dump a partial, run the
+boxcar, and `symsync_step`; on a recovered symbol take the carrier discriminator
+and steer the NCO. Composes `Costas`, `Dll(segments)`, `SymbolSync`, `Farrow`,
+`loop_filter`. Two obstacles the standalone prototype surfaced, to resolve in the
+build:
+
+- **Carrier-loop latency.** The carrier discriminator comes from the symbol,
+    which lags the samples by the boxcar + SymbolSync group delay. A seeded carrier
+    holds, but closing the loop on the *delayed* symbol introduces a phase lag
+    (≈ `fc · latency`); needs reduced latency and/or an FLL-tolerant design so the
+    residual stays well inside the phase-detector's linear range.
+- **Inline symbol count.** The inline boxcar→`symsync_step` path emitted a few
+    more symbols than the reference Python cascade (which is exact and BER-clean) —
+    a boxcar-alignment / edge-transient detail to reconcile so the symbol stream is
+    1:1 with the data.
+
+**Then:**
+
 - **Close the ~1–2 dB symbol-MF gap.** Match the boxcar length to the *tracked*
     symbol period (not a fixed `K`); evaluate a triangular/RC symbol MF.
-- **Investigate the high-SNR floor.** The prototype showed a ~2e-4 floor at
-    9.6 dB (worse, relative to the bound, than 8 dB) — likely cycle slips or a
-    symbol-alignment artifact; characterise before the C build.
-- **Closed-loop code-jitter asset.** Extend the jitter asset to drive the
-    non-coherent partial code loop under async data + code Doppler and confirm lock
-    retention and the low-SNR threshold.
+- **Investigate the high-SNR floor** (~2e-4 at 9.6 dB) — cycle slips or alignment.
+- **Closed-loop code-jitter asset.** Drive the non-coherent partial code loop
+    under async data + code Doppler; confirm lock retention and the low-SNR
+    threshold.
 
 The code+symbol path (§3) is shipped as `Dll(..., segments=K)` (`segments=1` =
 the classic coherent DLL); the carrier loop (§4) is the remaining build.

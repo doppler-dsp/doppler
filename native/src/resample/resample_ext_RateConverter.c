@@ -250,6 +250,67 @@ RateConverterObj_get_stages (RateConverterObject *self, void *Py_UNUSED (c))
   return list;
 }
 
+/* serializable (gh-400): state-blob triplet over the RateConverter C ABI,
+ * sibling to reset.  Hand-added (this fragment is sacred — it carries the
+ * bespoke `stages` property and the view-returning execute); mirrors jm's
+ * generated form for the `serializable` flag, which also emits the matching
+ * resample.pyi stubs. */
+static PyObject *
+RateConverterObj_state_bytes (RateConverterObject *self,
+                              PyObject            *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (RateConverter_state_bytes (self->handle));
+}
+
+static PyObject *
+RateConverterObj_get_state (RateConverterObject *self,
+                            PyObject            *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = RateConverter_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  RateConverter_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+RateConverterObj_set_state (RateConverterObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != RateConverter_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (RateConverter_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* -------------------------------------------------------------- */
 /* Method and property tables                                     */
 /* -------------------------------------------------------------- */
@@ -282,6 +343,12 @@ static PyMethodDef RateConverter_methods[]
           "reset() -> None\n"
           "\n"
           "Zero all sub-stage filter memories without changing the rate." },
+        { "state_bytes", (PyCFunction)RateConverterObj_state_bytes,
+          METH_NOARGS, "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)RateConverterObj_get_state, METH_NOARGS,
+          "Serialize the cascade's mutable state to bytes." },
+        { "set_state", (PyCFunction)RateConverterObj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
         { "destroy", (PyCFunction)RateConverterObj_destroy, METH_NOARGS,
           "Release resources early." },
         { "__enter__", (PyCFunction)RateConverterObj_enter, METH_NOARGS,

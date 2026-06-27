@@ -37,7 +37,7 @@ F0 = 3e-4  # residual carrier, cyc/sample (< ½ epoch-FFT bin = 1/2TE)
 DCODE = 2e-4  # code Doppler (chip-rate offset)
 DSYM = 4e-3  # symbol-vs-code rate offset (async)
 PHI = 0.37 * TE  # symbol-clock phase, samples
-NSYM = 400
+NSYM = 1200
 
 
 def _signal(code, seed=9):
@@ -77,34 +77,48 @@ def main(out_path="async_despread_demo.png"):
     # (this is the job of a downstream Costas loop — shown here for clarity).
     tc = TE * (np.arange(len(part)) + 0.5) / K
     dero = part * np.exp(-2j * np.pi * F0 * tc)
-    dero *= np.exp(-0.5j * np.angle(np.mean(dero**2)))
 
     fig, (a, b, c) = plt.subplots(1, 3, figsize=(13.5, 4.2))
 
-    # --- 1. oversampled asynchronous BPSK out ---
-    nshow = 14  # symbols to zoom
-    npp = nshow * K + K
-    pp = np.arange(npp)
-    a.plot(pp, dero.real[:npp], "-o", color="#1f77b4", ms=3.5, lw=1.0)
+    # --- 1. oversampled asynchronous BPSK out (settled window) ---
+    off = (len(part) * 6 // 10) // K * K  # past the code-loop pull-in
+    nshow = 16
+    span = nshow * K
+    pp = np.arange(off, off + span)
+    sl = slice(off, off + span)
+    # align the BPSK to the real axis within this window (a downstream Costas
+    # job; genie here): residual carrier ≈ a constant phase over the window
+    win = dero[sl] * np.exp(-0.5j * np.angle(np.mean(dero[sl] ** 2)))
+    a.plot(
+        pp,
+        win.real,
+        "-o",
+        color="#1f77b4",
+        ms=3.5,
+        lw=1.0,
+        label="despread (real)",
+    )
+    # the despread ENVELOPE makes the amplitude modulation explicit
+    a.plot(pp, np.abs(part[sl]), color="#999999", lw=0.9, label="|despread|")
+    a.plot(pp, -np.abs(part[sl]), color="#999999", lw=0.9)
     a.axhline(0, color="k", lw=0.6)
-    # async symbol boundaries (in partial-index units), sliding vs the epochs
-    m = 0
+    m = 0  # async symbol edges (partials come out at the tracked code rate)
     while True:
-        b_pp = (PHI + m * tsym) * K / TE
-        if b_pp > npp:
+        b_pp = (PHI + m * tsym) * K * (1.0 + DCODE) / TE
+        if b_pp > off + span:
             break
-        if b_pp >= 0:
+        if b_pp >= off:
             a.axvline(b_pp, color="#d62728", ls="--", lw=1.0, alpha=0.7)
         m += 1
-    for e in range(npp // K + 1):  # code-epoch ticks (the despreader's clock)
-        a.axvline(e * K, color="gray", ls=":", lw=0.6, alpha=0.5)
+    a.set_xlim(off, off + span)
     a.set_title(
-        f"Oversampled async BPSK out — {K} partials/symbol\n"
-        "red: symbol edges (async)   gray: code epochs",
+        f"Oversampled async BPSK out — {K}/symbol\n"
+        "envelope dips: the 1/K straddle at each async symbol edge (red)",
         fontsize=9,
     )
     a.set_xlabel("partial index (= output sample)")
     a.set_ylabel("despread output (real)")
+    a.legend(fontsize=7, loc="lower right")
     a.grid(alpha=0.25)
 
     # --- 2. carrier rides on the output (raw partials) ---

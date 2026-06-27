@@ -15,11 +15,26 @@ code epoch.
 ## What you're seeing
 
 **Left — Oversampled asynchronous BPSK out.** The despread partial stream at
-`K = 4` samples/symbol (after a downstream carrier wipe, for clarity). The symbol
-edges (red, dashed) **slide** through the code epochs (gray, dotted) because the
-symbol clock is independent of the code clock — that is the "async" in the name.
-The dips at the edges are the single partial that straddles each data transition;
-every other partial is a clean ±1.
+`K = 4` samples/symbol (after a downstream carrier wipe, for clarity), with the
+`|despread|` envelope (gray) drawn so the amplitude is explicit. The symbol edges
+(red, dashed) **slide** through the partial grid because the symbol clock is
+independent of the code clock — that is the "async" in the name.
+
+The **amplitude modulation** on the envelope is worth understanding — it is
+*code-loop* behaviour, not the carrier (a magnitude is carrier-blind) or noise:
+
+- **Per-symbol dips (the deep notches).** Each async symbol transition lands
+    inside *exactly one* partial per symbol; that partial integrates two
+    opposite-sign data halves, so it is scaled by `|2f−1|` (`f` = where the edge
+    falls in the partial — deepest when mid-partial). The other `K−1` partials are
+    full. This is the two-clock collapse, **confined to 1-of-`K`** instead of
+    wiping a whole epoch — exactly what partial correlation buys you.
+- **A slow breathing of the dips** at the symbol↔epoch beat (period `≈ 1/δ`): as
+    the edge slides, *which* partial dips and *how deeply* drifts.
+- **A gentle overall sag** (the envelope sits a little below 1): the residual
+    code-phase tracking error under a code-Doppler offset depresses the prompt
+    correlation `R(ε) ≈ 1 − |ε|`. Match the code rate (no Doppler) and the envelope
+    is flat at ≈ 1; the sag is a direct **code-tracking-quality** readout.
 
 **Middle — Carrier rides on the output.** The same partials in the complex plane,
 *without* the carrier wipe: the two BPSK clusters are smeared into a **ring** by

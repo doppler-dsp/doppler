@@ -48,39 +48,10 @@ loop_filter_reset (loop_filter_state_t *state)
   state->integ = 0.0;
 }
 
-/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
- * The struct is pointer-free POD, so a whole-struct snapshot is exact; the
- * derived gains / config restore identically into an identical instance. */
-
-size_t
-loop_filter_state_bytes (const loop_filter_state_t *state)
-{
-  (void)state;
-  return sizeof (dp_state_hdr_t) + sizeof (loop_filter_state_t);
-}
-
-void
-loop_filter_get_state (const loop_filter_state_t *state, void *blob)
-{
-  dp_writer_t w = dp_writer_init (blob, loop_filter_state_bytes (state));
-  dp_w_hdr (&w, LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION,
-            loop_filter_state_bytes (state));
-  dp_w_bytes (&w, state, sizeof *state);
-}
-
-int
-loop_filter_set_state (loop_filter_state_t *state, const void *blob)
-{
-  int rc
-      = dp_state_validate (blob, loop_filter_state_bytes (state),
-                           LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION);
-  if (rc != DP_OK)
-    return rc;
-  dp_reader_t r = dp_reader_init (blob, loop_filter_state_bytes (state));
-  r.off         = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&r, state, sizeof *state);
-  return DP_OK;
-}
+/* Serializable state — pointer-free POD whole-struct snapshot
+ * (see DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (loop_filter, loop_filter_state_t, LOOP_FILTER_STATE_MAGIC,
+                     LOOP_FILTER_STATE_VERSION)
 
 void
 loop_filter_steps (loop_filter_state_t *state, const double *input,

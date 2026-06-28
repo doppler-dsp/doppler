@@ -132,3 +132,72 @@ def test_no_target_no_acquire():
     with _bank() as acq:
         # A handful of channels x a low pfa: expect no detection on noise-only.
         assert acq.acquire(noise) is None
+
+
+# ── elastic state hand-off (the pod-migration payoff) ────────────────────────
+
+_CH_KW = {
+    "source_rate": SOURCE_RATE,
+    "code": CODE,
+    "reps": REPS,
+    "spc": SPC,
+    "chip_rate": CHIP_RATE,
+    "cn0_dbhz": 35.0,
+    "pfa": 1e-3,
+    "pd": 0.9,
+}
+
+
+def test_channel_state_roundtrip_and_reject():
+    """A CoarseChannel serializes its DDC + Acquisition state and restores it
+    idempotently into a fresh identical channel; a corrupt blob is rejected."""
+    a = CoarseChannel(0.0, **_CH_KW)
+    a.process(_burst(0.0, REPS, snr_amp=0.5, seed=1), 0)
+    blob = a.get_state()
+
+    b = CoarseChannel(0.0, **_CH_KW)  # same descriptor
+    b.set_state(blob)
+    # Behavioral resume: from the restored state, the next block produces the
+    # exact same detections as continuing the original channel.
+    nxt = _burst(0.0, REPS, snr_amp=0.5, seed=2)
+    assert b.process(nxt, 0) == a.process(nxt, 0)
+
+    with pytest.raises(ValueError):  # truncated
+        b.set_state(blob[:-1])
+    with pytest.raises(ValueError):  # wrong magic / garbage of right length
+        b.set_state(b"\x00" * len(blob))
+    with pytest.raises(TypeError):  # not bytes
+        b.set_state(42)
+
+
+def test_bank_pod_handoff_resumes_bit_exact():
+    """The headline: checkpoint a bank mid-stream, rebuild it from its
+    descriptor on a fresh "pod", restore the blob — and the continuation is
+    bit-for-bit identical to an uninterrupted run, target still acquired."""
+    f_true = 1.5e5  # off-center, lands in a non-DC channel
+    sig = _burst(f_true, REPS * 4, snr_amp=0.3, seed=7)
+    cut = len(sig) // 8  # short warm-up, then hand off mid-stream
+
+    # Uninterrupted reference.
+    ref = _bank()
+    r1 = ref.process(sig[:cut])
+    r2 = ref.process(sig[cut:])
+
+    # Checkpoint after the warm-up; hand the blob to a fresh identical bank.
+    a = _bank()
+    a.process(sig[:cut])
+    blob = a.get_state()
+
+    b = _bank()  # rebuilt from the same descriptor — the "other pod"
+    b.set_state(blob)
+    r2b = b.process(sig[cut:])
+
+    # The resumed continuation is detection-for-detection identical to the
+    # uninterrupted run — and the target survived the migration. (The blobs
+    # themselves aren't byte-compared: the Acquisition ring leaves its unused
+    # tail uninitialized, so behavioral equality is the meaningful invariant.)
+    assert r2b == r2
+    assert any(abs(d.doppler_hz - f_true) <= ref.res_hz for d in r1 + r2)
+
+    for bank in (ref, a, b):
+        bank.close()

@@ -371,8 +371,16 @@ family (`corr`/`corr2d`/`detector`/`detector2d`/`despreader`/`psd`/`specan` —
 opaque FFT plans + work buffers rebuilt by `create`; ring/pending buffers
 zero-padded to a fixed capacity so blobs stay canonical).
 
+### The payoff — elastic pod hand-off
+
+The orchestrator cashes it in: `CoarseChannel.get_state`/`set_state` (and the
+bank-level `Acquirer.get_state`/`set_state`) compose their children's blobs (DDC
+mixer/decimator + the Acquisition search) behind a small Python envelope. So a
+running acquirer is the documented `(descriptor, state, block)` triple —
+checkpoint a bank mid-stream, rebuild it from its descriptor on another pod,
+restore the blob, and the search continues **detection-for-detection identical**
+to an uninterrupted run (`test_bank_pod_handoff_resumes_bit_exact`).
+
 ### Open work
 
-- **Orchestrator pod-handoff** — `CoarseChannel.get_state`/`set_state` composing
-    its DDC + Acquisition blobs (the elastic payoff).
 - **Rust FFI** — expose `get_state`/`set_state` over the C triplet (mechanical).

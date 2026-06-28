@@ -163,6 +163,7 @@ nav:
       - Tracking Channel: gallery/channel.md
       - Symbol Timing Recovery: gallery/symsync.md
       - M-PSK Constellation: gallery/mpsk.md
+      - M-PSK Receiver: gallery/mpsk-receiver.md
       - Costas Loop (theory): gallery/costas-theory.md
       - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
       - NDA Carrier Loop (theory): gallery/carrier-nda.md

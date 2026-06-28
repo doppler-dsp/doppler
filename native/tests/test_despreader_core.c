@@ -1,4 +1,5 @@
 #include "despreader/despreader_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -135,6 +136,28 @@ main (void)
       fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — whole-struct (loop_filter children embedded); the
+   * owned code pointers are preserved across set_state. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    float complex rx[256], sym[8];
+    for (int i = 0; i < 256; i++)
+      rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
+    despreader_state_t *a
+        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    despreader_state_t *b
+        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    CHECK (a != NULL && b != NULL);
+    (void)despreader_steps (a, rx, 256, sym, 8);
+    DP_STATE_ROUNDTRIP_TEST (despreader, a, b);
+    CHECK (b->car_phase == a->car_phase && b->acc_p == a->acc_p);
+    CHECK (b->code != NULL && b->code != a->code);
+    despreader_destroy (a);
+    despreader_destroy (b);
+  }
+
   printf ("test_despreader_core PASSED\n");
   return 0;
 }

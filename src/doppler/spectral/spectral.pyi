@@ -353,6 +353,13 @@ class Corr:
 
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def n(self) -> int:
         """N."""
@@ -439,6 +446,13 @@ class Corr2D:
         [(2+0j), (2+0j), (2+0j), (2+0j)]
 
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def ny(self) -> int:
@@ -912,6 +926,13 @@ class PSD:
         float
             Carrier-minus-highest-spur level in dB (0 if fewer than two peaks).
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def n(self) -> int:

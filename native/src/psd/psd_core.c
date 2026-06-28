@@ -119,6 +119,29 @@ psd_reset (psd_state_t *state)
   acc_trace_reset (state->avg);
 }
 
+/* Serializable state — delegates to the acc_trace power averager (the only
+ * running state); window, FFT plan, and scratch are config (create). */
+size_t
+psd_state_bytes (const psd_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + acc_trace_state_bytes (s->avg);
+}
+
+void
+psd_get_state (const psd_state_t *s, void *blob)
+{
+  DP_GET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, psd_state_bytes (s));
+  DP_W_CHILD (&_w, acc_trace, s->avg);
+}
+
+int
+psd_set_state (psd_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (PSD_STATE_MAGIC, PSD_STATE_VERSION, psd_state_bytes (s));
+  DP_R_CHILD (&_r, acc_trace, s->avg);
+  return DP_OK;
+}
+
 /* ── accumulation ──────────────────────────────────────────────────────── */
 
 /* Transform the already-windowed-and-zero-padded state->frame, convert to

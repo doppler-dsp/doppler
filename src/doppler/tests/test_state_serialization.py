@@ -43,6 +43,7 @@ from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
+from doppler.dsss import Despreader
 from doppler.filter import FIR, HBDecimQ15
 from doppler.resample import (
     CIC,
@@ -52,6 +53,7 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
+from doppler.spectral import PSD, Corr, Corr2D
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
@@ -73,6 +75,10 @@ _FIR_TAPS = (np.array([0.1, -0.2, 0.3, 0.6, 0.3, -0.2, 0.1]) + 0j).astype(
 )
 # 4-tap halfband FIR branch (real float32) for HalfbandDecimator.
 _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
+# A 16-sample reference frame for the correlators / PSD (fixed frame length).
+_REF16 = (np.arange(16) + 0.5j).astype(np.complex64)
+# A 31-chip 0/1 spreading code for the despreader.
+_CODE31 = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
 
 # name -> (make, feed): `make()` builds a fresh instance; `feed(obj, seg)` runs
 # one block and returns its output as an owned array (copy — some executes
@@ -91,6 +97,26 @@ def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
     def feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[np.complex64]:
         o.steps(conv(seg))
         return np.array([o.get()])
+
+    return feed
+
+
+def _despreader_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Despread a block; return the serialized state (no output stream)."""
+    o.steps(seg)
+    return np.frombuffer(o.get_state(), dtype=np.uint8)
+
+
+def _frame_feed(method: str, n: int) -> _Feed:
+    """Feed for fixed-frame accumulators (correlators / PSD): fold each
+    n-sample frame through ``method`` and return the post-block state blob. The
+    running accumulator is the resume observable; plans/ref are config."""
+
+    def feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+        x = seg.astype(np.complex64)
+        for i in range(0, (len(x) // n) * n, n):
+            getattr(o, method)(x[i : i + n])
+        return np.frombuffer(o.get_state(), dtype=np.uint8)
 
     return feed
 
@@ -253,6 +279,21 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LoopFilter": (
         lambda: LoopFilter(0.01, 0.707, 1.0),
         lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
+    ),
+    # Detectors / correlators — running accumulator (or whole-struct), with the
+    # opaque FFT plans + reference rebuilt by create().
+    "Corr": (lambda: Corr(ref=_REF16, dwell=5), _frame_feed("execute", 16)),
+    "Corr2D": (
+        lambda: Corr2D(ref=_REF16.reshape(4, 4), dwell=5),
+        _frame_feed("execute", 16),
+    ),
+    "PSD": (
+        lambda: PSD(n=16, fs=1.0e6, window="hann", mode="mean", alpha=0.1),
+        _frame_feed("accumulate", 16),
+    ),
+    "Despreader": (
+        lambda: Despreader(code=_CODE31, sps=4),
+        _despreader_feed,
     ),
 }
 

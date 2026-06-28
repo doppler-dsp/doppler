@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Corr"
 depends_on = ["fft_core"]
+serializable = "true"
 
 [[corr.init_params]]
 name = "ref"

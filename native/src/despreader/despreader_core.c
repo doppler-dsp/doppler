@@ -107,6 +107,40 @@ despreader_reset (despreader_state_t *state)
   despreader_seed (state);
 }
 
+/* Serializable state — whole-struct snapshot (the two loop_filter children are
+ * POD-embedded, so their bytes are their state); the owned code + acq_code
+ * pointers are config (restored by create) and preserved across set_state. */
+size_t
+despreader_state_bytes (const despreader_state_t *s)
+{
+  (void)s;
+  return sizeof (dp_state_hdr_t) + sizeof (despreader_state_t);
+}
+
+void
+despreader_get_state (const despreader_state_t *s, void *blob)
+{
+  DP_GET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
+               despreader_state_bytes (s));
+  despreader_state_t tmp = *s;
+  tmp.code               = NULL; /* config pointers — not machine addresses */
+  tmp.acq_code           = NULL;
+  dp_w_bytes (&_w, &tmp, sizeof tmp);
+}
+
+int
+despreader_set_state (despreader_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
+               despreader_state_bytes (s));
+  uint8_t *code = s->code; /* this instance's owned codes (config) */
+  uint8_t *acq  = s->acq_code;
+  dp_r_bytes (&_r, s, sizeof *s);
+  s->code     = code;
+  s->acq_code = acq;
+  return DP_OK;
+}
+
 /* Shared streaming kernel: carrier wipe-off, early/prompt/late despread, and
  * per-symbol integrate-and-dump driving the two tracking loops. Exactly one of
  * csym / bits is non-NULL; returns the number of symbols emitted. */

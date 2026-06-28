@@ -27,6 +27,7 @@
 #define CORR2D_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "fft2d/fft2d_core.h"
 
 #ifdef __cplusplus
@@ -162,6 +163,15 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
  */
 size_t corr2d_execute(corr2d_state_t *state, const float complex *in,
                       size_t n_in, float complex *out);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * running 2-D product-spectrum accumulator + frame count;
+ * FFT plans + ref_spec are config, rebuilt by create. */
+#define CORR2D_STATE_MAGIC DP_FOURCC ('C','R','2','D')
+#define CORR2D_STATE_VERSION 1u
+size_t corr2d_state_bytes (const corr2d_state_t *state);
+void corr2d_get_state (const corr2d_state_t *state, void *blob);
+int corr2d_set_state (corr2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

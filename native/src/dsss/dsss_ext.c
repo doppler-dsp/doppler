@@ -1,7 +1,7 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, Acquisition
+ * Objects: Despreader, Acquisition, PolyPhaseEstimator
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -14,6 +14,7 @@
 
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_acq.c"
+#include "dsss_ext_ppe.c"
 
 /* ======================================================== */
 /* Module                                                    */
@@ -33,6 +34,7 @@ PyInit_dsss(void)
     import_array();
     if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&AcquisitionObjType) < 0) return NULL;
+    if (PyType_Ready(&PolyPhaseEstimatorObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&dsss_moduledef);
     if (!m) return NULL;
     Py_INCREF(&DespreaderObjType);
@@ -42,6 +44,10 @@ PyInit_dsss(void)
     Py_INCREF(&AcquisitionObjType);
     if (PyModule_AddObject(m, "Acquisition", (PyObject *)&AcquisitionObjType) < 0) {
         Py_DECREF(&AcquisitionObjType); Py_DECREF(m); return NULL;
+    }
+    Py_INCREF(&PolyPhaseEstimatorObjType);
+    if (PyModule_AddObject(m, "PolyPhaseEstimator", (PyObject *)&PolyPhaseEstimatorObjType) < 0) {
+        Py_DECREF(&PolyPhaseEstimatorObjType); Py_DECREF(m); return NULL;
     }
     return m;
 }

@@ -1,0 +1,56 @@
+# ppe — feedforward polynomial-phase estimator (frequency + chirp rate).
+#
+# Estimates the linear and quadratic phase terms of a complex sequence — i.e.
+# its normalized frequency f (cycles/sample) and chirp rate r (cycles/sample^2)
+# — via the 2-lag Higher-order Ambiguity Function (HAF / Discrete Polynomial
+# Transform): the instantaneous autocorrelation c[m] = y[m+k]*conj(y[m]) is a
+# tone at nu = r*k, so FFT(c) -> peak gives r; dechirping y by r and FFT-ing
+# gives f.  Stateless by-value analyzer (the tonemeas pattern).  The caller
+# strips modulation first (data-aided wipe, or square for NDA then halve).
+#
+# Composes fft_core + the spectral_core find_peaks / window free functions.
+
+[ppe]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "PolyPhaseEstimator"
+depends_on = [{ name = "fft", link = true }, { name = "spectral", link = true }]
+
+[[ppe.init_params]]
+name = "max_len"
+type = "size_t"
+default = "4096"
+
+[[ppe.init_params]]
+name = "lag"
+type = "size_t"
+default = "0"
+
+[[ppe.methods]]
+name = "estimate"
+doc = "Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF."
+arg_type = "float _Complex"
+return_type = "ppe_result_t"
+nogil = true
+single = true
+record_name = "PolyPhaseEstimate"
+record_module = "doppler.dsss"
+result_fields = [{ name = "freq_norm", type = "double" }, { name = "rate_norm", type = "double" }, { name = "snr_db", type = "double" }]
+
+[[ppe.properties]]
+name = "max_len"
+type = "size_t"
+field = true
+
+[[ppe.properties]]
+name = "nfft"
+type = "size_t"
+field = true
+
+[[ppe.properties]]
+name = "lag"
+type = "size_t"
+field = true

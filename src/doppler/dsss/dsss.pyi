@@ -289,3 +289,60 @@ class Acquisition:
     def __enter__(self) -> "Acquisition": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class PolyPhaseEstimator:
+    """Create a polynomial-phase estimator.
+
+    Parameters
+    ----------
+    max_len : int, default 4096
+        Maximum input sequence length (>= 4).
+    lag : int, default 0
+        HAF lag k; 0 selects k = L/2 per call.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.dsss import PolyPhaseEstimator
+    >>> obj = PolyPhaseEstimator(max_len=4096, lag=0)
+
+    """
+    def __init__(self, max_len: int = ..., lag: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """No-op (the estimator carries no running state).
+        """
+
+    def estimate(self, x: complex) -> tuple[float, float, float]:
+        """Estimate (freq, chirp-rate) of a complex sequence via the 2-lag HAF.
+
+        Parameters
+        ----------
+        x : complex
+            Input.
+
+        Returns
+        -------
+        tuple[float, float, float]
+            The estimate; zeroed if n_in is out of range.
+        """
+
+    @property
+    def max_len(self) -> int:
+        """Max len."""
+
+    @property
+    def nfft(self) -> int:
+        """Nfft."""
+
+    @property
+    def lag(self) -> int:
+        """Lag."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "PolyPhaseEstimator": ...
+
+    def __exit__(self, *args: object) -> None: ...

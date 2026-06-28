@@ -119,6 +119,8 @@ extern "C" {
 
 #include "acq/acq_core.h"
 
+#include "ppe/ppe_core.h"
+
 #ifdef __cplusplus
 }
 #endif

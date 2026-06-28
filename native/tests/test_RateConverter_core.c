@@ -396,6 +396,56 @@ test_convert (void)
 }
 
 /* ------------------------------------------------------------------ */
+/* test_state_roundtrip: serialize mid-stream, restore into a fresh */
+/* converter, resume bit-for-bit; a clobbered envelope rejects. */
+/* ------------------------------------------------------------------ */
+static void
+test_state_roundtrip (void)
+{
+  enum
+  {
+    L   = 1024,
+    CUT = 401,
+    CAP = 1024
+  };
+  float complex *in   = malloc (L * sizeof (float complex));
+  float complex *outA = malloc (CAP * sizeof (float complex));
+  float complex *outB = malloc (CAP * sizeof (float complex));
+  CHECK (in && outA && outB);
+  for (size_t i = 0; i < L; i++)
+    in[i] = (float)cos (0.03 * (double)i) + I * (float)sin (0.03 * (double)i);
+
+  RateConverter_state_t *ra = RateConverter_create (0.5, 0);
+  size_t                 nA = RateConverter_execute (ra, in, L, outA, CAP);
+  RateConverter_destroy (ra);
+
+  RateConverter_state_t *r1   = RateConverter_create (0.5, 0);
+  size_t                 nB   = RateConverter_execute (r1, in, CUT, outB, CAP);
+  size_t                 sb   = RateConverter_state_bytes (r1);
+  void                  *blob = malloc (sb);
+  RateConverter_get_state (r1, blob);
+  RateConverter_destroy (r1);
+
+  RateConverter_state_t *r2 = RateConverter_create (0.5, 0);
+  CHECK (RateConverter_set_state (r2, blob) == DP_OK);
+  ((char *)blob)[0] ^= (char)0xFF; /* clobber envelope -> reject */
+  CHECK (RateConverter_set_state (r2, blob) == DP_ERR_INVALID);
+  ((char *)blob)[0] ^= (char)0xFF;
+  nB += RateConverter_execute (r2, in + CUT, L - CUT, outB + nB, CAP - nB);
+  RateConverter_destroy (r2);
+  free (blob);
+
+  CHECK (nA == nB);
+  for (size_t i = 0; i < nA && i < nB; i++)
+    CHECK (crealf (outA[i]) == crealf (outB[i])
+           && cimagf (outA[i]) == cimagf (outB[i]));
+
+  free (in);
+  free (outA);
+  free (outB);
+}
+
+/* ------------------------------------------------------------------ */
 
 int
 main (void)
@@ -408,6 +458,7 @@ main (void)
   test_reset_reproducible ();
   test_execute_max_out ();
   test_convert ();
+  test_state_roundtrip ();
 
   if (_fails)
     {

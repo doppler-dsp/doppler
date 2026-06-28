@@ -4,11 +4,8 @@
 # Batch A (POD): DONE
 # Batch B (POD quantizers: adc + cvt): DONE
 # Batch B' (field-wise, owned buffers): DONE
-# Batch C (compositions):
-symsync
-channel
-mpsk_receiver
-dll
+# Batch C (receiver-chain compositions: dll/symsync/channel/mpsk_receiver): DONE
+# Batch C' (generator composition — optional NULL children, needs presence flags):
 wfm_synth
 # Batch D (correlators/PSD/despreader — opaque FFT children skipped): DONE
 # Batch D' (dp_f32 ring + dynamic/optional buffers — needs ring surgery):

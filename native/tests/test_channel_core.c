@@ -11,6 +11,7 @@
  *   6. Reset reproducibility
  */
 #include "channel/channel_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -270,6 +271,30 @@ main (void)
       fprintf (stderr, "test_channel_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — costas + dll children resume; dll borrows this
+   * channel's own code copy after restore. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    float complex rx[256], sym[16];
+    for (int i = 0; i < 256; i++)
+      rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
+    channel_state_t *a = channel_create (code, 31, 2, 0.0, 0.0, 0.05, 0.005,
+                                         0.0, 0.707, 0.5, 1);
+    channel_state_t *b = channel_create (code, 31, 2, 0.0, 0.0, 0.05, 0.005,
+                                         0.0, 0.707, 0.5, 1);
+    CHECK (a != NULL && b != NULL);
+    (void)channel_steps (a, rx, 256, sym, 16);
+    DP_STATE_ROUNDTRIP_TEST (channel, a, b);
+    CHECK (b->epoch_count == a->epoch_count);
+    CHECK (b->car.acc == a->car.acc);       /* costas child */
+    CHECK (b->code.acc_p == a->code.acc_p); /* dll child */
+    CHECK (b->code_copy != NULL && b->code.code == b->code_copy);
+    channel_destroy (a);
+    channel_destroy (b);
+  }
+
   printf ("test_channel_core PASSED\n");
   return 0;
 }

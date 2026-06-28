@@ -11,6 +11,7 @@ depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
 ]
+serializable = "true"
 
 [[channel.init_params]]
 name = "code"

@@ -8,6 +8,7 @@
  *   3. Clock-rate (asynchronous) tracking -> zero BER + recovered rate
  *   4. All three interpolator orders lock
  */
+#include "dp_state_test.h"
 #include "symsync/symsync_core.h"
 #include <complex.h>
 #include <math.h>
@@ -202,6 +203,22 @@ main (void)
       fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — pointer-free composition resumes whole-struct. */
+  {
+    float complex rx[256], sym[32];
+    for (int i = 0; i < 256; i++)
+      rx[i] = (float)(i % 8) - 4.0f + 0.3f * I;
+    symsync_state_t *a = symsync_create (8, 0.01, 0.707, FARROW_CUBIC);
+    symsync_state_t *b = symsync_create (8, 0.01, 0.707, FARROW_CUBIC);
+    CHECK (a != NULL && b != NULL);
+    (void)symsync_steps (a, rx, 256, sym, 32);
+    DP_STATE_ROUNDTRIP_TEST (symsync, a, b);
+    CHECK (b->timing.phase == a->timing.phase); /* nco child */
+    CHECK (b->last_error == a->last_error);
+    symsync_destroy (a);
+    symsync_destroy (b);
+  }
+
   printf ("test_symsync_core PASSED\n");
   return 0;
 }

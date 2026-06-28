@@ -32,6 +32,7 @@
 #define DLL_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
 #include <complex.h>
@@ -294,6 +295,15 @@ double dll_get_lock_stat(const dll_state_t *state);
 
 /** @brief Current CFAR noise-power estimate E|O|^2 (offset-tap EMA). */
 double dll_get_noise_est(const dll_state_t *state);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * composition+field-wise: loop_filter child (POD-embedded) + running
+ * correlators/loop/lock state; borrowed `code` pointer restored by create. */
+#define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
+#define DLL_STATE_VERSION 1u
+size_t dll_state_bytes (const dll_state_t *state);
+void dll_get_state (const dll_state_t *state, void *blob);
+int dll_set_state (dll_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

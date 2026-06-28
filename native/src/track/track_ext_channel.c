@@ -444,6 +444,59 @@ ChannelObj_exit (ChannelObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+ChannelObj_state_bytes (ChannelObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (channel_state_bytes (self->handle));
+}
+
+static PyObject *
+ChannelObj_get_state (ChannelObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = channel_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  channel_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+ChannelObj_set_state (ChannelObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != channel_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (channel_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef ChannelObj_methods[] = {
 
   { "steps", (PyCFunction)ChannelObj_steps, METH_VARARGS,
@@ -488,6 +541,12 @@ static PyMethodDef ChannelObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)ChannelObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)ChannelObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)ChannelObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)ChannelObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)ChannelObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

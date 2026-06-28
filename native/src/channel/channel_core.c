@@ -77,6 +77,53 @@ channel_reset (channel_state_t *state)
   bitsync_reset (state);
 }
 
+/* Serializable state — costas + dll children as nested sub-blobs, then the
+ * running bit-sync histogram + scalars; the owned code copy is config
+ * (create). */
+size_t
+channel_state_bytes (const channel_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + costas_state_bytes (&s->car)
+         + dll_state_bytes (&s->code)
+         + (s->flip_hist ? s->nav_period * sizeof (size_t) : 0)
+         + 3 * sizeof (uint64_t) + sizeof (double) + 2 * sizeof (uint32_t);
+}
+
+void
+channel_get_state (const channel_state_t *s, void *blob)
+{
+  DP_GET_OPEN (CHANNEL_STATE_MAGIC, CHANNEL_STATE_VERSION,
+               channel_state_bytes (s));
+  DP_W_CHILD (&_w, costas, &s->car);
+  DP_W_CHILD (&_w, dll, &s->code);
+  if (s->flip_hist)
+    dp_w_bytes (&_w, s->flip_hist, s->nav_period * sizeof (size_t));
+  dp_w_u64 (&_w, s->epoch_count);
+  dp_w_u64 (&_w, s->bit_phase);
+  dp_w_u64 (&_w, s->epochs_in_bit);
+  dp_w_f64 (&_w, s->bit_acc);
+  dp_w_u32 (&_w, (uint32_t)s->prev_sign);
+  dp_w_u32 (&_w, (uint32_t)s->have_prev);
+}
+
+int
+channel_set_state (channel_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (CHANNEL_STATE_MAGIC, CHANNEL_STATE_VERSION,
+               channel_state_bytes (s));
+  DP_R_CHILD (&_r, costas, &s->car);
+  DP_R_CHILD (&_r, dll, &s->code);
+  if (s->flip_hist)
+    dp_r_bytes (&_r, s->flip_hist, s->nav_period * sizeof (size_t));
+  s->epoch_count   = (size_t)dp_r_u64 (&_r);
+  s->bit_phase     = (size_t)dp_r_u64 (&_r);
+  s->epochs_in_bit = (size_t)dp_r_u64 (&_r);
+  s->bit_acc       = dp_r_f64 (&_r);
+  s->prev_sign     = (int)dp_r_u32 (&_r);
+  s->have_prev     = (int)dp_r_u32 (&_r);
+  return DP_OK;
+}
+
 /* Process one input sample. On a code-period boundary, dump the prompt, update
  * both loops, and return 1 with the normalised prompt in *prompt. */
 static int

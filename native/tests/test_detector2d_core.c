@@ -1,4 +1,5 @@
 #include "detector2d/detector2d_core.h"
+#include "dp_state_test.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -187,6 +188,30 @@ main (void)
       fprintf (stderr, "test_detector2d_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — corr2d child + ring residual + result fields. */
+  {
+    float complex  ref[16], in[24];
+    det_result2d_t res[16];
+    for (int i = 0; i < 16; i++)
+      ref[i] = (float)(i % 4) + 0.5f * I;
+    for (int i = 0; i < 24; i++)
+      in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
+    detector2d_state_t *a
+        = detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    detector2d_state_t *b
+        = detector2d_create (ref, 4, 4, 3, 1, 15, DET_NOISE_MEAN, 0.0f, 1);
+    CHECK (a != NULL && b != NULL);
+    (void)detector2d_push (a, in, 24, res, 16);
+    DP_STATE_ROUNDTRIP_TEST (detector2d, a, b);
+    CHECK (b->corr->count == a->corr->count); /* corr2d child resumed */
+    CHECK ((DP_LOAD_ACQ (&b->ring->head) - DP_LOAD_RLX (&b->ring->tail))
+           == (DP_LOAD_ACQ (&a->ring->head)
+               - DP_LOAD_RLX (&a->ring->tail))); /* ring residual */
+    CHECK (b->_last_corr_valid == a->_last_corr_valid);
+    detector2d_destroy (a);
+    detector2d_destroy (b);
+  }
+
   printf ("test_detector2d_core PASSED\n");
   return 0;
 }

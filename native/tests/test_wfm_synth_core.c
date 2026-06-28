@@ -1,3 +1,4 @@
+#include "dp_state_test.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <math.h>
@@ -235,6 +236,23 @@ main (void)
       fprintf (stderr, "test_wfm_synth_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — running scalars + present children
+   * (presence-flagged). */
+  {
+    float complex      out[256];
+    wfm_synth_state_t *a
+        = wfm_synth_create (0, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+    wfm_synth_state_t *b
+        = wfm_synth_create (0, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
+    CHECK (a != NULL && b != NULL);
+    wfm_synth_steps (a, out, 256);
+    DP_STATE_ROUNDTRIP_TEST (wfm_synth, a, b);
+    CHECK (b->sym_pos == a->sym_pos && b->chirp_n == a->chirp_n);
+    CHECK (b->cur_re == a->cur_re && b->bit_idx == a->bit_idx);
+    wfm_synth_destroy (a);
+    wfm_synth_destroy (b);
+  }
+
   printf ("test_wfm_synth_core PASSED\n");
   return 0;
 }

@@ -275,6 +275,59 @@ DetectorObj_exit (DetectorObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DetectorObj_state_bytes (DetectorObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (detector_state_bytes (self->handle));
+}
+
+static PyObject *
+DetectorObj_get_state (DetectorObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = detector_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  detector_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+DetectorObj_set_state (DetectorObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != detector_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (detector_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DetectorObj_methods[]
     = { { "reset", (PyCFunction)DetectorObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -295,6 +348,12 @@ static PyMethodDef DetectorObj_methods[]
           "Release resources." },
         { "__enter__", (PyCFunction)DetectorObj_enter, METH_NOARGS, NULL },
         { "__exit__", (PyCFunction)DetectorObj_exit, METH_VARARGS, NULL },
+        { "state_bytes", (PyCFunction)DetectorObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)DetectorObj_get_state, METH_NOARGS,
+          "Serialize the engine's mutable state to bytes." },
+        { "set_state", (PyCFunction)DetectorObj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
         { NULL } };
 
 static PyTypeObject DetectorObjType = {

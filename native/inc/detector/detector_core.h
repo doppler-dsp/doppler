@@ -37,6 +37,7 @@
 
 #include "buffer/buffer.h"
 #include "corr/corr_core.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -215,6 +216,15 @@ void detector_set_threshold (detector_state_t *state, float threshold);
  */
 size_t detector_push (detector_state_t *state, const float complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * corr child + the input ring's unconsumed samples (zero-padded to ring_cap)
+ * + the last-dump result fields; scratch is config (rebuilt by create). */
+#define DETECTOR_STATE_MAGIC DP_FOURCC ('D','E','T','1')
+#define DETECTOR_STATE_VERSION 1u
+size_t detector_state_bytes (const detector_state_t *state);
+void detector_get_state (const detector_state_t *state, void *blob);
+int detector_set_state (detector_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

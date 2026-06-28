@@ -356,26 +356,23 @@ gh-404), and `kind="handle"` (jm generates it over the handle, gh-403):
 | `DDC`, `RateConverter`, compositions, loops   | ✅        | ✅             | `jm` transplant into sacred frag |
 | `Ddcr` (`ddc_fn`, `kind="handle"`)            | ✅        | ✅             | `jm`-auto over the handle        |
 
-A CI gate (`scripts/check_serializable.py`, see [Enforcement](#enforcement--the-gate-it-cant-rot))
-holds the line going forward, with a shrinking burn-down list tracking the
-rollout.
+**The rollout is complete: every stateful object is serializable** (the gate's
+burn-down list is empty). A CI gate (`scripts/check_serializable.py`, see
+[Enforcement](#enforcement--the-gate-it-cant-rot)) holds the line going forward —
+a new object must declare `serializable = "true"` or opt out as stateless.
 
-### Done
-
-Generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/`CarrierNda`/
-`LoopFilter`), `FIR`/`CIC`/`DDC`/`Ddcr`/`RateConverter`/`Resampler`/
+Covered: generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/
+`CarrierNda`/`LoopFilter`), `FIR`/`CIC`/`DDC`/`Ddcr`/`RateConverter`/`Resampler`/
 `HalfbandDecimator`/`Acquisition`, the POD set (`Farrow`/`AGC`/`ADC`/the four
 `acc_*` accumulators/the four `f32_to_*` quantizers), the field-wise set
-(`delay`/`acc_trace`/`hbdecim_q15`), and the compositions (`Dll`/`SymbolSync`/
-`Channel`/`MpskReceiver`).
+(`delay`/`acc_trace`/`hbdecim_q15`), the compositions (`Dll`/`SymbolSync`/
+`Channel`/`MpskReceiver`/`wfm_synth`), and the correlator/detector/analyzer
+family (`corr`/`corr2d`/`detector`/`detector2d`/`despreader`/`psd`/`specan` —
+opaque FFT plans + work buffers rebuilt by `create`; ring/pending buffers
+zero-padded to a fixed capacity so blobs stay canonical).
 
 ### Open work
 
-- **Detectors / correlators** — `corr`, `corr2d`, `detector`, `detector2d`,
-    `despreader`, `psd`, `specan`: field-wise running state, skipping the opaque
-    FFT plans + work buffers that `create()` rebuilds (reconstruct with the same
-    reference, then restore).
-- **`wfm_synth`** — a generator composing `fir`/`lo`/`awgn`/`pn` with optional
-    (possibly-`NULL`) children; needs presence flags in the blob.
 - **Orchestrator pod-handoff** — `CoarseChannel.get_state`/`set_state` composing
-    its DDC + Acquisition blobs.
+    its DDC + Acquisition blobs (the elastic payoff).
+- **Rust FFI** — expose `get_state`/`set_state` over the C triplet (mechanical).

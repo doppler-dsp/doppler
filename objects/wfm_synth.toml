@@ -202,6 +202,7 @@ if (state->pn)
 if (state->fir)
     fir_destroy(state->fir);
 """
+serializable = "true"
 
 [[wfm_synth.state]]
 name = "fir"

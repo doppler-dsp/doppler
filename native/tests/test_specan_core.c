@@ -1,3 +1,4 @@
+#include "dp_state_test.h"
 #include "specan/specan_core.h"
 #include <complex.h>
 #include <math.h>
@@ -136,6 +137,24 @@ main (void)
       fprintf (stderr, "test_specan_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — ddc + psd children + pending samples resume. */
+  {
+    float complex in[4096];
+    float         out[2048];
+    for (int i = 0; i < 4096; i++)
+      in[i] = (float)(i % 7) - 3.0f + 0.2f * I;
+    specan_state_t *a
+        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    specan_state_t *b
+        = specan_create (1e6, 1e5, 1e3, 0.0, 0.0, 0.0, 1.0, 0, 1, 2);
+    CHECK (a != NULL && b != NULL);
+    (void)specan_execute (a, in, 4096, out, 2048);
+    DP_STATE_ROUNDTRIP_TEST (specan, a, b);
+    CHECK (b->pend_len == a->pend_len);
+    specan_destroy (a);
+    specan_destroy (b);
+  }
+
   printf ("test_specan_core PASSED\n");
   return 0;
 }

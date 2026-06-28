@@ -208,6 +208,83 @@ wfm_synth_reset (wfm_synth_state_t *state)
     pn_reset (state->pn);
 }
 
+/* Serializable state — running waveform-position scalars + the optional
+ * fir/lo/awgn/pn children (presence-flagged, so a payload-only or noiseless
+ * synth round-trips); bits[] + sweep geometry are config (restored by create).
+ */
+size_t
+wfm_synth_state_bytes (const wfm_synth_state_t *s)
+{
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos     */
+             + 2 * sizeof (float)                        /* cur_re/im   */
+             + sizeof (uint64_t)                         /* bit_idx     */
+             + sizeof (double)                           /* chirp_ph    */
+             + sizeof (uint64_t)                         /* chirp_n     */
+             + 4;                                        /* presence    */
+  if (s->fir)
+    b += fir_state_bytes (s->fir);
+  if (s->lo)
+    b += lo_state_bytes (s->lo);
+  if (s->awgn)
+    b += awgn_state_bytes (s->awgn);
+  if (s->pn)
+    b += pn_state_bytes (s->pn);
+  return b;
+}
+
+void
+wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
+{
+  DP_GET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
+               wfm_synth_state_bytes (s));
+  dp_w_u32 (&_w, (uint32_t)s->sym_pos);
+  dp_w_f32 (&_w, &s->cur_re, 1);
+  dp_w_f32 (&_w, &s->cur_im, 1);
+  dp_w_u64 (&_w, s->bit_idx);
+  dp_w_f64 (&_w, s->chirp_ph);
+  dp_w_u64 (&_w, s->chirp_n);
+  uint8_t pres[4]
+      = { s->fir != NULL, s->lo != NULL, s->awgn != NULL, s->pn != NULL };
+  dp_w_bytes (&_w, pres, 4);
+  if (s->fir)
+    DP_W_CHILD (&_w, fir, s->fir);
+  if (s->lo)
+    DP_W_CHILD (&_w, lo, s->lo);
+  if (s->awgn)
+    DP_W_CHILD (&_w, awgn, s->awgn);
+  if (s->pn)
+    DP_W_CHILD (&_w, pn, s->pn);
+}
+
+int
+wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (WFM_SYNTH_STATE_MAGIC, WFM_SYNTH_STATE_VERSION,
+               wfm_synth_state_bytes (s));
+  s->sym_pos = (int)dp_r_u32 (&_r);
+  dp_r_f32 (&_r, &s->cur_re, 1);
+  dp_r_f32 (&_r, &s->cur_im, 1);
+  s->bit_idx  = (size_t)dp_r_u64 (&_r);
+  s->chirp_ph = dp_r_f64 (&_r);
+  s->chirp_n  = (size_t)dp_r_u64 (&_r);
+  uint8_t pres[4];
+  dp_r_bytes (&_r, pres, 4);
+  /* the blob's child set must match this instance's config (same wtype). */
+  if ((pres[0] != 0) != (s->fir != NULL) || (pres[1] != 0) != (s->lo != NULL)
+      || (pres[2] != 0) != (s->awgn != NULL)
+      || (pres[3] != 0) != (s->pn != NULL))
+    return DP_ERR_INVALID;
+  if (s->fir)
+    DP_R_CHILD (&_r, fir, s->fir);
+  if (s->lo)
+    DP_R_CHILD (&_r, lo, s->lo);
+  if (s->awgn)
+    DP_R_CHILD (&_r, awgn, s->awgn);
+  if (s->pn)
+    DP_R_CHILD (&_r, pn, s->pn);
+  return DP_OK;
+}
+
 void
 wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
 {

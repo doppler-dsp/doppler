@@ -39,6 +39,7 @@ from numpy.typing import NDArray
 
 from doppler.accumulator import AccCf64, AccF32, AccTrace
 from doppler.agc import AGC
+from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
@@ -53,7 +54,7 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
-from doppler.spectral import PSD, Corr, Corr2D
+from doppler.spectral import PSD, Corr, Corr2D, Detector, Detector2D
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
@@ -64,7 +65,7 @@ from doppler.track import (
     MpskReceiver,
     SymbolSync,
 )
-from doppler.wfm import PN
+from doppler.wfm import PN, _SynthEngine
 
 # A short 0/1 spreading code for the code-tracking compositions.
 _CODE = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
@@ -105,6 +106,18 @@ def _despreader_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     """Despread a block; return the serialized state (no output stream)."""
     o.steps(seg)
     return np.frombuffer(o.get_state(), dtype=np.uint8)
+
+
+def _blob_after(action: Callable[[Any, NDArray[np.complex64]], Any]) -> _Feed:
+    """Run ``action`` then return the serialized state — the whole-state resume
+    observable for objects whose output stream is phase/threshold dependent
+    (detectors, spectrum analyzer, signal generator)."""
+
+    def feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+        action(o, seg)
+        return np.frombuffer(o.get_state(), dtype=np.uint8)
+
+    return feed
 
 
 def _frame_feed(method: str, n: int) -> _Feed:
@@ -294,6 +307,24 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "Despreader": (
         lambda: Despreader(code=_CODE31, sps=4),
         _despreader_feed,
+    ),
+    # Detectors / analyzer / generator — output is phase/threshold dependent,
+    # so the post-block state blob is the resume observable.
+    "Detector": (
+        lambda: Detector(ref=_REF16, dwell=3, threshold=0.0),
+        _blob_after(lambda o, seg: o.push(seg)),
+    ),
+    "Detector2D": (
+        lambda: Detector2D(ref=_REF16.reshape(4, 4), dwell=3, threshold=0.0),
+        _blob_after(lambda o, seg: o.push(seg)),
+    ),
+    "Specan": (
+        lambda: Specan(fs=1e6, span=1e5, rbw=1e3, navg=2),
+        _blob_after(lambda o, seg: o.execute(seg)),
+    ),
+    "_SynthEngine": (
+        lambda: _SynthEngine(),
+        _blob_after(lambda o, seg: o.steps(len(seg))),
     ),
 }
 

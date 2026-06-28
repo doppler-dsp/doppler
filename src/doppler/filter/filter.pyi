@@ -163,3 +163,82 @@ class HBDecimQ15:
     def __enter__(self) -> "HBDecimQ15": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class MovingAverage:
+    """MovingAverage component.
+
+    Parameters
+    ----------
+    len : int, default 4
+        len constructor parameter.
+    gain : float, default 1.0
+        gain constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.filter import MovingAverage
+    >>> obj = MovingAverage(len=4, gain=1.0)
+
+    """
+    def __init__(self, len: int = ..., gain: float = ...) -> None: ...
+
+    def step(self, x: complex) -> complex:
+        """Slide the window by one sample; return the gained moving average.
+
+        O(1): add x, drop the sample leaving the window, return `acc · scale` (=
+        `gain · acc / len`) — one multiply.
+
+        Parameters
+        ----------
+        x : complex
+            One input sample.
+
+        Returns
+        -------
+        complex
+            The gained window mean after admitting x.
+        """
+
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Filter a block: write the gained moving average of each sample.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def reset(self) -> None:
+        """Clear the window (zero the ring and the running sum); keep the configured length and gain.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def len(self) -> int:
+        """Len."""
+
+    @property
+    def gain(self) -> float:
+        """Current output gain."""
+    @gain.setter
+    def gain(self, value: float) -> None: ...
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MovingAverage": ...
+
+    def __exit__(self, *args: object) -> None: ...

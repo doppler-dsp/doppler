@@ -144,6 +144,58 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+AGCObj_state_bytes (AGCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (agc_state_bytes (self->handle));
+}
+
+static PyObject *
+AGCObj_get_state (AGCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = agc_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  agc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+AGCObj_set_state (AGCObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != agc_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (agc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+static PyObject *
 AGC_getprop_gain_db (AGCObject *self, void *Py_UNUSED (closure))
 {
   if (!self->handle)
@@ -288,32 +340,61 @@ AGC_setprop_clip_db (AGCObject *self, PyObject *value,
   self->handle->clip_db = v;
   return 0;
 }
+static PyObject *
+AGC_getprop_gain_update_period (AGCObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->gain_update_period);
+}
+static int
+AGC_setprop_gain_update_period (AGCObject *self, PyObject *value,
+                                void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  unsigned long long v_raw = 0ULL;
+  if (!PyArg_Parse (value, "K", &v_raw))
+    return -1;
+  size_t v                         = (size_t)v_raw;
+  self->handle->gain_update_period = v;
+  return 0;
+}
 
-static PyGetSetDef AGC_getset[] = {
-  { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
-  { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
-    "Return the gain (in dB) actually applied to the most recent sample. "
-    "Computes @c 20*log10(g_last), where @c g_last is the linear multiplier "
-    "that was used on the most recently processed sample.  This differs from "
-    "@c gain_db (the loop integrator's current command) because the loop "
-    "filter advances the command one step ahead after each sample: "
-    "immediately after agc_step() @c gain_db already reflects the updated "
-    "command while @c applied_gain_db still reflects what the signal actually "
-    "saw.  At loop convergence the two values are numerically equal.  At "
-    "create/reset both are 0.0 dB (unity).\n",
-    NULL },
-  { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
-    "Ref db.\n", NULL },
-  { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
-    "Loop bw.\n", NULL },
-  { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha, "Alpha.\n",
-    NULL },
-  { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim, "Decim.\n",
-    NULL },
-  { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
-    "Clip db.\n", NULL },
-  { NULL }
-};
+static PyGetSetDef AGC_getset[]
+    = { { "gain_db", (getter)AGC_getprop_gain_db, NULL, "Gain db.\n", NULL },
+        { "applied_gain_db", (getter)AGC_getprop_applied_gain_db, NULL,
+          "Return the gain (in dB) actually applied to the most recent "
+          "sample. Computes 20*log10(g_last), where g_last is the linear "
+          "multiplier that was used on the most recently processed sample.  "
+          "This differs from gain_db (the loop integrator's current command) "
+          "because the loop filter advances the command one step ahead after "
+          "each sample: immediately after agc_step() gain_db already reflects "
+          "the updated command while applied_gain_db still reflects what the "
+          "signal actually saw.  At loop convergence the two values are "
+          "numerically equal.  At create/reset both are 0.0 dB (unity).\n",
+          NULL },
+        { "ref_db", (getter)AGC_getprop_ref_db, (setter)AGC_setprop_ref_db,
+          "Ref db.\n", NULL },
+        { "loop_bw", (getter)AGC_getprop_loop_bw, (setter)AGC_setprop_loop_bw,
+          "Loop bw.\n", NULL },
+        { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
+          "Alpha.\n", NULL },
+        { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
+          "Decim.\n", NULL },
+        { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
+          "Clip db.\n", NULL },
+        { "gain_update_period", (getter)AGC_getprop_gain_update_period,
+          (setter)AGC_setprop_gain_update_period, "Gain update period.\n",
+          NULL },
+        { NULL } };
 
 static PyObject *
 AGCObj_destroy (AGCObject *self, PyObject *Py_UNUSED (ignored))
@@ -345,72 +426,25 @@ AGCObj_exit (AGCObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-AGCObj_state_bytes (AGCObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (agc_state_bytes (self->handle));
-}
-
-static PyObject *
-AGCObj_get_state (AGCObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = agc_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  agc_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-AGCObj_set_state (AGCObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != agc_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (agc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef AGCObj_methods[] = {
   { "reset", (PyCFunction)AGCObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
   { "step", (PyCFunction)AGC_step, METH_VARARGS,
     "step(x) -> float complex\n"
     "\n"
-    "Process one complex sample through the exact per-sample AGC loop. "
-    "Applies the current @c gain_db, measures the output power via the EMA "
-    "detector, advances the loop-filter integrator by one step, then "
-    "square-clips the returned sample to @c clip_db.  The clip is applied "
-    "after the detector update, so clipping never disturbs convergence. This "
-    "is the exact reference path; agc_steps() is the faster block equivalent "
-    "and is not bit-identical but converges to the same steady state.\n"
+    "Process one complex sample through the per-sample AGC loop. Applies the "
+    "current gain, measures the output power via the EMA detector, advances "
+    "the loop-filter integrator, then square-clips the returned sample to "
+    "clip_db.  The clip is applied after the detector update, so clipping "
+    "never disturbs convergence.  With the default gain_update_period == 1 "
+    "this is the exact per-sample reference path; with gain_update_period P > "
+    "1 the detector and gain-apply still run every sample but the loop-filter "
+    "command (and the exp10/log10 it needs) refreshes once per P samples — a "
+    "zero-order hold on the gain that amortises the transcendentals on a "
+    "sample-rate hot loop, the streaming analogue of agc_steps()' decimation. "
+    "agc_steps() is the faster block equivalent; neither is bit-identical to "
+    "the P == 1 loop once decimated, but both converge to the same steady "
+    "state.\n"
     "\n"
     "    >>> from doppler import AGC\n"
     "    >>> obj = AGC(0.0, 0.0025, 0.05)\n"
@@ -420,7 +454,7 @@ static PyMethodDef AGCObj_methods[] = {
     "steps(x[, out]) -> ndarray\n"
     "\n"
     "Process a block of complex samples through the decimated AGC loop. "
-    "Splits the input into chunks of @c decim samples.  Within each chunk the "
+    "Splits the input into chunks of decim samples.  Within each chunk the "
     "gain is linearly interpolated from the previous chunk's end value to the "
     "new loop-filter output (a first-order hold) so there is no inter-chunk "
     "gain staircase.  The detector and loop filter run once per chunk on the "
@@ -436,16 +470,16 @@ static PyMethodDef AGCObj_methods[] = {
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
 
-  { "destroy", (PyCFunction)AGCObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)AGCObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)AGCObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)AGCObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)AGCObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)AGCObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)AGCObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AGCObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AGCObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
@@ -456,11 +490,11 @@ static PyTypeObject AGCObjType = {
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
   = "Construct a log-domain feedback AGC and return its heap state. The loop "
-    "integrator starts at 0 dB (unity gain) and the power detector @c p_avg "
-    "is pre-seeded to @c 10^(ref_db/10) linear, so the first block of "
-    "on-target samples produces no transient.  Three parameters tune the "
-    "closed-loop behaviour: @p ref_db sets the target, @p loop_bw sets the "
-    "convergence speed, and @p alpha sets the detector smoothing.\n",
+    "integrator starts at 0 dB (unity gain) and the power detector p_avg is "
+    "pre-seeded to 10^(ref_db/10) linear, so the first block of on-target "
+    "samples produces no transient.  Three parameters tune the closed-loop "
+    "behaviour: ref_db sets the target, loop_bw sets the convergence speed, "
+    "and alpha sets the detector smoothing.\n",
   .tp_methods = AGCObj_methods,
   .tp_getset  = AGC_getset,
   .tp_new     = AGCObj_new,

@@ -13,6 +13,17 @@ factor. All three decimation settings below converge on identical
 trajectories — they differ only in how often the loop ticks, not where it
 ends up.
 
+The same decimation is available on the **per-sample** path via
+`gain_update_period` (default `1` = the exact per-sample loop). With
+`gain_update_period = P > 1`, `step()` still applies the gain and folds
+the power detector every sample, but refreshes the loop-filter command
+(the `exp10`/`log10` work) once per `P` samples — a zero-order hold that
+amortises the transcendentals on a sample-rate hot loop, without the block
+latency of `steps()`. It is the streaming analogue of `decim`, for an AGC
+embedded inside a per-sample feedback loop (e.g. the
+[NDA carrier loop](../design/mpsk.md)'s arm) that cannot tolerate block
+buffering. As with `decim`, `loop_bw` keeps its per-sample meaning.
+
 ![AGC decimated-loop convergence](../assets/agc_convergence.png)
 
 The 20 dB power step at sample 3000 is tracked within 1 dB in ~350 samples

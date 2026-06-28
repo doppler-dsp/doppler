@@ -42,7 +42,7 @@ class AGC:
         """
 
     def step(self, x: complex) -> complex:
-        """Process one complex sample through the exact per-sample AGC loop. Applies the current gain_db, measures the output power via the EMA detector, advances the loop-filter integrator by one step, then square-clips the returned sample to clip_db.  The clip is applied after the detector update, so clipping never disturbs convergence. This is the exact reference path; agc_steps() is the faster block equivalent and is not bit-identical but converges to the same steady state.
+        """Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to clip_db.  The clip is applied after the detector update, so clipping never disturbs convergence.  With the default gain_update_period == 1 this is the exact per-sample reference path; with gain_update_period P > 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of agc_steps()' decimation. agc_steps() is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state.
 
         Parameters
         ----------
@@ -144,6 +144,12 @@ class AGC:
         """Clip db."""
     @clip_db.setter
     def clip_db(self, value: float) -> None: ...
+
+    @property
+    def gain_update_period(self) -> int:
+        """Gain update period."""
+    @gain_update_period.setter
+    def gain_update_period(self, value: int) -> None: ...
 
     def destroy(self) -> None:
         """Release C resources immediately."""

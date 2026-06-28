@@ -127,8 +127,9 @@ ______________________________________________________________________
 
 `CarrierNda` is the **non-data-aided** carrier-recovery loop — the cold-start
 counterpart to `CarrierMpsk`. Per sample it de-rotates with the integer `lo` NCO;
-it integrates the de-rotated samples in an I/Q **arm integrate-and-dump at `n`
-dumps per symbol**, and on each dump runs an **M-th-power** phase discriminator
+it filters the de-rotated samples through a free-running I/Q **boxcar moving
+average of `sps/n` samples** (one output per input sample — no rate change), and
+on **every sample** runs an **M-th-power** phase discriminator
 (`z²`/`z⁴`/`z⁸` by repeated squaring). Raising the arm sample to the Mth power
 strips the M-PSK data, so the loop acquires the carrier **with no symbol timing
 and no data present** — a bare/unmodulated carrier, or modulated data before
@@ -141,7 +142,7 @@ stream. See the [NDA carrier gallery](../gallery/carrier-nda.md) and the
 ```python
 from doppler.track import CarrierNda
 
-# QPSK NDA loop, 8 samples/symbol, 4 arm dumps/symbol; all params keyword-capable
+# QPSK NDA loop, 8 samples/symbol, sps/n = 2-sample boxcar arm; keyword-capable
 c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
 derot  = c.steps(rx)         # de-rotated samples (one per input sample)
 f_est  = c.norm_freq         # tracked carrier (cycles/sample)

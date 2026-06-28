@@ -46,6 +46,53 @@ extern "C"
   } fir_state_t;
 
   /**
+   * @brief Single-sample direct-form FIR step (inline composition API).
+   *
+   * Filters one sample and advances the delay line: returns
+   * `y = sum_k h[k] * x[n-k]` and shifts @p x into the length-`num_taps-1`
+   * delay line (dropping the oldest sample). This is the per-sample counterpart
+   * to fir_execute() — a tracking receiver inlines it into its own sample loop
+   * (e.g. a matched filter feeding a symbol-timing loop) where fir_execute()'s
+   * block interface cannot. It mirrors fir_execute()'s real-tap scalar
+   * accumulation term for term, so a fir_step() stream matches fir_execute() to
+   * within floating-point rounding: equal in exact arithmetic; a contracted FMA
+   * can differ by ~1 ULP across translation units, and fir_execute() on a
+   * multi-sample block can differ a little more from SIMD reassociation. Cost is
+   * `num_taps` MACs plus an O(num_taps) delay-line shift per sample.
+   *
+   * @note **Real-tap filters only** (fir_create_real). Pulse-shape matched
+   *   filters — RRC, raised-cosine, integrate-and-dump — are real-valued, which
+   *   is the streaming use case this serves; a complex-tap variant would add a
+   *   complex MAC branch and is left until a consumer needs it.
+   *
+   * @param s  Real-tap filter state (fir_create_real).  Must be non-NULL.
+   * @param x  One input sample.
+   * @return The filtered output sample.
+   */
+  JM_FORCEINLINE JM_HOT float complex
+  fir_step (fir_state_t *s, float complex x)
+  {
+    size_t               M = s->num_taps;
+    const float complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
+    const float         *h = s->rtaps;  /* real taps (fir_create_real)   */
+    float                re = 0.0f, im = 0.0f;
+    for (size_t k = 0; k < M; k++)
+      {
+        float complex cf = (k == 0) ? x : d[M - 1 - k];
+        re += h[k] * crealf (cf);
+        im += h[k] * cimagf (cf);
+      }
+    if (M > 1)
+      {
+        float complex *dl = s->delay; /* shift left, append x as newest */
+        for (size_t i = 0; i + 2 < M; i++)
+          dl[i] = dl[i + 1];
+        dl[M - 2] = x;
+      }
+    return CMPLXF (re, im);
+  }
+
+  /**
    * @brief Create a FIR filter from complex CF32 tap coefficients.
    * Implements a direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`.
    * The tap array is copied at creation; the caller may free it afterward.

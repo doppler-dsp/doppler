@@ -67,3 +67,12 @@ target_link_libraries(validate_carrier_nda_pullin PRIVATE doppler_lib_static m)
 target_compile_options(validate_carrier_nda_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_pullin
          COMMAND validate_carrier_nda_pullin --check)
+
+add_executable(validate_mpsk_receiver_ber
+               ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_receiver_ber.c)
+target_include_directories(validate_mpsk_receiver_ber
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_mpsk_receiver_ber PRIVATE doppler_lib_static m)
+target_compile_options(validate_mpsk_receiver_ber PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_mpsk_receiver_ber
+         COMMAND validate_mpsk_receiver_ber --check)

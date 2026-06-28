@@ -150,6 +150,42 @@ locked = c.lock              # M-th-power lock metric (→ lock_scale when locke
 
 ______________________________________________________________________
 
+## MpskReceiver — pulse-shaped M-PSK modem
+
+`MpskReceiver` is a complete per-sample M-PSK demodulator that composes the
+tracking primitives on one shared sample loop: a `CarrierNda` carrier loop
+(per-sample integer-NCO wipe-off + non-data-aided M-th-power acquisition), an
+owned **matched filter** on the de-rotated stream (`pulse="iandd"` integrate-and-
+dump boxcar by default, or `pulse="rrc"` root-raised-cosine for band-limited
+links), and a `SymbolSync` Gardner timing loop. Carrier recovery follows the
+project rule — **predetection de-rotation** (always) and **postdetection
+discrimination**: the NDA loop acquires with no data and no symbol timing, then,
+when `auto_handover=1` (opt-in) and the loop has locked, the receiver hands the
+shared NCO to a lower-jitter **decision-directed** loop on the recovered symbols
+(essential for 8PSK, whose M-th-power phase noise would otherwise cross the
+±π/8 margins). The loop locks to one of `m` phases (M-fold ambiguity); resolve it
+with `bits(..., differential=1)` or a sync word. `steps()` returns the recovered
+symbols; `bits()` returns hard Gray bits (coherent, or rotation-invariant
+differential). A DSSS-MPSK receiver is `Dll(segments) → MpskReceiver`. All
+constructor parameters are keyword-capable with defaults. See the
+[MPSK receiver gallery](../gallery/mpsk-receiver.md) and the
+[MPSK receiver design](../design/mpsk.md).
+
+```python
+from doppler.track import MpskReceiver
+
+# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in handover
+rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
+                  bn_carrier=0.01, bn_timing=0.01,
+                  auto_handover=1, lock_thresh=0.4)
+sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
+bits = rx.bits(iq)           # hard Gray bits (LSB-first per symbol)
+f    = rx.norm_freq          # tracked carrier (cycles/sample)
+lk   = rx.lock               # carrier lock metric (-> + at lock, every M)
+```
+
+______________________________________________________________________
+
 ## Dll — code-tracking loop
 
 `Dll` is the code-loop counterpart to `Costas`: a delay-lock loop that tracks

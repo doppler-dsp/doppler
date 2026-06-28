@@ -322,6 +322,63 @@ CostasObj_exit (CostasObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — step/steps bindings); mirrors jm's generated form
+ * for the `serializable` flag, which also emits the matching track.pyi stubs.
+ */
+static PyObject *
+CostasObj_state_bytes (CostasObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (costas_state_bytes (self->handle));
+}
+
+static PyObject *
+CostasObj_get_state (CostasObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = costas_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  costas_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CostasObj_set_state (CostasObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != costas_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (costas_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef CostasObj_methods[] = {
 
   { "steps", (PyCFunction)CostasObj_steps, METH_VARARGS,
@@ -356,6 +413,12 @@ static PyMethodDef CostasObj_methods[] = {
     "    >>> from doppler import Costas\n"
     "    >>> obj = Costas(0.05, 0.707, 0.0, 64, 0.0)\n"
     "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)CostasObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)CostasObj_get_state, METH_NOARGS,
+    "Serialize the loop state to bytes." },
+  { "set_state", (PyCFunction)CostasObj_set_state, METH_O,
+    "Restore loop state from a get_state() blob." },
   { "destroy", (PyCFunction)CostasObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)CostasObj_enter, METH_NOARGS, NULL },

@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Costas"
+serializable = "true"
 depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },

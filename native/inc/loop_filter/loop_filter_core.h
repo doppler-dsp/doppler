@@ -26,6 +26,7 @@
 #define LOOP_FILTER_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #ifdef __cplusplus
 extern "C"
@@ -93,6 +94,20 @@ extern "C"
    * @param state  Must be non-NULL.
    */
   void loop_filter_reset(loop_filter_state_t *state);
+
+  /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
+   * Whole-struct POD snapshot (pointer-free); config fields restore identically
+   * into an identically-built instance, the integrator memory resumes exactly.
+   */
+#define LOOP_FILTER_STATE_MAGIC DP_FOURCC('L', 'P', 'F', 'L')
+#define LOOP_FILTER_STATE_VERSION 1u
+
+  /** @brief Serialized-state byte size. */
+  size_t loop_filter_state_bytes(const loop_filter_state_t *state);
+  /** @brief Serialize the loop state into @p blob. */
+  void loop_filter_get_state(const loop_filter_state_t *state, void *blob);
+  /** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  int loop_filter_set_state(loop_filter_state_t *state, const void *blob);
 
   /**
    * @brief Advance the loop one update with error @p x; return the control.

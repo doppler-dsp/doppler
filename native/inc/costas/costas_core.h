@@ -34,6 +34,7 @@
 #define COSTAS_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
@@ -179,6 +180,19 @@ void costas_destroy(costas_state_t *state);
  * @param state  Must be non-NULL.
  */
 void costas_reset(costas_state_t *state);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Pointer-free POD struct (embedded NCO + loop filter + I&D accumulators), so
+ * a whole-struct snapshot resumes the loop exactly. */
+#define COSTAS_STATE_MAGIC DP_FOURCC('C', 'S', 'T', 'S')
+#define COSTAS_STATE_VERSION 1u
+
+/** @brief Serialized-state byte size. */
+size_t costas_state_bytes(const costas_state_t *state);
+/** @brief Serialize the full loop state into @p blob. */
+void costas_get_state(const costas_state_t *state, void *blob);
+/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+int costas_set_state(costas_state_t *state, const void *blob);
 
 size_t costas_steps_max_out(costas_state_t *state);
 size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);

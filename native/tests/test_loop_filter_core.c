@@ -72,6 +72,32 @@ main (void)
   CHECK (almost (loop_filter_step (&emb, 1.0), emb.ki + emb.kp, 1e-15));
 
   loop_filter_destroy (lf);
+
+  /* serializable state — whole-struct snapshot resumes the integrator. */
+  {
+    loop_filter_state_t *a = loop_filter_create (0.01, 0.707, 1.0);
+    for (int i = 0; i < 30; i++)
+      loop_filter_step (a, 0.1);
+    unsigned char blob[64];
+    CHECK (loop_filter_state_bytes (a) <= sizeof blob);
+    loop_filter_get_state (a, blob);
+    double refv = 0.0;
+    for (int i = 0; i < 10; i++)
+      refv = loop_filter_step (a, 0.1); /* reference continuation */
+    loop_filter_destroy (a);
+
+    loop_filter_state_t *b = loop_filter_create (0.01, 0.707, 1.0);
+    CHECK (loop_filter_set_state (b, blob) == DP_OK);
+    blob[0] ^= (unsigned char)0xFF;
+    CHECK (loop_filter_set_state (b, blob) == DP_ERR_INVALID);
+    blob[0] ^= (unsigned char)0xFF;
+    double gotv = 0.0;
+    for (int i = 0; i < 10; i++)
+      gotv = loop_filter_step (b, 0.1);
+    CHECK (refv == gotv);
+    loop_filter_destroy (b);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_loop_filter_core FAILED (%d)\n", _fails);

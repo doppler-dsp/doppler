@@ -1,23 +1,22 @@
-"""Real-time feedforward DSSS demod that *tails* a wfmgen capture as written.
+"""Real-time feedforward DSSS demod that tails a continuous wfmgen capture.
 
-The writer and reader run **concurrently against one growing file** — the
-reader does not wait for the writer to finish:
+The whole pipeline through one growing file, with the project's own tools:
 
-* **Writer** (paced, background) — the ``wfmgen`` CLI engine streams a capture
-  to disk with ``--realtime``: a BPSK-DSSS burst (unmodulated 5x500 preamble +
-  a 50-chip-spread ``sync | payload | CRC`` frame, Doppler + noise baked in)
-  **once every 500 ms** (the trailing ``off_samples`` give the PRI). It flushes
-  incrementally, so the file grows in real time.
+* **Writer** — the ``wfmgen`` CLI streams ``scene.json`` ``--continuous
+  --realtime`` in the background: a BPSK-DSSS burst (PN preamble + a
+  spread ``sync | payload | CRC`` frame, Doppler + noise baked in) **once every
+  500 ms**. wfmgen advances the seed each repeat, so every burst is a **fresh
+  noise realization** (the code/payload stay fixed — the scene carries them as
+  explicit ``bits`` patterns).
 
-* **Reader** (flat out) — *tails* the growing file: for each burst it waits
-  only until that burst's samples have landed, then reads them and runs
-  ``DDC`` (tune the bulk Doppler out) -> ``Acquisition`` -> ``BurstDemod``,
-  decoding it the moment it arrives — while the writer is still producing
-  later bursts.
+* **Reader** — *tails* the growing file: for each burst it waits only until
+  that burst's samples have landed, then runs ``DDC`` (tune the bulk Doppler
+  out) -> ``Acquisition`` -> ``BurstDemod``, decoding it the moment it arrives
+  — while the writer is still producing later bursts.
 
 All DSP lives in the C objects (wfmgen engine, DDC, Acquisition, BurstDemod);
-the Python is orchestration only — it writes the spec, tails the file, and maps
-the detector output to the demod's prior.
+this module is the orchestrator — it writes the scene spec, tails the file, and
+maps the detector output to the demod's prior.
 
 Run it::
 
@@ -37,25 +36,43 @@ import numpy as np
 
 from doppler.ddc import DDC
 from doppler.dsss import Acquisition, BurstDemod
+from doppler.wfm import PN
 
 # ── waveform geometry ────────────────────────────────────────────────────────
-ACQ_SF, REPS, DATA_SF, SPC = 500, 5, 50, 4
+# Spreading codes are real maximal-length sequences from the PN source
+# (poly=0 auto-picks the primitive polynomial) — a clean thumbtack
+# autocorrelation, so acquisition has genuine processing gain. They are carried
+# in the scene as explicit `bits` patterns, which stay fixed as wfmgen advances
+# the seed each repeat (only noise varies). Lengths are MLS periods (2^n-1).
+ACQ_BITS, DATA_BITS = 9, 6
+ACQ_SF, REPS, DATA_SF, SPC = (1 << ACQ_BITS) - 1, 5, (1 << DATA_BITS) - 1, 4
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC  # 4 MHz channel rate
 PAYLOAD = 64
 PRI_MS = 500.0  # one burst every 500 ms
-# Barker-13 frame-sync word.
-SYNC = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
+SYNC = np.array(
+    [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8
+)  # Barker
 
-DOPPLER_HZ = 11_500.0  # true Doppler baked into the capture
+DOPPLER_HZ = 11_500.0  # true Doppler baked into the scene
 NOMINAL_HZ = 12_000.0  # the receiver's predicted (coarse) Doppler
-SNR_DB = 22.0
+SNR_DB = 10.0
 
-_ACODE = ((np.arange(ACQ_SF) * 2654435761 >> 13) & 1).astype(np.uint8)
-_DCODE = ((np.arange(DATA_SF) * 40503 >> 7) & 1).astype(np.uint8)
-_PERIOD = round(PRI_MS * 1e-3 * FS)  # samples per PRI
+SCENE = Path(__file__).resolve().parent / "scene.json"
+
+
+def _pn(bits, n, seed):
+    """One period of a maximal-length sequence (0/1) from the PN source."""
+    return (
+        np.asarray(PN(poly=0, seed=seed, length=bits).generate(n)) & 1
+    ).astype(np.uint8)
+
+
+_ACODE = _pn(ACQ_BITS, ACQ_SF, 1)  # preamble code (511-chip MLS)
+_DCODE = _pn(DATA_BITS, DATA_SF, 1)  # data code (63-chip MLS)
+_PAYLOAD_BITS = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+_PERIOD = round(PRI_MS * 1e-3 * FS)
 _BURST = (ACQ_SF * REPS + (len(SYNC) + PAYLOAD + 16) * DATA_SF) * SPC
-_MARGIN = 4000  # trailing samples handed to the chain (clean ACQ framing)
 
 
 def _crc16(bits):
@@ -66,13 +83,51 @@ def _crc16(bits):
     return c
 
 
-def _frame_chips(payload):
-    """The data section's chip pattern: each frame bit XOR'd with the 50-chip
-    data code (DSSS spreading), for sync | payload | CRC-16."""
-    crc = _crc16(payload)
-    crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
-    frame = np.concatenate([SYNC, payload, crc_bits])
+def _frame_chips():
+    """Spread the frame (sync | payload | CRC-16) by the data code -> chips."""
+    crc = _crc16(_PAYLOAD_BITS)
+    crcb = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    frame = np.concatenate([SYNC, _PAYLOAD_BITS, crcb])
     return "".join("".join(map(str, _DCODE ^ b)) for b in frame)
+
+
+def write_scene(path, *, doppler_hz=DOPPLER_HZ, snr_db=SNR_DB):
+    """Write the wfmgen scene spec: a PN-preamble `bits` segment + a
+    spread-frame `bits` segment + the 500 ms gap; `continuous` streams it
+    forever with a fresh noise realization each burst (seed advances)."""
+    pre = "".join(map(str, np.tile(_ACODE, REPS)))
+    fr = _frame_chips()
+    gap = _PERIOD - (len(pre) + len(fr)) * SPC
+    common = {
+        "type": "bits",
+        "fs": FS,
+        "freq": doppler_hz,
+        "snr": snr_db,
+        "snr_mode": "fs",
+        "seed": 1,
+        "sps": SPC,
+        "modulation": "bpsk",
+    }
+    scene = {
+        "version": 1,
+        "continuous": True,
+        "segments": [
+            {
+                **common,
+                "pattern": pre,
+                "num_samples": len(pre) * SPC,
+                "off_samples": 0,
+            },
+            {
+                **common,
+                "pattern": fr,
+                "num_samples": len(fr) * SPC,
+                "off_samples": gap,
+            },
+        ],
+    }
+    Path(path).write_text(json.dumps(scene, indent=2))
+    return Path(path)
 
 
 def wfmgen_available():
@@ -87,62 +142,16 @@ def wfmgen_available():
     return None
 
 
-def _wfmgen_bin():
+def start_writer(capture_path, scene_path, *, realtime=True):
+    """Launch wfmgen streaming the scene to disk in the background."""
     exe = wfmgen_available()
     if exe is None:
-        raise FileNotFoundError(
-            "wfmgen CLI not found (pip install doppler-dsp, "
-            "or build the wfmgen_cli target)"
-        )
-    return exe
-
-
-def write_spec(spec_path, payloads, *, doppler_hz=DOPPLER_HZ, snr_db=SNR_DB):
-    """Write a multi-burst wfmgen JSON spec: each burst is two ``bits``
-    segments (preamble, then the framed payload + a trailing gap = the PRI);
-    ``freq`` bakes in the Doppler and ``snr`` the noise."""
-    pre = "".join(map(str, np.tile(_ACODE, REPS)))
-    segments = []
-    for payload in payloads:
-        fr = _frame_chips(payload)
-        gap = _PERIOD - (len(pre) + len(fr)) * SPC
-        common = {
-            "type": "bits",
-            "fs": FS,
-            "freq": doppler_hz,
-            "snr": snr_db,
-            "snr_mode": "fs",
-            "sps": SPC,
-            "modulation": "bpsk",
-        }
-        segments.append(
-            {
-                **common,
-                "pattern": pre,
-                "num_samples": len(pre) * SPC,
-                "off_samples": 0,
-            }
-        )
-        segments.append(
-            {
-                **common,
-                "pattern": fr,
-                "num_samples": len(fr) * SPC,
-                "off_samples": gap,
-            }
-        )
-    Path(spec_path).write_text(
-        json.dumps({"version": 1, "segments": segments})
-    )
-
-
-def start_writer(capture_path, spec_path, *, realtime=True):
-    """Launch the wfmgen CLI as a background process streaming the capture to
-    ``capture_path`` (``--realtime`` paces it to fs — one burst per PRI)."""
+        raise FileNotFoundError("wfmgen CLI not found (build wfmgen_cli)")
     cmd = [
-        _wfmgen_bin(),
+        exe,
         "--from-file",
-        str(spec_path),
+        str(scene_path),
+        "--continuous",
         "-o",
         str(capture_path),
     ]
@@ -154,35 +163,36 @@ def start_writer(capture_path, spec_path, *, realtime=True):
 
 
 def _read_samples(path, start, count):
-    """Read ``count`` cf32 samples starting at sample ``start`` (or None if the
-    file doesn't hold that many yet)."""
-    need = (start + count) * 8  # cf32 = 2 x float32 = 8 bytes/sample
+    """Read `count` cf32 samples at `start`, or None if not landed yet."""
+    need = (start + count) * 8  # cf32 = 8 bytes/sample
     if not path.exists() or path.stat().st_size < need:
         return None
     with open(path, "rb") as f:
         f.seek(start * 8)
-        buf = f.read(count * 8)
-    return np.frombuffer(buf, dtype="<c8")
+        return np.frombuffer(f.read(count * 8), dtype="<c8")
 
 
 def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
-    """Decode one burst-sized chunk: DDC tunes the predicted bulk Doppler out,
-    Acquisition detects (slow-time Doppler FFT over the reps), BurstDemod
-    estimates the residual feedforward, despreads, frame-syncs, checks CRC."""
+    """DDC tunes the predicted bulk Doppler out; Acquisition detects (slow-time
+    Doppler FFT over the reps); BurstDemod estimates the residual feedforward,
+    despreads, frame-syncs, and checks the CRC."""
     base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(chunk)
-    # cn0_dbhz sized so Acquisition runs its slow-time Doppler FFT over the 5
-    # preamble reps (doppler_bins = reps) — a real Doppler search that resolves
-    # the residual; too high collapses it to a single DC bin (misses bursts).
     acq = Acquisition(
         _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
     )
     hits = acq.push(base)
     if not hits:
         return {"detected": False, "frame_valid": False}
-    dop, _cp, *_ = max(hits, key=lambda h: h[4])
+    dop, cp, _peak, _noise, test_stat, _snr = max(hits, key=lambda h: h[4])
     f0 = dop * acq.doppler_res_hz
     if dop >= acq.doppler_bins / 2:
         f0 -= acq.doppler_bins * acq.doppler_res_hz
+    rec = {
+        "detected": True,
+        "frame_valid": False,
+        "code_phase": int(cp),
+        "test_stat": float(test_stat),
+    }
 
     d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10)
     d.set_preamble(_ACODE, REPS)
@@ -194,88 +204,87 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
         d.set_prior(f0 / FS, start)
         bits = d.demod(base)
         if d.frame_valid:
-            return {
-                "detected": True,
-                "frame_valid": True,
-                "est_freq_hz": d.est_freq_hz + nominal_hz,
-                "bits": bits,
-            }
-    return {"detected": True, "frame_valid": False}
+            rec.update(
+                frame_valid=True,
+                bits=bits,
+                est_freq_hz=d.est_freq_hz + nominal_hz,
+            )
+            break
+    return rec
 
 
 def tail_decode(capture_path, n_bursts, *, proc=None, on_decode=None):
-    """Tail the growing capture: for each burst, wait only until its samples
-    have landed, then read + decode it. Concurrent with the writer."""
+    """Tail the growing capture: for each burst wait until its samples land,
+    then read + decode it — concurrent with the writer."""
     capture_path = Path(capture_path)
     results = []
     for k in range(n_bursts):
-        start = k * _PERIOD
         chunk = None
         while chunk is None:
-            chunk = _read_samples(capture_path, start, _BURST + _MARGIN)
+            chunk = _read_samples(capture_path, k * _PERIOD, _BURST + 4000)
             if chunk is None:
                 if proc is not None and proc.poll() is not None:
-                    # writer finished without producing this burst
-                    chunk = _read_samples(
-                        capture_path, start, _BURST + _MARGIN
-                    )
                     break
                 time.sleep(0.002)
         if chunk is None:
             break
-        r = decode_chunk(chunk)
-        r["burst"] = k
-        results.append(r)
+        rec = decode_chunk(chunk)
+        rec["burst"] = k
+        results.append(rec)
         if on_decode is not None:
-            on_decode(k, r)
+            on_decode(k, rec)
     return results
 
 
-def run_streaming(payloads, *, realtime=True, on_decode=None):
-    """Stream a capture with wfmgen and tail-decode it concurrently; return the
-    per-burst decode results."""
+def run_streaming(
+    n_bursts=6, *, realtime=True, scene_path=None, on_decode=None
+):
+    """Stream the scene with wfmgen and tail-decode `n_bursts` concurrently."""
     with tempfile.TemporaryDirectory() as tmp:
-        cap = Path(tmp) / "dsss_capture.cf32"
-        spec = Path(tmp) / "spec.json"
-        write_spec(spec, payloads)
-        proc = start_writer(cap, spec, realtime=realtime)
+        scene = scene_path or write_scene(Path(tmp) / "scene.json")
+        cap = Path(tmp) / "capture.cf32"
+        proc = start_writer(cap, scene, realtime=realtime)
         try:
-            results = tail_decode(
-                cap, len(payloads), proc=proc, on_decode=on_decode
-            )
+            return tail_decode(cap, n_bursts, proc=proc, on_decode=on_decode)
         finally:
             if proc.poll() is None:
                 proc.terminate()
             proc.wait()
-    return results
 
 
 def main():
-    rng = np.random.default_rng(0)
-    payloads = [rng.integers(0, 2, PAYLOAD).astype(np.uint8) for _ in range(6)]
     print(
-        f"\nwriter: wfmgen --realtime streams 1 burst / {PRI_MS:.0f} ms to a "
-        f"growing file (Doppler {DOPPLER_HZ / 1e3:.1f} kHz, {SNR_DB:.0f} dB)"
+        f"\nwriter: wfmgen --continuous --realtime scene.json -> growing "
+        f"file ({PRI_MS:.0f} ms PRI, {DOPPLER_HZ / 1e3:.1f} kHz Doppler, "
+        f"{SNR_DB:.0f} dB, fresh noise each repeat)"
     )
     print(
-        f"reader: tails the file -> DDC(tune -{NOMINAL_HZ / 1e3:.0f} kHz) -> "
-        f"Acquisition -> BurstDemod, decoding each burst as it lands\n"
+        f"reader: tail -> DDC(-{NOMINAL_HZ / 1e3:.0f} kHz) -> Acquisition -> "
+        f"BurstDemod, decoding each burst as it lands\n"
+    )
+    # test_stat shifts burst-to-burst because each repeat is a fresh noise
+    # realization (wfmgen advances the seed) — the code/payload stay fixed.
+    print(
+        f"  {'t':>6} {'burst':<5} {'CRC':<4} {'errs':>4} {'test':>5} "
+        f"{'code φ':>6} {'Doppler':>9}"
     )
     t0 = time.monotonic()
 
     def report(k, r):
         dt = time.monotonic() - t0
+        ts = f"{r['test_stat']:.0f}" if "test_stat" in r else "-"
+        cp = r.get("code_phase", "-")
         if r["frame_valid"]:
-            errs = int(np.sum(r["bits"] != payloads[k]))
+            errs = int(np.sum(r["bits"] != _PAYLOAD_BITS))
             print(
-                f"  [t={dt:5.2f}s] burst {k}: CRC ok  {errs} bit errs  "
-                f"Doppler {r['est_freq_hz']:.0f} Hz"
+                f"  {dt:5.2f}s {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
+                f"{r['est_freq_hz']:>7.0f}Hz"
             )
         else:
-            tag = "no detect" if not r["detected"] else "CRC FAIL"
-            print(f"  [t={dt:5.2f}s] burst {k}: {tag}")
+            tag = "no-det" if not r["detected"] else "FAIL"
+            print(f"  {dt:5.2f}s {k:<5} {tag:<4} {'':>4} {ts:>5} {cp:>6}")
 
-    run_streaming(payloads, realtime=True, on_decode=report)
+    run_streaming(6, realtime=True, on_decode=report)
     print()
 
 

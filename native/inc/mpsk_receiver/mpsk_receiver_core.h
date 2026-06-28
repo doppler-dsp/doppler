@@ -51,6 +51,7 @@
 
 #include "carrier_nda/carrier_nda_core.h"
 #include "clib_common.h"
+#include "dp_state.h"
 #include "fir/fir_core.h"
 #include "jm_perf.h"
 #include "mpsk/mpsk_core.h"
@@ -191,6 +192,15 @@ extern "C"
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
   size_t mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
   int    mpsk_receiver_get_n (const mpsk_receiver_state_t *state);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * composition: carrier_nda + symsync + matched-filter children +
+ * running tracking/handover state; MF taps restored by create. */
+#define MPSK_RECEIVER_STATE_MAGIC DP_FOURCC ('M','P','S','K')
+#define MPSK_RECEIVER_STATE_VERSION 1u
+size_t mpsk_receiver_state_bytes (const mpsk_receiver_state_t *state);
+void mpsk_receiver_get_state (const mpsk_receiver_state_t *state, void *blob);
+int mpsk_receiver_set_state (mpsk_receiver_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

@@ -122,6 +122,48 @@ mpsk_receiver_reset (mpsk_receiver_state_t *state)
   state->prev_idx      = 0;
 }
 
+/* Serializable state — carrier_nda + symsync + matched-filter children as
+ * nested sub-blobs, then running tracking/handover scalars; MF taps are config
+ * (create). */
+size_t
+mpsk_receiver_state_bytes (const mpsk_receiver_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + carrier_nda_state_bytes (&s->car)
+         + symsync_state_bytes (&s->sync) + fir_state_bytes (s->mf)
+         + sizeof (uint64_t) + 3 * sizeof (uint32_t) + sizeof (float _Complex);
+}
+
+void
+mpsk_receiver_get_state (const mpsk_receiver_state_t *s, void *blob)
+{
+  DP_GET_OPEN (MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION,
+               mpsk_receiver_state_bytes (s));
+  DP_W_CHILD (&_w, carrier_nda, &s->car);
+  DP_W_CHILD (&_w, symsync, &s->sync);
+  DP_W_CHILD (&_w, fir, s->mf);
+  dp_w_u32 (&_w, (uint32_t)s->tracking);
+  dp_w_u64 (&_w, s->sym_count);
+  dp_w_u32 (&_w, (uint32_t)s->have_prev_idx);
+  dp_w_u32 (&_w, s->prev_idx);
+  dp_w_cf32 (&_w, &s->sym_rot, 1);
+}
+
+int
+mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION,
+               mpsk_receiver_state_bytes (s));
+  DP_R_CHILD (&_r, carrier_nda, &s->car);
+  DP_R_CHILD (&_r, symsync, &s->sync);
+  DP_R_CHILD (&_r, fir, s->mf);
+  s->tracking      = (int)dp_r_u32 (&_r);
+  s->sym_count     = (size_t)dp_r_u64 (&_r);
+  s->have_prev_idx = (int)dp_r_u32 (&_r);
+  s->prev_idx      = dp_r_u32 (&_r);
+  dp_r_cf32 (&_r, &s->sym_rot, 1);
+  return DP_OK;
+}
+
 /* Process one input sample. On a recovered symbol boundary, write the symbol
  * to *sym and return 1; else return 0.
  *

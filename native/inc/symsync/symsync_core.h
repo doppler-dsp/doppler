@@ -15,6 +15,7 @@
 #define SYMSYNC_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "farrow/farrow_core.h"
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
@@ -167,6 +168,15 @@ extern "C"
   void   symsync_set_bn (symsync_state_t *state, double val);
   double symsync_get_timing_error (const symsync_state_t *state);
   double symsync_get_rate (const symsync_state_t *state);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * pointer-free composition: nco + farrow + loop_filter embedded by value
+ * (all POD) + scalar timing state — a whole-struct snapshot. */
+#define SYMSYNC_STATE_MAGIC DP_FOURCC ('S','Y','N','C')
+#define SYMSYNC_STATE_VERSION 1u
+size_t symsync_state_bytes (const symsync_state_t *state);
+void symsync_get_state (const symsync_state_t *state, void *blob);
+int symsync_set_state (symsync_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

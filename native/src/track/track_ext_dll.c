@@ -375,6 +375,59 @@ DllObj_exit (DllObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DllObj_state_bytes (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (dll_state_bytes (self->handle));
+}
+
+static PyObject *
+DllObj_get_state (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = dll_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  dll_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+DllObj_set_state (DllObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != dll_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (dll_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DllObj_methods[] = {
 
   { "steps", (PyCFunction)DllObj_steps, METH_VARARGS,
@@ -445,6 +498,12 @@ static PyMethodDef DllObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DllObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DllObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)DllObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)DllObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)DllObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

@@ -52,8 +52,20 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
-from doppler.track import CarrierMpsk, CarrierNda, Costas, LoopFilter
+from doppler.track import (
+    CarrierMpsk,
+    CarrierNda,
+    Channel,
+    Costas,
+    Dll,
+    LoopFilter,
+    MpskReceiver,
+    SymbolSync,
+)
 from doppler.wfm import PN
+
+# A short 0/1 spreading code for the code-tracking compositions.
+_CODE = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
 
 # A short real-tapped, symmetric FIR — enough delay-line state to matter.
 _FIR_TAPS = (np.array([0.1, -0.2, 0.3, 0.6, 0.3, -0.2, 0.1]) + 0j).astype(
@@ -107,6 +119,14 @@ def _acctrace_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     n = 8  # must match the AccTrace(n=...) below
     for i in range(0, (len(r) // n) * n, n):
         o.accumulate(r[i : i + n])
+    return np.frombuffer(o.get_state(), dtype=np.uint8)
+
+
+def _track_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Run a tracking-loop block; return the serialized state. These emit a
+    decimated symbol stream whose length depends on internal phase, so the
+    post-block state blob is the cleanest whole-state resume observable."""
+    o.steps(seg)
     return np.frombuffer(o.get_state(), dtype=np.uint8)
 
 
@@ -184,6 +204,25 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
             o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
         ),
     ),
+    # Compositions — children nested as self-validating sub-blobs.
+    "Dll": (
+        lambda: Dll(
+            code=_CODE,
+            sps=2,
+            init_chip=0.0,
+            bn=0.02,
+            zeta=0.707,
+            spacing=0.5,
+            segments=1,
+        ),
+        _track_feed,
+    ),
+    "SymbolSync": (
+        lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),
+        _track_feed,
+    ),
+    "Channel": (lambda: Channel(code=_CODE, sps=2, nav_period=1), _track_feed),
+    "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, n=4), _track_feed),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
         lambda: NCO(0.01, 0),

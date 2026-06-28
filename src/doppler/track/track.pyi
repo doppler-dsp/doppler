@@ -291,6 +291,13 @@ class Dll:
         """Re-seed the loop to the create-time code phase; preserve config.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def bn(self) -> float:
         """Bn."""
@@ -393,6 +400,13 @@ class Channel:
         """Re-seed both loops to the create-time frequency/phase; preserve config.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def norm_freq(self) -> float:
         """Norm freq."""
@@ -486,6 +500,13 @@ class SymbolSync:
     def reset(self) -> None:
         """Re-seed the timing loop to its nominal rate and zero phase.
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def bn(self) -> float:
@@ -788,6 +809,13 @@ class MpskReceiver:
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def norm_freq(self) -> float:

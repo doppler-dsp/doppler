@@ -26,6 +26,23 @@ sizing and a worked example.
 
 ______________________________________________________________________
 
+## `PolyPhaseEstimator` — feedforward frequency + chirp-rate estimator
+
+`PolyPhaseEstimator` recovers the **frequency** and **chirp rate** (Doppler and
+Doppler rate) of a complex sequence in one shot — no tracking loop — via the
+2-lag Higher-order Ambiguity Function: the instantaneous autocorrelation of a
+linear-chirp signal collapses to a single tone whose frequency is the chirp
+rate, so one FFT finds the rate and a second (after dechirping) finds the
+frequency. The caller strips modulation first (data-aided wipe, or square an
+M-PSK stream for the non-data-aided case). `estimate(x)` returns a
+`PolyPhaseEstimate(freq_norm, rate_norm, snr_db)` record in normalized units
+(cycles/sample and cycles/sample²); scale by the sequence's sample rate for Hz.
+It is the feedforward front-end for chirping-burst demodulation.
+
+::: doppler.dsss.PolyPhaseEstimator
+
+______________________________________________________________________
+
 ## `Despreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the

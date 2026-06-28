@@ -2,17 +2,19 @@ add_library(dsss_core OBJECT dsss_core.c)
 target_include_directories(dsss_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# dsss Python module — aggregates: Despreader, Acquisition
+# dsss Python module — aggregates: Despreader, Acquisition, PolyPhaseEstimator
 Python3_add_library(dsss MODULE WITH_SOABI dsss_ext.c)
 target_link_libraries(dsss PRIVATE
     dsss_core
     despreader_core
     acq_core
+    ppe_core
     loop_filter_core
     corr2d_core
     fft2d_core
     fft_core
     detection_core
+    spectral_core
     Python3::NumPy)
 target_include_directories(dsss PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(dsss PROPERTIES

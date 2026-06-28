@@ -98,18 +98,15 @@ def test_bits_coherent():
     assert best < 0.02
 
 
-@pytest.mark.xfail(
-    reason="CarrierNda's raw M-th-power discriminator (best squaring loss "
-    "for constant-modulus / DSSS) has ~80x lower coherent gain on a "
-    "pre-matched-filter RRC arm. The carrier loop still LOCKS on RRC "
-    "(type-2 integrator; see carrier_nda_step_response.c), but pulls in "
-    "slower/jitterier and the downstream matched filter + Gardner timing "
-    "do not yet recover the pulse-shaped SER — an MpskReceiver MF/timing "
-    "follow-up, not a CarrierNda issue.",
-    strict=False,
-)
 def test_rrc_pulse_recovers():
-    """RRC matched filter on a true RRC-shaped TX recovers QPSK."""
+    """RRC matched filter on a true RRC-shaped TX recovers QPSK.
+
+    Previously xfail: the original integrate-and-dump CarrierNda arm pulled in
+    too slowly/jitterily on a pulse-shaped (RRC) arm for the downstream matched
+    filter + Gardner timing to recover the symbols. The CarrierNda rework (raw
+    M-th-power discriminator on a per-sample boxcar moving-average arm + arm
+    AGC) fixed the pull-in; QPSK now recovers at SER 0 (verified across seeds).
+    """
     from doppler.filter import FIR
 
     m, sps, beta, span, nsym = 4, 8, 0.35, 8, 6000

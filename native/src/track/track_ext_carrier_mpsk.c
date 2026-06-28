@@ -340,6 +340,66 @@ CarrierMpskObj_exit (CarrierMpskObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — step/steps bindings); mirrors jm's generated form
+ * for the `serializable` flag, which also emits the matching track.pyi stubs.
+ */
+static PyObject *
+CarrierMpskObj_state_bytes (CarrierMpskObject *self,
+                            PyObject          *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (carrier_mpsk_state_bytes (self->handle));
+}
+
+static PyObject *
+CarrierMpskObj_get_state (CarrierMpskObject *self,
+                          PyObject          *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = carrier_mpsk_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  carrier_mpsk_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CarrierMpskObj_set_state (CarrierMpskObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != carrier_mpsk_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (carrier_mpsk_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef CarrierMpskObj_methods[] = {
 
   { "steps", (PyCFunction)CarrierMpskObj_steps, METH_VARARGS,
@@ -379,6 +439,12 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     "    >>> from doppler import CarrierMpsk\n"
     "    >>> obj = CarrierMpsk(0.05, 0.707, 0.0, 64, 0.0, 4)\n"
     "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)CarrierMpskObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)CarrierMpskObj_get_state, METH_NOARGS,
+    "Serialize the loop state to bytes." },
+  { "set_state", (PyCFunction)CarrierMpskObj_set_state, METH_O,
+    "Restore loop state from a get_state() blob." },
   { "destroy", (PyCFunction)CarrierMpskObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)CarrierMpskObj_enter, METH_NOARGS, NULL },

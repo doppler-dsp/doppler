@@ -305,6 +305,53 @@ main (void)
     free (labels);
   }
 
+  /* serializable state — whole-struct snapshot resumes the loop bit-for-bit.
+   */
+  {
+    enum
+    {
+      L   = 600,
+      CUT = 251,
+      CAP = 600
+    };
+    float _Complex *rx   = malloc (L * sizeof (float _Complex));
+    float _Complex *outA = malloc (CAP * sizeof (float _Complex));
+    float _Complex *outB = malloc (CAP * sizeof (float _Complex));
+    for (size_t i = 0; i < L; i++)
+      rx[i] = cosf (0.02f * (float)i) + I * sinf (0.02f * (float)i);
+
+    carrier_mpsk_state_t *a
+        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    size_t nA = carrier_mpsk_steps (a, rx, L, outA, CAP);
+    carrier_mpsk_destroy (a);
+
+    carrier_mpsk_state_t *r1
+        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    size_t nB   = carrier_mpsk_steps (r1, rx, CUT, outB, CAP);
+    size_t sb   = carrier_mpsk_state_bytes (r1);
+    void  *blob = malloc (sb);
+    carrier_mpsk_get_state (r1, blob);
+    carrier_mpsk_destroy (r1);
+
+    carrier_mpsk_state_t *r2
+        = carrier_mpsk_create (0.01, 0.707, 0.0, 4, 0.0, 4);
+    CHECK (carrier_mpsk_set_state (r2, blob) == DP_OK);
+    ((char *)blob)[0] ^= (char)0xFF;
+    CHECK (carrier_mpsk_set_state (r2, blob) == DP_ERR_INVALID);
+    ((char *)blob)[0] ^= (char)0xFF;
+    nB += carrier_mpsk_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
+    carrier_mpsk_destroy (r2);
+    free (blob);
+
+    CHECK (nA == nB);
+    for (size_t i = 0; i < nA && i < nB; i++)
+      CHECK (crealf (outA[i]) == crealf (outB[i])
+             && cimagf (outA[i]) == cimagf (outB[i]));
+    free (rx);
+    free (outA);
+    free (outB);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_carrier_mpsk_core FAILED (%d)\n", _fails);

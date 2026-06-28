@@ -275,6 +275,50 @@ main (void)
     free (bits);
   }
 
+  /* serializable state — whole-struct snapshot resumes the loop bit-for-bit.
+   */
+  {
+    enum
+    {
+      L   = 600,
+      CUT = 251,
+      CAP = 600
+    };
+    float _Complex *rx   = malloc (L * sizeof (float _Complex));
+    float _Complex *outA = malloc (CAP * sizeof (float _Complex));
+    float _Complex *outB = malloc (CAP * sizeof (float _Complex));
+    for (size_t i = 0; i < L; i++)
+      rx[i] = cosf (0.02f * (float)i) + I * sinf (0.02f * (float)i);
+
+    costas_state_t *a  = costas_create (0.01, 0.707, 0.0, 4, 0.0);
+    size_t          nA = costas_steps (a, rx, L, outA, CAP);
+    costas_destroy (a);
+
+    costas_state_t *r1   = costas_create (0.01, 0.707, 0.0, 4, 0.0);
+    size_t          nB   = costas_steps (r1, rx, CUT, outB, CAP);
+    size_t          sb   = costas_state_bytes (r1);
+    void           *blob = malloc (sb);
+    costas_get_state (r1, blob);
+    costas_destroy (r1);
+
+    costas_state_t *r2 = costas_create (0.01, 0.707, 0.0, 4, 0.0);
+    CHECK (costas_set_state (r2, blob) == DP_OK);
+    ((char *)blob)[0] ^= (char)0xFF;
+    CHECK (costas_set_state (r2, blob) == DP_ERR_INVALID);
+    ((char *)blob)[0] ^= (char)0xFF;
+    nB += costas_steps (r2, rx + CUT, L - CUT, outB + nB, CAP - nB);
+    costas_destroy (r2);
+    free (blob);
+
+    CHECK (nA == nB);
+    for (size_t i = 0; i < nA && i < nB; i++)
+      CHECK (crealf (outA[i]) == crealf (outB[i])
+             && cimagf (outA[i]) == cimagf (outB[i]));
+    free (rx);
+    free (outA);
+    free (outB);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_costas_core FAILED (%d)\n", _fails);

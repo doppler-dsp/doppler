@@ -38,6 +38,7 @@
 #define CARRIER_MPSK_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
@@ -185,6 +186,19 @@ void carrier_mpsk_destroy(carrier_mpsk_state_t *state);
  * @param state  Must be non-NULL.
  */
 void carrier_mpsk_reset(carrier_mpsk_state_t *state);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
+ */
+#define CARRIER_MPSK_STATE_MAGIC DP_FOURCC('C', 'M', 'P', 'K')
+#define CARRIER_MPSK_STATE_VERSION 1u
+
+/** @brief Serialized-state byte size. */
+size_t carrier_mpsk_state_bytes(const carrier_mpsk_state_t *state);
+/** @brief Serialize the full loop state into @p blob. */
+void carrier_mpsk_get_state(const carrier_mpsk_state_t *state, void *blob);
+/** @brief Restore state; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
 
 size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
 size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);

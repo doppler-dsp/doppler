@@ -5,6 +5,7 @@ mutable = "true"
 no_state = "true"
 no_step = "false"
 class_name = "LoopFilter"
+serializable = "true"
 
 [[loop_filter.init_params]]
 name = "bn"

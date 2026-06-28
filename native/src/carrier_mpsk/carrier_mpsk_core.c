@@ -61,6 +61,39 @@ carrier_mpsk_reset (carrier_mpsk_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
+/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
+ * Pointer-free POD; a whole-struct snapshot resumes the loop bit-for-bit. */
+
+size_t
+carrier_mpsk_state_bytes (const carrier_mpsk_state_t *state)
+{
+  (void)state;
+  return sizeof (dp_state_hdr_t) + sizeof (carrier_mpsk_state_t);
+}
+
+void
+carrier_mpsk_get_state (const carrier_mpsk_state_t *state, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, carrier_mpsk_state_bytes (state));
+  dp_w_hdr (&w, CARRIER_MPSK_STATE_MAGIC, CARRIER_MPSK_STATE_VERSION,
+            carrier_mpsk_state_bytes (state));
+  dp_w_bytes (&w, state, sizeof *state);
+}
+
+int
+carrier_mpsk_set_state (carrier_mpsk_state_t *state, const void *blob)
+{
+  int rc = dp_state_validate (blob, carrier_mpsk_state_bytes (state),
+                              CARRIER_MPSK_STATE_MAGIC,
+                              CARRIER_MPSK_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, carrier_mpsk_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&r, state, sizeof *state);
+  return DP_OK;
+}
+
 void
 carrier_mpsk_configure (carrier_mpsk_state_t *state, double bn, double zeta)
 {

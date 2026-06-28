@@ -18,6 +18,13 @@ target_include_directories(test_hbdecim_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_hbdecim_core COMMAND test_hbdecim_core)
 
+add_executable(test_hbdecim_r2c_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_hbdecim_r2c_core.c)
+target_link_libraries(test_hbdecim_r2c_core PRIVATE hbdecim_r2c_core m)
+target_include_directories(test_hbdecim_r2c_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_hbdecim_r2c_core COMMAND test_hbdecim_r2c_core)
+
 add_executable(bench_hbdecim_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_hbdecim_core.c)
 target_link_libraries(bench_hbdecim_core PRIVATE hbdecim_core m)

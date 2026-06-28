@@ -242,7 +242,12 @@ main (void)
             size_t cb   = acq_state_bytes (r1);
             void  *blob = malloc (cb);
             acq_get_state (r1, blob);
-            CHECK (acq_set_state (r2, blob) == 0);
+            CHECK (acq_set_state (r2, blob) == DP_OK);
+            /* standard envelope: a magic-clobbered blob is rejected directly,
+             * r2 left untouched (validate runs before any mutation). */
+            ((char *)blob)[0] ^= (char)0xFF;
+            CHECK (acq_set_state (r2, blob) == DP_ERR_INVALID);
+            ((char *)blob)[0] ^= (char)0xFF;
 
             nB += acq_push (r2, s + cut, L3 - cut, hB + nB, 8 - nB);
 

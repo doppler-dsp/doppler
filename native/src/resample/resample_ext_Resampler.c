@@ -295,6 +295,63 @@ ResamplerObj_exit (ResamplerObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — execute_ctrl, the custom-bank ctor, the view
+ * execute); mirrors jm's generated form for the `serializable` flag, which
+ * also emits the matching resample.pyi stubs. */
+static PyObject *
+ResamplerObj_state_bytes (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (Resampler_state_bytes (self->handle));
+}
+
+static PyObject *
+ResamplerObj_get_state (ResamplerObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = Resampler_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  Resampler_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+ResamplerObj_set_state (ResamplerObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != Resampler_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (Resampler_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef ResamplerObj_methods[] = {
 
   { "execute", (PyCFunction)ResamplerObj_execute, METH_VARARGS,
@@ -327,6 +384,12 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    >>> from doppler import Resampler\n"
     "    >>> obj = Resampler(0.0)\n"
     "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)ResamplerObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)ResamplerObj_get_state, METH_NOARGS,
+    "Serialize the resampler's mutable state to bytes." },
+  { "set_state", (PyCFunction)ResamplerObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { "destroy", (PyCFunction)ResamplerObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)ResamplerObj_enter, METH_NOARGS, NULL },

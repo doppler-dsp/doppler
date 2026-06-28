@@ -39,13 +39,20 @@ from numpy.typing import NDArray
 
 from doppler.ddc import DDC
 from doppler.filter import FIR
-from doppler.resample import CIC, RateConverter
+from doppler.resample import (
+    CIC,
+    HalfbandDecimator,
+    RateConverter,
+    Resampler,
+)
 from doppler.source import LO
 
 # A short real-tapped, symmetric FIR — enough delay-line state to matter.
 _FIR_TAPS = (np.array([0.1, -0.2, 0.3, 0.6, 0.3, -0.2, 0.1]) + 0j).astype(
     np.complex64
 )
+# 4-tap halfband FIR branch (real float32) for HalfbandDecimator.
+_HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 
 # name -> (make, feed): `make()` builds a fresh instance; `feed(obj, seg)` runs
 # one block and returns its output as an owned array (copy — some executes
@@ -59,6 +66,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "DDC": (lambda: DDC(-0.1, 0.25), lambda o, seg: np.array(o.execute(seg))),
     "RateConverter": (
         lambda: RateConverter(0.5),
+        lambda o, seg: np.array(o.execute(seg)),
+    ),
+    "Resampler": (
+        lambda: Resampler(0.5),
+        lambda o, seg: np.array(o.execute(seg)),
+    ),
+    "HalfbandDecimator": (
+        lambda: HalfbandDecimator(_HB_TAPS),
         lambda o, seg: np.array(o.execute(seg)),
     ),
 }

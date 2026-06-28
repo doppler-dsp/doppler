@@ -94,6 +94,13 @@ extern "C"
    */
   void Resampler_reset (Resampler_state_t *state);
 
+  /** @brief Serialized-state byte size (forwarded to the resamp leaf). */
+  size_t Resampler_state_bytes (const Resampler_state_t *state);
+  /** @brief Serialize the resampler's phase + delay-line state into @p blob. */
+  void Resampler_get_state (const Resampler_state_t *state, void *blob);
+  /** @brief Restore state from @p blob; DP_OK, or DP_ERR_INVALID if rejected. */
+  int Resampler_set_state (Resampler_state_t *state, const void *blob);
+
   /* ------------------------------------------------------------------ */
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */

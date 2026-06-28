@@ -191,6 +191,65 @@ HalfbandDecimatorObj_exit (HalfbandDecimatorObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred); mirrors jm's generated form for the
+ * `serializable` flag, which also emits the matching resample.pyi stubs. */
+static PyObject *
+HalfbandDecimatorObj_state_bytes (HalfbandDecimatorObject *self,
+                                  PyObject                *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (HalfbandDecimator_state_bytes (self->handle));
+}
+
+static PyObject *
+HalfbandDecimatorObj_get_state (HalfbandDecimatorObject *self,
+                                PyObject                *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = HalfbandDecimator_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  HalfbandDecimator_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+HalfbandDecimatorObj_set_state (HalfbandDecimatorObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != HalfbandDecimator_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (HalfbandDecimator_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef HalfbandDecimatorObj_methods[] = {
 
   { "execute", (PyCFunction)HalfbandDecimatorObj_execute, METH_VARARGS,
@@ -212,6 +271,12 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "    >>> from doppler import HalfbandDecimator\n"
     "    >>> obj = HalfbandDecimator(np.zeros(1, dtype=np.float32))\n"
     "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)HalfbandDecimatorObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)HalfbandDecimatorObj_get_state, METH_NOARGS,
+    "Serialize the decimator's mutable state to bytes." },
+  { "set_state", (PyCFunction)HalfbandDecimatorObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { "destroy", (PyCFunction)HalfbandDecimatorObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)HalfbandDecimatorObj_enter, METH_NOARGS, NULL },

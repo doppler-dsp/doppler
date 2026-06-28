@@ -97,16 +97,36 @@ def test_writable_properties():
     assert obj.alpha == pytest.approx(0.05)
     assert obj.decim == 8  # default decimation factor
     assert obj.clip_db == pytest.approx(120.0)  # default — effectively off
+    assert obj.gain_update_period == 1  # default — exact per-sample step()
     obj.ref_db = -3.0
     obj.loop_bw = 0.005
     obj.alpha = 0.1
     obj.decim = 16
     obj.clip_db = 3.0
+    obj.gain_update_period = 8
     assert obj.ref_db == pytest.approx(-3.0)
     assert obj.loop_bw == pytest.approx(0.005)
     assert obj.alpha == pytest.approx(0.1)
     assert obj.decim == 16
     assert obj.clip_db == pytest.approx(3.0)
+    assert obj.gain_update_period == 8
+
+
+def test_gain_update_period_converges_like_per_sample():
+    # gain_update_period > 1 amortises the loop-filter command over P samples
+    # (a zero-order hold on the gain); the detector and gain-apply still run
+    # every sample, so it is not bit-identical to the per-sample loop but
+    # reaches the same steady-state gain.
+    base = AGC(0.0, 0.005, 0.1)
+    dec = AGC(0.0, 0.005, 0.1)
+    dec.gain_update_period = 8
+    x = _const(4.0, 4000)
+    for v in x:
+        base.step(complex(v))
+        dec.step(complex(v))
+    assert dec.gain_db == pytest.approx(base.gain_db, abs=0.3)
+    # output power converged to the 0 dB reference (|y| ~ 1)
+    assert abs(dec.step(complex(DIR * 4.0))) == pytest.approx(1.0, abs=0.1)
 
 
 def test_decimation_factor():

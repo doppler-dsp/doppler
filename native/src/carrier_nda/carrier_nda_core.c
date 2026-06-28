@@ -14,17 +14,23 @@ lock_scale_for (int m)
   return 0.412; /* m == 8 */
 }
 
-/* Seed the loop integrator so the per-arm-update frequency estimate
- * (lf.integ / arm_len, rad/sample) matches the requested carrier offset, and
- * point the NCO at the same frequency — de-rotation is correct from the first
- * sample, before any update runs. */
+/* Seed the loop integrator so the per-sample frequency estimate (lf.integ,
+ * rad/sample) matches the requested carrier offset, and point the NCO at the
+ * same frequency — de-rotation is correct from the first sample, before any
+ * update runs. */
 static void
 seed (carrier_nda_state_t *s, double init_norm_freq)
 {
-  lo_init (&s->nco, init_norm_freq);
-  s->lf.integ   = init_norm_freq * 2.0 * M_PI;
-  s->arm_acc    = 0.0f;
-  s->arm_cnt    = 0;
+  lo_init (&s->nco, init_norm_freq); /* centre freq lives in nco.phase_inc */
+  s->lf.integ = 0.0;                 /* loop filter integrates the correction
+                                        from zero; the NCO control port adds it
+                                        on top of the centre each sample.      */
+  s->ctl_cyc = 0.0;
+  /* The boxcar arm starts at unit gain (the AGC drives it from here);
+   * boxcar_init clears its whole fixed ring, so the pointer-free POD snapshot
+   * is deterministic regardless of allocation — MpskReceiver embeds this by
+   * value, with no calloc. */
+  boxcar_init (&s->arm, s->arm_len, 1.0);
   s->lock       = 0.0;
   s->last_error = 0.0;
   /* Embed the log-domain AGC by value (no agc_create): config + reset its loop
@@ -39,6 +45,35 @@ seed (carrier_nda_state_t *s, double init_norm_freq)
   s->agc.gain_db = 0.0;
   s->agc.p_avg   = 1.0; /* 10^(ref_db/10) for ref_db = 0 */
   s->agc.g_last  = 1.0;
+  /* Decimate the AGC's loop-filter command: agc_step applies the gain and
+   * folds power every sample, but refreshes the dB command (the exp10/log10)
+   * once per AGC_DECIM_DEFAULT samples — amortising the transcendentals on
+   * this sample-rate carrier loop. The AGC is ~100x slower than the carrier
+   * loop, so an 8-sample gain hold is negligible. gain_phase/clip_lin are set
+   * by the agc_reset-equivalent below. */
+  s->agc.gain_update_period = AGC_DECIM_DEFAULT;
+  s->agc.gain_phase         = 0;
+  s->agc.clip_lin           = (float)agc_exp10_ (s->agc.clip_db * 0.05);
+}
+
+/* Configure the carrier PI loop for the current (bn, zeta) and scale its gains
+ * by 1/(2*pi) so the loop filter natively outputs the NCO's unit (cycles per
+ * sample) from the discriminator's radian phase error. The whole loop then
+ * runs in NCO cycles: carrier_nda_steer is a pure loop_filter_step (no
+ * per-sample conversion) and lf.integ is the frequency correction in
+ * cycles/sample.
+ *
+ * bn is the loop noise bandwidth in cycles/sample. The moving-average arm
+ * emits one sample per input sample, so the loop updates every sample (period
+ * t = 1); n only sets the window length, so the gains are n-invariant. Folding
+ * the radian->cycle constant into the gains leaves the open-loop product (disc
+ * slope x gains x NCO gain) unchanged, so the dynamics are identical. */
+static void
+config_loop (carrier_nda_state_t *s)
+{
+  loop_filter_configure (&s->lf, s->bn, s->zeta, 1.0);
+  s->lf.kp *= CARRIER_NDA_INV_2PI;
+  s->lf.ki *= CARRIER_NDA_INV_2PI;
 }
 
 void
@@ -55,10 +90,7 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;
-  /* bn is the loop noise bandwidth in cycles/sample (same unit as norm_freq);
-   * the true update period is arm_len samples, so the gains are n-invariant.
-   */
-  loop_filter_init (&s->lf, bn, zeta, (double)s->arm_len);
+  config_loop (s);
   seed (s, init_norm_freq);
 }
 
@@ -70,6 +102,8 @@ carrier_nda_create (double bn, double zeta, double init_norm_freq, size_t sps,
     return NULL; /* only BPSK / QPSK / 8PSK */
   if (sps == 0 || n <= 0 || sps % (size_t)n != 0)
     return NULL; /* arm length must be a whole number of samples */
+  if (sps / (size_t)n > BOXCAR_MAX_LEN)
+    return NULL; /* boxcar arm window is a fixed in-struct ring */
   carrier_nda_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
@@ -126,7 +160,10 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
 double
 carrier_nda_get_norm_freq (const carrier_nda_state_t *state)
 {
-  return state->nco.norm_freq;
+  /* Tracked carrier = NCO centre (nco.norm_freq) + the loop's integrated
+   * frequency correction (lf.integ, already in cycles/sample — the loop gains
+   * carry the rad->cycle scale, see config_loop). */
+  return state->nco.norm_freq + state->lf.integ;
 }
 
 void
@@ -159,7 +196,7 @@ void
 carrier_nda_set_bn (carrier_nda_state_t *state, double val)
 {
   state->bn = val;
-  loop_filter_configure (&state->lf, val, state->zeta, (double)state->arm_len);
+  config_loop (state);
   /* Keep the arm AGC locked to a fixed fraction of the carrier loop bandwidth
    * so it stays 100x slower than the loop at the new bn (see header). */
   state->agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * val;

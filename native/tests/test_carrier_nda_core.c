@@ -4,7 +4,7 @@
  *
  * Tests:
  *   1. Lifecycle / param validation / init==create parity
- *   2. Arm integrate-and-dump cadence — n dumps per symbol
+ *   2. Arm moving-average cadence — one output/sample, boxcar window sum
  *   3. The M-th-power discriminator: phase_error = scaled Im(z^M) (zero with
  *      positive slope at lock; period-2pi/M sawtooth), lock = scaled Re(z^M)
  *   4. Cold-start pull-in on an UNMODULATED carrier (no data)
@@ -121,20 +121,32 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
-   * 2. Arm integrate-and-dump cadence — n dumps per symbol           *
+   * 2. Arm moving-average: one output per input sample (no rate       *
+   *    change), and the running window holds a boxcar sum of the last  *
+   *    arm_len samples.                                                *
    * ---------------------------------------------------------------- */
   {
-    int                  sps = 8, n = 4;
+    int                  sps = 8, n = 4; /* arm_len = sps/n = 2 */
     carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, sps, n, 4);
-    int                  dumps = 0;
-    for (int i = 0; i < sps; i++) /* one symbol worth of samples */
+    int                  outs = 0;
+    for (int i = 0; i < sps; i++) /* ramp 1..8 through the boxcar */
       {
         double pe, lk;
-        if (carrier_nda_arm_step (c, 1.0f + 0.0f * I, &pe, &lk))
-          dumps++;
+        if (carrier_nda_arm_step (c, (float)(i + 1) + 0.0f * I, &pe, &lk))
+          outs++;
       }
-    CHECK (dumps == n); /* exactly n dumps per symbol */
+    CHECK (outs == sps); /* one output per input sample (no decimation) */
+    /* boxcar window = last arm_len=2 samples: 7 + 8 = 15 (running sum) */
+    CHECK (fabs (crealf (c->arm.acc) - 15.0f) < 1e-4);
+    CHECK (fabs (cimagf (c->arm.acc)) < 1e-6);
     carrier_nda_destroy (c);
+
+    /* arm_len > BOXCAR_MAX_LEN is rejected (fixed in-struct ring) */
+    CHECK (carrier_nda_create (0.01, 0.707, 0.0, 128, 1, 4) == NULL);
+    carrier_nda_state_t *cmax
+        = carrier_nda_create (0.01, 0.707, 0.0, BOXCAR_MAX_LEN, 1, 4);
+    CHECK (cmax != NULL); /* arm_len == BOXCAR_MAX_LEN is allowed */
+    carrier_nda_destroy (cmax);
   }
 
   /* ---------------------------------------------------------------- *

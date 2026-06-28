@@ -6,6 +6,7 @@ target_include_directories(
 target_link_libraries(carrier_nda_core PUBLIC
     lo_core
     loop_filter_core
+    boxcar_core
     agc_core)
 
 add_executable(test_carrier_nda_core
@@ -13,6 +14,7 @@ add_executable(test_carrier_nda_core
 target_link_libraries(test_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core
+    boxcar_core
     agc_core
     m)
 target_include_directories(test_carrier_nda_core
@@ -25,6 +27,7 @@ add_executable(
 target_link_libraries(bench_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core
+    boxcar_core
     agc_core
     m)
 target_include_directories(

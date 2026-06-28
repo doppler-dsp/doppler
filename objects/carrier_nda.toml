@@ -9,6 +9,7 @@ serializable = "true"
 depends_on = [
   { name = "lo", link = true },
   { name = "loop_filter", link = true },
+  { name = "boxcar", link = true },
   { name = "agc" },
 ]
 

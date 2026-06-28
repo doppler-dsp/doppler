@@ -27,7 +27,7 @@ flowchart TB
     subgraph RX["MpskReceiver — one per-sample inline loop"]
         direction TB
         WIPE["carrier wipe-off<br/>per-sample integer NCO"]
-        ARM["I/Q arm I&D<br/>(N× per symbol)"]
+        ARM["I/Q arm boxcar MA<br/>(sps/n window, per-sample)"]
         NDA["NDA M-th-power disc<br/>z² → z⁴ → z⁸<br/>→ phase_error + lock"]
         MF["matched filter<br/>I&D default / RRC opt-in"]
         SS["symsync<br/>Gardner + Farrow<br/>(carrier-blind)"]
@@ -85,10 +85,13 @@ links must **acquire the carrier with no symbol timing and no data present**
 has **two error sources into one NCO**:
 
 1. **Acquisition — non-data-aided (NDA) M-th-power discriminator** on the I/Q
-    **arm integrate-and-dump at N× the symbol rate** (integrate `sps/N` samples,
-    dump `N` times per symbol; **N is a config param, default 4**). It strips the
-    M-PSK modulation by raising the arm sample to the Mth power, so it is
-    independent of data and of symbol timing. This is the robust cold-start path.
+    **arm: a free-running boxcar moving average of `sps/n` samples** (one output
+    per input sample — no rate change; **n is a config param, default 4**, which
+    sets the `1/n`-symbol window). The discriminator runs **every sample**. It
+    strips the M-PSK modulation by raising the arm sample to the Mth power, so it
+    is independent of data and of symbol timing. This is the robust cold-start
+    path. (`bn` is in cycles/sample — the loop updates every sample, so it is
+    **n-invariant**: `n` only sets the window length, not the loop rate.)
 
 1. **Tracking — decision-directed** `e = Im(y·conj(â))/|y|` on the full-SNR
     recovered symbol `y_k` (the `CarrierMpsk` discriminator, already shipped and
@@ -102,17 +105,20 @@ of the arm sample `z = i + jq`: `z²` strips BPSK, `z⁴` strips QPSK, `z⁸` st
 per-M `lock_scale` normalizes the discriminator/lock gain so the handover
 threshold is M-independent.
 
-**Arm normalization — an AGC, not a per-dump limiter.** The arm sample `z` is
+**Arm normalization — an AGC, not a per-sample limiter.** The arm sample `z` is
 driven to unit average power by an embedded log-domain AGC (`agc_core`) before
 the discriminator, with a 10 dB square clip on the AGC output. This is
 deliberate. The discriminator is the **raw** M-th-power form `Im(z^M)` (the
 "conventional Costas" / linear-arm form), which is optimal for a
-constant-modulus signal — the DSSS target. A per-dump unit-magnitude
+constant-modulus signal — the DSSS target. A per-sample unit-magnitude
 normalization `z/|z|` is Yuen's "polarity-type" hard limiter, the *worst*
 nonlinearity (≈2.5–4 dB extra squaring loss, and non-monotone in SNR). The AGC
 provides amplitude invariance (so the loop gain does not scale with input level)
 *without* the limiter's penalty; the clip bounds the peak (constructive-ISI)
-dumps that would otherwise dominate the `|z|^M` weighting. The AGC bandwidth is
+arm samples that would otherwise dominate the `|z|^M` weighting. The AGC runs
+per sample, but its loop-filter command is decimated internally
+(`agc_step` with `gain_update_period = 8`) so the per-sample cost stays low.
+The AGC bandwidth is
 locked to `0.01·bn`, so it tracks only the overall level — never the carrier
 dynamics or a pulse-shaping envelope. **Input average power is required to be at
 or below unity** — the normal convention for captured/scaled baseband (and the
@@ -124,8 +130,9 @@ false-lock — clip on → false lock, clip off → `|z|^M` gain blow-up).
 ```python
 # osr = sample_rate // symbol_rate   # input oversampling, typ. 4
 # The arm is a free-running half-symbol boxcar moving average (no rate
-# conversion); i, q are its outputs at N dumps/symbol, AGC-normalized to unit
-# average power.  esno = symbol energy-to-noise-density ratio, dB.
+# conversion); i, q are its per-sample outputs (one per input sample),
+# AGC-normalized to unit average power.  esno = symbol energy-to-noise-density
+# ratio, dB.
 #
 # Squaring loss S_L (Lindsey-Simon / Yuen): the SNR penalty of the M-th-power
 # nonlinearity; S_L <= 1 always, so sq_loss_dB <= 0.  Measured from the loop it
@@ -240,15 +247,16 @@ The NDA M-th-power carrier loop is a **standalone reusable C primitive** (not
 buried in the receiver) — a complete non-data-aided carrier-recovery loop usable
 on its own for any M-PSK / unmodulated carrier:
 
-- **Owns** an integer `lo` NCO + a `loop_filter` (by value), the I/Q arm I&D
-    accumulator, and the M-th-power discriminator + lock signal.
-- **Per sample:** wipe-off (inline `*_wipeoff`), accumulate into the arm I&D;
-    every `sps/N` samples dump the arm, run the discriminator, filter, steer the
-    NCO. Inline composition API (`*_wipeoff` / `*_arm_step`) mirrors `lo_step` /
-    `dll_accumulate` / `symsync_step`.
-- **Exposes** `norm_freq`, `lock_signal`/lock metric, `m`, `n` (arm dumps/symbol),
-    loop `bn`/`zeta` — and its NCO so a composing receiver can drive the **same**
-    NCO with a decision-directed error on handover.
+- **Owns** an integer `lo` NCO + a `loop_filter` (by value), the I/Q arm
+    **boxcar moving average** (embedded `boxcar` primitive) + its **per-sample
+    AGC** (embedded `agc`), and the M-th-power discriminator + lock signal.
+- **Per sample:** wipe-off (inline `*_wipeoff`), slide the boxcar arm one sample,
+    AGC-normalize, run the discriminator, filter, steer the NCO — **one update
+    per input sample** (no dumping). Inline composition API (`*_wipeoff` /
+    `*_arm_step`) mirrors `lo_step` / `dll_accumulate` / `symsync_step`.
+- **Exposes** `norm_freq`, `lock_signal`/lock metric, `m`, `n` (boxcar window
+    divisor: window = `sps/n`), loop `bn`/`zeta` — and its NCO so a composing
+    receiver can drive the **same** NCO with a decision-directed error on handover.
 - **Config:** `m` (2/4/8), `sps`, `n` (default 4), `bn`, `zeta`, seed
     `init_norm_freq`. All params default + keyword-capable (no forced positionals).
 
@@ -285,7 +293,7 @@ owned by pointer (variable-length taps), like `channel`'s code copy.
 > discriminator both ignore scale — so no front-end AGC is added here. The
 > *acquisition* path is different: the raw M-th-power NDA discriminator is not
 > amplitude-invariant, so `CarrierNda` carries its **own** internal arm AGC that
-> normalizes the arm dump to unit power before the detector (§2.3). That AGC is
+> normalizes the arm sample to unit power before the detector (§2.3). That AGC is
 > internal to the acquisition loop, not a receiver component or a config param.
 
 ______________________________________________________________________
@@ -339,12 +347,13 @@ ______________________________________________________________________
     (§2.3) on an AGC-normalized arm; `lock_scale` = 1 / 0.619 / 0.412 for
     M = 2 / 4 / 8. Squaring-loss equations corrected and Yuen-grounded (§2.3).
 - **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
-    to `0.01·bn`) + 10 dB square clip, not a per-dump limiter (§2.3).
+    to `0.01·bn`, decimated loop-filter command via `gain_update_period`) + 10 dB
+    square clip, not a per-sample limiter (§2.3).
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
 - **Handover threshold** — on `lock_signal` (+ timing-settled gate); tune in
     Step 3 validation.
-- **N default 4** — arm I&D dumps per symbol; **n-invariant** now (`bn` is
-    cycles/sample), so this is purely a pull-in/jitter trade.
+- **n default 4** — boxcar arm window divisor (window = `sps/n`); **n-invariant**
+    now (`bn` is cycles/sample), so this is purely a pull-in/jitter trade.
 - **Pulse-shaped (RRC) SER** — *open, downstream.* The carrier loop locks on RRC
     (§2.3); the residual RRC symbol-error rate is an `MpskReceiver` matched-filter
     / Gardner-timing matter, tracked separately from `CarrierNda`.

@@ -5,9 +5,10 @@
 [`track.CarrierNda`](../api/python-track.md) is the **non-data-aided** (NDA)
 carrier-recovery loop — the cold-start counterpart to the decision-directed
 [`CarrierMpsk`](carrier-mpsk.md). Per sample it de-rotates with the integer
-`lo` NCO; it integrates the de-rotated samples in an I/Q **arm integrate-and-dump
-at `n` dumps per symbol**, and on each dump runs an **M-th-power** phase
-discriminator. Raising the arm sample to the Mth power strips the M-PSK data, so
+`lo` NCO; it filters the de-rotated samples through a free-running I/Q **boxcar
+moving average of `sps/n` samples** (one output per input sample — no rate
+change), and on **every sample** runs an **M-th-power** phase discriminator.
+Raising the arm sample to the Mth power strips the M-PSK data, so
 the loop locks **with no symbol timing and no data present** — a bare carrier, or
 a modulated carrier before timing settles. It is the robust acquisition aid the
 MPSK receiver hands over from (see the [design note](../design/mpsk.md)).
@@ -34,7 +35,7 @@ driven to unit average power by an internal AGC so the loop gain is
 amplitude-invariant: `z²` strips BPSK, `z⁴` QPSK, `z⁸` 8PSK. Each level yields a
 phase error and a lock signal at one complex multiply — no `atan2`, no `pow`. The
 discriminator is the **raw** M-th-power form (best squaring loss for
-constant-modulus signals like DSSS), not a per-dump magnitude limiter. See
+constant-modulus signals like DSSS), not a per-sample magnitude limiter. See
 [`docs/design/mpsk.md`](../design/mpsk.md) §2.3 for the derivation and the
 squaring-loss equations.
 
@@ -42,7 +43,7 @@ squaring-loss equations.
 import numpy as np
 from doppler.track import CarrierNda
 
-# QPSK NDA loop, 8 samples/symbol, 4 arm dumps/symbol; cold start
+# QPSK NDA loop, 8 samples/symbol, sps/n = 2-sample boxcar arm; cold start
 c = CarrierNda(bn=0.01, zeta=0.707, init_norm_freq=0.0, sps=8, n=4, m=4)
 derot = c.steps(rx)        # de-rotated samples (one per input sample)
 f_est = c.norm_freq        # tracked carrier (cycles/sample)

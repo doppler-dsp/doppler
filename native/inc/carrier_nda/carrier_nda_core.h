@@ -5,10 +5,10 @@
  * A carrier-recovery loop that locks **without data and without symbol timing**
  * — the cold-start / acquisition counterpart to the decision-directed
  * @ref carrier_mpsk_state_t loop. Per sample it de-rotates the input with the
- * integer-phase @ref lo_state_t NCO (carrier wipe-off); it integrates the
- * de-rotated samples in an I/Q arm integrate-and-dump that **dumps N times per
- * symbol** (every `sps/n` samples), and on each dump runs the **M-th-power**
- * phase discriminator, filters the error through an embedded
+ * integer-phase @ref lo_state_t NCO (carrier wipe-off); it filters the de-rotated
+ * samples through a free-running I/Q **boxcar moving average** of `sps/n` samples
+ * (one output per input sample — no rate change), and on every sample runs the
+ * **M-th-power** phase discriminator, filters the error through an embedded
  * @ref loop_filter_state_t, and steers the NCO frequency + phase.
  *
  * Raising the (unit-normalized) arm sample `z` to the Mth power strips the M-PSK
@@ -43,11 +43,11 @@
  * The AGC absorbs residual/slow level variation, not a large cold offset.
  *
  * @code
- * // QPSK NDA carrier loop, 8 samples/symbol, 4 arm dumps/symbol
+ * // QPSK NDA carrier loop, 8 samples/symbol, 2-sample moving-average arm
  * carrier_nda_state_t *c = carrier_nda_create(0.01, 0.707, 0.0, 8, 4, 4);
  * float complex derot[1024];
  * size_t k = carrier_nda_steps(c, rx, rx_len, derot, 1024);
- * double f = c->nco.norm_freq;   // tracked carrier (cycles/sample)
+ * double f = carrier_nda_get_norm_freq(c); // tracked carrier (cyc/sample)
  * carrier_nda_destroy(c);
  * @endcode
  */
@@ -55,6 +55,7 @@
 #define CARRIER_NDA_CORE_H
 
 #include "agc/agc_core.h"
+#include "boxcar/boxcar_core.h"
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
@@ -67,24 +68,26 @@ extern "C" {
 
 /* Numerical guard on the arm-sample magnitude (not tunable). */
 #define CARRIER_NDA_EPS 1e-12
+/* rad/sample -> cycles/sample for the NCO control port (replaces /(2*pi)). */
+#define CARRIER_NDA_INV_2PI 0.15915494309189535 /* 1 / (2*pi) */
 /* EMA smoothing for the lock metric (status diagnostic / handover input). */
 #define CARRIER_NDA_LOCK_ALPHA 0.05
-/* Arm-dump AGC (the embedded log-domain agc_core primitive) — drives the
+/* Arm AGC (the embedded log-domain agc_core primitive) — drives the
  * phase-detector input to unit average power so the loop gain is amplitude-
- * invariant. The AGC runs once per arm dump and MUST stay slow relative to the
- * carrier loop: its bandwidth is locked to a fixed fraction of the carrier loop
- * bandwidth (agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * bn), so it is always 100×
- * slower and tracks only the overall signal level — never the carrier dynamics
- * or the within-symbol pulse (RRC) envelope. Flattening the envelope would
- * destroy the raw M-th-power discriminator's natural |z|^M dump weighting and
- * corrupt the phase estimate on pulse-shaped signals. */
+ * invariant. The AGC runs once per moving-average output and MUST stay slow
+ * relative to the carrier loop: its bandwidth is locked to a fixed fraction of
+ * the carrier loop bandwidth (agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * bn), so
+ * it is always 100× slower and tracks only the overall signal level — never the
+ * carrier dynamics or the within-symbol pulse (RRC) envelope. Flattening the
+ * envelope would destroy the raw M-th-power discriminator's natural |z|^M
+ * weighting and corrupt the phase estimate on pulse-shaped signals. */
 #define CARRIER_NDA_AGC_REF_DB 0.0
 #define CARRIER_NDA_AGC_BW_RATIO 0.01
 #define CARRIER_NDA_AGC_ALPHA 0.01
 /* Saturated-amplifier soft clip: the AGC's square clip set 10 dB above the unit
- * level. Bounds the peak (constructive-ISI) dumps that would otherwise dominate
- * the |z|^M weighting, while constant-modulus dumps sit below it and pass
- * through unclipped (keeping the raw-arm squaring-loss advantage). */
+ * level. Bounds the peak (constructive-ISI) arm samples that would otherwise
+ * dominate the |z|^M weighting, while constant-modulus samples sit below it and
+ * pass through unclipped (keeping the raw-arm squaring-loss advantage). */
 #define CARRIER_NDA_AGC_CLIP_DB 10.0
 
 /**
@@ -100,17 +103,18 @@ typedef struct {
     loop_filter_state_t lf;  /**< 2nd-order carrier PI loop.               */
     size_t sps;              /**< samples per symbol.                      */
     int m;                   /**< constellation order M (2, 4, 8).         */
-    int n;                   /**< arm integrate-and-dump dumps per symbol. */
-    size_t arm_len;          /**< samples per arm dump (= sps / n).        */
+    int n;                   /**< sets the MA window (= a 1/n-symbol box).  */
+    size_t arm_len;          /**< moving-average window length (= sps / n). */
     double lock_scale;       /**< per-M lock-signal scale (1/0.619/0.412). */
     double seed_norm_freq;   /**< create-time carrier freq, for reset.     */
     double bn;               /**< PLL loop noise bandwidth (retained).     */
     double zeta;             /**< damping factor (retained).               */
-    float complex arm_acc;   /**< running I/Q arm integrate-and-dump.      */
-    size_t arm_cnt;          /**< samples accumulated into `arm_acc`.      */
+    boxcar_state_t arm;      /**< I/Q boxcar moving-average arm (sps/n).    */
     double lock;             /**< EMA of the lock signal (1 = locked).     */
     double last_error;       /**< last phase discriminator (loop stress).  */
-    agc_state_t agc;         /**< log-domain AGC on the arm dump (unit pwr).*/
+    agc_state_t agc;         /**< per-sample log-domain AGC on the arm sample
+                                  (normalizes to unit average power).        */
+    double ctl_cyc;          /**< NCO control (cyc/sample) for next wipeoff.*/
 } carrier_nda_state_t;
 
 /**
@@ -120,14 +124,15 @@ typedef struct {
  * sample @p z (the "conventional Costas" / linear-arm form) and writes the phase
  * error (= scaled `Im(z^M)`) and lock signal. The arm sample is expected to be
  * AGC-normalized to unit average power upstream (carrier_nda_arm_step runs the
- * dump through an embedded agc_core AGC) — so a clean dump is `|z|≈1` and a
- * transition-straddling dump is `|z|<1` and is *down-weighted naturally*. This is deliberate: a per-dump
- * unit-magnitude normalization is Yuen's "polarity-type" hard limiter, the worst
- * nonlinearity (≈2.5–4 dB extra squaring loss, and non-monotonic in SNR — see
- * docs/design/mpsk.md §2.3). On a unit-magnitude `z` the raw and normalized forms
- * coincide, so the S-curve and lock-scale calibration are unchanged.
+ * window average through an embedded agc_core AGC) — so a clean window is `|z|≈1`
+ * and a transition-straddling window is `|z|<1` and is *down-weighted naturally*.
+ * This is deliberate: a per-sample unit-magnitude normalization is Yuen's
+ * "polarity-type" hard limiter, the worst nonlinearity (≈2.5–4 dB extra squaring
+ * loss, and non-monotonic in SNR — see docs/design/mpsk.md §2.3). On a
+ * unit-magnitude `z` the raw and normalized forms coincide, so the S-curve and
+ * lock-scale calibration are unchanged.
  *
- * @param z      Arm integrate-and-dump sample (AGC-normalized, ~unit at lock).
+ * @param z      Arm moving-average sample (AGC-normalized, ~unit at lock).
  * @param m      Constellation order (2, 4, 8).
  * @param scale  Per-M lock scale (1 / 0.619 / 0.412).
  * @param pe     Receives the phase error.
@@ -136,18 +141,23 @@ typedef struct {
 JM_FORCEINLINE void
 carrier_nda_disc(float complex z, int m, double scale, double *pe, double *lock)
 {
-    double i = (double)crealf(z); /* raw I (AGC-normalized upstream) */
-    double q = (double)cimagf(z); /* raw Q                          */
-    double bl = i * i - q * q;          /* Re(z^2) */
-    double be = 2.0 * i * q;            /* Im(z^2) */
+    /* The cascade runs in float: the input is a float complex AGC-normalized to
+     * |z|~1 (clip caps it at ~3.16), so even z^8 is O(1)-O(1e4) and float's
+     * ~1e-7 relative error is far below what the loop tolerates. Keeping it in
+     * float avoids the float->double conversions on this loop-carried critical
+     * path; only the two outputs (which feed the double loop filter) promote. */
+    float i = crealf(z); /* raw I (AGC-normalized upstream) */
+    float q = cimagf(z); /* raw Q                          */
+    float bl = i * i - q * q; /* Re(z^2) */
+    float be = 2.0f * i * q;  /* Im(z^2) */
     if (m == 2)
     {
         *pe = be;
         *lock = scale * bl;
         return;
     }
-    double ql = bl * bl - be * be; /* Re(z^4)        */
-    double qe = be * bl;           /* Im(z^4) / 2    */
+    float ql = bl * bl - be * be; /* Re(z^4)        */
+    float qe = be * bl;           /* Im(z^4) / 2    */
     if (m == 4)
     {
         *pe = qe;
@@ -162,11 +172,12 @@ carrier_nda_disc(float complex z, int m, double scale, double *pe, double *lock)
  * @brief Initialise an NDA carrier loop in place (no allocation).
  *
  * @param s               State to initialise.  Must be non-NULL.
- * @param bn              Loop noise bandwidth (per arm-update rate).
+ * @param bn              Loop noise bandwidth, cycles/sample (per-sample loop).
  * @param zeta            Damping factor (0.707 = critically damped).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample.
  * @param sps             Samples per symbol.
- * @param n               Arm integrate-and-dump dumps per symbol (sps % n == 0).
+ * @param n               MA window divisor: window = sps/n samples (sps % n == 0,
+ *                        sps/n <= BOXCAR_MAX_LEN).
  * @param m               Constellation order M (2, 4, 8).
  */
 void carrier_nda_init(carrier_nda_state_t *s, double bn, double zeta,
@@ -176,52 +187,60 @@ void carrier_nda_init(carrier_nda_state_t *s, double bn, double zeta,
  * @brief Per-sample carrier wipe-off: de-rotate @p x by the NCO, advance it.
  * @param s  Carrier loop state.  Must be non-NULL.
  * @param x  One input sample.
- * @return The de-rotated sample to feed the arm integrate-and-dump.
+ * @return The de-rotated sample to feed the moving-average arm.
  */
 JM_FORCEINLINE JM_HOT float complex
 carrier_nda_wipeoff(carrier_nda_state_t *s, float complex x)
 {
-    return x * conjf(lo_step(&s->nco));
+    /* De-rotate through the NCO's control port: the LO advances by its centre
+     * frequency (phase_inc) plus the loop's last control (ctl_cyc, set by
+     * carrier_nda_steer). The LO owns the phase accumulation and scaling. */
+    return x * conjf(lo_step_ctrl(&s->nco, s->ctl_cyc));
 }
 
 /**
- * @brief Accumulate a de-rotated sample into the arm I/D; discriminate on dump.
+ * @brief Slide the moving-average arm by one sample; discriminate the output.
  *
- * Adds @p d to the arm accumulator; every `arm_len` samples it dumps, runs the
- * M-th-power discriminator on the dump, writes @p pe (phase error) and @p lock
- * (lock signal), resets the accumulator, and returns 1. Otherwise returns 0.
+ * The arm is a free-running boxcar **moving average** of the last `arm_len`
+ * de-rotated samples — one output per input sample, **no rate change** (not a
+ * decimating integrate-and-dump). It updates the running window sum in O(1)
+ * (add @p d, subtract the sample leaving the window), runs the M-th-power
+ * discriminator on the AGC-normalized window average, writes @p pe and @p lock,
+ * and returns 1 every call.
  *
  * @param s     Carrier loop state.  Must be non-NULL.
  * @param d     One de-rotated sample (from carrier_nda_wipeoff).
- * @param pe    Receives the phase error on a dump.
- * @param lock  Receives the lock signal on a dump.
- * @return 1 on an arm dump (pe/lock written), 0 otherwise.
+ * @param pe    Receives the phase error.
+ * @param lock  Receives the lock signal.
+ * @return Always 1 (one discriminator output per input sample).
  */
 JM_FORCEINLINE JM_HOT int
 carrier_nda_arm_step(carrier_nda_state_t *s, float complex d, double *pe,
                      double *lock)
 {
-    s->arm_acc += d;
-    if (++s->arm_cnt < s->arm_len)
-        return 0;
-    float complex z = s->arm_acc / (float)s->arm_len;
-    /* Drive the phase detector at unit average power via the embedded log-domain
-     * AGC (so the loop gain is amplitude-invariant — the role the old per-dump
-     * |z| normalization served, but as a feedback loop, not a per-dump divide).
-     * The AGC's square clip (clip_db) saturates the peak (constructive-ISI)
-     * dumps; constant-modulus dumps pass through, so the raw M-th-power
-     * discriminator keeps its squaring-loss advantage. */
-    float complex zn = agc_step(&s->agc, z);
+    /* Slide the boxcar moving average by one sample (unit gain — pure I/Q
+     * average), then normalize that window sample to unit average power with the
+     * embedded AGC so the loop gain is amplitude-invariant (the role the old
+     * per-sample |z| divide served, now as a slow feedback loop). agc_step is
+     * the exact per-sample AGC — gain-apply, power detector, dB loop filter and
+     * square clip in one call. The arm is in the *fast* carrier loop, so the AGC
+     * runs per sample (no decimation, no block latency in the feedback path);
+     * its own slowness (loop_bw = 0.01*bn, ~100x below the carrier loop) is what
+     * keeps it tracking the overall level only — never the carrier dynamics or
+     * the within-symbol pulse envelope. The square clip (clip_db) saturates the
+     * peak (constructive-ISI) samples while constant-modulus samples pass
+     * through, so the raw M-th-power discriminator keeps its squaring-loss
+     * advantage. */
+    float complex y  = boxcar_step(&s->arm, d);
+    float complex zn = agc_step(&s->agc, y);
     carrier_nda_disc(zn, s->m, s->lock_scale, pe, lock);
-    s->arm_acc = 0.0f;
-    s->arm_cnt = 0;
     return 1;
 }
 
 /**
  * @brief Steer the shared NCO with a phase error through the loop filter.
  *
- * Filters @p pe and updates the NCO frequency (per arm-update) + a proportional
+ * Filters @p pe and updates the NCO frequency (per sample) + a proportional
  * phase nudge. Shared by the NDA acquisition path and a composing receiver's
  * decision-directed tracking path (handover writes the same NCO).
  *
@@ -232,12 +251,16 @@ JM_FORCEINLINE JM_HOT void
 carrier_nda_steer(carrier_nda_state_t *s, double pe)
 {
     s->last_error = pe;
-    loop_filter_step(&s->lf, pe);
-    /* lf.integ is the frequency estimate in rad/sample (the loop filter is
-     * init'd with t = arm_len, so bn is cycles/sample and n-invariant). */
-    double car_w = s->lf.integ;
-    lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
-    s->nco.phase += (uint32_t)((s->lf.kp * pe) / (2.0 * M_PI) * 4294967296.0);
+    /* The PI loop filter output (integ + kp*pe) is the NCO frequency command.
+     * config_loop folds the rad->cycle constant (1/2*pi) into kp/ki, so the
+     * output is already in cycles/sample — store it directly as the control the
+     * next wipeoff feeds to the LO's control port (no per-sample conversion).
+     * The LO does the cycles->phase scaling and phase accumulation, so the loop
+     * never touches the integer phase. The loop filter is init'd with t = 1 (the
+     * MA arm updates every sample), so bn is cycles/sample and n-invariant — n
+     * only sets the window length. lf.integ is thus the carrier frequency
+     * correction in cycles/sample (read back by carrier_nda_get_norm_freq). */
+    s->ctl_cyc = loop_filter_step(&s->lf, pe);
 }
 
 /**
@@ -247,7 +270,7 @@ carrier_nda_steer(carrier_nda_state_t *s, double pe)
  * @param zeta            Damping factor (default 0.707).
  * @param init_norm_freq  Seed carrier frequency, cycles/sample (default 0.0).
  * @param sps             Samples per symbol (default 8).
- * @param n               Arm dumps per symbol (default 4; sps % n == 0).
+ * @param n               MA window divisor: window = sps/n (default 4; sps%n==0).
  * @param m               Constellation order M, 2/4/8 (default 4 = QPSK).
  * @return Heap-allocated state, or NULL on invalid args / allocation failure.
  * @note Caller must call carrier_nda_destroy() when done.
@@ -270,7 +293,7 @@ void carrier_nda_reset(carrier_nda_state_t *state);
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
  */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC('C', 'N', 'D', 'A')
-#define CARRIER_NDA_STATE_VERSION 1u
+#define CARRIER_NDA_STATE_VERSION 2u /* v2: moving-average arm (ring + sum) */
 
 /** @brief Serialized-state byte size. */
 size_t carrier_nda_state_bytes(const carrier_nda_state_t *state);

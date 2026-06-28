@@ -363,13 +363,14 @@ a new object must declare `serializable = "true"` or opt out as stateless.
 
 Covered: generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/
 `CarrierNda`/`LoopFilter`), `FIR`/`CIC`/`DDC`/`Ddcr`/`RateConverter`/`Resampler`/
-`HalfbandDecimator`/`Acquisition`, the POD set (`Farrow`/`AGC`/`ADC`/the four
-`acc_*` accumulators/the four `f32_to_*` quantizers), the field-wise set
-(`delay`/`acc_trace`/`hbdecim_q15`), the compositions (`Dll`/`SymbolSync`/
-`Channel`/`MpskReceiver`/`wfm_synth`), and the correlator/detector/analyzer
-family (`corr`/`corr2d`/`detector`/`detector2d`/`despreader`/`psd`/`specan` —
-opaque FFT plans + work buffers rebuilt by `create`; ring/pending buffers
-zero-padded to a fixed capacity so blobs stay canonical).
+`HalfbandDecimator`/`MovingAverage`/`Acquisition`, the POD set (`Farrow`/`AGC`/
+`ADC`/the four `acc_*` accumulators/the four `f32_to_*` quantizers), the
+field-wise set (`delay`/`acc_trace`/`hbdecim_q15`), the compositions
+(`Dll`/`SymbolSync`/`Channel`/`MpskReceiver`/`wfm_synth`), and the
+correlator/detector/analyzer family
+(`corr`/`corr2d`/`detector`/`detector2d`/`despreader`/`psd`/`specan` — opaque
+FFT plans + work buffers rebuilt by `create`; ring/pending buffers zero-padded
+to a fixed capacity so blobs stay canonical).
 
 ### The payoff — elastic pod hand-off
 

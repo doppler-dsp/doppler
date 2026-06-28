@@ -286,7 +286,7 @@ mpsk_receiver_bits (mpsk_receiver_state_t *state, const float complex *x,
 double
 mpsk_receiver_get_norm_freq (const mpsk_receiver_state_t *state)
 {
-  return state->car.nco.norm_freq;
+  return carrier_nda_get_norm_freq (&state->car);
 }
 
 void

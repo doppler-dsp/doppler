@@ -32,6 +32,7 @@
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
+#include <math.h> /* floor() in the lo_step_ctrl control port */
 #ifdef __cplusplus
 extern "C"
 {
@@ -115,6 +116,41 @@ extern "C"
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
     state->phase += state->phase_inc;
+    return out;
+  }
+
+  /**
+   * @brief Emit the current CF32 phasor, then advance by phase_inc + control.
+   *
+   * The NCO **control port** for a tracking loop: @p ctrl is a per-sample
+   * frequency control in normalized cycles/sample, added on top of the centre
+   * increment @c phase_inc for this step only (not persisted — the loop filter
+   * holds the integrator and supplies its full output as @p ctrl each sample).
+   * The LO owns the cycles→phase scaling, so the loop never touches the integer
+   * phase accumulator. Same emit-before-increment convention as lo_step(); with
+   * @p ctrl == 0 it is bit-identical to lo_step().
+   *
+   * @param state  LO state.  Must be non-NULL with phase/phase_inc set.
+   * @param ctrl   Frequency control, normalized cycles/sample (any sign; the
+   *               fractional cycle is taken, so it wraps correctly).
+   * @return cos(θ) + j·sin(θ) at the phase BEFORE the increment.
+   * @code
+   * lo_state_t lo;
+   * lo_init (&lo, 0.0);                 // centre at DC
+   * float complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
+   * @endcode
+   */
+  JM_FORCEINLINE JM_HOT float complex lo_step_ctrl (lo_state_t *state,
+                                                    double ctrl)
+  {
+    uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
+    float complex out
+        = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
+                  lo_sin_lut[idx]);
+    /* Fractional cycle of the control → 32-bit phase units (the LO's own
+     * scaling); floor handles negative corrections by wrapping mod 1 cycle. */
+    double f = ctrl - floor (ctrl);
+    state->phase += state->phase_inc + (uint32_t)(f * 4294967296.0);
     return out;
   }
 

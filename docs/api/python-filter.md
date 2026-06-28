@@ -68,3 +68,30 @@ filt.reset()    # zero delay line; tap coefficients preserved
 ______________________________________________________________________
 
 ::: doppler.filter.FIR
+
+______________________________________________________________________
+
+## Moving average (boxcar)
+
+`MovingAverage` is a sliding-window boxcar filter over the last `len` complex
+samples — one output per input sample (no rate change). Each step adds the new
+sample and subtracts the sample leaving the window, so it is **O(1) per sample**
+regardless of window length (a running window sum, not a re-summed convolution).
+The output is the window mean times an optional output `gain`, folded into a
+single cached `scale = gain/len` so applying the gain is free. The delay ring is
+a fixed in-struct array, so the state is pointer-free POD: it embeds by value
+into a composing object (a carrier loop's I/Q arm, a smoother ahead of a
+detector) and serializes as a whole-struct snapshot.
+
+```python
+import numpy as np
+from doppler.filter import MovingAverage
+
+ma = MovingAverage(2)                       # 2-sample window, unit gain
+ma.steps(np.ones(3, np.complex64)).real     # [0.5, 1.0, 1.0] — ramps in
+
+ma2 = MovingAverage(4, gain=2.0)            # gain folded into the mean
+y = ma2.step(1.0 + 0.0j)                    # one sample, returns the gained mean
+```
+
+::: doppler.filter.MovingAverage

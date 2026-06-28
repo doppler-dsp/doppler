@@ -136,11 +136,14 @@ converters, FFT plans, by-value analyzers) are exempt. See
     object to get the pure `<obj>_run(state_in, state_out, …)` transducer.
 
 1. **Declare it** — set `serializable = "true"` in `objects/<obj>.toml`, then
-    `jm apply`: jm generates the Python triplet (`state_bytes()` / `get_state()  -> bytes` / `set_state(bytes)`) **and** the `.pyi` stubs from the flag. If
-    the object's `_ext_<obj>.c` fragment is **sacred** (hand-owned — a bespoke
-    property or custom execute), jm regenerates only the `.pyi`; hand-add the
-    three `PyMethodDef` wrappers to the fragment to match jm's form (until
-    jm #404 transplants them automatically).
+    `jm apply`: jm generates the Python triplet (`state_bytes()` / `get_state()  -> bytes` / `set_state(bytes)`) **and** the `.pyi` stubs. As of **jm 0.20.0**
+    this is fully hands-off for every object kind: a **sacred** `_ext_<obj>.c`
+    fragment gets the triplet **transplanted** in by `jm apply` (gh-404,
+    idempotent — delete any hand-added triplet and let jm own it), and a
+    `kind="handle"` module (`ddc_fn`'s `Ddcr`) generates it over the handle when
+    the flag is on `[module.<name>]` (gh-403). No hand-written triplet glue.
+    (The legacy `DP_PY_STATE_METHODS` macro still works and is left in place on
+    fragments that have it; new objects need only the flag.)
 
 1. **Test it in both harnesses** (REQUIRED — see Step 5).
 

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.19.37"
+jm_version = "0.20.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -923,6 +923,7 @@ handle_type     = "ddcr_state_t"
 header          = "ddc/ddc_core.h"
 package         = "ddc"
 type_name       = "Ddcr"
+serializable    = "true"
 context_manager = true
 create_fn       = "ddcr_create"
 close_fn        = "ddcr_destroy"

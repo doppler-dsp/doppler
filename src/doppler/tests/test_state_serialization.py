@@ -37,7 +37,7 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from doppler.ddc import DDC
+from doppler.ddc import DDC, Ddcr
 from doppler.filter import FIR
 from doppler.resample import (
     CIC,
@@ -66,6 +66,15 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
     "FIR": (lambda: FIR(_FIR_TAPS), lambda o, seg: np.array(o.execute(seg))),
     "DDC": (lambda: DDC(-0.1, 0.25), lambda o, seg: np.array(o.execute(seg))),
+    # Ddcr (handle module, gh-403): real input + caller-owned output buffer.
+    "Ddcr": (
+        lambda: Ddcr(0.1, 0.2),
+        lambda o, seg: np.array(
+            o.execute(
+                seg.real.astype(np.float32), np.zeros(len(seg), np.complex64)
+            )
+        ),
+    ),
     "RateConverter": (
         lambda: RateConverter(0.5),
         lambda o, seg: np.array(o.execute(seg)),

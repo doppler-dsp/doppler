@@ -30,6 +30,12 @@ class Ddcr:
     @property
     def rate(self) -> float:
         """rate (float)."""
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the handle's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
     def close(self) -> None:
         """Release the handle and free resources."""
     def __enter__(self) -> Ddcr:

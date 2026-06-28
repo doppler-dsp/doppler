@@ -280,6 +280,60 @@ SymbolSyncObj_exit (SymbolSyncObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+SymbolSyncObj_state_bytes (SymbolSyncObject *self,
+                           PyObject         *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (symsync_state_bytes (self->handle));
+}
+
+static PyObject *
+SymbolSyncObj_get_state (SymbolSyncObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = symsync_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  symsync_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+SymbolSyncObj_set_state (SymbolSyncObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != symsync_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (symsync_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef SymbolSyncObj_methods[] = {
 
   { "steps", (PyCFunction)SymbolSyncObj_steps, METH_VARARGS,
@@ -319,6 +373,12 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)SymbolSyncObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)SymbolSyncObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)SymbolSyncObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)SymbolSyncObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)SymbolSyncObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

@@ -18,6 +18,7 @@ depends_on = [
   { name = "farrow", link = true },
 ]
 extra_link_libs = ["wfm_dsp_core"]
+serializable = "true"
 
 [[mpsk_receiver.init_params]]
 name = "m"

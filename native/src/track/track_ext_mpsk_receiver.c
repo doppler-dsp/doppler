@@ -436,6 +436,62 @@ MpskReceiverObj_exit (MpskReceiverObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+MpskReceiverObj_state_bytes (MpskReceiverObject *self,
+                             PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (mpsk_receiver_state_bytes (self->handle));
+}
+
+static PyObject *
+MpskReceiverObj_get_state (MpskReceiverObject *self,
+                           PyObject           *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = mpsk_receiver_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  mpsk_receiver_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+MpskReceiverObj_set_state (MpskReceiverObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != mpsk_receiver_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (mpsk_receiver_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef MpskReceiverObj_methods[] = {
 
   { "steps", (PyCFunction)MpskReceiverObj_steps, METH_VARARGS,
@@ -491,6 +547,12 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)MpskReceiverObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)MpskReceiverObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)MpskReceiverObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)MpskReceiverObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)MpskReceiverObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

@@ -194,6 +194,44 @@ dll_reset (dll_state_t *state)
   seed (state);
 }
 
+/* Serializable state — whole-struct snapshot (loop_filter child is
+ * POD-embedded, so its bytes are its state); only the borrowed `code` pointer
+ * + its ownership are this instance's (config), restored by create() and
+ * preserved here. */
+size_t
+dll_state_bytes (const dll_state_t *s)
+{
+  (void)s;
+  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t);
+}
+
+void
+dll_get_state (const dll_state_t *s, void *blob)
+{
+  DP_GET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
+  /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership:
+   * those are this instance's config (restored by create), and serializing a
+   * machine address would make the blob differ across otherwise-identical
+   * instances. set_state preserves the live values regardless. */
+  dll_state_t tmp = *s;
+  tmp.code        = NULL;
+  tmp.owns_code   = 0;
+  dp_w_bytes (&_w, &tmp, sizeof tmp);
+}
+
+int
+dll_set_state (dll_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
+  const uint8_t *code
+      = s->code; /* this instance's code + ownership (config) */
+  int owns = s->owns_code;
+  dp_r_bytes (&_r, s, sizeof *s);
+  s->code      = code;
+  s->owns_code = owns;
+  return DP_OK;
+}
+
 void
 dll_configure (dll_state_t *state, double bn, double zeta)
 {

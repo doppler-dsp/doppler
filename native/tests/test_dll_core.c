@@ -10,6 +10,7 @@
  *   5. Reset reproducibility
  */
 #include "dll/dll_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -338,6 +339,25 @@ main (void)
       fprintf (stderr, "test_dll_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — loop_filter child + correlators resume; the borrowed
+   * code pointer is this instance's, preserved across set_state. */
+  {
+    uint8_t code[31];
+    for (int i = 0; i < 31; i++)
+      code[i] = (uint8_t)(i & 1);
+    dll_state_t *a = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
+    dll_state_t *b = dll_create (code, 31, 2, 0.0, 0.02, 0.707, 0.5, 1);
+    CHECK (a != NULL && b != NULL);
+    for (int i = 0; i < 80; i++)
+      dll_accumulate (a, (float)(i % 7) - 3.0f + 0.5f * I);
+    DP_STATE_ROUNDTRIP_TEST (dll, a, b);
+    CHECK (b->chip_pos == a->chip_pos && b->acc_p == a->acc_p);
+    CHECK (b->lf.integ == a->lf.integ);            /* child resumed */
+    CHECK (b->code != NULL && b->code != a->code); /* code preserved */
+    dll_destroy (a);
+    dll_destroy (b);
+  }
+
   printf ("test_dll_core PASSED\n");
   return 0;
 }

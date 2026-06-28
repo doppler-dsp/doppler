@@ -8,6 +8,7 @@
  *   3. RRC matched filter locks + recovers
  *   4. auto_handover flips the loop from NDA acquisition to decision tracking
  */
+#include "dp_state_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include <complex.h>
 #include <math.h>
@@ -241,6 +242,27 @@ main (void)
       fprintf (stderr, "test_mpsk_receiver_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — carrier_nda + symsync + MF children resume. */
+  {
+    float complex tx[256], out[32];
+    for (int i = 0; i < 256; i++)
+      tx[i] = (float)(i % 4) - 2.0f + 0.1f * I;
+    mpsk_receiver_state_t *a
+        = mpsk_receiver_create (4, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+    mpsk_receiver_state_t *b
+        = mpsk_receiver_create (4, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+    CHECK (a != NULL && b != NULL);
+    (void)mpsk_receiver_steps (a, tx, 256, out, 32);
+    DP_STATE_ROUNDTRIP_TEST (mpsk_receiver, a, b);
+    CHECK (b->sym_count == a->sym_count);
+    CHECK (b->sync.timing.phase == a->sync.timing.phase); /* symsync child */
+    CHECK (b->sym_rot == a->sym_rot);
+    mpsk_receiver_destroy (a);
+    mpsk_receiver_destroy (b);
+  }
+
   printf ("test_mpsk_receiver_core PASSED\n");
   return 0;
 }

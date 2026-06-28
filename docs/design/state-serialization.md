@@ -124,6 +124,87 @@ lo_set_state (lo_state_t *s, const void *blob)
 The writer/reader pairs cover `u32`/`u64`/`f64`/`cf32`/`f32`/raw `bytes`, plus
 `dp_w_reserve`/`dp_r_reserve` for handing a region to a child's get/set.
 
+## Helper macros — the three serializer shapes
+
+Almost every serializer is one of three shapes, and each has a macro so the
+triplet is a few lines, not a hand-rolled envelope. All live in `dp_state.h`.
+
+### POD — `DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)`
+
+A **pointer-free** struct *is* its own state — snapshot it whole. Defines all
+three functions; place it once beside `reset`. Restoring the config fields is a
+harmless no-op into an identically-built instance. An embedded **POD child**
+(e.g. a `loop_filter_state_t` by value) is captured automatically, so a
+composition of by-value POD members is still one `DP_DEFINE_POD_STATE`.
+
+```c
+/* native/src/loop_filter/loop_filter_core.c */
+DP_DEFINE_POD_STATE(loop_filter, loop_filter_state_t,
+                    LOOP_FILTER_STATE_MAGIC, LOOP_FILTER_STATE_VERSION)
+```
+
+### Field-wise — `DP_GET_OPEN` / `DP_SET_OPEN`
+
+When the struct owns heap buffers, pack only the *running* fields and let
+`create()` re-derive the buffers/config. `DP_GET_OPEN(MAGIC, VER, BYTES)` stamps
+the envelope and opens a writer `_w`; `DP_SET_OPEN(MAGIC, VER, BYTES)` validates
+and opens a reader `_r` positioned past the header (early-returns
+`DP_ERR_INVALID` on a bad blob). The body is just `dp_w_*`/`dp_r_*` calls. The
+function parameters **must** be named `s` (the state) and `blob`.
+
+```c
+size_t delay_state_bytes(const delay_state_t *s)
+{ return sizeof(dp_state_hdr_t) + sizeof(uint64_t)
+         + 2 * s->capacity * sizeof(double _Complex); }
+
+void delay_get_state(const delay_state_t *s, void *blob)
+{
+  DP_GET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes(s));
+  dp_w_u64(&_w, s->head);
+  dp_w_bytes(&_w, s->buf, 2 * s->capacity * sizeof(double _Complex));
+}
+
+int delay_set_state(delay_state_t *s, const void *blob)
+{
+  DP_SET_OPEN(DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes(s));
+  s->head = (size_t)dp_r_u64(&_r);
+  dp_r_bytes(&_r, s->buf, 2 * s->capacity * sizeof(double _Complex));
+  return DP_OK;
+}
+```
+
+> A borrowed/owned **pointer** that `create()` re-establishes (e.g. a code
+> table) is config, not state. Don't serialize its *address* — it differs across
+> instances and makes the blob non-canonical. Either skip it (field-wise) or, if
+> you snapshot the whole struct, NULL it in the serialized copy and preserve the
+> live value in `set_state`. See `dll_get_state`.
+
+### Composition — `DP_W_CHILD` / `DP_R_CHILD`
+
+Nest each serializable child as a self-validating sub-blob. `state_bytes` sums
+`<child>_state_bytes(child_ptr)`; `get`/`set` then writes/reads each child via
+the reserve cursors. `child_ptr` may be a pointer member or the address of an
+embedded-by-value member (`&s->lf`). `DP_R_CHILD` returns `DP_ERR_INVALID` from
+the enclosing `set_state` if a child rejects, so a composite restore is
+atomic-by-validation.
+
+```c
+size_t mpsk_receiver_state_bytes(const mpsk_receiver_state_t *s)
+{ return sizeof(dp_state_hdr_t) + carrier_nda_state_bytes(&s->car)
+         + symsync_state_bytes(&s->sync) + fir_state_bytes(s->mf)
+         + /* running scalars … */; }
+
+void mpsk_receiver_get_state(const mpsk_receiver_state_t *s, void *blob)
+{
+  DP_GET_OPEN(MPSK_RECEIVER_STATE_MAGIC, MPSK_RECEIVER_STATE_VERSION,
+              mpsk_receiver_state_bytes(s));
+  DP_W_CHILD(&_w, carrier_nda, &s->car);   /* embedded by value      */
+  DP_W_CHILD(&_w, symsync,     &s->sync);
+  DP_W_CHILD(&_w, fir,         s->mf);      /* pointer member         */
+  /* … then dp_w_* the running scalars … */
+}
+```
+
 ## The `run` transducer
 
 For a single-`execute` object, `DP_DEFINE_RUN(pfx, STATE_T, IN_T, OUT_T)`
@@ -214,30 +295,52 @@ converters, FFT plans, by-value analyzers) are exempt.
 
 1. **Write the C triplet** beside `reset` in `<obj>_core.c`, with a per-object
     `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "dp_state.h"`).
-    Serialize only the *running* state — config is restored by `create()`.
-    Choose the shape that fits the struct:
+    Serialize only the *running* state — config is restored by `create()`. Pick
+    the macro for the shape (see [Helper macros](#helper-macros--the-three-serializer-shapes)):
 
-    - **pointer-free POD** → snapshot the whole struct
-        (`dp_w_bytes(&w, s, sizeof *s)`); restoring config is a harmless no-op into
-        an identically-built instance. (Used by the tracking loops.)
-    - **has pointers** (code tables, heap buffers) → pack field-wise, skip the
-        pointers (re-derived by `create()`).
-    - **composition** → delegate to each child's `*_get_state`/`*_set_state`,
-        embedding them as nested sub-blobs (each self-validating).
+    - **pointer-free POD** → `DP_DEFINE_POD_STATE(...)` (one line).
+    - **owns heap buffers** → field-wise with `DP_GET_OPEN`/`DP_SET_OPEN` + the
+        `dp_w_*`/`dp_r_*` cursors; skip pointers (re-derived by `create()`).
+    - **composition** → `DP_W_CHILD`/`DP_R_CHILD` over each serializable child.
 
-    `set_state` always opens with `dp_state_validate(...)` and returns its result.
     Add `DP_DEFINE_RUN(...)` for the pure `<obj>_run` transducer if it's a
     single-`execute` object.
 
 1. **Flip the flag** — `serializable = "true"` in `objects/<obj>.toml`, then
-    `jm apply`. jm generates the Python `state_bytes`/`get_state`/`set_state`
-    binding and `.pyi` from the flag. (Sacred fragment? jm regenerates only the
-    `.pyi`; hand-add the three wrappers to the fragment to match.)
+    `jm apply`. As of **jm 0.20.0** the flag is the entire Python story for every
+    object kind: jm generates the `state_bytes`/`get_state`/`set_state` binding +
+    `.pyi`, **transplanting** the triplet into a hand-owned (sacred) `_ext_<obj>.c`
+    fragment when one exists (gh-404), and generating it over the handle for a
+    `kind="handle"` module (gh-403). **clang-format the touched fragment** (jm
+    emits 4-space; doppler is GNU 2-space).
 
-1. **Test both faces** — a C round-trip + reject in `test_<obj>_core.c`, and an
-    entry in the parametrized Python matrix
-    `src/doppler/tests/test_state_serialization.py`. Both assert bit-exact resume
-    and that a corrupted blob is rejected.
+1. **Test both faces** — a C round-trip + reject in `test_<obj>_core.c` (the
+    `DP_STATE_ROUNDTRIP_TEST` macro, plus a buffer/field equality check for
+    field-wise/composition shapes), and an entry in the parametrized Python
+    matrix `src/doppler/tests/test_state_serialization.py`. The matrix `feed`
+    returns an array the continuation compare checks bit-for-bit; for an
+    output-less object, return `np.frombuffer(o.get_state(), np.uint8)` so the
+    post-block **state blob itself** is the resume observable.
+
+1. **Drop it from the burn-down** — remove `<obj>` from
+    `scripts/.serializable-ignore`.
+
+## Enforcement — the gate (it can't rot)
+
+`scripts/check_serializable.py` (wired into the CI `docs` job) makes the stance
+**mandatory**: every object in `objects/*.toml` must resolve to exactly one of —
+
+- `serializable = "true"` in its TOML, or
+- listed in `scripts/.serializable-stateless` — a reviewed permanent opt-out for
+    objects with **no resumable state** (pure converters, FFT plans, by-value
+    analyzers). It lives in a sidecar file, not the TOML, because jm's manifest
+    dumper only round-trips keys it knows.
+
+An object that declares neither **fails CI** — unless it is still on the
+rollout burn-down list `scripts/.serializable-ignore`, which shrinks to empty as
+objects are completed. A stale ignore entry (now resolved) also fails, keeping
+the list honest. Net effect: a new stateful object cannot ship without making a
+conscious, reviewed choice.
 
 ______________________________________________________________________
 
@@ -253,9 +356,26 @@ gh-404), and `kind="handle"` (jm generates it over the handle, gh-403):
 | `DDC`, `RateConverter`, compositions, loops   | ✅        | ✅             | `jm` transplant into sacred frag |
 | `Ddcr` (`ddc_fn`, `kind="handle"`)            | ✅        | ✅             | `jm`-auto over the handle        |
 
+A CI gate (`scripts/check_serializable.py`, see [Enforcement](#enforcement--the-gate-it-cant-rot))
+holds the line going forward, with a shrinking burn-down list tracking the
+rollout.
+
+### Done
+
+Generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/`CarrierNda`/
+`LoopFilter`), `FIR`/`CIC`/`DDC`/`Ddcr`/`RateConverter`/`Resampler`/
+`HalfbandDecimator`/`Acquisition`, the POD set (`Farrow`/`AGC`/`ADC`/the four
+`acc_*` accumulators/the four `f32_to_*` quantizers), the field-wise set
+(`delay`/`acc_trace`/`hbdecim_q15`), and the compositions (`Dll`/`SymbolSync`/
+`Channel`/`MpskReceiver`).
+
 ### Open work
 
-- **More C triplets** — `NCO`/`AWGN`/`PN`/loops are done; `Farrow`,
-    `HBDecimQ15`, `Despreader`, the accumulators, `delay`, and the detectors are
-    not yet serializable. Each needs a hand C serializer (the module-specific
-    layer), then the flag — jm owns the Python side automatically.
+- **Detectors / correlators** — `corr`, `corr2d`, `detector`, `detector2d`,
+    `despreader`, `psd`, `specan`: field-wise running state, skipping the opaque
+    FFT plans + work buffers that `create()` rebuilds (reconstruct with the same
+    reference, then restore).
+- **`wfm_synth`** — a generator composing `fir`/`lo`/`awgn`/`pn` with optional
+    (possibly-`NULL`) children; needs presence flags in the blob.
+- **Orchestrator pod-handoff** — `CoarseChannel.get_state`/`set_state` composing
+    its DDC + Acquisition blobs.

@@ -9,6 +9,7 @@ depends_on = [
   { name = "loop_filter", link = true },
   { name = "detection", link = true },
 ]
+serializable = "true"
 
 [[dll.init_params]]
 name = "code"

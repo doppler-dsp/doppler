@@ -10,6 +10,7 @@ depends_on = [
   { name = "farrow", link = true },
   { name = "loop_filter", link = true },
 ]
+serializable = "true"
 
 [[symsync.init_params]]
 name = "sps"

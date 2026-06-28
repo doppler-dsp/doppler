@@ -69,6 +69,12 @@ symsync_reset (symsync_state_t *state)
   seed (state);
 }
 
+/* Serializable state — pointer-free composition (nco + farrow + loop_filter
+ * embedded by value, all POD) + scalar timing state: a whole-struct snapshot
+ * (see DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (symsync, symsync_state_t, SYMSYNC_STATE_MAGIC,
+                     SYMSYNC_STATE_VERSION)
+
 void
 symsync_configure (symsync_state_t *state, double bn, double zeta)
 {

@@ -48,10 +48,15 @@ enum
 
 struct wfm_compose_state
 {
-  wfm_segment_t      *segs;
-  size_t              n_segs;
-  int                 repeat;
-  int                 continuous;
+  wfm_segment_t *segs;
+  size_t         n_segs;
+  int            repeat;
+  int            continuous;
+  int            seed_advance; /* per-repeat seed policy (wfm_seed_advance_t):
+                                  NONE = byte-identical; NOISE = advance only the
+                                  AWGN seed (signal fixed); ALL = advance the
+                                  whole seed (code+data+noise) */
+  unsigned            epoch;   /* repeat counter (0 on the first pass) */
   size_t              cur;     /* current segment index */
   int                 phase;   /* PHASE_ON / PHASE_OFF / PHASE_DONE */
   size_t              left;    /* samples remaining in the current phase */
@@ -88,9 +93,16 @@ start_segment (wfm_compose_state_t *s)
     {
       const wfm_source_t *src = &g->sources[k];
       s->gain[k] = (float)pow (10.0, src->level / 20.0); /* level → gain */
-      s->syn[k]  = wfm_synth_create (
-          src->type, g->fs, src->freq, src->snr, src->snr_mode, src->seed,
-          src->sps, src->pn_length, src->pn_poly, src->lfsr, src->f_end);
+      /* seed_advance == ALL bumps the whole seed by the repeat epoch, so the
+       * PN LFSR (code+data) *and* the AWGN both advance → a new realization
+       * every pass; NONE/NOISE create from the fixed seed (NOISE reseeds noise
+       * below). epoch == 0 (first pass) is always the unmodified seed. */
+      uint32_t seed = src->seed;
+      if (s->seed_advance == WFM_SEED_ADVANCE_ALL && s->epoch)
+        seed = (uint32_t)(src->seed + s->epoch);
+      s->syn[k] = wfm_synth_create (
+          src->type, g->fs, src->freq, src->snr, src->snr_mode, seed, src->sps,
+          src->pn_length, src->pn_poly, src->lfsr, src->f_end);
       if (!s->syn[k])
         ok = 0;
       else
@@ -118,6 +130,15 @@ start_segment (wfm_compose_state_t *s)
                   free (taps);
                 }
             }
+          /* Fresh noise per repeat (NOISE mode): advance ONLY the AWGN seed by
+           * the repeat epoch, leaving the signal (LO / PN code / data / pulse)
+           * bit-identical — so a fixed preamble/code re-acquires every burst.
+           * (ALL already advanced the whole seed at create; NONE does
+           * nothing.)
+           */
+          if (s->seed_advance == WFM_SEED_ADVANCE_NOISE && s->epoch)
+            wfm_synth_reseed_noise (s->syn[k],
+                                    (uint32_t)(src->seed + s->epoch));
           s->n_syn = k + 1; /* track for stop_synths on partial failure */
         }
     }
@@ -144,6 +165,7 @@ advance (wfm_compose_state_t *s)
       if (s->repeat || s->continuous)
         {
           s->cur = 0;
+          s->epoch++; /* next pass: advance every source's seed */
         }
       else
         {
@@ -331,6 +353,13 @@ wfm_compose_segments (const wfm_compose_state_t *state, size_t *n_out,
   if (continuous)
     *continuous = state->continuous;
   return state->segs;
+}
+
+void
+wfm_compose_set_seed_advance (wfm_compose_state_t *state, int mode)
+{
+  if (state && mode >= WFM_SEED_ADVANCE_NONE && mode <= WFM_SEED_ADVANCE_ALL)
+    state->seed_advance = mode;
 }
 
 void

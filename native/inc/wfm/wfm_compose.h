@@ -99,6 +99,20 @@ typedef struct {
  */
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
+/**
+ * @brief Per-repeat seed policy for a looped/continuous stream.
+ *
+ * A source's single `seed` feeds two RNGs: the PN LFSR (spreading code *and*
+ * data bits — one register) and the AWGN generator. The clean cut is therefore
+ * signal (code+data) vs. noise, exposed as an ordered, cumulative level.
+ */
+typedef enum
+{
+  WFM_SEED_ADVANCE_NONE  = 0, /* byte-identical repeats (default) */
+  WFM_SEED_ADVANCE_NOISE = 1, /* signal fixed, AWGN fresh per repeat */
+  WFM_SEED_ADVANCE_ALL   = 2, /* whole seed advances (code+data+noise) */
+} wfm_seed_advance_t;
+
 /** Opaque composer state. */
 typedef struct wfm_compose_state wfm_compose_state_t;
 
@@ -115,6 +129,23 @@ typedef struct wfm_compose_state wfm_compose_state_t;
  */
 wfm_compose_state_t *wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+/**
+ * @brief Choose how the seed advances on each repeat of a looped/continuous
+ * stream (a `wfm_seed_advance_t`):
+ *  - `WFM_SEED_ADVANCE_NONE` (default): byte-identical repeats.
+ *  - `WFM_SEED_ADVANCE_NOISE`: advance only the AWGN seed → a fresh noise
+ *    realization each pass while the signal (LO / PN code / data / pulse) stays
+ *    bit-identical (so a fixed preamble/code re-acquires every burst).
+ *  - `WFM_SEED_ADVANCE_ALL`: advance the whole seed → code, data, and noise all
+ *    change (a fully stochastic stream).
+ *
+ * Set before the first execute(); the first pass is always unchanged. An
+ * out-of-range mode is ignored.
+ * @param state  Compose state (may be NULL).
+ * @param mode   A wfm_seed_advance_t value.
+ */
+void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
 
 /**
  * @brief Emit up to `max` samples of the composed stream.

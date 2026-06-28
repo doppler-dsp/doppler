@@ -349,8 +349,69 @@ main (void)
     free (j0);
   }
 
+  /* ── seed_advance: none = byte-identical repeat; all = whole seed advances
+   *    (PN code changes) with the first pass unchanged ── */
+  {
+    wfm_source_t  pn = { .type      = 2, /* pn, no noise (snr 100) */
+                         .snr       = 100.0,
+                         .snr_mode  = 0,
+                         .seed      = 1,
+                         .sps       = 1,
+                         .pn_length = 7 };
+    wfm_segment_t seg
+        = { .sources = &pn, .n_sources = 1, .fs = 1e6, .num_samples = 127 };
+    float complex none[254], all[254];
+
+    wfm_compose_state_t *cn = wfm_compose_create (&seg, 1, 1, 0);
+    wfm_compose_set_seed_advance (cn, WFM_SEED_ADVANCE_NONE);
+    CHECK (wfm_compose_execute (cn, none, 254) == 254, "seedadv none exec");
+
+    wfm_compose_state_t *ca = wfm_compose_create (&seg, 1, 1, 0);
+    wfm_compose_set_seed_advance (ca, WFM_SEED_ADVANCE_ALL);
+    CHECK (wfm_compose_execute (ca, all, 254) == 254, "seedadv all exec");
+
+    int none_same = 1, all_diff = 0, first_same = 1;
+    for (int i = 0; i < 127; i++)
+      {
+        if (none[i] != none[127 + i])
+          none_same = 0; /* none: repeat byte-identical */
+        if (all[i] != all[127 + i])
+          all_diff = 1; /* all: code changes on repeat */
+        if (none[i] != all[i])
+          first_same = 0; /* first pass is the unmodified seed */
+      }
+    CHECK (none_same, "seed_advance none → byte-identical repeat");
+    CHECK (all_diff, "seed_advance all → signal/code changes on repeat");
+    CHECK (first_same, "seed_advance all → first pass unchanged");
+    wfm_compose_destroy (cn);
+    wfm_compose_destroy (ca);
+  }
+
+  /* ── seed_advance noise: a noisy source's repeat is a fresh realization ──
+   */
+  {
+    wfm_source_t  noisy = { .type     = 0, /* tone @ DC + AWGN */
+                            .freq     = 0,
+                            .snr      = 3.0,
+                            .snr_mode = 1,
+                            .seed     = 1,
+                            .sps      = 1 };
+    wfm_segment_t seg
+        = { .sources = &noisy, .n_sources = 1, .fs = 1e6, .num_samples = 128 };
+    float complex        z[256];
+    wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 1, 0);
+    wfm_compose_set_seed_advance (c, WFM_SEED_ADVANCE_NOISE);
+    CHECK (wfm_compose_execute (c, z, 256) == 256, "seedadv noise exec");
+    int diff = 0;
+    for (int i = 0; i < 128; i++)
+      if (z[i] != z[128 + i])
+        diff = 1;
+    CHECK (diff, "seed_advance noise → fresh noise on repeat");
+    wfm_compose_destroy (c);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve, sum-json, headroom)\n",
+          "resolve, sum-json, headroom, seed_advance)\n",
           total);
   return 0;
 }

@@ -288,6 +288,16 @@ void wfm_synth_destroy(wfm_synth_state_t *state);
 void wfm_synth_reset(wfm_synth_state_t *state);
 
 /**
+ * @brief Reseed only the additive-noise (AWGN) generator, leaving the signal
+ * (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no
+ * noise. Used by the composer to give each repeat a fresh noise realization
+ * while the underlying waveform stays bit-identical.
+ * @param state  Synth state (may be NULL).
+ * @param seed   New noise RNG seed.
+ */
+void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
+
+/**
  * @brief Generate one output sample from internal state.
  * Advances the PN LFSR (modulated types only, on symbol boundaries), the
  * LO phase accumulator, and the AWGN engine, then returns the mixed

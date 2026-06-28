@@ -21,6 +21,12 @@
       "default": false,
       "description": "Never finish; execute always returns max samples. Implies repeat."
     },
+    "seed_advance": {
+      "type": "string",
+      "enum": ["none", "noise", "all"],
+      "default": "none",
+      "description": "How the seed advances on each repeat of a looped/continuous stream. 'none': byte-identical repeats. 'noise': advance only the AWGN seed, so each loop is a fresh noise realization while the signal (LO/PN code/data/pulse) stays bit-identical. 'all': advance the whole seed, so code, data, and noise all change. The first pass is always the unmodified seed."
+    },
     "headroom": {
       "type": "number",
       "default": 0.0,

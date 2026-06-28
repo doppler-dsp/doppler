@@ -20,6 +20,8 @@ static const char *const MODE_NAMES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 static const char *const PULSE_NAMES[]  = { "rect", "rrc" };
+/* Ordered to match wfm_seed_advance_t (NONE=0, NOISE=1, ALL=2). */
+static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
 
 /* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
  * rect spec stays byte-identical). */
@@ -344,6 +346,13 @@ wfm_compose_from_json (const char *json)
       = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (root, "repeat"));
   int cont
       = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (root, "continuous"));
+  /* "seed_advance": "none"|"noise"|"all" (default none; unknown → none). */
+  int seed_advance
+      = name_index (cJSON_GetStringValue (cJSON_GetObjectItemCaseSensitive (
+                        root, "seed_advance")),
+                    SEED_ADVANCE_NAMES, 3);
+  if (seed_advance < 0)
+    seed_advance = WFM_SEED_ADVANCE_NONE;
   size_t         n    = (size_t)cJSON_GetArraySize (arr);
   wfm_segment_t *segs = calloc (n, sizeof (*segs));
   if (!segs)
@@ -418,6 +427,7 @@ wfm_compose_from_json (const char *json)
   }
   cJSON_Delete (root);
   wfm_compose_state_t *c = wfm_compose_create (segs, n, repeat, cont);
+  wfm_compose_set_seed_advance (c, seed_advance);
   for (size_t j = 0; j < n; j++)
     {
       free_src_bits (segs[j].sources, segs[j].n_sources);

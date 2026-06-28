@@ -39,6 +39,8 @@ static const char *const FTYPES[]  = { "raw", "csv", "blue", "sigmf" };
 static const char *const ENDIANS[] = { "le", "be" };
 static const char *const LFSRS[]   = { "galois", "fibonacci" };
 static const char *const PULSES[]  = { "rect", "rrc" };
+/* Ordered to match wfm_seed_advance_t (none=0, noise=1, all=2). */
+static const char *const SEEDADV[] = { "none", "noise", "all" };
 
 /* Look name up in a NULL-free table of n entries; -1 if absent. */
 static int
@@ -254,6 +256,9 @@ static const char USAGE[]
       " flags)\n"
       "  --repeat        Loop the spec indefinitely\n"
       "  --continuous    Stream continuously (no defined end)\n"
+      "  --seed-advance A  none | noise | all (default none): how the seed "
+      "advances per repeat — none = byte-identical; noise = fresh noise each "
+      "loop, signal fixed; all = code+data+noise all change\n"
       "\n"
       "REAL-TIME\n"
       "  --realtime      Pace output to wall-clock sample rate\n"
@@ -366,6 +371,7 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
                            .num_samples = 1024,
                            .off_samples = 0 };
   int           repeat = 0, continuous = 0, detached = 0;
+  int           seed_advance = 0; /* wfm_seed_advance_t: none/noise/all */
   int           realtime = 0, realtime_resync = 0;
   int           clip_report = 0, clip_error = 0;
   double        headroom     = 0.0; /* dB of peak backoff; gain = 10^(-H/20) */
@@ -561,6 +567,10 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
         {
           continuous = 1;
         }
+      else if (!strcmp (a, "--seed-advance"))
+        {
+          CHOICE (seed_advance, SEEDADV);
+        }
       else if (!strcmp (a, "--detached"))
         {
           detached = 1;
@@ -627,7 +637,10 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       free (spec);
     }
   else
-    comp = wfm_compose_create (&seg, 1, repeat, continuous);
+    {
+      comp = wfm_compose_create (&seg, 1, repeat, continuous);
+      wfm_compose_set_seed_advance (comp, seed_advance);
+    }
   if (!comp)
     {
       (void)fprintf (stderr, "error: could not build the waveform spec\n");

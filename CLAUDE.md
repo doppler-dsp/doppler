@@ -234,6 +234,26 @@ here, so `jm apply` is now fully idempotent with **no allowlist**:
 from the prior round also stands. The only remaining non-jm surface is
 `ffi/rust/` (jm emits CPython only) — maintained by hand against the C ABI.
 
+______________________________________________________________________
+
+### ⮕ CURRENT jm PIN: **0.20.0** (authoritative)
+
+The repo pins **`jm_version = "0.20.0"`** (`just-makeit.toml`, `ci.yml`,
+`perf-regression.yml`). **Always drive doppler with
+`uvx --from 'just-makeit==0.20.0' just-makeit …`** — never the stale
+`/tmp/jm-venv` console script. The per-version "Drive doppler with `==X`" lines
+in the dated sections below are a **historical changelog of how the pin moved**,
+not current instructions; 0.20.0 supersedes all of them.
+
+**0.20.0 adds** (used by doppler — see Step 4b): the serializable Python triplet
+is **transplanted** into a sacred `_ext_<obj>.c` fragment by `jm apply`
+(gh-404, idempotent), and `kind="handle"` modules generate the triplet over the
+handle (gh-403) — so `serializable = "true"` is fully hands-off for every object
+kind, no hand-written triplet glue. `jm status --check` stays clean with no
+allowlist. The dated sections below remain as the rationale trail.
+
+______________________________________________________________________
+
 ### 0.15.x adoptions — formerly-manual patterns are now declarative (pin: 0.15.4)
 
 doppler drove a second round of jm features; with the pin at **0.15.4**, three

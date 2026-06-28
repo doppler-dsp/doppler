@@ -1,13 +1,11 @@
-"""Integration test for the wfmgen -> disk -> DDC -> ACQ -> BurstDemod demo.
+"""Integration test for the tailing wfmgen -> demod pipeline.
 
-Exercises the full feedforward chain end to end through the real tools: the
-``wfmgen`` CLI writes a multi-burst capture (Doppler + noise baked in) to disk,
-then a single receive chain reads it back and decodes every burst (CRC + bits).
-Skips when the wfmgen CLI isn't built. Runs non-paced (no real-time wait).
+The wfmgen CLI streams a multi-burst capture (Doppler + noise baked in) to a
+growing file; the reader tails it and decodes each burst (CRC + bits) as its
+samples land — concurrently with the writer. Run non-paced (realtime=False)
+so the writer races ahead and the tail reader drains it fast. Skips when the
+wfmgen CLI isn't built.
 """
-
-import tempfile
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -19,7 +17,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_all_bursts_decode_from_disk():
+def test_tailing_pipeline_decodes_every_burst():
     # seed 0 is the regression case: an under-sized Acquisition (a single
     # Doppler bin) failed every other burst; the slow-time Doppler search
     # (doppler_bins = reps) decodes them all.
@@ -27,10 +25,7 @@ def test_all_bursts_decode_from_disk():
     payloads = [
         rng.integers(0, 2, demo.PAYLOAD).astype(np.uint8) for _ in range(6)
     ]
-    with tempfile.TemporaryDirectory() as tmp:
-        cap = Path(tmp) / "cap.cf32"
-        demo.generate(cap, payloads)
-        results = demo.stream_decode(cap, realtime=False)
+    results = demo.run_streaming(payloads, realtime=False)
 
     assert len(results) == len(payloads)
     for r, payload in zip(results, payloads):

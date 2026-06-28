@@ -5,6 +5,7 @@ mutable = "true"
 no_state = "true"
 no_step = "true"
 class_name = "Farrow"
+serializable = "true"
 
 [[farrow.init_params]]
 name = "order"

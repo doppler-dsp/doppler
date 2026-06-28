@@ -49,6 +49,33 @@ acc_trace_reset (acc_trace_state_t *state)
   state->count = 0;
 }
 
+/* Serializable state — running trace + fold count; config restored by
+ * create(). */
+size_t
+acc_trace_state_bytes (const acc_trace_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t) + s->n * sizeof (double);
+}
+
+void
+acc_trace_get_state (const acc_trace_state_t *s, void *blob)
+{
+  DP_GET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
+               acc_trace_state_bytes (s));
+  dp_w_u64 (&_w, s->count);
+  dp_w_bytes (&_w, s->acc, s->n * sizeof (double));
+}
+
+int
+acc_trace_set_state (acc_trace_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (ACC_TRACE_STATE_MAGIC, ACC_TRACE_STATE_VERSION,
+               acc_trace_state_bytes (s));
+  s->count = dp_r_u64 (&_r);
+  dp_r_bytes (&_r, s->acc, s->n * sizeof (double));
+  return DP_OK;
+}
+
 void
 acc_trace_accumulate (acc_trace_state_t *state, const float *p, size_t p_len)
 {

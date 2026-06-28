@@ -80,6 +80,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "dp_state.h"
 #include "util/util_core.h"
 #include <math.h>
 
@@ -376,6 +377,15 @@ void agc_reset(agc_state_t *state);
    * @endcode
    */
 double agc_get_applied_gain_db(const agc_state_t *state);
+
+  /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+   * Whole-struct POD snapshot (pointer-free); the loop integrator, detector EMA, and ramp memory resume exactly into an
+   * identically-built instance. */
+#define AGC_STATE_MAGIC DP_FOURCC ('A', 'G', 'C', ' ')
+#define AGC_STATE_VERSION 1u
+  size_t agc_state_bytes (const agc_state_t *state);
+  void    agc_get_state (const agc_state_t *state, void *blob);
+  int     agc_set_state (agc_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

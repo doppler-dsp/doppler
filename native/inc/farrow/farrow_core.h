@@ -36,6 +36,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "dp_state.h"
 #include <complex.h>
 #ifdef __cplusplus
 extern "C" {
@@ -130,6 +131,15 @@ void farrow_reset(farrow_state_t *state);
 size_t farrow_delay_max_out(farrow_state_t *state);
 size_t farrow_delay(farrow_state_t *state, const float complex *x, size_t x_len, double mu, float complex *out, size_t max_out);
 size_t farrow_get_group_delay(const farrow_state_t *state);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Whole-struct POD snapshot (pointer-free); the 4-tap delay line + order resume exactly into an
+ * identically-built instance. */
+#define FARROW_STATE_MAGIC DP_FOURCC ('F', 'R', 'R', 'W')
+#define FARROW_STATE_VERSION 1u
+size_t farrow_state_bytes (const farrow_state_t *state);
+void   farrow_get_state (const farrow_state_t *state, void *blob);
+int    farrow_set_state (farrow_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

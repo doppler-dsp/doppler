@@ -9,6 +9,7 @@
  *   4. Fractional delay of a sinusoid matches the expected phase shift
  *   5. Reset clears the delay line
  */
+#include "dp_state_test.h"
 #include "farrow/farrow_core.h"
 #include <complex.h>
 #include <math.h>
@@ -150,6 +151,21 @@ main (void)
       fprintf (stderr, "test_farrow_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    farrow_state_t *a = farrow_create (FARROW_CUBIC);
+    farrow_state_t *b = farrow_create (FARROW_CUBIC);
+    CHECK (a != NULL && b != NULL);
+    farrow_push (a, 1.0f + 0.0f * I);
+    farrow_push (a, 0.0f + 2.0f * I);
+    farrow_push (a, -1.0f + 0.5f * I);
+    farrow_push (a, 0.5f - 0.5f * I);
+    DP_STATE_ROUNDTRIP_TEST (farrow, a, b);
+    CHECK (farrow_eval (b, 0.3f) == farrow_eval (a, 0.3f));
+    farrow_destroy (a);
+    farrow_destroy (b);
+  }
+
   printf ("test_farrow_core PASSED\n");
   return 0;
 }

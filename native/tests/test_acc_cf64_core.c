@@ -1,4 +1,5 @@
 #include "acc_cf64/acc_cf64_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -59,6 +60,19 @@ main (void)
       fprintf (stderr, "test_acc_cf64_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    acc_cf64_state_t *a = acc_cf64_create (0.0 + 0.0 * I);
+    acc_cf64_state_t *b = acc_cf64_create (0.0 + 0.0 * I);
+    CHECK (a != NULL && b != NULL);
+    acc_cf64_step (a, 3.0 + 1.0 * I);
+    acc_cf64_step (a, -1.0 + 2.0 * I);
+    DP_STATE_ROUNDTRIP_TEST (acc_cf64, a, b);
+    CHECK (acc_cf64_get_acc (b) == acc_cf64_get_acc (a));
+    acc_cf64_destroy (a);
+    acc_cf64_destroy (b);
+  }
+
   printf ("test_acc_cf64_core PASSED\n");
   return 0;
 }

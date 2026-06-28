@@ -1,4 +1,5 @@
 #include "adc/adc_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -52,6 +53,20 @@ main (void)
       fprintf (stderr, "test_adc_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    adc_state_t *a = adc_create (8, 0.0f, 1);
+    adc_state_t *b = adc_create (8, 0.0f, 1);
+    CHECK (a != NULL && b != NULL);
+    for (int i = 0; i < 20; i++)
+      (void)adc_step (a, 2.0f); /* clip + advance dither RNG */
+    DP_STATE_ROUNDTRIP_TEST (adc, a, b);
+    CHECK (b->rng == a->rng && b->clipped == a->clipped);
+    CHECK (adc_step (b, 0.3f) == adc_step (a, 0.3f));
+    adc_destroy (a);
+    adc_destroy (b);
+  }
+
   printf ("test_adc_core PASSED\n");
   return 0;
 }

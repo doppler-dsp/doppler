@@ -1,4 +1,5 @@
 #include "agc/agc_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -233,6 +234,19 @@ main (void)
       fprintf (stderr, "test_agc_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    agc_state_t *a = agc_create (0.0, 0.0025, 0.05);
+    agc_state_t *b = agc_create (0.0, 0.0025, 0.05);
+    CHECK (a != NULL && b != NULL);
+    for (int i = 0; i < 50; i++)
+      (void)agc_step (a, 4.0f + 0.0f * I);
+    DP_STATE_ROUNDTRIP_TEST (agc, a, b);
+    CHECK (agc_get_applied_gain_db (b) == agc_get_applied_gain_db (a));
+    agc_destroy (a);
+    agc_destroy (b);
+  }
+
   printf ("test_agc_core PASSED\n");
   return 0;
 }

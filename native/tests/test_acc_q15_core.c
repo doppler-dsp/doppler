@@ -1,4 +1,5 @@
 #include "acc_q15/acc_q15_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -59,6 +60,19 @@ main (void)
       fprintf (stderr, "test_acc_q15_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    acc_q15_state_t *a = acc_q15_create (0);
+    acc_q15_state_t *b = acc_q15_create (0);
+    CHECK (a != NULL && b != NULL);
+    acc_q15_step (a, (int16_t)1234);
+    acc_q15_step (a, (int16_t)-567);
+    DP_STATE_ROUNDTRIP_TEST (acc_q15, a, b);
+    CHECK (acc_q15_get_acc (b) == acc_q15_get_acc (a));
+    acc_q15_destroy (a);
+    acc_q15_destroy (b);
+  }
+
   printf ("test_acc_q15_core PASSED\n");
   return 0;
 }

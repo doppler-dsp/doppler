@@ -54,6 +54,13 @@ class F32ToI16:
 
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def clipped(self) -> bool:
         """True if any sample has been saturated since the last reset()."""
@@ -291,6 +298,13 @@ class F32ToI16U32:
 
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def clipped(self) -> bool:
         """True if any sample has been saturated since the last reset()."""
@@ -351,6 +365,13 @@ class F32ToI16U64:
         [0, 16384]
 
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def clipped(self) -> bool:
@@ -525,6 +546,13 @@ class F32ToUQ15:
 
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def clipped(self) -> bool:
         """True if any sample has been saturated since the last reset()."""
@@ -650,6 +678,13 @@ class ADC:
         [0, 1024, 2046, -2048]
 
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def clipped(self) -> bool:

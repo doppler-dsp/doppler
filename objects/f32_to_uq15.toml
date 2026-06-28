@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "F32ToUQ15"
+serializable = "true"
 
 [[f32_to_uq15.init_params]]
 name = "scale"

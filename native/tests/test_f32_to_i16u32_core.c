@@ -1,3 +1,4 @@
+#include "dp_state_test.h"
 #include "f32_to_i16u32/f32_to_i16u32_core.h"
 #include <math.h>
 #include <stdio.h>
@@ -76,6 +77,18 @@ main (void)
       fprintf (stderr, "test_f32_to_i16u32_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    f32_to_i16u32_state_t *a = f32_to_i16u32_create (32768.0f);
+    f32_to_i16u32_state_t *b = f32_to_i16u32_create (32768.0f);
+    CHECK (a != NULL && b != NULL);
+    (void)f32_to_i16u32_step (a, 2.0f); /* saturate → clipped = 1 */
+    DP_STATE_ROUNDTRIP_TEST (f32_to_i16u32, a, b);
+    CHECK (b->clipped == a->clipped);
+    f32_to_i16u32_destroy (a);
+    f32_to_i16u32_destroy (b);
+  }
+
   printf ("test_f32_to_i16u32_core PASSED\n");
   return 0;
 }

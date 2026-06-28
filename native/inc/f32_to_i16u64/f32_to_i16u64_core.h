@@ -35,6 +35,7 @@
 #define F32_TO_I16U64_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include <math.h>
 #ifdef __cplusplus
@@ -135,6 +136,15 @@ void f32_to_i16u64_steps(
 
 
 
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Whole-struct POD snapshot (pointer-free); the sticky clip flag resumes exactly into an
+ * identically-built instance. */
+#define F32_TO_I16U64_STATE_MAGIC DP_FOURCC ('F','U','6','4')
+#define F32_TO_I16U64_STATE_VERSION 1u
+size_t f32_to_i16u64_state_bytes (const f32_to_i16u64_state_t *state);
+void f32_to_i16u64_get_state (const f32_to_i16u64_state_t *state, void *blob);
+int f32_to_i16u64_set_state (f32_to_i16u64_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,5 @@
 #include "delay/delay_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -173,6 +174,22 @@ main (void)
       fprintf (stderr, "test_delay_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — field-wise ring + head round-trips + rejects. */
+  {
+    delay_state_t *a = delay_create (4);
+    delay_state_t *b = delay_create (4);
+    CHECK (a != NULL && b != NULL);
+    delay_push (a, 1.0 + 2.0 * I);
+    delay_push (a, -3.0 + 0.5 * I);
+    delay_push (a, 4.0 - 1.0 * I);
+    DP_STATE_ROUNDTRIP_TEST (delay, a, b);
+    CHECK (b->head == a->head);
+    CHECK (memcmp (b->buf, a->buf, 2 * a->capacity * sizeof (double _Complex))
+           == 0);
+    delay_destroy (a);
+    delay_destroy (b);
+  }
+
   printf ("test_delay_core PASSED\n");
   return 0;
 }

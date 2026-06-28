@@ -37,10 +37,16 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from doppler.accumulator import AccCf64, AccF32, AccTrace
+from doppler.agc import AGC
+from doppler.arith import AccQ8, AccQ15
+from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
-from doppler.filter import FIR
+from doppler.delay import DelayCf64
+from doppler.filter import FIR, HBDecimQ15
 from doppler.resample import (
     CIC,
+    Farrow,
     HalfbandDecimator,
     RateConverter,
     Resampler,
@@ -61,6 +67,49 @@ _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 # return a view into an internal buffer).  A generator (LO) ignores the segment
 # values and emits len(seg) samples, so the same split logic drives every type.
 _Feed = Callable[[Any, NDArray[np.complex64]], NDArray[np.complex64]]
+
+
+def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
+    """Feed for a running accumulator: its resumable output is the total, not a
+    per-sample stream, so step the block in and return the post-block
+    accumulator — the matrix's continuation compare then asserts the restored
+    sum matches an uninterrupted one. ``conv`` adapts the complex64 test stream
+    to the accumulator's input dtype."""
+
+    def feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        o.steps(conv(seg))
+        return np.array([o.get()])
+
+    return feed
+
+
+def _f32_to_int_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Feed for a float→int quantizer/ADC: convert the test stream to real
+    float32 and return the quantized block. ADC (dithering on) resumes its
+    PRNG; the converters resume their sticky clip flag."""
+    return np.array(o.steps(seg.real.astype(np.float32)))
+
+
+def _delay_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Push the block through the delay line; return the final window. The ring
+    + head carry across calls, so a mid-stream split must resume."""
+    w: Any = None
+    for v in seg:
+        w = o.push_ptr(complex(v))
+    return np.array(w)
+
+
+def _acctrace_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Fold fixed-length frames; return the serialized state itself. AccTrace
+    exposes no trace getter, so the post-block state blob *is* the observable —
+    a strict whole-state resume check that works for any serializable type."""
+    r = seg.real.astype(np.float32)
+    n = 8  # must match the AccTrace(n=...) below
+    for i in range(0, (len(r) // n) * n, n):
+        o.accumulate(r[i : i + n])
+    return np.frombuffer(o.get_state(), dtype=np.uint8)
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -86,6 +135,54 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "HalfbandDecimator": (
         lambda: HalfbandDecimator(_HB_TAPS),
         lambda o, seg: np.array(o.execute(seg)),
+    ),
+    # Farrow fractional-delay interpolator — the 4-tap delay line carries
+    # across delay() calls, so a mid-stream split resumes.
+    "Farrow": (
+        lambda: Farrow("cubic"),
+        lambda o, seg: np.array(o.delay(seg, 0.3)),
+    ),
+    # AGC — gain integrator + detector EMA + ramp memory carry across steps().
+    "AGC": (
+        lambda: AGC(0.0, 0.0025, 0.05),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    # Running accumulators — resumable state is the total; feed returns it.
+    "AccCf64": (
+        lambda: AccCf64(0.0 + 0.0j),
+        _acc_feed(lambda s: s.astype(np.complex128)),
+    ),
+    "AccF32": (
+        lambda: AccF32(0.0),
+        _acc_feed(lambda s: s.real.astype(np.float32)),
+    ),
+    "AccQ15": (
+        lambda: AccQ15(0),
+        _acc_feed(
+            lambda s: np.clip(s.real * 1000, -32767, 32767).astype(np.int16)
+        ),
+    ),
+    "AccQ8": (
+        lambda: AccQ8(0),
+        _acc_feed(lambda s: np.clip(s.real * 20, -127, 127).astype(np.int8)),
+    ),
+    # Float→int quantizers — sticky clip flag (and ADC's dither PRNG) resume.
+    "F32ToI16": (lambda: F32ToI16(32768.0), _f32_to_int_feed),
+    "F32ToI16U32": (lambda: F32ToI16U32(32768.0), _f32_to_int_feed),
+    "F32ToI16U64": (lambda: F32ToI16U64(32768.0), _f32_to_int_feed),
+    "F32ToUQ15": (lambda: F32ToUQ15(32768.0), _f32_to_int_feed),
+    "ADC": (lambda: ADC(8, 0.0, 1), _f32_to_int_feed),
+    # Field-wise objects with owned buffers — packed/unpacked element-wise.
+    "DelayCf64": (lambda: DelayCf64(4), _delay_feed),
+    "AccTrace": (
+        lambda: AccTrace(n=8, mode="mean", alpha=0.1),
+        _acctrace_feed,
+    ),
+    "HBDecimQ15": (
+        lambda: HBDecimQ15(_HB_TAPS),
+        lambda o, seg: np.array(
+            o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
+        ),
     ),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (

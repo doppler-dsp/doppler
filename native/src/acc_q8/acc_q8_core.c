@@ -22,6 +22,11 @@ acc_q8_reset (acc_q8_state_t *state)
   state->acc = 0;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (acc_q8, acc_q8_state_t, ACC_Q8_STATE_MAGIC,
+                     ACC_Q8_STATE_VERSION)
+
 void
 acc_q8_steps (acc_q8_state_t *state, const int8_t *input, size_t n)
 {

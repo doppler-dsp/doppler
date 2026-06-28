@@ -49,6 +49,31 @@ delay_reset (delay_state_t *state)
   state->head = 0;
 }
 
+/* Serializable state — running ring + head; config restored by create(). */
+size_t
+delay_state_bytes (const delay_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
+         + 2 * s->capacity * sizeof (double _Complex);
+}
+
+void
+delay_get_state (const delay_state_t *s, void *blob)
+{
+  DP_GET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes (s));
+  dp_w_u64 (&_w, s->head);
+  dp_w_bytes (&_w, s->buf, 2 * s->capacity * sizeof (double _Complex));
+}
+
+int
+delay_set_state (delay_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (DELAY_STATE_MAGIC, DELAY_STATE_VERSION, delay_state_bytes (s));
+  s->head = (size_t)dp_r_u64 (&_r);
+  dp_r_bytes (&_r, s->buf, 2 * s->capacity * sizeof (double _Complex));
+  return DP_OK;
+}
+
 void
 delay_push (delay_state_t *state, double complex x)
 {

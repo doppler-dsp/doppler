@@ -44,6 +44,10 @@ adc_reset (adc_state_t *state)
   state->rng     = ADC_RNG_SEED;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (adc, adc_state_t, ADC_STATE_MAGIC, ADC_STATE_VERSION)
+
 JM_HOT void
 adc_steps (adc_state_t *state, const float *input, int64_t *output, size_t n)
 {

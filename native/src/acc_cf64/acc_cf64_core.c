@@ -22,6 +22,11 @@ acc_cf64_reset (acc_cf64_state_t *state)
   state->acc = 0.0 + 0.0 * I;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (acc_cf64, acc_cf64_state_t, ACC_CF64_STATE_MAGIC,
+                     ACC_CF64_STATE_VERSION)
+
 /* JM_RESTRICT unlocks auto-vectorisation by eliminating the aliasing hazard.
  * Separate scalar re/im accumulators give the compiler two independent
  * reduction chains — it will vectorise both with -march=native -ffast-math.

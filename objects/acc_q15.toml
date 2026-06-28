@@ -3,6 +3,7 @@ arg_type = "int16_t"
 return_type = "void"
 mutable = "true"
 class_name = "AccQ15"
+serializable = "true"
 
 [[acc_q15.state]]
 name = "acc"

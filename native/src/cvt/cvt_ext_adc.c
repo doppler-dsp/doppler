@@ -207,6 +207,59 @@ ADCObj_exit (ADCObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+ADCObj_state_bytes (ADCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (adc_state_bytes (self->handle));
+}
+
+static PyObject *
+ADCObj_get_state (ADCObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = adc_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  adc_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+ADCObj_set_state (ADCObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != adc_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (adc_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef ADCObj_methods[]
     = { { "reset", (PyCFunction)ADCObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -238,6 +291,12 @@ static PyMethodDef ADCObj_methods[]
           "Release resources." },
         { "__enter__", (PyCFunction)ADCObj_enter, METH_NOARGS, NULL },
         { "__exit__", (PyCFunction)ADCObj_exit, METH_VARARGS, NULL },
+        { "state_bytes", (PyCFunction)ADCObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)ADCObj_get_state, METH_NOARGS,
+          "Serialize the engine's mutable state to bytes." },
+        { "set_state", (PyCFunction)ADCObj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
         { NULL } };
 
 static PyTypeObject ADCObjType = {

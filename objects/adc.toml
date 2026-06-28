@@ -24,6 +24,7 @@ impl = """
     if (v < state->clip_min) v = state->clip_min;
     return (int64_t)v;
 """
+serializable = "true"
 
 [[adc.init_params]]
 name = "bits"

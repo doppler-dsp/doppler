@@ -118,6 +118,23 @@ extern "C"
   }
 
   /**
+   * @brief Initialise a SymbolSync in place (no allocation).
+   *
+   * The by-value counterpart to symsync_create(): lets a composing object embed
+   * a symsync_state_t by value and initialise it without a heap allocation
+   * (symsync_state_t holds no heap members — the NCO, Farrow and loop filter are
+   * all by value). Mirrors loop_filter_init()/costas_init().
+   *
+   * @param s      State to initialise.  Must be non-NULL.
+   * @param sps    Nominal samples per symbol.
+   * @param bn     Loop noise bandwidth (normalised to the symbol rate).
+   * @param zeta   Damping factor (0.707 = critically damped).
+   * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
+   */
+  void symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+                     int order);
+
+  /**
    * @brief Create a symsync instance.
    *
    * @param sps  sps (default: 4).

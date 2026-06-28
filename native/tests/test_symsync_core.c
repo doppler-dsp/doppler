@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -173,6 +174,24 @@ main (void)
         CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
         symsync_destroy (s);
       }
+  }
+
+  /* symsync_init() (by-value, in place) produces a state byte-for-byte
+   * identical to symsync_create()'s calloc + init — including a stack-embedded
+   * target with arbitrary prior contents (symsync_init memsets first). The
+   * whole-struct memcmp IS the init==create contract: identical state implies
+   * identical behaviour. (A per-sample stream compare would be fragile here —
+   * the compiler inlines symsync_step separately for the heap and stack
+   * instances and may contract FMAs differently between the two, ~1 ULP, which
+   * is a codegen artifact, not a state difference.) */
+  {
+    symsync_state_t *c = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC);
+    /* poison the target so memset-or-not is actually exercised */
+    symsync_state_t v;
+    memset (&v, 0xFF, sizeof v);
+    symsync_init (&v, SPS, 0.01, 0.707, FARROW_CUBIC);
+    CHECK (memcmp (c, &v, sizeof *c) == 0); /* init == create, byte-for-byte */
+    symsync_destroy (c);
   }
 
   free (rx);

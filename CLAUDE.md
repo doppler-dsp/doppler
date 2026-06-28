@@ -107,6 +107,43 @@ jm apply objects/myobj.toml
     - Non-trivial argument validation the generated code cannot infer
     - Lazy-alloc grow-on-demand when block size may change across calls
 
+### Step 4b — make it serializable (REQUIRED for every stateful object)
+
+**If the object carries any running state that survives between calls** (a phase,
+a delay line, an accumulator, an integrator, a ring, an RNG), it MUST implement
+the standard state triplet. This is not optional: elastic resume (checkpoint /
+migrate / scale across threads, processes, pods) depends on *every* stateful
+object speaking the one bytes interface. Only genuinely stateless objects (pure
+converters, FFT plans, by-value analyzers) are exempt. See
+`docs/design/state-serialization.md` and `native/inc/dp_state.h`.
+
+1. **C core** — `#include "dp_state.h"` in `<obj>_core.h`, declare a per-object
+    `#define <OBJ>_STATE_MAGIC DP_FOURCC(...)` + `<OBJ>_STATE_VERSION 1u`, and
+    the triplet:
+
+    ```c
+    size_t <obj>_state_bytes (const <obj>_state_t *s);          /* envelope + payload   */
+    void   <obj>_get_state   (const <obj>_state_t *s, void *blob);
+    int    <obj>_set_state   (<obj>_state_t *s, const void *blob); /* DP_OK / DP_ERR_INVALID */
+    ```
+
+    Implement them in `<obj>_core.c` (sibling to `<obj>_reset`) with the cursor
+    helpers: `dp_w_hdr` then pack the **running** fields (config is restored by
+    `create()`); `set_state` opens with `dp_state_validate(...)` and returns its
+    result. A pointer-free POD struct can snapshot whole (`dp_w_bytes(&w, s,  sizeof *s)`); a struct with pointers packs field-wise and skips them; a
+    composition delegates to its children's `*_state_bytes`/`get`/`set`. Add
+    `DP_DEFINE_RUN(<obj>, <obj>_state_t, IN_T, OUT_T)` for a single-`execute`
+    object to get the pure `<obj>_run(state_in, state_out, …)` transducer.
+
+1. **Declare it** — set `serializable = "true"` in `objects/<obj>.toml`, then
+    `jm apply`: jm generates the Python triplet (`state_bytes()` / `get_state()  -> bytes` / `set_state(bytes)`) **and** the `.pyi` stubs from the flag. If
+    the object's `_ext_<obj>.c` fragment is **sacred** (hand-owned — a bespoke
+    property or custom execute), jm regenerates only the `.pyi`; hand-add the
+    three `PyMethodDef` wrappers to the fragment to match jm's form (until
+    jm #404 transplants them automatically).
+
+1. **Test it in both harnesses** (REQUIRED — see Step 5).
+
 ### Step 5 — build and test
 
 ```sh
@@ -114,6 +151,19 @@ cmake --build build --target <module>   # rebuild just this .so
 pytest src/doppler/<module>/tests/      # Python integration tests
 ctest --test-dir build -R <obj>         # C-level tests
 ```
+
+For a **serializable** object the round-trip must be tested on **both** sides
+(the standard's "both harnesses" rule):
+
+- **C** — in `native/tests/test_<obj>_core.c`, a mid-stream split that resumes
+    bit-for-bit from `get_state`/`set_state` **plus** an envelope reject (clobber
+    `blob[0]`, assert `<obj>_set_state(...) == DP_ERR_INVALID`). Leaves can use
+    the `DP_STATE_ROUNDTRIP_TEST` macro (`native/tests/dp_state_test.h`).
+- **Python** — add the type to the parametrized matrix
+    `src/doppler/tests/test_state_serialization.py` (one `(make, feed)` entry):
+    it auto-checks bit-exact resume + size/clobber/non-bytes rejects. A
+    frame/push object that doesn't fit the block-`execute` harness (e.g. acq)
+    gets a bespoke round-trip in its own module test instead.
 
 ### Step 6 — reconcile (if TOML changed after apply)
 
@@ -126,6 +176,9 @@ jm apply   # idempotent; reconciles CMakeLists, __init__.py, .pyi
 ```sh
 git add objects/<obj>.toml native/inc/<obj>/ native/src/<obj>/
 git add src/doppler/<module>/tests/ src/doppler/<module>/<module>.pyi
+# serializable object: also the fragment hand-add, the C test, and the matrix
+git add native/src/<module>/<mod>_ext_<obj>.c native/tests/test_<obj>_core.c
+git add src/doppler/tests/test_state_serialization.py
 ```
 
 ______________________________________________________________________

@@ -202,6 +202,44 @@ stale blob fails loudly instead of corrupting state.
 
 ______________________________________________________________________
 
+## Adding a serializable object
+
+When you build a new object with **just-makeit** (see the workflow in
+`CLAUDE.md`), serialization is a required step for anything stateful — every
+object that carries running state between calls must speak this interface, so the
+whole library stays uniformly resumable. The rule of thumb: *if it has a `reset`
+that does more than nothing, it needs the triplet.* Stateless objects (pure
+converters, FFT plans, by-value analyzers) are exempt.
+
+1. **Write the C triplet** beside `reset` in `<obj>_core.c`, with a per-object
+    `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "dp_state.h"`).
+    Serialize only the *running* state — config is restored by `create()`.
+    Choose the shape that fits the struct:
+
+    - **pointer-free POD** → snapshot the whole struct
+        (`dp_w_bytes(&w, s, sizeof *s)`); restoring config is a harmless no-op into
+        an identically-built instance. (Used by the tracking loops.)
+    - **has pointers** (code tables, heap buffers) → pack field-wise, skip the
+        pointers (re-derived by `create()`).
+    - **composition** → delegate to each child's `*_get_state`/`*_set_state`,
+        embedding them as nested sub-blobs (each self-validating).
+
+    `set_state` always opens with `dp_state_validate(...)` and returns its result.
+    Add `DP_DEFINE_RUN(...)` for the pure `<obj>_run` transducer if it's a
+    single-`execute` object.
+
+1. **Flip the flag** — `serializable = "true"` in `objects/<obj>.toml`, then
+    `jm apply`. jm generates the Python `state_bytes`/`get_state`/`set_state`
+    binding and `.pyi` from the flag. (Sacred fragment? jm regenerates only the
+    `.pyi`; hand-add the three wrappers to the fragment to match.)
+
+1. **Test both faces** — a C round-trip + reject in `test_<obj>_core.c`, and an
+    entry in the parametrized Python matrix
+    `src/doppler/tests/test_state_serialization.py`. Both assert bit-exact resume
+    and that a corrupted blob is rejected.
+
+______________________________________________________________________
+
 ## Status
 
 | Type                              | C triplet | Python ser/des | Binding                       |

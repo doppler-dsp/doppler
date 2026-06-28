@@ -1,6 +1,7 @@
 {
   "version": 1,
   "continuous": true,
+  "seed_advance": "noise",
   "segments": [
     {
       "type": "bits",

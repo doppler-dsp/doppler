@@ -111,6 +111,7 @@ def write_scene(path, *, doppler_hz=DOPPLER_HZ, snr_db=SNR_DB):
     scene = {
         "version": 1,
         "continuous": True,
+        "seed_advance": "noise",  # fresh noise each burst; code/payload fixed
         "segments": [
             {
                 **common,

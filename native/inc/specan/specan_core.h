@@ -45,6 +45,7 @@
 
 #include "ddc/ddc_core.h"
 #include "psd/psd_core.h"
+#include "dp_state.h"
 #include <complex.h>
 #include <stddef.h>
 #include "lo/lo_core.h"
@@ -193,6 +194,15 @@ extern "C"
    * @param center  New display center frequency (Hz).
    */
   void specan_retune (specan_state_t *state, double center);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * ddc + psd children + the pending decimated samples (sized to n*navg);
+ * display/rate config restored by create. */
+#define SPECAN_STATE_MAGIC DP_FOURCC ('S','P','A','N')
+#define SPECAN_STATE_VERSION 1u
+size_t specan_state_bytes (const specan_state_t *state);
+void specan_get_state (const specan_state_t *state, void *blob);
+int specan_set_state (specan_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

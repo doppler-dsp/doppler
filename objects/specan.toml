@@ -14,6 +14,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Specan"
 depends_on = [{ name = "ddc", link = true }, { name = "lo", link = true }, { name = "RateConverter", link = true }, { name = "resamp", link = true }, { name = "hbdecim", link = true }, { name = "hbdecim_r2c", link = true }, { name = "cic", link = true }, { name = "fir", link = true }, { name = "resample", link = true }, { name = "psd", link = true }, { name = "acc_trace", link = true }, { name = "fft", link = true }, { name = "spectral", link = true }]
+serializable = "true"
 
 [[specan.init_params]]
 name = "fs"

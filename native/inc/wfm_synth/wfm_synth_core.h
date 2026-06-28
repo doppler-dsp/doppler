@@ -15,6 +15,7 @@
 #define WFM_SYNTH_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "fir/fir_core.h"
 #include "lo/lo_core.h"
@@ -513,6 +514,15 @@ float wfm_synth_get_cur_im(const wfm_synth_state_t *state);
 void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
 
 
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * composition of optional fir/lo/awgn/pn children (presence-flagged) +
+ * running waveform-position scalars; bits/config restored by create. */
+#define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
+#define WFM_SYNTH_STATE_VERSION 1u
+size_t wfm_synth_state_bytes (const wfm_synth_state_t *state);
+void wfm_synth_get_state (const wfm_synth_state_t *state, void *blob);
+int wfm_synth_set_state (wfm_synth_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

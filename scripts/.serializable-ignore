@@ -1,14 +1,5 @@
-# Burn-down: stateful objects not yet serializable. Each is removed when it
-# gains `serializable = "true"` + the dp_state.h triplet. When this file is
-# empty the invariant is permanent. See the master plan / check_serializable.py.
-# Batch A (POD): DONE
-# Batch B (POD quantizers: adc + cvt): DONE
-# Batch B' (field-wise, owned buffers): DONE
-# Batch C (receiver-chain compositions: dll/symsync/channel/mpsk_receiver): DONE
-# Batch C' (generator composition — optional NULL children, needs presence flags):
-wfm_synth
-# Batch D (correlators/PSD/despreader — opaque FFT children skipped): DONE
-# Batch D' (dp_f32 ring + dynamic/optional buffers — needs ring surgery):
-detector
-detector2d
-specan
+# Burn-down: stateful objects not yet serializable. An entry is removed when it
+# gains `serializable = "true"` + the dp_state.h triplet. This file is now EMPTY:
+# the rollout is complete — every stateful object is serializable, and the gate
+# (scripts/check_serializable.py) requires every new object to declare
+# serializable = "true" or be listed in scripts/.serializable-stateless.

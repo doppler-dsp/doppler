@@ -146,6 +146,55 @@ specan_reset (specan_state_t *state)
   state->pend_len = 0;
 }
 
+/* Serializable state — ddc + psd children + the pending decimated samples.
+ * `pend` grows lazily but never holds more than need = n*navg before a frame
+ * drains, so it serializes at that fixed capacity (zero-padded → canonical);
+ * display/rate fields are config (restored by create). */
+size_t
+specan_state_bytes (const specan_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + ddc_state_bytes (s->ddc)
+         + psd_state_bytes (s->psd) + sizeof (uint64_t)
+         + s->n * s->navg * sizeof (float _Complex);
+}
+
+void
+specan_get_state (const specan_state_t *s, void *blob)
+{
+  DP_GET_OPEN (SPECAN_STATE_MAGIC, SPECAN_STATE_VERSION,
+               specan_state_bytes (s));
+  DP_W_CHILD (&_w, ddc, s->ddc);
+  DP_W_CHILD (&_w, psd, s->psd);
+  dp_w_u64 (&_w, s->pend_len);
+  dp_w_cf32 (&_w, s->pend, s->pend_len);
+  for (size_t i = s->pend_len; i < s->n * s->navg; i++)
+    dp_w_u64 (&_w, 0); /* zero-pad to the fixed capacity */
+}
+
+int
+specan_set_state (specan_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (SPECAN_STATE_MAGIC, SPECAN_STATE_VERSION,
+               specan_state_bytes (s));
+  DP_R_CHILD (&_r, ddc, s->ddc);
+  DP_R_CHILD (&_r, psd, s->psd);
+  size_t need     = s->n * s->navg;
+  size_t pend_len = (size_t)dp_r_u64 (&_r);
+  if (pend_len > need)
+    return DP_ERR_INVALID;
+  if (s->pend_cap < pend_len)
+    {
+      float _Complex *p = realloc (s->pend, need * sizeof *p);
+      if (!p)
+        return DP_ERR_INVALID;
+      s->pend     = p;
+      s->pend_cap = need;
+    }
+  dp_r_cf32 (&_r, s->pend, pend_len);
+  s->pend_len = pend_len;
+  return DP_OK;
+}
+
 size_t
 specan_execute_max_out (specan_state_t *state)
 {

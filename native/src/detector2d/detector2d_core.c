@@ -124,6 +124,68 @@ detector2d_reset (detector2d_state_t *state)
   state->_last_corr_valid = 0;
 }
 
+/* Serializable state — the corr2d child (restored, not reset) + the input
+ * ring's unconsumed samples (zero-padded to ring_cap so the blob is canonical)
+ * + the last-dump result fields. Mirrors acq's ring serialization. */
+size_t
+detector2d_state_bytes (const detector2d_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + corr2d_state_bytes (s->corr)
+         + sizeof (uint64_t) + s->ring_cap * sizeof (float _Complex)
+         + 2 * sizeof (uint64_t) + 3 * sizeof (float) + sizeof (uint32_t);
+}
+
+void
+detector2d_get_state (const detector2d_state_t *s, void *blob)
+{
+  DP_GET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
+               detector2d_state_bytes (s));
+  DP_W_CHILD (&_w, corr2d, s->corr);
+  size_t h   = DP_LOAD_ACQ (&s->ring->head);
+  size_t t   = DP_LOAD_RLX (&s->ring->tail);
+  size_t nun = h - t;
+  dp_w_u64 (&_w, nun);
+  for (size_t i = 0; i < nun; i++)
+    {
+      size_t        idx = (t + i) & s->ring->mask;
+      float complex v
+          = s->ring->data[idx * 2] + I * s->ring->data[idx * 2 + 1];
+      dp_w_cf32 (&_w, &v, 1);
+    }
+  for (size_t i = nun; i < s->ring_cap; i++)
+    dp_w_u64 (&_w, 0); /* zero-pad the unused ring region */
+  dp_w_u64 (&_w, s->peak_row);
+  dp_w_u64 (&_w, s->peak_col);
+  dp_w_f32 (&_w, &s->peak_mag, 1);
+  dp_w_f32 (&_w, &s->noise_est, 1);
+  dp_w_f32 (&_w, &s->test_stat, 1);
+  dp_w_u32 (&_w, (uint32_t)s->_last_corr_valid);
+}
+
+int
+detector2d_set_state (detector2d_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (DETECTOR2D_STATE_MAGIC, DETECTOR2D_STATE_VERSION,
+               detector2d_state_bytes (s));
+  DP_R_CHILD (&_r, corr2d, s->corr);
+  size_t nun = (size_t)dp_r_u64 (&_r);
+  if (nun > s->ring_cap)
+    return DP_ERR_INVALID;
+  DP_STORE_REL (&s->ring->head, 0);
+  DP_STORE_REL (&s->ring->tail, 0);
+  const float complex *src = (const float complex *)(_r.buf + _r.off);
+  if (nun)
+    dp_f32_write (s->ring, (const float *)src, nun);
+  _r.off += s->ring_cap * sizeof (float _Complex); /* skip ring + pad */
+  s->peak_row = (size_t)dp_r_u64 (&_r);
+  s->peak_col = (size_t)dp_r_u64 (&_r);
+  dp_r_f32 (&_r, &s->peak_mag, 1);
+  dp_r_f32 (&_r, &s->noise_est, 1);
+  dp_r_f32 (&_r, &s->test_stat, 1);
+  s->_last_corr_valid = (int)dp_r_u32 (&_r);
+  return DP_OK;
+}
+
 void
 detector2d_set_ref (detector2d_state_t *state, const float complex *ref)
 {

@@ -316,6 +316,64 @@ CarrierNdaObj_exit (CarrierNdaObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — step/steps bindings); mirrors jm's generated form
+ * for the `serializable` flag, which also emits the matching track.pyi stubs.
+ */
+static PyObject *
+CarrierNdaObj_state_bytes (CarrierNdaObject *self,
+                           PyObject         *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (carrier_nda_state_bytes (self->handle));
+}
+
+static PyObject *
+CarrierNdaObj_get_state (CarrierNdaObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = carrier_nda_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  carrier_nda_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+CarrierNdaObj_set_state (CarrierNdaObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != carrier_nda_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (carrier_nda_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef CarrierNdaObj_methods[] = {
 
   { "steps", (PyCFunction)CarrierNdaObj_steps, METH_VARARGS,
@@ -344,6 +402,12 @@ static PyMethodDef CarrierNdaObj_methods[] = {
     "    >>> from doppler import CarrierNda\n"
     "    >>> obj = CarrierNda(0.01, 0.707, 0.0, 8, 4, 4)\n"
     "    >>> obj.reset()\n" },
+  { "state_bytes", (PyCFunction)CarrierNdaObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)CarrierNdaObj_get_state, METH_NOARGS,
+    "Serialize the loop state to bytes." },
+  { "set_state", (PyCFunction)CarrierNdaObj_set_state, METH_O,
+    "Restore loop state from a get_state() blob." },
   { "destroy", (PyCFunction)CarrierNdaObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)CarrierNdaObj_enter, METH_NOARGS, NULL },

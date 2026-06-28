@@ -46,6 +46,7 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
+from doppler.track import CarrierMpsk, CarrierNda, Costas, LoopFilter
 from doppler.wfm import PN
 
 # A short real-tapped, symmetric FIR — enough delay-line state to matter.
@@ -89,6 +90,24 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "PN": (
         lambda: PN(96, 1, 7),
         lambda o, seg: np.array(o.generate(len(seg))),
+    ),
+    # Tracking loops — carrier loops take complex baseband; LoopFilter takes a
+    # real error stream (feed the segment's real part).
+    "Costas": (
+        lambda: Costas(0.01, 0.707, 0.0, 4, 0.0),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    "CarrierMpsk": (
+        lambda: CarrierMpsk(0.01, 0.707, 0.0, 4, 0.0, 4),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    "CarrierNda": (
+        lambda: CarrierNda(0.01, 0.707, 0.0, 4, 2, 4),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    "LoopFilter": (
+        lambda: LoopFilter(0.01, 0.707, 1.0),
+        lambda o, seg: np.array(o.steps(seg.real.astype(np.float64))),
     ),
 }
 

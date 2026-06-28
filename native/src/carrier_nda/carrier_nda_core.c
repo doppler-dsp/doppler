@@ -75,6 +75,39 @@ carrier_nda_reset (carrier_nda_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
+/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
+ * Pointer-free POD; a whole-struct snapshot resumes the loop bit-for-bit. */
+
+size_t
+carrier_nda_state_bytes (const carrier_nda_state_t *state)
+{
+  (void)state;
+  return sizeof (dp_state_hdr_t) + sizeof (carrier_nda_state_t);
+}
+
+void
+carrier_nda_get_state (const carrier_nda_state_t *state, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, carrier_nda_state_bytes (state));
+  dp_w_hdr (&w, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+            carrier_nda_state_bytes (state));
+  dp_w_bytes (&w, state, sizeof *state);
+}
+
+int
+carrier_nda_set_state (carrier_nda_state_t *state, const void *blob)
+{
+  int rc
+      = dp_state_validate (blob, carrier_nda_state_bytes (state),
+                           CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, carrier_nda_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&r, state, sizeof *state);
+  return DP_OK;
+}
+
 /* Output bound: emitted samples == input length (the de-rotated stream). */
 size_t
 carrier_nda_steps_max_out (carrier_nda_state_t *state)

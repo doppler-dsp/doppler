@@ -72,6 +72,13 @@ class LoopFilter:
         """Zero the integrator; keep the configured gains.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def kp(self) -> float:
         """Kp."""
@@ -159,6 +166,13 @@ class Costas:
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def bn(self) -> float:
@@ -551,6 +565,13 @@ class CarrierMpsk:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def bn(self) -> float:
         """Bn."""
@@ -634,6 +655,13 @@ class CarrierNda:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def norm_freq(self) -> float:
         """Norm freq."""
@@ -670,5 +698,130 @@ class CarrierNda:
         """Release C resources immediately."""
 
     def __enter__(self) -> "CarrierNda": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
+class MpskReceiver:
+    """Create an M-PSK receiver.
+
+    Parameters
+    ----------
+    m : int, default 4
+        Constellation order M, 2/4/8 (default 4 = QPSK).
+    sps : int, default 8
+        Samples per symbol (default 8).
+    n : int, default 4
+        Carrier arm dumps per symbol (default 4; sps % n == 0).
+    pulse : Literal["iandd", "rrc"], default "iandd"
+        Matched-filter shape (default MPSK_RX_PULSE_IANDD).
+    rrc_beta : float, default 0.35
+        RRC roll-off in [0, 1] (default 0.35; RRC only).
+    rrc_span : int, default 8
+        RRC one-sided span in symbols (default 8; RRC only).
+    bn_carrier : float, default 0.01
+        Carrier loop noise bandwidth (default 0.01).
+    zeta : float, default 0.707
+        Damping factor for both loops (default 0.707).
+    bn_timing : float, default 0.01
+        Symbol-timing loop noise bandwidth (default 0.01).
+    auto_handover : int, default 0
+        Enable NDA->decision-directed handover (default 0).
+    lock_thresh : float, default 0.5
+        Lock metric required for handover (default 0.5).
+    init_norm_freq : float, default 0.0
+        Seed carrier frequency, cycles/sample (default 0.0).
+    warmup_syms : int, default 100
+        Symbols before handover is allowed (default 100).
+    differential : int, default 0
+        bits(): differential (rotation-invariant) demap (default 0 = coherent).
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.track import MpskReceiver
+    >>> obj = MpskReceiver(m=4, sps=8, n=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, auto_handover=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0)
+
+    """
+    def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., auto_handover: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
+
+    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With auto_handover enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+
+        Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter +
+        Gardner timing) over x and writes one cf32 symbol per recovered symbol
+        period. Fewer outputs than inputs (~ x_len / sps). Read norm_freq for
+        the tracked carrier and lock for the carrier lock metric.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input cf32 samples.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Number of symbols written.
+        """
+
+    def bits(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
+        """Demodulate a cf32 block and return hard Gray-coded bits (log2(m) bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if the receiver was created with differential=1, each symbol's bits come from the phase DIFFERENCE between consecutive symbols (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the symbol-error rate). Same per-sample carrier/timing recovery as steps().
+
+        Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
+        nearest M-PSK point and unpacked to log2(M) hard bits (LSB-first). With
+        the differential option set at create time, the Gray label is taken from
+        the phase *difference* between consecutive symbols (rotation-invariant —
+        it resolves the M-fold carrier ambiguity), else from the absolute
+        (coherent) decision.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input cf32 samples.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Number of bits written.
+        """
+
+    def reset(self) -> None:
+        """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.
+        """
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def lock(self) -> float:
+        """Lock."""
+
+    @property
+    def timing_rate(self) -> float:
+        """Timing rate."""
+
+    @property
+    def tracking(self) -> int:
+        """Tracking."""
+
+    @property
+    def m(self) -> int:
+        """M."""
+
+    @property
+    def sps(self) -> int:
+        """Sps."""
+
+    @property
+    def n(self) -> int:
+        """N."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "MpskReceiver": ...
 
     def __exit__(self, *args: object) -> None: ...

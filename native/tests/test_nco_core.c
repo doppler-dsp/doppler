@@ -14,6 +14,7 @@
 #include "nco/nco_core.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -180,6 +181,31 @@ main (void)
     CHECK (nco_get_phase_inc (nco) == 0x80000000u);
 
     nco_destroy (nco);
+  }
+
+  /* ----------------------------------------------------------------
+   * Serializable state — advance, serialize, restore into a fresh NCO,
+   * and the phase stream continues identically; a clobbered blob rejects.
+   * ---------------------------------------------------------------- */
+  {
+    nco_state_t *a = nco_create (0.123, 0);
+    uint32_t     ref[16], got[16];
+    nco_steps_u32 (a, 5, ref); /* advance, then snapshot */
+    size_t sb   = nco_state_bytes (a);
+    void  *blob = malloc (sb);
+    nco_get_state (a, blob);
+    nco_steps_u32 (a, 16, ref); /* reference continuation */
+
+    nco_state_t *b = nco_create (0.123, 0);
+    CHECK (nco_set_state (b, blob) == DP_OK);
+    ((char *)blob)[0] ^= (char)0xFF;
+    CHECK (nco_set_state (b, blob) == DP_ERR_INVALID);
+    nco_steps_u32 (b, 16, got);
+    for (int i = 0; i < 16; i++)
+      CHECK (got[i] == ref[i]);
+    nco_destroy (a);
+    nco_destroy (b);
+    free (blob);
   }
 
   if (_fails)

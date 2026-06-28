@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "PN"
+serializable = "true"
 
 [[pn.init_params]]
 name = "poly"

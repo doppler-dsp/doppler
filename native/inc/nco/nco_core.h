@@ -36,6 +36,7 @@
 #define NCO_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #ifdef __cplusplus
 extern "C"
@@ -121,6 +122,20 @@ nco_add_ovf_ (uint32_t a, uint32_t b, uint32_t *res)
    * @endcode
    */
   void nco_reset (nco_state_t *state);
+
+  /* ── Serializable state (standard bytes interface; see dp_state.h) ────────
+   * Only the running phase accumulator is serialized; phase_inc / nmax are
+   * config restored by the constructor.  Envelope: [dp_state_hdr_t][u32 phase].
+   */
+#define NCO_STATE_MAGIC DP_FOURCC ('N', 'C', 'O', '_')
+#define NCO_STATE_VERSION 1u
+
+  /** @brief Serialized-state byte size. */
+  size_t nco_state_bytes (const nco_state_t *state);
+  /** @brief Serialize the phase accumulator into @p blob. */
+  void nco_get_state (const nco_state_t *state, void *blob);
+  /** @brief Restore phase; DP_OK, or DP_ERR_INVALID if the envelope rejects. */
+  int nco_set_state (nco_state_t *state, const void *blob);
 
   /* ---- Properties ---- */
 

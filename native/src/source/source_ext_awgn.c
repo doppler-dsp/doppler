@@ -171,6 +171,63 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — reseed + the amplitude getset); mirrors jm's
+ * generated form for the `serializable` flag, which also emits the matching
+ * source.pyi stubs. */
+static PyObject *
+AWGNObj_state_bytes (AWGNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (awgn_state_bytes (self->handle));
+}
+
+static PyObject *
+AWGNObj_get_state (AWGNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = awgn_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  awgn_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+AWGNObj_set_state (AWGNObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != awgn_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (awgn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef AWGNObj_methods[]
     = { { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -196,6 +253,12 @@ static PyMethodDef AWGNObj_methods[]
           "    >>> obj = AWGN(0, 1.0)\n"
           "    >>> obj.reseed(0)\n"
           "    0j\n" },
+        { "state_bytes", (PyCFunction)AWGNObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)AWGNObj_get_state, METH_NOARGS,
+          "Serialize the RNG state to bytes." },
+        { "set_state", (PyCFunction)AWGNObj_set_state, METH_O,
+          "Restore RNG state from a get_state() blob." },
         { "destroy", (PyCFunction)AWGNObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)AWGNObj_enter, METH_NOARGS, NULL },

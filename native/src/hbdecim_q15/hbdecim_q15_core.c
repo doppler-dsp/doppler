@@ -306,6 +306,50 @@ hbdecim_q15_reset (hbdecim_q15_state_t *r)
   memset (r->odd_Q, 0, 2 * r->cap * sizeof (int16_t));
 }
 
+/* Serializable state — four dual-write rings + heads + pending byte; coeffs
+ * (config) are restored by create(). */
+size_t
+hbdecim_q15_state_bytes (const hbdecim_q15_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + 2 * sizeof (uint64_t) + sizeof (uint32_t)
+         + 2 * sizeof (int16_t) + 4 * 2 * s->cap * sizeof (int16_t);
+}
+
+void
+hbdecim_q15_get_state (const hbdecim_q15_state_t *s, void *blob)
+{
+  DP_GET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
+               hbdecim_q15_state_bytes (s));
+  dp_w_u64 (&_w, s->even_head);
+  dp_w_u64 (&_w, s->odd_head);
+  dp_w_u32 (&_w, (uint32_t)s->has_pending);
+  dp_w_bytes (&_w, &s->pending_I, sizeof s->pending_I);
+  dp_w_bytes (&_w, &s->pending_Q, sizeof s->pending_Q);
+  const size_t rb = 2 * s->cap * sizeof (int16_t);
+  dp_w_bytes (&_w, s->even_I, rb);
+  dp_w_bytes (&_w, s->even_Q, rb);
+  dp_w_bytes (&_w, s->odd_I, rb);
+  dp_w_bytes (&_w, s->odd_Q, rb);
+}
+
+int
+hbdecim_q15_set_state (hbdecim_q15_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (HBDECIM_Q15_STATE_MAGIC, HBDECIM_Q15_STATE_VERSION,
+               hbdecim_q15_state_bytes (s));
+  s->even_head   = (size_t)dp_r_u64 (&_r);
+  s->odd_head    = (size_t)dp_r_u64 (&_r);
+  s->has_pending = (int)dp_r_u32 (&_r);
+  dp_r_bytes (&_r, &s->pending_I, sizeof s->pending_I);
+  dp_r_bytes (&_r, &s->pending_Q, sizeof s->pending_Q);
+  const size_t rb = 2 * s->cap * sizeof (int16_t);
+  dp_r_bytes (&_r, s->even_I, rb);
+  dp_r_bytes (&_r, s->even_Q, rb);
+  dp_r_bytes (&_r, s->odd_I, rb);
+  dp_r_bytes (&_r, s->odd_Q, rb);
+  return DP_OK;
+}
+
 /* ================================================================== */
 /* Properties                                                          */
 /* ================================================================== */

@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "DelayCf64"
+serializable = "true"
 
 [[delay.init_params]]
 name = "num_taps"

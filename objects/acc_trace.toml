@@ -12,6 +12,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "AccTrace"
+serializable = "true"
 
 [[acc_trace.init_params]]
 name = "n"

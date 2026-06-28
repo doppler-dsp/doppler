@@ -37,12 +37,13 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from doppler.accumulator import AccCf64, AccF32
+from doppler.accumulator import AccCf64, AccF32, AccTrace
 from doppler.agc import AGC
 from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
-from doppler.filter import FIR
+from doppler.delay import DelayCf64
+from doppler.filter import FIR, HBDecimQ15
 from doppler.resample import (
     CIC,
     Farrow,
@@ -87,6 +88,26 @@ def _f32_to_int_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     float32 and return the quantized block. ADC (dithering on) resumes its
     PRNG; the converters resume their sticky clip flag."""
     return np.array(o.steps(seg.real.astype(np.float32)))
+
+
+def _delay_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Push the block through the delay line; return the final window. The ring
+    + head carry across calls, so a mid-stream split must resume."""
+    w: Any = None
+    for v in seg:
+        w = o.push_ptr(complex(v))
+    return np.array(w)
+
+
+def _acctrace_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Fold fixed-length frames; return the serialized state itself. AccTrace
+    exposes no trace getter, so the post-block state blob *is* the observable —
+    a strict whole-state resume check that works for any serializable type."""
+    r = seg.real.astype(np.float32)
+    n = 8  # must match the AccTrace(n=...) below
+    for i in range(0, (len(r) // n) * n, n):
+        o.accumulate(r[i : i + n])
+    return np.frombuffer(o.get_state(), dtype=np.uint8)
 
 
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
@@ -151,6 +172,18 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "F32ToI16U64": (lambda: F32ToI16U64(32768.0), _f32_to_int_feed),
     "F32ToUQ15": (lambda: F32ToUQ15(32768.0), _f32_to_int_feed),
     "ADC": (lambda: ADC(8, 0.0, 1), _f32_to_int_feed),
+    # Field-wise objects with owned buffers — packed/unpacked element-wise.
+    "DelayCf64": (lambda: DelayCf64(4), _delay_feed),
+    "AccTrace": (
+        lambda: AccTrace(n=8, mode="mean", alpha=0.1),
+        _acctrace_feed,
+    ),
+    "HBDecimQ15": (
+        lambda: HBDecimQ15(_HB_TAPS),
+        lambda o, seg: np.array(
+            o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
+        ),
+    ),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
         lambda: NCO(0.01, 0),

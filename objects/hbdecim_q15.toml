@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "HBDecimQ15"
+serializable = "true"
 
 [[hbdecim_q15.init_params]]
 name = "h"

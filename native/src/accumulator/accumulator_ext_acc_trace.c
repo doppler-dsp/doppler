@@ -256,6 +256,59 @@ AccTraceObj_exit (AccTraceObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+AccTraceObj_state_bytes (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (acc_trace_state_bytes (self->handle));
+}
+
+static PyObject *
+AccTraceObj_get_state (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = acc_trace_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  acc_trace_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+AccTraceObj_set_state (AccTraceObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != acc_trace_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (acc_trace_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef AccTraceObj_methods[] = {
 
   { "accumulate", (PyCFunction)AccTraceObj_accumulate, METH_VARARGS,
@@ -290,6 +343,12 @@ static PyMethodDef AccTraceObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)AccTraceObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)AccTraceObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)AccTraceObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)AccTraceObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)AccTraceObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

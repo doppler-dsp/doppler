@@ -1,6 +1,8 @@
 #include "acc_trace/acc_trace_core.h"
+#include "dp_state_test.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -129,6 +131,22 @@ main (void)
       fprintf (stderr, "test_acc_trace_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — field-wise trace + count round-trips + rejects. */
+  {
+    acc_trace_state_t *a = acc_trace_create (4, ACC_TRACE_MEAN, 0.1);
+    acc_trace_state_t *b = acc_trace_create (4, ACC_TRACE_MEAN, 0.1);
+    CHECK (a != NULL && b != NULL);
+    const float f1[4] = { 1.0f, 2.0f, 3.0f, 4.0f };
+    const float f2[4] = { 0.5f, -1.0f, 2.0f, 0.0f };
+    acc_trace_accumulate (a, f1, 4);
+    acc_trace_accumulate (a, f2, 4);
+    DP_STATE_ROUNDTRIP_TEST (acc_trace, a, b);
+    CHECK (b->count == a->count);
+    CHECK (memcmp (b->acc, a->acc, a->n * sizeof (double)) == 0);
+    acc_trace_destroy (a);
+    acc_trace_destroy (b);
+  }
+
   printf ("test_acc_trace_core PASSED\n");
   return 0;
 }

@@ -16,6 +16,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "dp_state.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -215,6 +216,14 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
 void delay_write(delay_state_t *state, double complex x);
 
 size_t delay_push_ptr(delay_state_t *state, double complex x, double complex *out);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */
+#define DELAY_STATE_MAGIC DP_FOURCC ('D','L','A','Y')
+#define DELAY_STATE_VERSION 1u
+size_t delay_state_bytes (const delay_state_t *state);
+void delay_get_state (const delay_state_t *state, void *blob);
+int delay_set_state (delay_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

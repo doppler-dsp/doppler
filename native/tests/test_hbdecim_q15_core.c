@@ -7,6 +7,7 @@
  * zero-input passthrough, decimation ratio, odd-block buffering, and
  * reset behaviour — all verifiable without a filter-design library.
  */
+#include "dp_state_test.h"
 #include "hbdecim_q15/hbdecim_q15_core.h"
 #include <math.h>
 #include <stdio.h>
@@ -116,6 +117,26 @@ main (void)
       fprintf (stderr, "test_hbdecim_q15_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — four dual-write rings + heads round-trip + reject. */
+  {
+    const float          htaps[4] = { 0.1f, -0.2f, 0.3f, 0.0f };
+    hbdecim_q15_state_t *a        = hbdecim_q15_create (7, htaps);
+    hbdecim_q15_state_t *b        = hbdecim_q15_create (7, htaps);
+    CHECK (a != NULL && b != NULL);
+    int16_t in[32], out[32];
+    for (int i = 0; i < 32; i++)
+      in[i] = (int16_t)(100 * i);
+    (void)hbdecim_q15_execute (a, in, 32, out, 32);
+    DP_STATE_ROUNDTRIP_TEST (hbdecim_q15, a, b);
+    CHECK (b->even_head == a->even_head && b->odd_head == a->odd_head);
+    CHECK (b->has_pending == a->has_pending);
+    const size_t rb = 2 * a->cap * sizeof (int16_t);
+    CHECK (memcmp (b->even_I, a->even_I, rb) == 0);
+    CHECK (memcmp (b->odd_Q, a->odd_Q, rb) == 0);
+    hbdecim_q15_destroy (a);
+    hbdecim_q15_destroy (b);
+  }
+
   printf ("test_hbdecim_q15_core PASSED\n");
   return 0;
 }

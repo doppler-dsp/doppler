@@ -443,7 +443,9 @@ the Python `Composer` API drive the same C engine, so their output is
 `type` and `snr_mode` are strings in JSON; every other field is numeric and
 **falls back to the engine default** if omitted. `num_samples` is the on-time;
 `off_samples` is a trailing gap of zeros. `repeat` loops the sequence;
-`continuous` never finishes (for streaming).
+`continuous` never finishes (for streaming). On every loop the **seed advances**
+(see [Fresh noise on repeat](#fresh-noise-on-repeat)), so a repeated stream is a
+fresh realization, not byte-identical copies.
 
 Rather than write the JSON schema from memory, dump a ready-to-edit example
 with **`wfmgen json-template`** and edit it down:
@@ -459,6 +461,39 @@ QPSK-from-bits burst with a trailing gap, and a two-source `sum` mix — that is
 **valid by construction**: it round-trips through `--from-file` unchanged, so
 it doubles as a working starting point, not just documentation. With no path
 (or `-`) it prints to stdout; pass a path to write the file directly.
+
+### Fresh noise on repeat
+
+A repeated stream should be a *stream*, not the same bytes over and over — so
+each source's **`seed` advances by one on every loop** (`--repeat` and
+`--continuous`). A one-burst spec run `--continuous` therefore emits an endless
+sequence of **distinct noise realizations**: ideal for a soak test, a live
+receiver fuzz, or a rotating-file recorder. Pass 0 (the first loop) reproduces
+the spec exactly, so a finite single-pass run is unchanged and remains
+byte-reproducible from `--record`.
+
+What the advancing seed changes depends on the source — it drives both the noise
+and any PN-sourced data:
+
+| Source type        | Fixed across repeats             | Varies across repeats         |
+| ------------------ | -------------------------------- | ----------------------------- |
+| `bits`             | the bit pattern                  | the AWGN                      |
+| `tone` / `chirp`   | everything (no seed-driven part) | the AWGN (if `--snr` adds it) |
+| `noise`            | —                                | the whole noise sequence      |
+| `pn`/`bpsk`/`qpsk` | —                                | the PN data **and** the AWGN  |
+
+So to repeat a **fixed waveform under fresh noise** — e.g. a known preamble or
+sync code that a receiver must re-acquire every burst — carry the code as a
+**`bits` pattern** (fixed), not a `pn` source (which would re-randomize the code
+each loop). For an endless stream of *independent* random bursts, a `pn`/`*psk`
+source is exactly right.
+
+```sh
+# A 31-chip PN preamble + payload, repeating forever, fresh noise each burst:
+wfmgen --from-file burst.json --continuous --realtime -o stream.cf32
+# burst.json: a `bits` segment (the code as an explicit 0/1 pattern) + trailing
+# gap → the code is identical every burst, only the AWGN changes.
+```
 
 ______________________________________________________________________
 

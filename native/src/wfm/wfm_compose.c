@@ -48,10 +48,13 @@ enum
 
 struct wfm_compose_state
 {
-  wfm_segment_t      *segs;
-  size_t              n_segs;
-  int                 repeat;
-  int                 continuous;
+  wfm_segment_t *segs;
+  size_t         n_segs;
+  int            repeat;
+  int            continuous;
+  unsigned       epoch;        /* repeat counter — bumps each source's seed so
+                                  a looped stream is a fresh noise/PN
+                                  realization, not byte-identical repeats */
   size_t              cur;     /* current segment index */
   int                 phase;   /* PHASE_ON / PHASE_OFF / PHASE_DONE */
   size_t              left;    /* samples remaining in the current phase */
@@ -88,9 +91,14 @@ start_segment (wfm_compose_state_t *s)
     {
       const wfm_source_t *src = &g->sources[k];
       s->gain[k] = (float)pow (10.0, src->level / 20.0); /* level → gain */
-      s->syn[k]  = wfm_synth_create (
-          src->type, g->fs, src->freq, src->snr, src->snr_mode, src->seed,
-          src->sps, src->pn_length, src->pn_poly, src->lfsr, src->f_end);
+      /* Seed advances once per repeat (epoch), so a looped/continuous stream
+       * yields a fresh realization each pass instead of identical bytes. For a
+       * `bits` source (explicit pattern) this varies only the AWGN; for
+       * pn/bpsk/qpsk it also advances the PN data sequence. */
+      uint32_t seed = (uint32_t)(src->seed + s->epoch);
+      s->syn[k]     = wfm_synth_create (
+          src->type, g->fs, src->freq, src->snr, src->snr_mode, seed, src->sps,
+          src->pn_length, src->pn_poly, src->lfsr, src->f_end);
       if (!s->syn[k])
         ok = 0;
       else
@@ -144,6 +152,7 @@ advance (wfm_compose_state_t *s)
       if (s->repeat || s->continuous)
         {
           s->cur = 0;
+          s->epoch++; /* next pass: advance every source's seed */
         }
       else
         {

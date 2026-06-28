@@ -4,6 +4,7 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
+serializable = "true"
 depends_on = ["resamp"]
 
 [[Resampler.init_params]]

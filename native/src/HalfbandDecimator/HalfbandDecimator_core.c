@@ -18,6 +18,29 @@ HalfbandDecimator_reset (HalfbandDecimator_state_t *state)
   hbdecim_reset (state);
 }
 
+/* Serializable state — forwarded to the hbdecim leaf (this type is a typedef
+ * alias for hbdecim_state_t), so the blob carries the leaf's HBDC envelope. */
+
+size_t
+HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state)
+{
+  return hbdecim_state_bytes (state);
+}
+
+void
+HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
+                             void                            *blob)
+{
+  hbdecim_get_state (state, blob);
+}
+
+int
+HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
+                             const void                *blob)
+{
+  return hbdecim_set_state (state, blob);
+}
+
 size_t
 HalfbandDecimator_execute_max_out (HalfbandDecimator_state_t *state)
 {

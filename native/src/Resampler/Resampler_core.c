@@ -25,6 +25,27 @@ Resampler_reset (Resampler_state_t *state)
   resamp_reset (state);
 }
 
+/* Serializable state — forwarded to the resamp leaf (this type is a typedef
+ * alias for resamp_state_t), so the blob carries the leaf's RSMP envelope. */
+
+size_t
+Resampler_state_bytes (const Resampler_state_t *state)
+{
+  return resamp_state_bytes (state);
+}
+
+void
+Resampler_get_state (const Resampler_state_t *state, void *blob)
+{
+  resamp_get_state (state, blob);
+}
+
+int
+Resampler_set_state (Resampler_state_t *state, const void *blob)
+{
+  return resamp_set_state (state, blob);
+}
+
 size_t
 Resampler_execute_max_out (Resampler_state_t *state)
 {

@@ -85,6 +85,15 @@ extern "C"
    */
   void HalfbandDecimator_reset (HalfbandDecimator_state_t *state);
 
+  /** @brief Serialized-state byte size (forwarded to the hbdecim leaf). */
+  size_t HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state);
+  /** @brief Serialize the decimator's delay-line state into @p blob. */
+  void HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
+                                    void *blob);
+  /** @brief Restore state from @p blob; DP_OK, or DP_ERR_INVALID if rejected. */
+  int HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
+                                   const void *blob);
+
   /* ------------------------------------------------------------------ */
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */

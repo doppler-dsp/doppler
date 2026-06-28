@@ -299,4 +299,52 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return DP_OK;                                                             \
   }
 
+/* ── field-wise scaffolding ──────────────────────────────────────────────────
+ * For a hand-written triplet that packs a subset of fields (running state only;
+ * config restored by create()).  Use inside `<obj>_get_state(s, blob)` /
+ * `<obj>_set_state(s, blob)` (those exact param names): open, then pack/unpack
+ * the running fields via `&_w` / `&_r`, and `return DP_OK;` from set.
+ *
+ *   void foo_get_state (const foo_state_t *s, void *blob)
+ *   { DP_GET_OPEN (FOO_MAGIC, FOO_VERSION, foo_state_bytes (s));
+ *     dp_w_f64 (&_w, s->gain); }
+ *   int  foo_set_state (foo_state_t *s, const void *blob)
+ *   { DP_SET_OPEN (FOO_MAGIC, FOO_VERSION, foo_state_bytes (s));
+ *     s->gain = dp_r_f64 (&_r); return DP_OK; }
+ */
+#define DP_GET_OPEN(MAGIC, VERSION, BYTES)                                     \
+  dp_writer_t _w = dp_writer_init (blob, (BYTES));                             \
+  dp_w_hdr (&_w, (MAGIC), (VERSION), (BYTES))
+
+#define DP_SET_OPEN(MAGIC, VERSION, BYTES)                                     \
+  int _rc = dp_state_validate (blob, (BYTES), (MAGIC), (VERSION));             \
+  if (_rc != DP_OK)                                                            \
+    return _rc;                                                                \
+  dp_reader_t _r = dp_reader_init (blob, (BYTES));                             \
+  _r.off = sizeof (dp_state_hdr_t)
+
+/* ── composition: nest a child's self-contained sub-blob ─────────────────────
+ * A composition's state_bytes sums `<child>_state_bytes(child_ptr)`; its
+ * get/set then writes/reads each child as a nested envelope.  `child_ptr` may be
+ * a pointer member or the address of an embedded-by-value member (`&s->lf`).
+ * DP_R_CHILD returns DP_ERR_INVALID from the enclosing set_state if the child
+ * rejects, so the whole restore is atomic-by-validation. */
+#define DP_W_CHILD(w, pfx, child_ptr)                                          \
+  do                                                                           \
+    {                                                                          \
+      void *_cr = dp_w_reserve ((w), pfx##_state_bytes (child_ptr));           \
+      if (_cr)                                                                 \
+        pfx##_get_state ((child_ptr), _cr);                                    \
+    }                                                                          \
+  while (0)
+
+#define DP_R_CHILD(r, pfx, child_ptr)                                          \
+  do                                                                           \
+    {                                                                          \
+      const void *_cr = dp_r_reserve ((r), pfx##_state_bytes (child_ptr));     \
+      if (!_cr || pfx##_set_state ((child_ptr), _cr) != DP_OK)                 \
+        return DP_ERR_INVALID;                                                 \
+    }                                                                          \
+  while (0)
+
 #endif /* DP_STATE_H */

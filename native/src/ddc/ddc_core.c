@@ -162,32 +162,20 @@ ddc_state_bytes (const ddc_state_t *s)
 void
 ddc_get_state (const ddc_state_t *s, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, ddc_state_bytes (s));
-  dp_w_hdr (&w, DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
-  dp_w_f64 (&w, s->rc->rate); /* ddc_extra_t */
-
-  char *p = (char *)blob + w.off;
-  lo_get_state (s->lo, p);
-  p += lo_state_bytes (s->lo);
-  RateConverter_get_state (s->rc, p);
+  DP_GET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
+  dp_w_f64 (&_w, s->rc->rate); /* ddc_extra_t */
+  DP_W_CHILD (&_w, lo, s->lo);
+  DP_W_CHILD (&_w, RateConverter, s->rc);
 }
 
 int
 ddc_set_state (ddc_state_t *s, const void *blob)
 {
-  int rc = dp_state_validate (blob, ddc_state_bytes (s), DDC_STATE_MAGIC,
-                              DDC_STATE_VERSION);
-  if (rc != DP_OK)
-    return rc;
-  dp_reader_t r = dp_reader_init (blob, ddc_state_bytes (s));
-  r.off         = sizeof (dp_state_hdr_t);
-  if (dp_r_f64 (&r) != s->rc->rate) /* ddc_extra_t.rate is the layout key */
+  DP_SET_OPEN (DDC_STATE_MAGIC, DDC_STATE_VERSION, ddc_state_bytes (s));
+  if (dp_r_f64 (&_r) != s->rc->rate) /* ddc_extra_t.rate is the layout key */
     return DP_ERR_INVALID;
-
-  const char *p = (const char *)blob + r.off;
-  lo_set_state (s->lo, p);
-  p += lo_state_bytes (s->lo);
-  RateConverter_set_state (s->rc, p);
+  DP_R_CHILD (&_r, lo, s->lo);
+  DP_R_CHILD (&_r, RateConverter, s->rc);
   return DP_OK;
 }
 
@@ -278,36 +266,22 @@ ddcr_state_bytes (const ddcr_state_t *s)
 void
 ddcr_get_state (const ddcr_state_t *s, void *blob)
 {
-  dp_writer_t w = dp_writer_init (blob, ddcr_state_bytes (s));
-  dp_w_hdr (&w, DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
-  dp_w_f64 (&w, s->rate); /* ddcr_extra_t */
-
-  char *p = (char *)blob + w.off;
-  hbdecim_r2c_get_state (s->r2c, p);
-  p += hbdecim_r2c_state_bytes (s->r2c);
-  lo_get_state (s->lo, p);
-  p += lo_state_bytes (s->lo);
-  RateConverter_get_state (s->rc, p);
+  DP_GET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
+  dp_w_f64 (&_w, s->rate); /* ddcr_extra_t */
+  DP_W_CHILD (&_w, hbdecim_r2c, s->r2c);
+  DP_W_CHILD (&_w, lo, s->lo);
+  DP_W_CHILD (&_w, RateConverter, s->rc);
 }
 
 int
 ddcr_set_state (ddcr_state_t *s, const void *blob)
 {
-  int rc = dp_state_validate (blob, ddcr_state_bytes (s), DDCR_STATE_MAGIC,
-                              DDCR_STATE_VERSION);
-  if (rc != DP_OK)
-    return rc;
-  dp_reader_t r = dp_reader_init (blob, ddcr_state_bytes (s));
-  r.off         = sizeof (dp_state_hdr_t);
-  if (dp_r_f64 (&r) != s->rate) /* ddcr_extra_t.rate is the layout key */
+  DP_SET_OPEN (DDCR_STATE_MAGIC, DDCR_STATE_VERSION, ddcr_state_bytes (s));
+  if (dp_r_f64 (&_r) != s->rate) /* ddcr_extra_t.rate is the layout key */
     return DP_ERR_INVALID;
-
-  const char *p = (const char *)blob + r.off;
-  hbdecim_r2c_set_state (s->r2c, p);
-  p += hbdecim_r2c_state_bytes (s->r2c);
-  lo_set_state (s->lo, p);
-  p += lo_state_bytes (s->lo);
-  RateConverter_set_state (s->rc, p);
+  DP_R_CHILD (&_r, hbdecim_r2c, s->r2c);
+  DP_R_CHILD (&_r, lo, s->lo);
+  DP_R_CHILD (&_r, RateConverter, s->rc);
   return DP_OK;
 }
 

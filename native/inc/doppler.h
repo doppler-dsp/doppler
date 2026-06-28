@@ -121,6 +121,8 @@ extern "C" {
 
 #include "ppe/ppe_core.h"
 
+#include "burst_demod/burst_demod_core.h"
+
 #ifdef __cplusplus
 }
 #endif

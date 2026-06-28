@@ -350,3 +350,106 @@ class PolyPhaseEstimator:
     def __enter__(self) -> "PolyPhaseEstimator": ...
 
     def __exit__(self, *args: object) -> None: ...
+
+class BurstDemod:
+    """Create a burst demodulator.
+
+    Parameters
+    ----------
+    data_code : NDArray[np.uint8], default ...
+        Data spreading code (0/1); copied.
+    spc : int, default 4
+        Samples per chip.
+    chip_rate : float, default 1.0e6
+        Chip rate (Hz).
+    carrier_hz : float, default 0.0
+        RF carrier (Hz) for code-Doppler scaling; 0 = ignore.
+    max_rate : float, default 0.0
+        Chirp-rate search half-span (cycles/sample^2 at the input rate); 0 = Doppler only (no rate search).
+    payload_len : int, default 0
+        Number of payload data symbols (bits) in a frame.
+    est_segments : int, default 10
+        Partial correlations per acq period (segmentation for the feedforward estimate; larger tolerates more rate).
+
+    """
+    def __init__(self, data_code: NDArray[np.uint8] = ..., spc: int = ..., chip_rate: float = ..., carrier_hz: float = ..., max_rate: float = ..., payload_len: int = ..., est_segments: int = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Clear the read-backs (config is preserved).
+        """
+
+    def set_preamble(self, acq_code: NDArray[np.uint8], reps: int) -> None:
+        """Set the (unmodulated) acquisition preamble code + repetition count used for the feedforward (f0, rate) estimate.
+
+        Parameters
+        ----------
+        acq_code : NDArray[np.uint8]
+            Input.
+        reps : int
+            Input.
+        """
+
+    def set_sync(self, sync: NDArray[np.uint8]) -> None:
+        """Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment + phase/sign resolution.
+
+        Parameters
+        ----------
+        sync : NDArray[np.uint8]
+            Input.
+        """
+
+    def set_prior(self, f0_coarse: float, start: int) -> None:
+        """Seed from acquisition: coarse Doppler (cycles/sample at the input rate) and the preamble start sample.
+
+        Parameters
+        ----------
+        f0_coarse : float
+            Input.
+        start : int
+            Input.
+        """
+
+    def demod(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
+        """Demodulate a burst (preamble + frame); return the payload bits. Read-back properties report the estimates + CRC validity.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Number of bits written (0 on failure / too-short burst). The read-back fields (frame_valid, est_*, frame_offset) are updated.
+        """
+
+    @property
+    def frame_valid(self) -> int:
+        """Frame valid."""
+
+    @property
+    def frame_offset(self) -> int:
+        """Frame offset."""
+
+    @property
+    def n_symbols(self) -> int:
+        """N symbols."""
+
+    @property
+    def est_freq_hz(self) -> float:
+        """Est freq hz."""
+
+    @property
+    def est_rate_hz(self) -> float:
+        """Est rate hz."""
+
+    @property
+    def est_snr_db(self) -> float:
+        """Est snr db."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "BurstDemod": ...
+
+    def __exit__(self, *args: object) -> None: ...

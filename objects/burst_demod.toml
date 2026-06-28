@@ -1,0 +1,118 @@
+# burst_demod — feedforward BPSK DSSS frame demodulator.
+#
+# The whole post-acquisition payload chain, in C, with no tracking loops:
+#   1. preamble estimate — segment-despread the unmodulated 5x500-style acq
+#      preamble into partial correlations, feed ppe -> coarse (f0, chirp rate)
+#   2. sample-rate dechirp by (f0, rate) — removes Doppler AND Doppler rate
+#   3. despread the data section with the (short) data code -> soft BPSK symbols
+#   4. frame sync — correlate the symbols against the known sync word; its
+#      complex peak gives the frame offset AND the residual phase (derotated out)
+#   5. slice the payload to bits; verify the CRC-16 trailer -> frame_valid
+#
+# Seeded from acquisition via set_prior(coarse Doppler, preamble start). One
+# `max_rate` knob spans near-static Doppler (0) to severe LEO chirp. One-shot
+# per burst (no_state). Composes ppe (which composes fft + spectral).
+
+[burst_demod]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "BurstDemod"
+depends_on = [{ name = "ppe", link = true }, { name = "fft", link = true }, { name = "spectral", link = true }]
+
+[[burst_demod.init_params]]
+name = "data_code"
+type = "uint8_t[]"
+
+[[burst_demod.init_params]]
+name = "spc"
+type = "size_t"
+default = "4"
+
+[[burst_demod.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1.0e6"
+
+[[burst_demod.init_params]]
+name = "carrier_hz"
+type = "double"
+default = "0.0"
+
+[[burst_demod.init_params]]
+name = "max_rate"
+type = "double"
+default = "0.0"
+
+[[burst_demod.init_params]]
+name = "payload_len"
+type = "size_t"
+default = "0"
+
+[[burst_demod.init_params]]
+name = "est_segments"
+type = "size_t"
+default = "10"
+
+[[burst_demod.methods]]
+name = "set_preamble"
+doc = "Set the (unmodulated) acquisition preamble code + repetition count used for the feedforward (f0, rate) estimate."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "reps", type = "size_t" }]
+
+[[burst_demod.methods]]
+name = "set_sync"
+doc = "Set the known frame-sync word (0/1 BPSK symbols) used for frame alignment + phase/sign resolution."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "sync", type = "uint8_t[]" }]
+
+[[burst_demod.methods]]
+name = "set_prior"
+doc = "Seed from acquisition: coarse Doppler (cycles/sample at the input rate) and the preamble start sample."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "f0_coarse", type = "double" }, { name = "start", type = "size_t" }]
+
+[[burst_demod.methods]]
+name = "demod"
+doc = "Demodulate a burst (preamble + frame); return the payload bits. Read-back properties report the estimates + CRC validity."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[burst_demod.properties]]
+name = "frame_valid"
+type = "int"
+field = true
+
+[[burst_demod.properties]]
+name = "frame_offset"
+type = "size_t"
+field = true
+
+[[burst_demod.properties]]
+name = "n_symbols"
+type = "size_t"
+field = true
+
+[[burst_demod.properties]]
+name = "est_freq_hz"
+type = "double"
+field = true
+
+[[burst_demod.properties]]
+name = "est_rate_hz"
+type = "double"
+field = true
+
+[[burst_demod.properties]]
+name = "est_snr_db"
+type = "double"
+field = true

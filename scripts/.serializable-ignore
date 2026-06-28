@@ -1,0 +1,33 @@
+# Burn-down: stateful objects not yet serializable. Each is removed when it
+# gains `serializable = "true"` + the dp_state.h triplet. When this file is
+# empty the invariant is permanent. See the master plan / check_serializable.py.
+# Batch A (POD):
+farrow
+agc
+acc_cf64
+acc_f32
+acc_q15
+acc_q8
+# Batch B (field-wise):
+delay
+acc_trace
+hbdecim_q15
+adc
+wfm_synth
+f32_to_i16
+f32_to_i16u32
+f32_to_i16u64
+f32_to_uq15
+# Batch C (compositions):
+symsync
+channel
+mpsk_receiver
+dll
+# Batch D (detectors/correlators — opaque FFT children, restore-into-identical):
+corr
+corr2d
+detector
+detector2d
+despreader
+psd
+specan

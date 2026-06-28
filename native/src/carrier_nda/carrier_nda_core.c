@@ -22,11 +22,23 @@ static void
 seed (carrier_nda_state_t *s, double init_norm_freq)
 {
   lo_init (&s->nco, init_norm_freq);
-  s->lf.integ   = init_norm_freq * 2.0 * M_PI * (double)s->arm_len;
+  s->lf.integ   = init_norm_freq * 2.0 * M_PI;
   s->arm_acc    = 0.0f;
   s->arm_cnt    = 0;
   s->lock       = 0.0;
   s->last_error = 0.0;
+  /* Embed the log-domain AGC by value (no agc_create): config + reset its loop
+   * memory to the post-create condition (gain 0 dB, p_avg pre-seeded to the
+   * unit reference power so the first on-target dump produces no transient).
+   */
+  s->agc.ref_db  = CARRIER_NDA_AGC_REF_DB;
+  s->agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * s->bn;
+  s->agc.alpha   = CARRIER_NDA_AGC_ALPHA;
+  s->agc.decim   = AGC_DECIM_DEFAULT;
+  s->agc.clip_db = CARRIER_NDA_AGC_CLIP_DB;
+  s->agc.gain_db = 0.0;
+  s->agc.p_avg   = 1.0; /* 10^(ref_db/10) for ref_db = 0 */
+  s->agc.g_last  = 1.0;
 }
 
 void
@@ -43,7 +55,10 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;
-  loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per arm dump */
+  /* bn is the loop noise bandwidth in cycles/sample (same unit as norm_freq);
+   * the true update period is arm_len samples, so the gains are n-invariant.
+   */
+  loop_filter_init (&s->lf, bn, zeta, (double)s->arm_len);
   seed (s, init_norm_freq);
 }
 
@@ -144,7 +159,10 @@ void
 carrier_nda_set_bn (carrier_nda_state_t *state, double val)
 {
   state->bn = val;
-  loop_filter_configure (&state->lf, val, state->zeta, 1.0);
+  loop_filter_configure (&state->lf, val, state->zeta, (double)state->arm_len);
+  /* Keep the arm AGC locked to a fixed fraction of the carrier loop bandwidth
+   * so it stays 100x slower than the loop at the new bn (see header). */
+  state->agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * val;
 }
 
 int

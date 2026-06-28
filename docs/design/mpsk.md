@@ -102,7 +102,15 @@ per-M `lock_scale` normalizes the discriminator/lock gain so the handover
 threshold is M-independent.
 
 ```python
-# i and q are arm filter outputs at N samples per symbol
+# osr = sample_rate // symbol_rate # Input oversam typ. 4
+# arm_filter = MovingAverage(osr // 2) -- no rate conversion
+# loop_bw = loop_bw_symbol_rate / osr
+# i and q are arm filter outputs at N samples per symbol ==> where AGC is applied
+# esno = symbol energy to noise density dB
+# squaring_loss = 10 * np.log10(4 / phase_error_variance) - esno
+
+k2 = 5 / 6
+rd = 10 ** (esno / 10.0)
 
 bpsk_lock = i**2 - q**2          # Re(z^2)
 bpsk_phase_error = 2 * i * q     # Im(z^2)
@@ -111,16 +119,25 @@ if mod == "BPSK":
     lock_scale = 1
     phase_error = bpsk_phase_error
     lock_signal = lock_scale * bpsk_lock
+    k1 = 2 / 3
+    k4 = 23 / 35
+    z = 1
+    sq_loss_dB = 10 * np.log10(k2**2 / (k2 * k4 + k1 * z / rd))
 elif mod == "QPSK":
     lock_scale = 0.619
     phase_error = bpsk_phase_error * bpsk_lock                        # ~ Im(z^4)
     lock_signal = lock_scale * (bpsk_lock**2 - bpsk_phase_error**2)   # ~ Re(z^4)
+    sq_loss_dB = -0.0564724 * esno**2 + 1.90284531 * esno - 15.65792221
 else:  # 8PSK
     lock_scale = 0.412
     qpsk_phase_error = bpsk_phase_error * bpsk_lock
     qpsk_lock = bpsk_lock**2 - bpsk_phase_error**2
     phase_error = qpsk_phase_error * qpsk_lock                        # ~ Im(z^8)
     lock_signal = lock_scale * (qpsk_lock**2 - qpsk_phase_error**2)   # ~ Re(z^8)
+    sq_loss_dB = -0.14285557 * esno**2 + 5.70706958 * esno - 58.13670891
+
+mod_loss_dB = 10*np.log10(1 / k2)
+
 ```
 
 - `phase_error` ≈ `Im(z^M)` (scaled) — a sawtooth S-curve of period `2π/M`, the

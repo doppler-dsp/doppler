@@ -45,6 +45,7 @@
 #ifndef CARRIER_NDA_CORE_H
 #define CARRIER_NDA_CORE_H
 
+#include "agc/agc_core.h"
 #include "clib_common.h"
 #include "dp_state.h"
 #include "jm_perf.h"
@@ -59,6 +60,23 @@ extern "C" {
 #define CARRIER_NDA_EPS 1e-12
 /* EMA smoothing for the lock metric (status diagnostic / handover input). */
 #define CARRIER_NDA_LOCK_ALPHA 0.05
+/* Arm-dump AGC (the embedded log-domain agc_core primitive) — drives the
+ * phase-detector input to unit average power so the loop gain is amplitude-
+ * invariant. The AGC runs once per arm dump and MUST stay slow relative to the
+ * carrier loop: its bandwidth is locked to a fixed fraction of the carrier loop
+ * bandwidth (agc.loop_bw = CARRIER_NDA_AGC_BW_RATIO * bn), so it is always 100×
+ * slower and tracks only the overall signal level — never the carrier dynamics
+ * or the within-symbol pulse (RRC) envelope. Flattening the envelope would
+ * destroy the raw M-th-power discriminator's natural |z|^M dump weighting and
+ * corrupt the phase estimate on pulse-shaped signals. */
+#define CARRIER_NDA_AGC_REF_DB 0.0
+#define CARRIER_NDA_AGC_BW_RATIO 0.01
+#define CARRIER_NDA_AGC_ALPHA 0.01
+/* Saturated-amplifier soft clip: the AGC's square clip set 10 dB above the unit
+ * level. Bounds the peak (constructive-ISI) dumps that would otherwise dominate
+ * the |z|^M weighting, while constant-modulus dumps sit below it and pass
+ * through unclipped (keeping the raw-arm squaring-loss advantage). */
+#define CARRIER_NDA_AGC_CLIP_DB 10.0
 
 /**
  * @brief NDA M-th-power carrier loop state.
@@ -83,17 +101,24 @@ typedef struct {
     size_t arm_cnt;          /**< samples accumulated into `arm_acc`.      */
     double lock;             /**< EMA of the lock signal (1 = locked).     */
     double last_error;       /**< last phase discriminator (loop stress).  */
+    agc_state_t agc;         /**< log-domain AGC on the arm dump (unit pwr).*/
 } carrier_nda_state_t;
 
 /**
- * @brief The M-th-power discriminator on a unit-normalized arm sample.
+ * @brief The M-th-power discriminator on an arm sample (raw, no per-dump limit).
  *
- * Runs the repeated-squaring recursion `z²`→`z⁴`→`z⁸` on the magnitude-
- * normalized arm sample @p z and writes the phase error (= scaled `Im(z^M)`) and
- * lock signal. Amplitude-normalized so the loop gain is independent of the arm
- * amplitude (the project's `|·|`-normalized convention).
+ * Runs the repeated-squaring recursion `z²`→`z⁴`→`z⁸` directly on the arm
+ * sample @p z (the "conventional Costas" / linear-arm form) and writes the phase
+ * error (= scaled `Im(z^M)`) and lock signal. The arm sample is expected to be
+ * AGC-normalized to unit average power upstream (carrier_nda_arm_step runs the
+ * dump through an embedded agc_core AGC) — so a clean dump is `|z|≈1` and a
+ * transition-straddling dump is `|z|<1` and is *down-weighted naturally*. This is deliberate: a per-dump
+ * unit-magnitude normalization is Yuen's "polarity-type" hard limiter, the worst
+ * nonlinearity (≈2.5–4 dB extra squaring loss, and non-monotonic in SNR — see
+ * docs/design/mpsk.md §2.3). On a unit-magnitude `z` the raw and normalized forms
+ * coincide, so the S-curve and lock-scale calibration are unchanged.
  *
- * @param z      Arm integrate-and-dump sample (any magnitude).
+ * @param z      Arm integrate-and-dump sample (AGC-normalized, ~unit at lock).
  * @param m      Constellation order (2, 4, 8).
  * @param scale  Per-M lock scale (1 / 0.619 / 0.412).
  * @param pe     Receives the phase error.
@@ -102,9 +127,8 @@ typedef struct {
 JM_FORCEINLINE void
 carrier_nda_disc(float complex z, int m, double scale, double *pe, double *lock)
 {
-    double mag = (double)cabsf(z) + CARRIER_NDA_EPS;
-    double i = (double)crealf(z) / mag; /* unit-magnitude I */
-    double q = (double)cimagf(z) / mag; /* unit-magnitude Q */
+    double i = (double)crealf(z); /* raw I (AGC-normalized upstream) */
+    double q = (double)cimagf(z); /* raw Q                          */
     double bl = i * i - q * q;          /* Re(z^2) */
     double be = 2.0 * i * q;            /* Im(z^2) */
     if (m == 2)
@@ -172,7 +196,14 @@ carrier_nda_arm_step(carrier_nda_state_t *s, float complex d, double *pe,
     if (++s->arm_cnt < s->arm_len)
         return 0;
     float complex z = s->arm_acc / (float)s->arm_len;
-    carrier_nda_disc(z, s->m, s->lock_scale, pe, lock);
+    /* Drive the phase detector at unit average power via the embedded log-domain
+     * AGC (so the loop gain is amplitude-invariant — the role the old per-dump
+     * |z| normalization served, but as a feedback loop, not a per-dump divide).
+     * The AGC's square clip (clip_db) saturates the peak (constructive-ISI)
+     * dumps; constant-modulus dumps pass through, so the raw M-th-power
+     * discriminator keeps its squaring-loss advantage. */
+    float complex zn = agc_step(&s->agc, z);
+    carrier_nda_disc(zn, s->m, s->lock_scale, pe, lock);
     s->arm_acc = 0.0f;
     s->arm_cnt = 0;
     return 1;
@@ -193,8 +224,9 @@ carrier_nda_steer(carrier_nda_state_t *s, double pe)
 {
     s->last_error = pe;
     loop_filter_step(&s->lf, pe);
-    /* lf.integ is rad per arm-update period (arm_len samples) -> rad/sample. */
-    double car_w = s->lf.integ / (double)s->arm_len;
+    /* lf.integ is the frequency estimate in rad/sample (the loop filter is
+     * init'd with t = arm_len, so bn is cycles/sample and n-invariant). */
+    double car_w = s->lf.integ;
     lo_set_norm_freq(&s->nco, car_w / (2.0 * M_PI));
     s->nco.phase += (uint32_t)((s->lf.kp * pe) / (2.0 * M_PI) * 4294967296.0);
 }

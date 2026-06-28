@@ -2,21 +2,17 @@
 # gains `serializable = "true"` + the dp_state.h triplet. When this file is
 # empty the invariant is permanent. See the master plan / check_serializable.py.
 # Batch A (POD): DONE
-# Batch B (field-wise):
+# Batch B (POD quantizers: adc + cvt): DONE
+# Batch B' (field-wise, owned buffers):
 delay
 acc_trace
 hbdecim_q15
-adc
-wfm_synth
-f32_to_i16
-f32_to_i16u32
-f32_to_i16u64
-f32_to_uq15
 # Batch C (compositions):
 symsync
 channel
 mpsk_receiver
 dll
+wfm_synth
 # Batch D (detectors/correlators — opaque FFT children, restore-into-identical):
 corr
 corr2d

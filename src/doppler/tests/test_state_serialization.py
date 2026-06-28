@@ -40,6 +40,7 @@ from numpy.typing import NDArray
 from doppler.accumulator import AccCf64, AccF32
 from doppler.agc import AGC
 from doppler.arith import AccQ8, AccQ15
+from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.filter import FIR
 from doppler.resample import (
@@ -79,6 +80,13 @@ def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
         return np.array([o.get()])
 
     return feed
+
+
+def _f32_to_int_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+    """Feed for a float→int quantizer/ADC: convert the test stream to real
+    float32 and return the quantized block. ADC (dithering on) resumes its
+    PRNG; the converters resume their sticky clip flag."""
+    return np.array(o.steps(seg.real.astype(np.float32)))
 
 
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
@@ -137,6 +145,12 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccQ8(0),
         _acc_feed(lambda s: np.clip(s.real * 20, -127, 127).astype(np.int8)),
     ),
+    # Float→int quantizers — sticky clip flag (and ADC's dither PRNG) resume.
+    "F32ToI16": (lambda: F32ToI16(32768.0), _f32_to_int_feed),
+    "F32ToI16U32": (lambda: F32ToI16U32(32768.0), _f32_to_int_feed),
+    "F32ToI16U64": (lambda: F32ToI16U64(32768.0), _f32_to_int_feed),
+    "F32ToUQ15": (lambda: F32ToUQ15(32768.0), _f32_to_int_feed),
+    "ADC": (lambda: ADC(8, 0.0, 1), _f32_to_int_feed),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
         lambda: NCO(0.01, 0),

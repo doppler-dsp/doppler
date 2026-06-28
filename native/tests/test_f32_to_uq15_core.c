@@ -1,3 +1,4 @@
+#include "dp_state_test.h"
 #include "f32_to_uq15/f32_to_uq15_core.h"
 #include <complex.h>
 #include <math.h>
@@ -52,6 +53,18 @@ main (void)
       fprintf (stderr, "test_f32_to_uq15_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    f32_to_uq15_state_t *a = f32_to_uq15_create (32768.0f);
+    f32_to_uq15_state_t *b = f32_to_uq15_create (32768.0f);
+    CHECK (a != NULL && b != NULL);
+    (void)f32_to_uq15_step (a, 2.0f); /* saturate → clipped = 1 */
+    DP_STATE_ROUNDTRIP_TEST (f32_to_uq15, a, b);
+    CHECK (b->clipped == a->clipped);
+    f32_to_uq15_destroy (a);
+    f32_to_uq15_destroy (b);
+  }
+
   printf ("test_f32_to_uq15_core PASSED\n");
   return 0;
 }

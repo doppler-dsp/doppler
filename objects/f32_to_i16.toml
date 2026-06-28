@@ -5,6 +5,7 @@ mutable = "false"
 no_state = "true"
 no_step = "false"
 class_name = "F32ToI16"
+serializable = "true"
 
 [[f32_to_i16.init_params]]
 name = "scale"

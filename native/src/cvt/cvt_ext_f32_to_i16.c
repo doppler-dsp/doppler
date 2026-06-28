@@ -185,6 +185,59 @@ F32ToI16Obj_exit (F32ToI16Object *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+F32ToI16Obj_state_bytes (F32ToI16Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (f32_to_i16_state_bytes (self->handle));
+}
+
+static PyObject *
+F32ToI16Obj_get_state (F32ToI16Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = f32_to_i16_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  f32_to_i16_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+F32ToI16Obj_set_state (F32ToI16Object *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != f32_to_i16_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (f32_to_i16_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef F32ToI16Obj_methods[]
     = { { "reset", (PyCFunction)F32ToI16Obj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -216,6 +269,12 @@ static PyMethodDef F32ToI16Obj_methods[]
           "Release resources." },
         { "__enter__", (PyCFunction)F32ToI16Obj_enter, METH_NOARGS, NULL },
         { "__exit__", (PyCFunction)F32ToI16Obj_exit, METH_VARARGS, NULL },
+        { "state_bytes", (PyCFunction)F32ToI16Obj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)F32ToI16Obj_get_state, METH_NOARGS,
+          "Serialize the engine's mutable state to bytes." },
+        { "set_state", (PyCFunction)F32ToI16Obj_set_state, METH_O,
+          "Restore mutable state from a get_state() blob." },
         { NULL } };
 
 static PyTypeObject F32ToI16ObjType = {

@@ -381,6 +381,18 @@ checkpoint a bank mid-stream, rebuild it from its descriptor on another pod,
 restore the blob, and the search continues **detection-for-detection identical**
 to an uninterrupted run (`test_bank_pod_handoff_resumes_bit_exact`).
 
-### Open work
+### Language faces
 
-- **Rust FFI** — expose `get_state`/`set_state` over the C triplet (mechanical).
+The bytes interface is reached from every binding doppler ships, all over the
+same C triplet:
+
+- **C** — the ABI itself (`<obj>_state_bytes`/`get_state`/`set_state`).
+- **Python** — `serializable = "true"` → jm generates `state_bytes()` /
+    `get_state() -> bytes` / `set_state(bytes)` (size/clobber/non-bytes rejects
+    raise `ValueError`/`TypeError`).
+- **Rust** — `ffi/rust`'s `impl_serializable!` macro exposes `state_bytes()` /
+    `get_state() -> Vec<u8>` / `set_state(&[u8]) -> Result<(), StateError>` on
+    `Lo`/`Nco`/`Fir`/`AccF32`/`AccCf64`.
+
+The rollout is complete — there is no remaining open work on the standard
+itself.

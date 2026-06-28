@@ -33,6 +33,15 @@
  * are the C composition API a receiver inlines into its own sample loop (it can
  * also steer the shared NCO with its own decision-directed error on handover).
  *
+ * @note **Input average power must be at or below unity.** The arm sample
+ * feeding the M-th-power detector is normalized to unit average power by an
+ * internal AGC (bandwidth = 0.01*bn) with a 10 dB square clip, so the loop gain
+ * is amplitude-invariant. This is the normal convention for captured/scaled
+ * baseband (and holds for the DSSS despreader's correlation gain). A cold input
+ * more than ~10 dB above unity is out of spec: the deliberately slow AGC cannot
+ * normalize it before the discriminator reacts, and the loop can false-lock.
+ * The AGC absorbs residual/slow level variation, not a large cold offset.
+ *
  * @code
  * // QPSK NDA carrier loop, 8 samples/symbol, 4 arm dumps/symbol
  * carrier_nda_state_t *c = carrier_nda_create(0.01, 0.707, 0.0, 8, 4, 4);

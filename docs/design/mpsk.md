@@ -114,9 +114,12 @@ provides amplitude invariance (so the loop gain does not scale with input level)
 *without* the limiter's penalty; the clip bounds the peak (constructive-ISI)
 dumps that would otherwise dominate the `|z|^M` weighting. The AGC bandwidth is
 locked to `0.01·bn`, so it tracks only the overall level — never the carrier
-dynamics or a pulse-shaping envelope. Input is expected to arrive roughly
-unit-scaled (a front-end AGC, or the DSSS despreader's known correlation gain);
-the AGC handles residual/slow variation, not a cold >10 dB amplitude offset.
+dynamics or a pulse-shaping envelope. **Input average power is required to be at
+or below unity** — the normal convention for captured/scaled baseband (and the
+DSSS despreader's known correlation gain). The AGC absorbs residual/slow
+variation only; a cold input >~10 dB above unity is out of spec (the slow AGC
+cannot normalize it before the discriminator reacts, and the loop can
+false-lock — clip on → false lock, clip off → `|z|^M` gain blow-up).
 
 ```python
 # osr = sample_rate // symbol_rate   # input oversampling, typ. 4

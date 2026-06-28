@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* Nominal NCO increment: the accumulator advances by 1/sps of full scale per
  * input sample, wrapping once per symbol.  The on-time strobe is the wrap and
@@ -28,19 +29,30 @@ seed (symsync_state_t *s)
   farrow_reset (&s->farrow);
 }
 
+void
+symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+              int order)
+{
+  /* Zero first so an in-place (stack-embedded) init byte-matches the
+   * calloc + init done by symsync_create: seed() sets only the timing NCO's
+   * phase/phase_inc, leaving the NCO's norm_freq/nmax to this memset. */
+  memset (s, 0, sizeof (*s));
+  s->sps      = sps ? sps : 1;
+  s->bn       = bn;
+  s->zeta     = zeta;
+  s->base_inc = nominal_inc (s->sps);
+  farrow_init (&s->farrow, order);
+  loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
+  seed (s);
+}
+
 symsync_state_t *
 symsync_create (size_t sps, double bn, double zeta, int order)
 {
   symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  obj->sps      = sps ? sps : 1;
-  obj->bn       = bn;
-  obj->zeta     = zeta;
-  obj->base_inc = nominal_inc (obj->sps);
-  farrow_init (&obj->farrow, order);
-  loop_filter_init (&obj->lf, bn, zeta, 1.0); /* one update per symbol */
-  seed (obj);
+  symsync_init (obj, sps, bn, zeta, order);
   return obj;
 }
 

@@ -20,9 +20,12 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_all_bursts_decode_from_disk():
-    rng = np.random.default_rng(7)
+    # seed 0 is the regression case: an under-sized Acquisition (a single
+    # Doppler bin) failed every other burst; the slow-time Doppler search
+    # (doppler_bins = reps) decodes them all.
+    rng = np.random.default_rng(0)
     payloads = [
-        rng.integers(0, 2, demo.PAYLOAD).astype(np.uint8) for _ in range(3)
+        rng.integers(0, 2, demo.PAYLOAD).astype(np.uint8) for _ in range(6)
     ]
     with tempfile.TemporaryDirectory() as tmp:
         cap = Path(tmp) / "cap.cf32"

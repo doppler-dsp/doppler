@@ -42,7 +42,7 @@ import numpy as np
 from doppler.ddc import DDC
 from doppler.dsss import Acquisition, BurstDemod
 from doppler.wfm import SampleClock
-from doppler.wfm.readback import read_iq
+from doppler.wfm.compose import Reader
 
 # ── waveform geometry ────────────────────────────────────────────────────────
 ACQ_SF, REPS, DATA_SF, SPC = 500, 5, 50, 4
@@ -151,30 +151,37 @@ def generate(capture_path, payloads, *, doppler_hz=DOPPLER_HZ, snr_db=SNR_DB):
 
 
 def stream_decode(capture_path, *, nominal_hz=NOMINAL_HZ, realtime=True):
-    """Read the capture back one PRI window at a time, paced to wall-clock, and
-    run a single DDC -> Acquisition -> BurstDemod chain on each window."""
-    iq = read_iq(str(capture_path), sample_type="cf32")
+    """Stream the capture back from disk one PRI chunk at a time (the natural
+    chunk: one burst interval), paced to wall-clock, running a single
+    DDC -> Acquisition -> BurstDemod chain on each."""
+    reader = Reader(str(capture_path), sample_type="cf32")
     period = round(PRI_MS * 1e-3 * FS)
     clock = SampleClock(fs=FS) if realtime else None
 
     results = []
     npre = ACQ_SF * REPS * SPC
     burst_samps = (ACQ_SF * REPS + (len(SYNC) + PAYLOAD + 16) * DATA_SF) * SPC
-    n_bursts = len(iq) // period
-    for k in range(n_bursts):
-        window = iq[k * period : (k + 1) * period]
+    k = -1
+    while True:
+        window = reader.read(period)  # one PRI chunk off the disk
+        if window is None or len(window) < period:
+            break
+        k += 1
         if clock is not None:
             clock.pace(len(window))  # throttle to real time
 
-        # The burst sits at the start of each PRI window; hand the chain just
+        # The burst sits at the start of each PRI chunk; hand the chain just
         # the burst (+ margin), not the long idle gap.
         rx = window[: burst_samps + 4000]
         # DDC: a pure tuner (rate=1.0) that removes the predicted bulk Doppler,
         # leaving a small residual inside Acquisition's search span.
         base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(rx)
 
+        # cn0_dbhz sized so Acquisition runs its slow-time Doppler FFT over the
+        # 5 preamble reps (doppler_bins = reps) — a real Doppler search that
+        # resolves the residual; too high collapses it to a single DC bin.
         acq = Acquisition(
-            _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=55.0
+            _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
         )
         hits = acq.push(base)
         if not hits:

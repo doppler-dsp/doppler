@@ -1,6 +1,7 @@
 # MPSK Receiver
 
-**Status:** design / pre-implementation
+**Status:** implemented — `track.CarrierNda` (#276) + `track.MpskReceiver` shipped;
+the NDA carrier loop reworked to a raw M-th-power discriminator + arm AGC (§2.3)
 **Scope:** a streaming **M-PSK receiver** (`track.MpskReceiver`, M = BPSK / QPSK
 / 8PSK) that demodulates pulse-shaped baseband by **composing existing
 `doppler.track` primitives** plus two new ones. C-first: every block below is a
@@ -101,15 +102,34 @@ of the arm sample `z = i + jq`: `z²` strips BPSK, `z⁴` strips QPSK, `z⁸` st
 per-M `lock_scale` normalizes the discriminator/lock gain so the handover
 threshold is M-independent.
 
-```python
-# osr = sample_rate // symbol_rate # Input oversam typ. 4
-# arm_filter = MovingAverage(osr // 2) -- no rate conversion
-# loop_bw = loop_bw_symbol_rate / osr
-# i and q are arm filter outputs at N samples per symbol ==> where AGC is applied
-# esno = symbol energy to noise density dB
-# squaring_loss = 10 * np.log10(4 / phase_error_variance) - esno
+**Arm normalization — an AGC, not a per-dump limiter.** The arm sample `z` is
+driven to unit average power by an embedded log-domain AGC (`agc_core`) before
+the discriminator, with a 10 dB square clip on the AGC output. This is
+deliberate. The discriminator is the **raw** M-th-power form `Im(z^M)` (the
+"conventional Costas" / linear-arm form), which is optimal for a
+constant-modulus signal — the DSSS target. A per-dump unit-magnitude
+normalization `z/|z|` is Yuen's "polarity-type" hard limiter, the *worst*
+nonlinearity (≈2.5–4 dB extra squaring loss, and non-monotone in SNR). The AGC
+provides amplitude invariance (so the loop gain does not scale with input level)
+*without* the limiter's penalty; the clip bounds the peak (constructive-ISI)
+dumps that would otherwise dominate the `|z|^M` weighting. The AGC bandwidth is
+locked to `0.01·bn`, so it tracks only the overall level — never the carrier
+dynamics or a pulse-shaping envelope. Input is expected to arrive roughly
+unit-scaled (a front-end AGC, or the DSSS despreader's known correlation gain);
+the AGC handles residual/slow variation, not a cold >10 dB amplitude offset.
 
-k2 = 5 / 6
+```python
+# osr = sample_rate // symbol_rate   # input oversampling, typ. 4
+# The arm is a free-running half-symbol boxcar moving average (no rate
+# conversion); i, q are its outputs at N dumps/symbol, AGC-normalized to unit
+# average power.  esno = symbol energy-to-noise-density ratio, dB.
+#
+# Squaring loss S_L (Lindsey-Simon / Yuen): the SNR penalty of the M-th-power
+# nonlinearity; S_L <= 1 always, so sq_loss_dB <= 0.  Measured from the loop it
+# is  slope**2 / var(phase_error) / rd  using the ACTUAL S-curve slope at lock
+# (= 2 only for a constant-modulus arm; it collapses on a pulse-shaped arm,
+# see below) — NOT a hardcoded 4.
+
 rd = 10 ** (esno / 10.0)
 
 bpsk_lock = i**2 - q**2          # Re(z^2)
@@ -119,14 +139,16 @@ if mod == "BPSK":
     lock_scale = 1
     phase_error = bpsk_phase_error
     lock_signal = lock_scale * bpsk_lock
-    k1 = 2 / 3
-    k4 = 23 / 35
-    z = 1
-    sq_loss_dB = 10 * np.log10(k2**2 / (k2 * k4 + k1 * z / rd))
+    # Yuen Eq. 8-19 (passive arm-filter Costas loop), half-symbol boxcar arm.
+    # Verified moments: K2 = 5/6, K4 = 23/30, KL = 2/3, Bi/R = 2 (z = Bi/R/2 = 1).
+    K2, K4, KL, z = 5 / 6, 23 / 30, 2 / 3, 1
+    S_L = K2**2 / (K4 + KL * z / rd)   # high-SNR floor K2**2 / K4 = 0.906 = -0.43 dB
+    sq_loss_dB = 10 * np.log10(S_L)
 elif mod == "QPSK":
     lock_scale = 0.619
     phase_error = bpsk_phase_error * bpsk_lock                        # ~ Im(z^4)
     lock_signal = lock_scale * (bpsk_lock**2 - bpsk_phase_error**2)   # ~ Re(z^4)
+    # No clean closed form for the M-th-power passive loop; empirical fit (dB).
     sq_loss_dB = -0.0564724 * esno**2 + 1.90284531 * esno - 15.65792221
 else:  # 8PSK
     lock_scale = 0.412
@@ -136,8 +158,10 @@ else:  # 8PSK
     lock_signal = lock_scale * (qpsk_lock**2 - qpsk_phase_error**2)   # ~ Re(z^8)
     sq_loss_dB = -0.14285557 * esno**2 + 5.70706958 * esno - 58.13670891
 
-mod_loss_dB = 10*np.log10(1 / k2)
-
+# Coherent (data x squaring) gain of the free-running half-symbol boxcar arm:
+#   Re E[z_d^M] = 1/2 + 1/(M+1)   ->  M=2: 5/6,  M=4: 7/10,  M=8: 11/18.
+# For BPSK this is exactly K2 = 5/6;  mod_loss_dB = 10 * log10(1 / K2).
+mod_loss_dB = 10 * np.log10(1 / (5 / 6))
 ```
 
 - `phase_error` ≈ `Im(z^M)` (scaled) — a sawtooth S-curve of period `2π/M`, the
@@ -151,6 +175,16 @@ mod_loss_dB = 10*np.log10(1 / k2)
 The squaring-loss/noise behaviour worsens with M (each squaring multiplies
 noise), so the NDA loop is the *acquisition* aid; decision-directed tracking
 gives the low-jitter steady state.
+
+**Gain collapse on a pulse-shaped arm — the loop still locks.** The raw
+M-th-power coherent gain is `Σ_k g_k^M` over the arm/pulse taps `g`. For a
+constant-modulus arm this yields the S-curve slope 2; for a pulse-shaped (e.g.
+pre-matched-filter RRC) arm `Σ g_k⁴` is minuscule and the slope collapses ~80×.
+Because the loop filter is **type-2 (PI)**, the steady-state frequency error is
+still driven to zero — the loop **locks on RRC as well as constant-modulus**
+(`native/validation/carrier_nda_step_response.c` validates both) — only pull-in
+is slower and jitter higher. The pulse-shaped *symbol* error rate is then set by
+the downstream matched filter + timing, not by the carrier loop.
 
 #### Derivation — the recursion *is* the M-th-power loop
 
@@ -243,9 +277,13 @@ loop needs a single-sample `fir_step` (additive C composition API, mirrors the
 other `*_step`s; reuses the existing delay line, no struct change). The MF FIR is
 owned by pointer (variable-length taps), like `channel`'s code copy.
 
-> **AGC dropped.** For PSK the nearest-point slice and the `|y|`-normalized
-> discriminator are both amplitude-invariant, so an AGC adds a component and a
-> param for no functional gain — omitted (no abstraction beyond the task).
+> **No receiver-level AGC.** The decision-directed *tracking* path is already
+> amplitude-invariant — the nearest-point slice and the `|y|`-normalized
+> discriminator both ignore scale — so no front-end AGC is added here. The
+> *acquisition* path is different: the raw M-th-power NDA discriminator is not
+> amplitude-invariant, so `CarrierNda` carries its **own** internal arm AGC that
+> normalizes the arm dump to unit power before the detector (§2.3). That AGC is
+> internal to the acquisition loop, not a receiver component or a config param.
 
 ______________________________________________________________________
 
@@ -292,12 +330,18 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## 8. Open review points
+## 8. Resolved / open review points
 
-- **NDA discriminator form** — confirmed M-th-power via repeated squaring (the
-    canonical block in §2.3); `lock_scale` = 1 / 0.619 / 0.412 for M = 2 / 4 / 8.
+- **NDA discriminator form** — *resolved.* Raw M-th-power via repeated squaring
+    (§2.3) on an AGC-normalized arm; `lock_scale` = 1 / 0.619 / 0.412 for
+    M = 2 / 4 / 8. Squaring-loss equations corrected and Yuen-grounded (§2.3).
+- **Arm normalization** — *resolved.* Internal `agc_core` AGC (bandwidth locked
+    to `0.01·bn`) + 10 dB square clip, not a per-dump limiter (§2.3).
 - **Naming** — `CarrierNda` / flat vs a `Carrier.*` namespace (deferred).
 - **Handover threshold** — on `lock_signal` (+ timing-settled gate); tune in
     Step 3 validation.
-- **N default 4** — arm I&D dumps per symbol; revisit if pull-in/jitter trade
-    argues otherwise.
+- **N default 4** — arm I&D dumps per symbol; **n-invariant** now (`bn` is
+    cycles/sample), so this is purely a pull-in/jitter trade.
+- **Pulse-shaped (RRC) SER** — *open, downstream.* The carrier loop locks on RRC
+    (§2.3); the residual RRC symbol-error rate is an `MpskReceiver` matched-filter
+    / Gardner-timing matter, tracked separately from `CarrierNda`.

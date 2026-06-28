@@ -29,10 +29,14 @@ the tests).
 
 ## Computation — repeated squaring
 
-The M-th power is built by repeatedly squaring the unit-normalized arm sample
-`z = i + jq`: `z²` strips BPSK, `z⁴` QPSK, `z⁸` 8PSK. Each level yields a phase
-error and a lock signal at one complex multiply — no `atan2`, no `pow`. See
-[`docs/design/mpsk.md`](../design/mpsk.md) §2.3 for the derivation.
+The M-th power is built by repeatedly squaring the arm sample `z = i + jq` —
+driven to unit average power by an internal AGC so the loop gain is
+amplitude-invariant: `z²` strips BPSK, `z⁴` QPSK, `z⁸` 8PSK. Each level yields a
+phase error and a lock signal at one complex multiply — no `atan2`, no `pow`. The
+discriminator is the **raw** M-th-power form (best squaring loss for
+constant-modulus signals like DSSS), not a per-dump magnitude limiter. See
+[`docs/design/mpsk.md`](../design/mpsk.md) §2.3 for the derivation and the
+squaring-loss equations.
 
 ```python
 import numpy as np
@@ -47,12 +51,13 @@ locked = c.lock            # M-th-power lock metric (→ lock_scale when locked)
 
 ## Rigorous bounds
 
-The C harnesses `native/validation/carrier_nda_scurve.c` and
-`carrier_nda_pullin.c` (ctest `--check`) prove: `phase_error = Im(z^M)·{1,½,¼}`
-and slope 2 for all M (to ~1e-7); `lock_signal = Re(z^M)·lock_scale` for M ≤ 4;
-cold-start frequency pull-in on an unmodulated carrier per M; lock on modulated
-M-PSK data **with no symbol timing**; and closed-loop frequency jitter that grows
-with `bn`.
+The C harnesses `native/validation/carrier_nda_scurve.c`,
+`carrier_nda_pullin.c`, and `carrier_nda_step_response.c` (ctest `--check`)
+prove: `phase_error = Im(z^M)·{1,½,¼}` and slope 2 for all M (to ~1e-7);
+`lock_signal = Re(z^M)·lock_scale` for M ≤ 4; cold-start frequency pull-in on an
+unmodulated carrier per M; lock on modulated M-PSK data **with no symbol
+timing**; closed-loop frequency jitter that grows with `bn`; and a closed-loop
+step response that locks on both constant-modulus and pulse-shaped (RRC) inputs.
 
 Source: `src/doppler/examples/mpsk_nda_theory_demo.py`; tests in
 `src/doppler/track/tests/test_theory_carrier_nda.py` and the C harnesses above.

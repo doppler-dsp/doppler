@@ -62,6 +62,28 @@ run (carrier_nda_state_t *c, const float complex *rx, size_t n, double *f,
   free (o);
 }
 
+/* First sample index where |norm_freq - f0| falls within 10% of f0, probed
+ * every 50 samples — a proxy for closed-loop settling time. Returns N if the
+ * loop never settles within the run. */
+static size_t
+settle_idx (int n, double bn, double f0, const float complex *rx, size_t N)
+{
+  carrier_nda_state_t *c = carrier_nda_create (bn, 0.707, 0.0, 8, n, 4);
+  float complex        o[50];
+  size_t               idx = N;
+  for (size_t i = 0; i + 50 <= N; i += 50)
+    {
+      carrier_nda_steps (c, rx + i, 50, o, 50);
+      if (fabs (carrier_nda_get_norm_freq (c) - f0) < 0.1 * f0)
+        {
+          idx = i;
+          break;
+        }
+    }
+  carrier_nda_destroy (c);
+  return idx;
+}
+
 int
 main (void)
 {
@@ -265,6 +287,85 @@ main (void)
     free (rx);
     free (outA);
     free (outB);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 7. Bn is n-invariant: at a fixed bn the closed-loop settling time *
+   *    is ~independent of n (arm dumps/symbol). Before the fix bn was  *
+   *    applied per arm-dump, so the real-time loop bandwidth — and     *
+   *    settling — scaled ~n x. Noiseless carrier → deterministic.      *
+   * ---------------------------------------------------------------- */
+  {
+    size_t         N  = 40000;
+    float complex *rx = malloc (N * sizeof (*rx));
+    double         f0 = 0.0015;
+    for (size_t k = 0; k < N; k++)
+      rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k);
+    size_t s1 = settle_idx (1, 0.005, f0, rx, N);
+    size_t s2 = settle_idx (2, 0.005, f0, rx, N);
+    size_t s4 = settle_idx (4, 0.005, f0, rx, N);
+    CHECK (s1 < N && s2 < N && s4 < N); /* all settle */
+    double smin
+        = (double)(s1 < s2 ? (s1 < s4 ? s1 : s4) : (s2 < s4 ? s2 : s4));
+    double smax
+        = (double)(s1 > s2 ? (s1 > s4 ? s1 : s4) : (s2 > s4 ? s2 : s4));
+    /* n-invariant: settling within ~2x across n (would be ~4x apart with
+     * the old per-dump bn). */
+    CHECK ((smax + 50.0) / (smin + 50.0) < 2.5);
+    free (rx);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 8. set_bn reconfigures BOTH the loop filter and the arm AGC       *
+   *    bandwidth (agc.loop_bw locked to CARRIER_NDA_AGC_BW_RATIO*bn). *
+   * ---------------------------------------------------------------- */
+  {
+    carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+    CHECK (fabs (c->agc.loop_bw - CARRIER_NDA_AGC_BW_RATIO * 0.01) < 1e-15);
+    double kp0 = c->lf.kp;
+    carrier_nda_set_bn (c, 0.02);
+    CHECK (carrier_nda_get_bn (c) == 0.02);
+    CHECK (fabs (c->agc.loop_bw - CARRIER_NDA_AGC_BW_RATIO * 0.02) < 1e-15);
+    CHECK (c->lf.kp != kp0); /* loop filter also reconfigured */
+    carrier_nda_destroy (c);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 9. Amplitude invariance over the operating range (input at or     *
+   *    below the unit AGC reference): the arm AGC makes the loop gain  *
+   *    independent of input scale, so 0.01x .. 1x converge to the SAME *
+   *    carrier. (Cold input >~10 dB above unit is out of spec — the    *
+   *    slow AGC cannot normalize it before the discriminator reacts;   *
+   *    the front end is expected to deliver ~unit-scaled samples.)     *
+   * ---------------------------------------------------------------- */
+  {
+    size_t         N  = 40000;
+    float complex *rx = malloc (N * sizeof (*rx));
+    double         f0 = 0.001;
+    uint32_t       ns = 23u;
+    for (size_t k = 0; k < N; k++)
+      rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k)
+              + 0.05f * gauss (&ns) + 0.05f * gauss (&ns) * I;
+    double         scales[] = { 0.01, 0.1, 1.0 };
+    double         fs[3];
+    float complex *rs = malloc (N * sizeof (*rs));
+    for (int si = 0; si < 3; si++)
+      {
+        for (size_t k = 0; k < N; k++)
+          rs[k] = (float)scales[si] * rx[k];
+        carrier_nda_state_t *c
+            = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
+        double f, lk;
+        run (c, rs, N, &f, &lk);
+        CHECK (fabs (f - f0) < 5e-4);     /* converges at any in-range scale */
+        CHECK (lk > 0.3 * c->lock_scale); /* lock metric scale-invariant     */
+        fs[si] = f;
+        carrier_nda_destroy (c);
+      }
+    CHECK (fabs (fs[0] - fs[1]) < 1e-4); /* all scales → same carrier */
+    CHECK (fabs (fs[2] - fs[1]) < 1e-4);
+    free (rs);
+    free (rx);
   }
 
   if (_fails)

@@ -437,3 +437,25 @@ mod tests {
         assert!((v.im - (-3.0)).abs() < 1e-12);
     }
 }
+
+// Serializable state — the dp_state.h bytes interface.
+extern "C" {
+    fn acc_f32_state_bytes(s: *const AccF32StateRaw) -> usize;
+    fn acc_f32_get_state(s: *const AccF32StateRaw, blob: *mut u8);
+    fn acc_f32_set_state(s: *mut AccF32StateRaw, blob: *const u8) -> i32;
+    fn acc_cf64_state_bytes(s: *const AccCf64StateRaw) -> usize;
+    fn acc_cf64_get_state(s: *const AccCf64StateRaw, blob: *mut u8);
+    fn acc_cf64_set_state(s: *mut AccCf64StateRaw, blob: *const u8) -> i32;
+}
+impl_serializable!(
+    AccF32,
+    acc_f32_state_bytes,
+    acc_f32_get_state,
+    acc_f32_set_state
+);
+impl_serializable!(
+    AccCf64,
+    acc_cf64_state_bytes,
+    acc_cf64_get_state,
+    acc_cf64_set_state
+);

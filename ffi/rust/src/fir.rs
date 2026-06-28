@@ -181,3 +181,16 @@ mod tests {
         assert!(out[0].re.abs() < 1e-6, "delay should be cleared");
     }
 }
+
+// Serializable state — the dp_state.h bytes interface.
+extern "C" {
+    fn fir_state_bytes(s: *const FirStateRaw) -> usize;
+    fn fir_get_state(s: *const FirStateRaw, blob: *mut u8);
+    fn fir_set_state(s: *mut FirStateRaw, blob: *const u8) -> i32;
+}
+impl_serializable!(
+    Fir,
+    fir_state_bytes,
+    fir_get_state,
+    fir_set_state
+);

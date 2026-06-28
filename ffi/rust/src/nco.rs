@@ -198,3 +198,16 @@ mod tests {
         assert_eq!(out1r, out2r, "reset NCOs must agree");
     }
 }
+
+// Serializable state — the dp_state.h bytes interface.
+extern "C" {
+    fn nco_state_bytes(s: *const NcoStateRaw) -> usize;
+    fn nco_get_state(s: *const NcoStateRaw, blob: *mut u8);
+    fn nco_set_state(s: *mut NcoStateRaw, blob: *const u8) -> i32;
+}
+impl_serializable!(
+    Nco,
+    nco_state_bytes,
+    nco_get_state,
+    nco_set_state
+);

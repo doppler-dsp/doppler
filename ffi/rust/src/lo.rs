@@ -199,3 +199,16 @@ mod tests {
         }
     }
 }
+
+// Serializable state — the dp_state.h bytes interface.
+extern "C" {
+    fn lo_state_bytes(s: *const LoStateRaw) -> usize;
+    fn lo_get_state(s: *const LoStateRaw, blob: *mut u8);
+    fn lo_set_state(s: *mut LoStateRaw, blob: *const u8) -> i32;
+}
+impl_serializable!(
+    Lo,
+    lo_state_bytes,
+    lo_get_state,
+    lo_set_state
+);

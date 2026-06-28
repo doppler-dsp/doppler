@@ -1,13 +1,7 @@
 # Burn-down: stateful objects not yet serializable. Each is removed when it
 # gains `serializable = "true"` + the dp_state.h triplet. When this file is
 # empty the invariant is permanent. See the master plan / check_serializable.py.
-# Batch A (POD):
-farrow
-agc
-acc_cf64
-acc_f32
-acc_q15
-acc_q8
+# Batch A (POD): DONE
 # Batch B (field-wise):
 delay
 acc_trace

@@ -23,6 +23,11 @@ acc_q15_reset (acc_q15_state_t *state)
   state->acc = 0;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (acc_q15, acc_q15_state_t, ACC_Q15_STATE_MAGIC,
+                     ACC_Q15_STATE_VERSION)
+
 void
 acc_q15_steps (acc_q15_state_t *state, const int16_t *input, size_t n)
 {

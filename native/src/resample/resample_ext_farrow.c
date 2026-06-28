@@ -218,6 +218,59 @@ FarrowObj_exit (FarrowObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+FarrowObj_state_bytes (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (farrow_state_bytes (self->handle));
+}
+
+static PyObject *
+FarrowObj_get_state (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = farrow_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  farrow_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+FarrowObj_set_state (FarrowObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != farrow_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (farrow_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef FarrowObj_methods[] = {
 
   { "delay", (PyCFunction)FarrowObj_delay, METH_VARARGS,
@@ -245,6 +298,12 @@ static PyMethodDef FarrowObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)FarrowObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)FarrowObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)FarrowObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)FarrowObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)FarrowObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

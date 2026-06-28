@@ -24,6 +24,11 @@ farrow_reset (farrow_state_t *state)
   state->d[0] = state->d[1] = state->d[2] = state->d[3] = 0.0f;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (farrow, farrow_state_t, FARROW_STATE_MAGIC,
+                     FARROW_STATE_VERSION)
+
 size_t
 farrow_get_group_delay (const farrow_state_t *state)
 {

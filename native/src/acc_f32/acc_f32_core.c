@@ -22,6 +22,11 @@ acc_f32_reset (acc_f32_state_t *state)
   state->acc = 0.0f;
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (acc_f32, acc_f32_state_t, ACC_F32_STATE_MAGIC,
+                     ACC_F32_STATE_VERSION)
+
 /* JM_RESTRICT removes the aliasing hazard between state->acc and input[],
  * which otherwise serialises the loop regardless of -ffast-math.
  * The explicit JM_VEC_F32 accumulator processes JM_SIMD_WIDTH_F32 floats

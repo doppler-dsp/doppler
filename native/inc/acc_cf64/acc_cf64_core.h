@@ -17,6 +17,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -272,6 +273,15 @@ extern "C"
    */
   void acc_cf64_madd2d (acc_cf64_state_t *state, const double complex *x,
                         size_t x_len, const float *h, size_t h_len);
+
+  /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+   * Whole-struct POD snapshot (pointer-free); the running accumulator resumes exactly into an
+   * identically-built instance. */
+#define ACC_CF64_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', 'C')
+#define ACC_CF64_STATE_VERSION 1u
+  size_t acc_cf64_state_bytes (const acc_cf64_state_t *state);
+  void    acc_cf64_get_state (const acc_cf64_state_t *state, void *blob);
+  int     acc_cf64_set_state (acc_cf64_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

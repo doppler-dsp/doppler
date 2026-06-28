@@ -404,6 +404,13 @@ class Farrow:
         """Clear the interpolator delay line.
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def group_delay(self) -> int:
         """Group delay."""

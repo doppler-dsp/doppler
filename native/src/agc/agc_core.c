@@ -35,6 +35,10 @@ agc_reset (agc_state_t *state)
   state->p_avg   = pow (10.0, state->ref_db * 0.1);
 }
 
+/* Serializable state — whole-struct POD snapshot, pointer-free (see
+ * DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (agc, agc_state_t, AGC_STATE_MAGIC, AGC_STATE_VERSION)
+
 double
 agc_get_applied_gain_db (const agc_state_t *state)
 {

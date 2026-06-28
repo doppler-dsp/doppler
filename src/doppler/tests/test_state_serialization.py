@@ -37,10 +37,14 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
+from doppler.accumulator import AccCf64, AccF32
+from doppler.agc import AGC
+from doppler.arith import AccQ8, AccQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.filter import FIR
 from doppler.resample import (
     CIC,
+    Farrow,
     HalfbandDecimator,
     RateConverter,
     Resampler,
@@ -61,6 +65,22 @@ _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 # return a view into an internal buffer).  A generator (LO) ignores the segment
 # values and emits len(seg) samples, so the same split logic drives every type.
 _Feed = Callable[[Any, NDArray[np.complex64]], NDArray[np.complex64]]
+
+
+def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
+    """Feed for a running accumulator: its resumable output is the total, not a
+    per-sample stream, so step the block in and return the post-block
+    accumulator — the matrix's continuation compare then asserts the restored
+    sum matches an uninterrupted one. ``conv`` adapts the complex64 test stream
+    to the accumulator's input dtype."""
+
+    def feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[np.complex64]:
+        o.steps(conv(seg))
+        return np.array([o.get()])
+
+    return feed
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -86,6 +106,36 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "HalfbandDecimator": (
         lambda: HalfbandDecimator(_HB_TAPS),
         lambda o, seg: np.array(o.execute(seg)),
+    ),
+    # Farrow fractional-delay interpolator — the 4-tap delay line carries
+    # across delay() calls, so a mid-stream split resumes.
+    "Farrow": (
+        lambda: Farrow("cubic"),
+        lambda o, seg: np.array(o.delay(seg, 0.3)),
+    ),
+    # AGC — gain integrator + detector EMA + ramp memory carry across steps().
+    "AGC": (
+        lambda: AGC(0.0, 0.0025, 0.05),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
+    # Running accumulators — resumable state is the total; feed returns it.
+    "AccCf64": (
+        lambda: AccCf64(0.0 + 0.0j),
+        _acc_feed(lambda s: s.astype(np.complex128)),
+    ),
+    "AccF32": (
+        lambda: AccF32(0.0),
+        _acc_feed(lambda s: s.real.astype(np.float32)),
+    ),
+    "AccQ15": (
+        lambda: AccQ15(0),
+        _acc_feed(
+            lambda s: np.clip(s.real * 1000, -32767, 32767).astype(np.int16)
+        ),
+    ),
+    "AccQ8": (
+        lambda: AccQ8(0),
+        _acc_feed(lambda s: np.clip(s.real * 20, -127, 127).astype(np.int8)),
     ),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (

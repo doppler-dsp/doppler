@@ -4,6 +4,7 @@ return_type = "void"
 mutable = "true"
 no_state = "false"
 no_step = "false"
+serializable = "true"
 
 [[acc_f32.state]]
 name = "acc"

@@ -1,4 +1,5 @@
 #include "acc_q8/acc_q8_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -59,6 +60,19 @@ main (void)
       fprintf (stderr, "test_acc_q8_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    acc_q8_state_t *a = acc_q8_create (0);
+    acc_q8_state_t *b = acc_q8_create (0);
+    CHECK (a != NULL && b != NULL);
+    acc_q8_step (a, (int8_t)42);
+    acc_q8_step (a, (int8_t)-13);
+    DP_STATE_ROUNDTRIP_TEST (acc_q8, a, b);
+    CHECK (acc_q8_get_acc (b) == acc_q8_get_acc (a));
+    acc_q8_destroy (a);
+    acc_q8_destroy (b);
+  }
+
   printf ("test_acc_q8_core PASSED\n");
   return 0;
 }

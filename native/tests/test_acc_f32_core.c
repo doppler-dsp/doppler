@@ -1,4 +1,5 @@
 #include "acc_f32/acc_f32_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -59,6 +60,19 @@ main (void)
       fprintf (stderr, "test_acc_f32_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — POD snapshot round-trips + rejects a bad envelope. */
+  {
+    acc_f32_state_t *a = acc_f32_create (0.0f);
+    acc_f32_state_t *b = acc_f32_create (0.0f);
+    CHECK (a != NULL && b != NULL);
+    acc_f32_step (a, 1.5f);
+    acc_f32_step (a, -0.25f);
+    DP_STATE_ROUNDTRIP_TEST (acc_f32, a, b);
+    CHECK (acc_f32_get_acc (b) == acc_f32_get_acc (a));
+    acc_f32_destroy (a);
+    acc_f32_destroy (b);
+  }
+
   printf ("test_acc_f32_core PASSED\n");
   return 0;
 }

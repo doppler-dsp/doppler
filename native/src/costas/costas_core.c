@@ -55,38 +55,10 @@ costas_reset (costas_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
-/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
- * Pointer-free POD (NCO phase, loop integrator, I&D accumulators, lock EMA),
- * so a whole-struct snapshot resumes the loop bit-for-bit. */
-
-size_t
-costas_state_bytes (const costas_state_t *state)
-{
-  (void)state;
-  return sizeof (dp_state_hdr_t) + sizeof (costas_state_t);
-}
-
-void
-costas_get_state (const costas_state_t *state, void *blob)
-{
-  dp_writer_t w = dp_writer_init (blob, costas_state_bytes (state));
-  dp_w_hdr (&w, COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION,
-            costas_state_bytes (state));
-  dp_w_bytes (&w, state, sizeof *state);
-}
-
-int
-costas_set_state (costas_state_t *state, const void *blob)
-{
-  int rc = dp_state_validate (blob, costas_state_bytes (state),
-                              COSTAS_STATE_MAGIC, COSTAS_STATE_VERSION);
-  if (rc != DP_OK)
-    return rc;
-  dp_reader_t r = dp_reader_init (blob, costas_state_bytes (state));
-  r.off         = sizeof (dp_state_hdr_t);
-  dp_r_bytes (&r, state, sizeof *state);
-  return DP_OK;
-}
+/* Serializable state — pointer-free POD whole-struct snapshot
+ * (see DP_DEFINE_POD_STATE in dp_state.h). */
+DP_DEFINE_POD_STATE (costas, costas_state_t, COSTAS_STATE_MAGIC,
+                     COSTAS_STATE_VERSION)
 
 void
 costas_configure (costas_state_t *state, double bn, double zeta)

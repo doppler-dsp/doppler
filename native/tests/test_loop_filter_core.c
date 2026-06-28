@@ -94,7 +94,11 @@ main (void)
     double gotv = 0.0;
     for (int i = 0; i < 10; i++)
       gotv = loop_filter_step (b, 0.1);
-    CHECK (refv == gotv);
+    /* The restored integrator is bit-identical (whole-struct snapshot); the
+     * two continuation loops can still differ by an FMA-contraction ULP on
+     * arm64 (clang fuses `integ + kp*x` differently per call site), so compare
+     * with a tolerance — a real restore bug would be O(1), far above this. */
+    CHECK (almost (refv, gotv, 1e-12));
     loop_filter_destroy (b);
   }
 

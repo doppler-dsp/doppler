@@ -265,4 +265,38 @@ dp_state_validate (const void *blob, size_t expect_bytes, uint32_t magic,
     return _n_out;                                                           \
   }
 
+/**
+ * @brief Define the whole-struct state triplet for a pointer-free POD object.
+ *
+ * Generates `<pfx>_state_bytes/get_state/set_state` that snapshot the entire
+ * `STATE_T` after the envelope.  Correct only when the struct holds no pointers
+ * (the snapshot would capture a stale address): the running state *and* the
+ * derived config are serialized, and config restores identically into an
+ * identically-built instance.  For a struct with pointers or a composition,
+ * hand-write the triplet (pack running fields / delegate to children) instead.
+ */
+#define DP_DEFINE_POD_STATE(pfx, STATE_T, MAGIC, VERSION)                     \
+  size_t pfx##_state_bytes (const STATE_T *s)                                 \
+  {                                                                           \
+    (void)s;                                                                  \
+    return sizeof (dp_state_hdr_t) + sizeof (STATE_T);                        \
+  }                                                                           \
+  void pfx##_get_state (const STATE_T *s, void *blob)                         \
+  {                                                                           \
+    dp_writer_t _w = dp_writer_init (blob, pfx##_state_bytes (s));            \
+    dp_w_hdr (&_w, (MAGIC), (VERSION), pfx##_state_bytes (s));                \
+    dp_w_bytes (&_w, s, sizeof *s);                                           \
+  }                                                                           \
+  int pfx##_set_state (STATE_T *s, const void *blob)                         \
+  {                                                                           \
+    int _rc = dp_state_validate (blob, pfx##_state_bytes (s), (MAGIC),        \
+                                 (VERSION));                                  \
+    if (_rc != DP_OK)                                                         \
+      return _rc;                                                             \
+    dp_reader_t _r = dp_reader_init (blob, pfx##_state_bytes (s));            \
+    _r.off         = sizeof (dp_state_hdr_t);                                 \
+    dp_r_bytes (&_r, s, sizeof *s);                                           \
+    return DP_OK;                                                             \
+  }
+
 #endif /* DP_STATE_H */

@@ -52,6 +52,37 @@ nco_reset (nco_state_t *state)
   state->phase = 0;
 }
 
+/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
+ * Only the running phase accumulator; phase_inc / nmax come from create(). */
+
+size_t
+nco_state_bytes (const nco_state_t *state)
+{
+  (void)state;
+  return sizeof (dp_state_hdr_t) + sizeof (uint32_t);
+}
+
+void
+nco_get_state (const nco_state_t *state, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, nco_state_bytes (state));
+  dp_w_hdr (&w, NCO_STATE_MAGIC, NCO_STATE_VERSION, nco_state_bytes (state));
+  dp_w_u32 (&w, state->phase);
+}
+
+int
+nco_set_state (nco_state_t *state, const void *blob)
+{
+  int rc = dp_state_validate (blob, nco_state_bytes (state), NCO_STATE_MAGIC,
+                              NCO_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, nco_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  state->phase  = dp_r_u32 (&r);
+  return DP_OK;
+}
+
 /* ================================================================== */
 /* Properties                                                          */
 /* ================================================================== */

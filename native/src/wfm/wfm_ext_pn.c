@@ -170,6 +170,63 @@ PNObj_exit (PNObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — the view-returning generate); mirrors jm's
+ * generated form for the `serializable` flag, which also emits the matching
+ * wfm.pyi stubs. */
+static PyObject *
+PNObj_state_bytes (PNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (pn_state_bytes (self->handle));
+}
+
+static PyObject *
+PNObj_get_state (PNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = pn_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  pn_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+PNObj_set_state (PNObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != pn_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (pn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef PNObj_methods[]
     = { { "reset", (PyCFunction)PNObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -185,6 +242,12 @@ static PyMethodDef PNObj_methods[]
           "    >>> y = obj.generate(4)\n"
           "    >>> y.dtype\n"
           "    dtype('uint8')\n" },
+        { "state_bytes", (PyCFunction)PNObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)PNObj_get_state, METH_NOARGS,
+          "Serialize the LFSR register to bytes." },
+        { "set_state", (PyCFunction)PNObj_set_state, METH_O,
+          "Restore the LFSR register from a get_state() blob." },
         { "destroy", (PyCFunction)PNObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)PNObj_enter, METH_NOARGS, NULL },

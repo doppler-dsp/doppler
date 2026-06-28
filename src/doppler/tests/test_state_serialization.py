@@ -45,7 +45,8 @@ from doppler.resample import (
     RateConverter,
     Resampler,
 )
-from doppler.source import LO
+from doppler.source import AWGN, LO, NCO
+from doppler.wfm import PN
 
 # A short real-tapped, symmetric FIR — enough delay-line state to matter.
 _FIR_TAPS = (np.array([0.1, -0.2, 0.3, 0.6, 0.3, -0.2, 0.1]) + 0j).astype(
@@ -75,6 +76,19 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "HalfbandDecimator": (
         lambda: HalfbandDecimator(_HB_TAPS),
         lambda o, seg: np.array(o.execute(seg)),
+    ),
+    # Generators ignore the segment values, emitting len(seg) samples.
+    "NCO": (
+        lambda: NCO(0.01, 0),
+        lambda o, seg: np.array(o.steps_u32(len(seg))),
+    ),
+    "AWGN": (
+        lambda: AWGN(7, 1.0),
+        lambda o, seg: np.array(o.generate(len(seg))),
+    ),
+    "PN": (
+        lambda: PN(96, 1, 7),
+        lambda o, seg: np.array(o.generate(len(seg))),
     ),
 }
 

@@ -203,6 +203,37 @@ test_oneshot (void)
   CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
 }
 
+/* Advance the RNG, serialize, restore into a fresh generator, and the noise
+ * stream continues bit-for-bit; a clobbered envelope rejects. */
+static void
+test_state_roundtrip (void)
+{
+  printf ("\n-- Serializable state round-trip --\n");
+  enum
+  {
+    M = 64
+  };
+  float complex ref[M], got[M];
+
+  awgn_state_t *a = awgn_create (123, 1.0f);
+  awgn_generate (a, M, ref); /* advance past the seed state */
+  size_t sb   = awgn_state_bytes (a);
+  void  *blob = malloc (sb);
+  awgn_get_state (a, blob);
+  awgn_generate (a, M, ref); /* reference continuation */
+
+  awgn_state_t *b = awgn_create (123, 1.0f);
+  CHECK (awgn_set_state (b, blob) == DP_OK);
+  ((char *)blob)[0] ^= (char)0xFF;
+  CHECK (awgn_set_state (b, blob) == DP_ERR_INVALID);
+  awgn_generate (b, M, got);
+  CHECK (memcmp (ref, got, sizeof ref) == 0);
+
+  awgn_destroy (a);
+  awgn_destroy (b);
+  free (blob);
+}
+
 int
 main (void)
 {
@@ -214,6 +245,7 @@ main (void)
   test_statistics ();
   test_split_block ();
   test_oneshot ();
+  test_state_roundtrip ();
 
   printf ("\n");
   if (_fails)

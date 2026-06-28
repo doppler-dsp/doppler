@@ -51,6 +51,38 @@ pn_reset (pn_state_t *state)
   state->reg = state->seed;
 }
 
+/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
+ * Only the running LFSR register; poly / seed / mask / kind / fib_taps /
+ * topshift are config restored by create(). */
+
+size_t
+pn_state_bytes (const pn_state_t *state)
+{
+  (void)state;
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t);
+}
+
+void
+pn_get_state (const pn_state_t *state, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, pn_state_bytes (state));
+  dp_w_hdr (&w, PN_STATE_MAGIC, PN_STATE_VERSION, pn_state_bytes (state));
+  dp_w_u64 (&w, state->reg);
+}
+
+int
+pn_set_state (pn_state_t *state, const void *blob)
+{
+  int rc = dp_state_validate (blob, pn_state_bytes (state), PN_STATE_MAGIC,
+                              PN_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, pn_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  state->reg    = dp_r_u64 (&r);
+  return DP_OK;
+}
+
 size_t
 pn_generate_max_out (pn_state_t *state)
 {

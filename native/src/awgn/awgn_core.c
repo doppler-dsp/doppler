@@ -177,6 +177,42 @@ awgn_reset (awgn_state_t *state)
     }
 }
 
+/* ── Serializable state — standard envelope (see dp_state.h) ────────────────
+ * The running RNG state only: scalar s[4] + the 8 AVX2 stream words vs[4][8].
+ * seed / amplitude are config restored by create(). */
+
+size_t
+awgn_state_bytes (const awgn_state_t *state)
+{
+  (void)state;
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t) * 4
+         + sizeof (uint64_t) * 4 * 8;
+}
+
+void
+awgn_get_state (const awgn_state_t *state, void *blob)
+{
+  dp_writer_t w = dp_writer_init (blob, awgn_state_bytes (state));
+  dp_w_hdr (&w, AWGN_STATE_MAGIC, AWGN_STATE_VERSION,
+            awgn_state_bytes (state));
+  dp_w_bytes (&w, state->s, sizeof state->s);
+  dp_w_bytes (&w, state->vs, sizeof state->vs);
+}
+
+int
+awgn_set_state (awgn_state_t *state, const void *blob)
+{
+  int rc = dp_state_validate (blob, awgn_state_bytes (state), AWGN_STATE_MAGIC,
+                              AWGN_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  dp_reader_t r = dp_reader_init (blob, awgn_state_bytes (state));
+  r.off         = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&r, state->s, sizeof state->s);
+  dp_r_bytes (&r, state->vs, sizeof state->vs);
+  return DP_OK;
+}
+
 /* ================================================================== */
 /* Properties                                                          */
 /* ================================================================== */

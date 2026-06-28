@@ -102,6 +102,13 @@ class NCO:
 
         """
 
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
     @property
     def norm_freq(self) -> float:
         """Normalised frequency (read/write). Setting norm_freq recomputes phase_inc = floor(frac(v) × 2^32) and takes effect on the next nco_steps_* call; phase is NOT reset."""
@@ -329,6 +336,13 @@ class AWGN:
         True
 
         """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
 
     @property
     def amplitude(self) -> float:

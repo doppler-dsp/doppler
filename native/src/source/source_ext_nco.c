@@ -268,6 +268,63 @@ NCOObj_exit (NCOObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+/* serializable (gh-400): state-blob triplet, sibling to reset.  Hand-added
+ * (this fragment is sacred — the multi-method steps_u32* bindings); mirrors
+ * jm's generated form for the `serializable` flag, which also emits the
+ * matching source.pyi stubs. */
+static PyObject *
+NCOObj_state_bytes (NCOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (nco_state_bytes (self->handle));
+}
+
+static PyObject *
+NCOObj_get_state (NCOObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = nco_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  nco_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+NCOObj_set_state (NCOObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != nco_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (nco_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef NCOObj_methods[]
     = { { "reset", (PyCFunction)NCOObj_reset, METH_NOARGS,
           "Reset state to post-create defaults." },
@@ -306,6 +363,12 @@ static PyMethodDef NCOObj_methods[]
           "    >>> y = obj.steps_u32_ovf(4)\n"
           "    >>> y[0].dtype\n"
           "    dtype('uint32')\n" },
+        { "state_bytes", (PyCFunction)NCOObj_state_bytes, METH_NOARGS,
+          "Serialized state size in bytes." },
+        { "get_state", (PyCFunction)NCOObj_get_state, METH_NOARGS,
+          "Serialize the phase accumulator to bytes." },
+        { "set_state", (PyCFunction)NCOObj_set_state, METH_O,
+          "Restore phase from a get_state() blob." },
         { "destroy", (PyCFunction)NCOObj_destroy, METH_NOARGS,
           "Release resources." },
         { "__enter__", (PyCFunction)NCOObj_enter, METH_NOARGS, NULL },

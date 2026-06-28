@@ -3,6 +3,7 @@
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -121,6 +122,30 @@ main (void)
   pn_reset (obj);
 
   pn_destroy (obj);
+
+  /* serializable state — advance the LFSR, serialize, restore into a fresh
+   * generator, and the chip stream continues identically; clobber rejects. */
+  {
+    pn_state_t *a = pn_create (96, 1, 7, PN_GALOIS);
+    uint8_t     ref[64], got[64];
+    pn_generate (a, 9, ref); /* advance */
+    size_t sb   = pn_state_bytes (a);
+    void  *blob = malloc (sb);
+    pn_get_state (a, blob);
+    pn_generate (a, 64, ref); /* reference continuation */
+
+    pn_state_t *b = pn_create (96, 1, 7, PN_GALOIS);
+    CHECK (pn_set_state (b, blob) == DP_OK);
+    ((char *)blob)[0] ^= (char)0xFF;
+    CHECK (pn_set_state (b, blob) == DP_ERR_INVALID);
+    pn_generate (b, 64, got);
+    for (int i = 0; i < 64; i++)
+      CHECK (got[i] == ref[i]);
+    pn_destroy (a);
+    pn_destroy (b);
+    free (blob);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_pn_core FAILED (%d)\n", _fails);

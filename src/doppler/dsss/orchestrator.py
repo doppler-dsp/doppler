@@ -11,8 +11,12 @@ sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs its own
 Each channel is an independent ``DDC → Acquisition`` pipeline over the elastic
 pure kernels, so the bank fans out across a thread pool (the C kernels release
 the GIL).  The same channels are shippable as ``(descriptor, state, block)`` to
-separate processes / pods — that state-snapshot hook is the next increment;
-this first cut is threaded, single-process.
+separate processes / pods: :meth:`CoarseChannel.get_state` /
+:meth:`Acquirer.get_state` snapshot the running state (the DDC mixer/decimator
+and the Acquisition search), and :meth:`set_state` resumes it bit-for-bit in a
+fresh, identically-built instance elsewhere — checkpoint a bank here, rebuild
+it from its descriptor on another pod, restore the blob, and the search
+continues without missing a sample.
 
 Why ``2*span`` spacing works
 ----------------------------
@@ -47,6 +51,7 @@ True
 from __future__ import annotations
 
 import math
+import struct
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -61,6 +66,17 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 __all__ = ["Acquirer", "CoarseChannel", "Detection"]
+
+# State-blob envelopes for the orchestrator layer — Python-side framing around
+# the C children's self-validating blobs. Native-endian, same-version resume.
+# CoarseChannel: [magic][ver u8][pad3][len_ddc u32][len_acq u32][ddc][acq]
+_CC_MAGIC = b"DPC1"
+_CC_VERSION = 1
+_CC_HEAD = 16  # 4 magic + 1 ver + 3 pad + 4 + 4
+# Acquirer: [magic][ver u8][pad3][n_channels u32] then [len u32][blob] per chan
+_AQ_MAGIC = b"DPA1"
+_AQ_VERSION = 1
+_AQ_HEAD = 12  # 4 magic + 1 ver + 3 pad + 4
 
 
 @dataclass(frozen=True)
@@ -177,6 +193,76 @@ class CoarseChannel:
             )
         return hits
 
+    def get_state(self) -> bytes:
+        """Serialize this channel's running state to a portable blob.
+
+        Composes the two children's self-validating state blobs — the DDC
+        mixer/decimator and the Acquisition search — behind a small envelope
+        (magic + version + the two child lengths).  Together with the channel's
+        construction parameters (the *descriptor*) this is the ``state`` half
+        of the ``(descriptor, state, block)`` triple: rebuild an identical
+        channel
+        elsewhere, :meth:`set_state` this blob, and it resumes bit-for-bit.
+
+        Returns
+        -------
+        bytes
+            ``[b"DPC1"][ver u8][pad3][len_ddc u32][len_acq u32][ddc][acq]``.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss.orchestrator import CoarseChannel
+        >>> kw = dict(
+        ...     source_rate=8e6,
+        ...     code=np.array([1, 1, 0, 1], np.uint8),
+        ...     reps=4,
+        ...     spc=2,
+        ...     chip_rate=1e6,
+        ...     cn0_dbhz=40.0,
+        ...     pfa=1e-3,
+        ...     pd=0.9,
+        ... )
+        >>> a = CoarseChannel(0.0, **kw)
+        >>> _ = a.process(np.ones(4096, np.complex64), 0)
+        >>> b = CoarseChannel(0.0, **kw)  # identical descriptor
+        >>> b.set_state(a.get_state())  # resume on another pod
+        """
+        ddc = self._ddc.get_state()
+        acq = self._acq.get_state()
+        head = _CC_MAGIC + struct.pack(
+            "<BxxxII", _CC_VERSION, len(ddc), len(acq)
+        )
+        return head + ddc + acq
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore running state from :meth:`get_state` into this channel.
+
+        The channel must be constructed with the same descriptor as the source
+        (the children validate their own envelopes and reject a mismatch).
+
+        Raises
+        ------
+        TypeError
+            If ``blob`` is not bytes-like.
+        ValueError
+            If the envelope magic/version/size is wrong, or a child rejects it.
+        """
+        if not isinstance(blob, (bytes, bytearray, memoryview)):
+            raise TypeError("state blob must be bytes-like")
+        blob = bytes(blob)
+        if len(blob) < _CC_HEAD or blob[:4] != _CC_MAGIC:
+            raise ValueError("not a CoarseChannel state blob")
+        version, n_ddc, n_acq = struct.unpack_from("<BxxxII", blob, 4)
+        if version != _CC_VERSION:
+            raise ValueError(
+                f"unsupported CoarseChannel state version {version}"
+            )
+        if len(blob) != _CC_HEAD + n_ddc + n_acq:
+            raise ValueError("CoarseChannel state blob size mismatch")
+        self._ddc.set_state(blob[_CC_HEAD : _CC_HEAD + n_ddc])
+        self._acq.set_state(blob[_CC_HEAD + n_ddc : _CC_HEAD + n_ddc + n_acq])
+
 
 class Acquirer:
     """Coarse-Doppler mixer bank over ``K`` ``CoarseChannel`` pipelines.
@@ -284,6 +370,68 @@ class Acquirer:
         acquisition decision), or ``None`` if no channel fired."""
         dets = self.process(block)
         return max(dets, key=lambda d: d.test_stat) if dets else None
+
+    def get_state(self) -> bytes:
+        """Snapshot the whole bank's running state — every channel, in order.
+
+        The elastic-handoff hook for the bank: with the bank's descriptor
+        (constructor args) this blob rebuilds the search anywhere.  Each
+        channel's :meth:`CoarseChannel.get_state` is length-prefixed so restore
+        re-binds them positionally.
+
+        Returns
+        -------
+        bytes
+            ``[b"DPA1"][version u8][pad 3][n_channels u32]`` then, per channel,
+            ``[len u32][channel blob]``.
+        """
+        head = _AQ_MAGIC + struct.pack(
+            "<BxxxI", _AQ_VERSION, len(self.channels)
+        )
+        body = b"".join(
+            struct.pack("<I", len(p)) + p
+            for p in (c.get_state() for c in self.channels)
+        )
+        return head + body
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore the whole bank from :meth:`get_state`.
+
+        The bank must be built with the same descriptor (same channel count /
+        geometry) as the source.
+
+        Raises
+        ------
+        TypeError
+            If ``blob`` is not bytes-like.
+        ValueError
+            If the envelope or channel count mismatches, or a channel rejects.
+        """
+        if not isinstance(blob, (bytes, bytearray, memoryview)):
+            raise TypeError("state blob must be bytes-like")
+        blob = bytes(blob)
+        if len(blob) < _AQ_HEAD or blob[:4] != _AQ_MAGIC:
+            raise ValueError("not an Acquirer state blob")
+        version, n = struct.unpack_from("<BxxxI", blob, 4)
+        if version != _AQ_VERSION:
+            raise ValueError(f"unsupported Acquirer state version {version}")
+        if n != len(self.channels):
+            raise ValueError(
+                f"channel-count mismatch: blob has {n}, bank has "
+                f"{len(self.channels)}"
+            )
+        off = _AQ_HEAD
+        for c in self.channels:
+            if off + 4 > len(blob):
+                raise ValueError("Acquirer state blob truncated")
+            (plen,) = struct.unpack_from("<I", blob, off)
+            off += 4
+            if off + plen > len(blob):
+                raise ValueError("Acquirer state blob truncated")
+            c.set_state(blob[off : off + plen])
+            off += plen
+        if off != len(blob):
+            raise ValueError("Acquirer state blob size mismatch")
 
     def _dedup(self, hits: list[Detection]) -> list[Detection]:
         """Collapse same-target detections (≤ res in Doppler, ≤ 1 in code

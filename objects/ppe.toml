@@ -1,12 +1,15 @@
 # ppe — feedforward polynomial-phase estimator (frequency + chirp rate).
 #
-# Estimates the linear and quadratic phase terms of a complex sequence — i.e.
-# its normalized frequency f (cycles/sample) and chirp rate r (cycles/sample^2)
-# — via the 2-lag Higher-order Ambiguity Function (HAF / Discrete Polynomial
-# Transform): the instantaneous autocorrelation c[m] = y[m+k]*conj(y[m]) is a
-# tone at nu = r*k, so FFT(c) -> peak gives r; dechirping y by r and FFT-ing
-# gives f.  Stateless by-value analyzer (the tonemeas pattern).  The caller
-# strips modulation first (data-aided wipe, or square for NDA then halve).
+# Estimates the normalized frequency f (cycles/sample) and chirp rate r
+# (cycles/sample^2) of a complex sequence by a coherent 2-D matched-filter
+# search: for each chirp-rate hypothesis r_i in [-max_rate, +max_rate] it
+# dechirps the sequence (multiply by exp(-j*pi*r_i*m^2)) and FFTs it, building a
+# (chirp-rate x frequency) surface whose global peak gives (r, f) — sub-bin in
+# both axes by parabolic interpolation.  Fully coherent, so it holds at low SNR
+# (the matched-filter-optimal estimator), and it degenerates to a single FFT
+# (pure Doppler) when max_rate = 0 — the one knob spans near-static Doppler to
+# severe LEO chirp.  Stateless by-value analyzer (the tonemeas pattern).  The
+# caller strips modulation first (data-aided wipe, or square for NDA then halve).
 #
 # Composes fft_core + the spectral_core find_peaks / window free functions.
 
@@ -25,9 +28,9 @@ type = "size_t"
 default = "4096"
 
 [[ppe.init_params]]
-name = "lag"
-type = "size_t"
-default = "0"
+name = "max_rate"
+type = "double"
+default = "0.0"
 
 [[ppe.methods]]
 name = "estimate"
@@ -51,6 +54,11 @@ type = "size_t"
 field = true
 
 [[ppe.properties]]
-name = "lag"
+name = "max_rate"
+type = "double"
+field = true
+
+[[ppe.properties]]
+name = "n_rate"
 type = "size_t"
 field = true

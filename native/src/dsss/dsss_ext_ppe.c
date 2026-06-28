@@ -38,16 +38,15 @@ static int
 PolyPhaseEstimatorObj_init (PolyPhaseEstimatorObject *self, PyObject *args,
                             PyObject *kwds)
 {
-  static char       *kwlist[]    = { "max_len", "lag", NULL };
+  static char       *kwlist[]    = { "max_len", "max_rate", NULL };
   unsigned long long max_len_raw = 4096;
-  unsigned long long lag_raw     = 0;
+  double             max_rate    = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|KK", kwlist, &max_len_raw,
-                                    &lag_raw))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kd", kwlist, &max_len_raw,
+                                    &max_rate))
     return -1;
   size_t max_len = (size_t)max_len_raw;
-  size_t lag     = (size_t)lag_raw;
-  self->handle   = ppe_create (max_len, lag);
+  self->handle   = ppe_create (max_len, max_rate);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "ppe_create returned NULL");
@@ -147,24 +146,39 @@ PolyPhaseEstimator_getprop_nfft (PolyPhaseEstimatorObject *self,
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nfft);
 }
 static PyObject *
-PolyPhaseEstimator_getprop_lag (PolyPhaseEstimatorObject *self,
-                                void                     *Py_UNUSED (closure))
+PolyPhaseEstimator_getprop_max_rate (PolyPhaseEstimatorObject *self,
+                                     void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->lag);
+  return PyFloat_FromDouble (self->handle->max_rate);
+}
+static PyObject *
+PolyPhaseEstimator_getprop_n_rate (PolyPhaseEstimatorObject *self,
+                                   void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_rate);
 }
 
-static PyGetSetDef PolyPhaseEstimator_getset[] = {
-  { "max_len", (getter)PolyPhaseEstimator_getprop_max_len, NULL, "Max len.\n",
-    NULL },
-  { "nfft", (getter)PolyPhaseEstimator_getprop_nfft, NULL, "Nfft.\n", NULL },
-  { "lag", (getter)PolyPhaseEstimator_getprop_lag, NULL, "Lag.\n", NULL },
-  { NULL }
-};
+static PyGetSetDef PolyPhaseEstimator_getset[]
+    = { { "max_len", (getter)PolyPhaseEstimator_getprop_max_len, NULL,
+          "Max len.\n", NULL },
+        { "nfft", (getter)PolyPhaseEstimator_getprop_nfft, NULL, "Nfft.\n",
+          NULL },
+        { "max_rate", (getter)PolyPhaseEstimator_getprop_max_rate, NULL,
+          "Max rate.\n", NULL },
+        { "n_rate", (getter)PolyPhaseEstimator_getprop_n_rate, NULL,
+          "N rate.\n", NULL },
+        { NULL } };
 
 static PyObject *
 PolyPhaseEstimatorObj_destroy (PolyPhaseEstimatorObject *self,

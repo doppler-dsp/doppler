@@ -6,6 +6,7 @@ no_state = "true"
 no_step = "true"
 class_name = "Corr2D"
 depends_on = ["fft2d_core"]
+serializable = "true"
 
 [[corr2d.init_params]]
 name = "ref"

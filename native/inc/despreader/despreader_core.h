@@ -15,6 +15,7 @@
 #define DESPREADER_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
 #ifdef __cplusplus
@@ -185,6 +186,15 @@ double despreader_get_code_phase (const despreader_state_t *state);
 double despreader_get_lock_metric (const despreader_state_t *state);
 /** @brief Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2). */
 double despreader_get_snr_est (const despreader_state_t *state);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * whole-struct snapshot (loop_filter children POD-embedded);
+ * the owned code + acq_code pointers are config, restored by create. */
+#define DESPREADER_STATE_MAGIC DP_FOURCC ('D','S','P','R')
+#define DESPREADER_STATE_VERSION 1u
+size_t despreader_state_bytes (const despreader_state_t *state);
+void despreader_get_state (const despreader_state_t *state, void *blob);
+int despreader_set_state (despreader_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

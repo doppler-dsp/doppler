@@ -129,6 +129,34 @@ corr2d_reset (corr2d_state_t *state)
   state->count = 0;
 }
 
+/* Serializable state — running accumulator (ny*nx) + frame count; the 2-D FFT
+ * plans and the reference spectrum are config, recomputed by create(). */
+size_t
+corr2d_state_bytes (const corr2d_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
+         + s->n * sizeof (float _Complex);
+}
+
+void
+corr2d_get_state (const corr2d_state_t *s, void *blob)
+{
+  DP_GET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
+               corr2d_state_bytes (s));
+  dp_w_u64 (&_w, s->count);
+  dp_w_cf32 (&_w, s->accum, s->n);
+}
+
+int
+corr2d_set_state (corr2d_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (CORR2D_STATE_MAGIC, CORR2D_STATE_VERSION,
+               corr2d_state_bytes (s));
+  s->count = (size_t)dp_r_u64 (&_r);
+  dp_r_cf32 (&_r, s->accum, s->n);
+  return DP_OK;
+}
+
 void
 corr2d_set_ref (corr2d_state_t *state, const float complex *ref)
 {

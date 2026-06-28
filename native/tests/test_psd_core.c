@@ -1,3 +1,4 @@
+#include "dp_state_test.h"
 #include "psd/psd_core.h"
 #include <complex.h>
 #include <math.h>
@@ -354,6 +355,22 @@ main (void)
       fprintf (stderr, "test_psd_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — delegates to the acc_trace averager child. */
+  {
+    float complex frame[64];
+    for (int i = 0; i < 64; i++)
+      frame[i] = (float)(i % 8) - 4.0f + 0.3f * I;
+    psd_state_t *a = psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    psd_state_t *b = psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    CHECK (a != NULL && b != NULL);
+    psd_accumulate (a, frame, 64);
+    psd_accumulate (a, frame, 64);
+    DP_STATE_ROUNDTRIP_TEST (psd, a, b);
+    CHECK (b->avg->count == a->avg->count);
+    psd_destroy (a);
+    psd_destroy (b);
+  }
+
   printf ("test_psd_core PASSED\n");
   return 0;
 }

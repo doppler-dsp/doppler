@@ -465,6 +465,60 @@ DespreaderObj_exit (DespreaderObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DespreaderObj_state_bytes (DespreaderObject *self,
+                           PyObject         *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (despreader_state_bytes (self->handle));
+}
+
+static PyObject *
+DespreaderObj_get_state (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = despreader_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  despreader_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != despreader_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (despreader_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DespreaderObj_methods[] = {
 
   { "steps", (PyCFunction)DespreaderObj_steps, METH_VARARGS,
@@ -517,6 +571,12 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Release resources." },
   { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)DespreaderObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)DespreaderObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)DespreaderObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)DespreaderObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 

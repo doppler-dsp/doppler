@@ -1,4 +1,5 @@
 #include "corr2d/corr2d_core.h"
+#include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -154,6 +155,25 @@ main (void)
       fprintf (stderr, "test_corr2d_core FAILED (%d)\n", _fails);
       return 1;
     }
+  /* serializable state — 2-D accumulator + count resume; plans + ref rebuilt.
+   */
+  {
+    float complex ref[16], in[16], out[16];
+    for (int i = 0; i < 16; i++)
+      {
+        ref[i] = (float)(i % 4) + 0.5f * I;
+        in[i]  = (float)(i % 3) - 1.0f + 0.2f * I;
+      }
+    corr2d_state_t *a = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
+    corr2d_state_t *b = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
+    CHECK (a != NULL && b != NULL);
+    (void)corr2d_execute (a, in, 16, out);
+    DP_STATE_ROUNDTRIP_TEST (corr2d, a, b);
+    CHECK (b->count == a->count && b->accum[0] == a->accum[0]);
+    corr2d_destroy (a);
+    corr2d_destroy (b);
+  }
+
   printf ("test_corr2d_core PASSED\n");
   return 0;
 }

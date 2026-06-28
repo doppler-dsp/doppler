@@ -16,6 +16,7 @@ no_state = "true"
 no_step = "true"
 class_name = "PSD"
 depends_on = ["fft_core", "spectral_core", { name = "acc_trace", link = true }]
+serializable = "true"
 
 [[psd.init_params]]
 name = "n"

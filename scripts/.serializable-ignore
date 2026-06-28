@@ -10,11 +10,8 @@ channel
 mpsk_receiver
 dll
 wfm_synth
-# Batch D (detectors/correlators — opaque FFT children, restore-into-identical):
-corr
-corr2d
+# Batch D (correlators/PSD/despreader — opaque FFT children skipped): DONE
+# Batch D' (dp_f32 ring + dynamic/optional buffers — needs ring surgery):
 detector
 detector2d
-despreader
-psd
 specan

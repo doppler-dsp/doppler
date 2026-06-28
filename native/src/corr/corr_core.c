@@ -99,6 +99,33 @@ corr_reset (corr_state_t *state)
   state->count = 0;
 }
 
+/* Serializable state — running accumulator + frame count; the FFT plans and
+ * the reference spectrum are config, recomputed by create() from the same ref.
+ */
+size_t
+corr_state_bytes (const corr_state_t *s)
+{
+  return sizeof (dp_state_hdr_t) + sizeof (uint64_t)
+         + s->n * sizeof (float _Complex);
+}
+
+void
+corr_get_state (const corr_state_t *s, void *blob)
+{
+  DP_GET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, corr_state_bytes (s));
+  dp_w_u64 (&_w, s->count);
+  dp_w_cf32 (&_w, s->accum, s->n);
+}
+
+int
+corr_set_state (corr_state_t *s, const void *blob)
+{
+  DP_SET_OPEN (CORR_STATE_MAGIC, CORR_STATE_VERSION, corr_state_bytes (s));
+  s->count = (size_t)dp_r_u64 (&_r);
+  dp_r_cf32 (&_r, s->accum, s->n);
+  return DP_OK;
+}
+
 void
 corr_set_ref (corr_state_t *state, const float complex *ref)
 {

@@ -297,18 +297,18 @@ class PolyPhaseEstimator:
     ----------
     max_len : int, default 4096
         Maximum input sequence length (>= 4).
-    lag : int, default 0
-        HAF lag k; 0 selects k = L/2 per call.
+    max_rate : float, default 0.0
+        Chirp-rate search half-span (cycles/sample^2); 0 searches frequency only (a single FFT — near-static Doppler).
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.dsss import PolyPhaseEstimator
-    >>> obj = PolyPhaseEstimator(max_len=4096, lag=0)
+    >>> obj = PolyPhaseEstimator(max_len=4096, max_rate=0.0)
 
     """
-    def __init__(self, max_len: int = ..., lag: int = ...) -> None: ...
+    def __init__(self, max_len: int = ..., max_rate: float = ...) -> None: ...
 
     def reset(self) -> None:
         """No-op (the estimator carries no running state).
@@ -337,8 +337,12 @@ class PolyPhaseEstimator:
         """Nfft."""
 
     @property
-    def lag(self) -> int:
-        """Lag."""
+    def max_rate(self) -> float:
+        """Max rate."""
+
+    @property
+    def n_rate(self) -> int:
+        """N rate."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

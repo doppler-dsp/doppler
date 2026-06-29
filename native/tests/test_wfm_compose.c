@@ -349,8 +349,77 @@ main (void)
     free (j0);
   }
 
+  /* ── ranged field: freq drawn uniformly per repeat, reproducibly ── */
+  {
+    /* A near-noiseless tone whose freq is a [lo, hi] draw. The noise stream is
+     * deterministic per epoch, so any epoch-to-epoch sample difference is the
+     * freq draw alone; a second composer must reproduce it bit-for-bit (the
+     * draw hashes seed+epoch, it carries no RNG state). */
+    wfm_source_t  rsrc = { .type     = 0,
+                           .freq     = 0.05,
+                           .freq_hi  = 0.45,
+                           .ranged   = WFM_RANGE_FREQ,
+                           .snr      = 100.0,
+                           .snr_mode = 1,
+                           .seed     = 7,
+                           .sps      = 1 };
+    wfm_segment_t rseg
+        = { .sources = &rsrc, .n_sources = 1, .fs = 1e6, .num_samples = 128 };
+    float complex        a[256], b[256];
+    wfm_compose_state_t *c1 = wfm_compose_create (&rseg, 1, 1, 0);
+    CHECK (wfm_compose_execute (c1, a, 256) == 256, "ranged freq exec");
+    int diff = 0;
+    for (int i = 0; i < 128; i++)
+      if (a[i] != a[128 + i])
+        diff = 1;
+    CHECK (diff, "ranged freq → fresh draw each repeat");
+    wfm_compose_state_t *c2 = wfm_compose_create (&rseg, 1, 1, 0);
+    CHECK (wfm_compose_execute (c2, b, 256) == 256, "ranged freq exec 2");
+    for (int i = 0; i < 256; i++)
+      CHECK (a[i] == b[i], "ranged draw reproducible across composers");
+    wfm_compose_destroy (c1);
+    wfm_compose_destroy (c2);
+  }
+
+  /* ── ranged fields round-trip through JSON as [lo, hi] arrays ── */
+  {
+    wfm_source_t  s  = { .type     = 0,
+                         .freq     = 100.0,
+                         .freq_hi  = 200.0,
+                         .ranged   = WFM_RANGE_FREQ,
+                         .snr      = 10.0,
+                         .snr_mode = 1,
+                         .seed     = 1,
+                         .sps      = 1 };
+    wfm_segment_t g  = { .sources        = &s,
+                         .n_sources      = 1,
+                         .fs             = 1e6,
+                         .num_samples    = 64,
+                         .off_samples    = 10,
+                         .off_samples_hi = 30,
+                         .ranged         = WFM_RANGE_OFF_SAMPLES };
+    char         *js = wfm_spec_to_json (&g, 1, 0, 0, 0.0);
+    CHECK (js, "ranged spec to json");
+    CHECK (strstr (js, "200") && strstr (js, "30"),
+           "ranges emitted as arrays");
+    wfm_compose_state_t *c = wfm_compose_from_json (js);
+    CHECK (c, "ranged spec parse");
+    size_t               nseg = 0;
+    const wfm_segment_t *gg   = wfm_compose_segments (c, &nseg, NULL, NULL);
+    CHECK (nseg == 1, "ranged round-trip seg count");
+    CHECK (gg[0].ranged & WFM_RANGE_OFF_SAMPLES, "off range bit survives");
+    CHECK (gg[0].off_samples == 10 && gg[0].off_samples_hi == 30,
+           "off range bounds survive");
+    CHECK (gg[0].sources[0].ranged & WFM_RANGE_FREQ,
+           "freq range bit survives");
+    CHECK (gg[0].sources[0].freq == 100.0 && gg[0].sources[0].freq_hi == 200.0,
+           "freq range bounds survive");
+    free (js);
+    wfm_compose_destroy (c);
+  }
+
   printf ("test_wfm_compose: OK (total=%zu, json round-trip, level, sum, "
-          "resolve, sum-json, headroom)\n",
+          "resolve, sum-json, headroom, ranged fields)\n",
           total);
   return 0;
 }

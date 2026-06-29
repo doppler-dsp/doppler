@@ -379,6 +379,22 @@ _VALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         },
     ),
     ("level_nonzero", {"version": 1, "segments": [{**_SEG, "level": -6.0}]}),
+    (
+        "freq_range",
+        {"version": 1, "segments": [{**_SEG, "freq": [11200.0, 12800.0]}]},
+    ),
+    (
+        "snr_range",
+        {"version": 1, "segments": [{**_SEG, "snr": [10.0, 20.0]}]},
+    ),
+    (
+        "off_samples_range",
+        {"version": 1, "segments": [{**_SEG, "off_samples": [4000, 5600]}]},
+    ),
+    (
+        "level_range",
+        {"version": 1, "segments": [{**_SEG, "level": [-12.0, -3.0]}]},
+    ),
 ]
 
 _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
@@ -405,6 +421,14 @@ _INVALID_STATICS: list[tuple[str, dict[str, Any]]] = [
         "positive_level",
         {"version": 1, "segments": [{**_SEG, "level": 3.0}]},
     ),  # level must be <= 0
+    (
+        "positive_level_range",
+        {"version": 1, "segments": [{**_SEG, "level": [-3.0, 3.0]}]},
+    ),  # ranged level: both bounds must be <= 0
+    (
+        "freq_range_three",
+        {"version": 1, "segments": [{**_SEG, "freq": [1.0, 2.0, 3.0]}]},
+    ),  # range pair must be exactly [lo, hi]
 ]
 
 

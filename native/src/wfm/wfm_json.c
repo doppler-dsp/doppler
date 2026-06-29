@@ -109,6 +109,45 @@ num (const cJSON *obj, const char *key, double fallback)
   return cJSON_IsNumber (it) ? it->valuedouble : fallback;
 }
 
+/* Read `key` as either a scalar (→ returns it, *ranged = 0) or a two-element
+ * [lo, hi] array (→ returns lo, sets *hi and *ranged = 1). A ranged field is
+ * redrawn uniformly each repeat by the composer; see wfm_compose.h. Falls back
+ * to `fallback` when the key is absent or malformed. */
+static double
+num_or_range (const cJSON *obj, const char *key, double fallback, double *hi,
+              int *ranged)
+{
+  const cJSON *it = cJSON_GetObjectItemCaseSensitive (obj, key);
+  if (cJSON_IsArray (it) && cJSON_GetArraySize (it) == 2)
+    {
+      const cJSON *a = cJSON_GetArrayItem (it, 0);
+      const cJSON *b = cJSON_GetArrayItem (it, 1);
+      if (cJSON_IsNumber (a) && cJSON_IsNumber (b))
+        {
+          *hi     = b->valuedouble;
+          *ranged = 1;
+          return a->valuedouble;
+        }
+    }
+  *ranged = 0;
+  return cJSON_IsNumber (it) ? it->valuedouble : fallback;
+}
+
+/* Emit `key` as a scalar, or as a [lo, hi] array when `ranged`. */
+static void
+add_num_or_range (cJSON *o, const char *key, double lo, double hi, int ranged)
+{
+  if (ranged)
+    {
+      cJSON *arr = cJSON_CreateArray ();
+      cJSON_AddItemToArray (arr, cJSON_CreateNumber (lo));
+      cJSON_AddItemToArray (arr, cJSON_CreateNumber (hi));
+      cJSON_AddItemToObject (o, key, arr);
+    }
+  else
+    cJSON_AddNumberToObject (o, key, lo);
+}
+
 /* Add a source's fields to object `so` (no fs/num/off — those are the
  * segment's; level omitted at 0). Used for the "sum" array entries; the inline
  * 1-source form keeps its own field order for byte-identity. */
@@ -118,18 +157,22 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   int t = (src->type >= 0 && src->type < N_TYPES) ? src->type : 0;
   int m = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
   cJSON_AddStringToObject (so, "type", TYPE_NAMES[t]);
-  cJSON_AddNumberToObject (so, "freq", src->freq);
+  add_num_or_range (so, "freq", src->freq, src->freq_hi,
+                    src->ranged & WFM_RANGE_FREQ);
   if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
-    cJSON_AddNumberToObject (so, "f_end", src->f_end);
-  cJSON_AddNumberToObject (so, "snr", src->snr);
+    add_num_or_range (so, "f_end", src->f_end, src->f_end_hi,
+                      src->ranged & WFM_RANGE_FEND);
+  add_num_or_range (so, "snr", src->snr, src->snr_hi,
+                    src->ranged & WFM_RANGE_SNR);
   cJSON_AddStringToObject (so, "snr_mode", MODE_NAMES[m]);
   cJSON_AddNumberToObject (so, "seed", (double)src->seed);
   cJSON_AddNumberToObject (so, "sps", src->sps);
   cJSON_AddNumberToObject (so, "pn_length", src->pn_length);
   cJSON_AddNumberToObject (so, "pn_poly", (double)src->pn_poly);
   cJSON_AddStringToObject (so, "lfsr", LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
-  if (src->level != 0.0)
-    cJSON_AddNumberToObject (so, "level", src->level);
+  if (src->level != 0.0 || (src->ranged & WFM_RANGE_LEVEL))
+    add_num_or_range (so, "level", src->level, src->level_hi,
+                      src->ranged & WFM_RANGE_LEVEL);
   add_bits_fields (so, src);
   add_pulse_fields (so, src);
 }
@@ -145,10 +188,17 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     return -1;
   const cJSON *md = cJSON_GetObjectItemCaseSensitive (so, "snr_mode");
   int          m  = name_index (cJSON_GetStringValue (md), MODE_NAMES, 4);
-  *out            = (wfm_source_t){
+  /* freq/snr/level/f_end each accept a scalar or a [lo, hi] uniform range. */
+  double freq_hi = 0, snr_hi = 0, level_hi = 0, f_end_hi = 0;
+  int    rf = 0, rs = 0, rl = 0, re = 0;
+  double freq  = num_or_range (so, "freq", 0.0, &freq_hi, &rf);
+  double snr   = num_or_range (so, "snr", 100.0, &snr_hi, &rs);
+  double level = num_or_range (so, "level", 0.0, &level_hi, &rl);
+  double f_end = num_or_range (so, "f_end", 0.0, &f_end_hi, &re);
+  *out         = (wfm_source_t){
     .type      = t,
-    .freq      = num (so, "freq", 0.0),
-    .snr       = num (so, "snr", 100.0),
+    .freq      = freq,
+    .snr       = snr,
     .snr_mode  = (m < 0) ? 0 : m,
     .seed      = (uint32_t)num (so, "seed", 1),
     .sps       = (int)num (so, "sps", 8),
@@ -160,8 +210,15 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
               == 1)
                  ? 1
                  : 0,
-    .level = num (so, "level", 0.0),
-    .f_end = num (so, "f_end", 0.0),
+    .level = level,
+    .f_end = f_end,
+    .ranged
+    = (unsigned)((rf ? WFM_RANGE_FREQ : 0) | (rs ? WFM_RANGE_SNR : 0)
+                 | (rl ? WFM_RANGE_LEVEL : 0) | (re ? WFM_RANGE_FEND : 0)),
+    .freq_hi  = freq_hi,
+    .snr_hi   = snr_hi,
+    .level_hi = level_hi,
+    .f_end_hi = f_end_hi,
   };
   if (t == WFM_SYNTH_BITS)
     {
@@ -217,10 +274,13 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
               = (src->snr_mode >= 0 && src->snr_mode < 4) ? src->snr_mode : 0;
           cJSON_AddStringToObject (s, "type", TYPE_NAMES[t]);
           cJSON_AddNumberToObject (s, "fs", g->fs);
-          cJSON_AddNumberToObject (s, "freq", src->freq);
+          add_num_or_range (s, "freq", src->freq, src->freq_hi,
+                            src->ranged & WFM_RANGE_FREQ);
           if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
-            cJSON_AddNumberToObject (s, "f_end", src->f_end);
-          cJSON_AddNumberToObject (s, "snr", src->snr);
+            add_num_or_range (s, "f_end", src->f_end, src->f_end_hi,
+                              src->ranged & WFM_RANGE_FEND);
+          add_num_or_range (s, "snr", src->snr, src->snr_hi,
+                            src->ranged & WFM_RANGE_SNR);
           cJSON_AddStringToObject (s, "snr_mode", MODE_NAMES[m]);
           cJSON_AddNumberToObject (s, "seed", (double)src->seed);
           cJSON_AddNumberToObject (s, "sps", src->sps);
@@ -228,11 +288,16 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           cJSON_AddNumberToObject (s, "pn_poly", (double)src->pn_poly);
           cJSON_AddStringToObject (s, "lfsr",
                                    LFSR_NAMES[(src->lfsr == 1) ? 1 : 0]);
-          cJSON_AddNumberToObject (s, "num_samples", (double)g->num_samples);
-          cJSON_AddNumberToObject (s, "off_samples", (double)g->off_samples);
-          if (src->level
-              != 0.0) /* omit at 0 dBFS so old specs are unchanged */
-            cJSON_AddNumberToObject (s, "level", src->level);
+          add_num_or_range (s, "num_samples", (double)g->num_samples,
+                            (double)g->num_samples_hi,
+                            g->ranged & WFM_RANGE_NUM_SAMPLES);
+          add_num_or_range (s, "off_samples", (double)g->off_samples,
+                            (double)g->off_samples_hi,
+                            g->ranged & WFM_RANGE_OFF_SAMPLES);
+          if (src->level != 0.0 /* omit at 0 dBFS so old specs are unchanged */
+              || (src->ranged & WFM_RANGE_LEVEL))
+            add_num_or_range (s, "level", src->level, src->level_hi,
+                              src->ranged & WFM_RANGE_LEVEL);
           add_bits_fields (s, src);
           add_pulse_fields (s, src);
         }
@@ -240,8 +305,12 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
         {
           /* multi-source: segment-level fs/num/off + a "sum" of sources. */
           cJSON_AddNumberToObject (s, "fs", g->fs);
-          cJSON_AddNumberToObject (s, "num_samples", (double)g->num_samples);
-          cJSON_AddNumberToObject (s, "off_samples", (double)g->off_samples);
+          add_num_or_range (s, "num_samples", (double)g->num_samples,
+                            (double)g->num_samples_hi,
+                            g->ranged & WFM_RANGE_NUM_SAMPLES);
+          add_num_or_range (s, "off_samples", (double)g->off_samples,
+                            (double)g->off_samples_hi,
+                            g->ranged & WFM_RANGE_OFF_SAMPLES);
           cJSON *sum = cJSON_AddArrayToObject (s, "sum");
           for (size_t k = 0; k < g->n_sources; k++)
             {
@@ -397,12 +466,20 @@ wfm_compose_from_json (const char *json)
             goto reject;
           }
       }
-    segs[i] = (wfm_segment_t){
-      .sources     = srcs,
-      .n_sources   = ns,
-      .fs          = num (s, "fs", 1000000.0),
-      .num_samples = (size_t)num (s, "num_samples", 0),
-      .off_samples = (size_t)num (s, "off_samples", 0),
+    double num_hi = 0, off_hi = 0;
+    int    rn = 0, ro = 0;
+    double n_samp = num_or_range (s, "num_samples", 0, &num_hi, &rn);
+    double o_samp = num_or_range (s, "off_samples", 0, &off_hi, &ro);
+    segs[i]       = (wfm_segment_t){
+      .sources        = srcs,
+      .n_sources      = ns,
+      .fs             = num (s, "fs", 1000000.0),
+      .num_samples    = (size_t)n_samp,
+      .off_samples    = (size_t)o_samp,
+      .ranged         = (unsigned)((rn ? WFM_RANGE_NUM_SAMPLES : 0)
+                                   | (ro ? WFM_RANGE_OFF_SAMPLES : 0)),
+      .num_samples_hi = (size_t)num_hi,
+      .off_samples_hi = (size_t)off_hi,
     };
     i++;
     continue;

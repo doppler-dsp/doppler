@@ -36,6 +36,28 @@
 
   "$defs": {
 
+    "number_range": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number" },
+      "description": "A [lo, hi] pair drawn uniformly at random, fresh on each segment repeat. The draw is a reproducible hash of (seed, repeat index, segment, source, field) — no RNG state — so a recorded run replays byte-for-byte."
+    },
+    "count_range": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "integer", "minimum": 0 },
+      "description": "A [lo, hi] sample-count pair (non-negative integers) drawn uniformly per repeat (see number_range)."
+    },
+    "level_range": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number", "maximum": 0.0 },
+      "description": "A [lo, hi] dBFS level pair (each ≤ 0) drawn uniformly per repeat (see number_range)."
+    },
+
     "source_type": {
       "type": "string",
       "enum": ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"],
@@ -58,20 +80,29 @@
         "type": { "$ref": "#/$defs/source_type" },
 
         "freq": {
-          "type": "number",
           "default": 0.0,
-          "description": "Carrier frequency offset from baseband (Hz). For chirp: the start frequency."
+          "description": "Carrier frequency offset from baseband (Hz). For chirp: the start frequency. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number" },
+            { "$ref": "#/$defs/number_range" }
+          ]
         },
         "f_end": {
-          "type": "number",
           "default": 0.0,
-          "description": "Chirp sweep end frequency (Hz). Ignored by all types other than chirp."
+          "description": "Chirp sweep end frequency (Hz). Ignored by all types other than chirp. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number" },
+            { "$ref": "#/$defs/number_range" }
+          ]
         },
 
         "snr": {
-          "type": "number",
           "default": 100.0,
-          "description": "Signal-to-noise ratio (dB), interpreted according to snr_mode. 100 dB is the clean-signal threshold (no AWGN injected)."
+          "description": "Signal-to-noise ratio (dB), interpreted according to snr_mode. 100 dB is the clean-signal threshold (no AWGN injected). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number" },
+            { "$ref": "#/$defs/number_range" }
+          ]
         },
         "snr_mode": { "$ref": "#/$defs/snr_mode" },
 
@@ -108,10 +139,12 @@
         },
 
         "level": {
-          "type": "number",
-          "maximum": 0.0,
           "default": 0.0,
-          "description": "Source average power in dBFS (≤ 0). 0 = unit average power (no scaling). Used in multi-source sum segments to place each source relative to the shared noise floor. Omitted in the round-trip record when 0 to keep single-source specs byte-identical."
+          "description": "Source average power in dBFS (≤ 0). 0 = unit average power (no scaling). Used in multi-source sum segments to place each source relative to the shared noise floor. Omitted in the round-trip record when 0 to keep single-source specs byte-identical. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "number", "maximum": 0.0 },
+            { "$ref": "#/$defs/level_range" }
+          ]
         },
 
         "modulation": {
@@ -170,16 +203,20 @@
         "pn_poly":    { "$ref": "#/$defs/source/properties/pn_poly" },
         "lfsr":       { "$ref": "#/$defs/source/properties/lfsr" },
         "num_samples": {
-          "type": "integer",
-          "minimum": 0,
           "default": 0,
-          "description": "On-time length (samples). The synth runs for exactly this many samples before the off-time gap."
+          "description": "On-time length (samples). The synth runs for exactly this many samples before the off-time gap. Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "$ref": "#/$defs/count_range" }
+          ]
         },
         "off_samples": {
-          "type": "integer",
-          "minimum": 0,
           "default": 0,
-          "description": "Trailing zero-gap after the segment (samples)."
+          "description": "Trailing zero-gap after the segment (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "$ref": "#/$defs/count_range" }
+          ]
         },
         "level":      { "$ref": "#/$defs/source/properties/level" },
         "modulation": { "$ref": "#/$defs/source/properties/modulation" },
@@ -202,16 +239,20 @@
           "description": "Sample rate (Hz) shared by all sources in this segment."
         },
         "num_samples": {
-          "type": "integer",
-          "minimum": 0,
           "default": 0,
-          "description": "On-time length (samples)."
+          "description": "On-time length (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "$ref": "#/$defs/count_range" }
+          ]
         },
         "off_samples": {
-          "type": "integer",
-          "minimum": 0,
           "default": 0,
-          "description": "Trailing zero-gap after the segment (samples)."
+          "description": "Trailing zero-gap after the segment (samples). Scalar, or a [lo, hi] pair drawn uniformly per repeat.",
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "$ref": "#/$defs/count_range" }
+          ]
         },
         "sum": {
           "type": "array",

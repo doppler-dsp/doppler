@@ -52,15 +52,17 @@ struct wfm_compose_state
   size_t         n_segs;
   int            repeat;
   int            continuous;
-  unsigned       epoch;        /* repeat counter — bumps each source's seed so
-                                  a looped stream is a fresh noise/PN
-                                  realization, not byte-identical repeats */
-  size_t              cur;     /* current segment index */
-  int                 phase;   /* PHASE_ON / PHASE_OFF / PHASE_DONE */
-  size_t              left;    /* samples remaining in the current phase */
-  wfm_synth_state_t **syn;     /* active segment's synths (one per source) */
-  float              *gain;    /* parallel: 10^(level/20) per source */
-  size_t              n_syn;   /* live synth count while ON (0 otherwise) */
+  unsigned       epoch;      /* repeat counter — bumps each source's seed so
+                                a looped stream is a fresh noise/PN
+                                realization, not byte-identical repeats */
+  size_t cur;                /* current segment index */
+  int    phase;              /* PHASE_ON / PHASE_OFF / PHASE_DONE */
+  size_t left;               /* samples remaining in the current phase */
+  size_t cur_num;            /* this epoch's resolved on-time (ranged/fixed) */
+  size_t cur_off;            /* this epoch's resolved off-time gap */
+  wfm_synth_state_t **syn;   /* active segment's synths (one per source) */
+  float              *gain;  /* parallel: 10^(level/20) per source */
+  size_t              n_syn; /* live synth count while ON (0 otherwise) */
   size_t              syn_cap; /* capacity of syn/gain = max n_sources */
   float complex      *scratch; /* SCRATCH_CAP render buffer for N-source sum */
 };
@@ -81,31 +83,102 @@ stop_synths (wfm_compose_state_t *s)
 /* Start segment `cur` in its ON phase, creating a synth per source. On any
  * synth failure the segment is skipped to OFF (a silent gap) so one bad
  * segment can't wedge the stream. */
+/* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). The
+ * same key always yields the same value, so a ranged scene replays
+ * byte-for-byte from --from-file: the draw never consumes RNG state, it hashes
+ * (seed, epoch, segment, source, field) afresh each time. */
+static double
+draw_u01 (uint64_t key)
+{
+  key += 0x9E3779B97F4A7C15ull;
+  key = (key ^ (key >> 30)) * 0xBF58476D1CE4E5B9ull;
+  key = (key ^ (key >> 27)) * 0x94D049BB133111EBull;
+  key ^= key >> 31;
+  return (double)(key >> 11) * (1.0 / 9007199254740992.0); /* key/2^53 */
+}
+
+/* Draw a ranged field uniformly in [lo, hi]. The key folds the source seed,
+ * the repeat epoch, the segment and source indices, and the field id, so every
+ * ranged field draws an independent yet reproducible sequence across repeats.
+ */
+static double
+draw_range (uint32_t seed, unsigned epoch, size_t seg, size_t src,
+            unsigned field, double lo, double hi)
+{
+  uint64_t key = (uint64_t)seed * 0xD1B54A32D192ED03ull
+                 ^ ((uint64_t)epoch << 32) ^ ((uint64_t)seg << 40)
+                 ^ ((uint64_t)src << 16) ^ ((uint64_t)field << 8);
+  return lo + (hi - lo) * draw_u01 (key);
+}
+
+/* Round a non-negative ranged draw to a sample count. */
+static size_t
+draw_samples (uint32_t seed, unsigned epoch, size_t seg, unsigned field,
+              size_t lo, size_t hi)
+{
+  double v = draw_range (seed, epoch, seg, 0, field, (double)lo, (double)hi);
+  return (size_t)(v + 0.5);
+}
+
 static void
 start_segment (wfm_compose_state_t *s)
 {
-  const wfm_segment_t *g  = &s->segs[s->cur];
-  int                  ok = (g->num_samples > 0 && g->n_sources > 0);
-  s->n_syn                = 0;
+  const wfm_segment_t *g = &s->segs[s->cur];
+  /* Resolve this epoch's (possibly ranged) durations once, up front: ON uses
+   * cur_num, the trailing gap uses cur_off. A fixed segment (ranged == 0) just
+   * copies the scalars, so a non-ranged scene is byte-identical to before. */
+  uint32_t dseed = g->n_sources ? g->sources[0].seed : 1u;
+  s->cur_num
+      = (g->ranged & WFM_RANGE_NUM_SAMPLES)
+            ? draw_samples (dseed, s->epoch, s->cur, WFM_RANGE_NUM_SAMPLES,
+                            g->num_samples, g->num_samples_hi)
+            : g->num_samples;
+  s->cur_off
+      = (g->ranged & WFM_RANGE_OFF_SAMPLES)
+            ? draw_samples (dseed, s->epoch, s->cur, WFM_RANGE_OFF_SAMPLES,
+                            g->off_samples, g->off_samples_hi)
+            : g->off_samples;
+  int ok   = (s->cur_num > 0 && g->n_sources > 0);
+  s->n_syn = 0;
   for (size_t k = 0; k < g->n_sources && ok; k++)
     {
       const wfm_source_t *src = &g->sources[k];
-      s->gain[k] = (float)pow (10.0, src->level / 20.0); /* level → gain */
+      /* Draw this epoch's ranged source fields (freq/snr/level/f_end); a fixed
+       * field passes its scalar through unchanged. */
+      double freq = (src->ranged & WFM_RANGE_FREQ)
+                        ? draw_range (src->seed, s->epoch, s->cur, k,
+                                      WFM_RANGE_FREQ, src->freq, src->freq_hi)
+                        : src->freq;
+      double snr  = (src->ranged & WFM_RANGE_SNR)
+                        ? draw_range (src->seed, s->epoch, s->cur, k,
+                                      WFM_RANGE_SNR, src->snr, src->snr_hi)
+                        : src->snr;
+      double level
+          = (src->ranged & WFM_RANGE_LEVEL)
+                ? draw_range (src->seed, s->epoch, s->cur, k, WFM_RANGE_LEVEL,
+                              src->level, src->level_hi)
+                : src->level;
+      double f_end
+          = (src->ranged & WFM_RANGE_FEND)
+                ? draw_range (src->seed, s->epoch, s->cur, k, WFM_RANGE_FEND,
+                              src->f_end, src->f_end_hi)
+                : src->f_end;
+      s->gain[k] = (float)pow (10.0, level / 20.0); /* level → gain */
       /* Seed advances once per repeat (epoch), so a looped/continuous stream
        * yields a fresh realization each pass instead of identical bytes. For a
        * `bits` source (explicit pattern) this varies only the AWGN; for
        * pn/bpsk/qpsk it also advances the PN data sequence. */
       uint32_t seed = (uint32_t)(src->seed + s->epoch);
-      s->syn[k]     = wfm_synth_create (
-          src->type, g->fs, src->freq, src->snr, src->snr_mode, seed, src->sps,
-          src->pn_length, src->pn_poly, src->lfsr, src->f_end);
+      s->syn[k] = wfm_synth_create (src->type, g->fs, freq, snr, src->snr_mode,
+                                    seed, src->sps, src->pn_length,
+                                    src->pn_poly, src->lfsr, f_end);
       if (!s->syn[k])
         ok = 0;
       else
         {
           /* Pin a chirp's sweep to the segment's on-time so it sweeps
            * f_start→f_end over exactly num_samples (no-op for non-chirp). */
-          wfm_synth_set_chirp_span (s->syn[k], g->num_samples);
+          wfm_synth_set_chirp_span (s->syn[k], s->cur_num);
           /* Attach a bits source's pattern (no-op for other types). A NULL
            * pattern leaves the bits synth emitting 0, never crashing. */
           if (src->type == WFM_SYNTH_BITS && src->bits)
@@ -132,13 +205,13 @@ start_segment (wfm_compose_state_t *s)
   if (ok)
     {
       s->phase = PHASE_ON;
-      s->left  = g->num_samples;
+      s->left  = s->cur_num;
     }
   else
     {
       stop_synths (s);
       s->phase = PHASE_OFF;
-      s->left  = g->off_samples;
+      s->left  = s->cur_off;
     }
 }
 
@@ -268,7 +341,7 @@ wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
               /* ON drained → trailing off-time gap, then advance. */
               stop_synths (state);
               state->phase = PHASE_OFF;
-              state->left  = state->segs[state->cur].off_samples;
+              state->left  = state->cur_off;
               continue;
             }
           size_t k = max - i;

@@ -6,6 +6,10 @@
     spec. Lands **before** the 0.11.0 composition release. Decisions marked
     **decided** are ratified; **proposed** awaits sign-off.
 
+    **Update:** the surface has since grown ranged numeric fields. See
+    [0.23.0 Status](#0230-status) at the bottom for what shipped beyond this
+    note.
+
 ## The model
 
 doppler is C-first: every algorithm lives in C once, and everything else is a
@@ -153,3 +157,42 @@ Riskiest gate first (the jm drift gate), each step its own PR:
 1. **Docs** — rewrite guide/gallery to the four-box model + one CLI; update the
     two diagrams; flip examples to the unified `Synth` + single import.
 1. **Cut 0.11.0** (the existing release checklist).
+
+## 0.23.0 Status
+
+The model and CLI/library surface above are as built. One capability has been
+added since this note that the original design did not anticipate: **ranged
+numeric fields**.
+
+Every numeric segment/source field that the composer resolves per repeat —
+`freq`, `f_end`, `snr`, `level`, `num_samples`, `off_samples` — now accepts
+either a scalar (as before) **or** a `[lo, hi]` pair drawn **uniformly** on each
+segment repeat:
+
+- **JSON / `--from-file` / `--record`** — the field value is either a number or
+    a two-element `[lo, hi]` array. `--record` round-trips the *range*, not a
+    realized draw.
+- **CLI** — the corresponding flag accepts `LO:HI` in place of a scalar
+    (`--freq 11200:12800`, `--off 4000:5600`, `--snr 8:14`, `--level -12:-3`); a
+    bare number is unchanged.
+- **Python library** — the generated `Synth`/`Segment` accept a `tuple`
+    `(lo, hi)` wherever they accept a scalar, e.g. `Synth(freq=(9000, 14000))`
+    or `Segment(freq=(11200, 12800), off_samples=(4000, 5600))`. The getter
+    returns a `tuple` when ranged, a scalar otherwise. This is generated glue
+    (jm composer codegen), not a hand Python wrapper — consistent with the
+    "Python is just glue" rule above.
+
+**Reproducibility is preserved without RNG state.** Each draw is a
+splitmix64 hash of `(seed, repeat index, segment index, source index, field)`,
+so a recorded spec replays the identical sequence of draws byte-for-byte; this
+is why `--record` stores the range rather than a sampled value. Ranges compose
+with the advancing-seed fresh-noise behaviour (the noise re-rolls *and* the
+parameters move) and with `chirp` (start/end can each be a range independently —
+a deterministic sweep whose endpoints jitter per burst).
+
+This is what powers the realtime DSSS demo's per-burst Doppler offset and code
+phase: one looping burst segment with `freq: [lo, hi]` and a jittered
+`off_samples: [lo, hi]` trailing gap.
+
+The original 0.11.0 decisions above remain accurate; ranged fields are purely
+additive (a scalar field is byte-identical to its pre-0.23.0 behaviour).

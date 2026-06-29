@@ -495,6 +495,42 @@ wfmgen --from-file burst.json --continuous --realtime -o stream.cf32
 # gap → the code is identical every burst, only the AWGN changes.
 ```
 
+### Ranged values (`lo:hi`)
+
+The advancing seed re-rolls the *noise* (and PN data) each loop, but the
+**parameters** — frequency, SNR, level, on/off lengths — stay put. To vary a
+parameter too, give it a **range** instead of a scalar: a burst that lands at a
+different Doppler offset and a different code phase every repeat.
+
+A numeric field accepts either a scalar (used as-is) or a `[lo, hi]` pair drawn
+**uniformly** on each segment repeat:
+
+```jsonc
+{ "type": "bpsk", "fs": 1e6, "sps": 8, "pn_length": 7,
+  "freq":        [11200, 12800],   // Doppler offset re-drawn every burst
+  "snr":         [8, 14],          // a fresh SNR each burst
+  "num_samples": 8192,
+  "off_samples": [4000, 5600] }    // jittered trailing gap → code phase walks
+```
+
+On the CLI the same fields take `LO:HI` (a colon-separated pair) in place of a
+scalar — `--freq 11200:12800`, `--off 4000:5600`, `--snr 8:14`,
+`--level -12:-3` — and a bare number is still just that number.
+
+The draw is **reproducible without RNG state**: each value is a hash of
+`(seed, repeat index, segment index, source index, field)`, so `--record`
+stores the *range* and `--from-file` replays the identical sequence of draws
+byte-for-byte. Ranges compose with the advancing seed — the noise re-rolls *and*
+the parameters move — and with `chirp`'s `--freq`/`--f-end`, where each can
+independently be a range (a sweep whose endpoints jitter per burst).
+
+```sh
+# Endless bursts, each at a random Doppler offset and a jittered gap:
+wfmgen --type bpsk --fs 1e6 --sps 8 --pn-length 7 \
+       --freq 11200:12800 --count 8192 --off 4000:5600 \
+       --continuous --realtime -o stream.cf32
+```
+
 ______________________________________________________________________
 
 ## Mixing sources (`sum`) and sequencing them (`add`)

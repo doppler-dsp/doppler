@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.20.0"
+jm_version = "0.21.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -532,6 +532,15 @@ link = true
 object = "wfm_synth"
 struct = "wfm_source_t"
 type_name = "Synth"
+# Fields that accept a (lo, hi) pair drawn uniformly each repeat (composer
+# epoch) — not just a scalar. The struct carries a <name>_hi companion + a
+# `ranged` bitmask (wfm_compose.h); jm emits float-or-tuple parse/getset/.pyi.
+ranged = [
+    { name = "freq", flag = "WFM_RANGE_FREQ" },
+    { name = "snr", flag = "WFM_RANGE_SNR" },
+    { name = "level", flag = "WFM_RANGE_LEVEL" },
+    { name = "f_end", flag = "WFM_RANGE_FEND" },
+]
 
 [[module.wfm_compose.source.fields]]
 name = "type"
@@ -630,6 +639,12 @@ type_name = "Segment"
 struct = "wfm_segment_t"
 sources = "multi"
 flat_sources = true
+# Per-repeat (lo, hi) uniform draws (see source.ranged) — e.g. off_samples as
+# arrival jitter that shifts the next burst's code phase.
+ranged = [
+    { name = "num_samples", flag = "WFM_RANGE_NUM_SAMPLES" },
+    { name = "off_samples", flag = "WFM_RANGE_OFF_SAMPLES" },
+]
 
 [[module.wfm_compose.segment.fields]]
 name = "fs"

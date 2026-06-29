@@ -50,6 +50,24 @@ lookup (const char *s, const char *const *tbl, int n)
   return -1;
 }
 
+/* Parse a numeric flag value as a scalar (`12000`) or a uniform range
+ * (`9000:14000`). Returns the low value; on a range it also sets *hi and
+ * *ranged so the composer redraws the field each repeat. A bare scalar leaves
+ * *ranged 0; strtod stops at the ':', so it yields lo directly. */
+static double
+parse_range (const char *v, double *hi, int *ranged)
+{
+  const char *colon = strchr (v, ':');
+  if (colon && colon[1])
+    {
+      *hi     = strtod (colon + 1, NULL);
+      *ranged = 1;
+    }
+  else
+    *ranged = 0;
+  return strtod (v, NULL);
+}
+
 /* Parse a binary string ("10110101") into a malloc'd 0/1 array; *n gets the
  * length. Whitespace is skipped; any other char fails (returns NULL). */
 static uint8_t *
@@ -199,19 +217,23 @@ static const char USAGE[]
       "                    bits  - custom bit pattern (see BITS INPUT)\n"
       "\n"
       "SIGNAL PARAMETERS\n"
+      "  (LO:HI on --freq/--f-end/--snr/--level/--count/--off draws that "
+      "field\n"
+      "   uniformly each repeat — e.g. --freq 9000:14000 — reproducible per"
+      " seed)\n"
       "  --fs HZ         Sample rate (default 1.0; freq treated as"
       " normalised)\n"
-      "  --freq HZ       Carrier / sweep-start frequency (default 0.0)\n"
-      "  --f-end HZ      Chirp sweep-end frequency (chirp only)\n"
+      "  --freq HZ[:HZ]  Carrier / sweep-start frequency (default 0.0)\n"
+      "  --f-end HZ[:HZ] Chirp sweep-end frequency (chirp only)\n"
       "  --fc HZ         Centre frequency stored in SigMF metadata only\n"
-      "  --count N       Samples to generate (default 1024)\n"
-      "  --off N         Skip N samples before writing output\n"
+      "  --count N[:N]   Samples to generate (default 1024)\n"
+      "  --off N[:N]     Trailing gap of zeros after the segment\n"
       "  --seed N        PRNG seed (default 0; deterministic — vary it for"
       " run-to-run change)\n"
       "  --sps N         Samples per symbol for PSK / PN (default 1)\n"
       "\n"
       "NOISE / SNR\n"
-      "  --snr DB        Add AWGN at this SNR (dB); omit to suppress noise\n"
+      "  --snr DB[:DB]   Add AWGN at this SNR (dB); omit to suppress noise\n"
       "  --snr-mode MODE auto | fs | ebno | esno (default auto)\n"
       "                    auto  - Es/No for PSK; full-band for tone/noise\n"
       "                    fs    - relative to full sample-rate band\n"
@@ -236,7 +258,7 @@ static const char USAGE[]
       "  --lfsr TYPE     galois | fibonacci (default galois)\n"
       "\n"
       "AMPLITUDE & CLIPPING\n"
-      "  --level DB      Output level in dBFS (default 0)\n"
+      "  --level DB[:DB] Output level in dBFS (default 0)\n"
       "  --headroom DB   Back off composite to prevent clipping (default 0)\n"
       "  --clip-report   Print clipping fraction and peak to stderr\n"
       "  --clip-error    Exit non-zero if output clips after headroom\n"
@@ -506,12 +528,18 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else if (!strcmp (a, "--freq"))
         {
           REQVAL (v);
-          src.freq = strtod (v, NULL);
+          int rf     = 0;
+          src.freq   = parse_range (v, &src.freq_hi, &rf);
+          src.ranged = rf ? (src.ranged | WFM_RANGE_FREQ)
+                          : (src.ranged & ~WFM_RANGE_FREQ);
         }
       else if (!strcmp (a, "--f-end"))
         {
           REQVAL (v);
-          src.f_end = strtod (v, NULL); /* chirp end frequency */
+          int rf    = 0;
+          src.f_end = parse_range (v, &src.f_end_hi, &rf); /* chirp end freq */
+          src.ranged = rf ? (src.ranged | WFM_RANGE_FEND)
+                          : (src.ranged & ~WFM_RANGE_FEND);
         }
       else if (!strcmp (a, "--fc"))
         {
@@ -521,7 +549,10 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else if (!strcmp (a, "--snr"))
         {
           REQVAL (v);
-          src.snr = strtod (v, NULL);
+          int rs     = 0;
+          src.snr    = parse_range (v, &src.snr_hi, &rs);
+          src.ranged = rs ? (src.ranged | WFM_RANGE_SNR)
+                          : (src.ranged & ~WFM_RANGE_SNR);
         }
       else if (!strcmp (a, "--seed"))
         {
@@ -546,12 +577,22 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else if (!strcmp (a, "--count"))
         {
           REQVAL (v);
-          seg.num_samples = (size_t)strtoull (v, NULL, 10);
+          int    rn          = 0;
+          double hi          = 0;
+          seg.num_samples    = (size_t)parse_range (v, &hi, &rn);
+          seg.num_samples_hi = (size_t)hi;
+          seg.ranged         = rn ? (seg.ranged | WFM_RANGE_NUM_SAMPLES)
+                                  : (seg.ranged & ~WFM_RANGE_NUM_SAMPLES);
         }
       else if (!strcmp (a, "--off"))
         {
           REQVAL (v);
-          seg.off_samples = (size_t)strtoull (v, NULL, 10);
+          int    ro          = 0;
+          double hi          = 0;
+          seg.off_samples    = (size_t)parse_range (v, &hi, &ro);
+          seg.off_samples_hi = (size_t)hi;
+          seg.ranged         = ro ? (seg.ranged | WFM_RANGE_OFF_SAMPLES)
+                                  : (seg.ranged & ~WFM_RANGE_OFF_SAMPLES);
         }
       else if (!strcmp (a, "--repeat"))
         {
@@ -572,7 +613,10 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
       else if (!strcmp (a, "--level"))
         {
           REQVAL (v);
-          src.level = strtod (v, NULL);
+          int rl     = 0;
+          src.level  = parse_range (v, &src.level_hi, &rl);
+          src.ranged = rl ? (src.ranged | WFM_RANGE_LEVEL)
+                          : (src.ranged & ~WFM_RANGE_LEVEL);
         }
       else if (!strcmp (a, "--headroom"))
         {

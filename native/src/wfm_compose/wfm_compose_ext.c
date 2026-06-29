@@ -82,6 +82,39 @@ static const char *const _enum_endian[] = {
     NULL,
 };
 
+static int
+_jm_parse_range(PyObject *o, double *lo, double *hi, int *is_range)
+{
+    if (PySequence_Check(o) && !PyUnicode_Check(o)
+        && !PyBytes_Check(o)) {
+        if (PySequence_Size(o) != 2) {
+            PyErr_SetString(PyExc_ValueError,
+                            "range must be a (low, high) pair");
+            return 0;
+        }
+        PyObject *a = PySequence_GetItem(o, 0);
+        PyObject *b = PySequence_GetItem(o, 1);
+        double dlo = a ? PyFloat_AsDouble(a) : -1.0;
+        double dhi = b ? PyFloat_AsDouble(b) : -1.0;
+        Py_XDECREF(a);
+        Py_XDECREF(b);
+        if (PyErr_Occurred())
+            return 0;
+        *lo = dlo;
+        *hi = dhi;
+        *is_range = 1;
+        return 1;
+    }
+    {
+        double v = PyFloat_AsDouble(o);
+        if (PyErr_Occurred())
+            return 0;
+        *lo = v;
+        *is_range = 0;
+    }
+    return 1;
+}
+
 typedef struct {
     PyObject_HEAD
     wfm_source_t src;
@@ -189,16 +222,16 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "fs", NULL};
     const char *type = "tone";
-    double freq = 0.0;
-    double snr = 100.0;
+    PyObject *freq = NULL;
+    PyObject *snr = NULL;
     const char *snr_mode = "auto";
     uint32_t seed = 0;
     int sps = 1;
     int pn_length = 15;
     uint64_t pn_poly = 0;
     const char *lfsr = "galois";
-    double level = 0.0;
-    double f_end = 0.0;
+    PyObject *level = NULL;
+    PyObject *f_end = NULL;
     PyObject *bits = NULL;
     const char *modulation = "bpsk";
     const char *pulse = "rect";
@@ -251,7 +284,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
             }
         }
     }
-    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sddsIiiKsddOssdid", kwlist,
+    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdid", kwlist,
             &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &fs)) {
         if (_kw_owned) Py_DECREF(_kw);
         return -1;
@@ -268,8 +301,36 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
         }
         self->src.type = _i;
     }
-    self->src.freq = freq;
-    self->src.snr = snr;
+    if (freq != NULL) {
+        double _lo, _hi;
+        int    _r;
+        if (!_jm_parse_range(freq, &_lo, &_hi, &_r))
+            return -1;
+        self->src.freq = (double)_lo;
+        if (_r) {
+            self->src.freq_hi = (double)_hi;
+            self->src.ranged |= WFM_RANGE_FREQ;
+        } else {
+            self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+        }
+    } else {
+        self->src.freq = (double)0.0;
+    }
+    if (snr != NULL) {
+        double _lo, _hi;
+        int    _r;
+        if (!_jm_parse_range(snr, &_lo, &_hi, &_r))
+            return -1;
+        self->src.snr = (double)_lo;
+        if (_r) {
+            self->src.snr_hi = (double)_hi;
+            self->src.ranged |= WFM_RANGE_SNR;
+        } else {
+            self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+        }
+    } else {
+        self->src.snr = (double)100.0;
+    }
     {
         int _i = _enum_index(_enum_snr_mode, snr_mode);
         if (_i < 0) {
@@ -292,8 +353,36 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
         }
         self->src.lfsr = _i;
     }
-    self->src.level = level;
-    self->src.f_end = f_end;
+    if (level != NULL) {
+        double _lo, _hi;
+        int    _r;
+        if (!_jm_parse_range(level, &_lo, &_hi, &_r))
+            return -1;
+        self->src.level = (double)_lo;
+        if (_r) {
+            self->src.level_hi = (double)_hi;
+            self->src.ranged |= WFM_RANGE_LEVEL;
+        } else {
+            self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+        }
+    } else {
+        self->src.level = (double)0.0;
+    }
+    if (f_end != NULL) {
+        double _lo, _hi;
+        int    _r;
+        if (!_jm_parse_range(f_end, &_lo, &_hi, &_r))
+            return -1;
+        self->src.f_end = (double)_lo;
+        if (_r) {
+            self->src.f_end_hi = (double)_hi;
+            self->src.ranged |= WFM_RANGE_FEND;
+        } else {
+            self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+        }
+    } else {
+        self->src.f_end = (double)0.0;
+    }
     if (!_attach_bytes(&self->src, bits))
         return -1;
     {
@@ -343,28 +432,52 @@ static PyObject *
 Synth_get_freq(SynthObject *self, void *closure)
 {
     (void)closure;
+    if (self->src.ranged & WFM_RANGE_FREQ)
+        return Py_BuildValue("(dd)", (double)self->src.freq,
+                             (double)self->src.freq_hi);
     return PyFloat_FromDouble((double)self->src.freq);
 }
 static int
 Synth_set_freq(SynthObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->src.freq = (double)PyFloat_AsDouble(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->src.freq = (double)_lo;
+    if (_r) {
+        self->src.freq_hi = (double)_hi;
+        self->src.ranged |= WFM_RANGE_FREQ;
+    } else {
+        self->src.ranged &= ~(unsigned)WFM_RANGE_FREQ;
+    }
     return 0;
 }
 static PyObject *
 Synth_get_snr(SynthObject *self, void *closure)
 {
     (void)closure;
+    if (self->src.ranged & WFM_RANGE_SNR)
+        return Py_BuildValue("(dd)", (double)self->src.snr,
+                             (double)self->src.snr_hi);
     return PyFloat_FromDouble((double)self->src.snr);
 }
 static int
 Synth_set_snr(SynthObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->src.snr = (double)PyFloat_AsDouble(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->src.snr = (double)_lo;
+    if (_r) {
+        self->src.snr_hi = (double)_hi;
+        self->src.ranged |= WFM_RANGE_SNR;
+    } else {
+        self->src.ranged &= ~(unsigned)WFM_RANGE_SNR;
+    }
     return 0;
 }
 static PyObject *
@@ -467,28 +580,52 @@ static PyObject *
 Synth_get_level(SynthObject *self, void *closure)
 {
     (void)closure;
+    if (self->src.ranged & WFM_RANGE_LEVEL)
+        return Py_BuildValue("(dd)", (double)self->src.level,
+                             (double)self->src.level_hi);
     return PyFloat_FromDouble((double)self->src.level);
 }
 static int
 Synth_set_level(SynthObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->src.level = (double)PyFloat_AsDouble(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->src.level = (double)_lo;
+    if (_r) {
+        self->src.level_hi = (double)_hi;
+        self->src.ranged |= WFM_RANGE_LEVEL;
+    } else {
+        self->src.ranged &= ~(unsigned)WFM_RANGE_LEVEL;
+    }
     return 0;
 }
 static PyObject *
 Synth_get_f_end(SynthObject *self, void *closure)
 {
     (void)closure;
+    if (self->src.ranged & WFM_RANGE_FEND)
+        return Py_BuildValue("(dd)", (double)self->src.f_end,
+                             (double)self->src.f_end_hi);
     return PyFloat_FromDouble((double)self->src.f_end);
 }
 static int
 Synth_set_f_end(SynthObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->src.f_end = (double)PyFloat_AsDouble(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->src.f_end = (double)_lo;
+    if (_r) {
+        self->src.f_end_hi = (double)_hi;
+        self->src.ranged |= WFM_RANGE_FEND;
+    } else {
+        self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
+    }
     return 0;
 }
 static PyObject *
@@ -765,6 +902,9 @@ typedef struct {
     double fs;
     size_t num_samples;
     size_t off_samples;
+    unsigned ranged;
+    size_t num_samples_hi;
+    size_t off_samples_hi;
 } SegmentObject;
 
 static void
@@ -780,6 +920,9 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
     self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
+    self->ranged = 0;
+    self->num_samples_hi = 0;
+    self->off_samples_hi = 0;
     PyObject *kw = kwds ? PyDict_Copy(kwds) : PyDict_New();
     if (!kw)
         return -1;
@@ -794,16 +937,26 @@ Segment_init(SegmentObject *self, PyObject *args, PyObject *kwds)
     {
         PyObject *_o = PyDict_GetItemString(kw, "num_samples");
         if (_o) {
-            self->num_samples = (size_t)PyLong_AsSize_t(_o);
-            if (PyErr_Occurred()) goto fail;
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->num_samples = (size_t)_lo;
+            if (_r) { self->num_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_NUM_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES; }
         if (PyDict_DelItemString(kw, "num_samples") < 0) goto fail;
         }
     }
     {
         PyObject *_o = PyDict_GetItemString(kw, "off_samples");
         if (_o) {
-            self->off_samples = (size_t)PyLong_AsSize_t(_o);
-            if (PyErr_Occurred()) goto fail;
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->off_samples = (size_t)_lo;
+            if (_r) { self->off_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_OFF_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES; }
         if (PyDict_DelItemString(kw, "off_samples") < 0) goto fail;
         }
     }
@@ -857,6 +1010,9 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
     self->fs = 1.0;
     self->num_samples = 1024;
     self->off_samples = 0;
+    self->ranged = 0;
+    self->num_samples_hi = 0;
+    self->off_samples_hi = 0;
     PyObject *kw = kwds; /* borrowed; read-only */
     if (kw) {
     {
@@ -869,15 +1025,25 @@ Segment_sum(PyObject *cls, PyObject *args, PyObject *kwds)
     {
         PyObject *_o = PyDict_GetItemString(kw, "num_samples");
         if (_o) {
-            self->num_samples = (size_t)PyLong_AsSize_t(_o);
-            if (PyErr_Occurred()) goto fail;
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->num_samples = (size_t)_lo;
+            if (_r) { self->num_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_NUM_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES; }
         }
     }
     {
         PyObject *_o = PyDict_GetItemString(kw, "off_samples");
         if (_o) {
-            self->off_samples = (size_t)PyLong_AsSize_t(_o);
-            if (PyErr_Occurred()) goto fail;
+            double _lo, _hi;
+            int    _r;
+            if (!_jm_parse_range(_o, &_lo, &_hi, &_r))
+                goto fail;
+            self->off_samples = (size_t)_lo;
+            if (_r) { self->off_samples_hi = (size_t)_hi; self->ranged |= WFM_RANGE_OFF_SAMPLES; }
+            else { self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES; }
         }
     }
     }
@@ -912,28 +1078,52 @@ static PyObject *
 Segment_get_num_samples(SegmentObject *self, void *closure)
 {
     (void)closure;
+    if (self->ranged & WFM_RANGE_NUM_SAMPLES)
+        return Py_BuildValue("(nn)", (Py_ssize_t)self->num_samples,
+                             (Py_ssize_t)self->num_samples_hi);
     return PyLong_FromSize_t((size_t)self->num_samples);
 }
 static int
 Segment_set_num_samples(SegmentObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->num_samples = (size_t)PyLong_AsSize_t(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->num_samples = (size_t)_lo;
+    if (_r) {
+        self->num_samples_hi = (size_t)_hi;
+        self->ranged |= WFM_RANGE_NUM_SAMPLES;
+    } else {
+        self->ranged &= ~(unsigned)WFM_RANGE_NUM_SAMPLES;
+    }
     return 0;
 }
 static PyObject *
 Segment_get_off_samples(SegmentObject *self, void *closure)
 {
     (void)closure;
+    if (self->ranged & WFM_RANGE_OFF_SAMPLES)
+        return Py_BuildValue("(nn)", (Py_ssize_t)self->off_samples,
+                             (Py_ssize_t)self->off_samples_hi);
     return PyLong_FromSize_t((size_t)self->off_samples);
 }
 static int
 Segment_set_off_samples(SegmentObject *self, PyObject *value, void *closure)
 {
     (void)closure;
-    self->off_samples = (size_t)PyLong_AsSize_t(value);
-    if (PyErr_Occurred()) return -1;
+    double _lo, _hi;
+    int    _r;
+    if (!_jm_parse_range(value, &_lo, &_hi, &_r))
+        return -1;
+    self->off_samples = (size_t)_lo;
+    if (_r) {
+        self->off_samples_hi = (size_t)_hi;
+        self->ranged |= WFM_RANGE_OFF_SAMPLES;
+    } else {
+        self->ranged &= ~(unsigned)WFM_RANGE_OFF_SAMPLES;
+    }
     return 0;
 }
 static PyObject *
@@ -1317,6 +1507,9 @@ _build_wfm_compose_segments(PyObject *seglist, size_t *n_out)
         segs[i].fs = seg->fs;
         segs[i].num_samples = seg->num_samples;
         segs[i].off_samples = seg->off_samples;
+        segs[i].ranged = seg->ranged;
+        segs[i].num_samples_hi = seg->num_samples_hi;
+        segs[i].off_samples_hi = seg->off_samples_hi;
     }
     *n_out = (size_t)nseg;
     return segs;
@@ -1378,6 +1571,9 @@ _wfm_compose_segments_to_list(const wfm_segment_t *src, size_t n)
         sg->fs = src[i].fs;
         sg->num_samples = src[i].num_samples;
         sg->off_samples = src[i].off_samples;
+        sg->ranged = src[i].ranged;
+        sg->num_samples_hi = src[i].num_samples_hi;
+        sg->off_samples_hi = src[i].off_samples_hi;
         PyList_SET_ITEM(list, (Py_ssize_t)i, (PyObject *)sg);
     }
     return list;

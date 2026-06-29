@@ -5,13 +5,17 @@ target_include_directories(
                             ${CMAKE_SOURCE_DIR}/native/inc/carrier_nda)
 target_link_libraries(carrier_nda_core PUBLIC
     lo_core
-    loop_filter_core)
+    loop_filter_core
+    boxcar_core
+    agc_core)
 
 add_executable(test_carrier_nda_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_nda_core.c)
 target_link_libraries(test_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core
+    boxcar_core
+    agc_core
     m)
 target_include_directories(test_carrier_nda_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -23,6 +27,8 @@ add_executable(
 target_link_libraries(bench_carrier_nda_core
                       PRIVATE carrier_nda_core lo_core
     loop_filter_core
+    boxcar_core
+    agc_core
     m)
 target_include_directories(
   bench_carrier_nda_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

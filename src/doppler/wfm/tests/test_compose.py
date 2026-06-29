@@ -391,6 +391,50 @@ def test_stream_continuous_is_infinite():
     assert len(blocks) == 5 and all(len(b) == 512 for b in blocks)
 
 
+def test_seed_advances_on_repeat_fresh_noise():
+    """On repeat the seed advances, so each loop is a fresh noise realization
+    (not byte-identical) — a repeated stream is a stream, not a tape loop."""
+    n = 64
+    seg = Segment(
+        "bits",
+        pattern="10110100",
+        modulation="bpsk",
+        sps=1,
+        snr=6.0,
+        snr_mode="fs",
+        num_samples=n,
+    )
+    x = Composer([seg], repeat=True).execute(2 * n)
+    assert not np.array_equal(x[:n], x[n : 2 * n])  # noise differs per loop
+
+
+def test_clean_repeat_keeps_signal_fixed():
+    """The advancing seed varies only the seed-driven part: a clean (noiseless)
+    bits source repeats its waveform bit-for-bit, so a fixed code/pattern is
+    safe to re-acquire every burst."""
+    n = 64
+    seg = Segment(
+        "bits",
+        pattern="10110100",
+        modulation="bpsk",
+        sps=1,
+        snr=100.0,
+        num_samples=n,
+    )
+    x = Composer([seg], repeat=True).execute(2 * n)
+    assert np.array_equal(x[:n], x[n : 2 * n])  # signal identical across loops
+
+
+def test_single_pass_unchanged_by_seed_feature():
+    """Pass 0 reproduces the spec exactly — a finite single-pass run is
+    unaffected by the repeat seed-advance (stays byte-reproducible)."""
+    n = 100
+    kw = {"type": "bpsk", "sps": 4, "snr": 8.0, "snr_mode": "fs", "seed": 3}
+    a = Composer(Segment(**kw, num_samples=n)).compose()
+    b = Composer(Segment(**kw, num_samples=n)).compose()
+    assert np.array_equal(a, b)
+
+
 @_needs_clock
 def test_stream_realtime_paces():
     """stream(block, realtime=fs) paces blocks in C at fs (~ N/fs total)."""

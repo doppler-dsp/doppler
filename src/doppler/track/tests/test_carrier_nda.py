@@ -130,3 +130,45 @@ def test_empty_input():
     c = CarrierNda(m=4)
     y = c.steps(np.zeros(0, dtype=np.complex64))
     assert y.shape == (0,)
+
+
+# -------------------------------------------------------------------- #
+# Amplitude invariance, streaming, and the gh-219 output guarantee     #
+# -------------------------------------------------------------------- #
+@pytest.mark.parametrize("scale", [0.01, 0.1, 1.0])
+def test_amplitude_invariance(scale):
+    # The arm AGC drives the phase detector to unit power, so the loop gain is
+    # independent of input scale: an input at or below the unit reference
+    # converges to the same carrier regardless of amplitude. Cold input well
+    # above unit is out of spec — the slow AGC cannot normalize it before the
+    # discriminator reacts; the front end is expected to deliver roughly
+    # unit-scaled samples.
+    base = _unmod(0.001, 40000, seed=5)
+    ref = CarrierNda(bn=0.01, sps=SPS, n=N, m=4)
+    ref.steps(base)
+    c = CarrierNda(bn=0.01, sps=SPS, n=N, m=4)
+    c.steps((scale * base).astype(np.complex64))
+    assert c.norm_freq == pytest.approx(0.001, abs=5e-4)
+    assert c.norm_freq == pytest.approx(ref.norm_freq, abs=1e-4)
+
+
+def test_block_size_invariance():
+    # Streaming the input in chunks equals a single-block run (loop state
+    # carries across calls). Each chunk is copied because steps() returns a
+    # view into a reused buffer (see test_output_survives_buffer_grow).
+    x = _moddata(4, 0.001, 4000, seed=8)
+    single = CarrierNda(bn=0.01, sps=SPS, n=N, m=4).steps(x)
+    c = CarrierNda(bn=0.01, sps=SPS, n=N, m=4)
+    chunks = [c.steps(x[i : i + 777]).copy() for i in range(0, x.size, 777)]
+    assert np.array_equal(np.concatenate(chunks), single)
+
+
+def test_output_survives_buffer_grow():
+    # gh-219: a returned array must survive a later buffer GROW — the old
+    # buffer is retired (kept alive), not freed. Mirrors ddc's regression test.
+    c = CarrierNda(m=4)
+    x = _unmod(0.001, 6000)
+    y1 = c.steps(x[:1000])
+    snapshot = y1.copy()
+    c.steps(x[:5000])  # forces the output buffer to grow
+    assert np.array_equal(y1, snapshot)

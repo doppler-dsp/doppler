@@ -7,13 +7,16 @@ agc_create (double ref_db, double loop_bw, double alpha)
   agc_state_t *state = calloc (1, sizeof (*state));
   if (!state)
     return NULL;
-  state->ref_db  = ref_db;
-  state->loop_bw = loop_bw;
-  state->alpha   = alpha;
-  state->decim   = AGC_DECIM_DEFAULT;
-  state->clip_db = AGC_CLIP_DB_DEFAULT;
-  state->gain_db = 0.0;
-  state->g_last  = 1.0; /* gain_db = 0 dB -> linear gain 1.0 */
+  state->ref_db             = ref_db;
+  state->loop_bw            = loop_bw;
+  state->alpha              = alpha;
+  state->decim              = AGC_DECIM_DEFAULT;
+  state->clip_db            = AGC_CLIP_DB_DEFAULT;
+  state->gain_update_period = 1; /* default: exact per-sample agc_step() */
+  state->gain_db            = 0.0;
+  state->g_last             = 1.0; /* gain_db = 0 dB -> linear gain 1.0 */
+  state->gain_phase         = 0;
+  state->clip_lin           = (float)agc_exp10_ (state->clip_db * 0.05);
   /* Seed the detector with the reference power 10^(ref_db/10) so the
    * loop starts settled — avoids a large dB error on the first sample
    * and a log10(0) transient before any signal has arrived. */
@@ -30,9 +33,11 @@ agc_destroy (agc_state_t *state)
 void
 agc_reset (agc_state_t *state)
 {
-  state->gain_db = 0.0;
-  state->g_last  = 1.0;
-  state->p_avg   = pow (10.0, state->ref_db * 0.1);
+  state->gain_db    = 0.0;
+  state->g_last     = 1.0;
+  state->gain_phase = 0;
+  state->clip_lin   = (float)agc_exp10_ (state->clip_db * 0.05);
+  state->p_avg      = pow (10.0, state->ref_db * 0.1);
 }
 
 /* Serializable state — whole-struct POD snapshot, pointer-free (see

@@ -27,7 +27,7 @@ def _chirp(n, f, r, *, rng=None, sigma=0.0):
 def test_create_doppler_only():
     """max_rate = 0 collapses the rate axis to a single FFT."""
     p = PolyPhaseEstimator(4096, 0.0)
-    assert p.max_len == 4096 and p.nfft == 4096
+    assert p.max_len == 4096 and p.nfft >= 4096  # zero-padded transform
     assert p.max_rate == 0.0 and p.n_rate == 1
 
 

@@ -47,6 +47,45 @@ It is the feedforward front-end for chirping-burst demodulation.
 
 ______________________________________________________________________
 
+## `BurstDemod` — feedforward DSSS frame demodulator
+
+`BurstDemod` is the whole post-acquisition payload chain, in C, with **no
+tracking loops**: it estimates the residual Doppler *and* Doppler rate
+feedforward (composing `PolyPhaseEstimator` over the unmodulated preamble),
+dechirps the burst at sample rate, despreads the short data code to soft BPSK
+symbols, frame-syncs against a known word, and checks a CRC-16 trailer. The one
+`max_rate` knob spans both operating points: **near-static Doppler** (`0`, a
+single-FFT estimate) and a **severe LEO chirp** (`> 0`, the coherent rate
+search). It is one-shot per burst — seed it from acquisition and call `demod`.
+
+The frame is `[sync header][payload][CRC-16 trailer]` in BPSK symbols (no FEC).
+`demod(x)` returns the payload bits; the read-back properties report
+`frame_valid` (CRC), `est_freq_hz`, `est_rate_hz`, `frame_offset`, and
+`n_symbols`.
+
+```python
+import numpy as np
+from doppler.dsss import Acquisition, BurstDemod
+
+# Acquire the preamble (coarse Doppler + code phase), then hand off.
+acq = Acquisition(acq_code, reps=5, spc=4, chip_rate=1e6, cn0_dbhz=45.0,
+                  doppler_uncertainty=3e5, pfa=1e-3, pd=0.9)
+hit = acq.push(rx)[0]               # (doppler_bin, code_phase, ...)
+f0 = (hit[0] * acq.doppler_res_hz - acq.doppler_span_hz) / (1e6 * 4)  # -> cyc/sample
+
+d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
+               max_rate=1e-6, payload_len=256, est_segments=10)  # LEO regime
+d.set_preamble(acq_code, reps=5)
+d.set_sync(sync_word)              # 0/1 BPSK sync header
+d.set_prior(f0, preamble_start)
+bits = d.demod(rx)
+assert d.frame_valid             # CRC passed
+```
+
+::: doppler.dsss.BurstDemod
+
+______________________________________________________________________
+
 ## `Despreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the

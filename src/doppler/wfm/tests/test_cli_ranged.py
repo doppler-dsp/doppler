@@ -81,3 +81,13 @@ def test_scalar_flags_still_scalar(tmp_path):
     seg = spec["segments"][0]
     assert seg["freq"] == 1e5
     assert not isinstance(seg["freq"], list)
+
+
+def test_seed_advance_flag_accepted(tmp_path):
+    """The ``--seed-advance`` choice flag parses and the run completes (the
+    mode is a no-op on a finite single pass and is not serialised into the
+    record, so this just asserts the CLI accepts it)."""
+    spec = _record(
+        tmp_path, "--type", "tone", "--seed-advance", "noise", "--count", "64"
+    )
+    assert spec["version"] == 1

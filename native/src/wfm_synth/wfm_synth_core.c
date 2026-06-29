@@ -208,6 +208,13 @@ wfm_synth_reset (wfm_synth_state_t *state)
     pn_reset (state->pn);
 }
 
+void
+wfm_synth_reseed_noise (wfm_synth_state_t *state, uint32_t seed)
+{
+  if (state && state->awgn)
+    awgn_reseed (state->awgn, (uint64_t)seed);
+}
+
 /* Serializable state — running waveform-position scalars + the optional
  * fir/lo/awgn/pn children (presence-flagged, so a payload-only or noiseless
  * synth round-trips); bits[] + sweep geometry are config (restored by create).

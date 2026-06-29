@@ -26,8 +26,10 @@ ppe_create (size_t max_len, double max_rate)
   ppe_state_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
-  s->max_len  = max_len;
-  s->nfft     = next_pow2 (max_len);
+  s->max_len = max_len;
+  /* 4x zero-pad: finer frequency grid + accurate parabolic peak interpolation
+   * (the input is often short — preamble partials / symbol streams). */
+  s->nfft     = next_pow2 (max_len) << 2;
   s->max_rate = max_rate;
 
   /* Chirp-rate grid: resolution ~ 1/L^2 (a rate error r smears the dechirped

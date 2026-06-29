@@ -1585,4 +1585,4 @@ values = ["le", "be"]
 objects = ["loop_filter", "costas", "dll", "channel", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
 [module.dsss]
-objects = ["despreader", "acq", "ppe"]
+objects = ["despreader", "acq", "ppe", "burst_demod"]

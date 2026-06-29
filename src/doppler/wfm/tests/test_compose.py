@@ -391,48 +391,86 @@ def test_stream_continuous_is_infinite():
     assert len(blocks) == 5 and all(len(b) == 512 for b in blocks)
 
 
-def test_seed_advances_on_repeat_fresh_noise():
-    """On repeat the seed advances, so each loop is a fresh noise realization
-    (not byte-identical) — a repeated stream is a stream, not a tape loop."""
-    n = 64
-    seg = Segment(
-        "bits",
-        pattern="10110100",
-        modulation="bpsk",
-        sps=1,
-        snr=6.0,
-        snr_mode="fs",
-        num_samples=n,
+def _repeat_json(seg, n_periods, *, seed_advance="none"):
+    """Render `n_periods` of a one-segment repeating spec via from_json (the
+    path that honours the `seed_advance` spec field: none/noise/all)."""
+    import json
+
+    spec = {
+        "version": 1,
+        "repeat": True,
+        "seed_advance": seed_advance,
+        "segments": [seg],
+    }
+    return Composer.from_json(json.dumps(spec)).execute(
+        n_periods * seg["num_samples"]
     )
-    x = Composer([seg], repeat=True).execute(2 * n)
-    assert not np.array_equal(x[:n], x[n : 2 * n])  # noise differs per loop
 
 
-def test_clean_repeat_keeps_signal_fixed():
-    """The advancing seed varies only the seed-driven part: a clean (noiseless)
-    bits source repeats its waveform bit-for-bit, so a fixed code/pattern is
-    safe to re-acquire every burst."""
+def _pn(snr, n=127, length=7):
+    return {
+        "type": "pn",
+        "fs": 1e6,
+        "freq": 0,
+        "snr": snr,
+        "snr_mode": "fs",
+        "seed": 1,
+        "sps": 1,
+        "pn_length": length,
+        "num_samples": n,
+        "off_samples": 0,
+    }
+
+
+def _bits(snr, n=64):
+    return {
+        "type": "bits",
+        "fs": 1e6,
+        "freq": 0,
+        "snr": snr,
+        "snr_mode": "fs",
+        "seed": 1,
+        "sps": 1,
+        "modulation": "bpsk",
+        "pattern": "10110100",
+        "num_samples": n,
+        "off_samples": 0,
+    }
+
+
+def test_repeat_is_byte_identical_by_default():
+    """seed_advance="none" (the default) → repeats are byte-identical."""
     n = 64
-    seg = Segment(
-        "bits",
-        pattern="10110100",
-        modulation="bpsk",
-        sps=1,
-        snr=100.0,
-        num_samples=n,
-    )
-    x = Composer([seg], repeat=True).execute(2 * n)
-    assert np.array_equal(x[:n], x[n : 2 * n])  # signal identical across loops
+    x = _repeat_json(_bits(6.0, n), 2)  # default none
+    assert np.array_equal(x[:n], x[n : 2 * n])
 
 
-def test_single_pass_unchanged_by_seed_feature():
-    """Pass 0 reproduces the spec exactly — a finite single-pass run is
-    unaffected by the repeat seed-advance (stays byte-reproducible)."""
-    n = 100
-    kw = {"type": "bpsk", "sps": 4, "snr": 8.0, "snr_mode": "fs", "seed": 3}
-    a = Composer(Segment(**kw, num_samples=n)).compose()
-    b = Composer(Segment(**kw, num_samples=n)).compose()
-    assert np.array_equal(a, b)
+def test_seed_advance_noise_varies_noise_only():
+    """seed_advance="noise" advances the NOISE seed each repeat (fresh
+    realization) while the signal stays fixed: a noisy source's loops differ, a
+    clean one's are identical, and a PN source's *code* is unchanged."""
+    n = 64
+    noisy = _repeat_json(_bits(6.0, n), 2, seed_advance="noise")
+    assert not np.array_equal(noisy[:n], noisy[n : 2 * n])  # noise differs
+
+    clean = _repeat_json(_bits(100.0, n), 2, seed_advance="noise")
+    assert np.array_equal(clean[:n], clean[n : 2 * n])  # signal fixed
+
+    # A clean PN source keeps its code bit-for-bit across repeats (only the
+    # noise would advance) — so a fixed preamble re-acquires every burst.
+    pn = _repeat_json(_pn(100.0), 2, seed_advance="noise")
+    assert np.array_equal(pn[:127], pn[127 : 2 * 127])
+
+
+def test_seed_advance_all_varies_signal():
+    """seed_advance="all" advances the whole seed → even a clean (noiseless) PN
+    source's *code* changes each repeat (a fully stochastic stream)."""
+    a = _repeat_json(_pn(100.0), 2, seed_advance="all")
+    assert not np.array_equal(a[:127], a[127 : 2 * 127])  # signal/code differs
+
+    # First pass is always the unmodified seed → matches a none run's pass.
+    base = _repeat_json(_pn(100.0), 2)  # default none
+    assert np.array_equal(a[:127], base[:127])
 
 
 @_needs_clock

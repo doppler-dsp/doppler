@@ -16,3 +16,5 @@ nprmeas
 imdmeas
 # Feedforward polynomial-phase estimator — estimate(x) -> record, no state.
 ppe
+# Feedforward DSSS frame demod — one-shot burst analyzers, no running state.
+burst_demod

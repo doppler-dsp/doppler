@@ -131,12 +131,65 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   return _fails;
 }
 
+/* Guard / error / clamp paths the happy-path cases never reach. */
+static int
+run_edge_cases (void)
+{
+  int     _fails = 0;
+  uint8_t dc[DATA_SF], ac[ACQ_SF];
+  for (size_t i = 0; i < DATA_SF; i++)
+    dc[i] = (uint8_t)(i & 1u);
+  for (size_t i = 0; i < ACQ_SF; i++)
+    ac[i] = (uint8_t)(i & 1u);
+
+  /* Argument validation → NULL (each clause of the create guard). */
+  CHECK (burst_demod_create (NULL, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
+         == NULL);
+  CHECK (burst_demod_create (dc, 0, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
+         == NULL);
+  CHECK (burst_demod_create (dc, DATA_SF, 0, CHIP_RATE, 0, 0, PAYLOAD, 10)
+         == NULL);
+  CHECK (burst_demod_create (dc, DATA_SF, SPC, 0.0, 0, 0, PAYLOAD, 10)
+         == NULL);
+  CHECK (burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, -1.0, PAYLOAD, 10)
+         == NULL);
+  CHECK (burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 0)
+         == NULL);
+
+  burst_demod_destroy (NULL); /* no-op on NULL */
+
+  burst_demod_state_t *d
+      = burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10);
+  CHECK (d != NULL);
+  burst_demod_set_preamble (d, NULL, 0, 0); /* guard: ignored */
+  burst_demod_set_sync (d, NULL, 0);        /* guard: ignored */
+  burst_demod_set_preamble (d, ac, ACQ_SF, ACQ_REPS);
+  burst_demod_set_preamble (d, ac, ACQ_SF,
+                            ACQ_REPS); /* re-arm: frees old ppe */
+  burst_demod_set_sync (d, SYNC, SYNC_LEN);
+
+  /* Too-short input → clean failure (0 symbols, frame invalid). */
+  float complex tiny[8] = { 0 };
+  uint8_t       eb[PAYLOAD];
+  burst_demod_set_prior (d, 0.0, 0);
+  CHECK (burst_demod_demod (d, tiny, 8, eb, PAYLOAD) == 0);
+  CHECK (d->frame_valid == 0);
+  burst_demod_destroy (d);
+
+  /* est_segments > acq_sf forces the per-segment chip clamp (Lseg >= 1). */
+  burst_demod_state_t *d2 = burst_demod_create (dc, DATA_SF, SPC, CHIP_RATE, 0,
+                                                0, PAYLOAD, ACQ_SF + 100);
+  CHECK (d2 != NULL);
+  burst_demod_set_preamble (d2, ac, ACQ_SF, 1);
+  burst_demod_destroy (d2);
+  return _fails;
+}
+
 int
 main (void)
 {
   int _fails = 0;
-  CHECK (burst_demod_create (NULL, 0, SPC, CHIP_RATE, 0, 0, PAYLOAD, 10)
-         == NULL);
+  _fails += run_edge_cases ();
 
   /* Near-static Doppler (negligible rate): max_rate = 0, single-FFT estimate.
    */

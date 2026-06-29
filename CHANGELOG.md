@@ -13,6 +13,39 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-06-29
+
+### Added
+
+- **`dsss.BurstDemod`** — feedforward BPSK DSSS burst/frame demodulator. Takes a
+    coarse `(Doppler, chirp-rate)` prior from acquisition, refines it with a
+    feedforward 2-D estimate over the preamble partials, sample-rate dechirps,
+    despreads, frame-syncs on a sync word, and CRC-checks the payload. Handles
+    near-static Doppler **and** high-rate (LEO) chirped bursts.
+- **`dsss.PolyPhaseEstimator`** — coherent 2-D (frequency × chirp-rate)
+    estimator (2-lag HAF) with a `max_rate` knob: `0` collapses to a single
+    zero-padded FFT (Doppler only), non-zero adds the rate axis. The transform is
+    4× zero-padded for a finer frequency grid plus parabolic peak interpolation.
+- **Ranged numeric fields in the `wfm` composer** — `freq`, `f_end`, `snr`,
+    `level`, `num_samples`, and `off_samples` each accept either a scalar **or** a
+    `[lo, hi]` pair (`Synth(freq=(lo, hi))` / `Segment(...)` / JSON `[lo, hi]` /
+    CLI `--freq lo:hi`) drawn **uniformly per segment repeat**. The draw is a
+    stateless splitmix64 hash of `(seed, repeat, segment, source, field)`, so
+    `--record` stores the *range* and `--from-file` replays byte-for-byte —
+    powering per-burst Doppler and code-phase variation in a looping scene.
+- **`wfm` `seed_advance` (`none` / `noise` / `all`)** — per-repeat seed policy
+    for looped / `--continuous` streams (CLI `--seed-advance`, JSON
+    `seed_advance`). `none` (default) repeats byte-identically; `noise` re-rolls
+    only the AWGN seed (signal bit-identical — BER/detection curves over one
+    fixed waveform); `all` advances the whole seed (code, data, and noise). Pass
+    0 is always the unmodified seed, so a finite single-pass run stays
+    byte-reproducible.
+- **Realtime DSSS demod example**
+    (`doppler.examples.dsss_realtime_file_demod`) — tails a growing
+    `wfmgen --continuous` capture and decodes each burst as it lands (DDC →
+    Acquisition → BurstDemod), each with a fresh Doppler offset, code phase, and
+    noise realization.
+
 ## [0.22.0] — 2026-06-25
 
 ### Added
@@ -1688,6 +1721,7 @@ ______________________________________________________________________
 [0.2.8]: https://github.com/doppler-dsp/doppler/compare/v0.2.7...v0.2.8
 [0.2.9]: https://github.com/doppler-dsp/doppler/compare/v0.2.8...v0.2.9
 [0.22.0]: https://github.com/doppler-dsp/doppler/compare/v0.21.0...v0.22.0
+[0.23.0]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...v0.23.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3

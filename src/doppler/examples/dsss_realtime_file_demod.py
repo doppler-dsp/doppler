@@ -3,20 +3,28 @@
 The whole pipeline through one growing file, with the project's own tools:
 
 * **Writer** — the ``wfmgen`` CLI streams ``scene.json`` ``--continuous
-  --realtime`` in the background: a BPSK-DSSS burst (PN preamble + a
-  spread ``sync | payload | CRC`` frame, Doppler + noise baked in) **once every
-  500 ms**. wfmgen advances the seed each repeat, so every burst is a **fresh
-  noise realization** (the code/payload stay fixed — the scene carries them as
-  explicit ``bits`` patterns).
+  --realtime`` in the background: a BPSK-DSSS burst (PN preamble + a spread
+  ``sync | payload | CRC`` frame) **every ~PRI ms**. The scene uses wfmgen's
+  *ranged-field* interface — a numeric field given as ``[low, high]`` is drawn
+  uniformly each repeat — so **every burst gets a fresh Doppler** (``freq:
+  [lo, hi]``) **and a fresh arrival jitter** (the trailing gap ``off_samples:
+  [lo, hi]``, which shifts the next burst's code phase), on top of a fresh
+  noise realization (``seed_advance="noise"``). Code and payload stay fixed
+  (they're explicit ``bits`` patterns), and the draws are reproducible — keyed
+  off the source seed and the repeat index — so the same scene replays
+  byte-for-byte.
 
-* **Reader** — *tails* the growing file: for each burst it waits only until
-  that burst's samples have landed, then runs ``DDC`` (tune the bulk Doppler
-  out) -> ``Acquisition`` -> ``BurstDemod``, decoding it the moment it arrives
-  — while the writer is still producing later bursts.
+* **Reader** — a streaming acquirer that *follows* the bursts rather than
+  assuming a fixed grid: it seeks to each burst's expected position (one PRI on
+  from the last), reads a short window that absorbs the sub-code-period arrival
+  jitter, then runs ``DDC`` (tune the predicted bulk Doppler out) ->
+  ``Acquisition`` (residual Doppler + code-phase search) -> ``BurstDemod``,
+  decoding it the moment it lands — while the writer is still producing later
+  bursts. The detected code phase and Doppler therefore change burst-to-burst.
 
 All DSP lives in the C objects (wfmgen engine, DDC, Acquisition, BurstDemod);
-this module is the orchestrator — it writes the scene spec, tails the file, and
-maps the detector output to the demod's prior.
+this module is the orchestrator — it writes the scene spec, follows the file,
+and maps the detector output to the demod's prior.
 
 Run it::
 
@@ -43,20 +51,30 @@ from doppler.wfm import PN
 # (poly=0 auto-picks the primitive polynomial) — a clean thumbtack
 # autocorrelation, so acquisition has genuine processing gain. They are carried
 # in the scene as explicit `bits` patterns, which stay fixed as wfmgen advances
-# the seed each repeat (only noise varies). Lengths are MLS periods (2^n-1).
+# the seed each repeat (only the random draws vary). Lengths are MLS periods.
 ACQ_BITS, DATA_BITS = 9, 6
 ACQ_SF, REPS, DATA_SF, SPC = (1 << ACQ_BITS) - 1, 5, (1 << DATA_BITS) - 1, 4
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC  # 4 MHz channel rate
 PAYLOAD = 64
-PRI_MS = 500.0  # one burst every 500 ms
+PRI_MS = 250.0  # nominal burst spacing (the writer paces to this in realtime)
 SYNC = np.array(
     [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8
 )  # Barker
 
-DOPPLER_HZ = 11_500.0  # true Doppler baked into the scene
-NOMINAL_HZ = 12_000.0  # the receiver's predicted (coarse) Doppler
+# Doppler is drawn uniformly per burst in [DOPPLER_LO, DOPPLER_HI]; the
+# receiver DDCs by the band centre (NOMINAL_HZ) so the residual the Acquisition
+# searches stays inside its ±span (5 bins × ~391 Hz ≈ ±978 Hz here).
+DOPPLER_LO = 11_200.0
+DOPPLER_HI = 12_800.0
+NOMINAL_HZ = 0.5 * (DOPPLER_LO + DOPPLER_HI)  # 12.0 kHz: the receiver's guess
 SNR_DB = 10.0
+
+# Per-burst arrival jitter (samples): the trailing gap varies over this span,
+# so the next burst's preamble lands at a different code phase. Kept below one
+# code period (ACQ_SF * SPC) so the observed offset is the code phase exactly.
+JITTER_MAX = 1_600
+assert JITTER_MAX < ACQ_SF * SPC  # one code period = 2044 samples
 
 SCENE = Path(__file__).resolve().parent / "scene.json"
 
@@ -71,8 +89,12 @@ def _pn(bits, n, seed):
 _ACODE = _pn(ACQ_BITS, ACQ_SF, 1)  # preamble code (511-chip MLS)
 _DCODE = _pn(DATA_BITS, DATA_SF, 1)  # data code (63-chip MLS)
 _PAYLOAD_BITS = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
-_PERIOD = round(PRI_MS * 1e-3 * FS)
+# Active burst = preamble (REPS × 511 chips) + spread frame, in samples.
 _BURST = (ACQ_SF * REPS + (len(SYNC) + PAYLOAD + 16) * DATA_SF) * SPC
+_PERIOD = round(PRI_MS * 1e-3 * FS)  # nominal samples between burst starts
+_NOMINAL_GAP = _PERIOD - _BURST  # trailing zeros for the nominal PRI
+# Reader window: the burst plus the full jitter span plus search margin.
+_WINDOW = _BURST + JITTER_MAX + 4000
 
 
 def _crc16(bits):
@@ -91,40 +113,32 @@ def _frame_chips():
     return "".join("".join(map(str, _DCODE ^ b)) for b in frame)
 
 
-def write_scene(path, *, doppler_hz=DOPPLER_HZ, snr_db=SNR_DB):
-    """Write the wfmgen scene spec: a PN-preamble `bits` segment + a
-    spread-frame `bits` segment + the 500 ms gap; `continuous` streams it
-    forever with a fresh noise realization each burst (seed advances)."""
-    pre = "".join(map(str, np.tile(_ACODE, REPS)))
-    fr = _frame_chips()
-    gap = _PERIOD - (len(pre) + len(fr)) * SPC
-    common = {
-        "type": "bits",
-        "fs": FS,
-        "freq": doppler_hz,
-        "snr": snr_db,
-        "snr_mode": "fs",
-        "seed": 1,
-        "sps": SPC,
-        "modulation": "bpsk",
-    }
+def write_scene(path, *, snr_db=SNR_DB):
+    """Write the wfmgen scene: ONE bits segment per burst (preamble chips then
+    the spread frame, concatenated so the burst shares one carrier and one
+    Doppler draw), streamed `continuous`. The ranged fields make each repeat
+    distinct: `freq` is a uniform Doppler draw, `off_samples` a uniform
+    trailing gap (→ varying code phase), `seed_advance="noise"` for AWGN."""
+    pattern = "".join(map(str, np.tile(_ACODE, REPS))) + _frame_chips()
     scene = {
         "version": 1,
         "continuous": True,
         "seed_advance": "noise",  # fresh noise each burst; code/payload fixed
         "segments": [
             {
-                **common,
-                "pattern": pre,
-                "num_samples": len(pre) * SPC,
-                "off_samples": 0,
-            },
-            {
-                **common,
-                "pattern": fr,
-                "num_samples": len(fr) * SPC,
-                "off_samples": gap,
-            },
+                "type": "bits",
+                "fs": FS,
+                "freq": [DOPPLER_LO, DOPPLER_HI],  # per-burst Doppler draw
+                "snr": snr_db,
+                "snr_mode": "fs",
+                "seed": 1,
+                "sps": SPC,
+                "modulation": "bpsk",
+                "pattern": pattern,
+                "num_samples": len(pattern) * SPC,
+                # nominal PRI gap + uniform arrival jitter → varying code phase
+                "off_samples": [_NOMINAL_GAP, _NOMINAL_GAP + JITTER_MAX],
+            }
         ],
     }
     Path(path).write_text(json.dumps(scene, indent=2))
@@ -174,16 +188,18 @@ def _read_samples(path, start, count):
 
 
 def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
-    """DDC tunes the predicted bulk Doppler out; Acquisition detects (slow-time
-    Doppler FFT over the reps); BurstDemod estimates the residual feedforward,
-    despreads, frame-syncs, and checks the CRC."""
+    """DDC tunes the predicted bulk Doppler out; Acquisition detects (residual
+    Doppler search over the reps + a code-phase search); BurstDemod estimates
+    the residual feedforward, despreads, frame-syncs, and checks the CRC. The
+    returned ``code_phase`` is where in the window the preamble landed — the
+    per-burst arrival jitter — and ``est_freq_hz`` is the recovered Doppler."""
     base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(chunk)
     acq = Acquisition(
         _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
     )
     hits = acq.push(base)
     if not hits:
-        return {"detected": False, "frame_valid": False}
+        return {"detected": False, "frame_valid": False, "code_phase": 0}
     dop, cp, _peak, _noise, test_stat, _snr = max(hits, key=lambda h: h[4])
     f0 = dop * acq.doppler_res_hz
     if dop >= acq.doppler_bins / 2:
@@ -199,14 +215,18 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     d.set_preamble(_ACODE, REPS)
     d.set_sync(SYNC)
     npre = ACQ_SF * REPS * SPC
-    for start in range(0, ACQ_SF * SPC, SPC):
-        if start + npre > len(base):
-            break
+    # Try the acquired code phase first (sample-precise), then fall back to a
+    # coarse grid scan over one code period in case the peak was a chip off.
+    starts = [int(cp), *list(range(0, ACQ_SF * SPC, SPC))]
+    for start in starts:
+        if start < 0 or start + npre > len(base):
+            continue
         d.set_prior(f0 / FS, start)
         bits = d.demod(base)
         if d.frame_valid:
             rec.update(
                 frame_valid=True,
+                code_phase=int(start),
                 bits=bits,
                 est_freq_hz=d.est_freq_hz + nominal_hz,
             )
@@ -215,14 +235,19 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
 
 
 def tail_decode(capture_path, n_bursts, *, proc=None, on_decode=None):
-    """Tail the growing capture: for each burst wait until its samples land,
-    then read + decode it — concurrent with the writer."""
+    """Follow the growing capture: seek to each burst's expected position (one
+    PRI on from the last decode), wait until that window lands, then read +
+    decode it. Advancing by the *detected* code phase keeps the reader locked
+    to the true burst positions even as the per-burst arrival jitter
+    accumulates — no fixed grid assumption."""
     capture_path = Path(capture_path)
     results = []
+    abs_prev = 0  # absolute sample index of the last burst's preamble
     for k in range(n_bursts):
+        seek = 0 if k == 0 else abs_prev + _PERIOD
         chunk = None
         while chunk is None:
-            chunk = _read_samples(capture_path, k * _PERIOD, _BURST + 4000)
+            chunk = _read_samples(capture_path, seek, _WINDOW)
             if chunk is None:
                 if proc is not None and proc.poll() is not None:
                     break
@@ -231,6 +256,7 @@ def tail_decode(capture_path, n_bursts, *, proc=None, on_decode=None):
             break
         rec = decode_chunk(chunk)
         rec["burst"] = k
+        abs_prev = seek + rec.get("code_phase", 0)
         results.append(rec)
         if on_decode is not None:
             on_decode(k, rec)
@@ -240,7 +266,7 @@ def tail_decode(capture_path, n_bursts, *, proc=None, on_decode=None):
 def run_streaming(
     n_bursts=6, *, realtime=True, scene_path=None, on_decode=None
 ):
-    """Stream the scene with wfmgen and tail-decode `n_bursts` concurrently."""
+    """Stream the scene with wfmgen and follow-decode `n_bursts` live."""
     with tempfile.TemporaryDirectory() as tmp:
         scene = scene_path or write_scene(Path(tmp) / "scene.json")
         cap = Path(tmp) / "capture.cf32"
@@ -255,35 +281,41 @@ def run_streaming(
 
 def main():
     print(
-        f"\nwriter: wfmgen --continuous --realtime scene.json -> growing "
-        f"file ({PRI_MS:.0f} ms PRI, {DOPPLER_HZ / 1e3:.1f} kHz Doppler, "
-        f"{SNR_DB:.0f} dB, fresh noise each repeat)"
+        f"\nwriter: wfmgen --continuous --realtime scene.json -> growing file "
+        f"({PRI_MS:.0f} ms PRI, Doppler ∈ [{DOPPLER_LO / 1e3:.1f}, "
+        f"{DOPPLER_HI / 1e3:.1f}] kHz, code φ jitter ≤ {JITTER_MAX} samp, "
+        f"{SNR_DB:.0f} dB, fresh noise each burst)"
     )
     print(
-        f"reader: tail -> DDC(-{NOMINAL_HZ / 1e3:.0f} kHz) -> Acquisition -> "
-        f"BurstDemod, decoding each burst as it lands\n"
+        f"reader: follow -> DDC(-{NOMINAL_HZ / 1e3:.1f} kHz) -> Acquisition "
+        f"-> BurstDemod, decoding each burst as it lands\n"
     )
-    # test_stat shifts burst-to-burst because each repeat is a fresh noise
-    # realization (wfmgen advances the seed) — the code/payload stay fixed.
+    # Doppler and code phase now shift burst-to-burst (ranged scene fields);
+    # test_stat shifts too because each repeat is a fresh noise realization.
     print(
-        f"  {'t':>6} {'burst':<5} {'CRC':<4} {'errs':>4} {'test':>5} "
+        f"  {'t':>5} {'burst':<5} {'CRC':<4} {'errs':>4} {'test':>5} "
         f"{'code φ':>6} {'Doppler':>9}"
     )
-    t0 = time.monotonic()
+    # Anchor the clock to the first decode, so burst 0 reads 0.0s and the rest
+    # show the PRI cadence relative to it (not the writer's start-up latency).
+    t0 = None
 
     def report(k, r):
+        nonlocal t0
+        if t0 is None:
+            t0 = time.monotonic()
         dt = time.monotonic() - t0
         ts = f"{r['test_stat']:.0f}" if "test_stat" in r else "-"
         cp = r.get("code_phase", "-")
         if r["frame_valid"]:
             errs = int(np.sum(r["bits"] != _PAYLOAD_BITS))
             print(
-                f"  {dt:5.2f}s {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
+                f"  {dt:4.1f}s {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
                 f"{r['est_freq_hz']:>7.0f}Hz"
             )
         else:
             tag = "no-det" if not r["detected"] else "FAIL"
-            print(f"  {dt:5.2f}s {k:<5} {tag:<4} {'':>4} {ts:>5} {cp:>6}")
+            print(f"  {dt:4.1f}s {k:<5} {tag:<4} {'':>4} {ts:>5} {cp:>6}")
 
     run_streaming(6, realtime=True, on_decode=report)
     print()

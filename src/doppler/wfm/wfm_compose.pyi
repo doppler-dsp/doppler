@@ -11,8 +11,8 @@ class Synth:
     ----------
     type : str, default ``"tone"``
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``.
-    freq : float, default 0.0
-    snr : float, default 100.0
+    freq : float | tuple[float, float], default ``"0.0"``
+    snr : float | tuple[float, float], default ``"100.0"``
     snr_mode : str, default ``"auto"``
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
@@ -21,8 +21,8 @@ class Synth:
     pn_poly : int, default 0
     lfsr : str, default ``"galois"``
         One of ``"galois"``, ``"fibonacci"``.
-    level : float, default 0.0
-    f_end : float, default 0.0
+    level : float | tuple[float, float], default ``"0.0"``
+    f_end : float | tuple[float, float], default ``"0.0"``
     bits : bytes | None, default None
     modulation : str, default ``"bpsk"``
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
@@ -32,7 +32,7 @@ class Synth:
     rrc_span : int, default 8
     fs : float, default 1.0
     """
-    def __init__(self, type: str = ..., freq: float = ..., snr: float = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float = ..., f_end: float = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ...) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate *n* complex samples."""
@@ -48,8 +48,8 @@ class Segment:
     ----------
     type : str, default ``"tone"``
         One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``.
-    freq : float, default 0.0
-    snr : float, default 100.0
+    freq : float | tuple[float, float], default ``"0.0"``
+    snr : float | tuple[float, float], default ``"100.0"``
     snr_mode : str, default ``"auto"``
         One of ``"auto"``, ``"fs"``, ``"ebno"``, ``"esno"``.
     seed : int, default 0
@@ -58,8 +58,8 @@ class Segment:
     pn_poly : int, default 0
     lfsr : str, default ``"galois"``
         One of ``"galois"``, ``"fibonacci"``.
-    level : float, default 0.0
-    f_end : float, default 0.0
+    level : float | tuple[float, float], default ``"0.0"``
+    f_end : float | tuple[float, float], default ``"0.0"``
     bits : bytes | None, default None
     modulation : str, default ``"bpsk"``
         One of ``"none"``, ``"bpsk"``, ``"qpsk"``.
@@ -68,8 +68,8 @@ class Segment:
     rrc_beta : float, default 0.35
     rrc_span : int, default 8
     fs : float, default 1.0
-    num_samples : int, default 1024
-    off_samples : int, default 0
+    num_samples : int | tuple[int, int], default ``"1024"``
+    off_samples : int | tuple[int, int], default ``"0"``
     """
     sources: list[Synth]
     type: str
@@ -88,9 +88,9 @@ class Segment:
     pulse: str
     rrc_beta: float
     rrc_span: int
-    def __init__(self, type: str = ..., freq: float = ..., snr: float = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float = ..., f_end: float = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ..., num_samples: int = ..., off_samples: int = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> None: ...
     @classmethod
-    def sum(cls, *sources: Synth, fs: float = ..., num_samples: int = ..., off_samples: int = ...) -> Segment:
+    def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> Segment:
         """Combine *sources* into a single Segment."""
     def add(self, *others: Segment) -> Timeline:
         """Append segments; return a Timeline."""

@@ -60,3 +60,9 @@ name = "clip_db"
 type = "double"
 writable = true
 field = true
+
+[[agc.properties]]
+name = "gain_update_period"
+type = "size_t"
+writable = true
+field = true

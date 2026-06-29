@@ -99,7 +99,14 @@ def test_bits_coherent():
 
 
 def test_rrc_pulse_recovers():
-    """RRC matched filter on a true RRC-shaped TX recovers QPSK."""
+    """RRC matched filter on a true RRC-shaped TX recovers QPSK.
+
+    Previously xfail: the original integrate-and-dump CarrierNda arm pulled in
+    too slowly/jitterily on a pulse-shaped (RRC) arm for the downstream matched
+    filter + Gardner timing to recover the symbols. The CarrierNda rework (raw
+    M-th-power discriminator on a per-sample boxcar moving-average arm + arm
+    AGC) fixed the pull-in; QPSK now recovers at SER 0 (verified across seeds).
+    """
     from doppler.filter import FIR
 
     m, sps, beta, span, nsym = 4, 8, 0.35, 8, 6000

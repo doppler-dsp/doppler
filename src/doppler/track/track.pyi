@@ -644,7 +644,7 @@ class CarrierNda:
     sps : int, default 8
         Samples per symbol (default 8).
     n : int, default 4
-        Arm dumps per symbol (default 4; sps % n == 0).
+        MA window divisor: window = sps/n (default 4; sps%n==0).
     m : int, default 4
         Constellation order M, 2/4/8 (default 4 = QPSK).
 

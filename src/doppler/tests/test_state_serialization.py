@@ -45,7 +45,7 @@ from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
 from doppler.dsss import Despreader
-from doppler.filter import FIR, HBDecimQ15
+from doppler.filter import FIR, HBDecimQ15, MovingAverage
 from doppler.resample import (
     CIC,
     Farrow,
@@ -173,6 +173,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
     "FIR": (lambda: FIR(_FIR_TAPS), lambda o, seg: np.array(o.execute(seg))),
+    "MovingAverage": (
+        lambda: MovingAverage(7, gain=1.25),
+        lambda o, seg: np.array(o.steps(seg)),
+    ),
     "DDC": (lambda: DDC(-0.1, 0.25), lambda o, seg: np.array(o.execute(seg))),
     # Ddcr (handle module, gh-403): real input + caller-owned output buffer.
     "Ddcr": (

@@ -1,0 +1,34 @@
+[boxcar]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "MovingAverage"
+serializable = "true"
+
+[[boxcar.init_params]]
+name = "len"
+type = "size_t"
+default = "4"
+
+[[boxcar.init_params]]
+name = "gain"
+type = "double"
+default = "1.0"
+
+[[boxcar.methods]]
+name = "reset"
+doc = "Clear the window (zero the ring and the running sum); keep the configured length and gain."
+arg_type = "void"
+return_type = "void"
+
+[[boxcar.properties]]
+name = "len"
+type = "size_t"
+field = true
+
+[[boxcar.properties]]
+name = "gain"
+type = "double"
+writable = true

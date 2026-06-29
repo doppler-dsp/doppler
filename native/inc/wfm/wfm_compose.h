@@ -39,12 +39,39 @@ extern "C" {
 #endif
 
 /**
+ * @brief Per-field "draw uniformly each repeat" flags (`ranged` bitmask).
+ *
+ * A scalar field is a constant; a *ranged* field carries a `[lo, hi]` span (the
+ * scalar holds `lo`, a companion `*_hi` holds `hi`) and is redrawn uniformly in
+ * `[lo, hi]` at the start of every repeat (composer epoch) — so a looped /
+ * continuous stream can vary Doppler (`freq`), arrival jitter (`off_samples`),
+ * etc. burst-to-burst while staying *reproducible*: the draw is a deterministic
+ * hash of the source seed, the epoch, the segment/source index, and the field,
+ * so `--record` stores the span (not a drawn value) and `--from-file` replays
+ * the same sequence byte-for-byte. Bits 0–3 live on `wfm_source_t.ranged`;
+ * bits 4–5 on `wfm_segment_t.ranged`.
+ */
+enum
+{
+  WFM_RANGE_FREQ        = 1u << 0, /* source.freq  → [freq, freq_hi]   */
+  WFM_RANGE_SNR         = 1u << 1, /* source.snr   → [snr, snr_hi]     */
+  WFM_RANGE_LEVEL       = 1u << 2, /* source.level → [level, level_hi] */
+  WFM_RANGE_FEND        = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
+  WFM_RANGE_NUM_SAMPLES = 1u << 4, /* segment.num_samples span         */
+  WFM_RANGE_OFF_SAMPLES = 1u << 5, /* segment.off_samples span         */
+};
+
+/**
  * @brief One additive source within a segment: a `synth` config + its level.
  *
  * The nine synth fields mirror `wfm_synth_create()` (minus `fs`, which is the
  * segment's — one receiver, one sample rate). `level` is the source's average
  * power in dBFS (≤0); the segment sums its sources, each scaled by
  * `10^(level/20)`.
+ *
+ * Any of `freq`/`snr`/`level`/`f_end` may be a per-repeat uniform draw: set the
+ * matching `WFM_RANGE_*` bit in `ranged`, leave the scalar as `lo`, and put `hi`
+ * in the `*_hi` companion (see the `ranged` enum).
  */
 typedef struct {
     int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
@@ -64,6 +91,11 @@ typedef struct {
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
     double rrc_beta;   /* RRC roll-off (pulse=rrc) */
     int rrc_span;      /* RRC support in symbols (pulse=rrc) */
+    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND} bitmask */
+    double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
+    double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
+    double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
+    double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
 } wfm_source_t;
 
 /**
@@ -80,6 +112,9 @@ typedef struct {
     double fs;             /* sample rate (Hz) — one per segment */
     size_t num_samples;    /* on-time (samples) */
     size_t off_samples;    /* off-time gap after the segment (samples) */
+    unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
+    size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
+    size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
 } wfm_segment_t;
 
 /**

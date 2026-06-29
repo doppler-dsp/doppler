@@ -229,6 +229,7 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
                 code_phase=int(start),
                 bits=bits,
                 est_freq_hz=d.est_freq_hz + nominal_hz,
+                est_snr_db=d.est_snr_db,
             )
             break
     return rec
@@ -280,23 +281,34 @@ def run_streaming(
 
 
 def main():
+    # The writer is launched by start_writer() with these flags (one per line
+    # so each is legible); scene.json / capture.cf32 live in a temp dir.
+    print("\nwriter: wfmgen \\")
+    print("          --from-file scene.json \\")
+    print("          --continuous \\")
+    print("          --realtime \\")
+    print("          -o capture.cf32")
     print(
-        f"\nwriter: wfmgen --continuous --realtime scene.json -> growing file "
-        f"({PRI_MS:.0f} ms PRI, Doppler ∈ [{DOPPLER_LO / 1e3:.1f}, "
+        f"        ({PRI_MS:.0f} ms PRI, Doppler ∈ [{DOPPLER_LO / 1e3:.1f}, "
         f"{DOPPLER_HI / 1e3:.1f}] kHz, code φ jitter ≤ {JITTER_MAX} samp, "
-        f"{SNR_DB:.0f} dB, fresh noise each burst)"
+        f"{SNR_DB:.0f} dB chip SNR, fresh noise each burst)"
     )
     print(
         f"reader: follow -> DDC(-{NOMINAL_HZ / 1e3:.1f} kHz) -> Acquisition "
-        f"-> BurstDemod, decoding each burst as it lands\n"
+        f"-> BurstDemod, decoding each burst as it lands"
+    )
+    print(
+        "        (SNR(dB) below is the recovered per-symbol SNR — the "
+        f"{SNR_DB:.0f} dB chip SNR lifted by the DSSS despread gain)\n"
     )
     # Doppler and code phase now shift burst-to-burst (ranged scene fields);
-    # test_stat shifts too because each repeat is a fresh noise realization.
+    # test_stat and SNR shift too because each repeat is a fresh noise draw.
+    # Units live in the headers so the cells stay bare numbers, easy to scan.
     print(
-        f"  {'t':>5} {'burst':<5} {'CRC':<4} {'errs':>4} {'test':>5} "
-        f"{'code φ':>6} {'Doppler':>9}"
+        f"  {'t(s)':>5} {'burst':<5} {'CRC':<4} {'errs':>4} {'test':>5} "
+        f"{'code φ':>6} {'Doppler(Hz)':>11} {'SNR(dB)':>8}"
     )
-    # Anchor the clock to the first decode, so burst 0 reads 0.0s and the rest
+    # Anchor the clock to the first decode, so burst 0 reads 0.0 and the rest
     # show the PRI cadence relative to it (not the writer's start-up latency).
     t0 = None
 
@@ -310,14 +322,27 @@ def main():
         if r["frame_valid"]:
             errs = int(np.sum(r["bits"] != _PAYLOAD_BITS))
             print(
-                f"  {dt:4.1f}s {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
-                f"{r['est_freq_hz']:>7.0f}Hz"
+                f"  {dt:5.1f} {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
+                f"{r['est_freq_hz']:>11.0f} {r['est_snr_db']:>8.1f}"
             )
         else:
             tag = "no-det" if not r["detected"] else "FAIL"
-            print(f"  {dt:4.1f}s {k:<5} {tag:<4} {'':>4} {ts:>5} {cp:>6}")
+            print(f"  {dt:5.1f} {k:<5} {tag:<4}")
 
-    run_streaming(6, realtime=True, on_decode=report)
+    results = run_streaming(6, realtime=True, on_decode=report)
+    decoded = [r for r in results if r["frame_valid"]]
+    if decoded:
+        bit_errs = sum(
+            int(np.sum(r["bits"] != _PAYLOAD_BITS)) for r in decoded
+        )
+        dopps = [r["est_freq_hz"] for r in decoded]
+        snrs = [r["est_snr_db"] for r in decoded]
+        print(
+            f"\n  summary: {len(decoded)}/{len(results)} bursts decoded, "
+            f"{bit_errs} bit error(s) | "
+            f"Doppler {min(dopps):.0f}–{max(dopps):.0f} Hz, "
+            f"mean SNR {sum(snrs) / len(snrs):.1f} dB"
+        )
     print()
 
 

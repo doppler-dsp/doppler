@@ -112,8 +112,10 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
 int
 wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
 {
-  /* Pulse shaping only applies to the PSK carriers (pn/bpsk/qpsk). */
-  if (state->wtype < WFM_SYNTH_PN || state->wtype > WFM_SYNTH_QPSK)
+  /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk and the
+   * user bit-pattern source (bits). */
+  if ((state->wtype < WFM_SYNTH_PN || state->wtype > WFM_SYNTH_QPSK)
+      && state->wtype != WFM_SYNTH_BITS)
     return 0;
   if (!taps || ntaps == 0)
     return -1;
@@ -363,41 +365,87 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
         {
           /* User bit pattern: per-sample symbol latch from bits[], cycled,
            * with the *same* fused sym*carrier + noise as wfm_synth_step() so
-           * the two paths stay byte-identical. */
+           * the two paths stay byte-identical. With an RRC FIR attached the
+           * latched symbols become a symbol-rate impulse train shaped by the
+           * matched filter — identical machinery to the PN/PSK RRC path. */
           const uint8_t *bits = state->bits;
           size_t         nb   = state->n_bits;
           int            bmod = state->bit_mod;
-          for (size_t i = 0; i < m; i++)
+          if (state->fir)
             {
-              if (sym_pos == 0 && bits && nb)
+              for (size_t i = 0; i < m; i++)
                 {
-                  if (bmod == 2)
+                  if (sym_pos == 0 && bits && nb)
                     {
-                      uint8_t b0 = bits[bit_idx];
-                      uint8_t b1 = bits[(bit_idx + 1) % nb];
-                      cre        = b0 ? -s : s;
-                      cim        = b1 ? -s : s;
-                      bit_idx    = (bit_idx + 2) % nb;
+                      if (bmod == 2)
+                        {
+                          uint8_t b0 = bits[bit_idx];
+                          uint8_t b1 = bits[(bit_idx + 1) % nb];
+                          cre        = b0 ? -s : s;
+                          cim        = b1 ? -s : s;
+                          bit_idx    = (bit_idx + 2) % nb;
+                        }
+                      else if (bmod == 1)
+                        {
+                          cre     = bits[bit_idx] ? -1.0f : 1.0f;
+                          cim     = 0.0f;
+                          bit_idx = (bit_idx + 1) % nb;
+                        }
+                      else
+                        {
+                          cre     = bits[bit_idx] ? 1.0f : 0.0f;
+                          cim     = 0.0f;
+                          bit_idx = (bit_idx + 1) % nb;
+                        }
                     }
-                  else if (bmod == 1)
-                    {
-                      cre     = bits[bit_idx] ? -1.0f : 1.0f;
-                      cim     = 0.0f;
-                      bit_idx = (bit_idx + 1) % nb;
-                    }
-                  else
-                    {
-                      cre     = bits[bit_idx] ? 1.0f : 0.0f;
-                      cim     = 0.0f;
-                      bit_idx = (bit_idx + 1) % nb;
-                    }
+                  out[i]
+                      = (sym_pos == 0) ? (cre + cim * I) : (0.0f + 0.0f * I);
+                  if (++sym_pos >= nsps)
+                    sym_pos = 0;
                 }
-              if (++sym_pos >= nsps)
-                sym_pos = 0;
-              float complex sym = cre + cim * I;
-              float complex v   = has_lo ? sym * carrier[i] : sym;
-              out[i]            = has_awgn ? v + noise[i] : v;
+              fir_execute (state->fir, out, m, out);
+              if (has_lo && has_awgn)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] * carrier[i] + noise[i];
+              else if (has_lo)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] * carrier[i];
+              else if (has_awgn)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] + noise[i];
             }
+          else
+            for (size_t i = 0; i < m; i++)
+              {
+                if (sym_pos == 0 && bits && nb)
+                  {
+                    if (bmod == 2)
+                      {
+                        uint8_t b0 = bits[bit_idx];
+                        uint8_t b1 = bits[(bit_idx + 1) % nb];
+                        cre        = b0 ? -s : s;
+                        cim        = b1 ? -s : s;
+                        bit_idx    = (bit_idx + 2) % nb;
+                      }
+                    else if (bmod == 1)
+                      {
+                        cre     = bits[bit_idx] ? -1.0f : 1.0f;
+                        cim     = 0.0f;
+                        bit_idx = (bit_idx + 1) % nb;
+                      }
+                    else
+                      {
+                        cre     = bits[bit_idx] ? 1.0f : 0.0f;
+                        cim     = 0.0f;
+                        bit_idx = (bit_idx + 1) % nb;
+                      }
+                  }
+                if (++sym_pos >= nsps)
+                  sym_pos = 0;
+                float complex sym = cre + cim * I;
+                float complex v   = has_lo ? sym * carrier[i] : sym;
+                out[i]            = has_awgn ? v + noise[i] : v;
+              }
           done += m;
           continue;
         }

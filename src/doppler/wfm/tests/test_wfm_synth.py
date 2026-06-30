@@ -8,7 +8,7 @@ sweep, and the auto-resolved SNR (Es/No for the modulated types).
 import numpy as np
 import pytest
 
-from doppler.wfm import Synth, bits, chirp
+from doppler.wfm import Synth, bits, chirp, rrc_taps
 
 
 def _inst_freq(x, fs):
@@ -145,10 +145,82 @@ def test_rrc_reset_reproduces():
 
 
 def test_rrc_only_modulated():
-    """RRC is a no-op for tone/noise (set_rrc only shapes pn/bpsk/qpsk)."""
+    """RRC is a no-op for tone/noise — they carry no symbol stream to shape."""
     a = Synth(type="tone", freq=1e5, fs=1e6).steps(1024)
     b = Synth(type="tone", freq=1e5, fs=1e6, pulse="rrc").steps(1024)
     assert np.array_equal(a, b)
+
+
+def test_rrc_shapes_bits():
+    """pulse='rrc' on a user bit pattern is NOT a no-op: it band-limits the
+    stream just like the pn/bpsk/qpsk path. Guards the silent-ignore bug where
+    --type bits accepted --pulse rrc but emitted rectangular pulses anyway."""
+    pat = "1011001010110100"
+    rect = bits(pattern=pat, sps=8, modulation="bpsk").steps(8192)
+    rrc = bits(
+        pattern=pat, sps=8, modulation="bpsk", pulse="rrc", rrc_beta=0.22
+    ).steps(8192)
+    assert not np.array_equal(rrc, rect)
+    assert _occupied_bw(rrc) < 0.5 * _occupied_bw(rect)
+
+
+def test_rrc_bits_matches_matched_filter():
+    """Definitive check: the bits RRC output equals the symbol-rate impulse
+    train convolved with the sqrt(sps)-scaled taps — for both bpsk and qpsk."""
+    sps, span, beta, n = 4, 8, 0.35, 200
+    pat = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0], np.uint8)
+    taps = rrc_taps(beta, sps, span)
+
+    # bpsk: 0 -> +1, 1 -> -1
+    syms = np.where(pat == 1, -1.0, 1.0).astype(np.complex64)
+    nsym = n // sps + span + 4
+    imp = np.zeros(nsym * sps, dtype=np.complex64)
+    imp[::sps] = syms[np.arange(nsym) % len(syms)]
+    ref = np.convolve(imp, taps * np.sqrt(sps))[:n]
+    got = bits(
+        pattern=pat,
+        sps=sps,
+        modulation="bpsk",
+        pulse="rrc",
+        rrc_beta=beta,
+        rrc_span=span,
+    ).steps(n)
+    assert np.allclose(got, ref, atol=1e-5)
+
+    # qpsk: Gray-mapped 2 bits/symbol, legs at +-1/sqrt(2)
+    s = 1.0 / np.sqrt(2.0)
+    pairs = pat.reshape(-1, 2)
+    qsym = np.array(
+        [(-s if p[0] else s) + 1j * (-s if p[1] else s) for p in pairs],
+        dtype=np.complex64,
+    )
+    impq = np.zeros(nsym * sps, dtype=np.complex64)
+    impq[::sps] = qsym[np.arange(nsym) % len(qsym)]
+    refq = np.convolve(impq, taps * np.sqrt(sps))[:n]
+    gotq = bits(
+        pattern=pat,
+        sps=sps,
+        modulation="qpsk",
+        pulse="rrc",
+        rrc_beta=beta,
+        rrc_span=span,
+    ).steps(n)
+    assert np.allclose(gotq, refq, atol=1e-5)
+
+
+def test_rrc_bits_reset_reproduces():
+    s = bits(
+        pattern="11010010",
+        sps=4,
+        modulation="bpsk",
+        seed=5,
+        pulse="rrc",
+        rrc_beta=0.3,
+        rrc_span=6,
+    )
+    a = s.steps(2048)
+    s.reset()
+    assert np.array_equal(a, s.steps(2048))
 
 
 # ── bits (user pattern) ──────────────────────────────────────────────────────

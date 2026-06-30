@@ -6,10 +6,10 @@
  * wfm_compose_ext.c; this file is the *construction algorithm only* — build a
  * `wfm_synth` engine from a `wfm_source_t` config — with NO CPython in it. It
  * mirrors what the old Python `compose.py:Synth._engine()` did: create, then
- * attach the bit pattern (type=bits) and the RRC pulse taps (pn/bpsk/qpsk with
- * pulse="rrc"). The unit-energy taps are scaled to unit transmit power inside
- * `wfm_synth_set_rrc`, so standalone generation stays byte-identical to the
- * composed path.
+ * attach the bit pattern (type=bits) and the RRC pulse taps (pn/bpsk/qpsk/bits
+ * with pulse="rrc"). The unit-energy taps are scaled to unit transmit power
+ * inside `wfm_synth_set_rrc`, so standalone generation stays byte-identical to
+ * the composed path.
  */
 #include <stdlib.h>
 
@@ -41,7 +41,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
 
   if (src->pulse == WFM_PULSE_RRC
       && (src->type == WFM_SYNTH_PN || src->type == WFM_SYNTH_BPSK
-          || src->type == WFM_SYNTH_QPSK))
+          || src->type == WFM_SYNTH_QPSK || src->type == WFM_SYNTH_BITS))
     {
       int    ntaps = wfm_rrc_ntaps (src->sps, src->rrc_span);
       float *taps  = (float *)malloc ((size_t)ntaps * sizeof *taps);

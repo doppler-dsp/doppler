@@ -167,6 +167,49 @@ main (void)
     wfm_synth_destroy (bs2);
   }
 
+  /* ── bits + RRC: set_rrc shapes the bit stream, step()==steps() ───────────
+   * Regression for the silent no-op where bits accepted RRC but emitted
+   * rectangular pulses (set_rrc gated out bits; the bits paths ignored fir).
+   */
+  {
+    const float        taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    const uint8_t      pat[6]  = { 1, 0, 1, 1, 0, 0 };
+    wfm_synth_state_t *bs = wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0, 100.0,
+                                              0, 1, 4, 7, 0, 0, 0.0);
+    CHECK (wfm_synth_set_bits (bs, pat, 6, 1) == 0); /* bpsk */
+    CHECK (wfm_synth_set_rrc (bs, taps, 5) == 0);    /* now accepted on bits */
+    CHECK (bs->fir != NULL);
+    float complex y[256];
+    wfm_synth_steps (bs, y, 256);
+
+    /* step() must reproduce steps() bit-for-bit (chunk-invariant FIR) */
+    wfm_synth_state_t *bs2 = wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0, 100.0,
+                                               0, 1, 4, 7, 0, 0, 0.0);
+    wfm_synth_set_bits (bs2, pat, 6, 1);
+    wfm_synth_set_rrc (bs2, taps, 5);
+    int match = 1;
+    for (int i = 0; i < 256; i++)
+      if (wfm_synth_step (bs2) != y[i])
+        match = 0;
+    CHECK (match);
+
+    /* shaping changes the output vs the unshaped (rect) bits synth */
+    wfm_synth_state_t *rect = wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0,
+                                                100.0, 0, 1, 4, 7, 0, 0, 0.0);
+    wfm_synth_set_bits (rect, pat, 6, 1);
+    float complex r[256];
+    wfm_synth_steps (rect, r, 256);
+    int differs = 0;
+    for (int i = 0; i < 256; i++)
+      if (r[i] != y[i])
+        differs = 1;
+    CHECK (differs);
+
+    wfm_synth_destroy (bs);
+    wfm_synth_destroy (bs2);
+    wfm_synth_destroy (rect);
+  }
+
   /* ── chirp (LFM): linear sweep, phase-continuous, byte-identical paths ────
    */
   {

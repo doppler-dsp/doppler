@@ -13,6 +13,17 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Fixed
+
+- **`wfm` bits input now honours RRC pulse shaping.** `--type bits --pulse rrc`
+    (and the `bits(..., pulse="rrc")` API) silently emitted rectangular pulses:
+    the RRC FIR was gated off for the `bits` waveform at four layers
+    (`wfm_synth_set_rrc`, the standalone bridge, and both the per-sample and
+    block generation paths). The bit stream is now shaped by the same matched
+    FIR as `pn`/`bpsk`/`qpsk` — verified byte-identical to a symbol-rate impulse
+    train convolved with the sqrt(sps)-scaled taps, chunk-invariant across
+    `step()`/`steps()`.
+
 ## [0.23.0] — 2026-06-29
 
 ### Added

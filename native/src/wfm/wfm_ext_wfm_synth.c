@@ -483,7 +483,7 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "set_rrc", (PyCFunction)_SynthEngine_set_rrc, METH_VARARGS,
     "set_rrc(taps) -> None\n"
     "\n"
-    "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk only).\n" },
+    "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk/bits).\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

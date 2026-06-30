@@ -223,6 +223,59 @@ def test_rrc_bits_reset_reproduces():
     assert np.array_equal(a, s.steps(2048))
 
 
+def test_rrc_bits_carrier_and_noise():
+    """The RRC bits block path mixes the shaped baseband with the LO carrier
+    and AWGN. Exercise every mix tail: LO-only, AWGN-only, and LO+AWGN — plus
+    the unmodulated (modulation='none') latch under the FIR."""
+    pat = "1011001010110100"
+    base = {
+        "pattern": pat,
+        "sps": 8,
+        "modulation": "bpsk",
+        "pulse": "rrc",
+        "seed": 3,
+    }
+
+    # LO carrier only (freq != 0, clean): shaped baseband rides the LO.
+    lo = bits(freq=1e5, fs=1e6, snr=100, **base).steps(4096)
+    assert np.all(np.isfinite(lo.view(np.float32)))
+    # A carrier offset puts spectral energy off DC (vs the baseband-only case).
+    assert np.argmax(np.abs(np.fft.fft(lo))) != 0
+
+    # AWGN only (freq 0, low SNR): noise added to the shaped baseband.
+    nz = bits(freq=0.0, fs=1e6, snr=5, **base).steps(1 << 15)
+    assert np.mean(np.abs(nz) ** 2) > 1.0  # signal + noise power
+
+    # LO carrier AND AWGN together (the fused tail).
+    both = bits(freq=1e5, fs=1e6, snr=5, **base).steps(4096)
+    assert np.all(np.isfinite(both.view(np.float32)))
+
+    # Unmodulated bits (0/1 amplitude) shaped by the RRC FIR.
+    none = bits(pattern=pat, sps=8, modulation="none", pulse="rrc").steps(4096)
+    rect = bits(pattern=pat, sps=8, modulation="none").steps(4096)
+    assert not np.array_equal(none, rect)
+
+
+def test_rrc_bits_step_matches_steps():
+    """Drive the per-sample step() bits-RRC path directly (the high-level
+    Synth uses the block steps()): step() must match steps() bit-for-bit."""
+    from doppler.wfm import _SynthEngine
+
+    pat = np.array([1, 0, 1, 1, 0, 0, 1, 0], dtype=np.uint8)
+    taps = rrc_taps(0.35, 4, 6)
+
+    def mk():
+        e = _SynthEngine(type="bits", fs=1e6, freq=0.0, snr=100.0, sps=4)
+        e.set_bits(pat, 1)
+        e.set_rrc(taps)
+        return e
+
+    block = mk().steps(128)
+    eng = mk()
+    one_by_one = np.array([eng.step() for _ in range(128)], dtype=np.complex64)
+    assert np.array_equal(block, one_by_one)
+
+
 # ── bits (user pattern) ──────────────────────────────────────────────────────
 
 

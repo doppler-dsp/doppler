@@ -111,4 +111,20 @@ if(ver_pos EQUAL -1)
     message(FATAL_ERROR "wfmgen --version banner missing: ${ver_out}")
 endif()
 
+# 12. symbols round-trip: a cf32 file fed back as --type symbols at sps=1 with
+#     no carrier reproduces the input samples byte-for-byte (the symbol IS the
+#     sample). Proves the --symbols-file read + composer wiring end-to-end.
+run(--type qpsk --sps 1 --count 6 --sample-type cf32 --seed 3 -o wg_syms_in.cf32)
+run(--type symbols --symbols-file wg_syms_in.cf32 --sps 1 --count 6
+    --sample-type cf32 -o wg_syms_out.cf32)
+file(MD5 wg_syms_in.cf32 si)
+file(MD5 wg_syms_out.cf32 so)
+if(NOT si STREQUAL so)
+    message(FATAL_ERROR "symbols sps=1 round-trip differs from the input cf32")
+endif()
+
+# 13. symbols missing flag value is a clean usage error (exit 2), not a crash.
+#     (A streamless symbols synth emits zeros, like a pattern-less bits synth.)
+expect_exit(2 --type symbols --symbols-file)        # missing value
+
 message(STATUS "wfmgen_cli: OK")

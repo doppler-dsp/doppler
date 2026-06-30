@@ -29,6 +29,9 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      is lazy, so the guard moves to first steps()/step()). */
   if (src->type == WFM_SYNTH_BITS && (!src->bits || !src->n_bits))
     return NULL;
+  /* Likewise a "symbols" waveform needs a constellation stream. */
+  if (src->type == WFM_SYNTH_SYMBOLS && (!src->symbols || !src->n_symbols))
+    return NULL;
 
   wfm_synth_state_t *eng = wfm_synth_create (
       src->type, fs, src->freq, src->snr, src->snr_mode, src->seed, src->sps,
@@ -39,9 +42,13 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
   if (src->type == WFM_SYNTH_BITS && src->bits && src->n_bits)
     wfm_synth_set_bits (eng, src->bits, src->n_bits, src->modulation);
 
+  if (src->type == WFM_SYNTH_SYMBOLS && src->symbols && src->n_symbols)
+    wfm_synth_set_symbols (eng, src->symbols, src->n_symbols);
+
   if (src->pulse == WFM_PULSE_RRC
       && (src->type == WFM_SYNTH_PN || src->type == WFM_SYNTH_BPSK
-          || src->type == WFM_SYNTH_QPSK || src->type == WFM_SYNTH_BITS))
+          || src->type == WFM_SYNTH_QPSK || src->type == WFM_SYNTH_BITS
+          || src->type == WFM_SYNTH_SYMBOLS))
     {
       int    ntaps = wfm_rrc_ntaps (src->sps, src->rrc_span);
       float *taps  = (float *)malloc ((size_t)ntaps * sizeof *taps);

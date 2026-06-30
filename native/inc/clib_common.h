@@ -1,8 +1,8 @@
 /**
  * clib_common.h — common C99 types and performance macros for doppler.
  */
-#ifndef CLIB_COMMON_H
-#define CLIB_COMMON_H
+#ifndef DOPPLER_CLIB_COMMON_H
+#define DOPPLER_CLIB_COMMON_H
 
 #include <complex.h>
 #include <stddef.h>
@@ -42,4 +42,4 @@
 
 #include "jm_perf.h"
 
-#endif /* CLIB_COMMON_H */
+#endif /* DOPPLER_CLIB_COMMON_H */

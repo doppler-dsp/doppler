@@ -249,7 +249,7 @@ _SynthEngine_set_symbols (_SynthEngineObject *self, PyObject *args)
   if (!PyArg_ParseTuple (args, "O", &sym_obj))
     return NULL;
   PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
-      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST);
   if (!arr)
     return NULL;
   size_t n  = (size_t)PyArray_SIZE (arr);

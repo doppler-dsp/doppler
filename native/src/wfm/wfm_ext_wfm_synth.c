@@ -71,11 +71,14 @@ _SynthEngine_init (_SynthEngineObject *self, PyObject *args, PyObject *kwds)
     type = 5;
   else if (strcmp (type_str, "bits") == 0)
     type = 6;
+  else if (strcmp (type_str, "symbols") == 0)
+    type = 7;
   else
     {
       PyErr_Format (PyExc_ValueError,
                     "type must be one of \"tone\", \"noise\", \"pn\", "
-                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", got '%s'",
+                    "\"bpsk\", \"qpsk\", \"chirp\", \"bits\", \"symbols\", "
+                    "got '%s'",
                     type_str);
       return -1;
     }
@@ -226,6 +229,37 @@ _SynthEngine_set_bits (_SynthEngineObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError,
                        "set_bits: empty pattern, modulation not in 0..2, or "
                        "not a bits synth");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+/* set_symbols(symbols) — attach a user complex-symbol stream to a
+ * type=symbols synth. symbols is any array-like coerced to complex64; each
+ * element is the constellation point itself (no bit->symbol mapping). */
+static PyObject *
+_SynthEngine_set_symbols (_SynthEngineObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  PyObject *sym_obj = NULL;
+  if (!PyArg_ParseTuple (args, "O", &sym_obj))
+    return NULL;
+  PyArrayObject *arr = (PyArrayObject *)PyArray_FROM_OTF (
+      sym_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!arr)
+    return NULL;
+  size_t n  = (size_t)PyArray_SIZE (arr);
+  int    rc = wfm_synth_set_symbols (
+      self->handle, (const float _Complex *)PyArray_DATA (arr), n);
+  Py_DECREF (arr);
+  if (rc != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_symbols: empty stream or not a symbols synth");
       return NULL;
     }
   Py_RETURN_NONE;
@@ -483,7 +517,15 @@ static PyMethodDef _SynthEngine_methods[] = {
   { "set_rrc", (PyCFunction)_SynthEngine_set_rrc, METH_VARARGS,
     "set_rrc(taps) -> None\n"
     "\n"
-    "Enable RRC pulse shaping with real FIR taps (pn/bpsk/qpsk/bits).\n" },
+    "Enable RRC pulse shaping with real FIR taps "
+    "(pn/bpsk/qpsk/bits/symbols).\n" },
+  { "set_symbols", (PyCFunction)_SynthEngine_set_symbols, METH_VARARGS,
+    "set_symbols(symbols) -> None\n"
+    "\n"
+    "Attach a complex-symbol stream (array of complex64) to a "
+    "type='symbols' synth.\n"
+    "Each element is the constellation point itself (no bit mapping), "
+    "oversampled by sps, cycled, and RRC-shaped when set_rrc is active.\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

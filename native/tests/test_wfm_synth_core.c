@@ -210,6 +210,93 @@ main (void)
     wfm_synth_destroy (rect);
   }
 
+  /* ── symbols: user complex-symbol stream, mapping, cycling, step()==steps()
+   * ─
+   */
+  {
+    /* Four-point constellation; the symbol IS the output (no bit mapping). */
+    const float complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
+                                    -1.0f + 0.0f * I, 0.0f - 1.0f * I };
+    wfm_synth_state_t  *ss = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                               100.0, 0, 1, 2, 7, 0, 0, 0.0);
+    CHECK (ss && ss->lo == NULL && ss->awgn == NULL && ss->pn == NULL);
+    CHECK (wfm_synth_set_symbols (ss, syms, 4) == 0);
+    float complex y[16];
+    wfm_synth_steps (ss, y, 16); /* 4 syms * 2 sps = 8/pass → two passes */
+    /* symbol centre at each sps-block equals the symbol itself */
+    CHECK (ALMOST_EQ_C (y[0], syms[0], 1e-5f));
+    CHECK (ALMOST_EQ_C (y[2], syms[1], 1e-5f));
+    CHECK (ALMOST_EQ_C (y[4], syms[2], 1e-5f));
+    CHECK (ALMOST_EQ_C (y[6], syms[3], 1e-5f));
+    CHECK (ALMOST_EQ_C (y[8], syms[0], 1e-5f)); /* cycled */
+    int cyc = 1;
+    for (int i = 0; i < 8; i++)
+      if (y[i] != y[i + 8])
+        cyc = 0;
+    CHECK (cyc); /* the stream repeats every 8 samples */
+
+    /* step() must match steps() bit-for-bit */
+    wfm_synth_state_t *ss2 = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                               100.0, 0, 1, 2, 7, 0, 0, 0.0);
+    wfm_synth_set_symbols (ss2, syms, 4);
+    int match = 1;
+    for (int i = 0; i < 16; i++)
+      if (wfm_synth_step (ss2) != y[i])
+        match = 0;
+    CHECK (match);
+
+    /* reset rewinds the stream */
+    wfm_synth_reset (ss);
+    CHECK (wfm_synth_step (ss) == y[0]);
+
+    /* set_symbols is a no-op on a non-symbols synth, and rejects bad args */
+    CHECK (wfm_synth_set_symbols (obj, syms, 4) == 0); /* obj is a tone */
+    CHECK (wfm_synth_set_symbols (ss, NULL, 0) == -1);
+
+    wfm_synth_destroy (ss);
+    wfm_synth_destroy (ss2);
+  }
+
+  /* ── symbols + RRC: set_rrc shapes the symbol stream, step()==steps() ──────
+   */
+  {
+    const float         taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    const float complex syms[3]
+        = { 1.0f + 1.0f * I, -1.0f + 1.0f * I, 1.0f - 1.0f * I };
+    wfm_synth_state_t *ss = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                              100.0, 0, 1, 4, 7, 0, 0, 0.0);
+    wfm_synth_set_symbols (ss, syms, 3);
+    CHECK (wfm_synth_set_rrc (ss, taps, 5) == 0); /* accepted on symbols */
+    CHECK (ss->fir != NULL);
+    float complex y[192];
+    wfm_synth_steps (ss, y, 192);
+
+    wfm_synth_state_t *ss2 = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                               100.0, 0, 1, 4, 7, 0, 0, 0.0);
+    wfm_synth_set_symbols (ss2, syms, 3);
+    wfm_synth_set_rrc (ss2, taps, 5);
+    int match = 1;
+    for (int i = 0; i < 192; i++)
+      if (wfm_synth_step (ss2) != y[i])
+        match = 0;
+    CHECK (match);
+
+    wfm_synth_state_t *rect = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                                100.0, 0, 1, 4, 7, 0, 0, 0.0);
+    wfm_synth_set_symbols (rect, syms, 3);
+    float complex r[192];
+    wfm_synth_steps (rect, r, 192);
+    int differs = 0;
+    for (int i = 0; i < 192; i++)
+      if (r[i] != y[i])
+        differs = 1;
+    CHECK (differs);
+
+    wfm_synth_destroy (ss);
+    wfm_synth_destroy (ss2);
+    wfm_synth_destroy (rect);
+  }
+
   /* ── chirp (LFM): linear sweep, phase-continuous, byte-identical paths ────
    */
   {
@@ -292,6 +379,43 @@ main (void)
     DP_STATE_ROUNDTRIP_TEST (wfm_synth, a, b);
     CHECK (b->sym_pos == a->sym_pos && b->chirp_n == a->chirp_n);
     CHECK (b->cur_re == a->cur_re && b->bit_idx == a->bit_idx);
+    wfm_synth_destroy (a);
+    wfm_synth_destroy (b);
+  }
+
+  /* symbols serialization: a mid-stream split resumes bit-exact, and
+   * sym_read_idx survives the round-trip. */
+  {
+    const float complex syms[5]
+        = { 1 + 0 * I, 0 + 1 * I, -1 + 0 * I, 0 - 1 * I, 1 + 1 * I };
+    float complex      ref[128], part[40], cont[88];
+    wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                             100.0, 0, 1, 3, 7, 0, 0, 0.0);
+    wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                             100.0, 0, 1, 3, 7, 0, 0, 0.0);
+    wfm_synth_set_symbols (a, syms, 5);
+    wfm_synth_set_symbols (b, syms, 5);
+    wfm_synth_steps (a, ref, 128); /* full reference */
+    wfm_synth_reset (a);
+    wfm_synth_steps (a, part, 40); /* feed a partway → sym_read_idx advances */
+    size_t nb   = wfm_synth_state_bytes (a);
+    void  *blob = malloc (nb);
+    wfm_synth_get_state (a, blob);
+    CHECK (wfm_synth_set_state (b, blob) == 0);
+    CHECK (b->sym_read_idx == a->sym_read_idx);
+    wfm_synth_steps (b, cont, 88); /* resume from the split */
+    int ok = 1;
+    for (int i = 0; i < 40; i++)
+      if (part[i] != ref[i])
+        ok = 0;
+    for (int i = 0; i < 88; i++)
+      if (cont[i] != ref[40 + i])
+        ok = 0;
+    CHECK (ok); /* part ++ cont == ref, bit-for-bit across the split */
+    /* envelope reject: clobber the magic */
+    ((uint8_t *)blob)[0] ^= 0xFFu;
+    CHECK (wfm_synth_set_state (b, blob) == DP_ERR_INVALID);
+    free (blob);
     wfm_synth_destroy (a);
     wfm_synth_destroy (b);
   }

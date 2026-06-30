@@ -31,6 +31,10 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   obj->n_bits  = 0;
   obj->bit_idx = 0;
   obj->bit_mod = 1; /* default bpsk */
+  /* Complex-symbol stream attached later via wfm_synth_set_symbols(). */
+  obj->symbols      = NULL;
+  obj->n_symbols    = 0;
+  obj->sym_read_idx = 0;
 
   /* LO carrier only when there is a frequency offset: at freq 0 the carrier
    * is the constant 1, so mixing is a no-op and is skipped entirely (a
@@ -112,10 +116,10 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
 int
 wfm_synth_set_rrc (wfm_synth_state_t *state, const float *taps, size_t ntaps)
 {
-  /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk and the
-   * user bit-pattern source (bits). */
+  /* Pulse shaping applies to the symbol carriers: pn/bpsk/qpsk, the user
+   * bit-pattern source (bits), and the complex-symbol stream (symbols). */
   if ((state->wtype < WFM_SYNTH_PN || state->wtype > WFM_SYNTH_QPSK)
-      && state->wtype != WFM_SYNTH_BITS)
+      && state->wtype != WFM_SYNTH_BITS && state->wtype != WFM_SYNTH_SYMBOLS)
     return 0;
   if (!taps || ntaps == 0)
     return -1;
@@ -160,12 +164,33 @@ wfm_synth_set_bits (wfm_synth_state_t *state, const uint8_t *bits, size_t n,
   return 0;
 }
 
+int
+wfm_synth_set_symbols (wfm_synth_state_t *state, const float _Complex *symbols,
+                       size_t n)
+{
+  if (state->wtype != WFM_SYNTH_SYMBOLS)
+    return 0; /* no-op for every other type */
+  if (!symbols || n == 0)
+    return -1;
+  float _Complex *copy = malloc (n * sizeof *copy);
+  if (!copy)
+    return -1;
+  for (size_t i = 0; i < n; i++)
+    copy[i] = symbols[i];
+  free (state->symbols);
+  state->symbols      = copy;
+  state->n_symbols    = n;
+  state->sym_read_idx = 0;
+  return 0;
+}
+
 void
 wfm_synth_destroy (wfm_synth_state_t *state)
 {
   if (state->fir)
     fir_destroy (state->fir);
   free (state->bits);
+  free (state->symbols);
   if (state->lo)
     lo_destroy (state->lo);
   if (state->awgn)
@@ -196,10 +221,11 @@ wfm_synth_reset (wfm_synth_state_t *state)
       = (state->wtype == WFM_SYNTH_TONE || state->wtype == WFM_SYNTH_CHIRP)
             ? 1.0f
             : 0.0f;
-  state->cur_im   = 0.0f;
-  state->bit_idx  = 0;   /* rewind the bit pattern */
-  state->chirp_ph = 0.0; /* rewind the sweep; span/slope stay locked */
-  state->chirp_n  = 0;
+  state->cur_im       = 0.0f;
+  state->bit_idx      = 0;   /* rewind the bit pattern */
+  state->sym_read_idx = 0;   /* rewind the complex-symbol stream */
+  state->chirp_ph     = 0.0; /* rewind the sweep; span/slope stay locked */
+  state->chirp_n      = 0;
   if (state->fir)
     fir_reset (state->fir); /* clear the RRC delay line */
   if (state->lo)
@@ -224,12 +250,13 @@ wfm_synth_reseed_noise (wfm_synth_state_t *state, uint32_t seed)
 size_t
 wfm_synth_state_bytes (const wfm_synth_state_t *s)
 {
-  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos     */
-             + 2 * sizeof (float)                        /* cur_re/im   */
-             + sizeof (uint64_t)                         /* bit_idx     */
-             + sizeof (double)                           /* chirp_ph    */
-             + sizeof (uint64_t)                         /* chirp_n     */
-             + 4;                                        /* presence    */
+  size_t b = sizeof (dp_state_hdr_t) + sizeof (uint32_t) /* sym_pos      */
+             + 2 * sizeof (float)                        /* cur_re/im    */
+             + sizeof (uint64_t)                         /* bit_idx      */
+             + sizeof (uint64_t)                         /* sym_read_idx */
+             + sizeof (double)                           /* chirp_ph     */
+             + sizeof (uint64_t)                         /* chirp_n      */
+             + 4;                                        /* presence     */
   if (s->fir)
     b += fir_state_bytes (s->fir);
   if (s->lo)
@@ -250,6 +277,7 @@ wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
   dp_w_f32 (&_w, &s->cur_re, 1);
   dp_w_f32 (&_w, &s->cur_im, 1);
   dp_w_u64 (&_w, s->bit_idx);
+  dp_w_u64 (&_w, s->sym_read_idx);
   dp_w_f64 (&_w, s->chirp_ph);
   dp_w_u64 (&_w, s->chirp_n);
   uint8_t pres[4]
@@ -273,9 +301,10 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
   s->sym_pos = (int)dp_r_u32 (&_r);
   dp_r_f32 (&_r, &s->cur_re, 1);
   dp_r_f32 (&_r, &s->cur_im, 1);
-  s->bit_idx  = (size_t)dp_r_u64 (&_r);
-  s->chirp_ph = dp_r_f64 (&_r);
-  s->chirp_n  = (size_t)dp_r_u64 (&_r);
+  s->bit_idx      = (size_t)dp_r_u64 (&_r);
+  s->sym_read_idx = (size_t)dp_r_u64 (&_r);
+  s->chirp_ph     = dp_r_f64 (&_r);
+  s->chirp_n      = (size_t)dp_r_u64 (&_r);
   uint8_t pres[4];
   dp_r_bytes (&_r, pres, 4);
   /* the blob's child set must match this instance's config (same wtype). */
@@ -315,10 +344,11 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   float complex carrier[CH];   /* 16 KiB */
   float complex noise[CH];     /* 16 KiB */
   uint8_t       chips[2 * CH]; /* up to 2 chips/sample (qpsk at sps 1) */
-  const int     has_lo   = state->lo != NULL;
-  const int     has_awgn = state->awgn != NULL;
-  const int     is_bits  = state->wtype == WFM_SYNTH_BITS;
-  const int     is_chirp = state->wtype == WFM_SYNTH_CHIRP;
+  const int     has_lo     = state->lo != NULL;
+  const int     has_awgn   = state->awgn != NULL;
+  const int     is_bits    = state->wtype == WFM_SYNTH_BITS;
+  const int     is_symbols = state->wtype == WFM_SYNTH_SYMBOLS;
+  const int     is_chirp   = state->wtype == WFM_SYNTH_CHIRP;
   const int     modulated
       = state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK;
   const int   qpsk    = state->wtype == WFM_SYNTH_QPSK;
@@ -326,6 +356,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   const float s       = 0.70710678118654752f; /* 1/sqrt(2) — QPSK leg */
   int         sym_pos = state->sym_pos;
   size_t      bit_idx = state->bit_idx; /* bits read position (type=bits) */
+  size_t      sidx    = state->sym_read_idx; /* symbols read pos (=symbols) */
   float       cre = state->cur_re, cim = state->cur_im;
 
   /* A standalone chirp that was never pinned takes its sweep span from this
@@ -439,6 +470,59 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                         cim     = 0.0f;
                         bit_idx = (bit_idx + 1) % nb;
                       }
+                  }
+                if (++sym_pos >= nsps)
+                  sym_pos = 0;
+                float complex sym = cre + cim * I;
+                float complex v   = has_lo ? sym * carrier[i] : sym;
+                out[i]            = has_awgn ? v + noise[i] : v;
+              }
+          done += m;
+          continue;
+        }
+
+      if (is_symbols)
+        {
+          /* User complex-symbol stream: latch the constellation point directly
+           * (no bit mapping), cycled, with the *same* rect/FIR + fused
+           * carrier+noise as the bits path so step()/steps() stay byte-exact.
+           */
+          const float _Complex *syms = state->symbols;
+          size_t                ns   = state->n_symbols;
+          if (state->fir)
+            {
+              for (size_t i = 0; i < m; i++)
+                {
+                  if (sym_pos == 0 && syms && ns)
+                    {
+                      cre  = crealf (syms[sidx]);
+                      cim  = cimagf (syms[sidx]);
+                      sidx = (sidx + 1) % ns;
+                    }
+                  out[i]
+                      = (sym_pos == 0) ? (cre + cim * I) : (0.0f + 0.0f * I);
+                  if (++sym_pos >= nsps)
+                    sym_pos = 0;
+                }
+              fir_execute (state->fir, out, m, out);
+              if (has_lo && has_awgn)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] * carrier[i] + noise[i];
+              else if (has_lo)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] * carrier[i];
+              else if (has_awgn)
+                for (size_t i = 0; i < m; i++)
+                  out[i] = out[i] + noise[i];
+            }
+          else
+            for (size_t i = 0; i < m; i++)
+              {
+                if (sym_pos == 0 && syms && ns)
+                  {
+                    cre  = crealf (syms[sidx]);
+                    cim  = cimagf (syms[sidx]);
+                    sidx = (sidx + 1) % ns;
                   }
                 if (++sym_pos >= nsps)
                   sym_pos = 0;
@@ -574,10 +658,11 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
         }
       done += m;
     }
-  state->sym_pos = sym_pos;
-  state->cur_re  = cre;
-  state->cur_im  = cim;
-  state->bit_idx = bit_idx;
+  state->sym_pos      = sym_pos;
+  state->cur_re       = cre;
+  state->cur_im       = cim;
+  state->bit_idx      = bit_idx;
+  state->sym_read_idx = sidx;
 }
 
 int

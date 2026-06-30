@@ -347,6 +347,102 @@ def test_bits_bad_string_rejected():
         bits(pattern="10201").steps(4)  # '2' is not a bit
 
 
+# ── symbols (user complex constellation) ─────────────────────────────────────
+
+
+def _symbols_engine(syms, sps=4, **kw):
+    from doppler.wfm import _SynthEngine
+
+    kw.setdefault("fs", 1.0)
+    kw.setdefault("freq", 0.0)
+    kw.setdefault("snr", 100.0)
+    e = _SynthEngine(type="symbols", sps=sps, **kw)
+    e.set_symbols(np.asarray(syms, np.complex64))
+    return e
+
+
+def test_symbols_are_the_constellation():
+    """The symbol IS the output point — no bit→symbol mapping, just hold."""
+    syms = np.array([1 + 0j, 1j, -1 + 0j, -1j], np.complex64)
+    y = _symbols_engine(syms, sps=4).steps(16)
+    assert np.allclose(y[::4], syms, atol=1e-5)  # symbol centres
+
+
+def test_symbols_cycles_to_fill():
+    syms = np.array([1 + 1j, -1 - 1j], np.complex64)
+    e = _symbols_engine(syms, sps=2)
+    one = e.steps(4)  # 2 syms * 2 sps
+    e.reset()
+    assert np.array_equal(e.steps(8), np.tile(one, 2))
+
+
+def test_symbols_step_matches_steps():
+    syms = np.array([1 + 1j, 1j, -1, 0.5 - 0.5j], np.complex64)
+    a = _symbols_engine(syms, sps=4)
+    b = _symbols_engine(syms, sps=4)
+    ys = a.steps(64)
+    yp = np.array([b.step() for _ in range(64)], np.complex64)
+    assert np.array_equal(ys, yp)
+
+
+def test_symbols_pi4_qpsk():
+    """pi/4-QPSK as 'compute the symbols, pass them' — rotate every other
+    QPSK symbol by pi/4. This is the generalisation the feature is for."""
+    base = np.array([1, 1j, -1, -1j, 1, 1j, -1, -1j], np.complex64)
+    syms = base.copy()
+    syms[1::2] *= np.exp(1j * np.pi / 4)
+    syms = syms.astype(np.complex64)
+    y = _symbols_engine(syms, sps=4).steps(len(syms) * 4)
+    assert np.allclose(y[::4], syms, atol=1e-5)
+    # even symbols sit on a cardinal axis; the pi/4-rotated odd symbols are
+    # off both axes (the alternating-constellation signature of pi/4-QPSK).
+    assert np.allclose(syms[0::2].imag, 0, atol=1e-5)
+    assert np.all(np.abs(syms[1::2].real) > 0.5)
+    assert np.all(np.abs(syms[1::2].imag) > 0.5)
+
+
+def test_symbols_rrc_matches_matched_filter():
+    """RRC-shaped symbols == symbol-rate impulse train ⊛ (taps·√sps)."""
+    sps, span, beta, n = 4, 6, 0.35, 120
+    syms = np.array([1 + 1j, -1 + 1j, 1 - 1j, -1 - 1j, 1 + 0j], np.complex64)
+    taps = rrc_taps(beta, sps, span)
+    e = _symbols_engine(syms, sps=sps)
+    e.set_rrc(taps)
+    got = e.steps(n)
+    nsym = n // sps + span + 4
+    imp = np.zeros(nsym * sps, np.complex64)
+    imp[::sps] = syms[np.arange(nsym) % len(syms)]
+    ref = np.convolve(imp, taps * np.sqrt(sps))[:n]
+    assert np.allclose(got, ref, atol=1e-5)
+    assert not np.array_equal(got, _symbols_engine(syms, sps=sps).steps(n))
+
+
+def test_symbols_carrier_and_noise():
+    """Shaped symbols ride the LO and pick up AWGN (the mix tails)."""
+    syms = np.array([1 + 1j, -1 - 1j], np.complex64)
+    lo = _symbols_engine(syms, sps=8, freq=1e5).steps(4096)
+    assert np.all(np.isfinite(lo.view(np.float32)))
+    assert np.argmax(np.abs(np.fft.fft(lo))) != 0  # energy off DC
+    nz = _symbols_engine(syms, sps=8, snr=5).steps(1 << 15)
+    assert np.mean(np.abs(nz) ** 2) > 1.0  # signal + noise
+
+
+def test_symbols_reset_reproduces():
+    syms = np.array([1 + 1j, 1j, -1, -1j, 0.3 + 0.7j], np.complex64)
+    e = _symbols_engine(syms, sps=3)
+    a = e.steps(150)
+    e.reset()
+    assert np.array_equal(a, e.steps(150))
+
+
+def test_symbols_empty_rejected():
+    from doppler.wfm import _SynthEngine
+
+    e = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+    with pytest.raises(ValueError):
+        e.set_symbols(np.array([], np.complex64))
+
+
 # ── chirp (LFM) ──────────────────────────────────────────────────────────────
 
 

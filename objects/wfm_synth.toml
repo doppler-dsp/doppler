@@ -28,9 +28,20 @@ if (state->wtype == WFM_SYNTH_BITS) {
             state->bit_idx = (state->bit_idx + 1) % state->n_bits;
         }
     }
+    if (state->fir) {
+        /* RRC pulse shaping: the same matched-FIR impulse train as the
+         * PN/PSK path, sourced from the bit latch instead of the LFSR. The
+         * FIR carries its delay line across calls, so this is chunk-invariant
+         * — step() and the block path agree bit-for-bit. */
+        float complex imp = (state->sym_pos == 0)
+                                ? (state->cur_re + state->cur_im * I)
+                                : (0.0f + 0.0f * I);
+        fir_execute(state->fir, &imp, 1, &sym);
+    } else {
+        sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+    }
     if (++state->sym_pos >= state->nsps)
         state->sym_pos = 0;
-    sym = state->cur_re + state->cur_im * I; /* bits: no pulse shaping */
 } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
     if (state->sym_pos == 0) {
         if (state->wtype == WFM_SYNTH_QPSK) {

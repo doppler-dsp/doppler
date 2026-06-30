@@ -237,14 +237,15 @@ int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
 /**
- * @brief Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk).
+ * @brief Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits).
  *
  * Replaces the default rectangular sample-and-hold with a root-raised-cosine
  * pulse: the symbol-rate impulse train is filtered by @p taps (a real FIR of
  * @p ntaps coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps
  * are scaled by sqrt(sps) internally for unit transmit power, so every caller
- * passes the raw taps and gets byte-identical shaping. No-op for non-modulated
- * types. Replaces any existing shaper and clears its delay line.
+ * passes the raw taps and gets byte-identical shaping. No-op for types with no
+ * symbol stream (tone/noise/chirp). Replaces any existing shaper and clears its
+ * delay line.
  *
  * @param state  Must be non-NULL.
  * @param taps   Real FIR taps (copied).
@@ -339,9 +340,20 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->bit_idx = (state->bit_idx + 1) % state->n_bits;
             }
         }
+        if (state->fir) {
+            /* RRC pulse shaping: the same matched-FIR impulse train as the
+             * PN/PSK path, sourced from the bit latch instead of the LFSR. The
+             * FIR carries its delay line across calls, so this is chunk-invariant
+             * — step() and the block path agree bit-for-bit. */
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
-        sym = state->cur_re + state->cur_im * I; /* bits: no pulse shaping */
     } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {

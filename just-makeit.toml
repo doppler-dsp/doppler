@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.21.0"
+jm_version = "0.22.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -547,59 +547,70 @@ name = "type"
 type = "int"
 enum = "wfm_type"
 default = "tone"
+doc = "Waveform type."
 
 [[module.wfm_compose.source.fields]]
 name = "freq"
 type = "double"
 default = "0.0"
 aliases = ["f_start"]
+doc = "Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for chirp it is the start frequency."
 
 [[module.wfm_compose.source.fields]]
 name = "snr"
 type = "double"
 default = "100.0"
+doc = "Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated as clean (no AWGN)."
 
 [[module.wfm_compose.source.fields]]
 name = "snr_mode"
 type = "int"
 enum = "snr_mode"
 default = "auto"
+doc = "How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No for bpsk/qpsk."
 
 [[module.wfm_compose.source.fields]]
 name = "seed"
 type = "uint32_t"
 default = "0"
+doc = "PRNG/LFSR seed for the noise and PN streams."
 
 [[module.wfm_compose.source.fields]]
 name = "sps"
 type = "int"
 default = "1"
+doc = "Samples per symbol (PSK) or per chip (PN); the oversampling factor."
 
 [[module.wfm_compose.source.fields]]
 name = "pn_length"
 type = "int"
 default = "15"
+doc = "PN LFSR register length; the sequence period is 2^pn_length - 1."
 
 [[module.wfm_compose.source.fields]]
 name = "pn_poly"
 type = "uint64_t"
 default = "0"
+doc = "PN generator polynomial; 0 auto-selects a maximal-length (MLS) polynomial for pn_length."
 
 [[module.wfm_compose.source.fields]]
 name = "lfsr"
 type = "int"
 enum = "wfm_lfsr"
 default = "galois"
+doc = "PN LFSR realization (galois or fibonacci); same period, different chip order."
 
 [[module.wfm_compose.source.fields]]
 name = "level"
 type = "double"
 default = "0.0"
+doc = "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in a Segment/Composer (gain 10^(level/20)); ignored by standalone Synth.steps()."
 
 [[module.wfm_compose.source.fields]]
 name = "f_end"
 type = "double"
 default = "0.0"
+doc = "Chirp end frequency in Hz; ignored by non-chirp types."
 
 [[module.wfm_compose.source.fields]]
 name = "bits"
@@ -607,28 +618,33 @@ type = "uint8_t*"
 bytes = true
 aliases = ["pattern"]
 coerce = "bit_pattern"
+doc = "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill the request."
 
 [[module.wfm_compose.source.fields]]
 name = "modulation"
 type = "int"
 enum = "bitmod"
 default = "bpsk"
+doc = "For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, qpsk)."
 
 [[module.wfm_compose.source.fields]]
 name = "pulse"
 type = "int"
 enum = "wfm_pulse"
 default = "rect"
+doc = "Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect sample-and-hold or rrc matched filter."
 
 [[module.wfm_compose.source.fields]]
 name = "rrc_beta"
 type = "double"
 default = "0.35"
+doc = "RRC roll-off factor in (0, 1] when pulse=rrc."
 
 [[module.wfm_compose.source.fields]]
 name = "rrc_span"
 type = "int"
 default = "8"
+doc = "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1)."
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
@@ -650,16 +666,19 @@ ranged = [
 name = "fs"
 type = "double"
 default = "1.0"
+doc = "Sample rate in Hz — one per segment (all sources share it)."
 
 [[module.wfm_compose.segment.fields]]
 name = "num_samples"
 type = "size_t"
 default = "1024"
+doc = "Segment on-time in samples (the active span)."
 
 [[module.wfm_compose.segment.fields]]
 name = "off_samples"
 type = "size_t"
 default = "0"
+doc = "Trailing off-time gap in samples (zeros) appended after the segment."
 
 [module.wfm_compose.timeline]
 type_name = "Timeline"

@@ -14,7 +14,7 @@ Source:
 [`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
 
 These same C cores back the one command-line tool, `wfmgen` — see the
-[Waveform Generator guide](../guide/wfmgen.md).
+[Waveform Generator guide](../guide/wfmgen/index.md).
 
 ______________________________________________________________________
 

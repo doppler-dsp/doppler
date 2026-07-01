@@ -6,7 +6,7 @@
     `Segment.sum()` over one resolved noise floor, and the `.add()` timeline all
     landed on `main`; the Python API is the unified `Synth` + `tone`/`bpsk`/`qpsk`/`pn`/
     `noise` builders with `Segment.sum` / `Segment.add` (see the
-    [Waveform Generator guide](../guide/wfmgen.md)), and the JSON `"sum"` schema
+    [Waveform Generator guide](../guide/wfmgen/index.md)), and the JSON `"sum"` schema
     behind `wfmgen --from-file` is byte-identical to it. Single-source,
     `level = 0`, `--headroom 0` reproduces the pre-0.11 output byte-for-byte.
     `--record` captures the resolved sum **and** the `--headroom`, so
@@ -24,7 +24,7 @@ time, and offers `--snr` as the only level control. Three things push past that:
     RRC pulse-shaping, QAM, and OFDM all have **PAPR > 0 dB**, so their peaks
     exceed full-scale and clip. The level idiom must be **average power**, and
     peak headroom must be a first-class control. (See
-    [Amplitude & full-scale](../guide/wfmgen.md#amplitude-full-scale).)
+    [Amplitude & full-scale](../guide/wfmgen/levels.md#amplitude-full-scale).)
 1. **Real scenes are sums.** A signal of interest plus interferers plus a noise
     floor is an **additive mix** of sources at different frequencies and levels —
     which needs a per-source level, something the single-source model lacks.

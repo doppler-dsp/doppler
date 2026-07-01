@@ -28,6 +28,15 @@ ______________________________________________________________________
     (`docs/api/.api-coverage-ignore`) is paid down from 37 lines to 1: every
     public `__all__` symbol is now documented, and the CI gate keeps it that way.
 
+### Changed
+
+- **wfmgen guide restructured** into a concepts-first multi-page section
+    (`docs/guide/wfmgen/`). The former 736-line single page becomes nine focused
+    pages — Overview, **Concepts** (the Synth / Segment / Timeline / Composer
+    object model, stated plainly for the first time), Waveforms (now including
+    `symbols`), Levels & SNR, Output & containers, Scenes, Streaming, Python API,
+    and Recipes. Inbound links repointed; no content dropped.
+
 ## [0.24.0] — 2026-06-30
 
 ### Added

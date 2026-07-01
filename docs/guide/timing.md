@@ -225,7 +225,7 @@ ______________________________________________________________________
 
 ## See also
 
-- [Waveform Generator guide](wfmgen.md#real-time-pacing) — the `--realtime` flag
+- [Waveform Generator guide](wfmgen/streaming.md) — the `--realtime` flag
     in context.
 - [Python `compose` API](../api/python-wfmgen.md) — `SampleClock`, `Composer`,
     `ZmqSink`.

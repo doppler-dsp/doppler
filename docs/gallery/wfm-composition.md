@@ -105,9 +105,9 @@ wfmgen --from-file run.json                                  -o b.cf32
 
 ## See also
 
-- [Waveform Generator guide](../guide/wfmgen.md) — the full flag/parameter
+- [Waveform Generator guide](../guide/wfmgen/index.md) — the full flag/parameter
     reference, containers (BLUE/SigMF), and the
-    [mixing/sequencing](../guide/wfmgen.md#mixing-sources-sum-and-sequencing-them-add)
+    [mixing/sequencing](../guide/wfmgen/scenes.md#mixing-sources-sum-and-sequencing-them-add)
     section.
 - [Waveform amplitude & composition](../design/wfmgen-composition.md) — the
     design rationale (average-power amplitude, PAPR, the noise-floor model).

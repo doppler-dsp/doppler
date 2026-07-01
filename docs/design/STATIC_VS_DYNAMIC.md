@@ -67,7 +67,7 @@ pip install doppler-0.1.0-py3-none-manylinux_2_38_x86_64.whl
 
 **5. Simpler Dependency Management** ✅
 
-```python
+```text
 # User doesn't need:
 # apt-get install libzmq5-dev  # ❌ Not needed!
 # brew install zeromq          # ❌ Not needed!
@@ -193,7 +193,7 @@ User runs on:
 
 **4. Installation Friction** ❌
 
-```python
+```text
 # Documentation becomes:
 
 Installation

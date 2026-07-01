@@ -49,6 +49,43 @@ instructions — reaching **~525 MSa/s** on a single AVX-512 core.
 python src/doppler/examples/awgn_demo.py   # → docs/assets/awgn_demo.png
 ```
 
+## Using the Python API
+
+For a stateless one-shot, call the functional interface; use the stateful
+`AWGN` object when you need phase-continuous streams, reproducible replay,
+or per-call amplitude changes:
+
+```python
+from doppler.source import awgn, AWGN
+
+noise = awgn(1024, amplitude=0.3, seed=42)   # one-shot, no state
+g = AWGN(seed=42, amplitude=1.0)             # stateful stream
+```
+
+`amplitude` is the per-component standard deviation and retunes in place
+without disturbing the RNG state; `reset()` rewinds to construction and
+`reseed(s)` replaces the seed and resets:
+
+```python
+g.amplitude = 0.1        # retune in-place, RNG continues
+g.reset()                # replay from construction
+g.reseed(999)            # new seed + reset
+```
+
+To model a received signal at a target SNR, set the noise std dev relative
+to the signal's per-component amplitude:
+
+```python
+import numpy as np
+from doppler.source import AWGN, LO
+
+N, SNR = 4096, 10.0                              # dB
+sig_amp   = 1.0 / np.sqrt(2)                     # per-component (unit complex)
+noise_amp = sig_amp / (10 ** (SNR / 20.0))       # per-component noise std dev
+
+rx = LO(0.1).steps(N) + AWGN(seed=0, amplitude=noise_amp).generate(N)
+```
+
 **C one-shot** (no persistent state):
 
 ```c

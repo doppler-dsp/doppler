@@ -65,9 +65,42 @@ single inverse amortizes over the dwell (~1.7× cheaper per frame at `dwell=8`,
 `bench_corr2d.py`). This holds only for *coherent* (complex-sum) integration;
 see the [2-D Acquisition gallery](detection2d.md) for the details.
 
+### `Detector` — streaming CFAR
+
+`push(block)` accepts arbitrary-length blocks and yields
+`(lag, peak_mag, noise_est, test_stat)` for each dwell that fires above the
+threshold; the noise estimate is taken from lags `[noise_lo, noise_hi]`:
+
+```python
+from doppler.spectral import Detector
+
+det = Detector(ref, dwell=DWELL, noise_lo=LAG + 4, noise_hi=N - 1,
+               threshold=5.0)
+for lag, peak_mag, noise_est, test_stat in det.push(block):
+    print(f"detection  lag={lag}  stat={test_stat:.2f}")
+# detection  lag=17  stat=6.58
+# detection  lag=17  stat=7.90   (stat varies with seed; lag is deterministic)
+```
+
+### `Corr2D` — standalone 2-D match
+
+```python
+from doppler.spectral import Corr2D
+import numpy as np
+
+rng = np.random.default_rng(0)
+ref2d = rng.standard_normal((8, 8)).astype(np.complex64)
+sig2d = np.roll(np.roll(ref2d, 3, axis=0), 5, axis=1)   # (row=3, col=5)
+
+with Corr2D(ref2d, dwell=1) as c:
+    surf = np.abs(c.execute(sig2d.ravel())).reshape(8, 8)
+peak = np.unravel_index(surf.argmax(), (8, 8))
+print(f"peak at {peak}  (true=(3, 5))")   # peak at (3, 5)
+```
+
+`Detector2D` wraps `Corr2D` with the same CFAR gating for a full 2-D
+acquisition search — see the [2-D Acquisition gallery](detection2d.md).
+
 ```bash
 python src/doppler/examples/corr_demo.py   # → corr_demo.png
 ```
-
-See [Corr / Detector API walkthrough](../examples/python-corr.md)
-for `Detector`, `Corr2D`, and `Detector2D` in full detail.

@@ -69,7 +69,9 @@ wfmgen --type symbols --symbols-file qam16.cf32 --sps 8 --pulse rrc -o qam.cf32
 In Python the constellation is the `symbols=` keyword on the composer `Synth`
 (`Synth(type="symbols", symbols=iq, sps=8)`); on the low-level `_SynthEngine`
 it is attached with `set_symbols()` after construction. See the
-[Python API](python.md) page for a worked pi/4-QPSK example.
+[Python API](python.md) page for a worked pi/4-QPSK example, and the
+[Symbols gallery walkthrough](../../gallery/symbols.md) for pi/4-QPSK and
+16-QAM constellations with rect vs RRC pulses.
 
 ______________________________________________________________________
 

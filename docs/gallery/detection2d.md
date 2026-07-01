@@ -97,5 +97,7 @@ is nonlinear and must transform each frame; it cannot defer the inverse.
 python src/doppler/examples/detection2d_demo.py  # → detection2d_demo.png  (~10 s)
 ```
 
-See [2-D Acquisition Grid](../examples/python-detection2d.md) for
-the full demo including ROC construction and MC validation.
+See [Correlation and Detection](corr.md) for the base `Corr2D` /
+`Detector2D` classes, and the full script
+`src/doppler/examples/detection2d_demo.py` for the ROC construction and
+Monte Carlo validation behind the right-hand panels.

@@ -46,6 +46,6 @@ gate `eta`. `det_dwell` binary-searches over M until
 python src/doppler/examples/detection_curves.py   # → detection_curves.png
 ```
 
-See [Detection Theory](../examples/python-detection.md) for
-`det_pd`, `det_dwell`, and `det_threshold` in full detail, plus
-Monte Carlo validation.
+See [Monte Carlo vs Marcum Q](detection-sim.md) for the 30,000-trial
+validation of these closed-form curves against the envelope and power
+detectors.

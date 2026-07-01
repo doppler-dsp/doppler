@@ -137,6 +137,7 @@ nav:
   - Gallery:
       - Gallery: gallery/index.md
       - Waveform Generator: gallery/wfmgen.md
+      - "Symbols: Bring Your Own Constellation": gallery/symbols.md
       - Waveform Scenes: gallery/wfm-composition.md
       - Waveform JSON Round-Trip: gallery/wfm-json.md
       - WCDMA Carriers: gallery/wcdma-carriers.md

@@ -9,7 +9,7 @@ ______________________________________________________________________
 ## 1. Context
 
 doppler already ships **three ZMQ messaging patterns** via `libdoppler_stream`
-(opt-in, vendored static libzmq — see `EXTENSION_WITH_STATIC_ZMQ.md`):
+(opt-in, vendored static libzmq — see `archive/EXTENSION_WITH_STATIC_ZMQ.md`):
 
 | Pattern   | Sender      | Receiver    | Use case                |
 | --------- | ----------- | ----------- | ----------------------- |

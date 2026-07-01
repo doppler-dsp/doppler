@@ -98,6 +98,10 @@ stream = np.array(
 iq = Synth(type="symbols", symbols=stream, sps=8, pulse="rrc").steps(64 * 8)
 ```
 
+See the [Symbols gallery walkthrough](../gallery/symbols.md) for worked
+pi/4-QPSK and 16-QAM constellations, rect vs RRC pulses, and the envelope
+floor behind pi/4-QPSK's lower PAPR.
+
 ### Chirp (LFM sweep)
 
 A `chirp` is a **linear-FM sweep**: its instantaneous frequency ramps from

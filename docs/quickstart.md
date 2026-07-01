@@ -230,7 +230,7 @@ ______________________________________________________________________
 ## Next steps
 
 - [Architecture](architecture.md) — design overview and layer diagram
-- [Examples: C](examples/c.md) · [Python](examples/python.md) · [Streaming](examples/streaming.md)
+- [Examples](examples/index.md): [C](examples/c.md) · [Streaming](examples/streaming.md)
 - [API reference](c-api/files.md) — full C and Python API docs
 - [Spectrum Analyzer](specan/index.md) — specan configuration
 - [CLI & Pipelines](cli/index.md) — compose and Dopplerfile

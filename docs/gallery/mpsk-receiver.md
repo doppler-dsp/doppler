@@ -72,3 +72,9 @@ A spread-spectrum M-PSK receiver is just a despreader feeding this modem: the
 [`Dll(segments)`](async-despread.md) streaming despreader collapses each PN epoch
 to one symbol-rate soft chip, and `MpskReceiver` recovers carrier, timing, and
 bits on that stream — `Dll(segments) → MpskReceiver`.
+
+## Reproduce
+
+```bash
+python src/doppler/examples/mpsk_receiver_demo.py   # → mpsk_receiver_demo.png
+```

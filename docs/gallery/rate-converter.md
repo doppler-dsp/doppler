@@ -64,6 +64,58 @@ print(rc.stages)   # ['HalfbandDecimator', 'HalfbandDecimator']
 The execute buffer is grown lazily on the first call and invalidated on every
 rate change, so callers pay no per-call allocation overhead in steady state.
 
+## Streaming — phase-continuous across blocks
+
+`execute()` carries filter state across calls, so a stream split at any block
+boundary is **byte-identical** to one large call.
+
+!!! warning "The result is a zero-copy view — copy it to keep it"
+
+    `execute()` returns a zero-copy **view** into the converter's internal
+    output buffer, valid only until you next touch the converter. Two things
+    invalidate it: the **next `execute()`** reuses the buffer in place, and
+    **`reset()`, assigning `.rate`, or a block larger than any seen so far**
+    *reallocates* it. `.copy()` any result you need to retain. The common
+    fixed-block streaming loop (consume each block before the next call) needs
+    no copy.
+
+```python
+import numpy as np
+from doppler.resample import RateConverter
+
+x = np.random.randn(2048).astype(np.complex64)
+y_full = RateConverter(0.5).execute(x).copy()
+
+rc = RateConverter(0.5)
+y_split = np.concatenate([
+    rc.execute(x[:1024]).copy(),   # copy: the next execute() reuses the buffer
+    rc.execute(x[1024:]).copy(),
+])
+assert np.array_equal(y_full, y_split)   # byte-identical ✓
+```
+
+## CIC droop compensation
+
+`compensate=1` appends a passband-droop compensating FIR (`ciccompmf(N=4, R=R, M=7)`) after any CIC stage, correcting the `|sin(x)/x|⁴` roll-off at
+negligible cost (7 taps at the decimated rate):
+
+```python
+print(RateConverter(0.125).stages)                 # ['CIC(8)']
+print(RateConverter(0.125, compensate=1).stages)   # ['CIC(8)+FIR']
+```
+
+## Functional interface
+
+`rate_convert()` wraps construction so state can persist across calls: it
+creates a `RateConverter` on the first call and returns it to reuse:
+
+```python
+from doppler.resample import rate_convert
+
+y1, rc = rate_convert(x, 0.5)          # creates RateConverter(0.5)
+y2, rc = rate_convert(x, 0.5, rc=rc)   # reuses it — state preserved
+```
+
 ```bash
 python src/doppler/examples/rate_converter_demo.py
 ```

@@ -1,8 +1,8 @@
 > **Superseded** — This records the ctypes → native extension migration
 > (now complete). For the current extension module layout policy see
-> [docs/dev/module-layout.md](../dev/module-layout.md). For a step-by-step
+> [docs/dev/module-layout.md](../../dev/module-layout.md). For a step-by-step
 > guide to adding a new module see
-> [docs/dev/adding-a-module.md](../dev/adding-a-module.md).
+> [docs/dev/adding-a-module.md](../../dev/adding-a-module.md).
 
 # Python C Extension Design: From ctypes to Native Extension
 

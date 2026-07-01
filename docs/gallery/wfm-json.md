@@ -76,3 +76,9 @@ wfmgen --from-file run.json  -o b.cf32  # byte-identical replay
 The JSON schema is at `docs/schema/wfmgen.schema.json`; the test suite in
 `src/doppler/wfm/tests/test_schema.py` validates every `--record` output
 against it automatically.
+
+## Reproduce
+
+```bash
+python src/doppler/examples/wfm_json_demo.py   # → wfm_json_demo.png
+```

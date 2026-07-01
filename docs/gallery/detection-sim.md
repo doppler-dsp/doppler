@@ -57,5 +57,6 @@ The Rician draw uses a single non-central Gaussian pair:
 python src/doppler/examples/detection_sim.py   # → detection_sim.png  (~5 s)
 ```
 
-See [Detection Theory](../examples/python-detection.md) for the
-full closed-form reference and threshold derivation.
+See [Detection Theory Curves](detection-curves.md) for the closed-form
+`det_pd` / `det_dwell` / `det_threshold` reference and threshold
+derivation.

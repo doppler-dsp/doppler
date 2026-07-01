@@ -134,59 +134,61 @@ nav:
       - Build from Source: install/source.md
       - Rust: install/rust.md
       - Docker: install/docker.md
-  - Gallery:
-      - Gallery: gallery/index.md
-      - Waveform Generator: gallery/wfmgen.md
-      - "Symbols: Bring Your Own Constellation": gallery/symbols.md
-      - Waveform Scenes: gallery/wfm-composition.md
-      - Waveform JSON Round-Trip: gallery/wfm-json.md
-      - WCDMA Carriers: gallery/wcdma-carriers.md
-      - Waveform Write: gallery/wfm-write.md
-      - Waveform I/O: gallery/wfm-io.md
-      - AGC: gallery/agc.md
-      - CIC Decimation: gallery/cic.md
-      - Q15 vs UQ15: gallery/q15-uq15.md
-      - cvt Quantization: gallery/cvt-quantization.md
-      - Correlation: gallery/corr.md
-      - Detection Curves: gallery/detection-curves.md
-      - Monte Carlo: gallery/detection-sim.md
-      - 2-D Acquisition: gallery/detection2d.md
-      - RateConverter: gallery/rate-converter.md
-      - Farrow Interpolator: gallery/farrow.md
-      - Functional DDCR: gallery/ddc-fn.md
-      - AWGN: gallery/awgn.md
-      - Measurement Suite: gallery/measure.md
-      - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
-      - DSSS Acquisition & Despreading: gallery/dsss-despread.md
-      - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
-      - Carrier Loop Stress: gallery/costas.md
-      - Code Loop Tracking: gallery/dll.md
-      - Streaming Async Despreader: gallery/async-despread.md
-      - Tracking Channel: gallery/channel.md
-      - Symbol Timing Recovery: gallery/symsync.md
-      - M-PSK Constellation: gallery/mpsk.md
-      - M-PSK Receiver: gallery/mpsk-receiver.md
-      - Costas Loop (theory): gallery/costas-theory.md
-      - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
-      - NDA Carrier Loop (theory): gallery/carrier-nda.md
-      - Timing Loop (theory): gallery/symsync-theory.md
-      - DLL Code Loop (theory): gallery/dll-theory.md
   - Examples:
-      - Examples: examples/index.md
-      - C: examples/c.md
-      - Python:
-          - Python: examples/python.md
-          - RateConverter: examples/python-rate-converter.md
+      - Overview: examples/index.md
+      - Sources & Waveforms:
+          - Waveform Generator: gallery/wfmgen.md
+          - "Symbols: Bring Your Own Constellation": gallery/symbols.md
+          - Waveform Scenes: gallery/wfm-composition.md
+          - Waveform I/O: gallery/wfm-io.md
+          - Waveform JSON Round-Trip: gallery/wfm-json.md
+          - Waveform Write: gallery/wfm-write.md
+          - WCDMA Carriers: gallery/wcdma-carriers.md
+          - AWGN: gallery/awgn.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
-          - AWGN: examples/python-awgn.md
+      - Filters & Resampling:
+          - CIC Decimation: gallery/cic.md
+          - RateConverter: gallery/rate-converter.md
+          - Farrow Interpolator: gallery/farrow.md
+          - "HBDecimQ15: Fixed-Point Halfband": gallery/hbdecim_q15.md
+      - Down-Conversion (DDC):
+          - Functional DDCR: gallery/ddc-fn.md
+      - Detection & Acquisition:
+          - Correlation: gallery/corr.md
+          - Detection Curves: gallery/detection-curves.md
+          - Monte Carlo: gallery/detection-sim.md
+          - 2-D Acquisition: gallery/detection2d.md
+          - DSSS Acquisition & Despreading: gallery/dsss-despread.md
+          - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
+          - Streaming Async Despreader: gallery/async-despread.md
+      - Synchronization Loops:
+          - Carrier Loop Stress: gallery/costas.md
+          - Costas Loop (theory): gallery/costas-theory.md
+          - Code Loop Tracking: gallery/dll.md
+          - DLL Code Loop (theory): gallery/dll-theory.md
+          - Symbol Timing Recovery: gallery/symsync.md
+          - Timing Loop (theory): gallery/symsync-theory.md
+          - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
+          - NDA Carrier Loop (theory): gallery/carrier-nda.md
+          - Tracking Channel: gallery/channel.md
+      - Constellations & Receivers:
+          - M-PSK Constellation: gallery/mpsk.md
+          - M-PSK Receiver: gallery/mpsk-receiver.md
+      - Measurement:
+          - Measurement Suite: gallery/measure.md
+          - "Measurement Suite: IMD & NPR": gallery/measure-imd-npr.md
+      - Quantization & Fixed-Point:
+          - ADC Quantisation: gallery/adc.md
+          - Q15 vs UQ15: gallery/q15-uq15.md
+          - cvt Quantization: gallery/cvt-quantization.md
+      - Gain Control:
+          - AGC: gallery/agc.md
+      - Streaming: examples/streaming.md
+      - Fundamentals:
           - FFT: examples/python-fft.md
           - Ring Buffers: examples/python-buffers.md
-          - AGC: examples/python-agc.md
-          - Corr & Detector: examples/python-corr.md
-          - Detection Theory: examples/python-detection.md
-          - 2-D Acquisition: examples/python-detection2d.md
-      - Streaming: examples/streaming.md
+          - C Examples: examples/c.md
   - API Reference:
       - API Reference: api/index.md
       - C API: c-api/index.md
@@ -242,7 +244,12 @@ nav:
       - Corr2D Interpolated Inverse: design/corr2d-interpolated-inverse.md
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
+      - Continuously Variable Resampler: design/RESAMPLER.md
+      - Spectrum Analyzer (Specan): design/SPECAN.md
+      - Acquisition Kernel: design/acq-fn.md
+      - Static vs Dynamic Linking: design/STATIC_VS_DYNAMIC.md
       - Streaming Roadmap: design/streaming-roadmap.md
+      - "NATS JetStream Transport (roadmap)": dev/nats-jetstream-transport-migration.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - CLI & Pipelines: cli/index.md

@@ -2,7 +2,7 @@
 
 Every Python C extension subpackage in doppler follows an exact layout.
 This page is the authoritative reference — it supersedes
-[`docs/design/PYTHON_EXTENSION_DESIGN.md`](../design/PYTHON_EXTENSION_DESIGN.md).
+[`docs/design/archive/PYTHON_EXTENSION_DESIGN.md`](../design/archive/PYTHON_EXTENSION_DESIGN.md).
 
 The [just-makeit](https://just-buildit.github.io/just-makeit/) scaffold
 generates this layout automatically. Reading this page tells you *why* each

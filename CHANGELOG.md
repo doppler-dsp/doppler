@@ -36,6 +36,18 @@ ______________________________________________________________________
     object model, stated plainly for the first time), Waveforms (now including
     `symbols`), Levels & SNR, Output & containers, Scenes, Streaming, Python API,
     and Recipes. Inbound links repointed; no content dropped.
+- **Examples & Gallery merged into one domain-grouped section.** The flat
+    37-entry Gallery and the separate Examples section become a single
+    **Examples** section grouped by DSP domain (Sources & Waveforms, Filters &
+    Resampling, DDC, Detection & Acquisition, Synchronization Loops,
+    Constellations & Receivers, Measurement, Quantization & Fixed-Point, Gain
+    Control, Streaming, Fundamentals). Six duplicate `examples/python-*.md`
+    walkthroughs (agc, awgn, corr, detection, detection2d, rate-converter) were
+    folded into their gallery counterparts, which carry the figure. Off-nav
+    orphans adopted or archived: `adc`/`hbdecim_q15` gallery pages and the
+    `RESAMPLER`/`SPECAN`/`acq-fn`/`STATIC_VS_DYNAMIC`/NATS-transport design docs
+    are now in the nav; two superseded design notes moved to `design/archive/`.
+    `make gallery` now regenerates the AWGN and waveform-I/O figures too.
 
 ## [0.24.0] — 2026-06-30
 

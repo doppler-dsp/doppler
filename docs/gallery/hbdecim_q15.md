@@ -220,3 +220,9 @@ budget limits the in-band SNR ceiling independently of signal level:
 For signals below −6 dBFS the folded sums in the scalar path stay within
 int16 range. The two-pass AVX2 path is safe at any level up to 0 dBFS
 because it never forms the 16-bit fold.
+
+## Reproduce
+
+```bash
+python src/doppler/examples/hbdecim_q15_demo.py   # → hbdecim_q15_demo.png
+```

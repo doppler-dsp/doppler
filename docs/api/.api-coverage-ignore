@@ -1,48 +1,15 @@
-# API-docs coverage baseline — pre-existing undocumented public symbols.
+# API-docs coverage baseline — intentional exclusions.
 # Checked by scripts/check_api_docs.py (CI: the Docs job).
 #
-# These modules/symbols have no docs/api page yet — documentation debt to
-# pay down over time (delete a line once it's documented). The gate fails
-# on any NEW public symbol not listed here, so a fresh surface (like
-# spectral.Detector was) can't land undocumented again.
+# The gate fails on any public symbol (a module's __all__) that is not named
+# somewhere under docs/api/ (a ::: directive, prose, or an example). List a
+# fully-qualified name here only to deliberately exclude it; keep this list as
+# close to empty as possible — every entry is undocumented public surface.
 #
-# Whole modules with no API page: agc, arith, cvt, util.
+# The former documentation-debt baseline (agc / arith / cvt / util / stream
+# constants / filter.HBDecimQ15 / resample kaiser helpers / wfm helpers) has
+# been paid down: those symbols are now documented and their lines removed.
 
-doppler.agc.AGC
-doppler.arith.AccQ15
-doppler.arith.AccQ8
-doppler.arith.add_q15
-doppler.arith.add_q8
-doppler.arith.dot_q15
-doppler.arith.dot_q8
-doppler.arith.mul_q15
-doppler.arith.mul_q8
-doppler.arith.shl_i64
-doppler.arith.shl_q15
-doppler.arith.shl_q8
-doppler.arith.shr_i64
-doppler.arith.shr_q15
-doppler.arith.shr_q8
-doppler.arith.sub_q15
-doppler.arith.sub_q8
-doppler.cvt.F32ToI16
-doppler.cvt.F32ToI16U32
-doppler.cvt.F32ToI16U64
-doppler.cvt.F32ToUQ15
-doppler.cvt.I16ToF32
-doppler.cvt.I16U32ToF32
-doppler.cvt.I16U64ToF32
-doppler.cvt.I32ToF32
-doppler.cvt.I8ToF32
-doppler.cvt.UQ15ToF32
-doppler.filter.HBDecimQ15
-doppler.resample.kaiser_beta
-doppler.resample.kaiser_num_taps
-doppler.stream.CF128
-doppler.stream.CI32
-doppler.util.square_clip
-doppler.wfm.bpsk_map
-doppler.wfm.qpsk_map
-doppler.wfm.wfm_awgn_amplitude
-doppler.wfm.wfm_ebno_to_snr_db
+# _SynthEngine is the underscore-prefixed low-level binding behind the public
+# composer Synth; callers use Synth. It is intentionally not in the API ref.
 doppler.wfm._SynthEngine

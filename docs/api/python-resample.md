@@ -291,6 +291,23 @@ y = f.delay(x, mu=0.3)      # constant fractional delay of a cf32 block
 
 ______________________________________________________________________
 
+## Kaiser filter-design helpers
+
+Two closed-form helpers expose the Kaiser window design the polyphase
+`Resampler` uses internally, for callers rolling their own FIR spec.
+`kaiser_beta(atten)` maps a stopband attenuation (dB) to the Kaiser `beta`
+shape parameter (the FIR-stopband formula `0.1102·(A−8.7)`, distinct from the
+window-sidelobe formula in `spectral`); `kaiser_num_taps(num_phases, atten, pb, sb)` returns the tap count meeting an attenuation over a pass/stop band edge.
+
+```python
+from doppler.resample import kaiser_beta, kaiser_num_taps
+
+beta = kaiser_beta(60.0)                       # 60 dB stopband → beta ≈ 5.65
+ntaps = kaiser_num_taps(4096, 60.0, 0.4, 0.6)  # taps for a 0.4/0.6 transition
+```
+
+______________________________________________________________________
+
 ::: doppler.resample
 options:
 members:
@@ -303,3 +320,5 @@ members:
 \- CIC
 \- ciccompmf
 \- Farrow
+\- kaiser_beta
+\- kaiser_num_taps

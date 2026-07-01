@@ -2,10 +2,10 @@
 
 Everything in the `doppler.wfm` package imports from one place — `from doppler.wfm import …`. The two low-level generators are:
 
-| Class   | Output                                | Use when                                                                                  |
-| ------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `Synth` | CF32 — the seven-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits, with optional LO offset and AWGN |
-| `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                       |
+| Class   | Output                                | Use when                                                                                            |
+| ------- | ------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `Synth` | CF32 — the eight-type waveform engine | Generate tone / noise / PN / BPSK / QPSK / chirp / bits / symbols, with optional LO offset and AWGN |
+| `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                                 |
 
 `Synth` is also the unit of **composition** — pass synths into `Segment.sum`
 to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-zmq-sink) below).
@@ -18,11 +18,12 @@ These same C cores back the one command-line tool, `wfmgen` — see the
 
 ______________________________________________________________________
 
-## `Synth` — the six-type waveform engine
+## `Synth` — the eight-type waveform engine
 
 One declarative engine produces every waveform type, selected by the string
-`type`. Construction takes keyword arguments mirroring the generator flags;
-sensible defaults mean a bare `Synth()` is a clean, unit-power baseband tone.
+`type` (`tone`, `noise`, `pn`, `bpsk`, `qpsk`, `chirp`, `bits`, `symbols`).
+Construction takes keyword arguments mirroring the generator flags; sensible
+defaults mean a bare `Synth()` is a clean, unit-power baseband tone.
 
 ```python
 from doppler.wfm import Synth
@@ -71,6 +72,30 @@ import numpy as np
 payload = bits(
     pattern=np.array([1, 0, 1, 1, 0, 1, 0, 1], np.uint8), modulation="qpsk"
 )
+```
+
+### Symbols (arbitrary constellation)
+
+Where `bits` maps data through a *fixed* modulation, `type="symbols"` skips the
+map entirely: you supply a complex64 constellation stream and **each element is
+an output point directly**, oversampled by `sps`, cycled to fill the request,
+and RRC-shaped through the same matched-FIR path (`pulse="rrc"`). That expresses
+any modulation an enum doesn't — pi/4-QPSK, QAM, APSK — by computing the points
+yourself and passing them. On the composer `Synth` the stream is the `symbols=`
+keyword; on the low-level `_SynthEngine` it is attached with `set_symbols()`
+after construction. A complex128 array is accepted (force-cast to complex64).
+
+```python
+import numpy as np
+from doppler.wfm import Synth
+
+# pi/4-QPSK: rotate every other QPSK symbol by pi/4, then pass the stream
+qpsk = np.array([1 + 1j, -1 + 1j, -1 - 1j, 1 - 1j], np.complex64) / np.sqrt(2)
+stream = np.array(
+    [qpsk[i % 4] * (np.exp(1j * np.pi / 4) if i % 2 else 1) for i in range(64)],
+    np.complex64,
+)
+iq = Synth(type="symbols", symbols=stream, sps=8, pulse="rrc").steps(64 * 8)
 ```
 
 ### Chirp (LFM sweep)
@@ -348,3 +373,20 @@ class above.
 ::: doppler.wfm.mls_poly
 
 ::: doppler.wfm.readback.read_iq
+
+### Modulation & SNR helpers
+
+Low-level primitives behind the modulated types and the SNR model, exposed for
+callers who build their own symbol streams or noise budgets: `bpsk_map` /
+`qpsk_map` map bits (and Gray-coded symbol indices) to unit-energy constellation
+points, `wfm_ebno_to_snr_db` converts an Eb/No target to the over-`fs` SNR the
+generator actually places, and `wfm_awgn_amplitude` returns the noise amplitude
+for a given SNR.
+
+::: doppler.wfm.bpsk_map
+
+::: doppler.wfm.qpsk_map
+
+::: doppler.wfm.wfm_ebno_to_snr_db
+
+::: doppler.wfm.wfm_awgn_amplitude

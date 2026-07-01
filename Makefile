@@ -361,17 +361,26 @@ rust-test: build
 
 # ── docs ──────────────────────────────────────────────────────────────────────
 # zensical reads mkdocs.yml natively — no config migration required.
+# The docs toolchain (zensical + its bundled material theme, mkdocstrings,
+# mkdoxy) lives in the `docs` dependency group, which is NOT auto-synced — pass
+# `--group docs` on every invocation so a clean checkout renders identically to
+# CI (`uv sync --group dev --group docs`). Without it, `uv run zensical` relies
+# on incidental venv state and can fall back to a themeless (no-left-nav) build.
+# A stale local `zensical.toml` (gitignored, absent in CI) shadows mkdocs.yml
+# and silently truncates the nav, so remove it first.
 # gen-c-api is a separate step; docs/c-api/ is committed and only needs
 # regeneration when native/inc/ headers change.
 docs:
-	uv run zensical build --clean
+	rm -f zensical.toml
+	uv run --group docs zensical build --clean
 
 docs-serve:
-	uv run zensical serve
+	rm -f zensical.toml
+	uv run --group docs zensical serve
 
 gen-c-api:
 	rm -rf docs/c-api .mkdoxy .capi-site
-	uv run mkdocs build -f mkdocs-capi.yml
+	uv run --group docs mkdocs build -f mkdocs-capi.yml
 	cp -r .mkdoxy/doppler/c-api docs/c-api
 	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
 	# after the regen wipes it (matches the CI docs.yml step).

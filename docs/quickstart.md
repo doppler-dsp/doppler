@@ -22,6 +22,10 @@ ______________________________________________________________________
 
 ## Signal processing
 
+Every object is a thin, stateful wrapper over the C core: construct it once,
+then stream blocks through it. The examples below build on each other — the
+signal `x` created in the FFT step is reused by the filter and resampler.
+
 ### LO — generate a complex tone
 
 ```python
@@ -30,7 +34,7 @@ from doppler.source import LO
 lo = LO(0.25)          # normalised frequency: 0.25 → Fs/4
 iq = lo.steps(8)
 print(iq)
-# [1.+0.j  0.+1.j  -1.+0.j  0.-1.j ...]
+# [ 1.+0.j  0.+1.j -1.+0.j  0.-1.j ...]
 ```
 
 ### FFT
@@ -40,8 +44,8 @@ from doppler.spectral import FFT
 import numpy as np
 
 x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
-f = FFT(1024)
-X = f.execute_cf32(x)  # complex64 in → complex64 out (~2× faster than float64)
+fft = FFT(1024)
+X = fft.execute_cf32(x)   # complex64 in → complex64 out (~2× faster than f64)
 ```
 
 ### FIR filter
@@ -49,20 +53,22 @@ X = f.execute_cf32(x)  # complex64 in → complex64 out (~2× faster than float6
 ```python
 from doppler.filter import FIR
 from scipy.signal import firwin
-import numpy as np
 
 taps = firwin(63, cutoff=0.1, window="hamming").astype(np.float32)
-filt = FIR(taps)
-y = filt.execute(x.astype(np.complex64))
+fir = FIR(taps)
+y = fir.execute(x)        # reuses x from the FFT step
 ```
 
 ### Resample
 
-```python
-from doppler.resample import HalfbandDecimator
+`RateConverter` picks the cheapest cascade (halfband / CIC / polyphase) for
+the rate you ask for — no filter design required:
 
-decim = HalfbandDecimator()
-y = decim.execute(x.astype(np.complex64))  # 2:1 decimation
+```python
+from doppler.resample import RateConverter
+
+rc = RateConverter(0.5)   # 2:1 decimation → auto-selects a halfband stage
+y = rc.execute(x)         # 1024 → 512 samples
 ```
 
 ______________________________________________________________________
@@ -73,6 +79,8 @@ Doppler streams IQ data over ZMQ. Transmit and receive on the same
 machine or across a network — the API is identical.
 
 ### Publisher (Python)
+
+<!-- docs-snippet: skip=two-terminal ZMQ demo; the send/recv round-trip and message fields are gated by doppler/stream/tests/test_stream.py -->
 
 ```python
 from doppler.stream import Publisher
@@ -85,6 +93,8 @@ pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
 ```
 
 ### Subscriber (Python)
+
+<!-- docs-snippet: skip=blocking recv() with no peer; round-trip covered by doppler/stream/tests/test_stream.py -->
 
 ```python
 from doppler.stream import Subscriber

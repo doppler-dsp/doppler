@@ -13,6 +13,14 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
+    showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
+    complex streams (modulations no enum provides), rect vs RRC pulses, and the
+    envelope floor that gives pi/4-QPSK its ~0.5 dB lower PAPR. The `wfmgen`
+    guide's `--type` reference now documents `symbols` and `--symbols-file`.
+
 ## [0.24.0] — 2026-06-30
 
 ### Added

@@ -16,6 +16,18 @@ Run `make gallery` to regenerate all images.
 
     [:octicons-arrow-right-24: Walkthrough](wfmgen.md)
 
+- **[type="symbols" — Bring Your Own Constellation](symbols.md)**
+
+    ______________________________________________________________________
+
+    [![symbols demo](../assets/symbols_demo.png)](symbols.md)
+
+    pi/4-QPSK and 16-QAM from an arbitrary complex stream — modulations no
+    enum provides. Rect vs RRC pulses, and the envelope floor that gives
+    pi/4-QPSK its lower PAPR.
+
+    [:octicons-arrow-right-24: Walkthrough](symbols.md)
+
 - **[Composing a Scene — sum, add, headroom](wfm-composition.md)**
 
     ______________________________________________________________________

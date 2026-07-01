@@ -40,6 +40,8 @@ ______________________________________________________________________
 
 ### Producer / consumer (threaded)
 
+<!-- docs-snippet: skip=threaded producer/consumer with infinite loops -->
+
 ```python
 from doppler.buffer import F32Buffer
 import numpy as np
@@ -63,13 +65,22 @@ t_prod.start()
 t_cons.start()
 ```
 
-### Check available samples without blocking
+### Draining without blocking
+
+`wait(n)` returns a zero-copy view immediately when `n` samples are already
+buffered; it only blocks the consumer while fewer than `n` are available. So a
+producer that has filled the ring lets the consumer drain without waiting.
 
 ```python
-if buf.available >= 1024:
-    view = buf.wait(1024)
-    process(view)
-    buf.consume(1024)
+from doppler.buffer import F32Buffer
+import numpy as np
+
+buf = F32Buffer(4096)
+buf.write(np.ones(2048, dtype=np.complex64))   # producer filled the ring
+
+view = buf.wait(1024)          # 1024 already buffered -> returns at once
+np.abs(view).mean()            # process the zero-copy view
+buf.consume(1024)
 ```
 
 ### I16Buffer — raw ADC samples
@@ -82,6 +93,7 @@ from doppler.buffer import I16Buffer
 import numpy as np
 
 buf = I16Buffer(4096)
+adc_bytes = np.zeros(2048 * 2, dtype=np.int16).tobytes()   # ADC byte stream
 raw = np.frombuffer(adc_bytes, dtype=np.int16).reshape(-1, 2)
 buf.write(raw)
 

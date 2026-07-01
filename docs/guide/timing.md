@@ -29,6 +29,8 @@ ______________________________________________________________________
 
 The obvious loop accumulates error:
 
+<!-- docs-snippet: skip=illustrative anti-pattern (the WRONG example) -->
+
 ```python
 for blk in blocks:
     sink.send(blk)
@@ -92,6 +94,8 @@ generated `stream` owns a `SampleClock` and sleeps to each block's deadline with
 the GIL released — the same clock the CLI uses). With `realtime` omitted (the
 default `0.0`), `stream` is a pure drain that yields as fast as it can:
 
+<!-- docs-snippet: skip=unbounded realtime ZMQ stream -->
+
 ```python
 from doppler.wfm.compose import Composer, ZmqSink
 
@@ -103,6 +107,8 @@ with ZmqSink("tcp://0.0.0.0:5555") as sink:
 
 When you need the slack value, the timestamp, or a custom loop, drive a
 `SampleClock` directly:
+
+<!-- docs-snippet: skip=unbounded realtime pacing loop -->
 
 ```python
 from doppler.wfm.compose import Composer, SampleClock, ZmqSink
@@ -147,6 +153,10 @@ stamp(n) = epoch_real + n / fs      # ns since the UNIX epoch (CLOCK_REALTIME)
 ```
 
 ```python
+import numpy as np
+from doppler.wfm.compose import SampleClock
+
+blk = np.zeros(4096, dtype=np.complex64)   # one generated block
 clk = SampleClock(fs=1e6)
 ts = clk.stamp()        # ideal ns timestamp of the next sample
 clk.pace(len(blk))
@@ -178,6 +188,8 @@ lock-free single-producer/single-consumer ring that uses **virtual-memory
 mirroring** (the same physical pages mapped at `A` and `A+N`) so a block that
 wraps the end is still one contiguous, zero-copy span. No wrap-around branch, no
 copy.
+
+<!-- docs-snippet: skip=unbounded producer/consumer threads -->
 
 ```python
 import threading

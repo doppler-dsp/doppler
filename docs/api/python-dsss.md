@@ -65,16 +65,41 @@ The frame is `[sync header][payload][CRC-16 trailer]` in BPSK symbols (no FEC).
 
 ```python
 import numpy as np
-from doppler.dsss import Acquisition, BurstDemod
+from doppler.dsss import BurstDemod
 
-# Acquire the preamble (coarse Doppler + code phase), then hand off.
-acq = Acquisition(acq_code, reps=5, spc=4, chip_rate=1e6, cn0_dbhz=45.0,
-                  doppler_uncertainty=3e5, pfa=1e-3, pd=0.9)
-hit = acq.push(rx)[0]               # (doppler_bin, code_phase, ...)
-f0 = (hit[0] * acq.doppler_res_hz - acq.doppler_span_hz) / (1e6 * 4)  # -> cyc/sample
+# Build a burst: 5x acquisition preamble, then a spread frame
+# [Barker-13 sync | payload | CRC-16]. A real receiver takes (f0, code
+# phase) from `Acquisition`; here we seed a known prior so the block runs.
+acq_code = ((np.arange(500) * 2654435761 >> 13) & 1).astype(np.uint8)
+data_code = ((np.arange(50) * 40503 >> 7) & 1).astype(np.uint8)
+sync_word = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
+payload = ((np.arange(64) * 7 + 3) & 1).astype(np.uint8)
+
+
+def _crc16(bits):                          # CRC-16/CCITT, MSB-first
+    c = 0xFFFF
+    for b in bits:
+        c ^= (int(b) & 1) << 15
+        c = ((c << 1) ^ 0x1021) & 0xFFFF if c & 0x8000 else (c << 1) & 0xFFFF
+    return c
+
+
+def _sign(b):                              # 0/1 chips -> +1/-1 BPSK
+    return np.where(np.asarray(b) & 1, -1.0, 1.0)
+
+
+crc = _crc16(payload)
+crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+frame = np.concatenate([sync_word, payload, crc_bits])
+chips = [np.tile(_sign(acq_code), 5)]      # unmodulated preamble
+chips += [_sign(b) * _sign(data_code) for b in frame]
+f0, preamble_start = 0.012, 0              # cyc/sample; from acquisition
+bb = np.repeat(np.concatenate(chips), 4).astype(np.complex64)
+nn = np.arange(len(bb))
+rx = (bb * np.exp(2j * np.pi * f0 * nn)).astype(np.complex64)
 
 d = BurstDemod(data_code, spc=4, chip_rate=1e6, carrier_hz=0.0,
-               max_rate=1e-6, payload_len=256, est_segments=10)  # LEO regime
+               max_rate=0.0, payload_len=64, est_segments=10)
 d.set_preamble(acq_code, reps=5)
 d.set_sync(sync_word)              # 0/1 BPSK sync header
 d.set_prior(f0, preamble_start)
@@ -136,7 +161,10 @@ ______________________________________________________________________
 import numpy as np
 from doppler.dsss import Despreader
 
-# data_code: 0/1 spreading chips; seed from the acquisition peak
+# data_code: 0/1 spreading chips; seed from the acquisition peak.
+# rx is the received capture (reuse the burst built above).
+data_code = ((np.arange(32) * 40503 >> 7) & 1).astype(np.uint8)
+acq_freq, acq_chip = 0.012, 0.0
 d = Despreader(data_code, sf=32, sps=2,
                init_norm_freq=acq_freq, init_chip_phase=acq_chip)
 symbols = d.steps(rx)        # complex64 prompt symbols
@@ -147,6 +175,7 @@ round(d.lock_metric, 2)      # ~1.0 once locked
 ### Preamble-aided pull-in with a distinct acquisition code
 
 ```python
+burst = rx                        # a received capture (from above)
 d = Despreader(data_code, sf=32, sps=2)
 d.set_acq(acq_code, acq_reps=5)   # 5-rep preamble pulls the loops in
 symbols = d.steps(burst)          # preamble emits nothing; payload follows

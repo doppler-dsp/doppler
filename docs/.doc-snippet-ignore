@@ -5,36 +5,3 @@
 # fences are made to run (or marked skip=), delete its line. A NEW page is never
 # added here — it is gated on arrival (fail-closed). Mirrors the burn-down
 # idiom of docs/api/.api-coverage-ignore and scripts/.serializable-ignore.
-api/python-accumulator.md
-api/python-agc.md
-api/python-analyzer.md
-api/python-arith.md
-api/python-buffer.md
-api/python-cvt.md
-api/python-ddc.md
-api/python-delay.md
-api/python-detection.md
-api/python-dsss.md
-api/python-fft.md
-api/python-filter.md
-api/python-measure.md
-api/python-nco.md
-api/python-polyphase.md
-api/python-resample.md
-api/python-spectral.md
-api/python-streaming.md
-api/python-track.md
-api/python-util.md
-api/python-wfmgen.md
-cli/index.md
-design/mpsk.md
-design/state-serialization.md
-design/wfmgen-composition.md
-dev/benchmarking.md
-dev/module-layout.md
-dev/wfm-validation-findings.md
-dev/wfmgen/api.md
-examples/streaming.md
-guide/dsss-acquisition.md
-guide/spectral-psd.md
-guide/timing.md

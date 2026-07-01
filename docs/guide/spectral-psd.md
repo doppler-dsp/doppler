@@ -88,6 +88,16 @@ snapshots for a smoother, lower-variance noise floor.
 ```python
 import numpy as np
 
+# a running capture: cf32 frames (complex baseband) plus one real block
+fs = 100e6
+cf32_frames = [                     # each frame: any multiple of n samples
+    np.exp(2j * np.pi * 3e6 * np.arange(4 * w.n) / fs).astype(np.complex64)
+    for _ in range(3)
+]
+real_capture = np.cos(
+    2 * np.pi * 10e6 * np.arange(8 * w.n) / fs
+).astype(np.float32)
+
 # complex baseband (cf32)
 for frame in cf32_frames:           # each frame: any multiple of n samples
     w.accumulate(frame)
@@ -189,6 +199,11 @@ assert abs(r.enob - bits) < 0.3
 ```python
 from doppler.measure import IMDMeasure
 
+# a real two-tone capture at 9 and 11 MHz (equal amplitude)
+t = np.arange(8 * n) / fs
+two_tone_capture = (0.4 * np.sin(2 * np.pi * 9.0e6 * t)
+                    + 0.4 * np.sin(2 * np.pi * 11.0e6 * t)).astype(np.float32)
+
 m = IMDMeasure(n=n, fs=fs, dynamic_range_db=90.0)
 r = m.analyze(two_tone_capture)     # finds the two strongest tones automatically
 r.imd3_dbc, r.imd2_dbc, r.toi_dbfs  # third/second-order products & intercept
@@ -225,6 +240,15 @@ from doppler.spectral import find_peaks_f32
 
 sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, center=0.0)
 sa.n, sa.beta, sa.rbw          # the DSP grid it derived from span/rbw
+
+# a real cf32 capture (30 kHz tone in light noise), split into blocks
+k = np.arange(1 << 16)
+iq_stream = np.array_split(
+    (np.exp(2j * np.pi * 30e3 * k / 2.048e6)
+     + 0.01 * (np.random.standard_normal(k.size)
+               + 1j * np.random.standard_normal(k.size))).astype(np.complex64),
+    16,
+)
 
 for chunk in iq_stream:                       # any cf32 block size
     db = sa.execute(chunk.astype(np.complex64))

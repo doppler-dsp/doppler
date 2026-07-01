@@ -59,6 +59,7 @@ detector re-seeded from `ref_db`) without re-allocating.
 ```python
 agc.reset()
 agc.gain_db, agc.applied_gain_db   # (0.0, 0.0)
+next_segment = np.full(2000, 2.0 + 0j, dtype=np.complex64)
 y2 = agc.steps(next_segment)
 ```
 
@@ -67,6 +68,7 @@ y2 = agc.steps(next_segment)
 `steps` may write into the input buffer (the output array can alias the input):
 
 ```python
+buf = np.full(2000, 2.0 + 0j, dtype=np.complex64)
 agc.steps(buf, out=buf)
 ```
 

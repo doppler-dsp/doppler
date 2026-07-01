@@ -567,6 +567,20 @@ ctest --test-dir build
 
 ______________________________________________________________________
 
+## Doc examples are tested (fail-closed)
+
+Every ```` ```python ````/```` ```pycon ```` fence under `docs/` is executed (or
+`>>>`-output-checked) by `src/doppler/tests/test_doc_snippets.py` — **discovered,
+not registered**, so a new page is gated the moment it exists. Run locally with
+`uv run pytest -m docs_snippets`. When adding/editing docs, make the code
+**runnable-first**: prefer a `--8<--` include from a CI-tested
+`src/doppler/examples/*.py` (the gate resolves it), else exec-with-real-setup;
+`skip=REASON` only for genuinely-unrunnable blocks (blocking recv, hardware).
+Pseudocode/templates are ```` ```text ````, not `python`. Full policy +
+docs-build gotchas: `docs/dev/doc-examples.md`.
+
+______________________________________________________________________
+
 ## Code style
 
 - **C**: `clang-format` with `.clang-format` at repo root (GNU, 79 cols — copied

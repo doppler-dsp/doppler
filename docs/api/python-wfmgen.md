@@ -311,7 +311,9 @@ and conversion is in C:
 ```python
 from doppler.wfm import Composer, Writer, Reader
 
-Composer(type="qpsk", sps=8, num_samples=4096).compose()  # ... write it ...
+iq = Composer(type="qpsk", sps=8, num_samples=4096).compose()
+with Writer("capture.blue", file_type="blue") as w:  # write a BLUE container
+    w.write(iq)
 with Reader("capture.blue") as r:          # container auto-detected
     print(r.file_type, r.fs, r.num_samples)
     x = r.read(r.num_samples)               # or block-wise: r.read(4096)
@@ -328,6 +330,8 @@ pulse-shaping and spreading primitives.
 `SampleClock` (POSIX) paces and timestamps a stream against an ideal `fs`-Hz
 clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
 throttle a producer to real time and to tag blocks with their ideal timestamp:
+
+<!-- docs-snippet: skip=unbounded real-time ZMQ streaming loop -->
 
 ```python
 from doppler.wfm import Composer, SampleClock, ZmqSink

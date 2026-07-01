@@ -36,6 +36,8 @@ and `PN`'s own docstring/doctest shows a maximal-length sequence for `length=7`
 **degenerate** sequence: a single `1` followed by all zeros (sum = 1), i.e. the
 LFSR runs with no feedback (effective `poly = 0`).
 
+<!-- docs-snippet: skip=pre-#196 bug output; PN() now auto-selects MLS -->
+
 ```python
 >>> import doppler.wfm as w
 >>> int(w.PN(seed=1, length=7).generate(127).sum())        # omitted poly
@@ -170,6 +172,7 @@ is **intended** — `repeat`/`continuous` exist for the streaming faces
 but it is an easy trap and is undocumented on the `compose()` method.
 
 ```python
+>>> import doppler.wfm as w
 >>> c = w.Composer([w.Segment("tone", freq=1e5, num_samples=128)], repeat=True)
 >>> c.to_dict()["repeat"]      # the flag is set and round-trips through JSON
 True
@@ -213,8 +216,8 @@ emits **unit complex power** (σ² = 0.5 per quadrature) regardless of `snr`,
 >>> for lvl in (0.0, -20.0):
 ...     x = w.Synth(type="noise", level=lvl, seed=7).steps(100_000)
 ...     round(float(np.mean(np.abs(x)**2)), 3)
-1.0
-1.0
+0.999
+0.999
 ```
 
 The per-segment `level` (dBFS) gain — and, for multi-source segments, the

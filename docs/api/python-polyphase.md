@@ -10,14 +10,16 @@
     all practical use cases with no coefficient design step required.
 
     ```python
+    import numpy as np
     from doppler.resample import Resampler
 
+    iq = (np.random.randn(4096) + 1j * np.random.randn(4096)).astype(
+        np.complex64
+    )
     r = Resampler(0.5)            # 2× decimation, 60 dB rejection
     y = r.execute(iq)
     ```
 
-    For tighter specs, pass `rejection`, `passband`, and `stopband`:
-
-    ```python
-    r = Resampler(0.5, rejection=80.0, passband=0.35, stopband=0.45)
-    ```
+    The built-in bank is fixed (≈60 dB rejection, 0.4/0.6 pass/stop) and has
+    no per-instance spec knob in the Python API; design a custom bank in C
+    via `Resampler_create_custom()` for tighter rejection.

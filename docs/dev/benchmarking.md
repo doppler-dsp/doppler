@@ -56,7 +56,7 @@ with full summary stats (min, max, mean, stddev, median, IQR, ops).
 
 ### Writing a Python benchmark
 
-```python
+```text
 """bench_mymod.py — throughput benchmarks for doppler.mymod."""
 import numpy as np
 import pytest

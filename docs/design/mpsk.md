@@ -140,6 +140,13 @@ false-lock — clip on → false lock, clip off → `|z|^M` gain blow-up).
 # (= 2 only for a constant-modulus arm; it collapses on a pulse-shaped arm,
 # see below) — NOT a hardcoded 4.
 
+import numpy as np
+
+mod = "BPSK"                       # one of "BPSK", "QPSK", "8PSK"
+esno = 10.0                        # symbol Es/No, dB
+i = np.array([0.71, -0.62, 0.80])  # example half-symbol boxcar arm outputs
+q = np.array([0.10, -0.21, 0.05])  # (unit-power, one pair per input sample)
+
 rd = 10 ** (esno / 10.0)
 
 bpsk_lock = i**2 - q**2          # Re(z^2)

@@ -49,6 +49,8 @@ dl = DelayCf64(num_taps)
 
 taps = np.ones(num_taps, dtype=np.float32) / num_taps   # example taps
 
+iq_stream = (np.random.randn(64)
+             + 1j * np.random.randn(64)).astype(np.complex128)
 for sample in iq_stream:
     dl.push(sample)
     window = dl.ptr()                       # contiguous num_taps window
@@ -69,6 +71,8 @@ for sample in iq_stream:
 ### Context manager
 
 ```python
+stream = (np.random.randn(64)
+          + 1j * np.random.randn(64)).astype(np.complex128)
 with DelayCf64(32) as dl:
     for s in stream:
         dl.push(s)

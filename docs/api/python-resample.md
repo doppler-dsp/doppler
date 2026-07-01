@@ -70,6 +70,9 @@ next `execute()`:
 
 ```python
 rc = RateConverter(0.5)
+iq_stream = np.array_split(x, 4)   # CF32 blocks, any length
+process = np.abs                   # a real downstream consumer
+
 for block in iq_stream:        # CF32 blocks, any length
     y = rc.execute(block)
     process(y)                 # consume now; the next execute() reuses y's buffer
@@ -186,9 +189,6 @@ y2 = r2.execute(x)         # len(y2) ≈ 12288
 # Fractional — irrational rate is fine
 r3 = Resampler(44100 / 48000)
 y3 = r3.execute(x)
-
-# Custom Kaiser spec (tighter transition band)
-r4 = Resampler(0.5, rejection=80.0, passband=0.35, stopband=0.45)
 ```
 
 ### Rate-controlled resampling (FM/Doppler correction)
@@ -196,6 +196,7 @@ r4 = Resampler(0.5, rejection=80.0, passband=0.35, stopband=0.45)
 Per-sample rate deviation via `execute_ctrl`:
 
 ```python
+doppler_correction = np.linspace(-1.0, 1.0, 4096)  # per-sample deviation
 ctrl = np.zeros(4096, dtype=np.complex64)  # deviation in norm_freq units
 ctrl.real = 1e-4 * doppler_correction
 y = r.execute_ctrl(x, ctrl)
@@ -210,10 +211,16 @@ Symmetric FIR halfband filter; every other output sample is the identity
 Use as the first stage in a multi-stage DDC chain.
 
 ```python
-from doppler.resample import HalfbandDecimator
+from doppler.resample import HalfbandDecimator, kaiser_beta, kaiser_num_taps
 import numpy as np
 
-decim = HalfbandDecimator()          # built-in Kaiser prototype
+# Design a Kaiser halfband prototype (the caller supplies the FIR taps).
+ntaps = kaiser_num_taps(2, 60.0, 0.4, 0.6) | 1     # odd length (19 taps)
+n = np.arange(ntaps) - (ntaps - 1) // 2
+h = np.sinc(n / 2.0) * np.kaiser(ntaps, kaiser_beta(60.0))
+h = (h / h.sum()).astype(np.float32)               # unit DC gain
+
+decim = HalfbandDecimator(h=h)       # caller-supplied Kaiser prototype
 x = np.random.randn(4096).astype(np.complex64)
 y = decim.execute(x)                 # len(y) = 2048
 ```
@@ -221,7 +228,9 @@ y = decim.execute(x)                 # len(y) = 2048
 Phase-continuous across blocks:
 
 ```python
-for block in iq_stream:              # 4096-sample CF32 arrays
+next_stage = np.abs                  # a real downstream consumer
+
+for block in iq_stream:              # CF32 arrays, any length
     y = decim.execute(block)
     next_stage(y)
 ```
@@ -286,7 +295,7 @@ order.
 from doppler.resample import Farrow
 
 f = Farrow(order="cubic")   # "linear" | "parabolic" | "cubic"
-y = f.delay(x, mu=0.3)      # constant fractional delay of a cf32 block
+y = f.delay(x, 0.3)         # constant fractional delay (mu) of a cf32 block
 ```
 
 ______________________________________________________________________

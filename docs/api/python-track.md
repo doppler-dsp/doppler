@@ -81,6 +81,9 @@ PLL stalling on a large residual while the FLL assist pulls it in.
 
 ```python
 from doppler.track import Costas
+from doppler.wfm import Synth
+
+rx = Synth(type="qpsk", sps=16, snr=20, freq=0.01).steps(4096)  # received IQ
 
 # bn_fll > 0 adds the FLL assist for large/fast-moving residuals
 c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.03)
@@ -174,6 +177,9 @@ constructor parameters are keyword-capable with defaults. See the
 
 ```python
 from doppler.track import MpskReceiver
+from doppler.wfm import Synth
+
+iq = Synth(type="qpsk", sps=8, snr=20).steps(4096)  # received IQ
 
 # QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in handover
 rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
@@ -204,7 +210,12 @@ In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
 wipes the code; a channel composes the two.
 
 ```python
+import numpy as np
 from doppler.track import Dll
+from doppler.wfm import Synth
+
+code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
+rx = Synth(type="pn", pn_length=7, sps=8).steps(127 * 8 * 4)  # PN-spread IQ
 
 # code: 0/1 chips for one period; sps samples per chip
 d = Dll(code, sps=4, init_chip=0.0, bn=0.005, zeta=0.707, spacing=0.5)

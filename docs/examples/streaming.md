@@ -75,6 +75,8 @@ ______________________________________________________________________
 
 ## Python: Publisher / Subscriber
 
+<!-- docs-snippet: skip=blocking ZMQ recv; covered by stream tests -->
+
 ```python
 from doppler.stream import Publisher, Subscriber, CF64
 import numpy as np
@@ -97,6 +99,8 @@ python src/doppler/examples/receiver.py tcp://localhost:5555
 ```
 
 ## Python: Push / Pull pipeline
+
+<!-- docs-snippet: skip=blocking ZMQ recv; covered by stream tests -->
 
 ```python
 from doppler.stream import Push, Pull, CF64
@@ -130,6 +134,8 @@ REQ/REP models a remote DSP service: the client sends a signal block,
 the server processes it and returns the result. The exchange is strictly
 alternating — `send` then `recv` on the Requester, `recv` then `send` on
 the Replier.
+
+<!-- docs-snippet: skip=two-process REQ/REP; covered by stream tests -->
 
 ```python
 from doppler.stream import Requester, Replier, CF64

@@ -24,11 +24,19 @@ ______________________________________________________________________
     `docs/dev/doc-examples.md`. The gate resolves `--8<--` snippet includes, so a
     fence can pull a region from a CI-tested `examples/*.py` and the shown code
     *is* the tested code (the gold standard for drift-proof examples). It has
-    already surfaced and fixed several real API drifts: the wfmgen **Scenes**
-    guide's non-existent `Composer(fs=…).add(tone(…))` fluent API (→ the real
-    `Segment`/`Timeline`/`Composer` form), a `Despreader.set_acq(reps=…)` keyword
-    that is actually `acq_reps`, and `Farrow.delay`'s positional-only argument.
-    The entire example gallery (33 pages) is now gated with runnable snippets.
+    already surfaced and fixed a raft of real drift the docs had accumulated —
+    the wfmgen **Scenes**/composition guides' non-existent
+    `Composer(fs=…).add(tone(…))` fluent API and `gap`/`headroom=`/`.write`
+    surfaces (→ the real `Segment`/`Timeline`/`Composer` form);
+    `Despreader.set_acq(reps=…)` → `acq_reps`; `AccF32.push`/`add` → `step`/`steps`;
+    a non-existent `F32Buffer.available`; `FFT.execute` → `execute_cf32`;
+    `LO.step()` (block-only); `ToneMeasure`/`IMDMeasure` phantom `window=`/`beta=`
+    kwargs; `Resampler(rejection=…, passband=…)` (the Python ctor takes only
+    `rate`); `HalfbandDecimator()` now requiring caller-supplied taps `h`;
+    `Detector.execute` → `push`; and a stale `pd_predicted >= pd` assertion. **The
+    whole `docs/` tree is now gated — the burn-down backlog is empty.** The
+    `Farrow.delay` keyword/`.pyi` mismatch is tracked upstream as just-makeit
+    #412.
 - **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
     showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
     complex streams (modulations no enum provides), rect vs RRC pulses, and the

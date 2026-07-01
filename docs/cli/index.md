@@ -265,6 +265,8 @@ Here is a minimal example — a `noise` source that emits pure AWGN:
 
 **1. Config schema** — declare fields with defaults using pydantic:
 
+<!-- docs-snippet: skip=custom CLI block module; requires the cli extra -->
+
 ```python
 # python/cli/doppler_cli/blocks/noise.py
 from doppler_cli.blocks import Block, BlockConfig, register
@@ -293,6 +295,8 @@ class NoiseBlock(Block):
 
 **2. Register it** — import the module in `__main__.py`:
 
+<!-- docs-snippet: skip=custom CLI block module; requires the cli extra -->
+
 ```python
 import doppler_cli.blocks.noise  # noqa: F401
 ```
@@ -308,13 +312,16 @@ doppler-noise = "doppler_cli.noise_source:main"
 on startup so `doppler logs` confirms what's running:
 
 ```python
+from argparse import Namespace
 from datetime import datetime, timezone
 
 def _log(msg):
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"[{ts}] {msg}", flush=True)
 
-# In main(), before the processing loop:
+# In main(), before the processing loop (args is the parsed argparse
+# Namespace — shown here with representative values):
+args = Namespace(bind="tcp://127.0.0.1:5600", fs=2.048e6)
 _log(f"doppler-noise started — bind={args.bind} fs={args.fs:.0f}")
 ```
 

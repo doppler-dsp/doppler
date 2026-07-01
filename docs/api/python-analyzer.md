@@ -26,6 +26,10 @@ sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, center=0.0)
 sa.fs_out, sa.n, sa.nfft, sa.display_size   # derived DSP grid
 sa.rbw, sa.beta                              # realised RBW + the Kaiser beta
 
+rng = np.random.default_rng(0)                # example cf32 source
+iq_stream = [(rng.standard_normal(1 << 16)
+              + 1j * rng.standard_normal(1 << 16)).astype(np.complex64)
+             for _ in range(4)]
 for chunk in iq_stream:                       # any cf32 block size
     db = sa.execute(chunk.astype(np.complex64))
     if db is None:                            # not enough samples for a frame

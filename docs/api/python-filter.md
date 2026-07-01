@@ -43,6 +43,8 @@ import numpy as np
 taps = firwin(63, cutoff=0.2).astype(np.float32)
 filt = FIR(taps)
 
+# a couple of complex64 blocks standing in for a live capture stream
+stream = [np.random.randn(256).astype(np.complex64) for _ in range(3)]
 for block in stream:                        # generator of complex64 arrays
     out = filt.execute(block)               # state preserved across calls
 ```

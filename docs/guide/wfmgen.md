@@ -47,15 +47,16 @@ ______________________________________________________________________
 
 `--type` selects the waveform; every type shares the same parameter set.
 
-| `--type` | What it is                                                 | Key parameters                      |
-| -------- | ---------------------------------------------------------- | ----------------------------------- |
-| `tone`   | a complex sinusoid at `--freq`                             | `--freq`                            |
-| `noise`  | complex AWGN (unit power)                                  | `--snr` (ignored — it *is* noise)   |
-| `pn`     | a maximum-length sequence (±1 chips), `--sps` samples/chip | `--pn-length`, `--pn-poly`, `--sps` |
-| `bpsk`   | BPSK symbols (PN-sourced data), `--sps` samples/symbol     | `--sps`, `--snr`                    |
-| `qpsk`   | Gray-coded QPSK symbols (PN-sourced data)                  | `--sps`, `--snr`                    |
-| `chirp`  | linear-FM sweep `--freq` → `--f-end` over `--count`        | `--freq`, `--f-end`                 |
-| `bits`   | a user bit pattern, oversampled `--sps` and cycled         | `--bits`, `--modulation`, `--sps`   |
+| `--type`  | What it is                                                     | Key parameters                      |
+| --------- | -------------------------------------------------------------- | ----------------------------------- |
+| `tone`    | a complex sinusoid at `--freq`                                 | `--freq`                            |
+| `noise`   | complex AWGN (unit power)                                      | `--snr` (ignored — it *is* noise)   |
+| `pn`      | a maximum-length sequence (±1 chips), `--sps` samples/chip     | `--pn-length`, `--pn-poly`, `--sps` |
+| `bpsk`    | BPSK symbols (PN-sourced data), `--sps` samples/symbol         | `--sps`, `--snr`                    |
+| `qpsk`    | Gray-coded QPSK symbols (PN-sourced data)                      | `--sps`, `--snr`                    |
+| `chirp`   | linear-FM sweep `--freq` → `--f-end` over `--count`            | `--freq`, `--f-end`                 |
+| `bits`    | a user bit pattern, oversampled `--sps` and cycled             | `--bits`, `--modulation`, `--sps`   |
+| `symbols` | **your** complex constellation, oversampled `--sps` and cycled | `--symbols-file`, `--sps`           |
 
 The data bits for `bpsk`/`qpsk` come from a deterministic PN sequence (seeded by
 `--seed`), so output is reproducible and receiver-correlatable. A `chirp` sweeps
@@ -66,17 +67,27 @@ seamlessly (radar pulse compression, SAR, sonar). A `bits` waveform instead
 plays back **your** sequence — a preamble, sync word, or test vector — given as
 a 0/1 string (`--bits 10110101`), a hex string (`--bits-hex AA55`, MSB first),
 or a file (`--bits-file pattern.txt`); `--modulation` (`none`/`bpsk`/`qpsk`)
-maps the bits to symbols. The PSK carriers (`pn`/`bpsk`/`qpsk`) default to
-rectangular sample-and-hold chips (a wide `sinc²` spectrum); add `--pulse rrc`
-for **root-raised-cosine** shaping to get a band-limited carrier (e.g. a WCDMA
-QPSK downlink at roll-off 0.22) straight from the generator.
+maps the bits to symbols. Where `bits` maps data through a *fixed* map,
+`symbols` skips the map entirely: `--symbols-file iq.cf32` supplies a raw
+interleaved-I/Q complex64 constellation stream and **each element becomes an
+output point directly**, oversampled by `--sps` and cycled. That expresses any
+modulation an enum doesn't — pi/4-QPSK, QAM, APSK — since you compute the
+constellation yourself and pass it. The PSK carriers (`pn`/`bpsk`/`qpsk`)
+default to rectangular sample-and-hold chips (a wide `sinc²` spectrum); add
+`--pulse rrc` for **root-raised-cosine** shaping to get a band-limited carrier
+(e.g. a WCDMA QPSK downlink at roll-off 0.22) straight from the generator —
+`symbols` honours `--pulse rrc` too.
 
 ```sh
 wfmgen --type chirp --freq 100e3 --f-end 300e3 --fs 1e6 --count 10000 -o chirp.cf32
 wfmgen --type bits --bits 10110101 --modulation bpsk --sps 8 --count 64 -o sync.cf32
 wfmgen --type bits --bits-hex AA55 --modulation none --sps 4 -o preamble.cf32
 wfmgen --type qpsk --sps 8 --pulse rrc --rrc-beta 0.22 --count 100000 -o wcdma.cf32
+wfmgen --type symbols --symbols-file qam16.cf32 --sps 8 --pulse rrc -o qam.cf32
 ```
+
+See the [Bring Your Own Constellation](../gallery/symbols.md) gallery page for
+pi/4-QPSK and 16-QAM worked through the Python and CLI faces.
 
 ______________________________________________________________________
 
@@ -86,25 +97,26 @@ ______________________________________________________________________
 
 === ====
 
-| Flag           | Type                                 | Default  | Meaning                                                                        |
-| -------------- | ------------------------------------ | -------- | ------------------------------------------------------------------------------ |
-| `--type`       | `tone noise pn bpsk qpsk chirp bits` | `tone`   | waveform                                                                       |
-| `--fs`         | float (Hz)                           | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample) |
-| `--freq`       | float (Hz)                           | `0`      | frequency offset from baseband (mixed by the LO); chirp start                  |
-| `--f-end`      | float (Hz)                           | `0`      | chirp end frequency (`--type chirp` only)                                      |
-| `--snr`        | float (dB)                           | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100)                             |
-| `--snr-mode`   | `auto fs ebno esno`                  | `auto`   | how `--snr` is interpreted (see below)                                         |
-| `--seed`       | uint32                               | `0`      | PRNG / LFSR seed (deterministic)                                               |
-| `--sps`        | int                                  | `1`      | samples per symbol (`*psk`/`bits`) / per chip (`pn`)                           |
-| `--pn-length`  | int (2..64)                          | `15`     | LFSR register length → period `2ⁿ−1`                                           |
-| `--pn-poly`    | uint64                               | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                            |
-| `--lfsr`       | `galois fibonacci`                   | `galois` | LFSR realization (same polynomial/period, different sequence)                  |
-| `--bits`       | 0/1 string                           | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)               |
-| `--modulation` | `none bpsk qpsk`                     | `bpsk`   | `bits`: how the pattern maps to symbols                                        |
-| `--pulse`      | `rect rrc`                           | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping                     |
-| `--rrc-beta`   | float                                | `0.35`   | RRC roll-off (`--pulse rrc`)                                                   |
-| `--rrc-span`   | int                                  | `8`      | RRC filter support in symbols (`--pulse rrc`)                                  |
-| `--count`      | int                                  | `1024`   | number of complex samples to generate                                          |
+| Flag             | Type                                         | Default  | Meaning                                                                        |
+| ---------------- | -------------------------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `--type`         | `tone noise pn bpsk qpsk chirp bits symbols` | `tone`   | waveform                                                                       |
+| `--fs`           | float (Hz)                                   | `1.0`    | sample rate (default `1.0` ⇒ `--freq`/`--f-end` are normalised, cycles/sample) |
+| `--freq`         | float (Hz)                                   | `0`      | frequency offset from baseband (mixed by the LO); chirp start                  |
+| `--f-end`        | float (Hz)                                   | `0`      | chirp end frequency (`--type chirp` only)                                      |
+| `--snr`          | float (dB)                                   | `100`    | SNR; metric chosen by `--snr-mode` (≈clean at 100)                             |
+| `--snr-mode`     | `auto fs ebno esno`                          | `auto`   | how `--snr` is interpreted (see below)                                         |
+| `--seed`         | uint32                                       | `0`      | PRNG / LFSR seed (deterministic)                                               |
+| `--sps`          | int                                          | `1`      | samples per symbol (`*psk`/`bits`/`symbols`) / per chip (`pn`)                 |
+| `--pn-length`    | int (2..64)                                  | `15`     | LFSR register length → period `2ⁿ−1`                                           |
+| `--pn-poly`      | uint64                                       | `0`      | LFSR polynomial; `0` ⇒ auto-pick the MLS polynomial                            |
+| `--lfsr`         | `galois fibonacci`                           | `galois` | LFSR realization (same polynomial/period, different sequence)                  |
+| `--bits`         | 0/1 string                                   | —        | `bits`: pattern, e.g. `10110101` (or `--bits-hex`/`--bits-file`)               |
+| `--modulation`   | `none bpsk qpsk`                             | `bpsk`   | `bits`: how the pattern maps to symbols                                        |
+| `--symbols-file` | path (cf32)                                  | —        | `symbols`: raw interleaved-I/Q complex64 constellation stream                  |
+| `--pulse`        | `rect rrc`                                   | `rect`   | pn/bpsk/qpsk pulse shape; `rrc` = band-limited RRC shaping                     |
+| `--rrc-beta`     | float                                        | `0.35`   | RRC roll-off (`--pulse rrc`)                                                   |
+| `--rrc-span`     | int                                          | `8`      | RRC filter support in symbols (`--pulse rrc`)                                  |
+| `--count`        | int                                          | `1024`   | number of complex samples to generate                                          |
 
 ### Output
 
@@ -149,13 +161,14 @@ Today's waveforms all *happen* to be **constant-envelope**, so for them the peak
 equals the average and they sit exactly at ±1.0 — but that is a property of the
 current set, **not** a design assumption:
 
-| `--type`      | Sample values                         | Envelope           | Avg. power |
-| ------------- | ------------------------------------- | ------------------ | ---------- |
-| `tone`        | `exp(j·2πft)`                         | constant, mag 1    | `1.0`      |
-| `bpsk` / `pn` | `±1` (real axis)                      | constant, mag 1    | `1.0`      |
-| `qpsk`        | `(±1/√2, ±1/√2)`                      | constant, mag 1    | `1.0`      |
-| `chirp`       | `exp(j·φ(t))`, φ′ ramps `freq→f_end`  | constant, mag 1    | `1.0`      |
-| `noise`       | complex Gaussian, `σ = 1/√2` per axis | Gaussian, PAPR > 0 | `1.0`      |
+| `--type`      | Sample values                         | Envelope           | Avg. power   |
+| ------------- | ------------------------------------- | ------------------ | ------------ |
+| `tone`        | `exp(j·2πft)`                         | constant, mag 1    | `1.0`        |
+| `bpsk` / `pn` | `±1` (real axis)                      | constant, mag 1    | `1.0`        |
+| `qpsk`        | `(±1/√2, ±1/√2)`                      | constant, mag 1    | `1.0`        |
+| `chirp`       | `exp(j·φ(t))`, φ′ ramps `freq→f_end`  | constant, mag 1    | `1.0`        |
+| `noise`       | complex Gaussian, `σ = 1/√2` per axis | Gaussian, PAPR > 0 | `1.0`        |
+| `symbols`     | whatever you supply (e.g. 16-QAM)     | user-defined       | user-defined |
 
 **Don't rely on `|z| = 1`.** A pulse-shaped (RRC), QAM, or OFDM waveform has a
 **peak-to-average power ratio (PAPR) above 0 dB**: at unit *average* power its

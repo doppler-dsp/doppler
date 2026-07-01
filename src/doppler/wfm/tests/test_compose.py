@@ -1197,3 +1197,10 @@ def test_symbols_pi4_qpsk_via_composer():
 
 def test_symbols_none_clears():
     assert Synth(type="symbols", symbols=None, sps=4).symbols is None
+
+
+def test_symbols_no_stream_cannot_generate():
+    """A symbols Synth with no stream can't generate — the bridge rejects it
+    (lazily, at first steps()), matching a pattern-less bits Synth."""
+    with pytest.raises(RuntimeError):
+        Synth(type="symbols").steps(4)

@@ -41,7 +41,13 @@ LLVM_COV      ?= llvm-cov
 # Excluded from the report: vendored code, jm-generated binding aggregators
 # (`<mod>_ext.c`) and per-object fragments (`<mod>_ext_<obj>.c`), and the
 # test/bench harnesses themselves — only first-party _core.c counts.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
+# `native/src/app/` (the wfmgen CLI) is excluded too: its body (wfmgen_core) is
+# an OBJECT lib compiled into BOTH the `wfmgen` executable and a `.so`, but the
+# report attributes only to the `.so` — whose copy is never executed (nothing
+# calls `doppler_wfmgen()` through the `.so`), so the CLI's real coverage from
+# the `wfmgen_cli` ctest can't be attributed. The CLI is instead byte-parity
+# integration-tested (the `wfmgen_cli` ctest + test_compose byte-parity gate).
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
 # Python executable used when building extensions with `make pyext`.
 # Defaults to the uv-managed venv Python so the extension suffix always
 # matches the active interpreter.  Override on the command line:

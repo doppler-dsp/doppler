@@ -427,6 +427,25 @@ def test_symbols_carrier_and_noise():
     assert np.mean(np.abs(nz) ** 2) > 1.0  # signal + noise
 
 
+def test_symbols_rrc_carrier_and_noise():
+    """RRC-shaped symbols riding the LO with AWGN — exercises the FIR-path mix
+    tails (has_lo && has_awgn, has_lo, has_awgn) in the block generator."""
+    syms = np.array([1 + 1j, -1 - 1j, 1 - 1j], np.complex64)
+    taps = rrc_taps(0.35, 8, 6)
+    # LO + AWGN together (fused tail)
+    e = _symbols_engine(syms, sps=8, freq=1e5, snr=5)
+    e.set_rrc(taps)
+    both = e.steps(4096)
+    assert np.all(np.isfinite(both.view(np.float32)))
+    # LO only (clean) and AWGN only (freq 0) with shaping
+    lo = _symbols_engine(syms, sps=8, freq=1e5)
+    lo.set_rrc(taps)
+    assert np.argmax(np.abs(np.fft.fft(lo.steps(4096)))) != 0
+    nz = _symbols_engine(syms, sps=8, snr=5)
+    nz.set_rrc(taps)
+    assert np.mean(np.abs(nz.steps(1 << 15)) ** 2) > 0
+
+
 def test_symbols_reset_reproduces():
     syms = np.array([1 + 1j, 1j, -1, -1j, 0.3 + 0.7j], np.complex64)
     e = _symbols_engine(syms, sps=3)

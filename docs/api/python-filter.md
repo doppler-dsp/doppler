@@ -95,3 +95,28 @@ y = ma2.step(1.0 + 0.0j)                    # one sample, returns the gained mea
 ```
 
 ::: doppler.filter.MovingAverage
+
+______________________________________________________________________
+
+## Fixed-point halfband decimator (Q15)
+
+`HBDecimQ15` is a fixed-point halfband 2:1 decimator for interleaved-I/Q
+`int16` streams — the integer-pipeline counterpart to `resample.HalfbandDecimator`.
+The FIR branch taps are supplied as float and converted internally to Q15 (with
+the ×0.5 polyphase rate scaling). The halfband prototype is sparse — every other
+tap is zero — so you supply only the **non-zero** branch taps, not the full
+prototype. See the [HBDecimQ15 example](../gallery/hbdecim_q15.md) for the
+passband/stopband response.
+
+```python
+import numpy as np
+from doppler.filter import HBDecimQ15
+
+# non-zero branch taps of a halfband prototype (float; converted to Q15)
+taps = np.array([-0.03, 0.28, 0.5, 0.28, -0.03], np.float32)
+dec = HBDecimQ15(taps)
+x = (np.random.randn(4096) * 8192).astype(np.int16)   # interleaved I/Q
+y = dec.execute(x)                                     # int16, half the length
+```
+
+::: doppler.filter.HBDecimQ15

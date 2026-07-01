@@ -296,7 +296,7 @@ converters, FFT plans, by-value analyzers) are exempt.
 1. **Write the C triplet** beside `reset` in `<obj>_core.c`, with a per-object
     `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "dp_state.h"`).
     Serialize only the *running* state — config is restored by `create()`. Pick
-    the macro for the shape (see [Helper macros](#helper-macros--the-three-serializer-shapes)):
+    the macro for the shape (see [Helper macros](#helper-macros-the-three-serializer-shapes)):
 
     - **pointer-free POD** → `DP_DEFINE_POD_STATE(...)` (one line).
     - **owns heap buffers** → field-wise with `DP_GET_OPEN`/`DP_SET_OPEN` + the
@@ -358,7 +358,7 @@ gh-404), and `kind="handle"` (jm generates it over the handle, gh-403):
 
 **The rollout is complete: every stateful object is serializable** (the gate's
 burn-down list is empty). A CI gate (`scripts/check_serializable.py`, see
-[Enforcement](#enforcement--the-gate-it-cant-rot)) holds the line going forward —
+[Enforcement](#enforcement-the-gate-it-cant-rot)) holds the line going forward —
 a new object must declare `serializable = "true"` or opt out as stateless.
 
 Covered: generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/

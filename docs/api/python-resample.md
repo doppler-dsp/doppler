@@ -295,7 +295,7 @@ order.
 from doppler.resample import Farrow
 
 f = Farrow(order="cubic")   # "linear" | "parabolic" | "cubic"
-y = f.delay(x, 0.3)         # constant fractional delay (mu) of a cf32 block
+y = f.delay(x, mu=0.3)      # constant fractional delay (mu) of a cf32 block
 ```
 
 ______________________________________________________________________

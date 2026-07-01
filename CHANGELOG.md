@@ -13,6 +13,21 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
+    showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
+    complex streams (modulations no enum provides), rect vs RRC pulses, and the
+    envelope floor that gives pi/4-QPSK its ~0.5 dB lower PAPR. The `wfmgen`
+    guide's `--type` reference now documents `symbols` and `--symbols-file`.
+- **API reference completeness.** Documented the remaining undocumented public
+    symbols — `filter.HBDecimQ15`, `resample.kaiser_beta`/`kaiser_num_taps`, and
+    the `wfm` `bpsk_map`/`qpsk_map`/`wfm_awgn_amplitude`/`wfm_ebno_to_snr_db`
+    helpers — and added `type="symbols"` to the `Synth` API page (correcting the
+    stale "seven-type" wording). The `scripts/check_api_docs.py` coverage baseline
+    (`docs/api/.api-coverage-ignore`) is paid down from 37 lines to 1: every
+    public `__all__` symbol is now documented, and the CI gate keeps it that way.
+
 ### Changed
 
 - **wfmgen guide restructured** into a concepts-first multi-page section

@@ -135,7 +135,7 @@ nav:
       - Rust: install/rust.md
       - Docker: install/docker.md
   - Examples:
-      - Overview: examples/index.md
+      - Examples: examples/index.md
       - Sources & Waveforms:
           - Waveform Generator: gallery/wfmgen.md
           - "Symbols: Bring Your Own Constellation": gallery/symbols.md

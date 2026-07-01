@@ -366,12 +366,16 @@ rust-test: build
 # `--group docs` on every invocation so a clean checkout renders identically to
 # CI (`uv sync --group dev --group docs`). Without it, `uv run zensical` relies
 # on incidental venv state and can fall back to a themeless (no-left-nav) build.
+# A stale local `zensical.toml` (gitignored, absent in CI) shadows mkdocs.yml
+# and silently truncates the nav, so remove it first.
 # gen-c-api is a separate step; docs/c-api/ is committed and only needs
 # regeneration when native/inc/ headers change.
 docs:
+	rm -f zensical.toml
 	uv run --group docs zensical build --clean
 
 docs-serve:
+	rm -f zensical.toml
 	uv run --group docs zensical serve
 
 gen-c-api:

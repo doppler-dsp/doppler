@@ -136,6 +136,8 @@ There is no complex-integer dtype, so integer captures can be a zero-copy
 `cvt` SIMD converters), but not both. The convenience helper returns `complex`
 by default (SIMD path for integers); pass `raw=True` for the zero-copy view:
 
+<!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
+
 ```python
 from doppler.wfm.readback import read_iq
 

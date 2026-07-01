@@ -258,6 +258,7 @@ nav:
       - Contributing: dev/index.md
       - Module Layout: dev/module-layout.md
       - Adding a Module: dev/adding-a-module.md
+      - Doc Examples (tested): dev/doc-examples.md
       - Error Convention: dev/error-convention.md
       - "wfmgen API (0.11 cleanup)": dev/wfmgen/api.md
       - "wfm validation findings": dev/wfm-validation-findings.md

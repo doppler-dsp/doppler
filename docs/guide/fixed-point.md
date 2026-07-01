@@ -370,6 +370,8 @@ print(y, '→', y / 32768)
 `AccQ15` and `AccQ8` maintain a running sum across calls. Use `madd` for
 multiply-accumulate (the MAC operation at the heart of every FIR filter).
 
+<!-- docs-snippet: skip=illustrative streaming fragment (reader supplies blocks/coeffs) -->
+
 ```python
 from doppler.arith import AccQ15
 

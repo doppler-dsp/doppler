@@ -15,6 +15,15 @@ ______________________________________________________________________
 
 ### Added
 
+- **Fail-closed doc-snippet drift gate.** Every `python` fence in the docs
+    is now executed (or `>>>` output-checked) in CI, discovered — not registered
+    — so a new page is gated the moment it exists. This closes the hole that let
+    the quickstart's `HalfbandDecimator()` example rot silently. Escapes are
+    visible and reviewed (an inline `skip=REASON` marker, or a shrinking
+    `docs/.doc-snippet-ignore` burn-down backlog). Contributor policy lives in
+    `docs/dev/doc-examples.md`. Fixed real drift the gate surfaced: the wfmgen
+    **Scenes** guide taught a `Composer(fs=…).add(tone(…))` fluent API that does
+    not exist — corrected to the real `Segment`/`Timeline`/`Composer` form.
 - **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
     showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
     complex streams (modulations no enum provides), rect vs RRC pulses, and the

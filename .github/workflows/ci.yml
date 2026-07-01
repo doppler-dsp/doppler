@@ -166,6 +166,14 @@ jobs:
       # same way: any `>>>` example on an API page must pass against the build.
       run: uv run python -m pytest --doctest-glob='*.md' -q docs/api/
 
+    - name: Doc snippet drift gate
+      # Fail-closed: every ```python fence in docs/ (guides, gallery, prose) is
+      # executed or output-checked, discovered — not registered — so a NEW page
+      # is gated on arrival. Version-independent, so run it once. Backlog of
+      # not-yet-gated pages: docs/.doc-snippet-ignore. See docs/dev/doc-examples.md.
+      if: matrix.python-version == '3.12'
+      run: uv run python -m pytest -m docs_snippets -q src/doppler/tests/test_doc_snippets.py
+
     - name: Start NATS JetStream broker (for nats:// stream tests)
       # The stream suite's nats:// tests self-skip when 127.0.0.1:4222 is
       # unreachable; start a JetStream broker so they actually run in CI.
@@ -178,8 +186,11 @@ jobs:
         echo "NATS JetStream broker ready on 127.0.0.1:4222"
 
     - name: Test with coverage
+      # The doc-snippet gate is version-independent and has its own step above
+      # (3.12 only), so exclude it here to avoid running it on all 6 versions
+      # and to keep a slow/hanging snippet out of the coverage matrix.
       run: |
-        uv run pytest src/ -v \
+        uv run pytest src/ -v -m "not docs_snippets" \
           --cov \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml

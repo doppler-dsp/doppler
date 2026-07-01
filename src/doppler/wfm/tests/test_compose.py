@@ -26,6 +26,7 @@ from doppler.wfm.compose import (
     Reader,
     SampleClock,
     Segment,
+    Synth,
     Timeline,
     Writer,
     ZmqSink,
@@ -1134,3 +1135,72 @@ def test_rrc_json_roundtrip():
     assert (
         '"pulse"' not in Composer([Segment("qpsk", num_samples=64)]).to_json()
     )
+
+
+# ── type=symbols: complex constellation via the composer (jm 0.23.0
+#    complex field). These drive the composer-C attach/deep-copy + the
+#    standalone bridge symbols paths (only via Synth(symbols=), not the CLI).
+
+
+def _symbols_ref(iq, sps=4):
+    """Reference stream from the low-level engine."""
+    from doppler.wfm import _SynthEngine
+
+    e = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=sps)
+    e.set_symbols(np.asarray(iq, np.complex64))
+    return e.steps(64)
+
+
+def test_symbols_synth_steps_matches_engine():
+    """Synth(type='symbols').steps() (the standalone bridge face) == engine."""
+    iq = (np.array([1 + 1j, -1 + 1j, -1 - 1j, 1 - 1j]) / np.sqrt(2)).astype(
+        np.complex64
+    )
+    y = Synth(type="symbols", symbols=iq, sps=4).steps(64)
+    assert np.allclose(y, _symbols_ref(iq), atol=1e-5)
+
+
+def test_symbols_composer_execute_matches_engine():
+    """Composer.execute() over a symbols Synth (the composer-C attach +
+    deep-copy face) == engine, byte-for-byte."""
+    iq = (np.array([1 + 1j, -1 + 1j, -1 - 1j, 1 - 1j]) / np.sqrt(2)).astype(
+        np.complex64
+    )
+    seg = Segment.sum(
+        Synth(type="symbols", symbols=iq, sps=4), fs=1.0, num_samples=64
+    )
+    y = Composer(seg).execute(64)
+    assert np.allclose(y, _symbols_ref(iq), atol=1e-5)
+
+
+def test_symbols_getset_roundtrips():
+    iq = np.array([1 + 1j, 1j, -1, 0.5 - 0.5j], np.complex64)
+    s = Synth(type="symbols", symbols=iq, sps=2)
+    assert np.allclose(np.asarray(s.symbols), iq, atol=1e-5)
+    # complex128 is force-cast to complex64
+    s2 = Synth(type="symbols", symbols=iq.astype(np.complex128), sps=2)
+    assert np.asarray(s2.symbols).dtype == np.complex64
+
+
+def test_symbols_pi4_qpsk_via_composer():
+    """pi/4-QPSK via the composer: rotate every other QPSK symbol by pi/4."""
+    base = np.array([1, 1j, -1, -1j, 1, 1j, -1, -1j], np.complex64)
+    base[1::2] *= np.exp(1j * np.pi / 4)
+    iq = base.astype(np.complex64)
+    y = Composer(
+        Segment.sum(
+            Synth(type="symbols", symbols=iq, sps=4), fs=1.0, num_samples=64
+        )
+    ).execute(64)
+    assert np.allclose(y[::4], iq[np.arange(16) % 8], atol=1e-5)
+
+
+def test_symbols_none_clears():
+    assert Synth(type="symbols", symbols=None, sps=4).symbols is None
+
+
+def test_symbols_no_stream_cannot_generate():
+    """A symbols Synth with no stream can't generate — the bridge rejects it
+    (lazily, at first steps()), matching a pattern-less bits Synth."""
+    with pytest.raises(RuntimeError):
+        Synth(type="symbols").steps(4)

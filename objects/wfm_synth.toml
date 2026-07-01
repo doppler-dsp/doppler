@@ -42,6 +42,28 @@ if (state->wtype == WFM_SYNTH_BITS) {
     }
     if (++state->sym_pos >= state->nsps)
         state->sym_pos = 0;
+} else if (state->wtype == WFM_SYNTH_SYMBOLS) {
+    /* User complex-symbol stream: the symbol IS the constellation point (no
+     * bit->symbol mapping), oversampled sps and cycled. Generalises every
+     * modulation — pi/4-QPSK, QAM, custom — into "compute symbols, pass them".
+     * Shares the bits path's latch + FIR/rect machinery; only the source of
+     * cur_re/cur_im differs (symbols[sym_read_idx] instead of a bit map). */
+    if (state->sym_pos == 0 && state->symbols && state->n_symbols) {
+        state->cur_re = crealf (state->symbols[state->sym_read_idx]);
+        state->cur_im = cimagf (state->symbols[state->sym_read_idx]);
+        state->sym_read_idx
+            = (state->sym_read_idx + 1) % state->n_symbols;
+    }
+    if (state->fir) {
+        float complex imp = (state->sym_pos == 0)
+                                ? (state->cur_re + state->cur_im * I)
+                                : (0.0f + 0.0f * I);
+        fir_execute(state->fir, &imp, 1, &sym);
+    } else {
+        sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+    }
+    if (++state->sym_pos >= state->nsps)
+        state->sym_pos = 0;
 } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
     if (state->sym_pos == 0) {
         if (state->wtype == WFM_SYNTH_QPSK) {
@@ -130,6 +152,10 @@ if (type != WFM_SYNTH_NOISE && type != WFM_SYNTH_CHIRP && freq != 0.0) {
 obj->bits = NULL;
 obj->n_bits = 0;
 obj->bit_idx = 0;
+/* Complex-symbol state — array attached after create() via set_symbols(). */
+obj->symbols = NULL;
+obj->n_symbols = 0;
+obj->sym_read_idx = 0;
 obj->bit_mod = 1; /* default bpsk; overridden by set_bits */
 
 /* PN chip/data source for pn/bpsk/qpsk; poly 0 → MLS poly for the length */
@@ -191,6 +217,7 @@ state->cur_re = (state->wtype == WFM_SYNTH_TONE
                    : 0.0f;
 state->cur_im = 0.0f;
 state->bit_idx = 0;    /* rewind the bit pattern to its start */
+state->sym_read_idx = 0; /* rewind the complex-symbol stream */
 state->chirp_ph = 0.0; /* rewind the sweep; chirp_span/chirp_k stay locked */
 state->chirp_n = 0;
 if (state->lo)
@@ -204,6 +231,7 @@ if (state->fir)
 """
 destroy_impl = """
 free(state->bits);
+free(state->symbols);
 if (state->lo)
     lo_destroy(state->lo);
 if (state->awgn)
@@ -310,9 +338,24 @@ name = "bit_mod"
 type = "int"
 opaque = true
 
+[[wfm_synth.state]]
+name = "symbols"
+type = "float _Complex *"
+opaque = true
+
+[[wfm_synth.state]]
+name = "n_symbols"
+type = "size_t"
+opaque = true
+
+[[wfm_synth.state]]
+name = "sym_read_idx"
+type = "size_t"
+opaque = true
+
 [[wfm_synth.init_params]]
 name = "type"
-type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits"
+type = "string_enum:tone,noise,pn,bpsk,qpsk,chirp,bits,symbols"
 default = "tone"
 
 [[wfm_synth.init_params]]

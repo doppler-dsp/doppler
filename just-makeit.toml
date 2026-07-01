@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.22.0"
+jm_version = "0.23.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -645,6 +645,12 @@ name = "rrc_span"
 type = "int"
 default = "8"
 doc = "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1)."
+
+[[module.wfm_compose.source.fields]]
+name = "symbols"
+type = "float _Complex*"
+complex = true
+doc = "For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...)."
 
 [module.wfm_compose.source.generates]
 generator = "wfm_synth"
@@ -1570,7 +1576,7 @@ type = "int"
 
 [[enum]]
 name = "wfm_type"
-values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"]
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols"]
 
 [[enum]]
 name = "snr_mode"

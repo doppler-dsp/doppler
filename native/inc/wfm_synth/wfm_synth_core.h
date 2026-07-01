@@ -35,6 +35,8 @@ enum {
     WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
     WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
+    WFM_SYNTH_SYMBOLS
+    = 7, /* user complex-symbol stream, oversampled + cycled */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -141,6 +143,9 @@ typedef struct {
     size_t n_bits;
     size_t bit_idx;
     int bit_mod;
+    float _Complex * symbols;
+    size_t n_symbols;
+    size_t sym_read_idx;
     fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
@@ -158,9 +163,11 @@ typedef struct {
  * for tone/noise/PN.
  *
  * @param type  Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk,
- *              5=chirp, 6=bits.  The Python binding accepts strings "tone"|
- *              "noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits".  For "bits" attach
- *              the pattern with wfm_synth_set_bits() after create().
+ *              5=chirp, 6=bits, 7=symbols.  The Python binding accepts strings
+ *              "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols".  For
+ *              "bits" attach the pattern with wfm_synth_set_bits(); for
+ *              "symbols" attach the complex stream with wfm_synth_set_symbols()
+ *              after create().
  * @param fs  Sample rate in Hz.  Sets the carrier frequency normalisation
  *              and the noise bandwidth.  Default 1 000 000.0.
  * @param freq  Carrier frequency offset in Hz (−fs/2 … fs/2).  A
@@ -235,6 +242,34 @@ void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
  */
 int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
+
+/**
+ * @brief Attach a complex-symbol stream to a type=symbols synth (no-op else).
+ *
+ * Copies @p n complex symbols into the synth. Each symbol **is** the
+ * constellation point — there is no bit→symbol mapping, so this generalises
+ * every modulation (pi/4-QPSK, QAM, custom shaping) into "compute the symbols,
+ * pass them in". The stream is oversampled by the create-time `sps` and
+ * **cycled** to fill whatever length `wfm_synth_steps()` requests (one pass is
+ * `n * sps` samples), and is RRC-shaped when `wfm_synth_set_rrc()` is active.
+ * Replaces any previous stream; resets the read position. Safe to call
+ * repeatedly.
+ *
+ * @param state    Must be non-NULL.
+ * @param symbols  Array of @p n complex symbols (copied).
+ * @param n        Number of symbols (> 0).
+ * @return 0 on success; -1 on bad args or allocation failure.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.wfm import _SynthEngine, rrc_taps
+ * >>> s = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+ * >>> s.set_symbols(np.array([1+0j, 1j, -1+0j, -1j], np.complex64))
+ * >>> s.steps(4)[::4].tolist()   # symbol centres (rect hold)
+ * [(1+0j), (1+0j), (1+0j), (1+0j)]
+ * @endcode
+ */
+int wfm_synth_set_symbols(wfm_synth_state_t *state,
+                          const float _Complex *symbols, size_t n);
 
 /**
  * @brief Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits).
@@ -345,6 +380,28 @@ wfm_synth_step(wfm_synth_state_t *state)
              * PN/PSK path, sourced from the bit latch instead of the LFSR. The
              * FIR carries its delay line across calls, so this is chunk-invariant
              * — step() and the block path agree bit-for-bit. */
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
+        if (++state->sym_pos >= state->nsps)
+            state->sym_pos = 0;
+    } else if (state->wtype == WFM_SYNTH_SYMBOLS) {
+        /* User complex-symbol stream: the symbol IS the constellation point (no
+         * bit->symbol mapping), oversampled sps and cycled. Generalises every
+         * modulation — pi/4-QPSK, QAM, custom — into "compute symbols, pass them".
+         * Shares the bits path's latch + FIR/rect machinery; only the source of
+         * cur_re/cur_im differs (symbols[sym_read_idx] instead of a bit map). */
+        if (state->sym_pos == 0 && state->symbols && state->n_symbols) {
+            state->cur_re = crealf (state->symbols[state->sym_read_idx]);
+            state->cur_im = cimagf (state->symbols[state->sym_read_idx]);
+            state->sym_read_idx
+                = (state->sym_read_idx + 1) % state->n_symbols;
+        }
+        if (state->fir) {
             float complex imp = (state->sym_pos == 0)
                                     ? (state->cur_re + state->cur_im * I)
                                     : (0.0f + 0.0f * I);

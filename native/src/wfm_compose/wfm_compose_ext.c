@@ -37,6 +37,7 @@ static const char *const _enum_wfm_type[] = {
     "qpsk",
     "chirp",
     "bits",
+    "symbols",
     NULL,
 };
 
@@ -127,7 +128,33 @@ Synth_dealloc(SynthObject *self)
 {
     if (self->_gen) wfm_synth_destroy(self->_gen);
     free(self->src.bits);
+    free(self->src.symbols);
     Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+/* Copy a numpy complex64 array (or None) into src->symbols (owned). */
+static int
+_attach_symbols(wfm_source_t *src, PyObject *obj)
+{
+    free(src->symbols);
+    src->symbols   = NULL;
+    src->n_symbols = 0;
+    if (!obj || obj == Py_None)
+        return 1;
+    PyArrayObject *_arr = (PyArrayObject *)PyArray_FROM_OTF(
+        obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_FORCECAST);
+    if (!_arr)
+        return 0;
+    Py_ssize_t _n = PyArray_SIZE(_arr);
+    if (_n <= 0) { Py_DECREF(_arr); return 1; }
+    float _Complex *_buf
+        = (float _Complex *)malloc((size_t)_n * sizeof *_buf);
+    if (!_buf) { Py_DECREF(_arr); PyErr_NoMemory(); return 0; }
+    memcpy(_buf, PyArray_DATA(_arr), (size_t)_n * sizeof *_buf);
+    Py_DECREF(_arr);
+    src->symbols   = _buf;
+    src->n_symbols = (size_t)_n;
+    return 1;
 }
 
 /* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence) (owned). */
@@ -220,7 +247,7 @@ _attach_bytes(wfm_source_t *src, PyObject *obj)
 static int
 Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "fs", NULL};
+    static char *kwlist[] = {"type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", "fs", NULL};
     const char *type = "tone";
     PyObject *freq = NULL;
     PyObject *snr = NULL;
@@ -237,6 +264,7 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     const char *pulse = "rect";
     double rrc_beta = 0.35;
     int rrc_span = 8;
+    PyObject *symbols = NULL;
     double fs = 1e6;
     PyObject *_kw = kwds;
     int _kw_owned = 0;
@@ -284,8 +312,8 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
             }
         }
     }
-    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdid", kwlist,
-            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &fs)) {
+    if (!PyArg_ParseTupleAndKeywords(args, _kw, "|sOOsIiiKsOOOssdiOd", kwlist,
+            &type, &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr, &level, &f_end, &bits, &modulation, &pulse, &rrc_beta, &rrc_span, &symbols, &fs)) {
         if (_kw_owned) Py_DECREF(_kw);
         return -1;
     }
@@ -405,6 +433,8 @@ Synth_init(SynthObject *self, PyObject *args, PyObject *kwds)
     }
     self->src.rrc_beta = rrc_beta;
     self->src.rrc_span = rrc_span;
+    if (!_attach_symbols(&self->src, symbols))
+        return -1;
     return 0;
 }
 
@@ -712,6 +742,26 @@ Synth_set_rrc_span(SynthObject *self, PyObject *value, void *closure)
     return 0;
 }
 static PyObject *
+Synth_get_symbols(SynthObject *self, void *closure)
+{
+    (void)closure;
+    if (self->src.symbols && self->src.n_symbols) {
+        npy_intp _d[1] = {(npy_intp)self->src.n_symbols};
+        PyObject *_a = PyArray_SimpleNew(1, _d, NPY_COMPLEX64);
+        if (!_a) return NULL;
+        memcpy(PyArray_DATA((PyArrayObject *)_a), self->src.symbols,
+               self->src.n_symbols * sizeof(float _Complex));
+        return _a;
+    }
+    Py_RETURN_NONE;
+}
+static int
+Synth_set_symbols(SynthObject *self, PyObject *value, void *closure)
+{
+    (void)closure;
+    return _attach_symbols(&self->src, value) ? 0 : -1;
+}
+static PyObject *
 Synth_get_fs(SynthObject *self, void *closure)
 {
     (void)closure;
@@ -743,6 +793,7 @@ static PyGetSetDef Synth_getset[] = {
     {"pulse", (getter)Synth_get_pulse, (setter)Synth_set_pulse, NULL, NULL},
     {"rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta, NULL, NULL},
     {"rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span, NULL, NULL},
+    {"symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols, NULL, NULL},
     {"fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
@@ -1302,6 +1353,17 @@ Segment_flat_rrc_span(SegmentObject *self, void *closure)
     }
     return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "rrc_span");
 }
+static PyObject *
+Segment_flat_symbols(SegmentObject *self, void *closure)
+{
+    (void)closure;
+    if (PyList_GET_SIZE(self->sources) != 1) {
+        PyErr_SetString(PyExc_AttributeError,
+                        "symbols is only on a single-source Segment");
+        return NULL;
+    }
+    return PyObject_GetAttrString(PyList_GET_ITEM(self->sources, 0), "symbols");
+}
 
 static PyObject *
 Segment_add(SegmentObject *self, PyObject *args)
@@ -1345,6 +1407,7 @@ static PyGetSetDef Segment_getset[] = {
     {"pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL},
     {"rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL},
     {"rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL},
+    {"symbols", (getter)Segment_flat_symbols, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
@@ -2062,7 +2125,7 @@ _Composer_obj_to_dict(PyObject *o, const char *const *keys)
 }
 
 static const char *const _Composer_seg_keys[] = { "fs", "num_samples", "off_samples", NULL };
-static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", NULL };
+static const char *const _Composer_src_keys[] = { "type", "freq", "snr", "snr_mode", "seed", "sps", "pn_length", "pn_poly", "lfsr", "level", "f_end", "bits", "modulation", "pulse", "rrc_beta", "rrc_span", "symbols", NULL };
 
 static PyObject *
 Composer_to_dict(ComposerObject *self, PyObject *Py_UNUSED(ignored))

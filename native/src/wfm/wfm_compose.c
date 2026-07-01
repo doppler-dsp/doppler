@@ -26,7 +26,10 @@ free_segment_sources (wfm_segment_t *seg)
 {
   if (seg->sources)
     for (size_t k = 0; k < seg->n_sources; k++)
-      free (seg->sources[k].bits);
+      {
+        free (seg->sources[k].bits);
+        free (seg->sources[k].symbols);
+      }
   free (seg->sources);
   seg->sources = NULL;
 }
@@ -189,6 +192,10 @@ start_segment (wfm_compose_state_t *s)
           if (src->type == WFM_SYNTH_BITS && src->bits)
             wfm_synth_set_bits (s->syn[k], src->bits, src->n_bits,
                                 src->modulation);
+          /* Attach a symbols source's complex stream (no-op for other types).
+           */
+          if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
+            wfm_synth_set_symbols (s->syn[k], src->symbols, src->n_symbols);
           /* RRC pulse shaping: compute the taps here (same wfm_rrc_taps() the
            * Python/standalone face uses) and attach them. set_rrc scales for
            * unit TX power and no-ops for non-modulated types, so the composer
@@ -298,6 +305,23 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
                 }
               memcpy (copy, src->bits, src->n_bits);
               s->segs[i].sources[k].bits = copy;
+            }
+          if (src->symbols && src->n_symbols)
+            {
+              size_t          nbytes = src->n_symbols * sizeof *src->symbols;
+              float _Complex *copy   = malloc (nbytes);
+              if (!copy)
+                {
+                  s->segs[i].sources[k].symbols
+                      = NULL; /* don't free caller's */
+                  for (size_t j = 0; j <= i; j++)
+                    free_segment_sources (&s->segs[j]);
+                  free (s->segs);
+                  free (s);
+                  return NULL;
+                }
+              memcpy (copy, src->symbols, nbytes);
+              s->segs[i].sources[k].symbols = copy;
             }
         }
     }

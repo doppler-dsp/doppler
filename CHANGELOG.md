@@ -13,6 +13,29 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`wfm` `type="symbols"` — arbitrary complex-symbol streams.** Feed the synth
+    a complex64 constellation directly instead of picking a fixed modulation:
+    each symbol *is* the output point (no bit→symbol map), oversampled by `sps`,
+    cycled, and RRC-shaped through the matched FIR. Generalises every modulation
+    into "compute the symbols, pass them in" — pi/4-QPSK is the QPSK points with
+    every other rotated by pi/4; QAM/APSK/custom likewise. Available across all
+    three faces, byte-identical: `_SynthEngine(type="symbols").set_symbols(iq)`,
+    the composer `Synth(type="symbols", symbols=iq)` (jm 0.23.0 `complex` field),
+    and the CLI `wfmgen --type symbols --symbols-file iq.cf32`.
+- **Synth/Segment field docstrings** — every `wfm` composer source/segment field
+    now carries a description in the generated `.pyi`, and ranged numeric
+    defaults render bare (`freq`/`level`/`f_end` → `default 0.0`, not `"0.0"`).
+    `level`'s doc notes it only applies when summed in a Segment/Composer.
+    (jm 0.22.0 field-`doc` key.)
+
+### Fixed
+
+- **`clib_common.h` include guard namespaced** (`CLIB_COMMON_H` →
+    `DOPPLER_CLIB_COMMON_H`) so a jm-scaffolded C consumer's own `clib_common.h`
+    can no longer shadow doppler's `DP_OK`/`DP_ERR_INVALID` defines.
+
 ## [0.23.1] — 2026-06-30
 
 ### Fixed

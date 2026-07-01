@@ -169,6 +169,18 @@ def _track_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     return np.frombuffer(o.get_state(), dtype=np.uint8)
 
 
+def _make_symbols_engine() -> Any:
+    """A type=symbols synth with a fixed complex constellation attached. The
+    stream is config (restored by set_symbols, not the blob), so make()
+    reattaches it every call; sym_read_idx is the running field the round-trip
+    must carry."""
+    e = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+    e.set_symbols(
+        np.array([1 + 1j, -1 + 1j, 1 - 1j, -1 - 1j, 1j], np.complex64)
+    )
+    return e
+
+
 CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     "LO": (lambda: LO(0.05), lambda o, seg: np.array(o.steps(len(seg)))),
     "CIC": (lambda: CIC(4), lambda o, seg: np.array(o.decimate(seg))),
@@ -328,6 +340,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     "_SynthEngine": (
         lambda: _SynthEngine(),
+        _blob_after(lambda o, seg: o.steps(len(seg))),
+    ),
+    "_SynthEngine[symbols]": (
+        _make_symbols_engine,
         _blob_after(lambda o, seg: o.steps(len(seg))),
     ),
 }

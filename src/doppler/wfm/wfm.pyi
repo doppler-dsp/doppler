@@ -82,8 +82,8 @@ class _SynthEngine:
 
     Parameters
     ----------
-    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"], default "tone"
-        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits.  The Python binding accepts strings "tone"| "noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits".  For "bits" attach the pattern with wfm_synth_set_bits() after create().
+    type : Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols"], default "tone"
+        Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols.  The Python binding accepts strings "tone"|"noise"|"pn"|"bpsk"|"qpsk"|"chirp"|"bits"|"symbols".  For "bits" attach the pattern with wfm_synth_set_bits(); for "symbols" attach the complex stream with wfm_synth_set_symbols() after create().
     fs : float, default 1000000.0
         Sample rate in Hz.  Sets the carrier frequency normalisation and the noise bandwidth.  Default 1 000 000.0.
     freq : float, default 0.0

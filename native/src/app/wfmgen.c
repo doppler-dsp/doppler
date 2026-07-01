@@ -31,7 +31,7 @@
 #define BLK 4096
 
 static const char *const TYPES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits" };
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
 static const char *const MODES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const BITMODS[] = { "none", "bpsk", "qpsk" };
 static const char *const STYPES[]  = { "cf32", "cf64", "ci32", "ci16", "ci8" };
@@ -191,6 +191,44 @@ slurp_file (const char *path)
   return buf;
 }
 
+/* Read a raw interleaved-I/Q cf32 file (float32 re, im, …) into a malloc'd
+   complex array. Sets *n to the symbol count and returns the buffer, or NULL
+   on read error or a size that is not a whole number of cf32 samples. */
+static float _Complex *
+read_cf32_file (const char *path, size_t *n)
+{
+  FILE *f = fopen (path, "rb");
+  if (!f)
+    return NULL;
+  if (fseek (f, 0, SEEK_END) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  long len = ftell (f);
+  if (len <= 0 || (size_t)len % sizeof (float _Complex) != 0
+      || fseek (f, 0, SEEK_SET) != 0)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  float _Complex *buf = malloc ((size_t)len);
+  if (!buf)
+    {
+      (void)fclose (f);
+      return NULL;
+    }
+  size_t rd = fread (buf, 1, (size_t)len, f);
+  (void)fclose (f);
+  if (rd != (size_t)len)
+    {
+      free (buf);
+      return NULL;
+    }
+  *n = (size_t)len / sizeof (float _Complex);
+  return buf;
+}
+
 /* Build "<base><suffix>" into dst[n]. Returns 0, or -1 if it would truncate
    (the output path is too long) — the caller reports a usage error rather than
    silently writing a truncated, wrong path. */
@@ -209,7 +247,8 @@ static const char USAGE[]
       "  wfmgen json-template [FILE]\n"
       "\n"
       "WAVEFORM TYPE\n"
-      "  --type TYPE     tone | noise | pn | bpsk | qpsk | chirp | bits\n"
+      "  --type TYPE     tone | noise | pn | bpsk | qpsk | chirp | bits |\n"
+      "                    symbols\n"
       "                    tone  - pure CW carrier at --freq\n"
       "                    noise - Gaussian white noise\n"
       "                    pn    - pseudo-random MLS sequence\n"
@@ -217,6 +256,8 @@ static const char USAGE[]
       "                    qpsk  - QPSK-modulated symbols\n"
       "                    chirp - linear sweep, --freq to --f-end\n"
       "                    bits  - custom bit pattern (see BITS INPUT)\n"
+      "                    symbols - custom complex constellation (see "
+      "SYMBOLS INPUT)\n"
       "\n"
       "SIGNAL PARAMETERS\n"
       "  (LO:HI on --freq/--f-end/--snr/--level/--count/--off draws that "
@@ -253,6 +294,12 @@ static const char USAGE[]
       "  --bits-hex HEX  Hex string, e.g. \"b2\" -> 10110010 (MSB-first)\n"
       "  --bits-file F   Binary file; bits consumed MSB-first per byte\n"
       "  --modulation M  none | bpsk | qpsk (default bpsk)\n"
+      "\n"
+      "SYMBOLS INPUT  (--type symbols)\n"
+      "  --symbols-file F  Raw cf32 file (interleaved float32 I,Q); each\n"
+      "                    sample is one constellation point. Oversampled by\n"
+      "                    --sps, cycled, and RRC-shaped with --pulse rrc.\n"
+      "                    Generalises any modulation (pi/4-QPSK, QAM, ...).\n"
       "\n"
       "PN SEQUENCE  (--type pn)\n"
       "  --pn-length N   Register length; period = 2^N - 1 (default 15)\n"
@@ -524,6 +571,20 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
               (void)fprintf (stderr,
                              "error: --bits-file must contain a 0/1 string\n");
               return 2;
+            }
+        }
+      else if (!strcmp (a, "--symbols-file"))
+        {
+          REQVAL (v);
+          free (src.symbols);
+          src.symbols = read_cf32_file (v, &src.n_symbols);
+          if (!src.symbols)
+            {
+              (void)fprintf (
+                  stderr,
+                  "error: --symbols-file %s unreadable or not whole cf32\n",
+                  v);
+              return 1;
             }
         }
       else if (!strcmp (a, "--fs"))
@@ -943,5 +1004,6 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
 
   wfm_compose_destroy (comp);
   free (src.bits); /* the composer deep-copied it; free our CLI-owned copy */
+  free (src.symbols); /* same: the bridge copied it; free our CLI-owned copy */
   return rc;
 }

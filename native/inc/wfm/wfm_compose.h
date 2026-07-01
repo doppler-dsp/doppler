@@ -88,6 +88,8 @@ typedef struct {
     uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
     size_t n_bits;     /* type=bits: pattern length */
     int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */
+    float _Complex *symbols; /* type=symbols: stream, owned; NULL otherwise */
+    size_t n_symbols;        /* type=symbols: stream length */
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
     double rrc_beta;   /* RRC roll-off (pulse=rrc) */
     int rrc_span;      /* RRC support in symbols (pulse=rrc) */

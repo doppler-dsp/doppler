@@ -46,9 +46,8 @@ ______________________________________________________________________
     folded into their gallery counterparts, which carry the figure. Off-nav
     orphans adopted or archived: `adc`/`hbdecim_q15` gallery pages and the
     `RESAMPLER`/`SPECAN`/`acq-fn`/`STATIC_VS_DYNAMIC`/NATS-transport design docs
-    are now in the nav; two superseded design notes moved to `design/archive/`;
-    the root `docs/api.md` duplicate removed. `make gallery` now regenerates the
-    AWGN and waveform-I/O figures too.
+    are now in the nav; two superseded design notes moved to `design/archive/`.
+    `make gallery` now regenerates the AWGN and waveform-I/O figures too.
 
 ## [0.24.0] — 2026-06-30
 

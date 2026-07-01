@@ -264,8 +264,8 @@ Working name **`track.CarrierNda`** (non-data-aided). Naming review: there are
 now three carrier loops — `Costas` (BPSK decision-directed), `CarrierMpsk`
 (M-PSK decision-directed), `CarrierNda` (M-PSK non-data-aided). This revives the
 earlier `track.Carrier.*` namespace idea; deferred (the jm-owned `__init__.py`
-makes a nested namespace a drift/`.so`-is-API concern — see
-[so-is-the-api]) — flat names for now.
+makes a nested namespace a drift / `.so`-is-the-API concern) — flat names
+for now.
 
 `MpskReceiver` then embeds `CarrierNda` as its wipe-off NCO + acquisition loop,
 and applies the decision-directed update (the `CarrierMpsk` discriminator math)

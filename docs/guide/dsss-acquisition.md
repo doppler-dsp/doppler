@@ -40,6 +40,15 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
     # The engine sized the grid: doppler_bins=12, code_bins=124, res≈2750 Hz.
     assert acq.pd_predicted >= acq.pd          # confirm it can meet the target
 
+    # demo capture: a real 31-chip DSSS burst in light noise, split into
+    # cf32 blocks (any block size works — the engine reframes internally).
+    chip = np.repeat(1 - 2.0 * (code & 1), 4)  # ±1 per chip, ×spc oversample
+    capture = np.tile(chip, 36).astype(np.complex64) * 8.0
+    capture += (0.1 * (np.random.standard_normal(capture.size)
+                + 1j * np.random.standard_normal(capture.size))
+                ).astype(np.complex64)
+    iq_stream = np.array_split(capture, 8)
+
     for chunk in iq_stream:                          # any cf32 block size
         for dop, phase, peak, noise, stat, snr in acq.push(chunk):
             print(f"hit: Doppler bin {dop}, code phase {phase} samples, "
@@ -268,7 +277,7 @@ default. The smallest robust call is:
 acq = Acquisition(
     code,                 # the PN replica; sf = len(code) is inferred
     chip_rate=1.023e6,    # waveform chip rate (Hz)
-    cn0_dbhz=48,          # your link-budget sensitivity (dB-Hz)
+    cn0_dbhz=60,          # your link-budget sensitivity (dB-Hz)
 )
 assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
 ```

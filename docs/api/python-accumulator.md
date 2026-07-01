@@ -34,8 +34,8 @@ ______________________________________________________________________
 from doppler.accumulator import AccF32
 
 acc = AccF32()
-acc.push(1.0)
-acc.push(2.5)
+acc.step(1.0)
+acc.step(2.5)
 print(acc.get())    # 3.5 — read without clearing
 print(acc.dump())   # 3.5 — read and zero
 print(acc.dump())   # 0.0 — cleared by previous dump
@@ -72,15 +72,15 @@ acc.madd(x, h)
 print(acc.dump())   # (2+3j) = mean([1+2j, 3+4j])
 ```
 
-### add vs push
+### steps vs step
 
-- `push(v)` — add a scalar to the accumulator.
-- `add(x)` — add all elements of a NumPy array to the accumulator.
+- `step(v)` — add a scalar to the accumulator.
+- `steps(x)` — add all elements of a NumPy array to the accumulator.
 
 ```python
 acc = AccF32()
-acc.push(1.0)           # acc = 1.0
-acc.add(np.array([2.0, 3.0], dtype=np.float32))  # acc = 6.0
+acc.step(1.0)           # acc = 1.0
+acc.steps(np.array([2.0, 3.0], dtype=np.float32))  # acc = 6.0
 ```
 
 ### AccTrace — per-bin trace averaging

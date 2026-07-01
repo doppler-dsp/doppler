@@ -409,6 +409,9 @@ Before opening a PR:
 - [ ] No Python wrapper classes — C extension types are the public API
 - [ ] `<name>.pyi` has stubs for every exported symbol
 - [ ] `make docs-build` — docs build clean
+- [ ] `uv run pytest -m docs_snippets` — every Python fence you added to the
+    docs runs (or is `skip=`-marked with a reason). New pages are gated
+    automatically; see [Doc Examples (tested)](doc-examples.md)
 
 ______________________________________________________________________
 

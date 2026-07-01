@@ -44,6 +44,8 @@ ______________________________________________________________________
 The publisher binds and fans out to every connected subscriber; a slow
 subscriber drops frames rather than back-pressuring the sender.
 
+<!-- docs-snippet: skip=blocking two-endpoint ZMQ recv; see stream tests -->
+
 ```python
 import numpy as np
 from doppler.stream import Publisher, Subscriber, CF64
@@ -66,6 +68,8 @@ ______________________________________________________________________
 PUSH round-robins across connected PULL workers and never drops, giving a
 back-pressured work queue.
 
+<!-- docs-snippet: skip=blocking two-endpoint ZMQ recv; see stream tests -->
+
 ```python
 import numpy as np
 from doppler.stream import Push, Pull, CF64
@@ -83,6 +87,8 @@ ______________________________________________________________________
 
 A `Requester` sends a sample block and blocks for the `Replier`'s response;
 the two alternate strictly.
+
+<!-- docs-snippet: skip=blocking two-endpoint ZMQ recv; see stream tests -->
 
 ```python
 import numpy as np

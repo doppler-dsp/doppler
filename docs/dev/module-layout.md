@@ -64,7 +64,7 @@ ______________________________________________________________________
 
 Only two things are permitted:
 
-```python
+```text
 from .filter import FIR, FIRKind   # plain import, no `as` aliases
 
 __all__ = ["FIR", "FIRKind"]

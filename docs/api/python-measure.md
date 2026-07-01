@@ -23,7 +23,7 @@ from doppler.measure import ToneMeasure
 fs, n = 100e6, 1 << 14
 x = np.cos(2 * np.pi * 10.017e6 * np.arange(n) / fs).astype(np.float32)
 
-m = ToneMeasure(window="kaiser", n=n, fs=fs, beta=12.0)
+m = ToneMeasure(n=n, fs=fs)      # auto Kaiser window, sized from bits/DR
 r = m.analyze(x)                 # named ToneMetrics result
 r.enob, r.sfdr_dbc, r.fund_dbfs  # attribute access
 snr, sinad, *_ = r               # ...and tuple unpacking
@@ -35,7 +35,7 @@ snr, sinad, *_ = r               # ...and tuple unpacking
 from doppler.cvt import ADC
 
 codes = ADC(12, 0.0, 0).steps(x).astype(np.float32)
-m = ToneMeasure(n=n, fs=fs, beta=14.0, bits=12)   # bits sets the dBFS reference
+m = ToneMeasure(n=n, fs=fs, bits=12)   # bits sets the dBFS reference
 print(round(m.analyze(codes).enob, 2))   # ≈ 12.0 for an ideal 12-bit ADC
 ```
 
@@ -68,10 +68,19 @@ ts = m.time_stats(x)             # crest_db / papr_db / dc_offset / fs_util_pct
 from doppler.measure import IMDMeasure, NPRMeasure
 
 # Two equal tones -> IMD2/IMD3 and the third-order intercept
-imd = IMDMeasure(n=n, fs=fs, beta=12.0)
+t = np.arange(n)
+two_tone_capture = (
+    0.5 * np.cos(2 * np.pi * 10.0e6 * t / fs)
+    + 0.5 * np.cos(2 * np.pi * 11.0e6 * t / fs)
+).astype(np.float32)
+imd = IMDMeasure(n=n, fs=fs)
 r = imd.analyze(two_tone_capture)        # r.imd3_dbc, r.toi_dbfs, ...
 
 # Notched-noise loading -> NPR (band/notch geometry are analyze() args)
+noise = np.random.randn(n).astype(np.float32)
+active_lo, active_hi = 1.0e6, 40.0e6     # loaded band edges (Hz)
+notch_lo, notch_hi = 19.0e6, 21.0e6      # the cleared notch (Hz)
+guard_hz = 1.0e6
 npr = NPRMeasure(n=n, fs=fs, bits=10)
 g = npr.analyze(noise, active_lo, active_hi, notch_lo, notch_hi, guard_hz)
 print(g.npr_db)
@@ -91,7 +100,9 @@ from doppler.measure import (
     measure_rec_nfft,
 )
 
-n = measure_min_samples(fs, target_rbw=1e3, window=1, beta=12.0)  # 1=kaiser
+n = measure_min_samples(
+    fs, target_rbw=1e3, bits=12, dynamic_range_db=0.0, complex_input=0
+)
 nfft = measure_rec_nfft(n, pad=2)
 pg = measure_proc_gain(nfft)
 f0 = dp_coherent_freq(fs, 10e6, n)       # leakage-free coherent test tone

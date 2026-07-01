@@ -46,6 +46,7 @@ print(f"in={len(x)}  out={len(y)}")
 
 ```python
 ddc.norm_freq = -0.2        # LO retuned; resampler history preserved
+next_block = np.random.randn(4096).astype(np.complex64)
 y = ddc.execute(next_block)
 ```
 
@@ -53,6 +54,11 @@ y = ddc.execute(next_block)
 
 ```python
 ddc = DDC(-0.1, 0.25)
+iq_stream = [np.random.randn(4096).astype(np.complex64) for _ in range(3)]
+
+def process(chunk):         # your per-block consumer
+    return chunk
+
 for block in iq_stream:     # generator of CF32 arrays
     out = ddc.execute(block)
     process(out)
@@ -126,6 +132,10 @@ from doppler.ddc import Ddcr
 ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 out = np.empty(4096, dtype=np.complex64)   # allocate once, reuse
 
+def real_adc_stream():                     # your ADC source
+    for _ in range(3):
+        yield np.random.randn(4096).astype(np.float32)
+
 for x in real_adc_stream():                # x: float32, len 4096
     y = ddcr.execute(x, out)               # y is out[:n_out], zero-copy
     process(y)
@@ -134,6 +144,7 @@ for x in real_adc_stream():                # x: float32, len 4096
 ### Retune mid-stream
 
 ```python
+new_carrier = 0.15
 ddcr.norm_freq = -(2 * new_carrier + 0.5)  # writable property; phase-continuous
 y = ddcr.execute(x, out)
 ```
@@ -143,6 +154,9 @@ y = ddcr.execute(x, out)
 ### Multiple independent streams
 
 ```python
+num_channels, N = 4, 4096
+x = [np.random.randn(N).astype(np.float32) for _ in range(num_channels)]
+y = [None] * num_channels
 chans = [Ddcr(-0.7, 0.25) for _ in range(num_channels)]
 bufs  = [np.empty(N, dtype=np.complex64) for _ in range(num_channels)]
 
@@ -164,6 +178,9 @@ buffer — scales across cores instead of serialising on the GIL:
 
 ```python
 import threading
+
+N = 4096
+shards = [[np.random.randn(N).astype(np.float32)] for _ in range(4)]
 
 def worker(ddcr, blocks, out):
     for x in blocks:                 # this thread's own handle + buffer
@@ -197,6 +214,8 @@ deterministically; otherwise the destructor frees it.
 | Any call after `close()`  | Raises `RuntimeError`                                   |
 
 ```python
+x = np.random.randn(4096).astype(np.float32)
+out = np.empty(4096, dtype=np.complex64)
 with Ddcr(-0.7, 0.25) as ddcr:      # state released on exit
     y = ddcr.execute(x, out)
     process(y)

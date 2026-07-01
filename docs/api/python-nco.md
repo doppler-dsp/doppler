@@ -28,8 +28,8 @@ iq = lo.steps(1024)        # complex64, length 1024
 print(iq[:4])
 # [ 1.+0.j  0.+1.j -1.+0.j  0.-1.j ]
 
-# Scalar (one sample at a time)
-s = lo.step()
+# One sample (LO is block-oriented; take the first of a length-1 batch)
+s = lo.steps(1)[0]
 
 # FM control port — per-sample frequency deviation
 ctrl = (0.002 * np.sin(2 * np.pi * 0.01 * np.arange(1024))).astype(np.float32)

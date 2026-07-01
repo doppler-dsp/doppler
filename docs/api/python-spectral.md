@@ -53,10 +53,16 @@ from doppler.spectral import Detector
 ref = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)
 det = Detector(ref, dwell=4, threshold=12.0)      # ~12 dB peak-to-noise
 
+
+def stream_chunks():                              # a real CF32 source
+    for _ in range(4):
+        yield (np.random.randn(1024)
+               + 1j * np.random.randn(1024)).astype(np.complex64)
+
+
 for chunk in stream_chunks():                     # any chunk size
-    result = det.execute(chunk.astype(np.complex64))
-    if result is not None:
-        print("detection:", result)               # lag / metric / sample index
+    for hit in det.push(chunk.astype(np.complex64)):
+        print("detection:", hit)                  # (lag, peak, noise, stat)
 ```
 
 `Detector2D` is the 2-D streaming detector over a grid.
@@ -83,6 +89,8 @@ to power, fftshifted to DC-centred order and folded into a running average
 import numpy as np
 from doppler.spectral import PSD, find_peaks_f32
 
+cf32_capture = (np.random.randn(8192)
+                + 1j * np.random.randn(8192)).astype(np.complex64)
 w = PSD(n=1024, fs=1e6, window="kaiser", beta=8.0,
           pad=2, full_scale=1.0, bits=0, mode="mean")   # bits>0 -> 2**(bits-1)
 w.accumulate(cf32_capture)                 # or w.accumulate_real(f32_capture)
@@ -136,8 +144,7 @@ from doppler.spectral import (
 x = (np.random.randn(1024) + 1j * np.random.randn(1024)).astype(np.complex64)
 w = np.empty(1024, dtype=np.float32)
 hann_window(w)                                    # fill in place
-spec = np.empty_like(x)
-FFT(1024, -1).execute(x * w, spec)
+spec = FFT(1024, -1).execute_cf32(x * w)          # returns the transform
 db = magnitude_db_cf32(spec, lin_floor=1e-12, offset_db=0.0)
 peaks = find_peaks_f32(db, n_peaks=5, min_db=-60.0)
 ```

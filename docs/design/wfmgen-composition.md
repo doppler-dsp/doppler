@@ -91,6 +91,9 @@ Take the three-source mix used in the Python snippet below — a QPSK SoI plus
 two CW interferers — at `fs = 1 MHz`:
 
 ```python
+from doppler.wfm import Segment, qpsk, tone
+
+N = 100_000
 Segment.sum(
     qpsk(sps=8, snr=15, snr_mode="esno"),  # anchor; level defaults to 0 dBFS
     tone(freq=200e3, level=-12.0),         # interferer A
@@ -225,24 +228,20 @@ tone/qpsk/…       (mix + noise)      (sequence in time)
 ### Python
 
 ```python
-from doppler.wfm import tone, qpsk, gap, noise, Segment, Composer
+from doppler.wfm import tone, qpsk, Segment, Composer
 
 # mix: sum sources into one segment (same span)
 sig = Segment.sum(
-    qpsk(freq=0,      sps=8, snr=15, snr_mode="esno"),  # SoI; snr anchors the floor
-    tone(freq=200e3,  level=-12),                       # CW interferer, 12 dB down
-    tone(freq=-150e3, level=-20),                       # another, 20 dB down
-    n=1_000_000,
+    qpsk(freq=0, sps=8, snr=15, snr_mode="esno"),  # SoI; snr anchors floor
+    tone(freq=200e3, level=-12),                   # CW interferer, 12 dB down
+    tone(freq=-150e3, level=-20),                  # another, 20 dB down
+    num_samples=1_000_000,
 )
 
-# concatenate: segments in time
-scene = (
-    Segment.sum(tone(level=0), n=500_000)   # a tone burst
-    .add(gap(n=100_000))                    # then silence
-    .add(sig)                               # then the mix
-)
+# concatenate: segments in time — a tone burst, then the mix
+scene = Segment.sum(tone(level=0), num_samples=500_000).add(sig)
 
-Composer(scene, headroom=6).write("scene.cf32")   # 6 dB backoff for the sum's PAPR
+x = Composer(scene).compose()   # materialise the whole timeline
 ```
 
 ### CLI / JSON

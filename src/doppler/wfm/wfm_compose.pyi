@@ -11,7 +11,7 @@ class Synth:
     ----------
     type : str, default ``"tone"``
         Waveform type.
-        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``.
+        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``.
     freq : float | tuple[float, float], default 0.0
         Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for chirp it is the start frequency.
     snr : float | tuple[float, float], default 100.0
@@ -46,10 +46,12 @@ class Synth:
         RRC roll-off factor in (0, 1] when pulse=rrc.
     rrc_span : int, default 8
         RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
+    symbols : NDArray[np.complex64] | None, default None
+        For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     """
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ...) -> None: ...
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., fs: float = ...) -> None: ...
     def __getattr__(self, name: str) -> Any: ...
     def steps(self, n: int) -> NDArray[np.complex64]:
         """Generate *n* complex samples."""
@@ -65,7 +67,7 @@ class Segment:
     ----------
     type : str, default ``"tone"``
         Waveform type.
-        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``.
+        One of ``"tone"``, ``"noise"``, ``"pn"``, ``"bpsk"``, ``"qpsk"``, ``"chirp"``, ``"bits"``, ``"symbols"``.
     freq : float | tuple[float, float], default 0.0
         Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for chirp it is the start frequency.
     snr : float | tuple[float, float], default 100.0
@@ -100,6 +102,8 @@ class Segment:
         RRC roll-off factor in (0, 1] when pulse=rrc.
     rrc_span : int, default 8
         RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).
+    symbols : NDArray[np.complex64] | None, default None
+        For type=symbols: a complex64 constellation stream — each element is the output point itself, oversampled by sps, cycled, and RRC-shaped with pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     num_samples : int | tuple[int, int], default 1024
@@ -124,7 +128,8 @@ class Segment:
     pulse: str
     rrc_beta: float
     rrc_span: int
-    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> None: ...
+    symbols: NDArray[np.complex64] | None
+    def __init__(self, type: str = ..., freq: float | tuple[float, float] = ..., snr: float | tuple[float, float] = ..., snr_mode: str = ..., seed: int = ..., sps: int = ..., pn_length: int = ..., pn_poly: int = ..., lfsr: str = ..., level: float | tuple[float, float] = ..., f_end: float | tuple[float, float] = ..., bits: bytes | None = ..., modulation: str = ..., pulse: str = ..., rrc_beta: float = ..., rrc_span: int = ..., symbols: NDArray[np.complex64] | None = ..., fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> None: ...
     @classmethod
     def sum(cls, *sources: Synth, fs: float = ..., num_samples: int | tuple[int, int] = ..., off_samples: int | tuple[int, int] = ...) -> Segment:
         """Combine *sources* into a single Segment."""

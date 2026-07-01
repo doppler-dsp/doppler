@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-06-30
+
 ### Added
 
 - **`wfm` `type="symbols"` — arbitrary complex-symbol streams.** Feed the synth
@@ -1759,6 +1761,7 @@ ______________________________________________________________________
 [0.22.0]: https://github.com/doppler-dsp/doppler/compare/v0.21.0...v0.22.0
 [0.23.0]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...v0.23.0
 [0.23.1]: https://github.com/doppler-dsp/doppler/compare/v0.23.0...v0.23.1
+[0.24.0]: https://github.com/doppler-dsp/doppler/compare/v0.23.1...v0.24.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3

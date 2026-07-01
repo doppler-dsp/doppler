@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-07-01
+
 ### Added
 
 - **Fail-closed doc-snippet drift gate.** Every `python` fence in the docs
@@ -35,8 +37,8 @@ ______________________________________________________________________
     `rate`); `HalfbandDecimator()` now requiring caller-supplied taps `h`;
     `Detector.execute` → `push`; and a stale `pd_predicted >= pd` assertion. **The
     whole `docs/` tree is now gated — the burn-down backlog is empty.** The
-    `Farrow.delay` keyword/`.pyi` mismatch is tracked upstream as just-makeit
-    #412.
+    `Farrow.delay` keyword/`.pyi` mismatch it surfaced is now fixed (just-makeit
+    #412 — adopted via the 0.24.0 pin bump; see **Fixed**).
 - **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
     showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
     complex streams (modulations no enum provides), rect vs RRC pulses, and the
@@ -70,6 +72,18 @@ ______________________________________________________________________
     `RESAMPLER`/`SPECAN`/`acq-fn`/`STATIC_VS_DYNAMIC`/NATS-transport design docs
     are now in the nav; two superseded design notes moved to `design/archive/`.
     `make gallery` now regenerates the AWGN and waveform-I/O figures too.
+
+### Fixed
+
+- **`Farrow.delay(x, mu=…)` keyword call (just-makeit #412).** Adopting
+    just-makeit **0.24.0** (pin bumped from 0.23.0; `jm apply` clean, no codegen
+    drift) makes a `variable_output` method with named params generate a
+    keyword-capable binding that matches its already-keyword-shaped `.pyi`.
+    `f.delay(x, mu=0.3)` now works — it previously raised `TypeError` although
+    the stub advertised `mu`; positional calls are unchanged. The gallery and
+    API-reference Farrow examples use the keyword form. (The other positional-only
+    param methods — `LO.steps`, `Costas.steps`, `RateConverter.execute` — adopt
+    the same way when next regenerated.)
 
 ## [0.24.0] — 2026-06-30
 

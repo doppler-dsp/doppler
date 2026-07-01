@@ -88,17 +88,18 @@ FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-FarrowObj_delay (FarrowObject *self, PyObject *args)
+FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  double         mu    = 0;
-  if (!PyArg_ParseTuple (args, "Od", &x_obj, &mu))
+  static char   *_kwlist[] = { "x", "mu", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  double         mu        = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &x_obj, &mu))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
@@ -170,53 +171,6 @@ FarrowObj_reset (FarrowObject *self, PyObject *Py_UNUSED (ignored))
   farrow_reset (self->handle);
   Py_RETURN_NONE;
 }
-static PyObject *
-Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)farrow_get_group_delay (self->handle));
-}
-
-static PyGetSetDef Farrow_getset[]
-    = { { "group_delay", (getter)Farrow_getprop_group_delay, NULL,
-          "Group delay.\n", NULL },
-        { NULL } };
-
-static PyObject *
-FarrowObj_destroy (FarrowObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      farrow_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-FarrowObj_enter (FarrowObject *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-FarrowObj_exit (FarrowObject *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      farrow_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
 
 static PyObject *
 FarrowObj_state_bytes (FarrowObject *self, PyObject *Py_UNUSED (ignored))
@@ -270,10 +224,57 @@ FarrowObj_set_state (FarrowObject *self, PyObject *arg)
     }
   Py_RETURN_NONE;
 }
+static PyObject *
+Farrow_getprop_group_delay (FarrowObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)farrow_get_group_delay (self->handle));
+}
+
+static PyGetSetDef Farrow_getset[]
+    = { { "group_delay", (getter)Farrow_getprop_group_delay, NULL,
+          "Group delay.\n", NULL },
+        { NULL } };
+
+static PyObject *
+FarrowObj_destroy (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      farrow_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+FarrowObj_enter (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+FarrowObj_exit (FarrowObject *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      farrow_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
 
 static PyMethodDef FarrowObj_methods[] = {
 
-  { "delay", (PyCFunction)FarrowObj_delay, METH_VARARGS,
+  { "delay", (PyCFunction)FarrowObj_delay, METH_VARARGS | METH_KEYWORDS,
     "delay(x) -> ndarray\n"
     "\n"
     "Apply a constant fractional delay of `mu` samples to a cf32 block via "
@@ -294,16 +295,16 @@ static PyMethodDef FarrowObj_methods[] = {
     "    >>> from doppler import Farrow\n"
     "    >>> obj = Farrow(\"cubic\")\n"
     "    >>> obj.reset()\n" },
-  { "destroy", (PyCFunction)FarrowObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)FarrowObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)FarrowObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)FarrowObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)FarrowObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)FarrowObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)FarrowObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)FarrowObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)FarrowObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

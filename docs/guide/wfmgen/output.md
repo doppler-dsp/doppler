@@ -125,6 +125,8 @@ naive `np.fromfile` gets the layout (and, for integers, the scale) wrong.
 SIMD rescale to ±1.0 for the integer types; the container-aware `Reader` also
 auto-detects BLUE/SigMF/CSV/raw and recovers `fs`/`fc`/sample-type from metadata:
 
+<!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
+
 ```python
 from doppler.wfm import read_iq, Reader
 

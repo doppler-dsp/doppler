@@ -1,0 +1,73 @@
+# doc-snippet drift gate — burn-down backlog (see docs/dev/doc-examples.md)
+#
+# Pages listed here are NOT yet gated by src/doppler/tests/test_doc_snippets.py.
+# This is a TEMPORARY backlog that must shrink to empty: as each page's Python
+# fences are made to run (or marked skip=), delete its line. A NEW page is never
+# added here — it is gated on arrival (fail-closed). Mirrors the burn-down
+# idiom of docs/api/.api-coverage-ignore and scripts/.serializable-ignore.
+api/python-accumulator.md
+api/python-agc.md
+api/python-analyzer.md
+api/python-arith.md
+api/python-buffer.md
+api/python-cvt.md
+api/python-ddc.md
+api/python-delay.md
+api/python-detection.md
+api/python-dsss.md
+api/python-fft.md
+api/python-filter.md
+api/python-measure.md
+api/python-nco.md
+api/python-polyphase.md
+api/python-resample.md
+api/python-spectral.md
+api/python-streaming.md
+api/python-track.md
+api/python-util.md
+api/python-wfmgen.md
+cli/index.md
+design/mpsk.md
+design/state-serialization.md
+design/wfmgen-composition.md
+dev/benchmarking.md
+dev/module-layout.md
+dev/wfm-validation-findings.md
+dev/wfmgen/api.md
+examples/streaming.md
+gallery/adc.md
+gallery/agc.md
+gallery/async-despread.md
+gallery/awgn.md
+gallery/carrier-mpsk.md
+gallery/carrier-nda.md
+gallery/channel.md
+gallery/cic.md
+gallery/corr.md
+gallery/costas.md
+gallery/cvt-quantization.md
+gallery/ddc-fn.md
+gallery/detection-curves.md
+gallery/detection-sim.md
+gallery/detection2d.md
+gallery/dll.md
+gallery/dsss-despread.md
+gallery/farrow.md
+gallery/hbdecim_q15.md
+gallery/measure-imd-npr.md
+gallery/measure.md
+gallery/mpsk-receiver.md
+gallery/mpsk.md
+gallery/q15-uq15.md
+gallery/rate-converter.md
+gallery/symbols.md
+gallery/symsync.md
+gallery/wcdma-carriers.md
+gallery/wfm-composition.md
+gallery/wfm-io.md
+gallery/wfm-json.md
+gallery/wfm-write.md
+gallery/wfmgen.md
+guide/dsss-acquisition.md
+guide/spectral-psd.md
+guide/timing.md

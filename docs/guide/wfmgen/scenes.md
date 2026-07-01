@@ -52,14 +52,16 @@ trailing off-time — and can repeat or run forever.
 === "Python API"
 
     ```python
-    from doppler.wfm import Composer, tone, qpsk
+    from doppler.wfm import Segment, Timeline, Composer
 
-    scene = (
-        Composer(fs=1e6)
-        .add(tone(freq=1e5, snr=100.0, num_samples=10000, off_samples=5000))
-        .add(qpsk(snr=9.0, snr_mode="esno", sps=8, num_samples=40000))
-    )
-    scene.write("scenario.cf32")
+    # The same two segments as the JSON spec above: a tone, then a QPSK burst.
+    timeline = Timeline([
+        Segment("tone", fs=1e6, freq=1e5, snr=100.0,
+                num_samples=10000, off_samples=5000),
+        Segment("qpsk", fs=1e6, snr=9.0, snr_mode="esno",
+                sps=8, num_samples=40000),
+    ])
+    iq = Composer(timeline).compose()   # complex64 — byte-identical to the CLI
     ```
 
 `type` and `snr_mode` are strings in JSON; every other field is numeric and

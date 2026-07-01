@@ -69,6 +69,8 @@ does the right thing — a zero-copy complex view for the float types, a SIMD
 rescale to ±1.0 for the integer types; the container-aware `Reader` also
 auto-detects BLUE/SigMF/CSV/raw and recovers `fs`/`fc`/sample-type:
 
+<!-- docs-snippet: skip=illustrative: reads an I/Q capture file you supply -->
+
 ```python
 from doppler.wfm import read_iq, Reader
 

@@ -39,6 +39,8 @@ The same C core is exposed as `SampleClock`, which paces and timestamps a stream
 against an ideal `fs`-Hz clock — throttle a producer to real time and tag blocks
 with their ideal timestamp:
 
+<!-- docs-snippet: skip=illustrative real-time pacing loop over reader IQ -->
+
 ```python
 from doppler.wfm import Composer, SampleClock, ZmqSink
 

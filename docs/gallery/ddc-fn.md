@@ -46,6 +46,7 @@ A `Ddcr` takes a real passband signal, mixes it with a fine NCO (running at
 a real tone at carrier `f_carrier` (normalised to `fs_in`) at DC:
 
 ```python
+f_carrier = 0.18                            # real tone, normalised to fs_in
 norm_freq = -(2 * f_carrier + 0.5)
 ```
 
@@ -54,6 +55,8 @@ The lifecycle is explicit — the handle is yours to keep, reuse, and release:
 ```python
 import numpy as np
 from doppler.ddc import Ddcr
+
+stream = [np.zeros(4096, dtype=np.float32) for _ in range(3)]  # demo blocks
 
 ddcr = Ddcr(norm_freq=-(2 * 0.18 + 0.5), rate=0.25)
 
@@ -84,6 +87,10 @@ as two halves through the *same* handle is bit-identical to processing it in one
 shot:
 
 ```python
+lo = -(2 * 0.18 + 0.5)                          # tune carrier fn=0.18 to DC
+x = np.cos(2 * np.pi * 0.18 * np.arange(8192)).astype(np.float32)
+out = np.empty(8192, dtype=np.complex64)
+
 # one shot ----------------------------------------------------------------
 d = Ddcr(lo, 0.25)
 y_whole = d.execute(x, out).copy()

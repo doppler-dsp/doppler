@@ -52,7 +52,12 @@ miss; the PLL then refines phase. `bn_fll = 0` is a pure Costas PLL.
 import numpy as np
 from doppler.track import Costas
 
-# residual carrier offset f0 (cycles/sample), tsamps samples per symbol
+# A BPSK signal carrying a residual carrier offset f0, to drive the loop.
+rng  = np.random.default_rng(0)
+bits = rng.integers(0, 2, 4000) * 2 - 1
+rx   = np.repeat(bits, 16).astype(np.complex64)   # tsamps=16 samples/sym
+rx  *= np.exp(2j * np.pi * 0.009 * np.arange(rx.size))  # f0 ≈ 0.9 rad/sym
+
 c = Costas(bn=0.05, zeta=0.707, init_norm_freq=0.0, tsamps=16, bn_fll=0.03)
 symbols = c.steps(rx)          # one complex prompt per symbol
 f_est   = c.norm_freq          # tracked residual frequency

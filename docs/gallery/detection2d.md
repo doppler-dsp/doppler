@@ -63,6 +63,21 @@ ref2d = (
 # Signal amplitude from SNR definition: snr_amp = A * sqrt(N) / SIGMA
 A = snr_amp * SIGMA / math.sqrt(N)
 
+# One dwell of frames: signal at (Doppler=5, code-phase=11) + AWGN.
+ns = np.float32(SIGMA / math.sqrt(2.0))
+
+
+def signal_frame():
+    sig = np.roll(np.roll(ref2d * A, 5, axis=0), 11, axis=1)
+    noise = (
+        rng.standard_normal((N_DOPPLER, N_CODE_PHASE))
+        + 1j * rng.standard_normal((N_DOPPLER, N_CODE_PHASE))
+    ).astype(np.complex64) * ns
+    return (sig + noise).ravel()
+
+
+signal_block = np.concatenate([signal_frame() for _ in range(M)])
+
 det = Detector2D(
     ref2d, dwell=M, noise_lo=1, noise_hi=N - 1, threshold=0.0
 )

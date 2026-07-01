@@ -74,6 +74,9 @@ threshold; the noise estimate is taken from lags `[noise_lo, noise_hi]`:
 ```python
 from doppler.spectral import Detector
 
+# One coherent-dwell block of the same shifted-PN + noise frames.
+block = np.concatenate([frame() for _ in range(DWELL)])
+
 det = Detector(ref, dwell=DWELL, noise_lo=LAG + 4, noise_hi=N - 1,
                threshold=5.0)
 for lag, peak_mag, noise_est, test_stat in det.push(block):

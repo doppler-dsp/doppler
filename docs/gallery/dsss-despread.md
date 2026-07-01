@@ -37,12 +37,25 @@ The receiver is built from two new objects:
     early/prompt/late delay-locked loop (DLL), integrate-and-dump per code period.
 
 ```python
+import numpy as np
 from doppler.dsss import Despreader
+
+# A real DSSS-BPSK payload: 40 symbols spread by a 32-chip data code at 2
+# samples/chip, plus the long acq code that seeds the preamble pull-in.
+rng = np.random.default_rng(0)
+data_code = rng.integers(0, 2, 32).astype(np.uint8)
+acq_code = rng.integers(0, 2, 512).astype(np.uint8)
+dsig = np.where(data_code & 1, -1.0, 1.0)
+syms = (rng.integers(0, 2, 40) * 2 - 1).astype(float)
+rx = np.repeat(np.concatenate([s * dsig for s in syms]), 2).astype(
+    np.complex64
+)
+acq_freq, acq_chip = 0.0, 0.0  # seeded from acquisition (genie here)
 
 # seed from acquisition: norm_freq (cycles/sample), chip phase (chips)
 d = Despreader(data_code, sf=32, sps=2,
                init_norm_freq=acq_freq, init_chip_phase=acq_chip)
-d.set_acq(acq_code, reps=5)        # preamble-aided pull-in (optional)
+d.set_acq(acq_code, acq_reps=5)    # preamble-aided pull-in (optional)
 symbols = d.steps(rx)              # complex prompt symbols
 bits    = d.bits(rx)              # or hard BPSK decisions
 ```

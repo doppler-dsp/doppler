@@ -83,7 +83,19 @@ changes a partial's *sign*, not its *magnitude*, so only the one straddling
 segment degrades.
 
 ```python
+import numpy as np
 from doppler.track import Dll
+
+# A real PN-spread async BPSK stream on a small residual carrier: a 127-chip
+# code at 8 samples/chip, one BPSK data symbol per code epoch.
+SF, SPS = 127, 8
+rng = np.random.default_rng(0)
+code = rng.integers(0, 2, SF).astype(np.uint8)   # 0/1 chips, one period
+csign = np.where(code & 1, -1.0, 1.0)
+idx = np.arange(40 * SF * SPS)
+data = (rng.integers(0, 2, 44) * 2 - 1).astype(float)
+rx = (data[idx // (SF * SPS)] * csign[(idx // SPS) % SF]
+      * np.exp(2j * np.pi * 3e-4 * idx)).astype(np.complex64)
 
 # code: 0/1 chips for one period; sps samples/chip; segments = partials/epoch
 d = Dll(code, sps=8, init_chip=0.0, bn=0.002, zeta=0.707, spacing=0.5,

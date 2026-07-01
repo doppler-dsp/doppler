@@ -1,12 +1,13 @@
 """lo_demo.py — smoke test for LO examples from docs/examples/python-lo.md."""
 
+# --8<-- [start:quarter_rate]
 import numpy as np
 
 from doppler.source import LO
 
-# Free-running quarter-rate tone
-lo = LO(0.25)
-iq = lo.steps(8)
+lo = LO(0.25)  # a free-running quarter-rate tone
+iq = lo.steps(8)  # 8 complex64 samples: 1, j, -1, -j, repeating
+# --8<-- [end:quarter_rate]
 assert iq.dtype == np.complex64
 assert iq.shape == (8,)
 assert abs(iq[0] - 1.0) < 1e-4, f"sample 0: {iq[0]}"

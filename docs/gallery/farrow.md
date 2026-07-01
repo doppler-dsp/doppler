@@ -33,10 +33,14 @@ accumulator value), so the timing accumulation stays exact while only the
 interpolation is floating point.
 
 ```python
+import numpy as np
+
 from doppler.resample import Farrow
 
+x = np.exp(2j * np.pi * 0.05 * np.arange(256)).astype(np.complex64)
+
 f = Farrow(order="cubic")          # "linear" | "parabolic" | "cubic"
-y = f.delay(x, mu=0.3)             # constant fractional delay of a block
+y = f.delay(x, 0.3)                # constant fractional delay mu of a block
 # or drive it sample-by-sample for a timing loop:
 #   farrow_push(x[n]) every sample; farrow_eval(mu) on a symbol strobe
 ```

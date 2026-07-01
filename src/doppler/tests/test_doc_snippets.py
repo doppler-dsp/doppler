@@ -110,6 +110,48 @@ def _has_fences(path):
         return False
 
 
+# pymdownx.snippets `--8<--` resolution. The docs build inlines these at build
+# time; the gate must inline them too so it runs the SAME code the reader sees
+# (otherwise a `--8<--` line would be exec'd verbatim → SyntaxError). Supports
+# `--8<-- "path"` (whole file) and `--8<-- "path:section"` (the lines between
+# `--8<-- [start:section]` / `[end:section]` markers). Paths are repo-relative
+# (base_path is "." in mkdocs.yml); the gate's cwd is a throwaway dir, so they
+# must resolve against REPO, not the cwd. This is what makes the include state
+# — the gold standard — actually testable, not just build-time sugar.
+_SNIPPET_LINE = re.compile(
+    r'^[ \t]*-{2}8<-{2}[ \t]+"(?P<path>[^":]+)(?::(?P<sec>[^"]+))?"[ \t]*$',
+    re.MULTILINE,
+)
+
+
+def _snippet_section(text, name):
+    tag = re.escape(name)
+    start = re.search(rf"-{{2}}8<-{{2}}[ \t]*\[start:{tag}\]", text)
+    end = re.search(rf"-{{2}}8<-{{2}}[ \t]*\[end:{tag}\]", text)
+    assert start and end, f"snippet region [start/end:{name}] not found"
+    body = text[start.end() : end.start()]
+    # Drop any nested marker lines; trim the blank lines around the region.
+    kept = [ln for ln in body.splitlines() if "--8<--" not in ln]
+    return "\n".join(kept).strip("\n")
+
+
+def _resolve_snippets(code, _seen=frozenset()):
+    """Inline `--8<--` includes so the gate runs the built (inlined) code."""
+    if "--8<--" not in code:
+        return code
+
+    def _repl(m):
+        rel, sec = m.group("path"), m.group("sec")
+        src = REPO / rel
+        assert src.exists(), f"snippet source not found: {rel}"
+        assert (rel, sec) not in _seen, f"recursive include: {rel}:{sec}"
+        text = src.read_text()
+        text = _snippet_section(text, sec) if sec else text
+        return _resolve_snippets(text, _seen | {(rel, sec)})
+
+    return _SNIPPET_LINE.sub(_repl, code)
+
+
 def _discover_pages():
     """Every gate-eligible page under docs/ (relpath posix strings)."""
     pages = []
@@ -202,6 +244,7 @@ def _run_one(blockid, marker, code, ns):
                 f"(expected skip= or raises=)"
             )
 
+    code = _resolve_snippets(code)  # inline any --8<-- gold-standard includes
     examples = doctest.DocTestParser().get_examples(code)
     raised = None
     with _block_timeout(BLOCK_TIMEOUT_S):
@@ -279,6 +322,16 @@ def test_doc_page_snippets(page, tmp_path):
 @pytest.mark.docs_snippets
 def test_discovery_nonempty():
     assert ALL_PAGES, "no doc pages with python fences found — parser broken?"
+
+
+@pytest.mark.docs_snippets
+def test_snippet_resolver():
+    """`--8<--` inlines the tested region; a bad region fails loudly."""
+    ref = "src/doppler/examples/lo_demo.py:quarter_rate"
+    out = _resolve_snippets(f'--8<-- "{ref}"')
+    assert "LO(0.25)" in out and "--8<--" not in out
+    with pytest.raises(AssertionError):
+        _resolve_snippets('--8<-- "src/doppler/examples/lo_demo.py:nope"')
 
 
 @pytest.mark.docs_snippets

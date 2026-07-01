@@ -47,7 +47,13 @@ the rate rather than nudging the phase) keeps the strobe count smooth — a dire
 phase nudge near a wrap boundary would insert or delete a symbol (a cycle slip).
 
 ```python
+import numpy as np
+
 from doppler.track import SymbolSync
+
+# an oversampled BPSK stream (4 samples/symbol) to drive the loop
+bits = np.random.randint(0, 2, 400) * 2 - 1
+rx = np.repeat(bits, 4).astype(np.complex64)
 
 ss = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic")
 symbols = ss.steps(rx)   # one timing-corrected symbol per recovered instant

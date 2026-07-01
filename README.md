@@ -24,7 +24,7 @@ DDC, and ZMQ-based signal streaming. Python and Rust wrap the same C core —
 no second implementation, no divergence, full SIMD throughput from any
 language.
 
-**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Gallery](gallery/index.md) · [Examples](examples/python.md) · [Guides](guide/wfmgen.md)
+**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Gallery](gallery/index.md) · [Examples](examples/python.md) · [Guides](guide/wfmgen/index.md)
 
 **API Reference** — [C API](c-api/files.md) · [Python: FFT](api/python-fft.md) · [Python: Spectral](api/python-spectral.md) · [Python: Waveform](api/python-wfmgen.md) · [Python: Resample](api/python-resample.md) · [Python: Filter](api/python-filter.md) · [Python: Measurement](api/python-measure.md) · [Python: DDC](api/python-ddc.md) · [Python: Accumulator](api/python-accumulator.md)
 

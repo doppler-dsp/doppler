@@ -215,7 +215,16 @@ nav:
   - Benchmarks: benchmarks.md
   - Guides:
       - Guides: guide/index.md
-      - Waveform Generator (wfmgen): guide/wfmgen.md
+      - Waveform Generator (wfmgen):
+          - Overview: guide/wfmgen/index.md
+          - Concepts: guide/wfmgen/concepts.md
+          - Waveforms: guide/wfmgen/waveforms.md
+          - Levels & SNR: guide/wfmgen/levels.md
+          - Output & Containers: guide/wfmgen/output.md
+          - Scenes: guide/wfmgen/scenes.md
+          - Streaming: guide/wfmgen/streaming.md
+          - Python API: guide/wfmgen/python.md
+          - Recipes: guide/wfmgen/recipes.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md

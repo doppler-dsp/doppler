@@ -1,6 +1,6 @@
 # Guides
 
-- [Waveform Generator (wfmgen)](wfmgen.md) — composing and streaming waveforms
+- [Waveform Generator (wfmgen)](wfmgen/index.md) — composing and streaming waveforms
 - [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring code phase and Doppler with `Acquisition`
 - [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement
 - [Real-Time Pacing & Timestamping](timing.md) — sample-accurate playback timing

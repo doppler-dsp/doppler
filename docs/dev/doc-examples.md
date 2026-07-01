@@ -32,7 +32,34 @@ three also prove it still shows the *right result*.
 
 Pseudocode is not a state — write it as ```` ```text ```` so it is out of scope.
 
-### exec — the default
+## Runnable-first — how to choose
+
+**A skipped block is not tested, so it can rot exactly like an unguarded one.**
+The whole point of the gate is to *run* the code, so reach for `skip=` last, not
+first. When a block fails the gate, work down this list — stop at the first that
+fits:
+
+1. **`--8<--` from a tested example script** — the gold standard. Almost every
+    gallery page mirrors a `src/doppler/examples/*_demo.py` that already runs in
+    CI; pull the code in and the shown code *is* the tested code, forever.
+1. **exec with one line of real setup** — most "fragment" failures are a real
+    API call one undefined name away from running (`c.steps(rx)` where `rx` is
+    never defined). Define `rx` for real (`rx = LO(0.05).steps(4096)`) and the
+    block genuinely tests `steps`. Do **not** invent a fake value that merely
+    silences the error — a block passing against a bogus `rx` hides drift instead
+    of catching it.
+1. **doctest** — same, but when the *value* is the point.
+1. **`skip=`** — only when the code genuinely cannot run headless: a blocking
+    `recv()`, a hardware source, a two-terminal demo, or a read of a capture file
+    the reader supplies. A `steps()`/`accumulate()`/`push()` call is **not** one
+    of these — make it runnable instead.
+
+> **Anti-pattern:** do not add a hidden shared setup namespace so fragments "just
+> run". A block that passes against an injected global you can't see is worse
+> than untested — it looks green while masking a rename. Keep shown code and run
+> code identical; that is what `--8<--` guarantees for free.
+
+### exec — the default for inline prose
 
 Just write a normal fenced block. **A page is one notebook**: its fences share a
 namespace and run top to bottom, so a later block may use names an earlier block
@@ -55,26 +82,30 @@ or use `+ELLIPSIS` for values with floating-point noise.
 
 The strongest guarantee: show code that is *already* tested. The example
 scripts in `src/doppler/examples/*.py` run in CI (`make test-examples-python`).
-Mark a region and pull it into the page:
+Mark a **self-contained** region (imports included) in the tested script:
 
-Mark a region in the tested script with `# --8<-- [start:demo]` /
-`# --8<-- [end:demo]`:
+```text title="src/doppler/examples/lo_demo.py"
+# --8<-- [start:quarter_rate]
+import numpy as np
+from doppler.source import LO
 
-```text title="src/doppler/examples/foo_demo.py"
-# --8<-- [start:demo]
-sig = Synth(type="qpsk", sps=8).steps(1024)
-# --8<-- [end:demo]
+lo = LO(0.25)  # a free-running quarter-rate tone
+iq = lo.steps(8)  # 8 complex64 samples: 1, j, -1, -j, repeating
+# --8<-- [end:quarter_rate]
 ```
 
-Then, on the doc page, put a single `--8<--` line inside a `python` fence — it
-is replaced at build time by the marked lines:
+Then pull it into the page with a single `--8<--` line inside a `python` fence.
+The docs build inlines it — **and the gate resolves it too**, so the block is
+really executed against the same code CI already tests. This very block is live:
 
-```text
---8<-- "src/doppler/examples/foo_demo.py:demo"
+```python
+--8<-- "src/doppler/examples/lo_demo.py:quarter_rate"
 ```
 
-Prefer this for new gallery pages: the code you show is literally the code CI
-runs, so it can never drift.
+The shown code *is* the tested code, so it cannot drift. Prefer this for new
+gallery pages and any excerpt whose correctness (not just runnability) matters.
+Note the region must run standalone — the gate executes exactly the marked
+lines, so include the imports.
 
 ### skip — the last resort
 

@@ -44,7 +44,17 @@ lower loop bandwidth), which is exactly what low-jitter steady-state tracking
 wants; the NCO frequency estimate carries across handover.
 
 ```python
+import numpy as np
+
 from doppler.track import MpskReceiver
+
+# A QPSK signal at 8 samples/symbol with a residual carrier offset to recover.
+rng = np.random.default_rng(0)
+idx = rng.integers(0, 4, 4000)
+tx  = np.exp(1j * (2 * np.pi * idx / 4 + np.pi / 4)).astype(np.complex64)
+tx  = np.repeat(tx, 8).astype(np.complex64)
+k   = np.arange(tx.size)
+iq  = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
 
 rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
                   bn_carrier=0.01, bn_timing=0.01,

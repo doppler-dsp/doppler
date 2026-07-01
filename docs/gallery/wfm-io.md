@@ -80,6 +80,8 @@ For a live feed, pace a `Composer.stream` against wall-clock with a
 `SampleClock` and publish each block over ZeroMQ with a `ZmqSink`. A
 `doppler.stream` `Subscriber` receives the frames with their `fs`/`fc` header:
 
+<!-- docs-snippet: skip=blocking ZMQ publish/paced recv; see stream tests -->
+
 ```python
 from doppler.stream import Subscriber
 from doppler.wfm import Composer, SampleClock, Segment, ZmqSink, qpsk, tone

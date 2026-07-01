@@ -21,9 +21,14 @@ ______________________________________________________________________
     the quickstart's `HalfbandDecimator()` example rot silently. Escapes are
     visible and reviewed (an inline `skip=REASON` marker, or a shrinking
     `docs/.doc-snippet-ignore` burn-down backlog). Contributor policy lives in
-    `docs/dev/doc-examples.md`. Fixed real drift the gate surfaced: the wfmgen
-    **Scenes** guide taught a `Composer(fs=…).add(tone(…))` fluent API that does
-    not exist — corrected to the real `Segment`/`Timeline`/`Composer` form.
+    `docs/dev/doc-examples.md`. The gate resolves `--8<--` snippet includes, so a
+    fence can pull a region from a CI-tested `examples/*.py` and the shown code
+    *is* the tested code (the gold standard for drift-proof examples). It has
+    already surfaced and fixed several real API drifts: the wfmgen **Scenes**
+    guide's non-existent `Composer(fs=…).add(tone(…))` fluent API (→ the real
+    `Segment`/`Timeline`/`Composer` form), a `Despreader.set_acq(reps=…)` keyword
+    that is actually `acq_reps`, and `Farrow.delay`'s positional-only argument.
+    The entire example gallery (33 pages) is now gated with runnable snippets.
 - **"Bring Your Own Constellation" gallery page + `symbols_demo.py`.** A worked
     showcase of `wfm` `type="symbols"`: pi/4-QPSK and 16-QAM built from arbitrary
     complex streams (modulations no enum provides), rect vs RRC pulses, and the

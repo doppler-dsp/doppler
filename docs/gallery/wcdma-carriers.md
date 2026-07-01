@@ -57,6 +57,12 @@ Sum four of them at 5 MHz spacing over a composed AWGN floor, then measure with
 ```python
 from doppler.spectral import PSD
 
+# sum the four carriers (rrc_carrier + FS from above) into one scene
+scene = np.zeros(4096 * 4, dtype=np.complex64)
+for i, (fc, lvl) in enumerate([(-7.5e6, 0.0), (-2.5e6, -3.0),
+                               (2.5e6, -6.0), (7.5e6, -10.0)]):
+    scene += rrc_carrier(fc, lvl, 10 + i, len(scene)).astype(np.complex64)
+
 w = PSD(n=4096, fs=FS, window="kaiser", beta=12.0, mode="mean")
 w.accumulate(scene)                        # folds 96 frames into the average
 

@@ -44,7 +44,16 @@ acquisition (the FFT search supplies the coarse carrier frequency and code
 phase); the loops then track the residual.
 
 ```python
+import numpy as np
+
 from doppler.track import Channel
+
+# a DSSS-BPSK burst: 31-chip PN code, 8 samples/chip, 40 data symbols
+code = np.random.randint(0, 2, 31).astype(np.uint8)
+chip_signs = np.where(code & 1, -1.0, 1.0)
+data = np.random.randint(0, 2, 40) * 2 - 1
+spread = (data[:, None] * chip_signs[None, :]).ravel()  # spread each symbol
+rx = np.repeat(spread, 8).astype(np.complex64)          # oversample by sps
 
 # code: 0/1 chips for one period; bn_fll>0 enables FLL-assisted carrier pull-in
 ch = Channel(code, sps=8, init_norm_freq=0.0, init_chip=0.0,

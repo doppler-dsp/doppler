@@ -172,7 +172,7 @@ Open `src/doppler/<name>/<name>.pyi` (generated skeleton) and flesh out
 every public type following the [module layout rules](module-layout.md).
 Docstrings use [numpy-style format](https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard):
 
-```python
+```text
 # mymod/mymod.pyi — type stubs for the mymod C extension.
 import numpy as np
 from numpy.typing import NDArray
@@ -230,7 +230,7 @@ ______________________________________________________________________
 
 Open `src/doppler/<name>/__init__.py` and update the re-export:
 
-```python
+```text
 from .<name> import <component>
 
 __all__ = ["<component>"]
@@ -269,7 +269,7 @@ At minimum, cover these categories:
     the same samples processed one-at-a-time via `step()`
 - **Properties** — read-only properties return the values passed at construction
 
-```python
+```text
 import numpy as np
 import pytest
 from doppler.<name> import <component>
@@ -339,7 +339,7 @@ in git for regression detection.
 For a full description of both the Python and C benchmark pipelines, history
 file format, and how to compare snapshots, see [Benchmarking](benchmarking.md).
 
-```python
+```text
 """bench_<name>.py — throughput benchmarks for doppler.<name>."""
 import numpy as np
 import pytest

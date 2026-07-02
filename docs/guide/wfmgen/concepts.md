@@ -11,25 +11,32 @@ Understanding that ladder is the whole mental model. Everything else in this
 guide is detail on one rung.
 
 ```mermaid
-flowchart LR
-    subgraph SEG["Segment — .sum() mixes at the SAME time, one noise floor"]
-        direction TB
-        y1["Synth qpsk · level −12 dBFS"]
-        y2["Synth tone · interferer"]
-        y3["Synth noise · the floor"]
-    end
-    subgraph TL["Timeline — .add() sequences in TIME ▶"]
+flowchart TB
+    y1["<b>Synth</b> — qpsk · signal"]
+    y2["<b>Synth</b> — tone · interferer"]
+    y3["<b>Synth</b> — noise · the floor"]
+    y1 & y2 & y3 -->|".sum()"| SEG["<b>Segment A</b><br/>one time span · one noise floor"]
+    SEG -->|".add()"| TL
+    subgraph TL["<b>Timeline</b> — sequence in TIME →"]
         direction LR
-        sA["Segment A"] --> sB["Segment B<br/>(+ trailing gap)"] --> sC["…"]
+        A["Segment A"] --> B["Segment B<br/>+ trailing gap"] --> C["…"]
     end
-    SEG -- ".add(B, …)" --> sA
-    TL --> COMP["Composer(…).compose()"] --> IQ[("complex64 I/Q")]
+    TL --> COMP["<b>Composer</b> — press play"]
+    COMP -->|"compose()"| IQ[("complex64 I/Q")]
+
+    TL -. "prepare()" .-> PLAN["<b>Plan</b><br/>render each source once · cache"]
+    PLAN -. "render(θ) · at(snr, seed)" .-> SWEEP[("I/Q ·<br/>one per sweep point")]
 
     classDef syn fill:#ede7f6,stroke:#5e35b1,color:#000;
-    classDef seg fill:#e3f2fd,stroke:#1565c0,color:#000;
+    classDef plan fill:#e8f5e9,stroke:#2e7d32,color:#000;
     class y1,y2,y3 syn;
-    class sA,sB,sC seg;
+    class PLAN,SWEEP plan;
 ```
+
+The three Synths mix **at once** into Segment A (`.sum` — one column, one noise
+floor); Segments line up **in time** into a Timeline (`.add` — one row); the
+Composer presses play. The dashed branch is [`Plan`](#preparing-once-sweeping-many-plan)
+— prepare a scene once, then re-materialize it cheaply at many parameter points.
 
 ______________________________________________________________________
 
@@ -105,6 +112,48 @@ Composer renders a scene that already carries its own timing.
 (As a convenience, `Composer(type="qpsk", num_samples=…)` accepts single-segment
 kwargs to build a one-segment scene for you — but you cannot pass *both* a
 prebuilt segment and segment kwargs.)
+
+______________________________________________________________________
+
+## Preparing once, sweeping many — `Plan`
+
+The four objects render a scene **once**. But a whole class of work re-runs *one*
+scene at many operating points — a detection or BER curve sweeps SNR; a
+Monte-Carlo run repeats a scene under fresh noise; a robustness check nudges a
+gain or a phase. Re-composing from scratch each time is wasteful: the expensive
+DSP (spreading, pulse shaping, the LO) is **identical** at every point — a
+composed scene is just the linear form `Σ gainₖ·signalₖ + noise`, and only cheap
+terms change across the sweep.
+
+`prepare(scene)` renders and caches each source **once**, returning a `Plan`.
+`Plan.render(…)` and the scalar fast-path `Plan.at(snr, seed)` then re-materialize
+any variation as a cheap re-weighted sum — **bit-for-bit identical** to a full
+compose, but without re-synthesising anything:
+
+```python
+from doppler.wfm import Composer, Segment, prepare, qpsk, tone
+
+scene = Composer(Segment.sum(
+    qpsk(snr=10.0, seed=1), tone(freq=2e5, seed=2),
+    fs=1e6, num_samples=4096,
+))
+
+plan = prepare(scene)                  # render + cache each source ONCE
+baseline = plan.render()               # identical to Composer(scene).compose()
+
+# sweep the channel SNR — each point is a re-weight, not a re-synthesis
+curve = {snr: plan.at(snr) for snr in (0.0, 5.0, 10.0)}
+
+# Monte-Carlo: same signal, fresh noise per seed
+draws = list(plan.monte_carlo(6.0, 32))
+```
+
+`render` also takes per-source overrides — `gains` (dBFS levels), `phases`
+(radians), `enable` (drop a source) — so the same `Plan` sweeps a gain imbalance
+or a relative phase just as cheaply. It is not a fifth rung on the ladder; it is
+a **cache over a finished scene**, for when you need that scene *many times*. See
+the [gallery walkthrough](../../gallery/plan.md) and the
+[API reference](../../api/python-wfmgen.md#plan-prepare-once-stimulus-engine).
 
 ______________________________________________________________________
 

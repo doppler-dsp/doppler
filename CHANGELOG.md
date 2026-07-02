@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-07-01
+
+### Added
+
+- **`wfm.Plan` — a "prepare once, materialize many" stimulus engine.** A
+    composed multi-source scene is a linear form `Σ gainₖ·signalₖ + noise`, and
+    the expensive DSP (spreading, RRC pulse shaping, the LO) lives entirely in
+    the signal terms — invariant across a parameter sweep. `prepare(scene)`
+    renders and caches each source once, then `Plan.render(…)` / `Plan.at(snr,   seed)` re-materialize any variation as a cheap re-weighted sum, **bit-for-bit
+    identical to a full compose**. v1 axes: per-source `gains`/`phases`/`enable`,
+    global `snr` (noise floor), and Monte-Carlo `seed`; `sweep()` / `monte_carlo()`
+    generators drive detection/BER campaigns. The stimulus for evaluating a
+    system (a detector, demod, or synchroniser) that re-runs one scene at many
+    operating points. C-first (`native/src/wfm/wfm_plan.c`, over a shared
+    `wfm_compose_build_synth` that guarantees the cache matches the composer);
+    Python is a thin wrapper over the generated `kind="handle"` binding. See the
+    [gallery walkthrough](https://doppler-dsp.github.io/doppler/gallery/plan/).
+
+### Changed
+
+- **just-makeit pinned to 0.25.0** (from 0.24.0) — adds the `kind="handle"`
+    `type="string"` argument and `out_len_fn` array-out method shape that the
+    `wfm_plan` binding is built on. Pure tooling; no codegen drift elsewhere.
+
 ## [0.25.0] — 2026-07-01
 
 ### Added

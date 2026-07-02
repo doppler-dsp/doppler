@@ -12,7 +12,10 @@ pre-built C library for Linux (x86_64) and macOS (arm64) — no toolchain or
 build step:
 
 ```sh
-VERSION=0.13.1
+# Resolve the latest release tag (or set VERSION=x.y.z to pin a specific one):
+VERSION=$(curl -fsSL https://api.github.com/repos/doppler-dsp/doppler/releases/latest \
+  | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+# Linux x86_64 — for macOS arm64, swap the suffix for `macos-arm64`:
 curl -L -o doppler.tar.gz \
   "https://github.com/doppler-dsp/doppler/releases/download/v${VERSION}/doppler-${VERSION}-linux-x86_64.tar.gz"
 mkdir -p "$HOME/doppler" && tar -xzf doppler.tar.gz -C "$HOME/doppler"

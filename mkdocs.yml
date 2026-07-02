@@ -144,6 +144,7 @@ nav:
           - Waveform JSON Round-Trip: gallery/wfm-json.md
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md
+          - "Plan: Prepare Once, Sweep Many": gallery/plan.md
           - AWGN: gallery/awgn.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md

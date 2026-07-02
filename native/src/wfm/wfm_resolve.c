@@ -29,22 +29,32 @@
 #include <math.h>
 #include <stdlib.h>
 
-/* SNR (dB) over fs from a source's snr/snr_mode/sps/type — mirrors the
- * conversion in wfm_synth_core.c so the resolved floor reproduces the bundled
- * noise power exactly. */
+/* SNR (dB) over fs from snr/snr_mode/sps/type — mirrors the conversion in
+ * wfm_synth_core.c so the resolved floor reproduces the bundled noise power
+ * exactly. Public (declared in wfm_compose.h) so the Plan stimulus engine
+ * recomputes floor(snr) at an arbitrary swept SNR using the identical formula
+ * (single source of truth — no drift). */
+double
+wfm_snr_over_fs (int snr_mode, int type, int sps, double snr)
+{
+  int mode = snr_mode;
+  if (mode == 0) /* auto: *psk → Es/No, tone/noise/pn/chirp/bits → over-fs */
+    mode = (type == WFM_SYNTH_BPSK || type == WFM_SYNTH_QPSK) ? 3 : 1;
+  int nsps = (sps < 1) ? 1 : sps;
+  int bps  = (type == WFM_SYNTH_QPSK) ? 2 : 1;
+  if (mode == 2) /* Eb/No */
+    return snr + 10.0 * log10 ((double)bps) - 10.0 * log10 ((double)nsps);
+  if (mode == 3) /* Es/No */
+    return snr - 10.0 * log10 ((double)nsps);
+  return snr; /* over fs */
+}
+
+/* Convenience wrapper over the source's own fields (the resolve-time caller).
+ */
 static double
 snr_over_fs (const wfm_source_t *s)
 {
-  int mode = s->snr_mode;
-  if (mode == 0) /* auto: *psk → Es/No, tone/noise/pn/chirp/bits → over-fs */
-    mode = (s->type == WFM_SYNTH_BPSK || s->type == WFM_SYNTH_QPSK) ? 3 : 1;
-  int nsps = (s->sps < 1) ? 1 : s->sps;
-  int bps  = (s->type == WFM_SYNTH_QPSK) ? 2 : 1;
-  if (mode == 2) /* Eb/No */
-    return s->snr + 10.0 * log10 ((double)bps) - 10.0 * log10 ((double)nsps);
-  if (mode == 3) /* Es/No */
-    return s->snr - 10.0 * log10 ((double)nsps);
-  return s->snr; /* over fs */
+  return wfm_snr_over_fs (s->snr_mode, s->type, s->sps, s->snr);
 }
 
 int

@@ -12,6 +12,10 @@ add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_compose.c
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_json.c
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_resolve.c
+    # "prepare once, materialize many" stimulus engine — caches each source's
+    # render (via the composer's own wfm_compose_build_synth) and re-weights it
+    # per parameter point (SNR/gain/phase/enable/seed sweeps, bit-exact).
+    ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_plan.c
     # straight-C bridge for the generated Synth's standalone generation
     # (jm composer source.generates) — builds a wfm_synth engine from a source.
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_synth_bridge.c)
@@ -31,6 +35,18 @@ target_link_libraries(test_wfm_compose PRIVATE
 target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
+
+# wfm_plan: Gate-0 (render("{}") ≡ full compose, memcmp==0) + per-axis
+# gains/enable/snr/seed vs a full compose of the equivalently-modified spec.
+add_executable(test_wfm_plan
+    ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_plan.c)
+target_link_libraries(test_wfm_plan PRIVATE
+    wfm_compose_core wfm_dsp_core wfm_cjson wfm_synth_core lo_core awgn_core
+    pn_core fir_core
+    m)
+target_include_directories(test_wfm_plan PRIVATE
+    ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
+add_test(NAME test_wfm_plan COMMAND test_wfm_plan)
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT

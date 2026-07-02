@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.24.0"
+jm_version = "0.25.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -109,6 +109,92 @@ type = "double"
 name = "num_samples"
 from = "num_samples"
 type = "size_t"
+
+# ── wfm_plan: "prepare once, materialize many" stimulus engine ───────────────
+# Constructed from a spec-JSON string (Composer.to_json()); render/at return a
+# cf32 array sized from the handle (wfm_plan_len) — the jm 0.25.0 string-arg +
+# out_len_fn handle features. The core (wfm_plan.c) is compiled into
+# wfm_compose_core, so the .so links the SAME cores as the composer module.
+[module.wfm_plan]
+kind            = "handle"
+backing         = "wfm_plan"
+header          = "wfm/wfm_plan.h"
+package         = "wfm"
+type_name       = "Plan"
+context_manager = true
+close_fn        = "wfm_plan_destroy"
+create_fn       = "wfm_plan_prepare"
+extra_link_libs = ["wfm_cjson", "m"]
+
+[[module.wfm_plan.create_args]]
+name = "spec_json"
+type = "string"
+
+# link=true cores (jm appends _core): wfm_compose_core carries wfm_plan.o +
+# the composer/json/resolve; the rest are the synth engine it reuses.
+[[module.wfm_plan.depends_on]]
+name = "wfm_compose"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "wfm_dsp"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "wfm_synth"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "lo"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "awgn"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "pn"
+link = true
+[[module.wfm_plan.depends_on]]
+name = "fir"
+link = true
+
+# General render: a small JSON override object → cf32 array (length from the
+# handle). Baseline (empty object) reproduces a full compose bit-for-bit.
+[[module.wfm_plan.methods]]
+name = "render"
+fn = "wfm_plan_render"
+returns = "float _Complex[]"
+out_len_fn = "wfm_plan_len"
+nogil = true
+[[module.wfm_plan.methods.args]]
+name = "overrides_json"
+type = "string"
+
+# Scalar fast-path for the hot SNR/Monte-Carlo loop (no JSON parse).
+[[module.wfm_plan.methods]]
+name = "at"
+fn = "wfm_plan_at"
+returns = "float _Complex[]"
+out_len_fn = "wfm_plan_len"
+nogil = true
+[[module.wfm_plan.methods.args]]
+name = "snr"
+type = "double"
+[[module.wfm_plan.methods.args]]
+name = "seed"
+type = "uint64_t"
+
+# Scalar introspection (no-arg → scalar): the Python wrapper reads anchor_seed
+# for render()'s default seed and n_sources to size override arrays.
+[[module.wfm_plan.methods]]
+name = "length"
+fn = "wfm_plan_len"
+returns = "size_t"
+[[module.wfm_plan.methods]]
+name = "n_sources"
+fn = "wfm_plan_n_sources"
+returns = "size_t"
+[[module.wfm_plan.methods]]
+name = "anchor_seed"
+fn = "wfm_plan_anchor_seed"
+returns = "uint64_t"
+
 [module.sample_clock]
 kind            = "handle"
 backing         = "dp_sample_clock"
@@ -376,7 +462,7 @@ extra_link_libs = ["wfm_dsp_core"]
 # straight from their .so submodules — zero hand-Python). Composition surface +
 # the remaining free functions still come from compose.py.
 [module.wfm.reexports]
-compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header"]
+compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header", "Plan", "prepare"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
 wfm_sink = ["ZmqSink"]

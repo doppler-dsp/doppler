@@ -58,6 +58,9 @@ COVERAGE: dict[str, str] = {
     "rrc_taps": "TestModuleFunctions",
     "dsss_spread": "TestModuleFunctions",
     "write_blue_header": "TestModuleFunctions",
+    # stimulus engine (component cache) — dedicated suite in test_plan.py
+    "Plan": "test_plan.py",
+    "prepare": "test_plan.py",
     # transport / IO handles
     "Writer": "TestReaderWriter",
     "Reader": "TestReaderWriter",

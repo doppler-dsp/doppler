@@ -398,3 +398,20 @@ for a given SNR.
 ::: doppler.wfm.wfm_ebno_to_snr_db
 
 ::: doppler.wfm.wfm_awgn_amplitude
+
+______________________________________________________________________
+
+## `Plan` — prepare-once stimulus engine
+
+A composed scene is a linear form `Σ gainₖ·signalₖ + noise`, and the expensive
+DSP lives entirely in the signal terms — invariant across a parameter sweep.
+`prepare(scene)` renders and caches each source once; `Plan.render`
+/ `Plan.at` then re-materialize any variation (per-source `gains` / `phases` /
+`enable`, global `snr`, Monte-Carlo `seed`) as a cheap re-weighted sum,
+**bit-for-bit identical to a full compose**. The stimulus for a detection/BER
+sweep or a Monte-Carlo campaign that re-runs one scene at many operating points
+— see the [gallery walkthrough](../gallery/plan.md).
+
+::: doppler.wfm.compose.Plan
+
+::: doppler.wfm.compose.prepare

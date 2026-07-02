@@ -137,6 +137,41 @@ typedef struct {
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
 
 /**
+ * @brief SNR (dB) referred to fs, from a source's snr/snr_mode/sps/type.
+ *
+ * The single source of truth for the Es/No, Eb/No, and over-fs conventions
+ * (`snr_mode` 0 auto / 1 fs / 2 ebno / 3 esno). `wfm_resolve_noise()` uses it to
+ * place the shared noise floor at `level(anchor) − wfm_snr_over_fs(anchor)`, and
+ * the Plan stimulus engine reuses it to recompute the floor at an arbitrary
+ * swept SNR — so both agree to the bit.
+ *
+ * @param snr_mode 0 auto, 1 fs, 2 ebno, 3 esno.
+ * @param type     A WFM_SYNTH_* waveform type (selects the auto convention).
+ * @param sps      Samples per symbol/chip (≥1; <1 treated as 1).
+ * @param snr      The declared SNR in dB.
+ * @return SNR over fs in dB.
+ */
+double wfm_snr_over_fs(int snr_mode, int type, int sps, double snr);
+
+/**
+ * @brief Construct + configure the synth for one resolved source.
+ *
+ * THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC
+ * attach + per-repeat NOISE reseed) shared by the streaming composer and the
+ * Plan stimulus cache, so a cached per-source render is byte-identical to the
+ * composed one. `freq/snr/f_end` are passed already ranged-resolved by the
+ * caller; `on_len` pins a chirp's sweep to the on-time; `epoch`/`seed_advance`
+ * (a ::wfm_seed_advance_t) drive the per-repeat seed policy — `epoch == 0`
+ * yields the unmodified seed.
+ *
+ * @return A heap synth (caller wfm_synth_destroy()s it), or NULL on failure.
+ */
+wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+                                           size_t on_len, double freq,
+                                           double snr, double f_end,
+                                           unsigned epoch, int seed_advance);
+
+/**
  * @brief Per-repeat seed policy for a looped/continuous stream.
  *
  * A source's single `seed` feeds two RNGs: the PN LFSR (spreading code *and*

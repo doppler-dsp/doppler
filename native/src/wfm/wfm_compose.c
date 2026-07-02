@@ -126,6 +126,57 @@ draw_samples (uint32_t seed, unsigned epoch, size_t seg, unsigned field,
   return (size_t)(v + 0.5);
 }
 
+/* Construct + configure the synth for one resolved source: create + chirp-span
+ * pin + bits/symbols/RRC attach + per-repeat NOISE reseed. THE single
+ * synth-construction path — the streaming composer (start_segment) and the
+ * Plan stimulus cache (wfm_plan_prepare) both call it, so a cached per-source
+ * render is byte-identical to the composed one. freq/snr/f_end are passed
+ * already ranged-resolved by the caller; on_len pins a chirp's sweep to the
+ * on-time; epoch/seed_advance drive the per-repeat seed policy (epoch 0 → the
+ * unmodified seed). Returns NULL only on synth-create failure. */
+wfm_synth_state_t *
+wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
+                         double freq, double snr, double f_end, unsigned epoch,
+                         int seed_advance)
+{
+  /* seed_advance == ALL bumps the whole seed by the repeat epoch (PN LFSR +
+   * AWGN both advance); NONE/NOISE create from the fixed seed. */
+  uint32_t seed = src->seed;
+  if (seed_advance == WFM_SEED_ADVANCE_ALL && epoch)
+    seed = (uint32_t)(src->seed + epoch);
+  wfm_synth_state_t *syn = wfm_synth_create (
+      src->type, fs, freq, snr, src->snr_mode, seed, src->sps, src->pn_length,
+      src->pn_poly, src->lfsr, f_end);
+  if (!syn)
+    return NULL;
+  /* Pin a chirp's sweep to the on-time (no-op for non-chirp). */
+  wfm_synth_set_chirp_span (syn, on_len);
+  /* Attach a bits pattern / symbols stream (no-op for other types). */
+  if (src->type == WFM_SYNTH_BITS && src->bits)
+    wfm_synth_set_bits (syn, src->bits, src->n_bits, src->modulation);
+  if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
+    wfm_synth_set_symbols (syn, src->symbols, src->n_symbols);
+  /* RRC pulse shaping (same wfm_rrc_taps() the standalone face uses; set_rrc
+   * scales for unit TX power and no-ops for non-modulated types). */
+  if (src->pulse && src->sps > 0 && src->rrc_span > 0)
+    {
+      size_t nt   = wfm_rrc_ntaps (src->sps, src->rrc_span);
+      float *taps = malloc (nt * sizeof (float));
+      if (taps)
+        {
+          wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
+          wfm_synth_set_rrc (syn, taps, nt);
+          free (taps);
+        }
+    }
+  /* Fresh noise per repeat (NOISE mode): advance ONLY the AWGN seed, leaving
+   * the signal bit-identical. (ALL already advanced the whole seed; NONE
+   * nothing.) */
+  if (seed_advance == WFM_SEED_ADVANCE_NOISE && epoch)
+    wfm_synth_reseed_noise (syn, (uint32_t)(src->seed + epoch));
+  return syn;
+}
+
 static void
 start_segment (wfm_compose_state_t *s)
 {
@@ -170,58 +221,18 @@ start_segment (wfm_compose_state_t *s)
                               src->f_end, src->f_end_hi)
                 : src->f_end;
       s->gain[k] = (float)pow (10.0, level / 20.0); /* level → gain */
-      /* seed_advance == ALL bumps the whole seed by the repeat epoch, so the
-       * PN LFSR (code+data) *and* the AWGN both advance → a new realization
-       * every pass; NONE/NOISE create from the fixed seed (NOISE reseeds noise
-       * below). epoch == 0 (first pass) is always the unmodified seed. */
-      uint32_t seed = src->seed;
-      if (s->seed_advance == WFM_SEED_ADVANCE_ALL && s->epoch)
-        seed = (uint32_t)(src->seed + s->epoch);
-      s->syn[k] = wfm_synth_create (src->type, g->fs, freq, snr, src->snr_mode,
-                                    seed, src->sps, src->pn_length,
-                                    src->pn_poly, src->lfsr, f_end);
+      /* Construct the synth through the shared SSOT (wfm_compose_build_synth):
+       * the identical create + chirp-span + bits/symbols/RRC + per-repeat
+       * noise reseed sequence the Plan cache uses, so a cached per-source
+       * render is byte-identical to this composed one. freq/snr/f_end are
+       * already ranged-resolved above; epoch/seed_advance drive the per-repeat
+       * seed. */
+      s->syn[k] = wfm_compose_build_synth (src, g->fs, s->cur_num, freq, snr,
+                                           f_end, s->epoch, s->seed_advance);
       if (!s->syn[k])
         ok = 0;
       else
-        {
-          /* Pin a chirp's sweep to the segment's on-time so it sweeps
-           * f_start→f_end over exactly num_samples (no-op for non-chirp). */
-          wfm_synth_set_chirp_span (s->syn[k], s->cur_num);
-          /* Attach a bits source's pattern (no-op for other types). A NULL
-           * pattern leaves the bits synth emitting 0, never crashing. */
-          if (src->type == WFM_SYNTH_BITS && src->bits)
-            wfm_synth_set_bits (s->syn[k], src->bits, src->n_bits,
-                                src->modulation);
-          /* Attach a symbols source's complex stream (no-op for other types).
-           */
-          if (src->type == WFM_SYNTH_SYMBOLS && src->symbols)
-            wfm_synth_set_symbols (s->syn[k], src->symbols, src->n_symbols);
-          /* RRC pulse shaping: compute the taps here (same wfm_rrc_taps() the
-           * Python/standalone face uses) and attach them. set_rrc scales for
-           * unit TX power and no-ops for non-modulated types, so the composer
-           * and standalone faces are byte-identical. */
-          if (src->pulse && src->sps > 0 && src->rrc_span > 0)
-            {
-              size_t nt   = wfm_rrc_ntaps (src->sps, src->rrc_span);
-              float *taps = malloc (nt * sizeof (float));
-              if (taps)
-                {
-                  wfm_rrc_taps (src->rrc_beta, src->sps, src->rrc_span, taps);
-                  wfm_synth_set_rrc (s->syn[k], taps, nt);
-                  free (taps);
-                }
-            }
-          /* Fresh noise per repeat (NOISE mode): advance ONLY the AWGN seed by
-           * the repeat epoch, leaving the signal (LO / PN code / data / pulse)
-           * bit-identical — so a fixed preamble/code re-acquires every burst.
-           * (ALL already advanced the whole seed at create; NONE does
-           * nothing.)
-           */
-          if (s->seed_advance == WFM_SEED_ADVANCE_NOISE && s->epoch)
-            wfm_synth_reseed_noise (s->syn[k],
-                                    (uint32_t)(src->seed + s->epoch));
-          s->n_syn = k + 1; /* track for stop_synths on partial failure */
-        }
+        s->n_syn = k + 1; /* track for stop_synths on partial failure */
     }
   if (ok)
     {

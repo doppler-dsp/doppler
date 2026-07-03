@@ -228,6 +228,7 @@ nav:
           - Scenes: guide/wfmgen/scenes.md
           - Streaming: guide/wfmgen/streaming.md
           - Python API: guide/wfmgen/python.md
+          - Parameter Sweeps (Plan): guide/wfmgen/plan.md
           - Recipes: guide/wfmgen/recipes.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Power Spectra & Measurements: guide/spectral-psd.md

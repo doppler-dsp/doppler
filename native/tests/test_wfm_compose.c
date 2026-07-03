@@ -152,6 +152,69 @@ main (void)
     free (tpl);
   }
 
+  /* ── symbols JSON round-trip (gh #331): a type="symbols" source carries an
+   *    explicit complex constellation array that must survive to_json →
+   *    from_json. Both the 1-source inline serializer and the multi-source
+   *    "sum" serializer are exercised; each must compose sample-identically.
+   * ──
+   */
+  {
+    float complex c0[8] = { 1 + 1 * I, -1 + 1 * I, 1 - 1 * I,  -1 - 1 * I,
+                            1 + 1 * I, 1 - 1 * I,  -1 + 1 * I, -1 - 1 * I };
+    float complex c1[8] = { 1 - 1 * I,  1 + 1 * I, -1 - 1 * I, -1 + 1 * I,
+                            -1 - 1 * I, 1 + 1 * I, 1 - 1 * I,  -1 + 1 * I };
+    wfm_source_t  a0    = { .type      = WFM_SYNTH_SYMBOLS,
+                            .snr       = 100.0,
+                            .seed      = 1,
+                            .sps       = 4,
+                            .symbols   = c0,
+                            .n_symbols = 8 };
+    wfm_source_t  a1    = { .type      = WFM_SYNTH_SYMBOLS,
+                            .snr       = 100.0,
+                            .seed      = 2,
+                            .sps       = 4,
+                            .level     = -3.0,
+                            .symbols   = c1,
+                            .n_symbols = 8 };
+    /* both the inline (1-source) and "sum" (2-source) serializer paths */
+    wfm_source_t  one[1]   = { a0 };
+    wfm_source_t  both[2]  = { a0, a1 };
+    wfm_segment_t segs2[2] = {
+      { .sources = one, .n_sources = 1, .fs = 1e6, .num_samples = 256 },
+      { .sources = both, .n_sources = 2, .fs = 1e6, .num_samples = 256 }
+    };
+    char *js = wfm_spec_to_json (segs2, 2, 0, 0, 0.0);
+    CHECK (js, "symbols to_json");
+    CHECK (strstr (js, "\"symbols\""), "symbols type + array serialized");
+    wfm_compose_state_t *jc = wfm_compose_from_json (js);
+    CHECK (jc, "symbols from_json");
+    wfm_compose_state_t *dc = wfm_compose_create (segs2, 2, 0, 0);
+    CHECK (jc && dc, "symbols states built");
+    float complex ja[600], da[600];
+    size_t        jt = 0, dt = 0;
+    while ((n = wfm_compose_execute (jc, buf, 333)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          ja[jt + i] = buf[i];
+        jt += n;
+      }
+    while ((n = wfm_compose_execute (dc, buf, 333)) > 0)
+      {
+        for (size_t i = 0; i < n; i++)
+          da[dt + i] = buf[i];
+        dt += n;
+      }
+    CHECK (jt == dt && jt == 512, "symbols round-trip sample count");
+    int ok = 1;
+    for (size_t i = 0; i < jt; i++)
+      if (ja[i] != da[i])
+        ok = 0;
+    CHECK (ok, "symbols JSON round-trip must be sample-identical (gh #331)");
+    wfm_compose_destroy (jc);
+    wfm_compose_destroy (dc);
+    free (js);
+  }
+
   /* ── level: a segment at -6.0206 dBFS is the level-0 stream × 0.5 ── */
   {
     wfm_source_t src0

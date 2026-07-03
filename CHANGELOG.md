@@ -13,6 +13,30 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.26.1] — 2026-07-03
+
+### Fixed
+
+- **`type="symbols"` scenes now survive a JSON round-trip** (gh #331). The
+    composer's JSON serializer (`wfm_json.c`) predated the `symbols` waveform
+    (shipped 0.24.0) and never learned it: its `TYPE_NAMES` table had no
+    `"symbols"` entry (so `type` index 7 fell out of range and mis-serialized as
+    `"tone"`), and the complex constellation array was neither written nor
+    parsed. Any path that round-trips a scene through JSON — `wfm.prepare()` /
+    `Plan`, `wfmgen --from-file`, `--record` — therefore silently reverted a
+    symbols source to a bare tone, corrupting the waveform (wrong PAPR/EVM/
+    spectrum). `compose()`, which uses the in-memory scene directly, was
+    unaffected, which is why it surfaced first through `Plan` (the first feature
+    to round-trip through JSON). The serializer now emits `"symbols"` and a flat
+    interleaved `[re, im, …]` constellation array, and the parser restores it —
+    so `prepare(scene).render()` is once again bit-for-bit identical to
+    `scene.compose()` for symbols scenes. The same stale table in `wfm_writer.c`
+    (SigMF annotation labels) was an out-of-bounds read for symbols sources and
+    is fixed too. Regression-tested in both harnesses (C `test_wfm_compose`
+    symbols round-trip over the inline + `sum` serializer paths; Python
+    `test_symbols_json_roundtrip` over single/multi-user, the exact #331 scene,
+    and RRC pulse shaping).
+
 ## [0.26.0] — 2026-07-01
 
 ### Added

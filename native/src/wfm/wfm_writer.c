@@ -21,8 +21,8 @@ static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
 
-static const char *const TYPE_NAMES[7]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits" };
+static const char *const TYPE_NAMES[8]
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
 static const char *const MODE_NAMES[4] = { "auto", "fs", "ebno", "esno" };
 
 struct wfm_writer

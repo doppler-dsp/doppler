@@ -31,6 +31,7 @@ from doppler.wfm.compose import (
     Writer,
     ZmqSink,
     noise,
+    prepare,
     qpsk,
     tone,
     write_blue_header,
@@ -198,6 +199,49 @@ def test_json_roundtrip():
     a = Composer(spec, repeat=False)
     b = Composer.from_json(a.to_json())
     assert np.array_equal(a.compose(), b.compose())
+
+
+# Two distinct QPSK constellation streams for the symbols round-trip tests.
+_SYM1 = np.array([1 + 1j, -1 + 1j, 1 - 1j, -1 - 1j] * 100, np.complex64)
+_SYM2 = np.array([1 - 1j, 1 + 1j, -1 - 1j, -1 + 1j] * 100, np.complex64)
+
+
+@pytest.mark.parametrize(
+    "synths",
+    [
+        # single-source (inline serializer) and multi-source ("sum") paths
+        [Synth(type="symbols", symbols=_SYM1, sps=4)],
+        [
+            Synth(type="symbols", symbols=_SYM1, sps=4),
+            Synth(type="symbols", symbols=_SYM2, sps=4),
+        ],
+        # the exact gh #331 scene: anchor SNR + relative level + noise floor
+        [
+            Synth(type="symbols", symbols=_SYM1, snr=0.0, sps=4),
+            Synth(type="symbols", symbols=_SYM2, level=-3.0, sps=4),
+            noise(level=-20.0, fs=1e6),
+        ],
+        # symbols under RRC pulse shaping
+        [
+            Synth(type="symbols", symbols=_SYM1, sps=4, pulse="rrc"),
+            Synth(
+                type="symbols", symbols=_SYM2, level=-3.0, sps=4, pulse="rrc"
+            ),
+        ],
+    ],
+)
+def test_symbols_json_roundtrip(synths):
+    """A ``type="symbols"`` constellation must survive to_json → from_json, and
+    ``prepare()`` (which round-trips through JSON) must match ``compose()``
+    bit-for-bit — the gh #331 regression: the JSON serializer dropped the
+    ``symbols`` array (and mis-typed the source), so any round-tripped symbols
+    scene silently reverted to a bare tone."""
+    scene = Composer(Segment.sum(*synths, fs=1e6, num_samples=4000))
+    direct = scene.compose()
+    assert np.array_equal(
+        direct, Composer.from_json(scene.to_json()).compose()
+    )
+    assert np.array_equal(direct, prepare(scene).render())
 
 
 @pytest.mark.parametrize("stype", ["cf32", "cf64", "ci32", "ci16", "ci8"])

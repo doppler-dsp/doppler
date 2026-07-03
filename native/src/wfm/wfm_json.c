@@ -7,6 +7,7 @@
  */
 #include "wfm/wfm_compose.h"
 
+#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,8 +15,8 @@
 #include "cJSON.h"
 
 static const char *const TYPE_NAMES[]
-    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits" };
-#define N_TYPES 7
+    = { "tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols" };
+#define N_TYPES 8
 static const char *const MODE_NAMES[]   = { "auto", "fs", "ebno", "esno" };
 static const char *const LFSR_NAMES[]   = { "galois", "fibonacci" };
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
@@ -75,13 +76,17 @@ string_to_bits (const char *s, size_t *n)
   return b;
 }
 
-/* Free the bits patterns of `ns` sources (then the caller frees the array). */
+/* Free the per-source heap arrays (bits pattern + symbols stream) of `ns`
+ * sources (then the caller frees the array). */
 static void
 free_src_bits (wfm_source_t *srcs, size_t ns)
 {
   if (srcs)
     for (size_t k = 0; k < ns; k++)
-      free (srcs[k].bits);
+      {
+        free (srcs[k].bits);
+        free (srcs[k].symbols);
+      }
 }
 
 /* Emit a bits source's modulation + pattern (no-op for other types). */
@@ -101,6 +106,27 @@ add_bits_fields (cJSON *o, const wfm_source_t *src)
           free (bs);
         }
     }
+}
+
+/* Emit a symbols source's complex constellation as a flat interleaved
+ * [re, im, re, im, …] JSON array (no-op for other types). Doubles represent
+ * the float _Complex samples exactly, so the round-trip is lossless. */
+static void
+add_symbols_fields (cJSON *o, const wfm_source_t *src)
+{
+  if (src->type != WFM_SYNTH_SYMBOLS || !src->symbols || !src->n_symbols)
+    return;
+  cJSON *arr = cJSON_CreateArray ();
+  if (!arr)
+    return;
+  for (size_t i = 0; i < src->n_symbols; i++)
+    {
+      cJSON_AddItemToArray (
+          arr, cJSON_CreateNumber ((double)crealf (src->symbols[i])));
+      cJSON_AddItemToArray (
+          arr, cJSON_CreateNumber ((double)cimagf (src->symbols[i])));
+    }
+  cJSON_AddItemToObject (o, "symbols", arr);
 }
 
 /* cJSON number field with a fallback when absent/non-numeric. */
@@ -176,6 +202,7 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
     add_num_or_range (so, "level", src->level, src->level_hi,
                       src->ranged & WFM_RANGE_LEVEL);
   add_bits_fields (so, src);
+  add_symbols_fields (so, src);
   add_pulse_fields (so, src);
 }
 
@@ -236,6 +263,28 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
           out->bits = string_to_bits (patt_str, &out->n_bits);
           if (!out->bits)
             return -1;
+        }
+    }
+  if (t == WFM_SYNTH_SYMBOLS)
+    {
+      const cJSON *sy = cJSON_GetObjectItemCaseSensitive (so, "symbols");
+      int          n2 = cJSON_IsArray (sy) ? cJSON_GetArraySize (sy) : 0;
+      size_t       ns = (size_t)(n2 / 2); /* flat interleaved [re, im] pairs */
+      if (ns)
+        {
+          float _Complex *buf = malloc (ns * sizeof *buf);
+          if (!buf)
+            return -1;
+          for (size_t i = 0; i < ns; i++)
+            {
+              const cJSON *r = cJSON_GetArrayItem (sy, (int)(2 * i));
+              const cJSON *m = cJSON_GetArrayItem (sy, (int)(2 * i + 1));
+              buf[i] = (float)(cJSON_IsNumber (r) ? r->valuedouble : 0.0)
+                       + (float)(cJSON_IsNumber (m) ? m->valuedouble : 0.0)
+                             * (float _Complex)I;
+            }
+          out->symbols   = buf;
+          out->n_symbols = ns;
         }
     }
   if (name_index (cJSON_GetStringValue (
@@ -301,6 +350,7 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
             add_num_or_range (s, "level", src->level, src->level_hi,
                               src->ranged & WFM_RANGE_LEVEL);
           add_bits_fields (s, src);
+          add_symbols_fields (s, src);
           add_pulse_fields (s, src);
         }
       else

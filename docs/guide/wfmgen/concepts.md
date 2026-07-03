@@ -15,12 +15,11 @@ flowchart TB
     y1["<b>Synth</b> — qpsk · signal"]
     y2["<b>Synth</b> — tone · interferer"]
     y3["<b>Synth</b> — noise · the floor"]
-    y1 & y2 & y3 -->|".sum()"| SEG["<b>Segment A</b><br/>one time span · one noise floor"]
-    SEG -->|".add()"| TL
-    subgraph TL["<b>Timeline</b> — sequence in TIME →"]
+    subgraph TL["<b>Timeline</b> — segments in TIME →"]
         direction LR
-        A["Segment A"] --> B["Segment B<br/>+ trailing gap"] --> C["…"]
+        A["<b>Segment A</b><br/>one span · one noise floor"] -->|".add()"| B["Segment B<br/>+ trailing gap"] -->|".add()"| C["…"]
     end
+    y1 & y2 & y3 -->|".sum()"| A
     TL --> COMP["<b>Composer</b> — press play"]
     COMP -->|"compose()"| IQ[("complex64 I/Q")]
 

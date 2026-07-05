@@ -43,10 +43,10 @@ doppler/
 ├── docs/                                mkdocs-material site
 │   ├── api/                             Python API pages (mkdocstrings)
 │   ├── c-api/                           C API (mkdoxy-generated from Doxygen XML)
-│   ├── design/                          architecture + per-subsystem design docs (this file)
+│   ├── design/                          architecture + per-subsystem design docs
 │   ├── guide/                           user guides
 │   ├── gallery/                         annotated example showcases
-│   ├── dev/                             release checklist, contributor workflow
+│   ├── dev/                             release checklist, contributor workflow (this file)
 │   └── assets/                          committed gallery PNGs
 │
 ├── benchmarks/                          published per-release perf snapshots (portable + native)
@@ -89,5 +89,5 @@ files, stubs, and test/bench scaffolding; the `jm status --check` drift gate in
 CI fails if any generated file diverges from what the manifest implies. The
 hand-written `_core.c`, the `_ext_<obj>.c` fragments, and the Rust FFI are the
 parts a human edits — the rest is materialised. See
-[Adding a Module](../dev/adding-a-module.md) for the per-object workflow and
+[Adding a Module](adding-a-module.md) for the per-object workflow and
 [Architecture](../architecture.md) for the C-first rationale.

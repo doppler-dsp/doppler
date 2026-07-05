@@ -236,7 +236,6 @@ nav:
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Design: design/index.md
-      - Repository Map: design/repository-map.md
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
       - State Serialization: design/state-serialization.md
@@ -250,8 +249,6 @@ nav:
       - Spectrum Analyzer (Specan): design/SPECAN.md
       - Acquisition Kernel: design/acq-fn.md
       - Static vs Dynamic Linking: design/STATIC_VS_DYNAMIC.md
-      - Streaming Roadmap: design/streaming-roadmap.md
-      - "NATS JetStream Transport (roadmap)": dev/nats-jetstream-transport-migration.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - CLI & Pipelines: cli/index.md
@@ -259,6 +256,7 @@ nav:
   - Contributing:
       - Contributing: dev/index.md
       - Module Layout: dev/module-layout.md
+      - Repository Map: dev/repository-map.md
       - Adding a Module: dev/adding-a-module.md
       - Doc Examples (tested): dev/doc-examples.md
       - Error Convention: dev/error-convention.md
@@ -267,5 +265,7 @@ nav:
       - "DSSS acquisition use cases": dev/dsss-use-cases.md
       - Benchmarking: dev/benchmarking.md
       - Coverage: dev/coverage.md
+      - Streaming Roadmap: dev/streaming-roadmap.md
+      - "NATS JetStream Transport (roadmap)": dev/nats-jetstream-transport-migration.md
       - Release: dev/release.md
       - Build Internals: dev/build-internals.md

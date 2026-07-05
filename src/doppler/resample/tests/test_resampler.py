@@ -257,6 +257,40 @@ class TestOutParam:
         with pytest.raises(ValueError):
             r.execute_ctrl(x, ctrl, out=np.zeros(1, dtype=np.complex64))
 
+    def test_execute_max_out_after_destroy_raises(self):
+        r = Resampler(1.0)
+        r.destroy()
+        with pytest.raises(RuntimeError, match="destroyed"):
+            r.execute_max_out()
+
+    def test_execute_ctrl_max_out_after_destroy_raises(self):
+        r = Resampler(1.0)
+        r.destroy()
+        with pytest.raises(RuntimeError, match="destroyed"):
+            r.execute_ctrl_max_out()
+
+    def test_execute_x_unconvertible_raises(self):
+        r = Resampler(1.0)
+        with pytest.raises((TypeError, ValueError)):
+            r.execute("not an array")
+
+    def test_execute_out_unconvertible_raises(self):
+        r = Resampler(1.0)
+        with pytest.raises((TypeError, ValueError)):
+            r.execute(_ones(64), out="not an array")
+
+    def test_execute_ctrl_ctrl_unconvertible_raises(self):
+        r = Resampler(1.0)
+        with pytest.raises((TypeError, ValueError)):
+            r.execute_ctrl(_ones(64), "not an array")
+
+    def test_execute_ctrl_out_unconvertible_raises(self):
+        r = Resampler(1.0)
+        x = _ones(64)
+        ctrl = np.zeros(64, dtype=np.complex64)
+        with pytest.raises((TypeError, ValueError)):
+            r.execute_ctrl(x, ctrl, out="not an array")
+
 
 # ------------------------------------------------------------------ #
 # Context manager                                                      #

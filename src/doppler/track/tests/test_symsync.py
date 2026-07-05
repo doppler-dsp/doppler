@@ -114,3 +114,18 @@ def test_reset_reproducible():
     s.reset()
     y2 = s.steps(x)
     assert np.array_equal(y1, y2)
+
+
+def test_steps_out_writes_into_callers_buffer():
+    x, _ = _signal(50, seed=5)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    out = np.zeros(max(s.steps_max_out(), len(x)), dtype=np.complex64)
+    y = s.steps(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    x, _ = _signal(50, seed=5)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order="cubic")
+    with pytest.raises(ValueError):
+        s.steps(x, out=np.zeros(1, dtype=np.complex64))

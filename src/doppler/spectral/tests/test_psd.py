@@ -67,6 +67,26 @@ def test_band_outside_span_is_floor():
     assert far[0] < -150.0
 
 
+def test_band_power_out_writes_into_callers_buffer():
+    n = 64
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
+    w.accumulate(_tone(n, 10))
+    bands = np.array([-0.5, 0.0, 0.0, 0.5])
+    out = np.zeros(max(w.band_power_max_out(), len(bands)), dtype=np.float32)
+    per = w.band_power(bands, out=out)
+    assert np.shares_memory(per, out)
+
+
+def test_band_power_out_undersized_raises():
+    n = 64
+    w = PSD(n=n, fs=1.0, window="hann", mode="mean")
+    w.accumulate(_tone(n, 10))
+    with pytest.raises(ValueError):
+        w.band_power(
+            np.array([-0.5, 0.0, 0.0, 0.5]), out=np.zeros(1, dtype=np.float32)
+        )
+
+
 def test_measurements_finite():
     n = 64
     w = PSD(n=n, fs=1.0, window="kaiser", beta=8.0, mode="mean")

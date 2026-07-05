@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from doppler.spectral import (
     FFT,
@@ -257,3 +258,52 @@ def test_fft_execute_ci16_identical_to_cvt_then_cf32():
     cf = (iq.astype(np.float32) / 32768.0).view(np.complex64)
     twostep = FFT(n, -1, 1).execute_cf32(cf)
     assert np.array_equal(fused, twostep)
+
+
+def test_execute_cf32_out_writes_into_callers_buffer():
+    n = 64
+    obj = FFT(n, -1, 1)
+    x = np.ones(n, dtype=np.complex64)
+    out = np.zeros(max(obj.execute_cf32_max_out(), n), dtype=np.complex64)
+    y = obj.execute_cf32(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_execute_cf32_out_undersized_raises():
+    n = 64
+    obj = FFT(n, -1, 1)
+    with pytest.raises(ValueError):
+        obj.execute_cf32(
+            np.ones(n, dtype=np.complex64), out=np.zeros(1, dtype=np.complex64)
+        )
+
+
+def test_execute_cf64_out_writes_into_callers_buffer():
+    n = 64
+    obj = FFT(n, -1, 1)
+    x = np.ones(n, dtype=np.complex128)
+    out = np.zeros(max(obj.execute_cf64_max_out(), n), dtype=np.complex128)
+    y = obj.execute_cf64(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_execute_inplace_cf32_out_writes_into_callers_buffer():
+    n = 64
+    obj = FFT(n, -1, 1)
+    x = np.ones(n, dtype=np.complex64)
+    out = np.zeros(
+        max(obj.execute_inplace_cf32_max_out(), n), dtype=np.complex64
+    )
+    y = obj.execute_inplace_cf32(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_execute_inplace_cf64_out_writes_into_callers_buffer():
+    n = 64
+    obj = FFT(n, -1, 1)
+    x = np.ones(n, dtype=np.complex128)
+    out = np.zeros(
+        max(obj.execute_inplace_cf64_max_out(), n), dtype=np.complex128
+    )
+    y = obj.execute_inplace_cf64(x, out=out)
+    assert np.shares_memory(y, out)

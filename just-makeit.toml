@@ -28,14 +28,17 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # delay.pyi is hand-maintained for ptr()/push_ptr(): jm's stub generator drops
 # the implicit "count"/out= params for this has_params=False shape (the .c
 # binding gets them correctly; the .pyi generator doesn't) — a separate,
-# analogous jm gap. Restore these hand-fixes after every `jm apply` until
-# fixed upstream.
+# analogous jm gap. spectral.pyi is hand-maintained for FFT/FFT2D's execute*
+# methods and PSD's band_power() for the same reason (plus FFT's execute_ci16/
+# execute_ci8, which are hand-written and never had a stub at all). Restore
+# these hand-fixes after every `jm apply` until fixed upstream.
 status_allow = [
     "zensical.toml",
     "src/doppler/dsss/dsss.pyi",
     "src/doppler/analyzer/analyzer.pyi",
     "src/doppler/delay/delay.pyi",
     "src/doppler/measure/measure.pyi",
+    "src/doppler/spectral/spectral.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

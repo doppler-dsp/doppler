@@ -33,7 +33,9 @@ export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
 The core library is pure C and links only `-lm`, so there is no external
 runtime dependency to install. The optional stream component
 (`libdoppler_stream`, for the ZMQ wire layer) embeds the vendored zmq
-statically, so it too needs no external runtime zmq.
+statically, so it too needs no external runtime zmq. See the
+[static vs. dynamic linking design notes](../design/STATIC_VS_DYNAMIC.md) for
+why static vendoring was chosen over a system `libzmq` dependency.
 
 ## System install
 

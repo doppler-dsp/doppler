@@ -122,4 +122,6 @@ python src/doppler/examples/rate_converter_demo.py
 
 See
 [`doppler.resample.RateConverter`](../api/python-resample.md#rateconverter-automatic-cascade)
-for the full API reference.
+for the full API reference, and the
+[Resampler design notes](../design/RESAMPLER.md) for the polyphase
+interpolator/decimator architecture underneath it.

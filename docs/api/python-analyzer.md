@@ -71,6 +71,8 @@ ______________________________________________________________________
     `time → PSD → measurements` pipeline and the natural-parameter section.
 - [Python: spectral API](python-spectral.md) — the `PSD` averaging core a
     `Specan` composes, plus `find_peaks_f32`.
+- [Spectral & Measurement API Map](../design/spectral-api-map.md) — the whole
+    `time → PSD → measurements/display` re-architecture in one diagram.
 - [Python: DDC](python-ddc.md) — the tuner/decimator front end.
 - [Spectrum Analyzer app](../specan/index.md) — the `doppler.specan` display
     shell built on `Specan`.

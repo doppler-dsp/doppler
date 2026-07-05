@@ -7,7 +7,9 @@ detection** (`Detector`, `Detector2D`), and the **spectral helper functions**
 (windows, magnitude, peak-finding).
 
 For the statistical-detection side (probability of detection, thresholds, dwell
-sizing), see the [Detection Statistics page](python-detection.md).
+sizing), see the [Detection Statistics page](python-detection.md). For how
+`PSD` (below) anchors the dBFS reference for every measurement and display
+consumer, see the [Spectral & Measurement API Map](../design/spectral-api-map.md).
 
 ______________________________________________________________________
 

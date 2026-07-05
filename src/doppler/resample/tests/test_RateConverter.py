@@ -253,6 +253,19 @@ def test_execute_out_undersized_raises():
         rc.execute(_dc(256), out=np.zeros(1, dtype=np.complex64))
 
 
+def test_execute_out_unconvertible_raises():
+    rc = RateConverter(0.5)
+    with pytest.raises((TypeError, ValueError)):
+        rc.execute(_dc(256), out="not an array")
+
+
+def test_execute_max_out_after_destroy_raises():
+    rc = RateConverter(0.5)
+    rc.destroy()
+    with pytest.raises(RuntimeError, match="destroyed"):
+        rc.execute_max_out()
+
+
 def test_execute_returned_view_survives_rate_change():
     # gh-219: set_rate must retire, not free, the execute buffer -- a
     # previously returned view must stay valid (not silently corrupted by

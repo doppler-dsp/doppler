@@ -289,5 +289,7 @@ ______________________________________________________________________
 - [Python: spectral API](../api/python-spectral.md) — full `PSD` + helper reference
 - [Python: measurement API](../api/python-measure.md) — `ToneMeasure` reference
 - [Measurement Suite design guide](../design/measurement-suite.md) — metric equations
+- [Spectral & Measurement API Map](../design/spectral-api-map.md) — how the PSD
+    core, `measure`, and `analyzer.Specan` fit together
 - [Gallery: Measurement Suite](../gallery/measure.md) and
     [IMD & NPR](../gallery/measure-imd-npr.md) — rendered end-to-end demos

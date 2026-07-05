@@ -1,7 +1,9 @@
 # Python Resample API
 
 Three resampler implementations backed by the native C library — all accept
-and return `complex64` NumPy arrays with state preserved across calls.
+and return `complex64` NumPy arrays with state preserved across calls. For the
+polyphase interpolator/decimator architecture behind `Resampler` and
+`RateConverter`, see the [Resampler design notes](../design/RESAMPLER.md).
 
 Source:
 [`src/doppler/resample/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/__init__.py)

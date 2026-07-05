@@ -5,7 +5,9 @@ into the full single-tone ADC / spectral metric bag — SNR, SINAD, THD, THD+N,
 SFDR, ENOB, noise floor and the worst spur — plus the accuracy/resolution
 metadata. Each component's power is integrated over its window **main lobe**
 (IEEE Std 1241); see the [design guide](../design/measurement-suite.md) for the
-equations and conventions.
+equations and conventions, and the
+[Spectral & Measurement API Map](../design/spectral-api-map.md) for how this
+module composes with the shared `PSD` core.
 
 Source:
 [`src/doppler/measure/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/measure/__init__.py)

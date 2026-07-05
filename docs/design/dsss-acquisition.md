@@ -444,3 +444,6 @@ ______________________________________________________________________
     matched-filter surface the coherent kernel builds on.
 - [Streaming roadmap](streaming-roadmap.md) — the transport seam the pod fan-out
     reuses.
+- [Pure-functional acquisition kernel](acq-fn.md) — the elastic
+    `(ddc_fn, acq_fn)` pipeline, config/state/scratch split, and serializable
+    state that makes the pod fan-out above possible.

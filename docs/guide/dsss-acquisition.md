@@ -436,6 +436,6 @@ ______________________________________________________________________
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `Detector2D` matched-filter surface
 - [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo
-
-```
-```
+- [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the
+    elastic `(ddc_fn, acq_fn)` pipeline behind `Acquisition`, for pod fan-out
+    and checkpoint/resume

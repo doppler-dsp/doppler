@@ -242,7 +242,13 @@ static PyGetSetDef Detector_getset[]
         { "noise_lo", (getter)Detector_getprop_noise_lo, NULL, NULL, NULL },
         { "noise_hi", (getter)Detector_getprop_noise_hi, NULL, NULL, NULL },
         { "threshold", (getter)Detector_getprop_threshold, NULL, NULL, NULL },
-        { "last_corr", (getter)Detector_getprop_last_corr, NULL, NULL, NULL },
+        { "last_corr", (getter)Detector_getprop_last_corr, NULL,
+          "The correlation vector from the most recent push() that produced a "
+          "result (None before that). This is a zero-copy view into a buffer "
+          "owned by the detector and reused every push() -- the next push() "
+          "(even one that doesn't produce a result) overwrites it in place. "
+          "Copy the array before the next push() if you need to retain it.\n",
+          NULL },
         { NULL } };
 
 static PyObject *

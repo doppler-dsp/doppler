@@ -264,19 +264,25 @@ Detector2D_getprop_last_corr (Detector2DObject *self,
   return arr;
 }
 
-static PyGetSetDef Detector2D_getset[] = {
-  { "ny", (getter)Detector2D_getprop_ny, NULL, NULL, NULL },
-  { "nx", (getter)Detector2D_getprop_nx, NULL, NULL, NULL },
-  { "n", (getter)Detector2D_getprop_n, NULL, NULL, NULL },
-  { "dwell", (getter)Detector2D_getprop_dwell, NULL, NULL, NULL },
-  { "count", (getter)Detector2D_getprop_count, NULL, NULL, NULL },
-  { "ring_cap", (getter)Detector2D_getprop_ring_cap, NULL, NULL, NULL },
-  { "noise_lo", (getter)Detector2D_getprop_noise_lo, NULL, NULL, NULL },
-  { "noise_hi", (getter)Detector2D_getprop_noise_hi, NULL, NULL, NULL },
-  { "threshold", (getter)Detector2D_getprop_threshold, NULL, NULL, NULL },
-  { "last_corr", (getter)Detector2D_getprop_last_corr, NULL, NULL, NULL },
-  { NULL }
-};
+static PyGetSetDef Detector2D_getset[]
+    = { { "ny", (getter)Detector2D_getprop_ny, NULL, NULL, NULL },
+        { "nx", (getter)Detector2D_getprop_nx, NULL, NULL, NULL },
+        { "n", (getter)Detector2D_getprop_n, NULL, NULL, NULL },
+        { "dwell", (getter)Detector2D_getprop_dwell, NULL, NULL, NULL },
+        { "count", (getter)Detector2D_getprop_count, NULL, NULL, NULL },
+        { "ring_cap", (getter)Detector2D_getprop_ring_cap, NULL, NULL, NULL },
+        { "noise_lo", (getter)Detector2D_getprop_noise_lo, NULL, NULL, NULL },
+        { "noise_hi", (getter)Detector2D_getprop_noise_hi, NULL, NULL, NULL },
+        { "threshold", (getter)Detector2D_getprop_threshold, NULL, NULL,
+          NULL },
+        { "last_corr", (getter)Detector2D_getprop_last_corr, NULL,
+          "The correlation vector from the most recent push() that produced a "
+          "result (None before that). This is a zero-copy view into a buffer "
+          "owned by the detector and reused every push() -- the next push() "
+          "(even one that doesn't produce a result) overwrites it in place. "
+          "Copy the array before the next push() if you need to retain it.\n",
+          NULL },
+        { NULL } };
 
 static PyObject *
 Detector2DObj_destroy (Detector2DObject *self, PyObject *Py_UNUSED (ignored))

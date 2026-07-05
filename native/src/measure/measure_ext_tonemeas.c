@@ -349,21 +349,74 @@ ToneMeasureObj_time_stats (ToneMeasureObject *self, PyObject *args)
 }
 
 static PyObject *
-ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args)
+ToneMeasureObj_spectrum_dbfs_max_out (ToneMeasureObject *self,
+                                      PyObject          *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (tonemeas_spectrum_dbfs_max_out (self->handle));
+}
+
+static PyObject *
+ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_FLOAT,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = tonemeas_spectrum_dbfs_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t n_out = tonemeas_spectrum_dbfs (
+          self->handle, (const float *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr));
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_spectrum_dbfs_buf || self->_spectrum_dbfs_buf_cap < _need)
     {
@@ -588,7 +641,8 @@ static PyMethodDef ToneMeasureObj_methods[] = {
   { "time_stats", (PyCFunction)ToneMeasureObj_time_stats, METH_VARARGS,
     "time_stats(x) -> TimeStats record (rms, peak, crest_db, papr_db, "
     "dc_offset, fs_util_pct)." },
-  { "spectrum_dbfs", (PyCFunction)ToneMeasureObj_spectrum_dbfs, METH_VARARGS,
+  { "spectrum_dbfs", (PyCFunction)ToneMeasureObj_spectrum_dbfs,
+    METH_VARARGS | METH_KEYWORDS,
     "spectrum_dbfs(x) -> ndarray\n"
     "\n"
     "DC-centred dBFS magnitude spectrum of a capture (length nfft, for "
@@ -600,6 +654,10 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
+  { "spectrum_dbfs_max_out", (PyCFunction)ToneMeasureObj_spectrum_dbfs_max_out,
+    METH_NOARGS,
+    "spectrum_dbfs_max_out() -> int\n\nMax output length spectrum_dbfs() can "
+    "produce for the current state.\nUse to size the ``out=`` buffer." },
   { "destroy", (PyCFunction)ToneMeasureObj_destroy, METH_NOARGS,
     "Release resources." },
   { "__enter__", (PyCFunction)ToneMeasureObj_enter, METH_NOARGS, NULL },

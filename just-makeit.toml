@@ -14,8 +14,11 @@ pytest = "true"
 pytest_benchmark = "true"
 schema = "7"
 c_deps = ["hbdecim", "resamp", "wfmcompose"]
-# measure.pyi is now jm-generated: the analyze() methods use single=true (gh-244),
-# so jm emits the PyStructSequence binding + the stub itself — no hand-maintenance.
+# measure.pyi's analyze() methods are jm-generated (single=true, gh-244) but
+# spectrum_dbfs() is hand-maintained: jm's stub aggregator didn't reconcile
+# out=/spectrum_dbfs_max_out() for this has_params-single-array-param method
+# even after the sacred fragments freshly regenerated with the new binding —
+# the same gap dsss.pyi/analyzer.pyi/delay.pyi hit below.
 # dsss.pyi/analyzer.pyi are hand-maintained for despreader.steps/bits,
 # burst_demod.demod, specan.execute: jm's stub aggregator didn't reconcile
 # out=/<name>_max_out() for these has_params-single-array-param methods even
@@ -32,6 +35,7 @@ status_allow = [
     "src/doppler/dsss/dsss.pyi",
     "src/doppler/analyzer/analyzer.pyi",
     "src/doppler/delay/delay.pyi",
+    "src/doppler/measure/measure.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from doppler.measure import IMDMeasure
 
@@ -38,3 +39,19 @@ def test_imd_named_result():
 def test_imd_defaults_construct():
     m = IMDMeasure()
     assert m.n == 8192 and m.nfft == 16384
+
+
+def test_spectrum_dbfs_out_writes_into_callers_buffer():
+    m = IMDMeasure(n=N, fs=1.0, dynamic_range_db=90.0)
+    x = _c(200, 1.0)
+    out = np.zeros(max(m.spectrum_dbfs_max_out(), len(x)), dtype=np.float32)
+    y = m.spectrum_dbfs(x.astype(np.float32), out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_spectrum_dbfs_out_undersized_raises():
+    m = IMDMeasure(n=N, fs=1.0, dynamic_range_db=90.0)
+    with pytest.raises(ValueError):
+        m.spectrum_dbfs(
+            _c(200, 1.0).astype(np.float32), out=np.zeros(1, dtype=np.float32)
+        )

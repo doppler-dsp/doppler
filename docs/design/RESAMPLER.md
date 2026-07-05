@@ -3,6 +3,18 @@
 - Any rate change: from imperceptible to several orders of magnitude
 - 32-bit resolution
 
+**This page has two parts.** [Architecture](#architecture) and
+[Testing](#testing) describe the polyphase resampler as shipped (the
+`resamp` core behind `Resampler`/`RateConverter` — see the
+[gallery walkthrough](../gallery/rate-converter.md) and the
+[Python API](../api/python-resample.md)). [Performance Optimizations](#performance-optimizations)
+is **unimplemented future work** — a Day-1 brainstorm, not a description of
+what ships today. In particular, today's Farrow-family interpolator
+(`native/src/farrow/farrow_core.c`, used by the timing loop and
+`Farrow.delay`) is a simple selectable-order Lagrange form (linear /
+piecewise-parabolic / cubic) — **not** the DPMFS structure Idea 1 proposes
+below, which was never built.
+
 # Architecture
 
 ## Interpolator (r = Fout/Fin ≥ 1, output-driven)
@@ -113,6 +125,11 @@ x[n] ──► push ──► [ delay line, N taps ] ──dot(ptr, h)──► 
     - Relative level of largest non-tone peak: ≤ −60 dBc
 
 # Performance Optimizations
+
+**Status: unimplemented.** Everything below is proposed future work from the
+project's earliest design pass — none of it has been built, and the
+benchmark numbers under "Current numbers" reflect the *shipped* polyphase
+resampler, not any of Ideas 1–5.
 
 ## Current numbers (cf32, AVX-512, -march=native)
 

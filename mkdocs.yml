@@ -254,7 +254,6 @@ nav:
       - Spectral & Measurement API Map: design/spectral-api-map.md
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
       - Continuously Variable Resampler: design/RESAMPLER.md
-      - Spectrum Analyzer (Specan): design/SPECAN.md
       - Acquisition Kernel: design/acq-fn.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:

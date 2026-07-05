@@ -33,7 +33,13 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # execute_ci8, which are hand-written and never had a stub at all). wfm.pyi's
 # generate() (PN), source.pyi (LO.steps_ctrl), and accumulator.pyi
 # (AccTrace.value) hit the same has_params-single-array-param stub-lag.
-# Restore these hand-fixes after every `jm apply` until fixed upstream.
+# resample.pyi is hand-maintained for RateConverter.execute(): the fragment
+# itself is entirely hand-written (custom growth/ping-pong logic, a `stages`
+# getset and DP_PY_STATE_METHODS macro not representable in the manifest at
+# all), so out= was added by hand rather than via jm apply/regenerate — the
+# .pyi needs the matching hand-fix for the same reason as the rest of this
+# list. Restore these hand-fixes after every `jm apply` until fixed
+# upstream.
 status_allow = [
     "zensical.toml",
     "src/doppler/dsss/dsss.pyi",
@@ -44,6 +50,7 @@ status_allow = [
     "src/doppler/wfm/wfm.pyi",
     "src/doppler/source/source.pyi",
     "src/doppler/accumulator/accumulator.pyi",
+    "src/doppler/resample/resample.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

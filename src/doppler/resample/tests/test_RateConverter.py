@@ -234,3 +234,37 @@ def test_rateconverter_state_roundtrip_resume():
         b.set_state(blob[:-1])
     with pytest.raises(ValueError):
         b.set_state(bytes([blob[0] ^ 0xFF]) + blob[1:])
+
+
+def test_execute_out_writes_into_callers_buffer():
+    rc = RateConverter(0.5)
+    x = _dc(256)
+    out = np.zeros(
+        max(rc.execute_max_out(), int(len(x) * 0.5) + 4), dtype=np.complex64
+    )
+    y = rc.execute(x, out=out)
+    assert np.shares_memory(y, out)
+    assert len(y) == 128
+
+
+def test_execute_out_undersized_raises():
+    rc = RateConverter(0.5)
+    with pytest.raises(ValueError):
+        rc.execute(_dc(256), out=np.zeros(1, dtype=np.complex64))
+
+
+def test_execute_returned_view_survives_rate_change():
+    # gh-219: set_rate must retire, not free, the execute buffer -- a
+    # previously returned view must stay valid (not silently corrupted by
+    # a reused allocation) after a rate change invalidates the buffer.
+    rc = RateConverter(0.5)
+    y1 = rc.execute(_dc(64))  # view into the (about-to-be-invalidated) buffer
+    snapshot = np.array(y1)  # copy for comparison, taken while still valid
+    rc.rate = 0.25
+    # allocator pressure: if the old buffer were freed (not retired), one of
+    # these allocations is likely to reuse that memory and corrupt y1.
+    junk = [bytearray(256) for _ in range(64)]
+    y2 = rc.execute(_dc(64))
+    del junk
+    assert np.array_equal(y1, snapshot)
+    assert len(y2) == 16

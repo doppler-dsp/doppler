@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from doppler.delay import DelayCf64
 
@@ -98,3 +99,47 @@ def test_destroy():
     obj = DelayCf64(4)
     obj.push(1 + 0j)
     obj.destroy()
+
+
+def test_ptr_out_writes_into_callers_buffer():
+    obj = DelayCf64(3)
+    obj.push(1 + 0j)
+    obj.push(2 + 0j)
+    obj.push(3 + 0j)
+    out = np.zeros(3, dtype=np.complex128)
+    win = obj.ptr(out=out)
+    assert np.shares_memory(win, out)
+    np.testing.assert_array_almost_equal(out, [3 + 0j, 2 + 0j, 1 + 0j])
+
+
+def test_ptr_out_undersized_raises():
+    obj = DelayCf64(4)
+    out = np.zeros(2, dtype=np.complex128)
+    with pytest.raises(ValueError):
+        obj.ptr(out=out)
+
+
+def test_ptr_max_out_matches_num_taps():
+    obj = DelayCf64(5)
+    assert obj.ptr_max_out() == 5
+
+
+def test_push_ptr_out_writes_into_callers_buffer():
+    obj = DelayCf64(2)
+    obj.push(10 + 0j)
+    out = np.zeros(2, dtype=np.complex128)
+    win = obj.push_ptr(20 + 0j, out=out)
+    assert np.shares_memory(win, out)
+    np.testing.assert_array_almost_equal(out, [20 + 0j, 10 + 0j])
+
+
+def test_push_ptr_out_wrong_size_raises():
+    obj = DelayCf64(3)
+    out = np.zeros(2, dtype=np.complex128)
+    with pytest.raises(ValueError):
+        obj.push_ptr(1 + 0j, out=out)
+
+
+def test_push_ptr_max_out_matches_num_taps():
+    obj = DelayCf64(3)
+    assert obj.push_ptr_max_out() == 3

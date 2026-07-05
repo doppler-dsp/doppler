@@ -22,11 +22,16 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # after their sacred fragments freshly regenerated with the new binding (a
 # separate, pre-existing jm gap from the has_params predicate fixed in
 # gh-219's follow-up — the .c binding is correct, only the .pyi stub lagged).
-# Restore this hand-fix after every `jm apply` until that's fixed upstream.
+# delay.pyi is hand-maintained for ptr()/push_ptr(): jm's stub generator drops
+# the implicit "count"/out= params for this has_params=False shape (the .c
+# binding gets them correctly; the .pyi generator doesn't) — a separate,
+# analogous jm gap. Restore these hand-fixes after every `jm apply` until
+# fixed upstream.
 status_allow = [
     "zensical.toml",
     "src/doppler/dsss/dsss.pyi",
     "src/doppler/analyzer/analyzer.pyi",
+    "src/doppler/delay/delay.pyi",
 ]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block

@@ -56,8 +56,17 @@ class DelayCf64:
 
         """
 
-    def ptr(self) -> NDArray[np.complex128]:
-        """Return a zero-copy view of the n most recent samples. Copies at most min(n, num_taps) samples starting from `buf[head]` into out.  Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num_taps elements; no wrap-around logic is needed.  The Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself).
+    def ptr(
+        self, n: int = ..., out: NDArray[np.complex128] | None = ...
+    ) -> NDArray[np.complex128]:
+        """Return a zero-copy view of the n most recent samples. Copies at most min(n, num_taps) samples starting from `buf[head]` into out.  Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num_taps elements; no wrap-around logic is needed.  Without out=, the Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself); with out= (must have at least max(ptr_max_out(), n) elements), writes directly into the caller's array and returns a view of it.
+
+        Parameters
+        ----------
+        n : int, default 1
+            Number of most recent samples to return.
+        out : NDArray[np.complex128], optional
+            Caller-provided output buffer.
 
         Returns
         -------
@@ -80,13 +89,20 @@ class DelayCf64:
 
         """
 
-    def push_ptr(self, x: complex) -> NDArray[np.complex128]:
-        """Atomically push a sample and snapshot the current window. Equivalent to calling delay_push() then delay_ptr(num_taps), but avoids the overhead of a second function call.  Always writes exactly num_taps samples to out.  The Python binding returns a NumPy array backed by the pre-allocated push_ptr output buffer.
+    def ptr_max_out(self) -> int:
+        """Max output length ptr() can produce for the current state. Use to size the ``out=`` buffer."""
+
+    def push_ptr(
+        self, x: complex, out: NDArray[np.complex128] | None = ...
+    ) -> NDArray[np.complex128]:
+        """Atomically push a sample and snapshot the current window. Equivalent to calling push(x) then ptr(num_taps), but avoids the overhead of a second function call.  Always writes exactly num_taps samples.  Without out=, the Python binding returns a NumPy array backed by the pre-allocated push_ptr output buffer; with out= (must have exactly num_taps elements), writes directly into the caller's array and returns it.
 
         Parameters
         ----------
         x : complex
             New complex sample to insert.
+        out : NDArray[np.complex128], optional
+            Caller-provided output buffer; must have exactly num_taps elements.
 
         Returns
         -------
@@ -103,6 +119,9 @@ class DelayCf64:
         [(2+0j), (1+0j), 0j]
 
         """
+
+    def push_ptr_max_out(self) -> int:
+        """Max output length push_ptr() can produce for the current state (always exactly num_taps). Use to size the ``out=`` buffer."""
 
     def write(self, x: complex) -> None:
         """Alias for delay_push(); insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to delay_push() with no additional overhead.

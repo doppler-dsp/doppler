@@ -182,16 +182,17 @@ BurstDemodObj_set_prior (BurstDemodObject *self, PyObject *args,
 }
 
 static PyObject *
-BurstDemodObj_demod (BurstDemodObject *self, PyObject *args)
+BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  static char   *_kwlist[] = { "x", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
@@ -319,6 +320,18 @@ BurstDemod_getprop_est_snr_db (BurstDemodObject *self,
     }
   return PyFloat_FromDouble (self->handle->est_snr_db);
 }
+static PyObject *
+BurstDemod_getprop_payload_len (BurstDemodObject *self,
+                                void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->payload_len);
+}
 
 static PyGetSetDef BurstDemod_getset[]
     = { { "frame_valid", (getter)BurstDemod_getprop_frame_valid, NULL,
@@ -333,6 +346,8 @@ static PyGetSetDef BurstDemod_getset[]
           "Est rate hz.\n", NULL },
         { "est_snr_db", (getter)BurstDemod_getprop_est_snr_db, NULL,
           "Est snr db.\n", NULL },
+        { "payload_len", (getter)BurstDemod_getprop_payload_len, NULL,
+          "Payload len.\n", NULL },
         { NULL } };
 
 static PyObject *
@@ -405,7 +420,8 @@ static PyMethodDef BurstDemodObj_methods[]
           "    >>> obj = BurstDemod(np.zeros(1, dtype=np.uint8), 4, 1.0e6, "
           "0.0, 0.0, 0, 10)\n"
           "    >>> obj.set_prior(0.0, 0)\n" },
-        { "demod", (PyCFunction)BurstDemodObj_demod, METH_VARARGS,
+        { "demod", (PyCFunction)BurstDemodObj_demod,
+          METH_VARARGS | METH_KEYWORDS,
           "demod(x) -> ndarray\n"
           "\n"
           "Demodulate a burst (preamble + frame); return the payload bits. "

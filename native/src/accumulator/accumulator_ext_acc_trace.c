@@ -16,6 +16,9 @@ typedef struct
   PyObject_HEAD acc_trace_state_t *handle;
   float *_value_buf;     /* pre-allocated output for value */
   size_t _value_buf_cap; /* allocated capacity for value */
+  void **_value_retired; /* gh-219 deferred free */
+  size_t _value_retired_n;
+  size_t _value_retired_cap;
 } AccTraceObject;
 
 static void
@@ -24,6 +27,9 @@ AccTraceObj_dealloc (AccTraceObject *self)
   if (self->handle)
     acc_trace_destroy (self->handle);
   free (self->_value_buf);
+  for (size_t _i = 0; _i < self->_value_retired_n; _i++)
+    free (self->_value_retired[_i]);
+  free (self->_value_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -41,7 +47,7 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[] = { "mode", "n", "alpha", NULL };
   const char        *mode_str = "mean";
-  unsigned long long n_raw    = 0ULL;
+  unsigned long long n_raw    = 1024;
   double             alpha    = 0.1;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKd", kwlist, &mode_str,
@@ -88,15 +94,16 @@ AccTraceObj_init (AccTraceObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-AccTraceObj_accumulate (AccTraceObject *self, PyObject *args)
+AccTraceObj_accumulate (AccTraceObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *p_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &p_obj))
+  static char *_kwlist[] = { "p", NULL };
+  PyObject    *p_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &p_obj))
     return NULL;
   PyArrayObject *p_arr = (PyArrayObject *)PyArray_FROM_OTF (
       p_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -124,28 +131,93 @@ AccTraceObj_reset (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AccTraceObj_value (AccTraceObject *self, PyObject *args)
+AccTraceObj_value_max_out (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 1;
-  if (!PyArg_ParseTuple (args, "|n", &n))
+  return PyLong_FromSize_t (acc_trace_value_max_out (self->handle));
+}
+
+static PyObject *
+AccTraceObj_value (AccTraceObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = acc_trace_value_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = acc_trace_value (self->handle, (size_t)n,
+                                      (float *)PyArray_DATA (out_arr));
+      if (!n_out)
+        {
+          Py_DECREF (out_arr);
+          Py_RETURN_NONE;
+        }
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)n;
   if (!self->_value_buf || self->_value_buf_cap < _need)
     {
       size_t _max = acc_trace_value_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      float *_tmp = realloc (self->_value_buf, _max * sizeof (float));
+      if (self->_value_buf
+          && self->_value_retired_n == self->_value_retired_cap)
+        {
+          size_t _rcap
+              = self->_value_retired_cap ? self->_value_retired_cap * 2 : 4;
+          void **_rt = realloc (self->_value_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_value_retired     = _rt;
+          self->_value_retired_cap = _rcap;
+        }
+      float *_tmp = malloc (_max * sizeof (float));
       if (!_tmp)
         {
           PyErr_NoMemory ();
           return NULL;
         }
+      if (self->_value_buf)
+        self->_value_retired[self->_value_retired_n++] = self->_value_buf;
       self->_value_buf     = _tmp;
       self->_value_buf_cap = _max;
     }
@@ -160,6 +232,59 @@ AccTraceObj_value (AccTraceObject *self, PyObject *args)
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
   return arr;
+}
+
+static PyObject *
+AccTraceObj_state_bytes (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (acc_trace_state_bytes (self->handle));
+}
+
+static PyObject *
+AccTraceObj_get_state (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = acc_trace_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  acc_trace_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+AccTraceObj_set_state (AccTraceObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != acc_trace_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (acc_trace_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 AccTrace_getprop_n (AccTraceObject *self, void *Py_UNUSED (closure))
@@ -256,62 +381,10 @@ AccTraceObj_exit (AccTraceObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-AccTraceObj_state_bytes (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (acc_trace_state_bytes (self->handle));
-}
-
-static PyObject *
-AccTraceObj_get_state (AccTraceObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = acc_trace_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  acc_trace_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-AccTraceObj_set_state (AccTraceObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != acc_trace_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (acc_trace_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef AccTraceObj_methods[] = {
 
-  { "accumulate", (PyCFunction)AccTraceObj_accumulate, METH_VARARGS,
+  { "accumulate", (PyCFunction)(void *)AccTraceObj_accumulate,
+    METH_VARARGS | METH_KEYWORDS,
     "accumulate(p) -> None\n"
     "\n"
     "Fold one length-n frame into the running trace.\n"
@@ -328,7 +401,7 @@ static PyMethodDef AccTraceObj_methods[] = {
     "    >>> from doppler import AccTrace\n"
     "    >>> obj = AccTrace(\"mean\", 1024, 0.1)\n"
     "    >>> obj.reset()\n" },
-  { "value", (PyCFunction)AccTraceObj_value, METH_VARARGS,
+  { "value", (PyCFunction)AccTraceObj_value, METH_VARARGS | METH_KEYWORDS,
     "value(n=1) -> ndarray\n"
     "\n"
     "Copy the current averaged trace (None before any accumulate).\n"
@@ -339,16 +412,19 @@ static PyMethodDef AccTraceObj_methods[] = {
     "    >>> y = obj.value(4)\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
-  { "destroy", (PyCFunction)AccTraceObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)AccTraceObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)AccTraceObj_exit, METH_VARARGS, NULL },
+  { "value_max_out", (PyCFunction)AccTraceObj_value_max_out, METH_NOARGS,
+    "value_max_out() -> int\n\nMax output length value() can produce for the "
+    "current state.\nUse to size the ``out=`` buffer." },
   { "state_bytes", (PyCFunction)AccTraceObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)AccTraceObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)AccTraceObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)AccTraceObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)AccTraceObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)AccTraceObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
@@ -357,7 +433,7 @@ static PyTypeObject AccTraceObjType = {
   .tp_basicsize                           = sizeof (AccTraceObject),
   .tp_dealloc                             = (destructor)AccTraceObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a length-@p n trace accumulator.\n",
+  .tp_doc     = "Create a length-n trace accumulator.\n",
   .tp_methods = AccTraceObj_methods,
   .tp_getset  = AccTrace_getset,
   .tp_new     = AccTraceObj_new,

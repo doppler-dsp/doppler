@@ -139,13 +139,13 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = lo_steps_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = lo_steps_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (steps_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -205,21 +205,74 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-LOObj_steps_ctrl (LOObject *self, PyObject *args)
+LOObj_steps_ctrl_max_out (LOObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *ctrl_obj = NULL;
-  PyArrayObject *ctrl_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &ctrl_obj))
+  return PyLong_FromSize_t (lo_steps_ctrl_max_out (self->handle));
+}
+
+static PyObject *
+LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "ctrl", "out", NULL };
+  PyObject      *ctrl_obj  = NULL;
+  PyArrayObject *ctrl_arr  = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &ctrl_obj,
+                                    &out_obj))
     return NULL;
   ctrl_arr = (PyArrayObject *)PyArray_FROM_OTF (ctrl_obj, NPY_FLOAT,
                                                 NPY_ARRAY_C_CONTIGUOUS);
   if (!ctrl_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = lo_steps_ctrl_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (ctrl_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (ctrl_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t n_out = lo_steps_ctrl (self->handle,
+                                    (const float *)PyArray_DATA (ctrl_arr),
+                                    (size_t)PyArray_SIZE (ctrl_arr),
+                                    (float complex *)PyArray_DATA (out_arr));
+      Py_DECREF (ctrl_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
   if (!self->_steps_ctrl_buf || self->_steps_ctrl_buf_cap < _need)
     {
@@ -457,7 +510,7 @@ static PyMethodDef LOObj_methods[] = {
   { "steps_max_out", (PyCFunction)LOObj_steps_max_out, METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS,
+  { "steps_ctrl", (PyCFunction)LOObj_steps_ctrl, METH_VARARGS | METH_KEYWORDS,
     "steps_ctrl(ctrl) -> ndarray\n"
     "\n"
     "Generate CF32 phasors with per-sample FM deviation. For each sample i, "
@@ -474,6 +527,9 @@ static PyMethodDef LOObj_methods[] = {
     "    >>> y = obj.steps_ctrl(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
+  { "steps_ctrl_max_out", (PyCFunction)LOObj_steps_ctrl_max_out, METH_NOARGS,
+    "steps_ctrl_max_out() -> int\n\nMax output length steps_ctrl() can "
+    "produce for the current state.\nUse to size the ``out=`` buffer." },
   { "state_bytes", (PyCFunction)LOObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)LOObj_get_state, METH_NOARGS,

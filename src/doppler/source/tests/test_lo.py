@@ -5,6 +5,7 @@ phase continuity, ctrl-port FM shift, LUT accuracy, property accessors.
 """
 
 import numpy as np
+import pytest
 
 from doppler.source import LO
 
@@ -216,3 +217,19 @@ def test_steps_ctrl_large_n():
     y = LO(norm_freq=0.1).steps_ctrl(ctrl)
     assert y.shape == (n,)
     assert np.allclose(np.abs(y), 1.0, atol=TOL)
+
+
+def test_steps_ctrl_out_writes_into_callers_buffer():
+    lo = LO(norm_freq=0.1)
+    ctrl = np.zeros(64, dtype=np.float32)
+    out = np.zeros(max(lo.steps_ctrl_max_out(), len(ctrl)), dtype=np.complex64)
+    y = lo.steps_ctrl(ctrl, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_ctrl_out_undersized_raises():
+    lo = LO(norm_freq=0.1)
+    with pytest.raises(ValueError):
+        lo.steps_ctrl(
+            np.zeros(64, dtype=np.float32), out=np.zeros(1, dtype=np.complex64)
+        )

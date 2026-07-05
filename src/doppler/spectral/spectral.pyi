@@ -727,7 +727,7 @@ class Detector:
 
     @property
     def last_corr(self) -> NDArray[np.complex64]:
-        """Last corr."""
+        """The correlation vector from the most recent push() that produced a result (None before that). This is a zero-copy view into a buffer owned by the detector and reused every push() -- the next push() (even one that doesn't produce a result) overwrites it in place. Copy the array before the next push() if you need to retain it."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""
@@ -850,7 +850,7 @@ class Detector2D:
 
     @property
     def last_corr(self) -> NDArray[np.complex64]:
-        """Last corr."""
+        """The correlation vector from the most recent push() that produced a result (None before that). This is a zero-copy view into a buffer owned by the detector and reused every push() -- the next push() (even one that doesn't produce a result) overwrites it in place. Copy the array before the next push() if you need to retain it."""
 
     def destroy(self) -> None:
         """Release C resources immediately."""

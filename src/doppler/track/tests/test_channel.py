@@ -127,3 +127,37 @@ def test_reset_reproducible():
     s2 = c.steps(rx)
     assert np.array_equal(s1, s2)
     assert f1 == c.norm_freq
+
+
+def test_steps_out_writes_into_callers_buffer():
+    code = _code()
+    rx, _ = _signal(code, 50, seed=5)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    out = np.zeros(max(c.steps_max_out(), len(rx)), dtype=np.complex64)
+    y = c.steps(rx, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    code = _code()
+    rx, _ = _signal(code, 50, seed=5)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    with pytest.raises(ValueError):
+        c.steps(rx, out=np.zeros(1, dtype=np.complex64))
+
+
+def test_bits_out_writes_into_callers_buffer():
+    code = _code()
+    rx, _ = _signal(code, 50, seed=5)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    out = np.zeros(max(c.bits_max_out(), len(rx)), dtype=np.uint8)
+    y = c.bits(rx, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_bits_out_undersized_raises():
+    code = _code()
+    rx, _ = _signal(code, 50, seed=5)
+    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    with pytest.raises(ValueError):
+        c.bits(rx, out=np.zeros(1, dtype=np.uint8))

@@ -177,3 +177,20 @@ def test_empty_input():
     c = CarrierMpsk(m=4, tsamps=TSAMPS)
     out = c.steps(np.zeros(0, dtype=np.complex64))
     assert out.shape == (0,)
+
+
+def test_steps_out_writes_into_callers_buffer():
+    c = CarrierMpsk(m=4, tsamps=TSAMPS)
+    x = np.zeros(TSAMPS * 4, dtype=np.complex64)
+    out = np.zeros(max(c.steps_max_out(), len(x)), dtype=np.complex64)
+    y = c.steps(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    c = CarrierMpsk(m=4, tsamps=TSAMPS)
+    with pytest.raises(ValueError):
+        c.steps(
+            np.zeros(TSAMPS * 4, dtype=np.complex64),
+            out=np.zeros(1, dtype=np.complex64),
+        )

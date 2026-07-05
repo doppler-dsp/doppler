@@ -102,10 +102,13 @@ PSDObj_init (PSDObject *self, PyObject *args, PyObject *kwds)
     window = 0;
   else if (strcmp (window_str, "kaiser") == 0)
     window = 1;
+  else if (strcmp (window_str, "blackman-harris") == 0)
+    window = 2;
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "window must be one of \"hann\", \"kaiser\", got '%s'",
+                    "window must be one of \"hann\", \"kaiser\", "
+                    "\"blackman-harris\", got '%s'",
                     window_str);
       return -1;
     }
@@ -298,13 +301,13 @@ PSDObj_psd_db (PSDObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = psd_psd_db_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = psd_psd_db_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (psd_db_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -403,13 +406,13 @@ PSDObj_psd_dbhz (PSDObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = psd_psd_dbhz_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = psd_psd_dbhz_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (psd_dbhz_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -510,14 +513,13 @@ PSDObj_power_twosided (PSDObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = psd_power_twosided_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = psd_power_twosided_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (
-              PyExc_ValueError,
-              "out has %zu elements, need >= %zu (power_twosided_max_out)",
-              _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -620,14 +622,13 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = psd_power_onesided_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = psd_power_onesided_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (
-              PyExc_ValueError,
-              "out has %zu elements, need >= %zu (power_onesided_max_out)",
-              _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -699,21 +700,72 @@ PSDObj_power_onesided (PSDObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-PSDObj_band_power (PSDObject *self, PyObject *args)
+PSDObj_band_power_max_out (PSDObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  return PyLong_FromSize_t (psd_band_power_max_out (self->handle));
+}
+
+static PyObject *
+PSDObj_band_power (PSDObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "bands", "out", NULL };
   PyObject      *bands_obj = NULL;
   PyArrayObject *bands_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &bands_obj))
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &bands_obj,
+                                    &out_obj))
     return NULL;
   bands_arr = (PyArrayObject *)PyArray_FROM_OTF (bands_obj, NPY_DOUBLE,
                                                  NPY_ARRAY_C_CONTIGUOUS);
   if (!bands_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (bands_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = psd_band_power_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (bands_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (bands_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (bands_arr);
+          return NULL;
+        }
+      size_t n_out = psd_band_power (
+          self->handle, (const double *)PyArray_DATA (bands_arr),
+          (size_t)PyArray_SIZE (bands_arr), (float *)PyArray_DATA (out_arr));
+      Py_DECREF (bands_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (bands_arr);
   if (!self->_band_power_buf || self->_band_power_buf_cap < _need)
     {
@@ -848,6 +900,59 @@ PSDObj_sfdr (PSDObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   double y = psd_sfdr (self->handle, min_db);
   return PyFloat_FromDouble (y);
+}
+
+static PyObject *
+PSDObj_state_bytes (PSDObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (psd_state_bytes (self->handle));
+}
+
+static PyObject *
+PSDObj_get_state (PSDObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = psd_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  psd_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+PSDObj_set_state (PSDObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != psd_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (psd_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 static PyObject *
 PSD_getprop_n (PSDObject *self, void *Py_UNUSED (closure))
@@ -985,59 +1090,6 @@ PSDObj_exit (PSDObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-PSDObj_state_bytes (PSDObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromSize_t (psd_state_bytes (self->handle));
-}
-
-static PyObject *
-PSDObj_get_state (PSDObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t    _n = psd_state_bytes (self->handle);
-  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
-  if (!_b)
-    return NULL;
-  psd_get_state (self->handle, PyBytes_AS_STRING (_b));
-  return _b;
-}
-
-static PyObject *
-PSDObj_set_state (PSDObject *self, PyObject *arg)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  if (!PyBytes_Check (arg))
-    {
-      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
-      return NULL;
-    }
-  if ((size_t)PyBytes_GET_SIZE (arg) != psd_state_bytes (self->handle))
-    {
-      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
-      return NULL;
-    }
-  if (psd_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
-    {
-      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
 static PyMethodDef PSDObj_methods[] = {
 
   { "accumulate", (PyCFunction)(void *)PSDObj_accumulate,
@@ -1131,7 +1183,7 @@ static PyMethodDef PSDObj_methods[] = {
     METH_NOARGS,
     "power_onesided_max_out() -> int\n\nMax output length power_onesided() "
     "can produce for the current state.\nUse to size the ``out=`` buffer." },
-  { "band_power", (PyCFunction)PSDObj_band_power, METH_VARARGS,
+  { "band_power", (PyCFunction)PSDObj_band_power, METH_VARARGS | METH_KEYWORDS,
     "band_power(bands) -> ndarray\n"
     "\n"
     "Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.\n"
@@ -1142,6 +1194,9 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> y = obj.band_power(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
+  { "band_power_max_out", (PyCFunction)PSDObj_band_power_max_out, METH_NOARGS,
+    "band_power_max_out() -> int\n\nMax output length band_power() can "
+    "produce for the current state.\nUse to size the ``out=`` buffer." },
   { "total_band_power", (PyCFunction)(void *)PSDObj_total_band_power,
     METH_VARARGS | METH_KEYWORDS,
     "total_band_power(bands) -> float\n"
@@ -1193,16 +1248,16 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> obj = PSD(\"hann\", \"mean\", 1024, 1.0, 0.0, 1, 1.0, 0, 0.1)\n"
     "    >>> obj.sfdr(0.0)\n"
     "    0.0\n" },
-  { "destroy", (PyCFunction)PSDObj_destroy, METH_NOARGS,
-    "Release resources." },
-  { "__enter__", (PyCFunction)PSDObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)PSDObj_exit, METH_VARARGS, NULL },
   { "state_bytes", (PyCFunction)PSDObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
   { "get_state", (PyCFunction)PSDObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
   { "set_state", (PyCFunction)PSDObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)PSDObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)PSDObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)PSDObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 

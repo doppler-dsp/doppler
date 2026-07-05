@@ -227,6 +227,37 @@ class TestExecuteCtrl:
         assert 56 <= len(y) <= 64
 
 
+class TestOutParam:
+    def test_execute_out_writes_into_callers_buffer(self):
+        r = Resampler(1.0)
+        x = _ones(64)
+        out = np.zeros(max(r.execute_max_out(), len(x)), dtype=np.complex64)
+        y = r.execute(x, out=out)
+        assert np.shares_memory(y, out)
+
+    def test_execute_out_undersized_raises(self):
+        r = Resampler(1.0)
+        with pytest.raises(ValueError):
+            r.execute(_ones(64), out=np.zeros(1, dtype=np.complex64))
+
+    def test_execute_ctrl_out_writes_into_callers_buffer(self):
+        r = Resampler(1.0)
+        x = _ones(64)
+        ctrl = np.zeros(64, dtype=np.complex64)
+        out = np.zeros(
+            max(r.execute_ctrl_max_out(), len(x)), dtype=np.complex64
+        )
+        y = r.execute_ctrl(x, ctrl, out=out)
+        assert np.shares_memory(y, out)
+
+    def test_execute_ctrl_out_undersized_raises(self):
+        r = Resampler(1.0)
+        x = _ones(64)
+        ctrl = np.zeros(64, dtype=np.complex64)
+        with pytest.raises(ValueError):
+            r.execute_ctrl(x, ctrl, out=np.zeros(1, dtype=np.complex64))
+
+
 # ------------------------------------------------------------------ #
 # Context manager                                                      #
 # ------------------------------------------------------------------ #

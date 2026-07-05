@@ -167,21 +167,74 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args)
+NPRMeasureObj_spectrum_dbfs_max_out (NPRMeasureObject *self,
+                                     PyObject         *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (nprmeas_spectrum_dbfs_max_out (self->handle));
+}
+
+static PyObject *
+NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *_kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj     = NULL;
+  PyArrayObject *x_arr     = NULL;
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", _kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_FLOAT,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = nprmeas_spectrum_dbfs_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
+                            ? _omax
+                            : ((size_t)PyArray_SIZE (x_arr));
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t n_out = nprmeas_spectrum_dbfs (
+          self->handle, (const float *)PyArray_DATA (x_arr),
+          (size_t)PyArray_SIZE (x_arr), (float *)PyArray_DATA (out_arr));
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_FLOAT,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_spectrum_dbfs_buf || self->_spectrum_dbfs_buf_cap < _need)
     {
@@ -311,33 +364,38 @@ NPRMeasureObj_exit (NPRMeasureObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef NPRMeasureObj_methods[]
-    = { { "reset", (PyCFunction)NPRMeasureObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
+static PyMethodDef NPRMeasureObj_methods[] = {
+  { "reset", (PyCFunction)NPRMeasureObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
 
-        { "analyze", (PyCFunction)(void *)NPRMeasureObj_analyze,
-          METH_VARARGS | METH_KEYWORDS,
-          "analyze(x, active_lo, active_hi, notch_lo, notch_hi, guard_hz) -> "
-          "NPRMetrics record (npr_db, inband_psd_dbfs, notch_psd_dbfs, "
-          "n_inband_bins, n_notch_bins, rbw_hz)." },
-        { "spectrum_dbfs", (PyCFunction)NPRMeasureObj_spectrum_dbfs,
-          METH_VARARGS,
-          "spectrum_dbfs(x) -> ndarray\n"
-          "\n"
-          "DC-centred dBFS magnitude spectrum of a capture (length nfft, for "
-          "plots).\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import NPRMeasure\n"
-          "    >>> obj = NPRMeasure(8192, 1.0, 1.0, 0, 0.0)\n"
-          "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
-          "    >>> y.dtype\n"
-          "    dtype('float32')\n" },
-        { "destroy", (PyCFunction)NPRMeasureObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)NPRMeasureObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)NPRMeasureObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "analyze", (PyCFunction)(void *)NPRMeasureObj_analyze,
+    METH_VARARGS | METH_KEYWORDS,
+    "analyze(x, active_lo, active_hi, notch_lo, notch_hi, guard_hz) -> "
+    "NPRMetrics record (npr_db, inband_psd_dbfs, notch_psd_dbfs, "
+    "n_inband_bins, n_notch_bins, rbw_hz)." },
+  { "spectrum_dbfs", (PyCFunction)NPRMeasureObj_spectrum_dbfs,
+    METH_VARARGS | METH_KEYWORDS,
+    "spectrum_dbfs(x) -> ndarray\n"
+    "\n"
+    "DC-centred dBFS magnitude spectrum of a capture (length nfft, for "
+    "plots).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import NPRMeasure\n"
+    "    >>> obj = NPRMeasure(8192, 1.0, 1.0, 0, 0.0)\n"
+    "    >>> y = obj.spectrum_dbfs(np.zeros(4))\n"
+    "    >>> y.dtype\n"
+    "    dtype('float32')\n" },
+  { "spectrum_dbfs_max_out", (PyCFunction)NPRMeasureObj_spectrum_dbfs_max_out,
+    METH_NOARGS,
+    "spectrum_dbfs_max_out() -> int\n\nMax output length spectrum_dbfs() can "
+    "produce for the current state.\nUse to size the ``out=`` buffer." },
+  { "destroy", (PyCFunction)NPRMeasureObj_destroy, METH_NOARGS,
+    "Release resources." },
+  { "__enter__", (PyCFunction)NPRMeasureObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)NPRMeasureObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject NPRMeasureObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "measure.NPRMeasure",

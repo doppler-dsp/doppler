@@ -6,6 +6,8 @@ underneath a feature they're already using, not just contributors. (Repo
 layout and forward-looking roadmaps live under [Contributing](../dev/index.md)
 instead.)
 
+- [API Taxonomy](api-taxonomy.md) — the DSP building-block hierarchy and its
+    naming axis, plus concrete rename proposals
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap

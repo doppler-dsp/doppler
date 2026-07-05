@@ -236,6 +236,7 @@ nav:
       - Fixed-Point Arithmetic: guide/fixed-point.md
   - Design:
       - Design: design/index.md
+      - API Taxonomy: design/api-taxonomy.md
       - Quantization: design/QUANTIZATION.md
       - Measurement Suite: design/measurement-suite.md
       - State Serialization: design/state-serialization.md

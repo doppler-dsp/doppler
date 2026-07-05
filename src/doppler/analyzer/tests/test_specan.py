@@ -129,3 +129,28 @@ def test_execute_returns_none_until_a_frame_is_ready():
 def test_context_manager():
     with Specan(fs=FS, span=SPAN, rbw=RBW) as sa:
         assert sa.fs_out > 0.0
+
+
+def test_execute_out_writes_into_callers_buffer():
+    sa = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0)
+    chunk = 4096
+    # out= validation requires max(execute_max_out(), len(x)): the kernel's
+    # scratch use scales with the input chunk length, not just disp_n.
+    out = np.zeros(max(sa.execute_max_out(), chunk), dtype=np.float32)
+    x = _tone(30e3 / FS, n=1 << 16)
+    frame = None
+    for i in range(0, len(x), chunk):
+        frame = sa.execute(x[i : i + chunk], out=out)
+        if frame is not None:
+            break
+    assert frame is not None
+    assert np.shares_memory(frame, out)
+    sa.destroy()
+
+
+def test_execute_out_undersized_raises():
+    sa = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0)
+    out = np.zeros(1, dtype=np.float32)
+    with pytest.raises(ValueError):
+        sa.execute(_tone(30e3 / FS, n=1 << 16), out=out)
+    sa.destroy()

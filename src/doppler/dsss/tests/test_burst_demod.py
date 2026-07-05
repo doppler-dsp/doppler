@@ -106,3 +106,25 @@ def test_bad_args():
         BurstDemod(
             np.array([], np.uint8), SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10
         )
+
+
+def test_demod_out_writes_into_callers_buffer():
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    d = _make(0.0)
+    d.set_prior(0.012, 0)
+    x = _burst(payload, 0.012, 0.0)
+    # out= validation requires max(demod_max_out(), len(x)): the kernel's
+    # scratch use scales with the input burst length, not just the payload.
+    out = np.zeros(max(d.demod_max_out(), len(x)), dtype=np.uint8)
+    bits = d.demod(x, out=out)
+    assert np.shares_memory(bits, out)
+    assert d.frame_valid == 1
+    assert np.array_equal(bits, payload)
+
+
+def test_demod_out_undersized_raises():
+    d = _make(0.0)
+    out = np.zeros(1, dtype=np.uint8)
+    x = np.zeros(4, dtype=np.complex64)
+    with pytest.raises(ValueError):
+        d.demod(x, out=out)

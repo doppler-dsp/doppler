@@ -26,7 +26,11 @@ class Despreader:
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sf: int = ..., sps: int = ..., init_norm_freq: float = ..., init_chip_phase: float = ..., bn_carrier: float = ..., bn_code: float = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = ...,
+    ) -> NDArray[np.complex64]:
         """Despread a cf32 block; emit one complex prompt symbol per code period.
 
         Streams: a partial symbol is carried in state across calls. Each emitted
@@ -35,10 +39,17 @@ class Despreader:
         soft information. During a `despreader_set_acq` preamble no symbols are
         emitted (the loops are pulling in); payload symbols follow.
 
+        Without out=, the returned array is a view into a buffer reused on the
+        next call (see steps_max_out() to size an out= buffer for an
+        independent, alias-free result).
+
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input CF32 samples, length x_len.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least max(steps_max_out(),
+            len(x)) elements.
 
         Returns
         -------
@@ -56,22 +67,37 @@ class Despreader:
 
         """
 
-    def bits(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state. Use to size the ``out=`` buffer."""
+
+    def bits(
+        self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
+    ) -> NDArray[np.uint8]:
         """Despread a cf32 block; emit one hard BPSK bit per code period.
 
         Same streaming kernel as despreader_steps(), but emits the hard decision
         `crealf(prompt) >= 0` instead of the complex symbol.
 
+        Without out=, the returned array is a view into a buffer reused on the
+        next call (see bits_max_out() to size an out= buffer for an
+        independent, alias-free result).
+
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input CF32 samples, length x_len.
+        out : NDArray[np.uint8], optional
+            Caller-provided output buffer, at least max(bits_max_out(),
+            len(x)) elements.
 
         Returns
         -------
         NDArray[np.uint8]
             Number of bits written.
         """
+
+    def bits_max_out(self) -> int:
+        """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def set_acq(self, acq_code: NDArray[np.uint8], acq_reps: int) -> None:
         """Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed.
@@ -409,19 +435,31 @@ class BurstDemod:
             Input.
         """
 
-    def demod(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
+    def demod(
+        self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
+    ) -> NDArray[np.uint8]:
         """Demodulate a burst (preamble + frame); return the payload bits. Read-back properties report the estimates + CRC validity.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see demod_max_out(), or payload_len, to size an out=
+        buffer for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.uint8], optional
+            Caller-provided output buffer, at least max(demod_max_out(),
+            len(x)) elements.
 
         Returns
         -------
         NDArray[np.uint8]
             Number of bits written (0 on failure / too-short burst). The read-back fields (frame_valid, est_*, frame_offset) are updated.
         """
+
+    def demod_max_out(self) -> int:
+        """Max output length demod() can produce for the current state. Use to size the ``out=`` buffer."""
 
     @property
     def frame_valid(self) -> int:

@@ -129,3 +129,23 @@ def test_execute_returns_none_until_a_frame_is_ready():
 def test_context_manager():
     with Specan(fs=FS, span=SPAN, rbw=RBW) as sa:
         assert sa.fs_out > 0.0
+
+
+def test_execute_returns_independent_frames():
+    """execute() returns a fresh array per frame — not a view into the
+    internal buffer. Regression test for the gh-219 class of aliasing bug:
+    two consecutive frames used to return numpy views of the same reused
+    buffer, so a later frame silently mutated an earlier-returned frame out
+    from under the caller."""
+    sa = Specan(fs=FS, span=SPAN, rbw=RBW, center=0.0)
+    x = _tone(30e3 / FS, n=1 << 16)
+    frames = []
+    for i in range(0, len(x), 4096):
+        frame = sa.execute(x[i : i + 4096])
+        if frame is not None:
+            frames.append(frame)
+        if len(frames) >= 2:
+            break
+    assert len(frames) >= 2
+    assert not np.shares_memory(frames[0], frames[1])
+    sa.destroy()

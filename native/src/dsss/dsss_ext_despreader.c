@@ -176,13 +176,20 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args)
     n_out = despreader_steps (self->handle, _ng0, _ng1, self->_steps_buf,
                               self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _steps_buf instead
+   * aliases the previous call's returned array whenever a call doesn't grow
+   * the buffer (same address reused) — the gh-219 class of bug, distinct
+   * from the dangling-after-realloc case the retired list already guards. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX64, self->_steps_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX64);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_steps_buf,
+          (size_t)n_out * sizeof (float complex));
   Py_DECREF (x_arr);
   return arr;
 }
@@ -246,13 +253,20 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args)
     n_out = despreader_bits (self->handle, _ng0, _ng1, self->_bits_buf,
                              self->_bits_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _bits_buf instead
+   * aliases the previous call's returned array whenever a call doesn't grow
+   * the buffer (same address reused) — the gh-219 class of bug, distinct
+   * from the dangling-after-realloc case the retired list already guards. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_UINT8, self->_bits_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT8);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_bits_buf,
+          (size_t)n_out * sizeof (uint8_t));
   Py_DECREF (x_arr);
   return arr;
 }

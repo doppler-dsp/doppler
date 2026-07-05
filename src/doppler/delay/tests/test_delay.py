@@ -74,17 +74,29 @@ def test_complex_values():
     np.testing.assert_array_almost_equal(win, [-3.0 + 4.0j, 1.5 + 2.5j])
 
 
-def test_ptr_view_semantics():
-    """ptr() returns a view into the internal buffer (jm shared-buf pattern).
-    Successive calls produce the correct window contents."""
+def test_ptr_returns_independent_arrays():
+    """ptr() returns a fresh, independent array per call — not a view into
+    the internal buffer. Regression test for the gh-219 class of aliasing
+    bug: two consecutive calls used to return numpy views of the same
+    reused buffer, so a later push()+ptr() silently mutated an
+    earlier-returned array out from under the caller."""
     obj = DelayCf64(2)
     obj.push(1 + 0j)
     obj.push(2 + 0j)
-    win1 = obj.ptr().copy()  # take a copy before mutating
+    win1 = obj.ptr()
     obj.push(3 + 0j)
     win2 = obj.ptr()
+    assert not np.shares_memory(win1, win2)
     np.testing.assert_array_almost_equal(win1, [2 + 0j, 1 + 0j])
     np.testing.assert_array_almost_equal(win2, [3 + 0j, 2 + 0j])
+
+
+def test_push_ptr_returns_independent_arrays():
+    """push_ptr() has the same independent-array contract as ptr()."""
+    obj = DelayCf64(2)
+    a = obj.push_ptr(1 + 0j)
+    b = obj.push_ptr(2 + 0j)
+    assert not np.shares_memory(a, b)
 
 
 def test_context_manager():

@@ -241,13 +241,20 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args)
     n_out = burst_demod_demod (self->handle, _ng0, _ng1, self->_demod_buf,
                                self->_demod_buf_cap);
   Py_END_ALLOW_THREADS
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _demod_buf instead
+   * aliases the previous call's returned array whenever a call doesn't grow
+   * the buffer (same address reused) — the gh-219 class of bug, distinct
+   * from the dangling-after-realloc case the retired list already guards. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_UINT8, self->_demod_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_UINT8);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_demod_buf,
+          (size_t)n_out * sizeof (uint8_t));
   Py_DECREF (x_arr);
   return arr;
 }

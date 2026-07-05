@@ -164,14 +164,24 @@ SpecanObj_execute (SpecanObject *self, PyObject *args)
                             self->_execute_buf_cap);
   Py_END_ALLOW_THREADS
   if (!n_out)
-    Py_RETURN_NONE;
+    {
+      Py_DECREF (x_arr);
+      Py_RETURN_NONE;
+    }
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal grow-on-demand buffer.  Returning a view of _execute_buf instead
+   * aliases the previous call's returned array whenever a call doesn't grow
+   * the buffer (same address reused) — the gh-219 class of bug, distinct
+   * from the dangling-after-realloc case the retired list already guards. */
   npy_intp  dim = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_FLOAT, self->_execute_buf);
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_FLOAT);
   if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+    {
+      Py_DECREF (x_arr);
+      return NULL;
+    }
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_execute_buf,
+          (size_t)n_out * sizeof (float));
   Py_DECREF (x_arr);
   return arr;
 }

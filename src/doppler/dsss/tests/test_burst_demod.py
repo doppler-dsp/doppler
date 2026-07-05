@@ -106,3 +106,15 @@ def test_bad_args():
         BurstDemod(
             np.array([], np.uint8), SPC, CHIP_RATE, 0.0, 0.0, PAYLOAD, 10
         )
+
+
+def test_demod_returns_independent_arrays():
+    """demod() returns a fresh array per call — not a view into the
+    internal buffer. Regression test for the gh-219 class of aliasing bug:
+    two consecutive same-size calls used to return numpy views of the same
+    reused buffer, so a later call silently mutated an earlier-returned
+    array out from under the caller."""
+    d = _make(0.0)
+    x = np.zeros(4, dtype=np.complex64)
+    a, b = d.demod(x), d.demod(x)
+    assert not np.shares_memory(a, b)

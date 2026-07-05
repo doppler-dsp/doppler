@@ -155,3 +155,20 @@ def test_context_manager_and_destroy():
     d.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         d.steps(np.zeros(16, np.complex64))
+
+
+def test_steps_and_bits_return_independent_arrays():
+    """steps()/bits() return a fresh array per call — not a view into the
+    internal buffer. Regression test for the gh-219 class of aliasing bug:
+    two consecutive same-size calls used to return numpy views of the same
+    reused buffer, so a later call silently mutated an earlier-returned
+    array out from under the caller."""
+    x = np.random.default_rng(0).standard_normal(64).astype(np.complex64)
+
+    d = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    a, b = d.steps(x), d.steps(x)
+    assert not np.shares_memory(a, b)
+
+    d2 = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    c, e = d2.bits(x), d2.bits(x)
+    assert not np.shares_memory(c, e)

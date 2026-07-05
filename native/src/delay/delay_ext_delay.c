@@ -104,14 +104,16 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args)
           return NULL;
         }
     }
-  size_t    n_out = delay_ptr (self->handle, (size_t)n, self->_ptr_buf);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128, self->_ptr_buf);
+  size_t n_out = delay_ptr (self->handle, (size_t)n, self->_ptr_buf);
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal buffer.  Returning a view of _ptr_buf instead aliases every
+   * previously-returned array — the same buffer is reused on every call. */
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX128);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_ptr_buf,
+          n_out * sizeof (double complex));
   return arr;
 }
 
@@ -139,14 +141,17 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args)
           return NULL;
         }
     }
-  size_t    n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr   = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128,
-                                               self->_push_ptr_buf);
+  size_t n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf);
+  /* NumPy owns the output: an independent array per call, copied from the
+   * internal buffer.  Returning a view of _push_ptr_buf instead aliases
+   * every previously-returned array — the same buffer is reused on every
+   * call. */
+  npy_intp  dim = (npy_intp)n_out;
+  PyObject *arr = PyArray_SimpleNew (1, &dim, NPY_COMPLEX128);
   if (!arr)
     return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
+  memcpy (PyArray_DATA ((PyArrayObject *)arr), self->_push_ptr_buf,
+          n_out * sizeof (double complex));
   return arr;
 }
 

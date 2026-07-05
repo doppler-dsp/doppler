@@ -309,13 +309,22 @@ class RateConverter:
     """
     def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(
+        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
+    ) -> NDArray[np.complex64]:
         """Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n_in * rate.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see execute_max_out() to size an out= buffer for an
+        independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least
+            max(execute_max_out(), len(x) * max(rate, 1.0) + 4) elements.
 
         Returns
         -------
@@ -332,6 +341,9 @@ class RateConverter:
         ((512,), dtype('complex64'))
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def reset(self) -> None:
         """Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory.

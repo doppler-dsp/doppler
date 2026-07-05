@@ -13,6 +13,47 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-07-05
+
+### Added
+
+- **`out=` parameter + a `<method>_max_out()` sizing helper** on every
+    block/streaming method whose default return is a zero-copy view into a
+    buffer the object reuses on the next call: `BurstDemod.demod`,
+    `Despreader.steps`/`bits`, `Specan.execute`, `DelayCf64.ptr`/`push_ptr`,
+    `CarrierMpsk`/`CarrierNda`/`Costas`/`Channel`/`Symsync`'s `steps`/`bits`,
+    `ImdMeas`/`NprMeas`/`ToneMeas.spectrum_dbfs`, `FFT`/`FFT2D`'s `execute*`
+    family, `PSD.band_power`, `LO.steps_ctrl`, `PN.generate`,
+    `AccTrace.value`, `RateConverter.execute`, `Resampler.execute`/
+    `execute_ctrl`, and `Farrow.delay`. Pass `out=` with a buffer sized to
+    `max(<method>_max_out(), len(x))` to get the result written directly
+    into your own array instead of the default reused view — useful when
+    you need to hold onto more than one call's result at a time without
+    copying it yourself.
+- `BurstDemod.payload_len` property, exposing the decoded payload length
+    directly (previously only inferable from the returned array's size).
+
+### Changed
+
+- The default (no `out=`) return value of every method listed above is now
+    consistently documented as a zero-copy view reused on the object's next
+    call — this was already the real behavior for most of them but was
+    previously undocumented, so a caller holding onto a result across two
+    calls could be silently handed the same, now-overwritten, buffer.
+    `Detector`/`Detector2D.last_corr` (a property, which can't take `out=`
+    at all) gets the same documentation treatment.
+
+### Fixed
+
+- **Use-after-free in `RateConverter.execute()`.** Both the output-buffer
+    growth path and the `rate` setter used to call `free()` on the buffer
+    immediately, with no protection for a previously-returned numpy array
+    still holding a view into it — growing the buffer or changing `rate`
+    after calling `execute()` could silently corrupt or crash on an
+    already-returned result. Both paths now defer the free to the object's
+    own destruction, matching the pattern already used elsewhere in the
+    codebase for this exact hazard.
+
 ## [0.26.1] — 2026-07-03
 
 ### Fixed
@@ -1882,6 +1923,10 @@ ______________________________________________________________________
 [0.23.0]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...v0.23.0
 [0.23.1]: https://github.com/doppler-dsp/doppler/compare/v0.23.0...v0.23.1
 [0.24.0]: https://github.com/doppler-dsp/doppler/compare/v0.23.1...v0.24.0
+[0.25.0]: https://github.com/doppler-dsp/doppler/compare/v0.24.0...v0.25.0
+[0.26.0]: https://github.com/doppler-dsp/doppler/compare/v0.25.0...v0.26.0
+[0.26.1]: https://github.com/doppler-dsp/doppler/compare/v0.26.0...v0.26.1
+[0.27.0]: https://github.com/doppler-dsp/doppler/compare/v0.26.1...v0.27.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
@@ -1901,4 +1946,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.22.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.27.0...HEAD

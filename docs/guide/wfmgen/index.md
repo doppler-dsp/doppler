@@ -39,17 +39,17 @@ ______________________________________________________________________
 
 ## Where to go next
 
-| Page                             | What it covers                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------ |
-| [Concepts](concepts.md)          | The object model — **Synth · Segment · Timeline · Composer**. Read this first. |
-| [Waveforms](waveforms.md)        | The eight `--type`s, PN/MLS codes, RRC pulse shaping.                          |
-| [Levels & SNR](levels.md)        | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
-| [Output & containers](output.md) | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
-| [Scenes](scenes.md)              | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
-| [Streaming](streaming.md)        | Real-time pacing and streaming to NATS.                                        |
-| [Python API](python.md)          | The `Synth` class, the composer builders, reading captures back.               |
-| [Prepare Once, Sweep Many (Plan)](plan.md) | Bit-exact sweep cache — fast Monte Carlo / BER curves, no re-synthesis. |
-| [Recipes](recipes.md)            | Copy-paste one-liners and how `wfmgen` is packaged.                            |
+| Page                                       | What it covers                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------ |
+| [Concepts](concepts.md)                    | The object model — **Synth · Segment · Timeline · Composer**. Read this first. |
+| [Waveforms](waveforms.md)                  | The eight `--type`s, PN/MLS codes, RRC pulse shaping.                          |
+| [Levels & SNR](levels.md)                  | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
+| [Output & containers](output.md)           | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
+| [Scenes](scenes.md)                        | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
+| [Streaming](streaming.md)                  | Real-time pacing and streaming to NATS.                                        |
+| [Python API](python.md)                    | The `Synth` class, the composer builders, reading captures back.               |
+| [Prepare Once, Sweep Many (Plan)](plan.md) | Bit-exact sweep cache — fast Monte Carlo / BER curves, no re-synthesis.        |
+| [Recipes](recipes.md)                      | Copy-paste one-liners and how `wfmgen` is packaged.                            |
 
 ______________________________________________________________________
 

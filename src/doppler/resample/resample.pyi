@@ -21,13 +21,22 @@ class Resampler:
     """
     def __init__(self, rate: float = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(
+        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
+    ) -> NDArray[np.complex64]:
         """Resample a block of CF32 samples at the fixed base rate. Uses the dual-mode polyphase engine: output-driven for rate >= 1 (interpolation), input-driven transposed-form for rate < 1 (decimation). State carries over between calls, so contiguous blocks produce the same result as one large block.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see execute_max_out() to size an out= buffer for an
+        independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             CF32 input samples.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least
+            max(execute_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -45,8 +54,20 @@ class Resampler:
 
         """
 
-    def execute_ctrl(self, x: NDArray[np.complex64], ctrl: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state. Use to size the ``out=`` buffer."""
+
+    def execute_ctrl(
+        self,
+        x: NDArray[np.complex64],
+        ctrl: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = ...,
+    ) -> NDArray[np.complex64]:
         """Resample with per-sample additive rate deviations. Effective rate for sample i is base_rate + real(`ctrl[i]`). Uses a unified double-precision accumulator that handles both interpolation and decimation in a single code path — suitable for Doppler-shift simulation and fractional-sample timing correction. ctrl and x must have the same length.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see execute_ctrl_max_out() to size an out= buffer
+        for an independent, alias-free result).
 
         Parameters
         ----------
@@ -54,6 +75,9 @@ class Resampler:
             CF32 input samples.
         ctrl : NDArray[np.complex64]
             CF32 array, same length as x; only the real part is used as a per-sample rate addend.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least
+            max(execute_ctrl_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -72,6 +96,9 @@ class Resampler:
         ((64,), dtype('complex64'))
 
         """
+
+    def execute_ctrl_max_out(self) -> int:
+        """Max output length execute_ctrl() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def reset(self) -> None:
         """Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst.
@@ -396,8 +423,17 @@ class Farrow:
     """
     def __init__(self, order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
 
-    def delay(self, x: NDArray[np.complex64], mu: float) -> NDArray[np.complex64]:
+    def delay(
+        self,
+        x: NDArray[np.complex64],
+        mu: float,
+        out: NDArray[np.complex64] | None = ...,
+    ) -> NDArray[np.complex64]:
         """Apply a constant fractional delay of `mu` samples to a cf32 block via the Farrow interpolator; output[i] is the input interpolated at i - group_delay + mu. The first group_delay samples are filling-transient.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see delay_max_out() to size an out= buffer for an
+        independent, alias-free result).
 
         Parameters
         ----------
@@ -405,12 +441,18 @@ class Farrow:
             Input.
         mu : float
             Input.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least
+            max(delay_max_out(), len(x)) elements.
 
         Returns
         -------
         NDArray[np.complex64]
             Output.
         """
+
+    def delay_max_out(self) -> int:
+        """Max output length delay() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def reset(self) -> None:
         """Clear the interpolator delay line.

@@ -77,3 +77,21 @@ def test_reset():
     f.reset()
     y = f.delay(np.zeros(4, np.complex64), 0.5)
     assert np.all(y == 0)
+
+
+def test_delay_out_writes_into_callers_buffer():
+    f = Farrow(order="cubic")
+    x = np.ones(64, dtype=np.complex64)
+    out = np.zeros(max(f.delay_max_out(), len(x)), dtype=np.complex64)
+    y = f.delay(x, 0.5, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_delay_out_undersized_raises():
+    f = Farrow(order="cubic")
+    with pytest.raises(ValueError):
+        f.delay(
+            np.ones(64, dtype=np.complex64),
+            0.5,
+            out=np.zeros(1, dtype=np.complex64),
+        )

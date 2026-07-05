@@ -88,6 +88,17 @@ FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+FarrowObj_delay_max_out (FarrowObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (farrow_delay_max_out (self->handle));
+}
+
+static PyObject *
 FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
@@ -95,16 +106,61 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  static char   *_kwlist[] = { "x", "mu", NULL };
+  static char   *_kwlist[] = { "x", "mu", "out", NULL };
   PyObject      *x_obj     = NULL;
   PyArrayObject *x_arr     = NULL;
   double         mu        = 0;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od", _kwlist, &x_obj, &mu))
+  PyObject      *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Od|O", _kwlist, &x_obj, &mu,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = farrow_delay_max_out (self->handle);
+      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
+      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      const float complex *_ng0o = (const float complex *)PyArray_DATA (x_arr);
+      size_t               _ng1o = _n_in;
+      float complex       *_ng2o = (float complex *)PyArray_DATA (out_arr);
+      size_t               n_out;
+      Py_BEGIN_ALLOW_THREADS
+        n_out = farrow_delay (self->handle, _ng0o, _ng1o, mu, _ng2o, _cap);
+      Py_END_ALLOW_THREADS
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_delay_buf || self->_delay_buf_cap < _need)
     {
@@ -274,19 +330,26 @@ FarrowObj_exit (FarrowObject *self, PyObject *args)
 
 static PyMethodDef FarrowObj_methods[] = {
 
-  { "delay", (PyCFunction)FarrowObj_delay, METH_VARARGS | METH_KEYWORDS,
-    "delay(x) -> ndarray\n"
+  { "delay", (PyCFunction)(void *)FarrowObj_delay,
+    METH_VARARGS | METH_KEYWORDS,
+    "delay(x, mu, out=None) -> ndarray\n"
     "\n"
     "Apply a constant fractional delay of `mu` samples to a cf32 block via "
     "the Farrow interpolator; output[i] is the input interpolated at i - "
-    "group_delay + mu. The first group_delay samples are filling-transient.\n"
+    "group_delay + mu. The first group_delay samples are filling-transient. "
+    "Without out=, the returned array is a view into a buffer reused on "
+    "the next call (see delay_max_out() to size an out= buffer for an "
+    "independent, alias-free result).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Farrow\n"
     "    >>> obj = Farrow(\"cubic\")\n"
-    "    >>> y = obj.delay(np.zeros(4))\n"
+    "    >>> y = obj.delay(np.zeros(4), 0.0)\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
+  { "delay_max_out", (PyCFunction)FarrowObj_delay_max_out, METH_NOARGS,
+    "delay_max_out() -> int\n\nMax output length delay() can produce for "
+    "the current state.\nUse to size the ``out=`` buffer." },
   { "reset", (PyCFunction)FarrowObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

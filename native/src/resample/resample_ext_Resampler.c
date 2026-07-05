@@ -79,23 +79,81 @@ ResamplerObj_init (ResamplerObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-ResamplerObj_execute (ResamplerObject *self, PyObject *args)
+ResamplerObj_execute_max_out (ResamplerObject *self,
+                              PyObject        *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject      *x_obj = NULL;
-  PyArrayObject *x_arr = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  return PyLong_FromSize_t (Resampler_execute_max_out (self->handle));
+}
+
+static PyObject *
+ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *kwlist[] = { "x", "out", NULL };
+  PyObject      *x_obj    = NULL;
+  PyObject      *out_obj  = NULL;
+  PyArrayObject *x_arr    = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|O", kwlist, &x_obj,
+                                    &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
   if (!x_arr)
     return NULL;
+
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = Resampler_execute_max_out (self->handle);
+      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
+      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          return NULL;
+        }
+      size_t n_out = Resampler_execute (
+          self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
+          (float complex *)PyArray_DATA (out_arr));
+      Py_DECREF (x_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+
   if (!self->_execute_buf)
     {
+      /* Resampler_execute_max_out() always returns the fixed
+       * RESAMPLER_MAX_OUT (65536) regardless of input size -- the kernel's
+       * own contract caps output there, so one allocation at that size
+       * covers every future call; no growth path is needed. */
       size_t _max = Resampler_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
@@ -122,18 +180,34 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args)
 }
 
 static PyObject *
-ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args)
+ResamplerObj_execute_ctrl_max_out (ResamplerObject *self,
+                                   PyObject        *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  return PyLong_FromSize_t (Resampler_execute_ctrl_max_out (self->handle));
+}
+
+static PyObject *
+ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
+                           PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char   *kwlist[] = { "x", "ctrl", "out", NULL };
   PyObject      *x_obj    = NULL;
   PyArrayObject *x_arr    = NULL;
   PyObject      *ctrl_obj = NULL;
   PyArrayObject *ctrl_arr = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &x_obj, &ctrl_obj))
+  PyObject      *out_obj  = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO|O", kwlist, &x_obj,
+                                    &ctrl_obj, &out_obj))
     return NULL;
   x_arr = (PyArrayObject *)PyArray_FROM_OTF (x_obj, NPY_COMPLEX64,
                                              NPY_ARRAY_C_CONTIGUOUS);
@@ -153,8 +227,55 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "ctrl must be at least as long as x");
       return NULL;
     }
+
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          Py_DECREF (x_arr);
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = Resampler_execute_ctrl_max_out (self->handle);
+      size_t _n_in    = (size_t)PyArray_SIZE (x_arr);
+      size_t _min_cap = _omax > _n_in ? _omax : _n_in;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          Py_DECREF (x_arr);
+          Py_DECREF (ctrl_arr);
+          return NULL;
+        }
+      size_t n_out = Resampler_execute_ctrl (
+          self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
+          (const float complex *)PyArray_DATA (ctrl_arr),
+          (size_t)PyArray_SIZE (ctrl_arr),
+          (float complex *)PyArray_DATA (out_arr));
+      Py_DECREF (x_arr);
+      Py_DECREF (ctrl_arr);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+
   if (!self->_execute_ctrl_buf)
     {
+      /* Resampler_execute_ctrl_max_out() always returns the fixed
+       * RESAMPLER_MAX_OUT (65536) regardless of input size -- same
+       * fixed-capacity contract as execute(); no growth path needed. */
       size_t _max = Resampler_execute_ctrl_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
@@ -303,10 +424,14 @@ DP_PY_STATE_METHODS (ResamplerObj, ResamplerObject, self->handle, Resampler)
 
 static PyMethodDef ResamplerObj_methods[] = {
 
-  { "execute", (PyCFunction)ResamplerObj_execute, METH_VARARGS,
-    "execute(x) -> ndarray\n"
+  { "execute", (PyCFunction)(void *)ResamplerObj_execute,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute(x, out=None) -> ndarray\n"
     "\n"
-    "Resample x(0..x_len-1) into out(0..n_out-1).\n"
+    "Resample x(0..x_len-1) into out(0..n_out-1). Without out=, the\n"
+    "returned array is a view into a buffer reused on the next call\n"
+    "(see execute_max_out() to size an out= buffer for an independent,\n"
+    "alias-free result).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Resampler\n"
@@ -314,17 +439,28 @@ static PyMethodDef ResamplerObj_methods[] = {
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "execute_ctrl", (PyCFunction)ResamplerObj_execute_ctrl, METH_VARARGS,
-    "execute_ctrl(x) -> ndarray\n"
+  { "execute_max_out", (PyCFunction)ResamplerObj_execute_max_out, METH_NOARGS,
+    "execute_max_out() -> int\n\nMax output length execute() can produce "
+    "for the current state.\nUse to size the ``out=`` buffer." },
+  { "execute_ctrl", (PyCFunction)(void *)ResamplerObj_execute_ctrl,
+    METH_VARARGS | METH_KEYWORDS,
+    "execute_ctrl(x, ctrl, out=None) -> ndarray\n"
     "\n"
-    "Resample with per-sample rate deviations.\n"
+    "Resample with per-sample rate deviations. Without out=, the\n"
+    "returned array is a view into a buffer reused on the next call\n"
+    "(see execute_ctrl_max_out() to size an out= buffer for an\n"
+    "independent, alias-free result).\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Resampler\n"
     "    >>> obj = Resampler(0.0)\n"
-    "    >>> y = obj.execute_ctrl(np.zeros(4))\n"
+    "    >>> y = obj.execute_ctrl(np.zeros(4), np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
+  { "execute_ctrl_max_out", (PyCFunction)ResamplerObj_execute_ctrl_max_out,
+    METH_NOARGS,
+    "execute_ctrl_max_out() -> int\n\nMax output length execute_ctrl() can "
+    "produce for the current state.\nUse to size the ``out=`` buffer." },
   { "reset", (PyCFunction)ResamplerObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

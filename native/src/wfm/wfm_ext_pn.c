@@ -1,5 +1,5 @@
 /*
- * wfm_ext_pn.c — PN type for the wfmgen module.
+ * wfm_ext_pn.c — PN type for the wfm module.
  *
  * Included by wfm_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
@@ -9,7 +9,6 @@
 /* PNObject — wraps pn_state_t *       */
 /* ======================================================== */
 
-#include "dp_state_pyhelp.h"
 #include "pn/pn_core.h"
 
 typedef struct
@@ -17,6 +16,9 @@ typedef struct
   PyObject_HEAD pn_state_t *handle;
   uint8_t *_generate_buf;     /* pre-allocated output for generate */
   size_t   _generate_buf_cap; /* allocated capacity for generate */
+  void   **_generate_retired; /* gh-219 deferred free */
+  size_t   _generate_retired_n;
+  size_t   _generate_retired_cap;
 } PNObject;
 
 static void
@@ -25,6 +27,9 @@ PNObj_dealloc (PNObject *self)
   if (self->handle)
     pn_destroy (self->handle);
   free (self->_generate_buf);
+  for (size_t _i = 0; _i < self->_generate_retired_n; _i++)
+    free (self->_generate_retired[_i]);
+  free (self->_generate_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -40,6 +45,13 @@ PNObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
 {
+  /* Hand-patched param order: jm's regeneration sorts the string_enum
+   * param (lfsr) to the front of the positional list, breaking the
+   * manifest-declared poly/seed/length/lfsr order that PN(96, 1, 7)-style
+   * positional construction (and every existing caller/test) relies on.
+   * Defaults also hand-patched: the manifest's poly=96/seed=1/length=7
+   * predate the poly=0-means-auto-select-MLS fix (#191) and don't match
+   * shipped/tested behavior — poly omitted must equal poly=0. */
   static char       *kwlist[]   = { "poly", "seed", "length", "lfsr", NULL };
   unsigned long long poly_raw   = 0ULL;
   unsigned long long seed_raw   = 0ULL;
@@ -57,7 +69,7 @@ PNObj_init (PNObject *self, PyObject *args, PyObject *kwds)
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "lfsr must be \"galois\" or \"fibonacci\", got '%s'",
+                    "lfsr must be one of \"galois\", \"fibonacci\", got '%s'",
                     lfsr_str);
       return -1;
     }
@@ -105,28 +117,91 @@ PNObj_reset (PNObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-PNObj_generate (PNObject *self, PyObject *args)
+PNObj_generate_max_out (PNObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  Py_ssize_t n = 1;
-  if (!PyArg_ParseTuple (args, "|n", &n))
+  return PyLong_FromSize_t (pn_generate_max_out (self->handle));
+}
+
+static PyObject *
+PNObj_generate (PNObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
     return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = pn_generate_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t    n_out  = pn_generate (self->handle, (size_t)n,
+                                      (uint8_t *)PyArray_DATA (out_arr));
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_UINT8,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
   size_t _need = (size_t)n;
   if (!self->_generate_buf || self->_generate_buf_cap < _need)
     {
       size_t _max = pn_generate_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
-      uint8_t *_tmp = realloc (self->_generate_buf, _max * sizeof (uint8_t));
+      if (self->_generate_buf
+          && self->_generate_retired_n == self->_generate_retired_cap)
+        {
+          size_t _rcap = self->_generate_retired_cap
+                             ? self->_generate_retired_cap * 2
+                             : 4;
+          void **_rt
+              = realloc (self->_generate_retired, _rcap * sizeof (void *));
+          if (!_rt)
+            {
+              PyErr_NoMemory ();
+              return NULL;
+            }
+          self->_generate_retired     = _rt;
+          self->_generate_retired_cap = _rcap;
+        }
+      uint8_t *_tmp = malloc (_max * sizeof (uint8_t));
       if (!_tmp)
         {
           PyErr_NoMemory ();
           return NULL;
         }
+      if (self->_generate_buf)
+        self->_generate_retired[self->_generate_retired_n++]
+            = self->_generate_buf;
       self->_generate_buf     = _tmp;
       self->_generate_buf_cap = _max;
     }
@@ -139,6 +214,59 @@ PNObj_generate (PNObject *self, PyObject *args)
   PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
   Py_INCREF (self);
   return arr;
+}
+
+static PyObject *
+PNObj_state_bytes (PNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromSize_t (pn_state_bytes (self->handle));
+}
+
+static PyObject *
+PNObj_get_state (PNObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  size_t    _n = pn_state_bytes (self->handle);
+  PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
+  if (!_b)
+    return NULL;
+  pn_get_state (self->handle, PyBytes_AS_STRING (_b));
+  return _b;
+}
+
+static PyObject *
+PNObj_set_state (PNObject *self, PyObject *arg)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!PyBytes_Check (arg))
+    {
+      PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
+      return NULL;
+    }
+  if ((size_t)PyBytes_GET_SIZE (arg) != pn_state_bytes (self->handle))
+    {
+      PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
+      return NULL;
+    }
+  if (pn_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -171,40 +299,43 @@ PNObj_exit (PNObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-/* serializable (gh-400): the standard state triplet, generated by the
- * shared macro (see dp_state_pyhelp.h) — byte-identical to jm's output.
- * The matching PyMethodDef rows are below. */
-DP_PY_STATE_METHODS (PNObj, PNObject, self->handle, pn)
+static PyMethodDef PNObj_methods[] = {
+  { "reset", (PyCFunction)PNObj_reset, METH_NOARGS,
+    "Reset state to post-create defaults." },
 
-static PyMethodDef PNObj_methods[]
-    = { { "reset", (PyCFunction)PNObj_reset, METH_NOARGS,
-          "Reset state to post-create defaults." },
-
-        { "generate", (PyCFunction)PNObj_generate, METH_VARARGS,
-          "generate(n=1) -> ndarray\n"
-          "\n"
-          "Zero-copy view into pre-allocated output buffer.\n"
-          "\n"
-          "    >>> import numpy as np\n"
-          "    >>> from doppler import PN\n"
-          "    >>> obj = PN(96, 1, 7)\n"
-          "    >>> y = obj.generate(4)\n"
-          "    >>> y.dtype\n"
-          "    dtype('uint8')\n" },
-        { "state_bytes", (PyCFunction)PNObj_state_bytes, METH_NOARGS,
-          "Serialized state size in bytes." },
-        { "get_state", (PyCFunction)PNObj_get_state, METH_NOARGS,
-          "Serialize the LFSR register to bytes." },
-        { "set_state", (PyCFunction)PNObj_set_state, METH_O,
-          "Restore the LFSR register from a get_state() blob." },
-        { "destroy", (PyCFunction)PNObj_destroy, METH_NOARGS,
-          "Release resources." },
-        { "__enter__", (PyCFunction)PNObj_enter, METH_NOARGS, NULL },
-        { "__exit__", (PyCFunction)PNObj_exit, METH_VARARGS, NULL },
-        { NULL } };
+  { "generate", (PyCFunction)PNObj_generate, METH_VARARGS | METH_KEYWORDS,
+    "generate(n=1) -> ndarray\n"
+    "\n"
+    "Generate ``n`` chips into ``out`` and advance the LFSR by ``n`` "
+    "positions.  Each element of ``out`` is 0 or 1.  Requesting more than one "
+    "MLS period is valid — the sequence simply wraps around.  The Python "
+    "binding returns a zero-copy NumPy uint8 view over a pre-allocated "
+    "buffer; copy the result before calling generate again if you need a "
+    "snapshot.\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import PN\n"
+    "    >>> obj = PN(\"galois\", 96, 1, 7)\n"
+    "    >>> y = obj.generate(4)\n"
+    "    >>> y.dtype\n"
+    "    dtype('uint8')\n" },
+  { "generate_max_out", (PyCFunction)PNObj_generate_max_out, METH_NOARGS,
+    "generate_max_out() -> int\n\nMax output length generate() can produce "
+    "for the current state.\nUse to size the ``out=`` buffer." },
+  { "state_bytes", (PyCFunction)PNObj_state_bytes, METH_NOARGS,
+    "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)PNObj_get_state, METH_NOARGS,
+    "Serialize the engine's mutable state to bytes." },
+  { "set_state", (PyCFunction)PNObj_set_state, METH_O,
+    "Restore mutable state from a get_state() blob." },
+  { "destroy", (PyCFunction)PNObj_destroy, METH_NOARGS, "Release resources." },
+  { "__enter__", (PyCFunction)PNObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)PNObj_exit, METH_VARARGS, NULL },
+  { NULL }
+};
 
 static PyTypeObject PNObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfmgen.PN",
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "wfm.PN",
   .tp_basicsize                           = sizeof (PNObject),
   .tp_dealloc                             = (destructor)PNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,

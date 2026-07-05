@@ -190,13 +190,22 @@ class LO:
 
         """
 
-    def steps_ctrl(self, ctrl: NDArray[np.float32]) -> NDArray[np.complex64]:
+    def steps_ctrl(
+        self, ctrl: NDArray[np.float32], out: NDArray[np.complex64] | None = ...
+    ) -> NDArray[np.complex64]:
         """Generate CF32 phasors with per-sample FM deviation. For each sample i, `ctrl[i]`'s fractional part is converted to a delta phase-increment (delta = floor(frac(`ctrl[i]`) × 2^32)) that is added on top of the base phase_inc for that one step only.  The base norm_freq and phase_inc are NOT modified; the deviation is transient per sample, making this the natural API for FM synthesis and frequency-hopping.  Output length equals ctrl_len.  Returns ctrl_len.
+
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see steps_ctrl_max_out() to size an out= buffer for
+        an independent, alias-free result).
 
         Parameters
         ----------
         ctrl : NDArray[np.float32]
             Float32 array of per-sample normalised-frequency deviations.  Only the fractional part of each element contributes.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least
+            max(steps_ctrl_max_out(), len(ctrl)) elements.
 
         Returns
         -------
@@ -218,6 +227,9 @@ class LO:
         [1.0, 1.0, 1.0, 1.0]
 
         """
+
+    def steps_ctrl_max_out(self) -> int:
+        """Max output length steps_ctrl() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

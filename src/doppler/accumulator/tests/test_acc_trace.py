@@ -63,3 +63,18 @@ def test_context_manager():
     with AccTrace(n=4, mode="mean") as a:
         a.accumulate(np.ones(4, dtype=np.float32))
         assert a.value() is not None
+
+
+def test_value_out_writes_into_callers_buffer():
+    a = AccTrace(n=4, mode="mean")
+    a.accumulate(np.ones(4, dtype=np.float32))
+    out = np.zeros(max(a.value_max_out(), a.n), dtype=np.float32)
+    y = a.value(out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_value_out_undersized_raises():
+    a = AccTrace(n=4, mode="mean")
+    a.accumulate(np.ones(4, dtype=np.float32))
+    with pytest.raises(ValueError):
+        a.value(out=np.zeros(1, dtype=np.float32))

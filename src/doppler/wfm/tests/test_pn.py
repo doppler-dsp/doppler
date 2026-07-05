@@ -119,3 +119,16 @@ def test_default_poly_is_maximal_length():
     assert int(chips_zero.sum()) == (1 << (n - 1)), "poly=0 not maximal"
     assert np.array_equal(chips_omitted, chips_explicit)
     assert np.array_equal(chips_zero, chips_explicit)
+
+
+def test_generate_out_writes_into_callers_buffer():
+    p = PN(96, 1, 7)
+    out = np.zeros(max(p.generate_max_out(), 100), dtype=np.uint8)
+    y = p.generate(100, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_generate_out_undersized_raises():
+    p = PN(96, 1, 7)
+    with pytest.raises(ValueError):
+        p.generate(100, out=np.zeros(1, dtype=np.uint8))

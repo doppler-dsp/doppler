@@ -116,3 +116,8 @@ field = true
 name = "est_snr_db"
 type = "double"
 field = true
+
+[[burst_demod.properties]]
+name = "payload_len"
+type = "size_t"
+field = true

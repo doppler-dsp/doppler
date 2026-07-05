@@ -447,6 +447,10 @@ class BurstDemod:
     def est_snr_db(self) -> float:
         """Est snr db."""
 
+    @property
+    def payload_len(self) -> int:
+        """Payload len."""
+
     def destroy(self) -> None:
         """Release C resources immediately."""
 

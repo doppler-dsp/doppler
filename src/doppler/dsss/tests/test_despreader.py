@@ -155,3 +155,35 @@ def test_context_manager_and_destroy():
     d.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         d.steps(np.zeros(16, np.complex64))
+
+
+def test_steps_out_writes_into_callers_buffer():
+    x = np.random.default_rng(0).standard_normal(64).astype(np.complex64)
+    d = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    out = np.zeros(len(x), dtype=np.complex64)
+    y = d.steps(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    x = np.zeros(64, dtype=np.complex64)
+    d = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    out = np.zeros(1, dtype=np.complex64)
+    with pytest.raises(ValueError):
+        d.steps(x, out=out)
+
+
+def test_bits_out_writes_into_callers_buffer():
+    x = np.random.default_rng(0).standard_normal(64).astype(np.complex64)
+    d = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    out = np.zeros(len(x), dtype=np.uint8)
+    y = d.bits(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_bits_out_undersized_raises():
+    x = np.zeros(64, dtype=np.complex64)
+    d = Despreader(np.ones(4, np.uint8), sf=4, sps=4)
+    out = np.zeros(1, dtype=np.uint8)
+    with pytest.raises(ValueError):
+        d.bits(x, out=out)

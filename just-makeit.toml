@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.25.1"
+jm_version = "0.26.0"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -16,7 +16,18 @@ schema = "7"
 c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # measure.pyi is now jm-generated: the analyze() methods use single=true (gh-244),
 # so jm emits the PyStructSequence binding + the stub itself — no hand-maintenance.
-status_allow = ["zensical.toml"]
+# dsss.pyi/analyzer.pyi are hand-maintained for despreader.steps/bits,
+# burst_demod.demod, specan.execute: jm's stub aggregator didn't reconcile
+# out=/<name>_max_out() for these has_params-single-array-param methods even
+# after their sacred fragments freshly regenerated with the new binding (a
+# separate, pre-existing jm gap from the has_params predicate fixed in
+# gh-219's follow-up — the .c binding is correct, only the .pyi stub lagged).
+# Restore this hand-fix after every `jm apply` until that's fixed upstream.
+status_allow = [
+    "zensical.toml",
+    "src/doppler/dsss/dsss.pyi",
+    "src/doppler/analyzer/analyzer.pyi",
+]
 
 # Benchmark only the 64k block (jm-gh-390). doppler dropped the small-block
 # (_1k) bench suite library-wide in #234 — 1k blocks are dominated by call

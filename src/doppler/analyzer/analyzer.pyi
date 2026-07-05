@@ -39,7 +39,9 @@ class Specan:
     """
     def __init__(self, fs: float, span: float, rbw: float, src_center: float = ..., center: float = ..., offset_db: float = ..., full_scale: float = ..., bits: int = ..., window: Literal["hann", "kaiser"] = "kaiser", navg: int = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.float32]:
+    def execute(
+        self, x: NDArray[np.complex64], out: NDArray[np.float32] | None = ...
+    ) -> NDArray[np.float32]:
         """Mix, decimate, average; return one DC-centred dB display frame, or None.
 
         Feeds x through the Ddc, buffers the decimated output, and once `n·navg`
@@ -48,10 +50,17 @@ class Specan:
         ref_db). Returns 0 (writing nothing) until a frame is ready — the
         binding maps that to Python ``None``.
 
+        Without out=, the returned array is a view into a buffer reused on
+        the next call (see execute_max_out() to size an out= buffer for an
+        independent, alias-free result).
+
         Parameters
         ----------
         x : NDArray[np.complex64]
             cf32 input block (C-only; the binding passes it).
+        out : NDArray[np.float32], optional
+            Caller-provided output buffer, at least max(execute_max_out(),
+            len(x)) elements.
 
         Returns
         -------
@@ -70,6 +79,9 @@ class Specan:
         ((801,), dtype('float32'))
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state. Use to size the ``out=`` buffer."""
 
     def retune(self, center: float) -> None:
         """Move the display center frequency (seamless LO retune; no rebuild).

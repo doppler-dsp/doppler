@@ -103,4 +103,5 @@ awgn_destroy(g);
 
 See [`doppler.source.AWGN`](../api/python-nco.md#awgn-additive-white-gaussian-noise)
 for the Python API reference, and [`examples/c`](../examples/c.md#awgn-additive-white-gaussian-noise)
-for the full C examples.
+for the full C examples. `wfmgen`'s per-segment noise floors are built on this
+same primitive — see [Guide: Scenes → Mixing sources](../guide/wfmgen/scenes.md#mixing-sources-sum-and-sequencing-them-add).

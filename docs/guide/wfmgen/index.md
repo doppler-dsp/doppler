@@ -1,11 +1,23 @@
 # Waveform Generator — `wfmgen`
 
 doppler ships a C-first **waveform generator**: one declarative synth engine
-(every algorithm in C, exactly once), exposed two ways —
+(every algorithm in C, exactly once) that goes well past single waveforms —
 
-- **`wfmgen`** — the one command-line tool. A single waveform *or* a
-    multi-segment scene, the **raw / CSV / BLUE / SigMF** containers, and
-    streaming to **NATS**. (A one-segment run is the simple single-waveform case.)
+- **Scenes** — multi-segment specs, in JSON or Python, that mix sources,
+    sequence them in time, and can **randomize** a parameter (frequency, SNR,
+    gap length) per repeat instead of holding it fixed.
+- **Self-describing containers & streaming** — raw / CSV / **BLUE type-1000** /
+    **SigMF**, plus real-time-paced streaming to **NATS**.
+- **`Plan`** — a bit-exact sweep cache: prepare a scene once, then re-render it
+    at any SNR/gain/phase/seed as a cheap re-weighted sum instead of
+    re-synthesizing the DSP — the engine behind fast Monte Carlo and BER/Pd
+    curves.
+
+All of it is **exposed two ways**, both driving the same C engine to
+byte-identical output:
+
+- **`wfmgen`** — the one command-line tool. (A one-segment run is the simple
+    single-waveform case.)
 - **`doppler.wfm`** — the same engine as a Python API, one import path:
     `from doppler.wfm import …`.
 
@@ -36,7 +48,8 @@ ______________________________________________________________________
 | [Scenes](scenes.md)              | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
 | [Streaming](streaming.md)        | Real-time pacing and streaming to NATS.                                        |
 | [Python API](python.md)          | The `Synth` class, the composer builders, reading captures back.               |
-| [Recipes](recipes.md)            | Copy-paste one-liners and the three faces of `wfmgen`.                         |
+| [Prepare Once, Sweep Many (Plan)](plan.md) | Bit-exact sweep cache — fast Monte Carlo / BER curves, no re-synthesis. |
+| [Recipes](recipes.md)            | Copy-paste one-liners and how `wfmgen` is packaged.                            |
 
 ______________________________________________________________________
 

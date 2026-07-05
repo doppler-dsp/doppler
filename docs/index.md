@@ -20,11 +20,12 @@
 </p>
 
 doppler is a C99 DSP library: NCO, FIR filter, FFT, polyphase resampler,
-DDC, and NATS-based signal streaming. Python and Rust wrap the same C core —
-no second implementation, no divergence, full SIMD throughput from any
-language.
+DDC, NATS-based signal streaming, and a scenario-driven waveform generator
+(`wfmgen`) with byte-identical CLI/Python/C parity. Python and Rust wrap the
+same C core — no second implementation, no divergence, full SIMD throughput
+from any language.
 
-**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Examples](examples/index.md) · [Guides](guide/wfmgen/index.md)
+**Navigate** — [Quick Start](quickstart.md) · [Architecture](architecture.md) · [Examples](examples/index.md) · [Guides](guide/index.md) · [Waveform Generator](guide/wfmgen/index.md)
 
 **API Reference** — [C API](c-api/files.md) · [Python: FFT](api/python-fft.md) · [Python: Spectral](api/python-spectral.md) · [Python: Waveform](api/python-wfmgen.md) · [Python: Resample](api/python-resample.md) · [Python: Filter](api/python-filter.md) · [Python: Measurement](api/python-measure.md) · [Python: DDC](api/python-ddc.md) · [Python: Accumulator](api/python-accumulator.md)
 
@@ -54,6 +55,15 @@ import numpy as np
 
 x = np.random.randn(1024).astype(np.complex64)
 X = FFT(1024).execute_cf32(x)
+```
+
+**Waveform**
+
+```python
+from doppler.wfm import Synth
+
+synth = Synth(type="qpsk", fs=1e6, snr=12.0, snr_mode="esno", sps=8, seed=1)
+iq = synth.steps(4096)   # complex64 ndarray
 ```
 
 **C**

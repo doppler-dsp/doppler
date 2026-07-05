@@ -47,4 +47,5 @@ python src/doppler/examples/wfm_write_demo.py   # → burst.blue + wfm_write_dem
 ```
 
 For four containers side by side — raw, CSV, BLUE, and SigMF — see
-[Waveform I/O](wfm-io.md).
+[Waveform I/O](wfm-io.md). For the flag/parameter reference behind `Writer`
+and `Reader`, see [Guide: Output & containers](../guide/wfmgen/output.md).

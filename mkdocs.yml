@@ -139,12 +139,12 @@ nav:
       - Sources & Waveforms:
           - Waveform Generator: gallery/wfmgen.md
           - "Symbols: Bring Your Own Constellation": gallery/symbols.md
-          - Waveform Scenes: gallery/wfm-composition.md
+          - Composing a Scene: gallery/wfm-composition.md
           - Waveform I/O: gallery/wfm-io.md
           - Waveform JSON Round-Trip: gallery/wfm-json.md
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md
-          - "Plan: Prepare Once, Sweep Many": gallery/plan.md
+          - "Prepare Once, Sweep Many (Plan)": gallery/plan.md
           - AWGN: gallery/awgn.md
           - LO: examples/python-lo.md
           - NCO: examples/python-nco.md
@@ -225,17 +225,6 @@ nav:
   - Benchmarks: benchmarks.md
   - Guides:
       - Guides: guide/index.md
-      - Waveform Generator (wfmgen):
-          - Waveform Generator (wfmgen): guide/wfmgen/index.md
-          - Concepts: guide/wfmgen/concepts.md
-          - Waveforms: guide/wfmgen/waveforms.md
-          - Levels & SNR: guide/wfmgen/levels.md
-          - Output & Containers: guide/wfmgen/output.md
-          - Scenes: guide/wfmgen/scenes.md
-          - Streaming: guide/wfmgen/streaming.md
-          - Python API: guide/wfmgen/python.md
-          - Parameter Sweeps (Plan): guide/wfmgen/plan.md
-          - Recipes: guide/wfmgen/recipes.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
@@ -255,6 +244,17 @@ nav:
       - Waveform Amplitude & Composition: design/wfmgen-composition.md
       - Continuously Variable Resampler: design/RESAMPLER.md
       - Acquisition Kernel: design/acq-fn.md
+  - Waveform Generator (wfmgen):
+      - Waveform Generator (wfmgen): guide/wfmgen/index.md
+      - Concepts: guide/wfmgen/concepts.md
+      - Waveforms: guide/wfmgen/waveforms.md
+      - Levels & SNR: guide/wfmgen/levels.md
+      - Output & Containers: guide/wfmgen/output.md
+      - Scenes: guide/wfmgen/scenes.md
+      - Streaming: guide/wfmgen/streaming.md
+      - Python API: guide/wfmgen/python.md
+      - Prepare Once, Sweep Many (Plan): guide/wfmgen/plan.md
+      - Recipes: guide/wfmgen/recipes.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - CLI & Pipelines: cli/index.md

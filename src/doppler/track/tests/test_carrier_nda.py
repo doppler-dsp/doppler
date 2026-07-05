@@ -172,3 +172,17 @@ def test_output_survives_buffer_grow():
     snapshot = y1.copy()
     c.steps(x[:5000])  # forces the output buffer to grow
     assert np.array_equal(y1, snapshot)
+
+
+def test_steps_out_writes_into_callers_buffer():
+    c = CarrierNda(m=4)
+    x = _unmod(0.001, 1000)
+    out = np.zeros(max(c.steps_max_out(), len(x)), dtype=np.complex64)
+    y = c.steps(x, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    c = CarrierNda(m=4)
+    with pytest.raises(ValueError):
+        c.steps(_unmod(0.001, 1000), out=np.zeros(1, dtype=np.complex64))

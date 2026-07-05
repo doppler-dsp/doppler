@@ -106,3 +106,18 @@ def test_locks_under_noise():
     dec = np.where(sym[tail:].real >= 0, 1, -1)
     err = int(np.sum(dec != bits[tail:]))
     assert min(err, len(dec) - err) == 0
+
+
+def test_steps_out_writes_into_callers_buffer():
+    rx, _ = _bpsk_with_carrier(50, 0.0)
+    c = Costas(0.03, 0.707, 0.0, TSAMPS)
+    out = np.zeros(max(c.steps_max_out(), len(rx)), dtype=np.complex64)
+    y = c.steps(rx, out=out)
+    assert np.shares_memory(y, out)
+
+
+def test_steps_out_undersized_raises():
+    rx, _ = _bpsk_with_carrier(50, 0.0)
+    c = Costas(0.03, 0.707, 0.0, TSAMPS)
+    with pytest.raises(ValueError):
+        c.steps(rx, out=np.zeros(1, dtype=np.complex64))

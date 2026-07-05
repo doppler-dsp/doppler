@@ -220,7 +220,7 @@ nav:
   - Guides:
       - Guides: guide/index.md
       - Waveform Generator (wfmgen):
-          - Overview: guide/wfmgen/index.md
+          - Waveform Generator (wfmgen): guide/wfmgen/index.md
           - Concepts: guide/wfmgen/concepts.md
           - Waveforms: guide/wfmgen/waveforms.md
           - Levels & SNR: guide/wfmgen/levels.md

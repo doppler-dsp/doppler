@@ -5,8 +5,11 @@
 blocks in `objects/*.toml` into an explicit hierarchy, so that naming a new
 class — or renaming an existing one — follows from *where it sits*, not from
 whatever felt right at the time. Concrete rename proposals are included; none
-have landed yet except the one that motivated this doc
-([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader)).
+have landed in code yet, including the one that motivated this doc
+([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader))
+— it is decided, tracked as
+[doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357),
+but not yet implemented.
 
 ______________________________________________________________________
 
@@ -55,16 +58,16 @@ are a packaging/build concern — see [`repository-map.md`](../dev/repository-ma
 — not a naming one, though closer alignment between the two is a nice side
 effect where it's cheap).
 
-| #   | Layer                                | What it does                                                          | Current members                                                                                |
-| --- | ------------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                            |
-| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HBDecimQ15`, `Farrow`, `DDC` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolyPhaseEstimator`        |
-| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`       |
-| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                    |
-| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                     |
-| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                              |
-| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                   |
+| #   | Layer                                | What it does                                                          | Current members                                                                                                 |
+| --- | ------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                             |
+| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HBDecimQ15`, `Farrow`, `DDC`, `MovingAverage` |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolyPhaseEstimator`                         |
+| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                        |
+| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                                     |
+| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                      |
+| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                               |
+| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                    |
 
 ## 3. The naming axis per layer
 
@@ -198,8 +201,8 @@ completeness, not proposed for action:
 
 Everything else checked (`FFT`/`FFT2D`, `FIR`, `CIC`, `AWGN`, `DDC`, the `cvt`
 and `Acc*` families, the `Resampler`/`RateConverter`/`HalfbandDecimator`
-family, `Specan`, `SymbolSync`, the measurement suite, `DelayCf64`) held up
-against its layer's axis with no changes suggested.
+family, `Specan`, `SymbolSync`, the measurement suite, `DelayCf64`,
+`MovingAverage`) held up against its layer's axis with no changes suggested.
 
 **Out of scope for this survey** (not `class_name`-declared objects in
 `objects/*.toml`): the `wfm_compose` classes (`Synth`, `Segment`, `Timeline`,

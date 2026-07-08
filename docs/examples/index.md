@@ -27,7 +27,7 @@ the end-to-end ZMQ pipeline is on the [Streaming](streaming.md) page.
 - [CIC Decimation](../gallery/cic.md) — wideband IQ → CIC → narrowband slice; ~90 dB alias rejection.
 - [RateConverter](../gallery/rate-converter.md) — automatic CIC / halfband / polyphase cascade for any rate ratio.
 - [Farrow Interpolator](../gallery/farrow.md) — fractional-delay resampling.
-- [HBDecimQ15](../gallery/hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16.
+- [HalfbandDecimatorQ15](../gallery/hbdecim_q15.md) — fixed-point Q15 halfband 2:1 decimator for interleaved IQ int16.
 
 ## Down-Conversion (DDC)
 

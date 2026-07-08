@@ -239,6 +239,28 @@ for block in iq_stream:              # CF32 arrays, any length
 
 ______________________________________________________________________
 
+## `HalfbandDecimatorQ15` — fixed-point (Q15) variant
+
+`HalfbandDecimatorQ15` is a fixed-point halfband 2:1 decimator for
+interleaved-I/Q `int16` streams — the integer-pipeline counterpart to
+`HalfbandDecimator`. The FIR branch taps are supplied as float and converted
+internally to Q15 (with the ×0.5 polyphase rate scaling). The halfband
+prototype is sparse — every other tap is zero — so you supply only the
+**non-zero** branch taps, not the full prototype. See the
+[HalfbandDecimatorQ15 example](../gallery/hbdecim_q15.md) for the
+passband/stopband response.
+
+```python
+import numpy as np
+from doppler.resample import HalfbandDecimatorQ15
+
+# non-zero branch taps of a halfband prototype (float; converted to Q15)
+taps = np.array([-0.03, 0.28, 0.5, 0.28, -0.03], np.float32)
+dec = HalfbandDecimatorQ15(taps)
+x = (np.random.randn(4096) * 8192).astype(np.int16)   # interleaved I/Q
+y = dec.execute(x)                                     # int16, half the length
+```
+
 ______________________________________________________________________
 
 ## `CIC` — cascaded integrator-comb decimator
@@ -320,12 +342,14 @@ ntaps = kaiser_num_taps(4096, 60.0, 0.4, 0.6)  # taps for a 0.4/0.6 transition
 ______________________________________________________________________
 
 ::: doppler.resample
+
 options:
 members:
 \- RateConverter
 \- rate_convert
 \- Resampler
 \- HalfbandDecimator
+\- HalfbandDecimatorQ15
 \- HalfbandDecimatorDp
 \- HalfbandDecimatorR2C
 \- CIC

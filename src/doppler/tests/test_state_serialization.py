@@ -45,11 +45,12 @@ from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
 from doppler.dsss import BurstDespreader, Despreader
-from doppler.filter import FIR, HBDecimQ15, MovingAverage
+from doppler.filter import FIR, MovingAverage
 from doppler.resample import (
     CIC,
     Farrow,
     HalfbandDecimator,
+    HalfbandDecimatorQ15,
     RateConverter,
     Resampler,
 )
@@ -252,8 +253,8 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccTrace(n=8, mode="mean", alpha=0.1),
         _acctrace_feed,
     ),
-    "HBDecimQ15": (
-        lambda: HBDecimQ15(_HB_TAPS),
+    "HalfbandDecimatorQ15": (
+        lambda: HalfbandDecimatorQ15(_HB_TAPS),
         lambda o, seg: np.array(
             o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
         ),

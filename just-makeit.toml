@@ -475,7 +475,7 @@ objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32
 objects = ["acc_f32", "acc_cf64", "acc_trace"]
 
 [module.filter]
-objects = ["fir", "hbdecim_q15", "boxcar"]
+objects = ["fir", "boxcar"]
 
 [module.source]
 objects = ["nco", "lo", "awgn"]
@@ -1178,7 +1178,7 @@ objects = ["specan"]
 extra_link_libs = ["m"]
 
 [module.resample]
-objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow"]
+objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
 # Composed cores reach the resample .so via per-object depends_on link=true
 # (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c

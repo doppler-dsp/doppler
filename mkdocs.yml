@@ -152,7 +152,7 @@ nav:
           - CIC Decimation: gallery/cic.md
           - RateConverter: gallery/rate-converter.md
           - Farrow Interpolator: gallery/farrow.md
-          - "HBDecimQ15: Fixed-Point Halfband": gallery/hbdecim_q15.md
+          - "HalfbandDecimatorQ15: Fixed-Point Halfband": gallery/hbdecim_q15.md
       - Down-Conversion (DDC):
           - Functional DDCR: gallery/ddc-fn.md
       - Detection & Acquisition:

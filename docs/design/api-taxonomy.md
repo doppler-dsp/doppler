@@ -5,8 +5,11 @@
 blocks in `objects/*.toml` into an explicit hierarchy, so that naming a new
 class — or renaming an existing one — follows from *where it sits*, not from
 whatever felt right at the time. Concrete rename proposals are included; none
-have landed yet except the one that motivated this doc
-([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader)).
+have landed in code yet, including the one that motivated this doc
+([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader))
+— it is decided, tracked as
+[doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357),
+but not yet implemented.
 
 ______________________________________________________________________
 
@@ -55,16 +58,16 @@ are a packaging/build concern — see [`repository-map.md`](../dev/repository-ma
 — not a naming one, though closer alignment between the two is a nice side
 effect where it's cheap).
 
-| #   | Layer                                | What it does                                                          | Current members                                                                                          |
-| --- | ------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                      |
-| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolyPhaseEstimator`                  |
-| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                 |
-| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                              |
-| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                               |
-| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                        |
-| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                             |
+| #   | Layer                                | What it does                                                          | Current members                                                                                                           |
+| --- | ------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                                       |
+| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
+| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                                  |
+| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                                               |
+| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
+| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                                         |
+| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                              |
 
 ## 3. The naming axis per layer
 
@@ -74,7 +77,7 @@ concentrated in layers 3–5, which never had one written down:
 | Layer             | Axis                                                                      | Holds today?                 |
 | ----------------- | ------------------------------------------------------------------------- | ---------------------------- |
 | 1 Sources         | mechanism (`NCO`, `PN`)                                                   | yes                          |
-| 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, modulo §4.2 below       |
+| 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed       |
 | 3 Detection       | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed       |
 | 4 Tracking loops  | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6            |
 | 5 DSSS composites | framing (continuous/burst) + role (despread/demod)                        | **now yes**, once §4.1 lands |
@@ -108,7 +111,9 @@ generically.
 despreading) should also move to sit next to both, or stays separate as a
 higher-scope object built *on* `BurstDespreader`. Flagging, not proposing.
 
-### 4.2 `dsss.PolyPhaseEstimator` (ppe) → `PolynomialPhaseEstimator` or `ChirpEstimator`
+### 4.2 `dsss.PolyPhaseEstimator` (ppe) → `PolynomialPhaseEstimator`
+
+**Landed:** [doppler-dsp/doppler#358](https://github.com/doppler-dsp/doppler/issues/358).
 
 Does polynomial-phase (frequency + chirp-rate) estimation via a 2-D
 matched-filter/dechirp search — nothing to do with polyphase filter-bank
@@ -119,14 +124,14 @@ mean the classic decimation/interpolation branch structure — layer 2's axis.
 Compressing "polynomial-phase" into the visually/verbally identical
 "PolyPhase" breaks that axis for anyone skimming the API.
 
-| From                 | To                                             |
-| -------------------- | ---------------------------------------------- |
-| `PolyPhaseEstimator` | `PolynomialPhaseEstimator` or `ChirpEstimator` |
+| From                 | To                         |
+| -------------------- | -------------------------- |
+| `PolyPhaseEstimator` | `PolynomialPhaseEstimator` |
 
-No preference stated yet between the two — `ChirpEstimator` is shorter and
-matches how the algorithm is usually described in prose;
-`PolynomialPhaseEstimator` is more literal and avoids implying a specific
-chirp *waveform* rather than the general polynomial-phase model.
+Picked `PolynomialPhaseEstimator` over the shorter `ChirpEstimator`: the
+header's own brief already calls it "a polynomial-phase estimator," and it
+degenerates to pure-Doppler (no chirp at all) when `max_rate = 0` — "Chirp"
+would misleadingly imply a specific waveform the object doesn't require.
 
 ### 4.3 `filter.HBDecimQ15` → `resample.HalfbandDecimatorQ15`
 
@@ -200,8 +205,8 @@ completeness, not proposed for action:
 
 Everything else checked (`FFT`/`FFT2D`, `FIR`, `CIC`, `AWGN`, `DDC`, the `cvt`
 and `Acc*` families, the `Resampler`/`RateConverter`/`HalfbandDecimator`
-family, `Specan`, `SymbolSync`, the measurement suite, `DelayCf64`) held up
-against its layer's axis with no changes suggested.
+family, `Specan`, `SymbolSync`, the measurement suite, `DelayCf64`,
+`MovingAverage`) held up against its layer's axis with no changes suggested.
 
 **Out of scope for this survey** (not `class_name`-declared objects in
 `objects/*.toml`): the `wfm_compose` classes (`Synth`, `Segment`, `Timeline`,

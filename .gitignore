@@ -12,6 +12,7 @@ src/doppler/wfm/_bin/
 .venv/
 compile_commands.json
 ffi/rust/target/
+/consumer.cf32
 
 # Generated documentation output
 docs/doxygen/

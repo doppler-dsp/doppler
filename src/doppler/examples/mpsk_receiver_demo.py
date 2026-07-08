@@ -144,7 +144,7 @@ def main(out_path: str = "mpsk_receiver_demo.png") -> None:
                 init_norm_freq=0.0005,
                 bn_carrier=0.005,
                 bn_timing=0.005,
-                auto_handover=1,
+                acq_to_track=1,
                 lock_thresh=0.3,
                 warmup_syms=300,
             )

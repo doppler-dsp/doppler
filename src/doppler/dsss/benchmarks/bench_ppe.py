@@ -1,15 +1,15 @@
-"""Benchmark for PolyPhaseEstimator.
+"""Benchmark for PolynomialPhaseEstimator.
 
 Run: pytest src/doppler/dsss/benchmarks/bench_ppe.py --benchmark-only
 """
 
 import pytest
 
-from doppler.dsss import PolyPhaseEstimator
+from doppler.dsss import PolynomialPhaseEstimator
 
 BLOCK_64K = 65_536
 
 
 @pytest.fixture
 def obj():
-    return PolyPhaseEstimator(4096, 0)
+    return PolynomialPhaseEstimator(4096, 0)

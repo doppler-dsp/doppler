@@ -45,8 +45,6 @@ extern "C" {
 
 #include "fir/fir_core.h"
 
-#include "hbdecim_q15/hbdecim_q15_core.h"
-
 #include "boxcar/boxcar_core.h"
 
 #include "nco/nco_core.h"
@@ -95,6 +93,8 @@ extern "C" {
 
 #include "farrow/farrow_core.h"
 
+#include "hbdecim_q15/hbdecim_q15_core.h"
+
 #include "agc/agc_core.h"
 
 #include "acc_q15/acc_q15_core.h"
@@ -107,8 +107,6 @@ extern "C" {
 
 #include "dll/dll_core.h"
 
-#include "channel/channel_core.h"
-
 #include "symsync/symsync_core.h"
 
 #include "carrier_mpsk/carrier_mpsk_core.h"
@@ -118,6 +116,8 @@ extern "C" {
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
 #include "despreader/despreader_core.h"
+
+#include "burst_despreader/burst_despreader_core.h"
 
 #include "acq/acq_core.h"
 

@@ -433,5 +433,5 @@ ______________________________________________________________________
     conventions for the `cvt` module (Q15 ↔ float, UQ15, I16).
 - [ADC gallery walkthrough](../gallery/adc.md) — 3–8 bit quantisation noise
     visualised: time-domain staircase and 6 dB/bit noise-floor descent.
-- [HBDecimQ15 gallery walkthrough](../gallery/hbdecim_q15.md) — Q15 halfband
+- [HalfbandDecimatorQ15 gallery walkthrough](../gallery/hbdecim_q15.md) — Q15 halfband
     decimator: the `_mm256_madd_epi16` inner loop and symmetric-fold trick.

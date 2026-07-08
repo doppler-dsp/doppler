@@ -19,7 +19,7 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-class_name = "PolyPhaseEstimator"
+class_name = "PolynomialPhaseEstimator"
 depends_on = [{ name = "fft", link = true }, { name = "spectral", link = true }]
 
 [[ppe.init_params]]
@@ -39,7 +39,7 @@ arg_type = "float _Complex"
 return_type = "ppe_result_t"
 nogil = true
 single = true
-record_name = "PolyPhaseEstimate"
+record_name = "PolynomialPhaseEstimate"
 record_module = "doppler.dsss"
 result_fields = [{ name = "freq_norm", type = "double" }, { name = "rate_norm", type = "double" }, { name = "snr_db", type = "double" }]
 

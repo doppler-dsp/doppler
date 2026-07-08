@@ -10,7 +10,7 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, CIC, ciccompmf, kaiser_beta, kaiser_num_taps, RateConverter, Farrow  # noqa: E402
+from .resample import HalfbandDecimator, HalfbandDecimatorDp, HalfbandDecimatorR2C, Resampler, CIC, ciccompmf, kaiser_beta, kaiser_num_taps, RateConverter, Farrow, HalfbandDecimatorQ15  # noqa: E402
 from .cic_design import (  # noqa: E402
     cic_precision_bits,
     cic_alias_rejection,
@@ -213,4 +213,4 @@ def rate_convert(x, rate, rc=None):
     return rc.execute(x), rc
 
 
-__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "CIC", "ciccompmf", "kaiser_beta", "kaiser_num_taps", "RateConverter", "Farrow"]
+__all__ = ["HalfbandDecimator", "HalfbandDecimatorDp", "HalfbandDecimatorR2C", "Resampler", "CIC", "ciccompmf", "kaiser_beta", "kaiser_num_taps", "RateConverter", "Farrow", "HalfbandDecimatorQ15"]

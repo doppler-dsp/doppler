@@ -1,8 +1,8 @@
-"""channel_demo.py — a full GPS-style tracking channel, end to end.
+"""despreader_demo.py — a full continuous DSSS despreader, end to end.
 
 Builds a continuous DSSS-BPSK signal — a 127-chip PN code spreading BPSK data,
 with a residual carrier offset, a slow code Doppler, and AWGN — and runs
-:class:`doppler.track.Channel`, which composes a carrier loop
+:class:`doppler.dsss.Despreader`, which composes a carrier loop
 (:class:`~doppler.track.Costas`, FLL-assisted) and a code loop
 (:class:`~doppler.track.Dll`) on one shared per-sample integrate-and-dump. The
 carrier residual exceeds a bare PLL's pull-in, so the FLL assist is on.
@@ -15,7 +15,7 @@ Three views (saved to a PNG):
     by whether they match the transmitted bit (a global 180deg flip is
     don't-care). The recovered bit-error rate is annotated.
 
-Run:  python -m doppler.examples.channel_demo  [out.png]
+Run:  python -m doppler.examples.despreader_demo  [out.png]
 """
 
 from __future__ import annotations
@@ -24,11 +24,11 @@ import sys
 
 import numpy as np
 
-from doppler.track import Channel
+from doppler.dsss import Despreader
 
 SF, SPS = 127, 8
 TSAMPS = SF * SPS
-NPER = 1500  # code periods (= data symbols, nav_period=1)
+NPER = 1500  # code periods (= data symbols, periods_per_bit=1)
 F0 = 0.18 / TSAMPS  # residual carrier offset (FLL territory)
 CODE_DOPPLER = 5e-5  # code rate error
 SNR_DB = 8.0
@@ -53,7 +53,7 @@ def _signal(code, seed=0):
     return rx.astype(np.complex64), data
 
 
-def main(out_path="channel_demo.png"):
+def main(out_path="despreader_demo.png"):
     import matplotlib
 
     matplotlib.use("Agg")
@@ -61,7 +61,7 @@ def main(out_path="channel_demo.png"):
 
     code = np.random.default_rng(1).integers(0, 2, SF).astype(np.uint8)
     rx, data = _signal(code, seed=9)
-    ch = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
+    ch = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
 
     freq = np.empty(NPER)
     lock = np.empty(NPER)
@@ -89,7 +89,7 @@ def main(out_path="channel_demo.png"):
     a.plot(t, lock, color="#d62728", lw=1.0, label="lock metric")
     a.set_ylabel("millicycles/sample · lock")
     a.set_title(
-        f"Tracking channel (Costas+FLL + DLL): carrier residual "
+        f"Despreader (Costas+FLL + DLL): carrier residual "
         f"{F0 * TSAMPS:.2f} cyc/epoch, SNR {SNR_DB:.0f} dB",
         fontsize=10,
     )
@@ -128,4 +128,4 @@ def main(out_path="channel_demo.png"):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "channel_demo.png")
+    main(sys.argv[1] if len(sys.argv) > 1 else "despreader_demo.png")

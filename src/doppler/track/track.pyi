@@ -138,7 +138,7 @@ class Costas:
     """
     def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ..., bn_fll: float = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed Costas discriminator, and emit one complex prompt symbol per symbol.
 
         Parameters
@@ -151,6 +151,9 @@ class Costas:
         NDArray[np.complex64]
             Output.
         """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
@@ -230,7 +233,7 @@ class Dll:
     """
     def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_chip: float = ..., bn: float = ..., zeta: float = ..., spacing: float = ..., segments: int = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Correlate a cf32 block against the local code with early/prompt/late taps and steer the code NCO each code period on the non-coherent (sum|E|-sum|L|)/(sum|E|+sum|L|) discriminator. With segments=1 (default) this is a coherent full-epoch integrate-and-dump: one prompt symbol per period. With segments>1 each epoch is split into that many sub-epoch partial correlations: it emits that many partial prompts per period (a stream at ~segments samples/symbol when the symbol rate is near the code rate) and tracks the code non-coherently across the partials, which a data flip cannot collapse (robust to an asynchronous data-symbol clock). segments>1 is the streaming despreader: it removes the PN code and outputs samples. The non-coherent loop is carrier-blind, so it tracks with a residual carrier still on the input; carrier recovery (Costas) and symbol-timing recovery (SymbolSync) are downstream stages fed from the partial output. The output is an independent array per call (block-size invariant).
 
         Parameters
@@ -243,6 +246,9 @@ class Dll:
         NDArray[np.complex64]
             Output.
         """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the code phase/rate.
@@ -339,115 +345,6 @@ class Dll:
 
     def __exit__(self, *args: object) -> None: ...
 
-class Channel:
-    """Create a tracking channel (COPIES code).
-
-    Parameters
-    ----------
-    code : NDArray[np.uint8], default ...
-        code constructor parameter.
-    sps : int, default 4
-        sps constructor parameter.
-    init_norm_freq : float, default 0.0
-        init_norm_freq constructor parameter.
-    init_chip : float, default 0.0
-        init_chip constructor parameter.
-    bn_carrier : float, default 0.05
-        bn_carrier constructor parameter.
-    bn_code : float, default 0.005
-        bn_code constructor parameter.
-    bn_fll : float, default 0.0
-        bn_fll constructor parameter.
-    zeta : float, default 0.707
-        zeta constructor parameter.
-    spacing : float, default 0.5
-        spacing constructor parameter.
-    nav_period : int, default 1
-        nav_period constructor parameter.
-
-    """
-    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., nav_period: int = ...) -> None: ...
-
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Track carrier + code and despread a cf32 block: per sample wipe the carrier (Costas) and correlate early/prompt/late against the code (DLL), update both loops each code period, and emit one complex prompt symbol per period.
-
-        Parameters
-        ----------
-        x : NDArray[np.complex64]
-            Input.
-
-        Returns
-        -------
-        NDArray[np.complex64]
-            Output.
-        """
-
-    def bits(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
-        """Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: nav_period prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit.
-
-        Parameters
-        ----------
-        x : NDArray[np.complex64]
-            Input.
-
-        Returns
-        -------
-        NDArray[np.uint8]
-            Output.
-        """
-
-    def reset(self) -> None:
-        """Re-seed both loops to the create-time frequency/phase; preserve config.
-        """
-
-    def state_bytes(self) -> int:
-        """Serialized state size in bytes."""
-    def get_state(self) -> bytes:
-        """Serialize the engine's mutable state to bytes."""
-    def set_state(self, blob: bytes) -> None:
-        """Restore mutable state from a get_state() blob."""
-
-    @property
-    def norm_freq(self) -> float:
-        """Norm freq."""
-    @norm_freq.setter
-    def norm_freq(self, value: float) -> None: ...
-
-    @property
-    def code_phase(self) -> float:
-        """Code phase."""
-
-    @property
-    def code_rate(self) -> float:
-        """Code rate."""
-
-    @property
-    def lock_metric(self) -> float:
-        """Lock metric."""
-
-    @property
-    def bit_phase(self) -> int:
-        """Bit phase."""
-
-    @property
-    def bn_carrier(self) -> float:
-        """Bn carrier."""
-    @bn_carrier.setter
-    def bn_carrier(self, value: float) -> None: ...
-
-    @property
-    def bn_code(self) -> float:
-        """Bn code."""
-    @bn_code.setter
-    def bn_code(self, value: float) -> None: ...
-
-    def destroy(self) -> None:
-        """Release C resources immediately."""
-
-    def __enter__(self) -> "Channel": ...
-
-    def __exit__(self, *args: object) -> None: ...
-
 class SymbolSync:
     """SymbolSync component.
 
@@ -472,7 +369,7 @@ class SymbolSync:
     """
     def __init__(self, sps: int = ..., bn: float = ..., zeta: float = ..., order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Recover symbol timing from an oversampled cf32 baseband block: a Gardner timing-error detector drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant.
 
         Parameters
@@ -485,6 +382,9 @@ class SymbolSync:
         NDArray[np.complex64]
             Output.
         """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserve the timing estimate.
@@ -557,7 +457,7 @@ class CarrierMpsk:
     """
     def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., tsamps: int = ..., bn_fll: float = ..., m: int = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier, coherently integrate over each tsamps-sample symbol, run the decision-directed M-PSK discriminator (slice to the nearest constellation point, error Im(P*conj(ahat))/|P|), and emit one complex prompt symbol per symbol. The loop tracks a small residual carrier (bulk Doppler removed upstream); it locks to one of m phases, so resolve the M-fold ambiguity downstream (mpsk_diff_demap or a sync word). At m=2 this is exactly the BPSK Costas loop.
 
         Parameters
@@ -570,6 +470,9 @@ class CarrierMpsk:
         NDArray[np.complex64]
             Output.
         """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
     def configure(self, bn: float, zeta: float) -> None:
         """Recompute the loop gains for a new (bn, zeta); preserves the frequency/phase estimate.
@@ -658,7 +561,7 @@ class CarrierNda:
     """
     def __init__(self, bn: float = ..., zeta: float = ..., init_norm_freq: float = ..., sps: int = ..., n: int = ..., m: int = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """De-rotate a cf32 block with the integer-NCO carrier and return the de-rotated samples (one per input sample). Internally the loop runs a non-data-aided M-th-power discriminator on an I/Q arm integrate-and-dump at n dumps per symbol and steers the NCO, so it acquires the carrier with no symbol timing and no data present (it strips the M-PSK modulation by raising the arm sample to the Mth power). It locks to one of m phases (M-fold ambiguity), resolved downstream. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
 
         Parameters
@@ -671,6 +574,9 @@ class CarrierNda:
         NDArray[np.complex64]
             Output.
         """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
 
     def reset(self) -> None:
         """Re-seed the loop to the create-time frequency/phase; preserve config.
@@ -745,14 +651,14 @@ class MpskReceiver:
         Damping factor for both loops (default 0.707).
     bn_timing : float, default 0.01
         Symbol-timing loop noise bandwidth (default 0.01).
-    auto_handover : int, default 0
-        Enable NDA->decision-directed handover (default 0).
+    acq_to_track : int, default 0
+        Enable NDA->decision-directed tracking (default 0).
     lock_thresh : float, default 0.5
-        Lock metric required for handover (default 0.5).
+        Lock metric required to switch to tracking (default 0.5).
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample (default 0.0).
     warmup_syms : int, default 100
-        Symbols before handover is allowed (default 100).
+        Symbols before the acq-to-track switch is allowed (default 100).
     differential : int, default 0
         bits(): differential (rotation-invariant) demap (default 0 = coherent).
 
@@ -761,13 +667,13 @@ class MpskReceiver:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiver
-    >>> obj = MpskReceiver(m=4, sps=8, n=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, auto_handover=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0)
+    >>> obj = MpskReceiver(m=4, sps=8, n=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0)
 
     """
-    def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., auto_handover: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
+    def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
-    def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With auto_handover enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+    def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
 
         Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter +
         Gardner timing) over x and writes one cf32 symbol per recovered symbol
@@ -785,7 +691,10 @@ class MpskReceiver:
             Number of symbols written.
         """
 
-    def bits(self, x: NDArray[np.complex64]) -> NDArray[np.uint8]:
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state."""
+
+    def bits(self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
         """Demodulate a cf32 block and return hard Gray-coded bits (log2(m) bytes of 0/1 per recovered symbol, LSB-first). Coherent by default; if the receiver was created with differential=1, each symbol's bits come from the phase DIFFERENCE between consecutive symbols (rotation-invariant — resolves the m-fold carrier ambiguity at ~2x the symbol-error rate). Same per-sample carrier/timing recovery as steps().
 
         Like mpsk_receiver_steps(), but each recovered symbol is sliced to its
@@ -805,6 +714,9 @@ class MpskReceiver:
         NDArray[np.uint8]
             Number of bits written.
         """
+
+    def bits_max_out(self) -> int:
+        """Max output length bits() can produce for the current state."""
 
     def reset(self) -> None:
         """Re-seed the carrier and symbol-timing loops to their create-time state; preserve configuration.

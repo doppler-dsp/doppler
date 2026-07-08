@@ -1,7 +1,7 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, Acquisition, PolyPhaseEstimator, BurstDemod
+ * Objects: Despreader, BurstDespreader, Acquisition, PolynomialPhaseEstimator, BurstDemod
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,6 +13,7 @@
 
 
 #include "dsss_ext_despreader.c"
+#include "dsss_ext_burst_despreader.c"
 #include "dsss_ext_acq.c"
 #include "dsss_ext_ppe.c"
 #include "dsss_ext_burst_demod.c"
@@ -34,8 +35,9 @@ PyInit_dsss(void)
 {
     import_array();
     if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
+    if (PyType_Ready(&BurstDespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&AcquisitionObjType) < 0) return NULL;
-    if (PyType_Ready(&PolyPhaseEstimatorObjType) < 0) return NULL;
+    if (PyType_Ready(&PolynomialPhaseEstimatorObjType) < 0) return NULL;
     if (PyType_Ready(&BurstDemodObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&dsss_moduledef);
     if (!m) return NULL;
@@ -43,13 +45,17 @@ PyInit_dsss(void)
     if (PyModule_AddObject(m, "Despreader", (PyObject *)&DespreaderObjType) < 0) {
         Py_DECREF(&DespreaderObjType); Py_DECREF(m); return NULL;
     }
+    Py_INCREF(&BurstDespreaderObjType);
+    if (PyModule_AddObject(m, "BurstDespreader", (PyObject *)&BurstDespreaderObjType) < 0) {
+        Py_DECREF(&BurstDespreaderObjType); Py_DECREF(m); return NULL;
+    }
     Py_INCREF(&AcquisitionObjType);
     if (PyModule_AddObject(m, "Acquisition", (PyObject *)&AcquisitionObjType) < 0) {
         Py_DECREF(&AcquisitionObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&PolyPhaseEstimatorObjType);
-    if (PyModule_AddObject(m, "PolyPhaseEstimator", (PyObject *)&PolyPhaseEstimatorObjType) < 0) {
-        Py_DECREF(&PolyPhaseEstimatorObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&PolynomialPhaseEstimatorObjType);
+    if (PyModule_AddObject(m, "PolynomialPhaseEstimator", (PyObject *)&PolynomialPhaseEstimatorObjType) < 0) {
+        Py_DECREF(&PolynomialPhaseEstimatorObjType); Py_DECREF(m); return NULL;
     }
     Py_INCREF(&BurstDemodObjType);
     if (PyModule_AddObject(m, "BurstDemod", (PyObject *)&BurstDemodObjType) < 0) {

@@ -164,7 +164,7 @@ dump boxcar by default, or `pulse="rrc"` root-raised-cosine for band-limited
 links), and a `SymbolSync` Gardner timing loop. Carrier recovery follows the
 project rule — **predetection de-rotation** (always) and **postdetection
 discrimination**: the NDA loop acquires with no data and no symbol timing, then,
-when `auto_handover=1` (opt-in) and the loop has locked, the receiver hands the
+when `acq_to_track=1` (opt-in) and the loop has locked, the receiver switches the
 shared NCO to a lower-jitter **decision-directed** loop on the recovered symbols
 (essential for 8PSK, whose M-th-power phase noise would otherwise cross the
 ±π/8 margins). The loop locks to one of `m` phases (M-fold ambiguity); resolve it
@@ -181,10 +181,10 @@ from doppler.wfm import Synth
 
 iq = Synth(type="qpsk", sps=8, snr=20).steps(4096)  # received IQ
 
-# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in handover
+# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in switch
 rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
                   bn_carrier=0.01, bn_timing=0.01,
-                  auto_handover=1, lock_thresh=0.4)
+                  acq_to_track=1, lock_thresh=0.4)
 sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)           # hard Gray bits (LSB-first per symbol)
 f    = rx.norm_freq          # tracked carrier (cycles/sample)
@@ -207,7 +207,7 @@ loop bandwidth is small (a few thousandths); `Dll` is data-insensitive (it works
 on envelopes, so BPSK data flips don't matter).
 
 In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
-wipes the code; a channel composes the two.
+wipes the code; [`dsss.Despreader`](python-dsss.md) composes the two.
 
 ```python
 import numpy as np
@@ -248,37 +248,6 @@ extraction (`SymbolSync`) are downstream**, fed from this output. See the
 d = Dll(code, sps=8, bn=0.002, zeta=0.707, spacing=0.5, segments=4)
 partials = d.steps(rx)       # 4 partial prompts per code epoch (PN removed)
 # downstream: Costas(...).steps(partials) -> SymbolSync(...).steps(...) -> bits
-```
-
-______________________________________________________________________
-
-## Channel — full tracking channel
-
-`Channel` is the receiver that composes the loops: a `Costas` carrier loop and a
-`Dll` code loop on a **single shared per-sample integrate-and-dump**. Per sample
-it wipes the carrier (integer-NCO) and feeds the de-rotated sample to the DLL's
-early/prompt/late correlators; per code period it dumps the prompt and updates
-both loops — the code loop on the early/late envelopes, the carrier loop on the
-same prompt. `steps()` emits one despread prompt symbol per code period;
-`bits()` turns the prompts into hard data bits.
-
-`bn_fll > 0` enables FLL-assisted carrier pull-in. When a data bit spans
-`nav_period` code periods (GPS C/A: 20), `bits()` **bit-syncs** — it histograms
-the prompt sign-flip positions to find the bit boundary (`bit_phase`), then
-coherently sums `nav_period` prompts per bit. The channel is seeded by
-acquisition (coarse carrier frequency + code phase) and tracks the residual.
-
-See the [tracking channel gallery page](../gallery/channel.md) for the full
-receiver acquiring and despreading end to end.
-
-```python
-from doppler.track import Channel
-
-ch = Channel(code, sps=8, init_norm_freq=0.0, init_chip=0.0,
-             bn_carrier=0.05, bn_code=0.005, bn_fll=0.03,
-             zeta=0.707, spacing=0.5, nav_period=1)
-symbols = ch.steps(rx)   # one despread prompt per code period
-bits    = ch.bits(rx)    # hard data bits (bit-synced when nav_period > 1)
 ```
 
 ______________________________________________________________________
@@ -324,10 +293,6 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.track.Dll
-
-______________________________________________________________________
-
-::: doppler.track.Channel
 
 ______________________________________________________________________
 

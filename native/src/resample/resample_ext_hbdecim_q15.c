@@ -1,12 +1,13 @@
 /*
- * filter_ext_hbdecim_q15.c — HBDecimQ15 type for the filter module.
+ * resample_ext_hbdecim_q15.c — HalfbandDecimatorQ15 type for the resample
+ * module.
  *
- * Included by filter_ext.c (the module aggregator).
+ * Included by resample_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
- * Do NOT compile this file directly — only filter_ext.c is compiled.
+ * Do NOT compile this file directly — only resample_ext.c is compiled.
  */
 /* ======================================================== */
-/* HBDecimQ15Object — wraps hbdecim_q15_state_t *       */
+/* HalfbandDecimatorQ15Object — wraps hbdecim_q15_state_t *       */
 /* ======================================================== */
 
 #include "hbdecim_q15/hbdecim_q15_core.h"
@@ -16,10 +17,10 @@ typedef struct
   PyObject_HEAD hbdecim_q15_state_t *handle;
   int16_t *_execute_buf;     /* pre-allocated output for execute */
   size_t   _execute_buf_cap; /* allocated capacity for execute */
-} HBDecimQ15Object;
+} HalfbandDecimatorQ15Object;
 
 static void
-HBDecimQ15Obj_dealloc (HBDecimQ15Object *self)
+HalfbandDecimatorQ15Obj_dealloc (HalfbandDecimatorQ15Object *self)
 {
   if (self->handle)
     hbdecim_q15_destroy (self->handle);
@@ -28,16 +29,19 @@ HBDecimQ15Obj_dealloc (HBDecimQ15Object *self)
 }
 
 static PyObject *
-HBDecimQ15Obj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+HalfbandDecimatorQ15Obj_new (PyTypeObject *type, PyObject *args,
+                             PyObject *kwds)
 {
-  HBDecimQ15Object *self = (HBDecimQ15Object *)type->tp_alloc (type, 0);
+  HalfbandDecimatorQ15Object *self
+      = (HalfbandDecimatorQ15Object *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-HBDecimQ15Obj_init (HBDecimQ15Object *self, PyObject *args, PyObject *kwds)
+HalfbandDecimatorQ15Obj_init (HalfbandDecimatorQ15Object *self, PyObject *args,
+                              PyObject *kwds)
 {
   static char *kwlist[] = { "h", NULL };
   PyObject    *h_obj    = NULL;
@@ -76,7 +80,8 @@ HBDecimQ15Obj_init (HBDecimQ15Object *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-HBDecimQ15Obj_execute (HBDecimQ15Object *self, PyObject *args)
+HalfbandDecimatorQ15Obj_execute (HalfbandDecimatorQ15Object *self,
+                                 PyObject                   *args)
 {
   if (!self->handle)
     {
@@ -132,7 +137,8 @@ HBDecimQ15Obj_execute (HBDecimQ15Object *self, PyObject *args)
 }
 
 static PyObject *
-HBDecimQ15Obj_reset (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
+HalfbandDecimatorQ15Obj_reset (HalfbandDecimatorQ15Object *self,
+                               PyObject                   *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -143,7 +149,8 @@ HBDecimQ15Obj_reset (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 static PyObject *
-HBDecimQ15_getprop_num_taps (HBDecimQ15Object *self, void *Py_UNUSED (closure))
+HalfbandDecimatorQ15_getprop_num_taps (HalfbandDecimatorQ15Object *self,
+                                       void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -155,7 +162,8 @@ HBDecimQ15_getprop_num_taps (HBDecimQ15Object *self, void *Py_UNUSED (closure))
       (unsigned long long)hbdecim_q15_get_num_taps (self->handle));
 }
 static PyObject *
-HBDecimQ15_getprop_rate (HBDecimQ15Object *self, void *Py_UNUSED (closure))
+HalfbandDecimatorQ15_getprop_rate (HalfbandDecimatorQ15Object *self,
+                                   void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -166,15 +174,16 @@ HBDecimQ15_getprop_rate (HBDecimQ15Object *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (hbdecim_q15_get_rate (self->handle));
 }
 
-static PyGetSetDef HBDecimQ15_getset[]
-    = { { "num_taps", (getter)HBDecimQ15_getprop_num_taps, NULL,
+static PyGetSetDef HalfbandDecimatorQ15_getset[]
+    = { { "num_taps", (getter)HalfbandDecimatorQ15_getprop_num_taps, NULL,
           "Returns num_taps as supplied to hbdecim_q15_create.\n", NULL },
-        { "rate", (getter)HBDecimQ15_getprop_rate, NULL,
+        { "rate", (getter)HalfbandDecimatorQ15_getprop_rate, NULL,
           "Always returns 0.5.\n", NULL },
         { NULL } };
 
 static PyObject *
-HBDecimQ15Obj_destroy (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
+HalfbandDecimatorQ15Obj_destroy (HalfbandDecimatorQ15Object *self,
+                                 PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -185,14 +194,15 @@ HBDecimQ15Obj_destroy (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-HBDecimQ15Obj_enter (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
+HalfbandDecimatorQ15Obj_enter (HalfbandDecimatorQ15Object *self,
+                               PyObject                   *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-HBDecimQ15Obj_exit (HBDecimQ15Object *self, PyObject *args)
+HalfbandDecimatorQ15Obj_exit (HalfbandDecimatorQ15Object *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -204,8 +214,8 @@ HBDecimQ15Obj_exit (HBDecimQ15Object *self, PyObject *args)
 }
 
 static PyObject *
-HBDecimQ15Obj_state_bytes (HBDecimQ15Object *self,
-                           PyObject         *Py_UNUSED (ignored))
+HalfbandDecimatorQ15Obj_state_bytes (HalfbandDecimatorQ15Object *self,
+                                     PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -216,7 +226,8 @@ HBDecimQ15Obj_state_bytes (HBDecimQ15Object *self,
 }
 
 static PyObject *
-HBDecimQ15Obj_get_state (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
+HalfbandDecimatorQ15Obj_get_state (HalfbandDecimatorQ15Object *self,
+                                   PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -232,7 +243,8 @@ HBDecimQ15Obj_get_state (HBDecimQ15Object *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-HBDecimQ15Obj_set_state (HBDecimQ15Object *self, PyObject *arg)
+HalfbandDecimatorQ15Obj_set_state (HalfbandDecimatorQ15Object *self,
+                                   PyObject                   *arg)
 {
   if (!self->handle)
     {
@@ -257,48 +269,50 @@ HBDecimQ15Obj_set_state (HBDecimQ15Object *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef HBDecimQ15Obj_methods[] = {
+static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
 
-  { "execute", (PyCFunction)HBDecimQ15Obj_execute, METH_VARARGS,
+  { "execute", (PyCFunction)HalfbandDecimatorQ15Obj_execute, METH_VARARGS,
     "execute(x) -> ndarray\n"
     "\n"
     "Decimate a block of interleaved IQ int16 samples by 2.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import HBDecimQ15\n"
-    "    >>> obj = HBDecimQ15(np.zeros(1, dtype=np.float32))\n"
+    "    >>> from doppler import HalfbandDecimatorQ15\n"
+    "    >>> obj = HalfbandDecimatorQ15(np.zeros(1, dtype=np.float32))\n"
     "    >>> y = obj.execute(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('int16')\n" },
-  { "reset", (PyCFunction)HBDecimQ15Obj_reset, METH_NOARGS,
+  { "reset", (PyCFunction)HalfbandDecimatorQ15Obj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Zero all delay rings and clear the pending-sample flag.\n"
     "\n"
-    "    >>> from doppler import HBDecimQ15\n"
-    "    >>> obj = HBDecimQ15(np.zeros(1, dtype=np.float32))\n"
+    "    >>> from doppler import HalfbandDecimatorQ15\n"
+    "    >>> obj = HalfbandDecimatorQ15(np.zeros(1, dtype=np.float32))\n"
     "    >>> obj.reset()\n" },
-  { "destroy", (PyCFunction)HBDecimQ15Obj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)HalfbandDecimatorQ15Obj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)HBDecimQ15Obj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)HBDecimQ15Obj_exit, METH_VARARGS, NULL },
-  { "state_bytes", (PyCFunction)HBDecimQ15Obj_state_bytes, METH_NOARGS,
-    "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)HBDecimQ15Obj_get_state, METH_NOARGS,
+  { "__enter__", (PyCFunction)HalfbandDecimatorQ15Obj_enter, METH_NOARGS,
+    NULL },
+  { "__exit__", (PyCFunction)HalfbandDecimatorQ15Obj_exit, METH_VARARGS,
+    NULL },
+  { "state_bytes", (PyCFunction)HalfbandDecimatorQ15Obj_state_bytes,
+    METH_NOARGS, "Serialized state size in bytes." },
+  { "get_state", (PyCFunction)HalfbandDecimatorQ15Obj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)HBDecimQ15Obj_set_state, METH_O,
+  { "set_state", (PyCFunction)HalfbandDecimatorQ15Obj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 
-static PyTypeObject HBDecimQ15ObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "filter.HBDecimQ15",
-  .tp_basicsize                           = sizeof (HBDecimQ15Object),
-  .tp_dealloc                             = (destructor)HBDecimQ15Obj_dealloc,
-  .tp_flags                               = Py_TPFLAGS_DEFAULT,
+static PyTypeObject HalfbandDecimatorQ15ObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "resample.HalfbandDecimatorQ15",
+  .tp_basicsize = sizeof (HalfbandDecimatorQ15Object),
+  .tp_dealloc   = (destructor)HalfbandDecimatorQ15Obj_dealloc,
+  .tp_flags     = Py_TPFLAGS_DEFAULT,
   .tp_doc = "Allocate and initialise a fixed-point halfband 2:1 decimator.\n",
-  .tp_methods = HBDecimQ15Obj_methods,
-  .tp_getset  = HBDecimQ15_getset,
-  .tp_new     = HBDecimQ15Obj_new,
-  .tp_init    = (initproc)HBDecimQ15Obj_init,
+  .tp_methods = HalfbandDecimatorQ15Obj_methods,
+  .tp_getset  = HalfbandDecimatorQ15_getset,
+  .tp_new     = HalfbandDecimatorQ15Obj_new,
+  .tp_init    = (initproc)HalfbandDecimatorQ15Obj_init,
 };

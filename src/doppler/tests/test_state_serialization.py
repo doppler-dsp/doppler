@@ -44,12 +44,13 @@ from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
-from doppler.dsss import Despreader
-from doppler.filter import FIR, HBDecimQ15, MovingAverage
+from doppler.dsss import BurstDespreader, Despreader
+from doppler.filter import FIR, MovingAverage
 from doppler.resample import (
     CIC,
     Farrow,
     HalfbandDecimator,
+    HalfbandDecimatorQ15,
     RateConverter,
     Resampler,
 )
@@ -58,7 +59,6 @@ from doppler.spectral import PSD, Corr, Corr2D, CorrDetector, CorrDetector2D
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
-    Channel,
     Costas,
     Dll,
     LoopFilter,
@@ -78,7 +78,7 @@ _FIR_TAPS = (np.array([0.1, -0.2, 0.3, 0.6, 0.3, -0.2, 0.1]) + 0j).astype(
 _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 # A 16-sample reference frame for the correlators / PSD (fixed frame length).
 _REF16 = (np.arange(16) + 0.5j).astype(np.complex64)
-# A 31-chip 0/1 spreading code for the despreader.
+# A 31-chip 0/1 spreading code for the burst despreader.
 _CODE31 = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
 
 # name -> (make, feed): `make()` builds a fresh instance; `feed(obj, seg)` runs
@@ -102,7 +102,7 @@ def _acc_feed(conv: Callable[[NDArray[np.complex64]], NDArray[Any]]) -> _Feed:
     return feed
 
 
-def _despreader_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
+def _burst_despreader_feed(o: Any, seg: NDArray[np.complex64]) -> NDArray[Any]:
     """Despread a block; return the serialized state (no output stream)."""
     o.steps(seg)
     return np.frombuffer(o.get_state(), dtype=np.uint8)
@@ -253,8 +253,8 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: AccTrace(n=8, mode="mean", alpha=0.1),
         _acctrace_feed,
     ),
-    "HBDecimQ15": (
-        lambda: HBDecimQ15(_HB_TAPS),
+    "HalfbandDecimatorQ15": (
+        lambda: HalfbandDecimatorQ15(_HB_TAPS),
         lambda o, seg: np.array(
             o.execute(np.clip(seg.real * 1000, -32767, 32767).astype(np.int16))
         ),
@@ -276,7 +276,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),
         _track_feed,
     ),
-    "Channel": (lambda: Channel(code=_CODE, sps=2, nav_period=1), _track_feed),
+    "Despreader": (
+        lambda: Despreader(code=_CODE, sps=2, periods_per_bit=1),
+        _track_feed,
+    ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, n=4), _track_feed),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (
@@ -320,9 +323,9 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: PSD(n=16, fs=1.0e6, window="hann", mode="mean", alpha=0.1),
         _frame_feed("accumulate", 16),
     ),
-    "Despreader": (
-        lambda: Despreader(code=_CODE31, sps=4),
-        _despreader_feed,
+    "BurstDespreader": (
+        lambda: BurstDespreader(code=_CODE31, sps=4),
+        _burst_despreader_feed,
     ),
     # Detectors / analyzer / generator — output is phase/threshold dependent,
     # so the post-block state blob is the resume observable.

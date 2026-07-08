@@ -1,9 +1,9 @@
-# Tracking Channel (full receiver)
+# Despreader (full continuous receiver)
 
-![Tracking channel demo](../assets/channel_demo.png)
+![Despreader demo](../assets/despreader_demo.png)
 
 A complete continuous DSSS-BPSK receiver in one object:
-[`track.Channel`](../api/python-track.md) composes a carrier loop
+[`dsss.Despreader`](../api/python-dsss.md) composes a carrier loop
 ([`Costas`](costas.md), FLL-assisted) and a code loop ([`Dll`](dll.md)) on a
 single shared per-sample integrate-and-dump. The transmit signal is a 127-chip
 PN code spreading BPSK data, with a **residual carrier offset** (0.18 cycles per
@@ -39,14 +39,14 @@ per period:   P = prompt accumulator
 ```
 
 The carrier wipe-off and the code correlation share the same pass — composing
-two tracking loops costs no extra sweep over the data. The channel is seeded by
-acquisition (the FFT search supplies the coarse carrier frequency and code
+two tracking loops costs no extra sweep over the data. The despreader is seeded
+by acquisition (the FFT search supplies the coarse carrier frequency and code
 phase); the loops then track the residual.
 
 ```python
 import numpy as np
 
-from doppler.track import Channel
+from doppler.dsss import Despreader
 
 # a DSSS-BPSK burst: 31-chip PN code, 8 samples/chip, 40 data symbols
 code = np.random.randint(0, 2, 31).astype(np.uint8)
@@ -56,18 +56,18 @@ spread = (data[:, None] * chip_signs[None, :]).ravel()  # spread each symbol
 rx = np.repeat(spread, 8).astype(np.complex64)          # oversample by sps
 
 # code: 0/1 chips for one period; bn_fll>0 enables FLL-assisted carrier pull-in
-ch = Channel(code, sps=8, init_norm_freq=0.0, init_chip=0.0,
-             bn_carrier=0.05, bn_code=0.005, bn_fll=0.03,
-             zeta=0.707, spacing=0.5, nav_period=1)
-symbols = ch.steps(rx)        # one despread prompt symbol per code period
-bits    = ch.bits(rx)         # hard data bits (bit-synced when nav_period > 1)
-freq    = ch.norm_freq        # tracked carrier residual
+d = Despreader(code, sps=8, init_norm_freq=0.0, init_chip=0.0,
+               bn_carrier=0.05, bn_code=0.005, bn_fll=0.03,
+               zeta=0.707, spacing=0.5, periods_per_bit=1)
+symbols = d.steps(rx)   # one despread prompt symbol per code period
+bits    = d.bits(rx)    # hard data bits (bit-synced when periods_per_bit > 1)
+freq    = d.norm_freq   # tracked carrier residual
 ```
 
-When a data bit spans several code periods (`nav_period > 1`, as in GPS C/A
-where one nav bit = 20 code periods), `bits()` bit-syncs the prompts: it
+When a data bit spans several code periods (`periods_per_bit > 1`, as in GPS
+C/A where one nav bit = 20 code periods), `bits()` bit-syncs the prompts: it
 histograms the prompt sign-flip positions to find the data-bit boundary, then
-coherently sums `nav_period` prompts per bit. The detected boundary is readable
-as `bit_phase`.
+coherently sums `periods_per_bit` prompts per bit. The detected boundary is
+readable as `bit_phase`.
 
-Source: `src/doppler/examples/channel_demo.py`.
+Source: `src/doppler/examples/despreader_demo.py`.

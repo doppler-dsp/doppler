@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.26.0"
+jm_version = "0.26.1"
 name = "doppler"
 version = "0.1.0"
 build = "cmake"
@@ -20,6 +20,7 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # even after the sacred fragments freshly regenerated with the new binding —
 # the same gap dsss.pyi/analyzer.pyi/delay.pyi hit below.
 # dsss.pyi/analyzer.pyi are hand-maintained for despreader.steps/bits,
+# burst_despreader.steps/bits,
 # burst_demod.demod, specan.execute: jm's stub aggregator didn't reconcile
 # out=/<name>_max_out() for these has_params-single-array-param methods even
 # after their sacred fragments freshly regenerated with the new binding (a
@@ -474,7 +475,7 @@ objects = ["f32_to_i16", "i16_to_f32", "i32_to_f32", "i8_to_f32", "f32_to_i16u32
 objects = ["acc_f32", "acc_cf64", "acc_trace"]
 
 [module.filter]
-objects = ["fir", "hbdecim_q15", "boxcar"]
+objects = ["fir", "boxcar"]
 
 [module.source]
 objects = ["nco", "lo", "awgn"]
@@ -1177,7 +1178,7 @@ objects = ["specan"]
 extra_link_libs = ["m"]
 
 [module.resample]
-objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow"]
+objects = ["Resampler", "HalfbandDecimator", "cic", "RateConverter", "farrow", "hbdecim_q15"]
 extra_types = ["HalfbandDecimatorDp", "HalfbandDecimatorR2C"]
 # Composed cores reach the resample .so via per-object depends_on link=true
 # (gh-225): RateConverter → resamp/fir, HalfbandDecimator → hbdecim/hbdecim_r2c
@@ -1728,7 +1729,7 @@ name = "endian"
 values = ["le", "be"]
 
 [module.track]
-objects = ["loop_filter", "costas", "dll", "channel", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
+objects = ["loop_filter", "costas", "dll", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
 [module.dsss]
-objects = ["despreader", "acq", "ppe", "burst_demod"]
+objects = ["despreader", "burst_despreader", "acq", "ppe", "burst_demod"]

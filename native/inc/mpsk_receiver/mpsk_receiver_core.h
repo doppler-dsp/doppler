@@ -21,12 +21,13 @@
  * discriminators steer one shared NCO:
  *   - **acquisition** — the NDA M-th-power error, n times/symbol, with no data
  *     or timing required (`tracking == 0`).
- *   - **tracking** — once `auto_handover` is enabled and the loop has locked,
+ *   - **tracking** — once `acq_to_track` is enabled and the loop has locked,
  *     a decision-directed error `e = Im(y·conj(â))/|y|` on the recovered
  *     symbols (lower jitter, naturally lower loop bandwidth at symbol rate).
- *     The same NCO/loop filter carries the frequency estimate across handover.
- * Handover is **opt-in** (`auto_handover`, default off): by default the receiver
- * stays in robust NDA tracking the whole time.
+ *     The same NCO/loop filter carries the frequency estimate across the
+ *     switch.
+ * The acquisition-to-tracking switch is **opt-in** (`acq_to_track`, default
+ * off): by default the receiver stays in robust NDA tracking the whole time.
  *
  * The loop locks to one of M phases — an **M-fold ambiguity** on absolute phase.
  * Resolve it with differential demapping (`bits(..., differential=1)`) or a sync
@@ -92,9 +93,9 @@ extern "C"
     int                 pulse;       /**< MPSK_RX_PULSE_IANDD / _RRC.        */
     double              rrc_beta;    /**< RRC roll-off (pulse == RRC).       */
     int                 rrc_span;    /**< RRC one-sided span, symbols.       */
-    int                 auto_handover; /**< opt-in NDA->decision handover.   */
-    double              lock_thresh; /**< handover lock-metric threshold.    */
-    size_t              warmup_syms; /**< symbols before handover allowed.   */
+    int                 acq_to_track; /**< opt-in NDA->decision switch.      */
+    double              lock_thresh; /**< acq-to-track lock-metric threshold.*/
+    size_t              warmup_syms; /**< symbols before the switch allowed. */
     int                 tracking;    /**< 0 = NDA acquire, 1 = decision.     */
     size_t              sym_count;   /**< symbols emitted (warmup counter).  */
     int                 differential;  /**< bits(): differential demap.      */
@@ -115,10 +116,12 @@ extern "C"
    * @param bn_carrier     Carrier loop noise bandwidth (default 0.01).
    * @param zeta           Damping factor for both loops (default 0.707).
    * @param bn_timing      Symbol-timing loop noise bandwidth (default 0.01).
-   * @param auto_handover  Enable NDA->decision-directed handover (default 0).
-   * @param lock_thresh    Lock metric required for handover (default 0.5).
+   * @param acq_to_track   Enable NDA->decision-directed tracking (default 0).
+   * @param lock_thresh    Lock metric required to switch to tracking
+   *                        (default 0.5).
    * @param init_norm_freq Seed carrier frequency, cycles/sample (default 0.0).
-   * @param warmup_syms    Symbols before handover is allowed (default 100).
+   * @param warmup_syms    Symbols before the acq-to-track switch is allowed
+   *                        (default 100).
    * @param differential   bits(): differential (rotation-invariant) demap
    *                        (default 0 = coherent).
    * @return Heap-allocated state, or NULL on invalid args / allocation failure.
@@ -126,7 +129,7 @@ extern "C"
    */
   mpsk_receiver_state_t *mpsk_receiver_create (
       int m, size_t sps, int n, int pulse, double rrc_beta, int rrc_span,
-      double bn_carrier, double zeta, double bn_timing, int auto_handover,
+      double bn_carrier, double zeta, double bn_timing, int acq_to_track,
       double lock_thresh, double init_norm_freq, size_t warmup_syms,
       int differential);
 

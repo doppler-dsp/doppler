@@ -70,6 +70,7 @@ specan-web = [
 [project.scripts]
 doppler        = "doppler.cli.__main__:main"
 doppler-source = "doppler.cli.source:main"
+doppler-fir    = "doppler.cli.fir:main"
 doppler-specan = "doppler.specan.__main__:main"
 wfmgen         = "doppler.wfm.cli:main"
 

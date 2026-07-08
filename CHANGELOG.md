@@ -13,8 +13,22 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-07-08
+
 ### Changed
 
+- **BREAKING:** naming-axis survey renames (`docs/design/api-taxonomy.md`) —
+    no behavior changes, only identities:
+    - `doppler.filter.HBDecimQ15` moves to `doppler.resample.HalfbandDecimatorQ15`
+        (sits next to `HalfbandDecimator`, its CF32 sibling).
+    - `doppler.dsss.Despreader` is renamed to `doppler.dsss.BurstDespreader`.
+    - `doppler.track.Channel` is renamed **and moved** to
+        `doppler.dsss.Despreader` (taking the name freed up above); its
+        `nav_period` constructor kwarg is renamed to `periods_per_bit`.
+    - `doppler.dsss.PolyPhaseEstimator` is renamed to
+        `doppler.dsss.PolynomialPhaseEstimator`.
+    - `MpskReceiver`'s `auto_handover` constructor kwarg is renamed to
+        `acq_to_track`.
 - **BREAKING:** `ZmqSink` (Python, `doppler.wfm`) and `wfm_zmq_sink_*` (C)
     are renamed to `StreamSink` / `wfm_stream_sink_*`. `wfmgen --output` no
     longer takes a `zmq://<endpoint>` double-prefix; pass the real endpoint
@@ -1946,6 +1960,7 @@ ______________________________________________________________________
 [0.26.0]: https://github.com/doppler-dsp/doppler/compare/v0.25.0...v0.26.0
 [0.26.1]: https://github.com/doppler-dsp/doppler/compare/v0.26.0...v0.26.1
 [0.27.0]: https://github.com/doppler-dsp/doppler/compare/v0.26.1...v0.27.0
+[0.28.0]: https://github.com/doppler-dsp/doppler/compare/v0.27.0...v0.28.0
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
@@ -1965,4 +1980,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.27.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.28.0...HEAD

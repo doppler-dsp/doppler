@@ -1,8 +1,8 @@
 # merge_static_libs.cmake — fold one static archive's objects into another,
 # in place, at build time. Used to make libdoppler_stream.a self-contained by
-# embedding the vendored libzmq.a, so a downstream linking the stream archive
-# needs only -ldoppler_stream plus the C/C++ runtime (never -lzmq). (The core
-# libdoppler.a is pure C and uses no fold.)
+# embedding the vendored libnats_static.a, so a downstream linking the stream
+# archive needs only -ldoppler_stream plus the C runtime (never -lnats).
+# (The core libdoppler.a is pure C and uses no fold.)
 #
 # A static archive cannot pull in another archive via CMake link rules
 # (target_link_libraries only records a *requirement*), so we merge the object
@@ -10,7 +10,8 @@
 #
 # Inputs (pass with -D):
 #   DEST    — the archive to grow, in place (e.g. libdoppler.a). Required.
-#   SRC     — the archive whose objects are folded in (e.g. libzmq.a). Required.
+#   SRC     — the archive whose objects are folded in (e.g. libnats_static.a).
+#             Required.
 #   AR      — the `ar` to use (CMAKE_AR). Required on non-Apple hosts.
 #   RANLIB  — the `ranlib` to use (CMAKE_RANLIB). Required on non-Apple hosts.
 

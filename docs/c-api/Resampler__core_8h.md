@@ -67,8 +67,11 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  size\_t | [**Resampler\_get\_num\_phases**](#function-resampler_get_num_phases) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
 |  size\_t | [**Resampler\_get\_num\_taps**](#function-resampler_get_num_taps) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
 |  double | [**Resampler\_get\_rate**](#function-resampler_get_rate) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._  |
+|  void | [**Resampler\_get\_state**](#function-resampler_get_state) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, void \* blob) <br>_Serialize the resampler's phase + delay-line state into_ `blob` _._ |
 |  void | [**Resampler\_reset**](#function-resampler_reset) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst._  |
 |  void | [**Resampler\_set\_rate**](#function-resampler_set_rate) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, double rate) <br> |
+|  int | [**Resampler\_set\_state**](#function-resampler_set_state) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
+|  size\_t | [**Resampler\_state\_bytes**](#function-resampler_state_bytes) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Serialized-state byte size (forwarded to the resamp leaf)._  |
 
 
 
@@ -469,6 +472,23 @@ double Resampler_get_rate (
 
 
 
+### function Resampler\_get\_state 
+
+_Serialize the resampler's phase + delay-line state into_ `blob` _._
+```C++
+void Resampler_get_state (
+    const Resampler_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function Resampler\_reset 
 
 _Zero the delay line and phase accumulator. Rate and polyphase bank are preserved so the resampler can be resumed at the same ratio. Zeroing state eliminates transient artefacts when starting a new signal burst._ 
@@ -505,6 +525,39 @@ void Resampler_reset (
 void Resampler_set_rate (
     Resampler_state_t * state,
     double rate
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function Resampler\_set\_state 
+
+_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._
+```C++
+int Resampler_set_state (
+    Resampler_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function Resampler\_state\_bytes 
+
+_Serialized-state byte size (forwarded to the resamp leaf)._ 
+```C++
+size_t Resampler_state_bytes (
+    const Resampler_state_t * state
 ) 
 ```
 

@@ -11,6 +11,7 @@
 _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -62,7 +63,10 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 |  size\_t | [**hbdecim\_execute**](#function-hbdecim_execute) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const float \_Complex \* in, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples by 2._  |
 |  size\_t | [**hbdecim\_get\_num\_taps**](#function-hbdecim_get_num_taps) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
 |  double | [**hbdecim\_get\_rate**](#function-hbdecim_get_rate) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  void | [**hbdecim\_get\_state**](#function-hbdecim_get_state) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, void \* blob) <br>_Serialize_ `r's` _mutable state into_`blob` _._ |
 |  void | [**hbdecim\_reset**](#function-hbdecim_reset) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br> |
+|  int | [**hbdecim\_set\_state**](#function-hbdecim_set_state) ([**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r, const void \* blob) <br>_Restore mutable state from_ `blob` _(same num\_taps)._ |
+|  size\_t | [**hbdecim\_state\_bytes**](#function-hbdecim_state_bytes) (const [**hbdecim\_state\_t**](structhbdecim__state__t.md) \* r) <br>_Bytes_ [_**hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-hbdecim_get_state) _writes for_`r` _(envelope + payload)._ |
 
 
 
@@ -90,6 +94,12 @@ _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**HBDECIM\_STATE\_MAGIC**](hbdecim__core_8h.md#define-hbdecim_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('H', 'B', 'D', 'C')`<br> |
+| define  | [**HBDECIM\_STATE\_VERSION**](hbdecim__core_8h.md#define-hbdecim_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -267,6 +277,23 @@ Always returns 0.5 (rate is fixed by design).
 
 
 
+### function hbdecim\_get\_state 
+
+_Serialize_ `r's` _mutable state into_`blob` _._
+```C++
+void hbdecim_get_state (
+    const hbdecim_state_t * r,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function hbdecim\_reset 
 
 ```C++
@@ -281,6 +308,79 @@ Zero both delay lines and clear the pending-sample flag. num\_taps and coefficie
 
 
         
+
+<hr>
+
+
+
+### function hbdecim\_set\_state 
+
+_Restore mutable state from_ `blob` _(same num\_taps)._
+```C++
+int hbdecim_set_state (
+    hbdecim_state_t * r,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function hbdecim\_state\_bytes 
+
+_Bytes_ [_**hbdecim\_get\_state()**_](hbdecim__core_8h.md#function-hbdecim_get_state) _writes for_`r` _(envelope + payload)._
+```C++
+size_t hbdecim_state_bytes (
+    const hbdecim_state_t * r
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define HBDECIM\_STATE\_MAGIC 
+
+```C++
+#define HBDECIM_STATE_MAGIC `DP_FOURCC ('H', 'B', 'D', 'C')`
+```
+
+
+
+
+<hr>
+
+
+
+### define HBDECIM\_STATE\_VERSION 
+
+```C++
+#define HBDECIM_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

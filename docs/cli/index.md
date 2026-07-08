@@ -36,7 +36,8 @@ ______________________________________________________________________
 ## Architecture
 
 Each block in a pipeline runs as an independent OS process. Blocks
-exchange IQ samples over ZMQ **PUSH/PULL** sockets. The compose runner
+exchange IQ samples over the NATS JetStream **PUSH/PULL** work-queue
+tier. The compose runner
 assigns ports, spawns processes, and tracks their state in
 `~/.doppler/chains/`.
 
@@ -53,20 +54,24 @@ flowchart TB
         DSP["DSP Block\n(e.g. fir)"]
         SINK["Sink\n(e.g. specan)"]
 
-        SRC -- "PUSH  tcp://127.0.0.1:5600" --> DSP
-        DSP -- "PUSH  tcp://127.0.0.1:5601" --> SINK
+        SRC -- "PUSH  nats://127.0.0.1:4222/dp-chain-5600" --> DSP
+        DSP -- "PUSH  nats://127.0.0.1:4222/dp-chain-5601" --> SINK
     end
 
     Runner -- "spawns + tracks" --> Pipeline
 ```
 
-**Socket convention:** every block **binds its output** and **connects
-its input**. Sources bind only. Sinks connect only.
+**Subject convention:** every block **publishes its output** and
+**subscribes to its input** on a NATS subject. Sources publish only. Sinks
+subscribe only. Each inter-block link gets a unique subject
+(`dp-chain-<token>`) on the local broker — `<token>` is the same integer
+`doppler compose` has always called a "port" (see `doppler.cli.ports`), now
+namespacing a NATS subject instead of binding an OS TCP port.
 
 ```
-source   →  binds   PUSH  :5600
-fir      →  connects PULL :5600,  binds PUSH :5601
-specan   →  connects PULL :5601
+source   →  binds   PUSH  dp-chain-5600
+fir      →  connects PULL dp-chain-5600,  binds PUSH dp-chain-5601
+specan   →  connects PULL dp-chain-5601
 ```
 
 ______________________________________________________________________
@@ -217,12 +222,12 @@ flowchart TB
 
 ### Connect a real IQ source
 
-Replace `tone` with any ZMQ publisher emitting doppler-framed IQ:
+Replace `tone` with any NATS publisher emitting doppler-framed IQ:
 
 ```yaml
 source:
   type: socket
-  address: tcp://192.168.1.10:5555
+  address: nats://192.168.1.10:4222/iq
 ```
 
 !!! note
@@ -321,7 +326,7 @@ def _log(msg):
 
 # In main(), before the processing loop (args is the parsed argparse
 # Namespace — shown here with representative values):
-args = Namespace(bind="tcp://127.0.0.1:5600", fs=2.048e6)
+args = Namespace(bind="nats://127.0.0.1:4222/dp-chain-5600", fs=2.048e6)
 _log(f"doppler-noise started — bind={args.bind} fs={args.fs:.0f}")
 ```
 
@@ -331,8 +336,8 @@ _log(f"doppler-noise started — bind={args.bind} fs={args.fs:.0f}")
 doppler compose init noise specan --name noise-test
 doppler compose up noise-test
 doppler logs noise-test
-# [2026-04-01T10:00:00Z] doppler-noise started — bind=tcp://127.0.0.1:5600 fs=2048000
-# [2026-04-01T10:00:00Z] doppler-specan started — mode=web source=pull address=tcp://127.0.0.1:5600
+# [2026-04-01T10:00:00Z] doppler-noise started — bind=nats://127.0.0.1:4222/dp-chain-5600 fs=2048000
+# [2026-04-01T10:00:00Z] doppler-specan started — mode=web source=pull address=nats://127.0.0.1:4222/dp-chain-5600
 ```
 
 ______________________________________________________________________

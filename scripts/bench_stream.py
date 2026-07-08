@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""Transport (P0) benchmark: ZMQ vs NATS, throughput + status-plane latency.
+"""Transport (P0) benchmark: NATS throughput + status-plane latency.
 
 The DSP benchmarks measure the kernels; this measures the *wire*. It drives the
 hand-written ``bench_stream`` C harness (``native/benchmarks/bench_stream.c``)
-over both transports the stream module ships and records one JSON snapshot:
+over NATS and records one JSON snapshot:
 
 * **firehose** — PUSH/PULL of a large CF32 block, the data-plane figure of
-  merit (throughput). ZMQ is brokerless TCP loopback; NATS is the durable
-  JetStream work-queue tier (synchronous server-acked publish + explicit-ack
-  pull), so its lower throughput is the *cost of exactly-once durability*, not
-  overhead. JetStream is store-and-forward, so the harness's one-way latency
-  degenerates to queue residency there — recorded only for ZMQ.
+  merit (throughput), over the durable JetStream work-queue tier
+  (synchronous server-acked publish + explicit-ack pull). JetStream is
+  store-and-forward, so the harness's one-way latency degenerates to queue
+  residency and is not meaningful here (see the status-plane RTT instead).
 * **reqrep** — the status/control plane: unloaded small-message REQ/REP
-  round-trip latency, meaningful for both transports.
+  round-trip latency.
 
-The endpoint scheme picks the backend (``tcp://`` -> ZMQ, ``nats://`` -> NATS);
-the harness reads ``DP_BENCH_FIREHOSE_EP`` / ``DP_BENCH_REQREP_EP``. We lean on
-large blocks only (DSP pipelines always do) rather than a block-size sweep.
+The harness reads ``DP_BENCH_FIREHOSE_EP`` / ``DP_BENCH_REQREP_EP`` for the
+``nats://`` endpoint. We lean on large blocks only (DSP pipelines always do)
+rather than a block-size sweep.
 
-The NATS broker is started here on an isolated port + temp store and torn down
-after, so the run is self-contained and reproducible — nothing persists.
+Requires ``nats-server`` on PATH — started here on an isolated port + temp
+store and torn down after, so the run is self-contained and reproducible.
+
+Historical note: releases through v0.27.0 also measured a ZMQ backend
+(brokerless TCP loopback), recorded under a "zmq" key in the older
+``benchmarks/published/*/stream.json`` snapshots. ZMQ was removed in favor of
+NATS; this script and its JSON output are NATS-only going forward.
 
 Usage::
 
@@ -116,44 +120,36 @@ def _best(samples, key, prefer_max):
 
 
 def measure(block, blocks, pings, passes, nats_url):
-    """{transport: {firehose, reqrep}}; `nats_url` None -> skip NATS."""
-    out = {}
-    # ZMQ — brokerless, default tcp:// endpoints.
-    fh = [_firehose(block, blocks) for _ in range(passes)]
-    rr = [_reqrep(pings) for _ in range(passes)]
-    out["zmq"] = {
-        "firehose": _best(fh, "tput_msa_s", True),
-        "reqrep": _best(rr, "rtt_mean_us", False),
-    }
-    if nats_url:
-        fh, rr = [], []
-        for i in range(passes):
-            # Fresh subject base per pass -> a clean JetStream stream each
-            # run, no cross-pass residue (matches the test suite convention).
-            tag = f"{os.getpid()}_{i}"
-            f = _firehose(block, blocks, f"{nats_url}/fh{tag}")
-            f["lat_mean_us"] = None  # store-and-forward: latency is residency
-            f["lat_p99_us"] = None
-            fh.append(f)
-            rr.append(_reqrep(pings, f"{nats_url}/rr{tag}"))
-        out["nats"] = {
+    """{transport: {firehose, reqrep}}; `nats_url` is required."""
+    fh, rr = [], []
+    for i in range(passes):
+        # Fresh subject base per pass -> a clean JetStream stream each run,
+        # no cross-pass residue (matches the test suite convention).
+        tag = f"{os.getpid()}_{i}"
+        f = _firehose(block, blocks, f"{nats_url}/fh{tag}")
+        f["lat_mean_us"] = None  # store-and-forward: latency is residency
+        f["lat_p99_us"] = None
+        fh.append(f)
+        rr.append(_reqrep(pings, f"{nats_url}/rr{tag}"))
+    return {
+        "nats": {
             "firehose": _best(fh, "tput_msa_s", True),
             "reqrep": _best(rr, "rtt_mean_us", False),
         }
-    return out
+    }
 
 
 def _print_table(transports, cfg):
-    def g(t, sec, k):
-        v = transports.get(t, {}).get(sec, {}).get(k)
+    def g(sec, k):
+        v = transports.get("nats", {}).get(sec, {}).get(k)
         return "—" if v is None else f"{v:,.1f}"
 
     print(
-        f"\nTransport P0  (block={cfg['block_size']} CF32, "
+        f"\nTransport P0 — NATS  (block={cfg['block_size']} CF32, "
         f"{cfg['num_blocks']} frames, {cfg['passes']} passes best-of)\n"
     )
-    print(f"  {'metric':<28}{'ZMQ':>12}{'NATS (JS)':>12}")
-    print(f"  {'-' * 52}")
+    print(f"  {'metric':<28}{'NATS (JS)':>12}")
+    print(f"  {'-' * 40}")
     rows = [
         ("firehose tput  MSa/s", "firehose", "tput_msa_s"),
         ("firehose tput  MB/s", "firehose", "tput_mb_s"),
@@ -161,7 +157,7 @@ def _print_table(transports, cfg):
         ("reqrep RTT p99   µs", "reqrep", "rtt_p99_us"),
     ]
     for label, sec, k in rows:
-        print(f"  {label:<28}{g('zmq', sec, k):>12}{g('nats', sec, k):>12}")
+        print(f"  {label:<28}{g(sec, k):>12}")
     print()
 
 
@@ -204,8 +200,16 @@ def main() -> int:
     _build()
 
     nats_bin = shutil.which("nats-server")
+    if not nats_bin:
+        print(
+            "error: nats-server not found on PATH -- required (ZMQ was "
+            "removed, NATS is the only transport)",
+            file=sys.stderr,
+        )
+        return 1
+
     proc, store, nats_url = None, None, None
-    if nats_bin and not _port_open(NATS_PORT):
+    if not _port_open(NATS_PORT):
         store = tempfile.mkdtemp(prefix="dp-bench-natsjs-")
         proc = subprocess.Popen(
             [
@@ -226,10 +230,8 @@ def main() -> int:
                 break
             time.sleep(0.1)
         nats_url = f"nats://127.0.0.1:{NATS_PORT}"
-    elif nats_bin and _port_open(NATS_PORT):
-        nats_url = f"nats://127.0.0.1:{NATS_PORT}"  # reuse a running broker
     else:
-        print("nats-server not found — measuring ZMQ only", file=sys.stderr)
+        nats_url = f"nats://127.0.0.1:{NATS_PORT}"  # reuse a running broker
 
     try:
         transports = measure(a.block, a.blocks, a.pings, a.passes, nats_url)

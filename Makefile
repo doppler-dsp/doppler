@@ -122,14 +122,14 @@ test:
 # Instruments every first-party C object once (DOPPLER_COVERAGE). The same
 # OBJECT libs flow into the C-test exes AND the Python .so, so both harnesses
 # emit .profraw that merge into one report attributed back to the hand-written
-# _core.c. clang + clang++ (vendored zmq) and matching llvm-profdata/llvm-cov
-# are required. The Python .so is staged into a throwaway package
-# ($(COV_DIR)/pkg) so the instrumented build never clobbers the dev's
-# src/doppler/ .so. Phase 3 (Rust) folds cargo .profraw into the same merge.
+# _core.c. clang and matching llvm-profdata/llvm-cov are required. The
+# Python .so is staged into a throwaway package ($(COV_DIR)/pkg) so the
+# instrumented build never clobbers the dev's src/doppler/ .so. Phase 3
+# (Rust) folds cargo .profraw into the same merge.
 coverage:
 	$(CMAKE) -B $(COV_DIR) -S . \
 		-DCMAKE_BUILD_TYPE=Debug \
-		-DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+		-DCMAKE_C_COMPILER=clang \
 		-DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON \
 		-DPython3_EXECUTABLE=$(PYTHON_EXECUTABLE) \
 		-DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
@@ -340,7 +340,7 @@ bench-docs:
 	uv run python scripts/bench_report.py --page --out docs/benchmarks.md
 
 # ── bench-stream ──────────────────────────────────────────────────────────────
-# Transport (P0) bench: ZMQ vs NATS firehose throughput + status-plane RTT via
+# Transport (P0) bench: NATS firehose throughput + status-plane RTT via
 # the bench_stream C harness. Self-contained — starts a JetStream broker on an
 # isolated port (temp store) and tears it down. Prints a table; pass
 # VERSION=X.Y.Z to stamp benchmarks/published/v<ver>/stream.json (rendered into

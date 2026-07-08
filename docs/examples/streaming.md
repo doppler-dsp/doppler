@@ -2,6 +2,8 @@
 
 ## C: PUB/SUB
 
+Requires a running `nats-server` (e.g. `nats-server -js`).
+
 ### Transmitter
 
 ```c
@@ -10,7 +12,7 @@
 #include <math.h>
 
 int main(void) {
-    dp_pub_t *tx = dp_pub_create("tcp://*:5555", CF64);
+    dp_pub_t *tx = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
 
     double _Complex samples[1000];
     for (int i = 0; i < 1000; i++) {
@@ -31,7 +33,7 @@ int main(void) {
 #include <stdio.h>
 
 int main(void) {
-    dp_sub_t *rx = dp_sub_create("tcp://localhost:5555");
+    dp_sub_t *rx = dp_sub_create("nats://127.0.0.1:4222/iq");
 
     dp_msg_t *msg;
     dp_header_t hdr;
@@ -49,17 +51,21 @@ int main(void) {
 
 ## C: PUSH/PULL pipeline
 
+The PUSH/PULL work-queue tier is backed by NATS JetStream, so pushed
+frames survive a restart of the consumer and are load-balanced
+round-robin across every connected `Pull`.
+
 ```c
 #include <stream/stream.h>
 #include <stdio.h>
 
-// Producer (binds)
-dp_push_t *push = dp_push_create("ipc:///tmp/pipe.ipc", CF64);
+// Producer
+dp_push_t *push = dp_push_create("nats://127.0.0.1:4222/work", CF64);
 dp_push_send_cf64(push, samples, count, 1e6, 2.4e9);
 dp_push_destroy(push);
 
-// Consumer (connects)
-dp_pull_t *pull = dp_pull_create("ipc:///tmp/pipe.ipc");
+// Consumer
+dp_pull_t *pull = dp_pull_create("nats://127.0.0.1:4222/work");
 dp_msg_t *msg;
 dp_header_t hdr;
 dp_pull_recv(pull, &msg, &hdr);
@@ -75,7 +81,9 @@ ______________________________________________________________________
 
 ## Python: Publisher / Subscriber
 
-<!-- docs-snippet: skip=blocking ZMQ recv; covered by stream tests -->
+Requires a running `nats-server` (e.g. `nats-server -js`).
+
+<!-- docs-snippet: skip=blocking NATS recv, needs a broker; covered by stream tests -->
 
 ```python
 from doppler.stream import Publisher, Subscriber, CF64
@@ -83,10 +91,10 @@ import numpy as np
 
 samples = np.array([1+2j, 3+4j, 5+6j], dtype=np.complex128)
 
-with Publisher("tcp://*:5555", CF64) as pub:
+with Publisher("nats://127.0.0.1:4222/iq", CF64) as pub:
     pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
 
-with Subscriber("tcp://localhost:5555") as sub:
+with Subscriber("nats://127.0.0.1:4222/iq") as sub:
     data, hdr = sub.recv(timeout_ms=500)
     print(f"Got {hdr['num_samples']} samples, seq={hdr['sequence']}")
 ```
@@ -94,13 +102,17 @@ with Subscriber("tcp://localhost:5555") as sub:
 For a complete runnable example with live dashboard and graceful shutdown:
 
 ```bash
-python src/doppler/examples/transmitter.py tcp://*:5555
-python src/doppler/examples/receiver.py tcp://localhost:5555
+python src/doppler/examples/transmitter.py nats://127.0.0.1:4222/iq
+python src/doppler/examples/receiver.py nats://127.0.0.1:4222/iq
 ```
 
 ## Python: Push / Pull pipeline
 
-<!-- docs-snippet: skip=blocking ZMQ recv; covered by stream tests -->
+The PUSH/PULL work-queue tier is backed by NATS JetStream: pushed
+frames are durably queued and load-balanced round-robin across every
+connected `Pull` worker.
+
+<!-- docs-snippet: skip=blocking NATS recv, needs a broker; covered by stream tests -->
 
 ```python
 from doppler.stream import Push, Pull, CF64
@@ -108,11 +120,12 @@ import numpy as np
 
 samples = np.ones(512, dtype=np.complex128)
 
-# Push binds; Pull connects.  Multiple Pull workers share frames round-robin.
-with Push("tcp://*:5560", CF64) as push:
+# Multiple Pull workers share frames round-robin via a JetStream
+# work-queue consumer group.
+with Push("nats://127.0.0.1:4222/work", CF64) as push:
     push.send(samples, sample_rate=1e6, center_freq=2.4e9)
 
-with Pull("tcp://localhost:5560") as pull:
+with Pull("nats://127.0.0.1:4222/work") as pull:
     data, hdr = pull.recv(timeout_ms=500)
     print(f"Got {hdr['num_samples']} samples at {hdr['sample_rate'] / 1e6:.2f} MHz")
 ```
@@ -121,11 +134,11 @@ Run multiple workers for parallel processing:
 
 ```bash
 # Terminal 1 — sender
-python src/doppler/examples/pipeline_send.py tcp://*:5560
+python src/doppler/examples/pipeline_send.py nats://127.0.0.1:4222/work
 
 # Terminals 2 and 3 — two parallel workers
-python src/doppler/examples/pipeline_recv.py tcp://localhost:5560 0
-python src/doppler/examples/pipeline_recv.py tcp://localhost:5560 1
+python src/doppler/examples/pipeline_recv.py nats://127.0.0.1:4222/work 0
+python src/doppler/examples/pipeline_recv.py nats://127.0.0.1:4222/work 1
 ```
 
 ## Python: Requester / Replier
@@ -135,13 +148,13 @@ the server processes it and returns the result. The exchange is strictly
 alternating — `send` then `recv` on the Requester, `recv` then `send` on
 the Replier.
 
-<!-- docs-snippet: skip=two-process REQ/REP; covered by stream tests -->
+<!-- docs-snippet: skip=two-process NATS REQ/REP, needs a broker; covered by stream tests -->
 
 ```python
 from doppler.stream import Requester, Replier, CF64
 import numpy as np
 
-ep = "tcp://127.0.0.1:5562"
+ep = "nats://127.0.0.1:4222/ctrl"
 
 # Server side — run in a thread or separate process
 with Replier(ep, CF64) as rep:
@@ -161,24 +174,32 @@ Complete standalone examples:
 
 ```bash
 # Terminal 1 — server (start first)
-python src/doppler/examples/replier.py tcp://*:5562 --gain 0.5
+python src/doppler/examples/replier.py nats://127.0.0.1:4222/ctrl --gain 0.5
 
 # Terminal 2 — client
-python src/doppler/examples/requester.py tcp://localhost:5562 --count 20
+python src/doppler/examples/requester.py nats://127.0.0.1:4222/ctrl --count 20
 ```
 
 ______________________________________________________________________
 
 ## Network configurations
 
+Every doppler stream endpoint is a NATS client — the transmitter and the
+receiver both *connect* to a `nats-server` broker (`nats://host:port/subject`);
+neither one binds a listening socket, so "transmitter" and "receiver" are
+peers of the broker rather than of each other.
+
 ### Single machine (localhost)
 
-```c
-// Transmitter
-dp_pub_create("tcp://*:5555", CF64);
+```bash
+# Start a broker once, in its own terminal:
+nats-server -js
+```
 
-// Receiver (same machine)
-dp_sub_create("tcp://localhost:5555");
+```c
+// Transmitter and receiver both connect to the local broker
+dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
+dp_sub_create("nats://127.0.0.1:4222/iq");
 ```
 
 ```bash
@@ -189,98 +210,106 @@ dp_sub_create("tcp://localhost:5555");
 
 ### Two machines over LAN
 
-**Step 1:** Find the transmitter machine's IP address:
+The broker needs to be reachable from both the transmitter and the
+receiver — run it on either machine (or a third) and point both clients
+at its address.
+
+**Step 1:** Find the broker machine's IP address:
 
 ```bash
-# On the transmitter machine:
+# On the broker machine:
 ip addr show | grep inet
 # or:
 hostname -I
 ```
 
-**Step 2:** Open the firewall port on the transmitter:
+**Step 2:** Open the firewall port on the broker machine:
 
 ```bash
-# On the transmitter machine:
-sudo ufw allow 5555/tcp
+# On the broker machine:
+sudo ufw allow 4222/tcp
 sudo ufw status
 ```
 
-**Step 3:** Run the transmitter (binds to all interfaces):
-
-```c
-// Transmitter code — binds to *all* network interfaces
-dp_pub_create("tcp://*:5555", CF64);
-```
+**Step 3:** Start the broker, listening on all interfaces:
 
 ```bash
-# On Machine A (transmitter):
-./build/examples/c/transmitter
+# On the broker machine:
+nats-server -js -a 0.0.0.0
 ```
 
-**Step 4:** Run the receiver with the transmitter's IP:
-
-```c
-// Receiver code — connects to specific IP
-dp_sub_create("tcp://192.168.1.100:5555");
-```
+**Step 4:** Point both the transmitter and the receiver at the broker's IP:
 
 ```bash
-# On Machine B (receiver) — replace with transmitter's actual IP:
-./build/examples/c/receiver tcp://192.168.1.100:5555
+# On Machine A (transmitter) — replace with the broker's actual IP:
+./build/examples/c/transmitter nats://192.168.1.100:4222/iq
+
+# On Machine B (receiver) — same broker IP:
+./build/examples/c/receiver nats://192.168.1.100:4222/iq
 ```
 
-### Local IPC (fastest, same machine only)
+### Loopback (fastest, same machine only)
+
+NATS is TCP-only — there is no unix-domain-socket transport — so the
+fastest same-machine path is still a loopback connection to a broker on
+`127.0.0.1`:
 
 ```c
-dp_pub_create("ipc:///tmp/doppler.ipc", CF64);
-dp_sub_create("ipc:///tmp/doppler.ipc");
+dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
+dp_sub_create("nats://127.0.0.1:4222/iq");
 ```
 
 ### Docker Compose
 
 ```yaml
 services:
+  nats:
+    image: nats:latest
+    command: ["-js"]
+    ports:
+      - "4222:4222"
   tx:
-    command: /app/transmitter tcp://*:5555 cf64
+    command: /app/transmitter nats://nats:4222/iq cf64
+    depends_on: [nats]
   rx:
-    command: /app/receiver tcp://tx:5555  # uses Docker DNS
+    command: /app/receiver nats://nats:4222/iq  # uses Docker DNS
+    depends_on: [nats]
 ```
 
 ______________________________________________________________________
 
 ## Troubleshooting
 
-### Receiver can't connect to transmitter
+### Receiver can't connect to the broker
 
-**Symptom:** Receiver hangs at "Waiting for packets..." when running on a different machine.
+**Symptom:** Receiver hangs at "Waiting for packets..." when the broker is on a different machine.
 
 **Solution:**
 
-1. **Verify the receiver is using the correct IP:**
+1. **Verify the receiver is using the broker's IP, not its own:**
 
     ```bash
-    # On the receiver machine, check you're connecting to the transmitter's IP:
-    ./build/examples/c/receiver tcp://192.168.1.100:5555
-    # NOT tcp://localhost:5555 (that's the receiver's own machine!)
+    # On the receiver machine, check you're connecting to the broker's IP:
+    ./build/examples/c/receiver nats://192.168.1.100:4222/iq
+    # NOT nats://127.0.0.1:4222/iq (that's the receiver's own machine!)
     ```
 
 1. **Check network connectivity:**
 
     ```bash
     # From the receiver machine:
-    ping 192.168.1.100           # verify basic connectivity
-    nc -zv 192.168.1.100 5555    # test if port 5555 is reachable
+    ping 192.168.1.100            # verify basic connectivity
+    nc -zv 192.168.1.100 4222     # test if the broker's port is reachable
     # or:
-    telnet 192.168.1.100 5555
+    telnet 192.168.1.100 4222
     ```
 
-1. **Verify the firewall on the transmitter:**
+1. **Verify the firewall on the broker machine:**
 
     ```bash
-    # On the transmitter machine:
-    sudo ufw status              # check if port 5555 is allowed
-    sudo ufw allow 5555/tcp      # open it if needed
+    # On the broker machine:
+    sudo ufw status              # check if port 4222 is allowed
+    sudo ufw allow 4222/tcp      # open it if needed
     ```
 
 1. **Check for cloud/network firewalls:**
@@ -306,41 +335,38 @@ ______________________________________________________________________
 
     - Solution: Profile your receiver code, optimize processing
 
-### "Address already in use" error
+### "No server available for connection" error
 
-**Symptom:** Transmitter fails with `zmq_bind: Address already in use`
+**Symptom:** Transmitter or receiver fails immediately with a NATS
+`No server available for connection` status — there is no `nats-server`
+listening at the endpoint's host:port.
 
 **Solutions:**
 
-1. **Kill the old process:**
+1. **Start (or restart) the broker:**
 
     ```bash
-    # Find the process using port 5555:
-    sudo lsof -i :5555
+    nats-server -js
+    ```
+
+1. **Verify it's actually listening on the port you expect:**
+
+    ```bash
+    # Find the process bound to port 4222:
+    sudo lsof -i :4222
     # or:
-    sudo netstat -tulpn | grep 5555
-
-    # Kill it:
-    kill <PID>
+    sudo netstat -tulpn | grep 4222
     ```
 
-1. **Use a different port:**
+1. **Use a different port** if something else already owns 4222:
 
     ```bash
-    ./build/examples/c/transmitter tcp://*:5556
-    ./build/examples/c/receiver tcp://192.168.1.100:5556
+    nats-server -js -p 4223
+    ./build/examples/c/transmitter nats://192.168.1.100:4223/iq
+    ./build/examples/c/receiver nats://192.168.1.100:4223/iq
     ```
-
-1. **Wait for ZMQ socket cleanup:** Sometimes sockets take a few seconds to release after Ctrl+C.
 
 ### No output / silent failure
-
-**Enable ZMQ debug logging:**
-
-```bash
-export ZMQ_VERBOSE=1
-./build/examples/c/transmitter
-```
 
 **Check library paths (Linux):**
 
@@ -355,9 +381,9 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 ### Performance tips
 
-- **Use IPC for same-machine communication:** Much faster than TCP localhost
+- **Run the broker on the same machine for the lowest latency:** a loopback
+    `nats://127.0.0.1:4222/…` connection beats a cross-machine one.
 - **Batch samples:** Larger packets = less overhead (but more latency)
-- **Disable Nagle's algorithm:** For low-latency, use `tcp://` with ZMQ_TCP_NODELAY
 - **Pin threads to cores:** For real-time processing (see `pthread_setaffinity_np`)
 
 ### Getting help
@@ -368,5 +394,5 @@ If you're still stuck:
 1. Include in your bug report:
     - Output of `./build/examples/c/transmitter --help` and `./build/examples/c/receiver --help`
     - Network topology (same machine, LAN, cloud, containers)
-    - Error messages with `ZMQ_VERBOSE=1`
-    - OS and toolchain versions (`uname -a`, `cmake --version`) — note doppler statically embeds zmq, so there is no system `libzmq` to query
+    - `nats-server` logs (run it in the foreground, without `-js` daemonizing, to see connection attempts)
+    - OS and toolchain versions (`uname -a`, `cmake --version`) — note doppler statically embeds the vendored `nats.c` client, so there is no system NATS client library to query

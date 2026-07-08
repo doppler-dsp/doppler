@@ -1,16 +1,17 @@
-"""requester.py — ZMQ REQ client example.
+"""requester.py — NATS REQ client example.
 
 Sends a block of samples to a Replier and receives the processed reply.
 Models a remote DSP service: the client uploads a signal, the server
-processes it and returns the result.
+processes it and returns the result.  Requires a running nats-server
+(e.g. `nats-server -js`).
 
 The REQ/REP pattern is strictly alternating: send → recv → send → recv.
-Both sides must follow this order or ZMQ raises an FSM error.
+Both sides must follow this order or NATS raises an FSM error.
 
 Usage:
   python examples/python/requester.py [endpoint]
-  python examples/python/requester.py                       # localhost:5562
-  python examples/python/requester.py tcp://192.168.1.5:5562
+  python examples/python/requester.py                       # ctrl subject
+  python examples/python/requester.py nats://broker.example:4222/ctrl
 
 Run replier.py first.  Press Ctrl+C to stop.
 """
@@ -55,7 +56,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://localhost:5562")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/ctrl"
+    )
     parser.add_argument(
         "--count",
         type=int,

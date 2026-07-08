@@ -164,9 +164,8 @@ if(NOT WIN32)
     target_link_libraries(test_wfm_sink PRIVATE
         wfm_sink_core
         $<TARGET_OBJECTS:stream_core_obj>
-        zmq_vendor_static
         nats_vendor_static
-        Threads::Threads stdc++ m)
+        Threads::Threads m)
     target_include_directories(test_wfm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
@@ -205,9 +204,8 @@ if(NOT WIN32)
         wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
-        zmq_vendor_static
         nats_vendor_static
-        Threads::Threads stdc++ m)
+        Threads::Threads m)
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     install(TARGETS wfmgen_cli DESTINATION bin)
 
@@ -219,9 +217,10 @@ if(NOT WIN32)
     # wfmgen stays in the pure-C core; its stream-sink path uses the weak-stub
     # seam (wfm_sink_stub.c here + the strong override in libdoppler_stream —
     # see native/inc/wfm/wfm_sink.h).  The stream-dependent objects
-    # (wfm_sink_core, stream_core_obj) and the vendored C++ libzmq are NOT
-    # folded into libdoppler — they live in the optional libdoppler_stream
-    # component (defined in the root CMakeLists) so the core stays C++-free.
+    # (wfm_sink_core, stream_core_obj) and the vendored nats.c are NOT folded
+    # into libdoppler — they live in the optional libdoppler_stream component
+    # (defined in the root CMakeLists), a separate module boundary rather
+    # than a C++ isolation concern.
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>

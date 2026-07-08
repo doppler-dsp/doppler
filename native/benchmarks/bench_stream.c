@@ -50,14 +50,13 @@
 #include "stream/stream.h"
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
-/* Endpoints default to brokerless ZMQ over TCP loopback. Override via the
- * environment to bench another transport — e.g. the NATS JetStream work-queue
- * tier against a broker on 4222 (start it with `nats-server -js`):
- *   DP_BENCH_FIREHOSE_EP=nats://127.0.0.1:4222/firehose \
- *   DP_BENCH_REQREP_EP=nats://127.0.0.1:4222/reqrep   bench_stream 4096 600
- * The endpoint scheme selects the backend: tcp:// -> ZMQ, nats:// -> NATS. */
-#define FIREHOSE_EP_DEFAULT "tcp://127.0.0.1:5679"
-#define REQREP_EP_DEFAULT "tcp://127.0.0.1:5680"
+/* Endpoints default to the NATS JetStream work-queue tier on a local broker
+ * (start it with `nats-server -js`). Override via the environment to bench
+ * against a remote broker:
+ *   DP_BENCH_FIREHOSE_EP=nats://broker:4222/firehose \
+ *   DP_BENCH_REQREP_EP=nats://broker:4222/reqrep   bench_stream 4096 600 */
+#define FIREHOSE_EP_DEFAULT "nats://127.0.0.1:4222/firehose"
+#define REQREP_EP_DEFAULT "nats://127.0.0.1:4222/reqrep"
 #define STATUS_MSG_BYTES 64 /* representative small status/control payload */
 #define WARMUP_BLKS 50      /* frames before timing starts */
 #define HIST_BINS 32768     /* 1 µs buckets → covers 0–32767 µs (32 ms) */
@@ -78,12 +77,6 @@ reqrep_endpoint (void)
 {
   const char *e = getenv ("DP_BENCH_REQREP_EP");
   return (e && *e) ? e : REQREP_EP_DEFAULT;
-}
-
-static int
-ep_is_nats (const char *ep)
-{
-  return strncmp (ep, "nats://", 7) == 0;
 }
 
 /* ─── portable 2-party barrier via a pair of semaphores ─────────────────── */
@@ -189,7 +182,7 @@ producer (void *arg)
         }
     }
 
-  dp_push_destroy (ctx); /* flushes anything still pending (ZMQ linger) */
+  dp_push_destroy (ctx);
   free (buf);
   s->producer_done = 1; /* signal the consumer: no more frames are coming */
   return NULL;
@@ -201,9 +194,9 @@ consumer (void *arg)
 {
   bench_state_t *s = arg;
   /* The NATS JetStream pull consumer attaches to the work-queue stream that
-   * the producer's push_create provisions, so on nats:// the stream may not
-   * exist yet when this thread starts (the two create concurrently). Retry
-   * until it lands. ZMQ has no broker-side stream and succeeds first try. */
+   * the producer's push_create provisions, so the stream may not exist yet
+   * when this thread starts (the two create concurrently). Retry until it
+   * lands. */
   dp_pull_t *ctx = NULL;
   for (int attempt = 0; attempt < 100 && !ctx; attempt++)
     {
@@ -270,9 +263,9 @@ consumer (void *arg)
         }
 
       s->wall_ns_end = recv_ns;
-      /* No-op on ZMQ; on the NATS JetStream pull tier this acks the frame so
-       * the durable consumer keeps delivering (MaxAckPending would otherwise
-       * stall the stream after the first window of unacked frames). */
+      /* Acks the frame so the durable JetStream consumer keeps delivering
+       * (MaxAckPending would otherwise stall the stream after the first
+       * window of unacked frames). */
       dp_msg_ack (msg);
       dp_msg_free (msg);
       got++;
@@ -378,13 +371,10 @@ run_reqrep (bench_state_t *s)
 
   /* Core NATS REQ/REP delivers only to a subscription already registered on
    * the server. The barrier guarantees the replier's dp_rep_create returned,
-   * but the SubscribeSync registration still has to propagate before the first
-   * request, so let it settle. ZMQ needs no such wait. */
-  if (ep_is_nats (reqrep_endpoint ()))
-    {
-      struct timespec ts = { 0, 200L * 1000 * 1000 }; /* 200 ms */
-      nanosleep (&ts, NULL);
-    }
+   * but the SubscribeSync registration still has to propagate before the
+   * first request, so let it settle. */
+  struct timespec settle_ts = { 0, 200L * 1000 * 1000 }; /* 200 ms */
+  nanosleep (&settle_ts, NULL);
 
   unsigned char payload[STATUS_MSG_BYTES] = { 0 };
   size_t        timed                     = 0;

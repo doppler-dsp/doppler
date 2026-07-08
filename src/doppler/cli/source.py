@@ -1,12 +1,12 @@
 """
 doppler-source — streaming IQ source entry point.
 
-Generates synthetic IQ samples and pushes them over a ZMQ PUSH socket
+Generates synthetic IQ samples and pushes them over a NATS PUSH endpoint
 so they can be consumed by downstream blocks in a doppler pipeline.
 
 Usage
 -----
-    doppler-source --type tone --bind tcp://127.0.0.1:5600 [options]
+    doppler-source --type tone --bind nats://127.0.0.1:4222/iq [options]
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def main() -> None:
         "--bind",
         required=True,
         metavar="ADDR",
-        help="ZMQ PUSH bind address, e.g. tcp://127.0.0.1:5600",
+        help="NATS PUSH endpoint, e.g. nats://127.0.0.1:4222/iq",
     )
     parser.add_argument(
         "--fs",

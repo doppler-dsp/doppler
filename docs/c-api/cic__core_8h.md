@@ -11,6 +11,7 @@
 _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 
 
@@ -62,8 +63,11 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
+|  void | [**cic\_get\_state**](#function-cic_get_state) (const [**cic\_state\_t**](structcic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
 |  void | [**cic\_reconfigure**](#function-cic_reconfigure) ([**cic\_state\_t**](structcic__state__t.md) \* state, uint32\_t R) <br>_Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 4096]` _— the state is left unchanged in that case._ |
 |  void | [**cic\_reset**](#function-cic_reset) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Zero all integrator and comb accumulators; preserve R and shift. The first output sample after reset arrives after R more input samples, matching post-create behaviour. Use between signal bursts to eliminate transient artefacts caused by residual pipeline state._  |
+|  int | [**cic\_set\_state**](#function-cic_set_state) ([**cic\_state\_t**](structcic__state__t.md) \* state, const void \* blob) <br>_Restore the integrator/comb/phase state from_ `blob` _._ |
+|  size\_t | [**cic\_state\_bytes**](#function-cic_state_bytes) (const [**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Bytes_ [_**cic\_get\_state()**_](cic__core_8h.md#function-cic_get_state) _writes (envelope + payload)._ |
 
 
 
@@ -96,6 +100,8 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | Type | Name |
 | ---: | :--- |
 | define  | [**CIC\_N**](cic__core_8h.md#define-cic_n)  `4`<br> |
+| define  | [**CIC\_STATE\_MAGIC**](cic__core_8h.md#define-cic_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C', 'I', 'C', '\_')`<br> |
+| define  | [**CIC\_STATE\_VERSION**](cic__core_8h.md#define-cic_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -264,6 +270,23 @@ Free resources. NULL is a no-op.
 
 
 
+### function cic\_get\_state 
+
+_Serialize the integrator/comb/phase state into_ `blob` _._
+```C++
+void cic_get_state (
+    const cic_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function cic\_reconfigure 
 
 _Change the decimation ratio in place and reset all filter state. Recomputes the normalisation shift (CIC\_N \* log2(R)) and zeros all accumulators so the filter behaves exactly like a freshly created one with the new R. Silently ignores R values that are not a power-of-two in_ `[2, 4096]` _— the state is left unchanged in that case._
@@ -326,6 +349,50 @@ void cic_reset (
         
 
 <hr>
+
+
+
+### function cic\_set\_state 
+
+_Restore the integrator/comb/phase state from_ `blob` _._
+```C++
+int cic_set_state (
+    cic_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function cic\_state\_bytes 
+
+_Bytes_ [_**cic\_get\_state()**_](cic__core_8h.md#function-cic_get_state) _writes (envelope + payload)._
+```C++
+size_t cic_state_bytes (
+    const cic_state_t * state
+) 
+```
+
+
+
+
+<hr>
 ## Macro Definition Documentation
 
 
@@ -344,6 +411,32 @@ Fixed stage count. Alias rejection ~19.2 dB/stage at f\_p=0.1.
 
 
         
+
+<hr>
+
+
+
+### define CIC\_STATE\_MAGIC 
+
+```C++
+#define CIC_STATE_MAGIC `DP_FOURCC ('C', 'I', 'C', '_')`
+```
+
+
+
+
+<hr>
+
+
+
+### define CIC\_STATE\_VERSION 
+
+```C++
+#define CIC_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

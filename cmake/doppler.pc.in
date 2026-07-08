@@ -10,8 +10,8 @@ Name: doppler
 Description: doppler C library
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -ldoppler
-# libdoppler is pure C and links only -lm (no C++ runtime, no zmq). The optional
-# ZMQ/stream layer lives in libdoppler_stream (link -ldoppler_stream -lstdc++
-# -lpthread for it); it is intentionally not part of the core .pc.
+# libdoppler is pure C and links only -lm. The optional NATS stream layer
+# lives in libdoppler_stream (link -ldoppler_stream -lpthread for it); it is
+# intentionally not part of the core .pc.
 Libs.private: -lm
 Cflags: -I${includedir}

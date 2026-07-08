@@ -1,5 +1,13 @@
 # Migrate ZMQ transport → resilient NATS JetStream I/Q streaming (k8s + HPA)
 
+> **Status: migration complete.** The "coexist, deprecate later" decision
+> below (#2) was the starting posture, not the ending one — ZMQ has since
+> been fully removed from doppler, and NATS (core + JetStream) is now the
+> library's sole streaming transport. The design narrative below is kept as
+> the historical record of why NATS was added and how the tiered
+> core/JetStream split was chosen; read `stream/` and `docs/dev/streaming-roadmap.md`
+> for the current, ZMQ-free state.
+
 ## Context
 
 doppler's live I/Q transport (`native/src/stream/stream_core.c`, public API

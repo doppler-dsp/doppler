@@ -7,10 +7,9 @@ project(doppler_consumer C)
 # or rely on a system install. The package provides two link targets:
 #
 #   doppler::doppler         shared — links `-ldoppler`; smallest binary.
-#   doppler::doppler-static  static — pure C, self-contained: links only -lm
-#                            (no C++ runtime, no zmq).
-#   doppler::stream[-static] OPTIONAL ZMQ/stream layer (carries the C++ libzmq);
-#                            link only if you need dp_pub_*/dp_sub_* or zmq://.
+#   doppler::doppler-static  static — pure C, self-contained: links only -lm.
+#   doppler::stream[-static] OPTIONAL stream layer (NATS transport);
+#                            link only if you need dp_pub_*/dp_sub_* or nats://.
 #
 # This example builds one executable per mode so both are exercised; a real
 # consumer just picks the target matching its linking policy.

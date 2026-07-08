@@ -19,6 +19,16 @@
 extern "C" {
 #endif
 
+enum
+{
+  WFM_RANGE_FREQ        = 1u << 0, /* source.freq  → [freq, freq_hi]   */
+  WFM_RANGE_SNR         = 1u << 1, /* source.snr   → [snr, snr_hi]     */
+  WFM_RANGE_LEVEL       = 1u << 2, /* source.level → [level, level_hi] */
+  WFM_RANGE_FEND        = 1u << 3, /* source.f_end → [f_end, f_end_hi] */
+  WFM_RANGE_NUM_SAMPLES = 1u << 4, /* segment.num_samples span         */
+  WFM_RANGE_OFF_SAMPLES = 1u << 5, /* segment.off_samples span         */
+};
+
 typedef struct {
     int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
     double freq;       /* freq offset (Hz); chirp: start frequency f_start */
@@ -34,9 +44,16 @@ typedef struct {
     uint8_t *bits;     /* type=bits: pattern (0/1), owned; NULL otherwise */
     size_t n_bits;     /* type=bits: pattern length */
     int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */
+    float _Complex *symbols; /* type=symbols: stream, owned; NULL otherwise */
+    size_t n_symbols;        /* type=symbols: stream length */
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */
     double rrc_beta;   /* RRC roll-off (pulse=rrc) */
     int rrc_span;      /* RRC support in symbols (pulse=rrc) */
+    unsigned ranged;   /* WFM_RANGE_{FREQ,SNR,LEVEL,FEND} bitmask */
+    double freq_hi;    /* upper bound when WFM_RANGE_FREQ is set */
+    double snr_hi;     /* upper bound when WFM_RANGE_SNR is set */
+    double level_hi;   /* upper bound when WFM_RANGE_LEVEL is set */
+    double f_end_hi;   /* upper bound when WFM_RANGE_FEND is set */
 } wfm_source_t;
 
 typedef struct {
@@ -45,14 +62,33 @@ typedef struct {
     double fs;             /* sample rate (Hz) — one per segment */
     size_t num_samples;    /* on-time (samples) */
     size_t off_samples;    /* off-time gap after the segment (samples) */
+    unsigned ranged;       /* WFM_RANGE_{NUM,OFF}_SAMPLES bitmask */
+    size_t num_samples_hi; /* upper bound when WFM_RANGE_NUM_SAMPLES is set */
+    size_t off_samples_hi; /* upper bound when WFM_RANGE_OFF_SAMPLES is set */
 } wfm_segment_t;
 
 int wfm_resolve_noise(wfm_segment_t *segs, size_t n);
+
+double wfm_snr_over_fs(int snr_mode, int type, int sps, double snr);
+
+wfm_synth_state_t *wfm_compose_build_synth(const wfm_source_t *src, double fs,
+                                           size_t on_len, double freq,
+                                           double snr, double f_end,
+                                           unsigned epoch, int seed_advance);
+
+typedef enum
+{
+  WFM_SEED_ADVANCE_NONE  = 0, /* byte-identical repeats (default) */
+  WFM_SEED_ADVANCE_NOISE = 1, /* signal fixed, AWGN fresh per repeat */
+  WFM_SEED_ADVANCE_ALL   = 2, /* whole seed advances (code+data+noise) */
+} wfm_seed_advance_t;
 
 typedef struct wfm_compose_state wfm_compose_state_t;
 
 wfm_compose_state_t *wfm_compose_create(
     const wfm_segment_t *segs, size_t n_segs, int repeat, int continuous);
+
+void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
 
 size_t wfm_compose_execute(
     wfm_compose_state_t *state, float complex *out, size_t max);
@@ -65,17 +101,9 @@ const wfm_segment_t *wfm_compose_segments(const wfm_compose_state_t *state,
 
 /* ── JSON spec (the shared --from-file / --record format) ─────────────────── */
 /*
- * One canonical schema, sample-exact so a recorded run reproduces byte-for-byte
- * when fed back via --from-file:
- *
- *   { "version": "wfmgen-1", "repeat": false, "continuous": false,
- *     "segments": [
- *       { "type": "tone", "fs": 1e6, "freq": 1e5, "snr": 100.0,
- *         "snr_mode": "auto", "seed": 1, "sps": 8, "pn_length": 7,
- *         "pn_poly": 0, "num_samples": 1000, "off_samples": 500 }, … ] }
- *
- * `type` and `snr_mode` are strings; everything else is numeric. Missing fields
- * fall back to the synth defaults.
+ * Canonical schema: docs/schema/wfmgen.schema.json (JSON Schema 2020-12).
+ * A recorded run reproduces byte-for-byte when fed back via --from-file.
+ * Use `wfmgen json-template` for a ready-to-edit example covering all fields.
  */
 
 char *wfm_spec_to_json(const wfm_segment_t *segs, size_t n_segs, int repeat,

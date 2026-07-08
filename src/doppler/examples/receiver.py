@@ -1,13 +1,14 @@
-"""receiver.py — ZMQ SUB receiver example.
+"""receiver.py — NATS SUB receiver example.
 
 Subscribes to a doppler transmitter and displays a live dashboard showing
 signal power, packet statistics, and first few samples.  Mirrors the C
-receiver example using the Python stream API.
+receiver example using the Python stream API.  Requires a running
+nats-server (e.g. `nats-server -js`).
 
 Usage:
   python examples/python/receiver.py [endpoint]
-  python examples/python/receiver.py                          # localhost:5555
-  python examples/python/receiver.py tcp://192.168.1.10:5555
+  python examples/python/receiver.py                          # nats://127.0.0.1:4222/iq
+  python examples/python/receiver.py nats://broker.example:4222/iq
 
 Press Ctrl+C to stop.
 """
@@ -46,7 +47,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://localhost:5555")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/iq"
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, _sighandler)

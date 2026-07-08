@@ -1,15 +1,16 @@
 /*
  * spectrum_analyzer.c — ASCII real-time spectrum analyzer.
  *
- * Receives CF64 or CI32 samples via ZMQ PUB/SUB, computes the power
+ * Receives CF64 or CI32 samples via NATS PUB/SUB, computes the power
  * spectrum using doppler's FFT engine, and renders an ASCII waterfall
  * with Hann windowing, fftshift (DC centred), and dBFS power axis.
+ * Requires a running nats-server (e.g. `nats-server -js`).
  *
  * Usage:
  *   spectrum_analyzer [endpoint [fft_size]]
- *   spectrum_analyzer                              # localhost:5555, 1024-pt
- *   spectrum_analyzer tcp://192.168.1.10:5555
- *   spectrum_analyzer tcp://localhost:5555 2048
+ *   spectrum_analyzer                              # 127.0.0.1:4222/iq,
+ * 1024-pt spectrum_analyzer nats://broker.example:4222/iq spectrum_analyzer
+ * nats://127.0.0.1:4222/iq 2048
  *
  * Press Ctrl+C to stop.
  *
@@ -179,14 +180,15 @@ render_spectrum (const double *db, size_t N, double sample_rate,
 int
 main (int argc, char *argv[])
 {
-  const char *endpoint = "tcp://localhost:5555";
+  const char *endpoint = "nats://127.0.0.1:4222/iq";
   size_t      fft_size = 1024;
 
   if (argc > 1
       && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
     {
       printf ("Usage: %s [endpoint [fft_size]]\n\n", argv[0]);
-      printf ("  endpoint  ZMQ SUB address (default: tcp://localhost:5555)\n");
+      printf ("  endpoint  NATS SUB endpoint (default: "
+              "nats://127.0.0.1:4222/iq)\n");
       printf ("  fft_size  %d..%d         (default: 1024)\n", FFT_MIN,
               FFT_MAX);
       printf ("\nPress Ctrl+C to stop.\n");

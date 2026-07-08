@@ -17,7 +17,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* CMPLXF/CMPLX/CMPLXL fallbacks now live in clib_common.h. */
+/* CMPLXF/CMPLX/CMPLXL fallbacks and the shared DP_OK/DP_ERR_* error codes
+ * live in clib_common.h — the streaming API uses the one doppler-wide scheme. */
+#include "clib_common.h"
 
 
 #ifdef __cplusplus
@@ -84,13 +86,6 @@ extern "C"
    * Error codes
    * ---------------------------------------------------------------------- */
 
-#define DP_OK 0           
-#define DP_ERR_INIT -1    
-#define DP_ERR_SEND -2    
-#define DP_ERR_RECV -3    
-#define DP_ERR_INVALID -4 
-#define DP_ERR_TIMEOUT -5 
-#define DP_ERR_MEMORY -6  
 
   /* -------------------------------------------------------------------------
    * dp_msg_t — zero-copy message accessors
@@ -104,6 +99,8 @@ extern "C"
   size_t dp_msg_num_samples (dp_msg_t *msg);
 
   dp_sample_type_t dp_msg_sample_type (dp_msg_t *msg);
+
+  int dp_msg_ack (dp_msg_t *msg);
 
   void dp_msg_free (dp_msg_t *msg);
  /* end group msg */

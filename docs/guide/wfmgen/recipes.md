@@ -28,8 +28,9 @@ wfmgen --type bpsk --fs 1e6 --sps 8 --pn-length 7 \
        --freq 11200:12800 --count 8192 --off 4000:5600 \
        --continuous --realtime -o stream.cf32
 
-# Stream continuous QPSK to ZMQ for a live receiver, paced to real time
-wfmgen --type qpsk --snr 10 --continuous --realtime --output zmq://tcp://*:5555
+# Stream continuous QPSK to NATS for a live receiver, paced to real time
+# (requires a nats-server reachable at the endpoint)
+wfmgen --type qpsk --snr 10 --continuous --realtime --output nats://127.0.0.1:4222/iq
 ```
 
 ______________________________________________________________________

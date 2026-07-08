@@ -11,6 +11,7 @@
 _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include <math.h>`
 
@@ -61,7 +62,10 @@ _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* | [**f32\_to\_i16\_create**](#function-f32_to_i16_create) (float scale) <br>_Create a f32\_to\_i16 instance._  |
 |  void | [**f32\_to\_i16\_destroy**](#function-f32_to_i16_destroy) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br>_Destroy a f32\_to\_i16 instance and release all memory._  |
+|  void | [**f32\_to\_i16\_get\_state**](#function-f32_to_i16_get_state) (const [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, void \* blob) <br> |
 |  void | [**f32\_to\_i16\_reset**](#function-f32_to_i16_reset) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br>_Reset f32\_to\_i16 to its post-create state._  |
+|  int | [**f32\_to\_i16\_set\_state**](#function-f32_to_i16_set_state) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**f32\_to\_i16\_state\_bytes**](#function-f32_to_i16_state_bytes) (const [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int16\_t | [**f32\_to\_i16\_step**](#function-f32_to_i16_step) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, float x) <br>_Process one input sample._  |
 |  void | [**f32\_to\_i16\_steps**](#function-f32_to_i16_steps) ([**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) \* state, const float \* input, int16\_t \* output, size\_t n) <br>_Process a block of float samples to int16._  |
 
@@ -91,6 +95,12 @@ _Scale-and-saturate float-to-int16 converter._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**F32\_TO\_I16\_STATE\_MAGIC**](f32__to__i16__core_8h.md#define-f32_to_i16_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','2','1','6')`<br> |
+| define  | [**F32\_TO\_I16\_STATE\_VERSION**](f32__to__i16__core_8h.md#define-f32_to_i16_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -203,6 +213,22 @@ void f32_to_i16_destroy (
 
 
 
+### function f32\_to\_i16\_get\_state 
+
+```C++
+void f32_to_i16_get_state (
+    const f32_to_i16_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function f32\_to\_i16\_reset 
 
 _Reset f32\_to\_i16 to its post-create state._ 
@@ -228,6 +254,37 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 
 
         
+
+<hr>
+
+
+
+### function f32\_to\_i16\_set\_state 
+
+```C++
+int f32_to_i16_set_state (
+    f32_to_i16_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function f32\_to\_i16\_state\_bytes 
+
+```C++
+size_t f32_to_i16_state_bytes (
+    const f32_to_i16_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -297,12 +354,49 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 * `state` Must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
 * `output` Output int16 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import F32ToI16
+>>> import numpy as np
+>>> x = np.array([0.0, 0.5, -1.0, 0.999], dtype=np.float32)
+>>> F32ToI16().steps(x).tolist()   # default scale=32768 -> full-scale int16
+[0, 16384, -32768, 32735]
+```
+ 
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define F32\_TO\_I16\_STATE\_MAGIC 
+
+```C++
+#define F32_TO_I16_STATE_MAGIC `DP_FOURCC ('F','2','1','6')`
+```
+
+
+
+
+<hr>
+
+
+
+### define F32\_TO\_I16\_STATE\_VERSION 
+
+```C++
+#define F32_TO_I16_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

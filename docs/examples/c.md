@@ -124,7 +124,7 @@ install or an extracted [release tarball](../install/c.md#install-from-a-release
 see [`examples/consumer/`](https://github.com/doppler-dsp/doppler/tree/main/examples/consumer).
 One `CMakeLists.txt` builds against **both** link targets:
 `doppler::doppler` (shared) and `doppler::doppler-static` (the pure-C static
-archive — links only `-lm`, no C++ runtime, no zmq). The
+archive — links only `-lm`, no C++ runtime). The
 [C Library install guide](../install/c.md) has the full find_package and
 pkg-config commands.
 
@@ -467,7 +467,8 @@ ______________________________________________________________________
 ## PUSH/PULL pipeline
 
 Two threads in-process — producer pushes 100 batches of 1024 CF64
-samples over a ZMQ PUSH/PULL socket; consumer receives and prints power.
+samples over the NATS JetStream PUSH/PULL work-queue tier; consumer
+receives and prints power.
 
 ```c
 #include <doppler.h>
@@ -475,12 +476,12 @@ samples over a ZMQ PUSH/PULL socket; consumer receives and prints power.
 #include <complex.h>
 
 /* Producer thread — rate/freq travel in the header the send builds */
-dp_push_t *ctx = dp_push_create("ipc:///tmp/dp.ipc", CF64);
+dp_push_t *ctx = dp_push_create("nats://127.0.0.1:4222/work", CF64);
 dp_push_send_cf64(ctx, samples, 1024, 1e6, 0.0);  /* samples, n, fs, fc */
 dp_push_destroy(ctx);
 
 /* Consumer thread — recv hands back a library-owned message + header */
-dp_pull_t *rx = dp_pull_create("ipc:///tmp/dp.ipc");
+dp_pull_t *rx = dp_pull_create("nats://127.0.0.1:4222/work");
 dp_msg_t *msg;
 dp_header_t rhdr;
 if (dp_pull_recv(rx, &msg, &rhdr) == DP_OK) {

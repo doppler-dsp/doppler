@@ -1,13 +1,14 @@
-"""pipeline_send.py — ZMQ PUSH sender example.
+"""pipeline_send.py — NATS PUSH sender example.
 
 Generates a complex tone and distributes 8 192-sample packets to one or
-more PULL workers via a ZMQ PUSH socket.  Frames are delivered round-robin
-across all connected workers.
+more PULL workers via the NATS JetStream work-queue tier.  Frames are
+load-balanced across all connected workers sharing the durable consumer.
+Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
   python examples/python/pipeline_send.py [endpoint]
-  python examples/python/pipeline_send.py                  # tcp://*:5560
-  python examples/python/pipeline_send.py tcp://*:5561
+  python examples/python/pipeline_send.py                  # nats://127.0.0.1:4222/work
+  python examples/python/pipeline_send.py nats://127.0.0.1:4222/work2
 
 Run one or more pipeline_recv.py instances connecting to the same endpoint
 before starting this sender.  Press Ctrl+C to stop.
@@ -47,7 +48,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://*:5560")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/work"
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, _sighandler)

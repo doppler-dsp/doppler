@@ -34,7 +34,7 @@
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every ZMQ message._  |
+| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every stream message._  |
 
 
 ## Public Types

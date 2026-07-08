@@ -8,7 +8,7 @@
 
 
 
-_ZMQ-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP._ 
+_NATS-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP._ 
 
 
 

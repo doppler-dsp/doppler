@@ -249,7 +249,6 @@ nav:
       - Continuously Variable Resampler: design/RESAMPLER.md
       - Spectrum Analyzer (Specan): design/SPECAN.md
       - Acquisition Kernel: design/acq-fn.md
-      - Static vs Dynamic Linking: design/STATIC_VS_DYNAMIC.md
   - Spectrum Analyzer: specan/index.md
   - CLI & Pipelines:
       - CLI & Pipelines: cli/index.md

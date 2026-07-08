@@ -26,13 +26,15 @@ typedef struct {
     psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg) */
     float         *pwr;     /* metric working buffer, one-sided power     */
     double enbw;            /* window equivalent noise bandwidth (bins)   */
+    double beta;            /* auto-selected Kaiser shape (from DR target) */
+    size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
     size_t n;               /* capture / frame length                     */
     size_t nfft;            /* zero-padded transform length               */
     double fs;              /* sample rate (Hz)                           */
 } nprmeas_state_t;
 
-nprmeas_state_t *nprmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale, size_t bits);
+nprmeas_state_t *nprmeas_create(size_t n, double fs, double full_scale,
+                                size_t bits, double dynamic_range_db);
 
 void nprmeas_destroy(nprmeas_state_t *state);
 

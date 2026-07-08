@@ -12,38 +12,32 @@ config = "just-makeit.toml"
 
 [runtime.apt]
 packages = [
-    "libzmq3-dev",
     "libfftw3-dev",
     "libfftw3-bin",
 ]
 
 [runtime.pacman]
 packages = [
-    "zeromq",
     "fftw",
 ]
 
 [runtime.brew]
 packages = [
-    "zeromq",
     "fftw",
 ]
 
 [runtime.dnf]
 packages = [
-    "zeromq-devel",
     "fftw-devel",
 ]
 
 [runtime.zypper]
 packages = [
-    "zeromq-devel",
     "fftw3-devel",
 ]
 
 [runtime.msys2]
 packages = [
-    "mingw-w64-ucrt-x86_64-zeromq",
     "mingw-w64-ucrt-x86_64-fftw",
 ]
 
@@ -75,9 +69,6 @@ packages = [
 [dev.dnf]
 packages = [
     "gcc",
-    # Only for the optional zmq/stream component (vendored libzmq is C++); the
-    # core libdoppler is pure C99 and builds with gcc alone.
-    "gcc-c++",
     "make",
     "cmake",
     "pkgconf-pkg-config",
@@ -88,9 +79,6 @@ packages = [
 [dev.zypper]
 packages = [
     "gcc",
-    # Only for the optional zmq/stream component (vendored libzmq is C++); the
-    # core libdoppler is pure C99 and builds with gcc alone.
-    "gcc-c++",
     "make",
     "cmake",
     "pkg-config",

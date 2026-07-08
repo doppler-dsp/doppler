@@ -33,7 +33,7 @@ class SpecanConfig:
     source : str
         ``"demo"``, ``"file"``, or ``"socket"``.
     address : str
-        File path (source="file") or ZMQ address (source="socket").
+        File path (source="file") or NATS address (source="socket").
     fs : float
         Input sample rate in Hz.  Required for file sources;
         auto-discovered from packet headers for socket sources.

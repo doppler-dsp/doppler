@@ -15,6 +15,20 @@ from doppler.cli.state import BlockState, ChainState, stop_chain
 
 _CHAINS_DIR = Path.home() / ".doppler" / "chains"
 
+# Inter-block links are NATS subjects on the default local broker, keyed by
+# the unique integer token ports.allocate() hands out (still called "port"
+# throughout this module and doppler.cli.state/ps -- it no longer binds an
+# OS TCP port, just namespaces a subject so concurrent chains don't collide).
+_ADDR_HOST = "nats://127.0.0.1:4222"
+
+
+def _addr(port: int) -> str:
+    return f"{_ADDR_HOST}/dp-chain-{port}"
+
+
+def _port_from_addr(addr: str) -> int:
+    return int(addr.rsplit("-", 1)[-1])
+
 
 # ------------------------------------------------------------------
 # compose init
@@ -115,7 +129,7 @@ def up(compose_file: Path) -> ChainState:
     source_doc = doc["source"]
     source_type = source_doc.pop("type")
     source_port: int = source_doc.pop("port")
-    source_addr = f"tcp://127.0.0.1:{source_port}"
+    source_addr = _addr(source_port)
 
     chain_docs: list[dict] = doc.get("chain", [])
     sink_doc = doc["sink"]
@@ -149,8 +163,8 @@ def up(compose_file: Path) -> ChainState:
     for entry in chain_docs:
         (name, cfg_dict) = next(iter(entry.items()))
         out_port: int = cfg_dict.pop("port")
-        out_addr = f"tcp://127.0.0.1:{out_port}"
-        in_port = int(prev_addr.rsplit(":", 1)[-1])
+        out_addr = _addr(out_port)
+        in_port = _port_from_addr(prev_addr)
 
         blk_cls = block_registry.get(name)
         blk_cfg = blk_cls.Config(**cfg_dict)
@@ -168,7 +182,7 @@ def up(compose_file: Path) -> ChainState:
         prev_addr = out_addr
 
     # --- spawn sink ---
-    sink_in_port = int(prev_addr.rsplit(":", 1)[-1])
+    sink_in_port = _port_from_addr(prev_addr)
     snk_cls = block_registry.get(sink_type)
     snk_cfg = snk_cls.Config(**sink_doc)
     snk_cmd = snk_cls().command(snk_cfg, prev_addr, None)

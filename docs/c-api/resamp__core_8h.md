@@ -11,6 +11,7 @@
 _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -65,8 +66,11 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  size\_t | [**resamp\_get\_num\_phases**](#function-resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  size\_t | [**resamp\_get\_num\_taps**](#function-resamp_get_num_taps) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  double | [**resamp\_get\_rate**](#function-resamp_get_rate) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
+|  void | [**resamp\_get\_state**](#function-resamp_get_state) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _mutable state into_`blob` _._ |
 |  void | [**resamp\_reset**](#function-resamp_reset) ([**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  void | [**resamp\_set\_rate**](#function-resamp_set_rate) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, double rate) <br> |
+|  int | [**resamp\_set\_state**](#function-resamp_set_state) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _(same rate)._ |
+|  size\_t | [**resamp\_state\_bytes**](#function-resamp_state_bytes) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Bytes_ [_**resamp\_get\_state()**_](resamp__core_8h.md#function-resamp_get_state) _writes for_`state` _(envelope + payload)._ |
 
 
 
@@ -94,6 +98,12 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**RESAMP\_STATE\_MAGIC**](resamp__core_8h.md#define-resamp_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'S', 'M', 'P')`<br> |
+| define  | [**RESAMP\_STATE\_VERSION**](resamp__core_8h.md#define-resamp_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -330,6 +340,23 @@ double resamp_get_rate (
 
 
 
+### function resamp\_get\_state 
+
+_Serialize_ `state's` _mutable state into_`blob` _._
+```C++
+void resamp_get_state (
+    const resamp_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function resamp\_reset 
 
 ```C++
@@ -364,6 +391,79 @@ Update rate and recompute phase\_inc. Accumulator phase and delay line are prese
 
 
         
+
+<hr>
+
+
+
+### function resamp\_set\_state 
+
+_Restore mutable state from_ `blob` _(same rate)._
+```C++
+int resamp_set_state (
+    resamp_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function resamp\_state\_bytes 
+
+_Bytes_ [_**resamp\_get\_state()**_](resamp__core_8h.md#function-resamp_get_state) _writes for_`state` _(envelope + payload)._
+```C++
+size_t resamp_state_bytes (
+    const resamp_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define RESAMP\_STATE\_MAGIC 
+
+```C++
+#define RESAMP_STATE_MAGIC `DP_FOURCC ('R', 'S', 'M', 'P')`
+```
+
+
+
+
+<hr>
+
+
+
+### define RESAMP\_STATE\_VERSION 
+
+```C++
+#define RESAMP_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

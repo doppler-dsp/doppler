@@ -297,9 +297,16 @@ Applies step() to every element. State is not mutated (no clipped flag). Accepts
 * `state` Must be non-NULL. 
 * `input` Input uint16 offset-binary array; must contain at least `n` elements. 
 * `output` Output float32 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import UQ15ToF32
+>>> import numpy as np
+>>> UQ15ToF32().steps(np.array([0, 32768], dtype=np.uint16)).tolist()
+[-1.0, 0.0]
+```
+ 
 
 
         

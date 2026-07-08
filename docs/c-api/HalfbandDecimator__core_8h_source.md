@@ -35,6 +35,12 @@ extern "C"
 
   void HalfbandDecimator_reset (HalfbandDecimator_state_t *state);
 
+  size_t HalfbandDecimator_state_bytes (const HalfbandDecimator_state_t *state);
+  void HalfbandDecimator_get_state (const HalfbandDecimator_state_t *state,
+                                    void *blob);
+  int HalfbandDecimator_set_state (HalfbandDecimator_state_t *state,
+                                   const void *blob);
+
   /* ------------------------------------------------------------------ */
   /* Execute                                                             */
   /* ------------------------------------------------------------------ */

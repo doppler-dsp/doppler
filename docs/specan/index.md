@@ -26,8 +26,8 @@ doppler-specan --web
 # File source
 doppler-specan --source file --address capture.cf32 --fs 2.048e6 --web
 
-# ZMQ stream from a doppler publisher
-doppler-specan --source socket --address tcp://localhost:5555 --web
+# NATS stream from a doppler publisher (requires a running nats-server)
+doppler-specan --source socket --address nats://127.0.0.1:4222/iq --web
 ```
 
 Install:

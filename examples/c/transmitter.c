@@ -1,13 +1,15 @@
 /*
- * transmitter.c — ZMQ PUB transmitter example.
+ * transmitter.c — NATS PUB transmitter example.
  *
  * Generates a complex tone and publishes 8192-sample packets via a
- * ZMQ PUB socket.  Supports CF64 and CI32 wire types.
+ * NATS PUB subject. Supports CF64 and CI32 wire types. Requires a running
+ * nats-server (e.g. `nats-server -js`).
  *
  * Usage:
  *   transmitter [endpoint [sample_type]]
- *   transmitter                          # tcp://*:5555, CF64
- *   transmitter tcp://*:5556 ci32        # port 5556, CI32
+ *   transmitter                                       #
+ * nats://127.0.0.1:4222/iq, CF64 transmitter nats://127.0.0.1:4222/iq2 ci32 #
+ * different subject, CI32
  *
  * Press Ctrl+C to stop.
  *
@@ -97,7 +99,8 @@ print_usage (const char *prog)
 {
   printf ("Usage: %s [endpoint [sample_type]]\n", prog);
   printf ("\n");
-  printf ("  endpoint     ZMQ PUB bind address  (default: tcp://*:5555)\n");
+  printf ("  endpoint     NATS PUB endpoint  (default: "
+          "nats://127.0.0.1:4222/iq)\n");
   printf ("  sample_type  ci32 | cf64           (default: cf64)\n");
   printf ("\n");
   printf ("Publishes a %.0f kHz tone at %.0f MHz sample rate.\n",
@@ -108,7 +111,7 @@ print_usage (const char *prog)
 int
 main (int argc, char *argv[])
 {
-  const char      *endpoint    = "tcp://*:5555";
+  const char      *endpoint    = "nats://127.0.0.1:4222/iq";
   dp_sample_type_t sample_type = CF64;
 
   if (argc > 1

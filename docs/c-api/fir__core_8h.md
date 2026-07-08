@@ -11,6 +11,7 @@
 _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include <complex.h>`
 * `#include <stddef.h>`
@@ -67,7 +68,11 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 |  size\_t | [**fir\_execute\_max\_out**](#function-fir_execute_max_out) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Upper bound on execute output samples (always == n\_in for FIR)._  |
 |  int | [**fir\_get\_is\_real**](#function-fir_get_is_real) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_True when the filter was created with real-valued tap coefficients. Real-tap filters (fir\_create\_real) use a cheaper inner loop: 1 FMA/tap versus the 2 FMA + lane permute required for complex multiplication. Use this flag to confirm which constructor path was used at runtime._  |
 |  size\_t | [**fir\_get\_num\_taps**](#function-fir_get_num_taps) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Number of tap coefficients supplied at creation. This equals the filter group delay plus one, and determines the minimum input block length for which no latency is observable._  |
+|  void | [**fir\_get\_state**](#function-fir_get_state) (const [**fir\_state\_t**](structfir__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _delay line into_`blob` _._ |
 |  void | [**fir\_reset**](#function-fir_reset) ([**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._  |
+|  int | [**fir\_set\_state**](#function-fir_set_state) ([**fir\_state\_t**](structfir__state__t.md) \* state, const void \* blob) <br>_Restore the delay line from_ `blob` _(same num\_taps)._ |
+|  size\_t | [**fir\_state\_bytes**](#function-fir_state_bytes) (const [**fir\_state\_t**](structfir__state__t.md) \* state) <br>_Bytes_ [_**fir\_get\_state()**_](fir__core_8h.md#function-fir_get_state) _writes for_`state` _(envelope + payload)._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**fir\_step**](#function-fir_step) ([**fir\_state\_t**](structfir__state__t.md) \* s, float complex x) <br>_Single-sample direct-form FIR step (inline composition API)._  |
 
 
 
@@ -95,6 +100,12 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**FIR\_STATE\_MAGIC**](fir__core_8h.md#define-fir_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F', 'I', 'R', '\_')`<br> |
+| define  | [**FIR\_STATE\_VERSION**](fir__core_8h.md#define-fir_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -372,6 +383,23 @@ size_t fir_get_num_taps (
 
 
 
+### function fir\_get\_state 
+
+_Serialize_ `state's` _delay line into_`blob` _._
+```C++
+void fir_get_state (
+    const fir_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function fir\_reset 
 
 _Zero the delay line; preserve taps and scratch capacity. After a reset the filter behaves identically to a freshly constructed instance of the same length, without paying the allocation cost again. Call this between unrelated signal segments to prevent inter-segment leakage through the delay line._ 
@@ -400,6 +428,125 @@ void fir_reset (
 
 
         
+
+<hr>
+
+
+
+### function fir\_set\_state 
+
+_Restore the delay line from_ `blob` _(same num\_taps)._
+```C++
+int fir_set_state (
+    fir_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function fir\_state\_bytes 
+
+_Bytes_ [_**fir\_get\_state()**_](fir__core_8h.md#function-fir_get_state) _writes for_`state` _(envelope + payload)._
+```C++
+size_t fir_state_bytes (
+    const fir_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function fir\_step 
+
+_Single-sample direct-form FIR step (inline composition API)._ 
+```C++
+JM_FORCEINLINE  JM_HOT float complex fir_step (
+    fir_state_t * s,
+    float complex x
+) 
+```
+
+
+
+Filters one sample and advances the delay line: returns `y = sum_k h[k] * x[n-k]` and shifts `x` into the length-`num_taps-1` delay line (dropping the oldest sample). This is the per-sample counterpart to [**fir\_execute()**](fir__core_8h.md#function-fir_execute) — a tracking receiver inlines it into its own sample loop (e.g. a matched filter feeding a symbol-timing loop) where [**fir\_execute()**](fir__core_8h.md#function-fir_execute)'s block interface cannot. It mirrors [**fir\_execute()**](fir__core_8h.md#function-fir_execute)'s real-tap scalar accumulation term for term, so a [**fir\_step()**](fir__core_8h.md#function-fir_step) stream matches [**fir\_execute()**](fir__core_8h.md#function-fir_execute) to within floating-point rounding: equal in exact arithmetic; a contracted FMA can differ by ~1 ULP across translation units, and [**fir\_execute()**](fir__core_8h.md#function-fir_execute) on a multi-sample block can differ a little more from SIMD reassociation. Cost is `num_taps` MACs plus an O(num\_taps) delay-line shift per sample.
+
+
+
+
+**Note:**
+
+**Real-tap filters only** (fir\_create\_real). Pulse-shape matched filters — RRC, raised-cosine, integrate-and-dump — are real-valued, which is the streaming use case this serves; a complex-tap variant would add a complex MAC branch and is left until a consumer needs it.
+
+
+
+
+**Parameters:**
+
+
+* `s` Real-tap filter state (fir\_create\_real). Must be non-NULL. 
+* `x` One input sample. 
+
+
+
+**Returns:**
+
+The filtered output sample. 
+
+
+
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define FIR\_STATE\_MAGIC 
+
+```C++
+#define FIR_STATE_MAGIC `DP_FOURCC ('F', 'I', 'R', '_')`
+```
+
+
+
+
+<hr>
+
+
+
+### define FIR\_STATE\_VERSION 
+
+```C++
+#define FIR_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

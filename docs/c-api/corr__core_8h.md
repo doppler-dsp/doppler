@@ -11,6 +11,7 @@
 _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "fft/fft_core.h"`
 
 
@@ -58,12 +59,15 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**corr\_state\_t**](structcorr__state__t.md) \* | [**corr\_create**](#function-corr_create) (const float complex \* ref, size\_t n, size\_t dwell, int nthreads) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
+|  [**corr\_state\_t**](structcorr__state__t.md) \* | [**corr\_create**](#function-corr_create) (const float complex \* ref, size\_t n, size\_t dwell, int nthreads, size\_t n\_out) <br>_Allocate a 1-D FFT correlator with coherent integrate-and-dump. Pre-computes conj(FFT(ref)) once at construction so each execute() call costs only two FFTs and n complex multiplies._ `ref` _may be freed after this returns. With_`dwell` _== 1 every call produces output; with larger values the accumulator absorbs_`dwell` _frames before dumping._ |
 |  void | [**corr\_destroy**](#function-corr_destroy) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Destroy and free a corr instance._  |
-|  size\_t | [**corr\_execute**](#function-corr_execute) ([**corr\_state\_t**](structcorr__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Correlate one frame and optionally dump the coherent accumulator. Runs the six-step pipeline: forward FFT → pointwise multiply with ref\_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump. On the_ `dwell-th` _call the accumulator is copied to_`out` _, zeroed, and the counter resets; the function returns n. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._ |
-|  size\_t | [**corr\_execute\_max\_out**](#function-corr_execute_max_out) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Maximum output samples per execute call (always == n)._  |
+|  size\_t | [**corr\_execute**](#function-corr_execute) ([**corr\_state\_t**](structcorr__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out) <br>_Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the_`dwell-th` _call_`out` _is written, the accumulator is zeroed, and the counter resets; the function returns n\_out. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._ |
+|  size\_t | [**corr\_execute\_max\_out**](#function-corr_execute_max_out) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Maximum output samples per execute call (== n\_out)._  |
+|  void | [**corr\_get\_state**](#function-corr_get_state) (const [**corr\_state\_t**](structcorr__state__t.md) \* state, void \* blob) <br> |
 |  void | [**corr\_reset**](#function-corr_reset) ([**corr\_state\_t**](structcorr__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without tearing down the FFT plans. Does NOT recompute ref\_spec; use_ [_**corr\_set\_ref()**_](corr__core_8h.md#function-corr_set_ref) _to replace the reference._ |
 |  void | [**corr\_set\_ref**](#function-corr_set_ref) ([**corr\_state\_t**](structcorr__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference signal and recompute conj(FFT(ref))._  |
+|  int | [**corr\_set\_state**](#function-corr_set_state) ([**corr\_state\_t**](structcorr__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**corr\_state\_bytes**](#function-corr_state_bytes) (const [**corr\_state\_t**](structcorr__state__t.md) \* state) <br> |
 
 
 
@@ -91,6 +95,12 @@ _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**CORR\_STATE\_MAGIC**](corr__core_8h.md#define-corr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('C','O','R','R')`<br> |
+| define  | [**CORR\_STATE\_VERSION**](corr__core_8h.md#define-corr_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -138,7 +148,8 @@ corr_state_t * corr_create (
     const float complex * ref,
     size_t n,
     size_t dwell,
-    int nthreads
+    int nthreads,
+    size_t n_out
 ) 
 ```
 
@@ -153,6 +164,7 @@ corr_state_t * corr_create (
 * `n` Reference / FFT length in samples. 
 * `dwell` Integration depth; must be &gt;= 1. Pass 1 for immediate output on every call. 
 * `nthreads` Accepted for API compatibility; ignored. 
+* `n_out` Inverse/output length; 0 =&gt; native (n). Must be &gt;= n. A larger value zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer length-n\_out grid — same peak, sub-bin lag resolution. Native is bit-exact and allocates no extra buffer. 
 
 
 
@@ -208,7 +220,7 @@ void corr_destroy (
 
 ### function corr\_execute 
 
-_Correlate one frame and optionally dump the coherent accumulator. Runs the six-step pipeline: forward FFT → pointwise multiply with ref\_spec → inverse FFT → normalise (÷ n) → accumulate → conditional dump. On the_ `dwell-th` _call the accumulator is copied to_`out` _, zeroed, and the counter resets; the function returns n. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._
+_Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the_`dwell-th` _call_`out` _is written, the accumulator is zeroed, and the counter resets; the function returns n\_out. All other calls return 0 and leave_`out` _unmodified. In Python, a dump returns an ndarray and a no-dump returns None._
 ```C++
 size_t corr_execute (
     corr_state_t * state,
@@ -228,13 +240,13 @@ size_t corr_execute (
 * `state` Allocated correlator (non-NULL). 
 * `in` Input frame, CF32, length state-&gt;n. 
 * `n_in` Number of input samples; must equal state-&gt;n. 
-* `out` Output buffer for the correlation map (CF32, length state-&gt;n); written only on a dump call. 
+* `out` Output buffer for the correlation map (CF32, length n\_out); written only on a dump call. 
 
 
 
 **Returns:**
 
-n on a dump call, 0 otherwise (None in Python). 
+n\_out on a dump call, 0 otherwise (None in Python). 
 ```C++
 >>> from doppler.spectral import Corr
 >>> import numpy as np
@@ -260,10 +272,26 @@ True
 
 ### function corr\_execute\_max\_out 
 
-_Maximum output samples per execute call (always == n)._ 
+_Maximum output samples per execute call (== n\_out)._ 
 ```C++
 size_t corr_execute_max_out (
     corr_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function corr\_get\_state 
+
+```C++
+void corr_get_state (
+    const corr_state_t * state,
+    void * blob
 ) 
 ```
 
@@ -334,6 +362,66 @@ Also resets the accumulator and counter (as if [**corr\_reset()**](corr__core_8h
 
 
         
+
+<hr>
+
+
+
+### function corr\_set\_state 
+
+```C++
+int corr_set_state (
+    corr_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function corr\_state\_bytes 
+
+```C++
+size_t corr_state_bytes (
+    const corr_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define CORR\_STATE\_MAGIC 
+
+```C++
+#define CORR_STATE_MAGIC `DP_FOURCC ('C','O','R','R')`
+```
+
+
+
+
+<hr>
+
+
+
+### define CORR\_STATE\_VERSION 
+
+```C++
+#define CORR_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

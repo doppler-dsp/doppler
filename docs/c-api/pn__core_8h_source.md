@@ -13,6 +13,7 @@
 #define PN_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,17 @@ pn_state_t *pn_create(uint64_t poly, uint64_t seed, uint32_t length, int lfsr);
 void pn_destroy(pn_state_t *state);
 
 void pn_reset(pn_state_t *state);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Only the running LFSR register is serialized; poly / seed / mask / kind /
+ * fib_taps / topshift are config restored by the constructor.
+ * Envelope: [dp_state_hdr_t][u64 reg]. */
+#define PN_STATE_MAGIC DP_FOURCC('P', 'N', '_', '_')
+#define PN_STATE_VERSION 1u
+
+size_t pn_state_bytes(const pn_state_t *state);
+void pn_get_state(const pn_state_t *state, void *blob);
+int pn_set_state(pn_state_t *state, const void *blob);
 
 JM_FORCEINLINE uint8_t
 pn_step(pn_state_t *state)

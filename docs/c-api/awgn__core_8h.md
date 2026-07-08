@@ -11,6 +11,7 @@
 _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 
 
@@ -64,9 +65,12 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 |  size\_t | [**awgn\_generate**](#function-awgn_generate) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, size\_t n, float complex \* out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
 |  size\_t | [**awgn\_generate\_max\_out**](#function-awgn_generate_max_out) ([**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
 |  float | [**awgn\_get\_amplitude**](#function-awgn_get_amplitude) (const [**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Return the current amplitude (per-component std dev)._  |
+|  void | [**awgn\_get\_state**](#function-awgn_get_state) (const [**awgn\_state\_t**](structawgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._ |
 |  void | [**awgn\_reseed**](#function-awgn_reseed) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, uint64\_t seed) <br>_Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**awgn\_destroy()**_](awgn__core_8h.md#function-awgn_destroy) _and awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._ |
 |  void | [**awgn\_reset**](#function-awgn_reset) ([**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Reset RNG to the seed supplied at create time. Re-runs the SplitMix64 seeding procedure with the original seed so the next_ [_**awgn\_generate()**_](awgn__core_8h.md#function-awgn_generate) _call produces exactly the same samples as the first call after_[_**awgn\_create()**_](awgn__core_8h.md#function-awgn_create) _. amplitude is not changed._ |
 |  void | [**awgn\_set\_amplitude**](#function-awgn_set_amplitude) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, float val) <br> |
+|  int | [**awgn\_set\_state**](#function-awgn_set_state) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, const void \* blob) <br>_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  size\_t | [**awgn\_state\_bytes**](#function-awgn_state_bytes) (const [**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 
 
 
@@ -94,6 +98,12 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**AWGN\_STATE\_MAGIC**](awgn__core_8h.md#define-awgn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'W', 'G', 'N')`<br> |
+| define  | [**AWGN\_STATE\_VERSION**](awgn__core_8h.md#define-awgn_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -317,6 +327,23 @@ float awgn_get_amplitude (
 
 
 
+### function awgn\_get\_state 
+
+_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._
+```C++
+void awgn_get_state (
+    const awgn_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function awgn\_reseed 
 
 _Reseed the RNG and reset all xoshiro256++ state. Equivalent to calling_ [_**awgn\_destroy()**_](awgn__core_8h.md#function-awgn_destroy) _and awgn\_create(seed, amplitude) but reuses the existing allocation. amplitude is unchanged._
@@ -404,6 +431,68 @@ Set amplitude without disturbing RNG state.
 
 
         
+
+<hr>
+
+
+
+### function awgn\_set\_state 
+
+_Restore RNG state; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
+```C++
+int awgn_set_state (
+    awgn_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function awgn\_state\_bytes 
+
+_Serialized-state byte size._ 
+```C++
+size_t awgn_state_bytes (
+    const awgn_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define AWGN\_STATE\_MAGIC 
+
+```C++
+#define AWGN_STATE_MAGIC `DP_FOURCC ('A', 'W', 'G', 'N')`
+```
+
+
+
+
+<hr>
+
+
+
+### define AWGN\_STATE\_VERSION 
+
+```C++
+#define AWGN_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

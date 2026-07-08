@@ -51,11 +51,11 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* | [**dp\_pull\_create**](#function-dp_pull_create) (const char \* endpoint) <br>_Create a Pull socket and connect to_ `endpoint` _._ |
+|  [**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* | [**dp\_pull\_create**](#function-dp_pull_create) (const char \* endpoint) <br>_Create a Pull consumer and connect to_ `endpoint` _._ |
 |  void | [**dp\_pull\_destroy**](#function-dp_pull_destroy) ([**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* ctx) <br>_Destroy a Pull context and release all resources._  |
 |  int | [**dp\_pull\_recv**](#function-dp_pull_recv) ([**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive one frame from a Pull socket (zero-copy)._  |
 |  void | [**dp\_pull\_set\_timeout**](#function-dp_pull_set_timeout) ([**dp\_pull\_t**](group__types.md#typedef-dp_pull_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Pull socket._  |
-|  [**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* | [**dp\_push\_create**](#function-dp_push_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Push socket and bind to_ `endpoint` _._ |
+|  [**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* | [**dp\_push\_create**](#function-dp_push_create) (const char \* endpoint, [**dp\_sample\_type\_t**](group__types.md#enum-dp_sample_type_t) sample\_type) <br>_Create a Push producer and connect to_ `endpoint` _._ |
 |  void | [**dp\_push\_destroy**](#function-dp_push_destroy) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx) <br>_Destroy a Push context and release all resources._  |
 |  int | [**dp\_push\_send\_cf128**](#function-dp_push_send_cf128) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const long double \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF128 samples via a Push socket._  |
 |  int | [**dp\_push\_send\_cf32**](#function-dp_push_send_cf32) ([**dp\_push\_t**](group__types.md#typedef-dp_push_t) \* ctx, const float \_Complex \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CF32 samples via a Push socket._  |
@@ -105,7 +105,7 @@ Push sockets distribute work across all connected Pull workers in a round-robin 
 
 ### function dp\_pull\_create 
 
-_Create a Pull socket and connect to_ `endpoint` _._
+_Create a Pull consumer and connect to_ `endpoint` _._
 ```
 dp_pull_t * dp_pull_create (
     const char * endpoint
@@ -119,7 +119,7 @@ dp_pull_t * dp_pull_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5556"`. 
+* `endpoint` NATS endpoint, e.g. `"nats://127.0.0.1:4222/work"`. 
 
 
 
@@ -236,7 +236,7 @@ void dp_pull_set_timeout (
 
 ### function dp\_push\_create 
 
-_Create a Push socket and bind to_ `endpoint` _._
+_Create a Push producer and connect to_ `endpoint` _._
 ```
 dp_push_t * dp_push_create (
     const char * endpoint,
@@ -251,14 +251,21 @@ dp_push_t * dp_push_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to bind, e.g. `"tcp://\*:5556"`. 
+* `endpoint` NATS endpoint, e.g. `"nats://127.0.0.1:4222/work"`. 
 * `sample_type` Sample format that will be sent. 
 
 
 
 **Returns:**
 
-Non-NULL context on success, NULL on failure. 
+Non-NULL context on success, NULL on failure.
+
+
+
+
+**Note:**
+
+On the NATS (`nats://`) work-queue tier the per-frame payload must fit one message: `header + data <= server max_payload` (default 1 MiB). Unlike PUB/SUB, PUSH does not chunk (the work-queue load-balances frames across workers, which cannot reassemble a split frame), so an oversized `dp_push_send_*` returns [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large). Raise the broker `max_payload` for larger durable frames, or use PUB/SUB (which chunks). 
 
 
 

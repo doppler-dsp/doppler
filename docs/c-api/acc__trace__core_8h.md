@@ -12,6 +12,7 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -66,7 +67,10 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 |  void | [**acc\_trace\_accumulate**](#function-acc_trace_accumulate) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, const float \* p, size\_t p\_len) <br>_Fold one length-n frame into the running trace. Frames shorter than_ `n` _are ignored; if_`p_len` _exceeds_`n` _only the first_`n` _samples are used. The first accumulated frame seeds the trace directly (every mode), so a single frame followed by value() returns that frame unchanged._ |
 |  [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* | [**acc\_trace\_create**](#function-acc_trace_create) (size\_t n, int mode, double alpha) <br>_Create a length-_ `n` _trace accumulator._ |
 |  void | [**acc\_trace\_destroy**](#function-acc_trace_destroy) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Destroy an AccTrace instance and release all memory._  |
+|  void | [**acc\_trace\_get\_state**](#function-acc_trace_get_state) (const [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, void \* blob) <br> |
 |  void | [**acc\_trace\_reset**](#function-acc_trace_reset) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._  |
+|  int | [**acc\_trace\_set\_state**](#function-acc_trace_set_state) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**acc\_trace\_state\_bytes**](#function-acc_trace_state_bytes) (const [**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br> |
 |  size\_t | [**acc\_trace\_value**](#function-acc_trace_value) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state, size\_t n, float \* out) <br>_Copy the current averaged trace into_ `out` _. Writes the full length-n trace and returns n. Returns 0 (which the Python wrapper renders as None) before any frame has been accumulated._ |
 |  size\_t | [**acc\_trace\_value\_max\_out**](#function-acc_trace_value_max_out) ([**acc\_trace\_state\_t**](structacc__trace__state__t.md) \* state) <br>_Output capacity hint for value(); equals the trace length n._  |
 
@@ -96,6 +100,12 @@ _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**ACC\_TRACE\_STATE\_MAGIC**](acc__trace__core_8h.md#define-acc_trace_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','T','R','C')`<br> |
+| define  | [**ACC\_TRACE\_STATE\_VERSION**](acc__trace__core_8h.md#define-acc_trace_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -262,6 +272,22 @@ void acc_trace_destroy (
 
 
 
+### function acc\_trace\_get\_state 
+
+```C++
+void acc_trace_get_state (
+    const acc_trace_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function acc\_trace\_reset 
 
 _Discard the running trace; the next accumulate re-seeds it. The mode, alpha, and length are preserved._ 
@@ -294,6 +320,37 @@ void acc_trace_reset (
 
 
         
+
+<hr>
+
+
+
+### function acc\_trace\_set\_state 
+
+```C++
+int acc_trace_set_state (
+    acc_trace_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function acc\_trace\_state\_bytes 
+
+```C++
+size_t acc_trace_state_bytes (
+    const acc_trace_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -354,6 +411,35 @@ _Output capacity hint for value(); equals the trace length n._
 size_t acc_trace_value_max_out (
     acc_trace_state_t * state
 ) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define ACC\_TRACE\_STATE\_MAGIC 
+
+```C++
+#define ACC_TRACE_STATE_MAGIC `DP_FOURCC ('A','T','R','C')`
+```
+
+
+
+
+<hr>
+
+
+
+### define ACC\_TRACE\_STATE\_VERSION 
+
+```C++
+#define ACC_TRACE_STATE_VERSION `1u`
 ```
 
 

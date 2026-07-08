@@ -6,22 +6,15 @@ Here is a list of all modules:
 
 
 * [**Error codes**](group__errors.md) 
-    
 
 
 
-
-
-
-
-
-
-
-* [**Streaming**](group__streaming.md) _ZMQ-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP._ 
+* [**Streaming**](group__streaming.md) _NATS-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP._ 
     
 
     * [**Message handle**](group__msg.md) 
         
+
 
 
 

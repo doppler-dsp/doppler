@@ -13,10 +13,10 @@ include("${CMAKE_CURRENT_LIST_DIR}/doppler-targets.cmake")
 #
 #   doppler::doppler         shared (libdoppler.so) — pure C, links -ldoppler -lm.
 #   doppler::doppler-static  the self-contained static archive — pure C, links
-#                            with only -lm (no C++ runtime, no zmq).
-#   doppler::stream[-static] OPTIONAL ZMQ/stream layer (libdoppler_stream).
-#                            Carries the C++ runtime (vendored libzmq, folded in);
-#                            link it only if you need the dp_pub_*/dp_sub_* wire
-#                            layer or wfmgen's `--output zmq://`.
+#                            with only -lm.
+#   doppler::stream[-static] OPTIONAL NATS stream layer (libdoppler_stream,
+#                            vendored nats.c folded in); link it only if you
+#                            need the dp_pub_*/dp_sub_* wire layer or
+#                            wfmgen's `--output nats://`.
 
 check_required_components(doppler)

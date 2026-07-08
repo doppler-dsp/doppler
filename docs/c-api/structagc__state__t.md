@@ -38,9 +38,12 @@ _AGC state._ [More...](#detailed-description)
 | ---: | :--- |
 |  double | [**alpha**](#variable-alpha)  <br> |
 |  double | [**clip\_db**](#variable-clip_db)  <br> |
+|  float | [**clip\_lin**](#variable-clip_lin)  <br> |
 |  size\_t | [**decim**](#variable-decim)  <br> |
 |  double | [**g\_last**](#variable-g_last)  <br> |
 |  double | [**gain\_db**](#variable-gain_db)  <br> |
+|  size\_t | [**gain\_phase**](#variable-gain_phase)  <br> |
+|  size\_t | [**gain\_update\_period**](#variable-gain_update_period)  <br> |
 |  double | [**loop\_bw**](#variable-loop_bw)  <br> |
 |  double | [**p\_avg**](#variable-p_avg)  <br> |
 |  double | [**ref\_db**](#variable-ref_db)  <br> |
@@ -91,7 +94,7 @@ _AGC state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**agc\_create()**](agc__core_8h.md#function-agc_create). `ref_db`, `loop_bw`, `alpha`, `decim` and `clip_db` are configuration (readable and writable at runtime); `gain_db`, `p_avg` and `g_last` are the loop's internal memory. 
+Allocate with [**agc\_create()**](agc__core_8h.md#function-agc_create). `ref_db`, `loop_bw`, `alpha`, `decim`, `clip_db` and `gain_update_period` are configuration (readable and writable at runtime); `gain_db`, `p_avg`, `g_last`, `gain_phase` and `clip_lin` are the loop's internal memory. 
 
 
     
@@ -117,6 +120,19 @@ double agc_state_t::alpha;
 
 ```C++
 double agc_state_t::clip_db;
+```
+
+
+
+
+<hr>
+
+
+
+### variable clip\_lin 
+
+```C++
+float agc_state_t::clip_lin;
 ```
 
 
@@ -156,6 +172,32 @@ double agc_state_t::g_last;
 
 ```C++
 double agc_state_t::gain_db;
+```
+
+
+
+
+<hr>
+
+
+
+### variable gain\_phase 
+
+```C++
+size_t agc_state_t::gain_phase;
+```
+
+
+
+
+<hr>
+
+
+
+### variable gain\_update\_period 
+
+```C++
+size_t agc_state_t::gain_update_period;
 ```
 
 

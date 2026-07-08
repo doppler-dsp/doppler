@@ -11,6 +11,7 @@
 _Synth component API._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include "fir/fir_core.h"`
 * `#include "lo/lo_core.h"`
@@ -73,18 +74,23 @@ _Synth component API._ [More...](#detailed-description)
 |  float | [**wfm\_synth\_get\_cur\_im**](#function-wfm_synth_get_cur_im) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the imaginary part of the current held symbol. For QPSK this is the Q component (±1/√2); for BPSK/PN it is always 0; for tone/noise it is 0._  |
 |  float | [**wfm\_synth\_get\_cur\_re**](#function-wfm_synth_get_cur_re) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the real part of the current held symbol. For modulated types this is the I component latched at the last symbol boundary (±1 for BPSK/PN, ±1/√2 for QPSK). For tone the synthesiser initialises cur\_re to 1.0 so that the held symbol is a clean unit-power carrier; for noise it is 0.0 (noise has no held symbol)._  |
 |  int | [**wfm\_synth\_get\_nsps**](#function-wfm_synth_get_nsps) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the samples-per-symbol count. For modulated types (BPSK, QPSK, PN) each symbol is held for nsps consecutive output samples. For tone/noise this field is present but unused by the synthesis path._  |
+|  void | [**wfm\_synth\_get\_state**](#function-wfm_synth_get_state) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, void \* blob) <br> |
 |  int | [**wfm\_synth\_get\_sym\_pos**](#function-wfm_synth_get_sym_pos) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._  |
 |  int | [**wfm\_synth\_get\_wtype**](#function-wfm_synth_get_wtype) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_Maximal-length-sequence (MLS) primitive polynomial for an LFSR of the given register length n, in pn\_core's right-shift Galois convention. Returns 0 for lengths outside 2..64 (caller errors). Generated from verified primitive polynomials (period 2^n-1); the n=2..16 values are unchanged._  |
+|  void | [**wfm\_synth\_reseed\_noise**](#function-wfm_synth_reseed_noise) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**wfm\_synth\_reset**](#function-wfm_synth_reset) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**wfm\_synth\_set\_bits**](#function-wfm_synth_set_bits) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
 |  void | [**wfm\_synth\_set\_chirp\_span**](#function-wfm_synth_set_chirp_span) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, size\_t span) <br>_Pin a chirp's sweep span to_ `span` _samples (no-op for non-chirp)._ |
 |  void | [**wfm\_synth\_set\_cur\_im**](#function-wfm_synth_set_cur_im) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol imaginary (Q) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
 |  void | [**wfm\_synth\_set\_cur\_re**](#function-wfm_synth_set_cur_re) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float val) <br>_Override the held-symbol real (I) component in-place. Takes effect on the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _within the current symbol hold._ |
 |  void | [**wfm\_synth\_set\_nsps**](#function-wfm_synth_set_nsps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
-|  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk)._  |
+|  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
+|  int | [**wfm\_synth\_set\_state**](#function-wfm_synth_set_state) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**wfm\_synth\_set\_sym\_pos**](#function-wfm_synth_set_sym_pos) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the symbol-position counter in-place. Injecting 0 forces the next_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _to latch a new PN chip; any other value fast-forwards into the middle of the current symbol hold._ |
+|  int | [**wfm\_synth\_set\_symbols**](#function-wfm_synth_set_symbols) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \_Complex \* symbols, size\_t n) <br>_Attach a complex-symbol stream to a type=symbols synth (no-op else)._  |
 |  void | [**wfm\_synth\_set\_wtype**](#function-wfm_synth_set_wtype) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._  |
+|  size\_t | [**wfm\_synth\_state\_bytes**](#function-wfm_synth_state_bytes) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**wfm\_synth\_step**](#function-wfm_synth_step) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
 |  void | [**wfm\_synth\_steps**](#function-wfm_synth_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
 
@@ -119,6 +125,8 @@ _Synth component API._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -151,7 +159,8 @@ enum wfm__synth__core_8h_1abd477555e01841805289c5cf8e4e76fb {
     WFM_SYNTH_BPSK = 3,
     WFM_SYNTH_QPSK = 4,
     WFM_SYNTH_CHIRP = 5,
-    WFM_SYNTH_BITS = 6
+    WFM_SYNTH_BITS = 6,
+    WFM_SYNTH_SYMBOLS = 7
 };
 ```
 
@@ -194,7 +203,7 @@ wfm_synth_state_t * wfm_synth_create (
 **Parameters:**
 
 
-* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits. The Python binding accepts strings "tone"\| "noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits". For "bits" attach the pattern with [**wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-wfm_synth_set_bits) after create(). 
+* `type` Waveform type: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk, 5=chirp, 6=bits, 7=symbols. The Python binding accepts strings "tone"\|"noise"\|"pn"\|"bpsk"\|"qpsk"\|"chirp"\|"bits"\|"symbols". For "bits" attach the pattern with [**wfm\_synth\_set\_bits()**](wfm__synth__core_8h.md#function-wfm_synth_set_bits); for "symbols" attach the complex stream with [**wfm\_synth\_set\_symbols()**](wfm__synth__core_8h.md#function-wfm_synth_set_symbols) after create(). 
 * `fs` Sample rate in Hz. Sets the carrier frequency normalisation and the noise bandwidth. Default 1 000 000.0. 
 * `freq` Carrier frequency offset in Hz (−fs/2 … fs/2). A complex LO is created only when freq != 0. For a chirp this is the start frequency f\_start (the instantaneous frequency at t=0). Default 0.0. 
 * `snr` Target SNR in dB, interpreted per `snr_mode`. Values &gt;= WFM\_SYNTH\_SNR\_CLEAN (100) disable AWGN. Default 100.0. 
@@ -376,6 +385,22 @@ Samples per symbol (nsps &gt;= 1).
 
 
 
+### function wfm\_synth\_get\_state 
+
+```C++
+void wfm_synth_get_state (
+    const wfm_synth_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function wfm\_synth\_get\_sym\_pos 
 
 _Return the current position within the current symbol (0..nsps-1). Reaches nsps and wraps to 0 each time a new symbol is consumed from the PN LFSR. Useful for frame alignment: sym\_pos==0 on a step boundary means the very next sample begins a fresh symbol._ 
@@ -455,6 +480,35 @@ JM_FORCEINLINE uint64_t wfm_synth_mls_poly (
 
 
 
+
+<hr>
+
+
+
+### function wfm\_synth\_reseed\_noise 
+
+_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._ 
+```C++
+void wfm_synth_reseed_noise (
+    wfm_synth_state_t * state,
+    uint32_t seed
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Synth state (may be NULL). 
+* `seed` New noise RNG seed. 
+
+
+
+
+        
 
 <hr>
 
@@ -661,7 +715,7 @@ void wfm_synth_set_nsps (
 
 ### function wfm\_synth\_set\_rrc 
 
-_Enable RRC pulse shaping on a modulated synth (pn/bpsk/qpsk)._ 
+_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._ 
 ```C++
 int wfm_synth_set_rrc (
     wfm_synth_state_t * state,
@@ -672,7 +726,7 @@ int wfm_synth_set_rrc (
 
 
 
-Replaces the default rectangular sample-and-hold with a root-raised-cosine pulse: the symbol-rate impulse train is filtered by `taps` (a real FIR of `ntaps` coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps are scaled by sqrt(sps) internally for unit transmit power, so every caller passes the raw taps and gets byte-identical shaping. No-op for non-modulated types. Replaces any existing shaper and clears its delay line.
+Replaces the default rectangular sample-and-hold with a root-raised-cosine pulse: the symbol-rate impulse train is filtered by `taps` (a real FIR of `ntaps` coefficients, typically `wfm_rrc_taps(beta, sps, span)`). The taps are scaled by sqrt(sps) internally for unit transmit power, so every caller passes the raw taps and gets byte-identical shaping. No-op for types with no symbol stream (tone/noise/chirp). Replaces any existing shaper and clears its delay line.
 
 
 
@@ -695,6 +749,22 @@ Replaces the default rectangular sample-and-hold with a root-raised-cosine pulse
 
 
         
+
+<hr>
+
+
+
+### function wfm\_synth\_set\_state 
+
+```C++
+int wfm_synth_set_state (
+    wfm_synth_state_t * state,
+    const void * blob
+) 
+```
+
+
+
 
 <hr>
 
@@ -729,6 +799,57 @@ void wfm_synth_set_sym_pos (
 
 
 
+### function wfm\_synth\_set\_symbols 
+
+_Attach a complex-symbol stream to a type=symbols synth (no-op else)._ 
+```C++
+int wfm_synth_set_symbols (
+    wfm_synth_state_t * state,
+    const float _Complex * symbols,
+    size_t n
+) 
+```
+
+
+
+Copies `n` complex symbols into the synth. Each symbol **is** the constellation point — there is no bit→symbol mapping, so this generalises every modulation (pi/4-QPSK, QAM, custom shaping) into "compute the symbols,
+pass them in". The stream is oversampled by the create-time `sps` and **cycled** to fill whatever length `wfm_synth_steps()` requests (one pass is `n * sps` samples), and is RRC-shaped when `wfm_synth_set_rrc()` is active. Replaces any previous stream; resets the read position. Safe to call repeatedly.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `symbols` Array of `n` complex symbols (copied). 
+* `n` Number of symbols (&gt; 0). 
+
+
+
+**Returns:**
+
+0 on success; -1 on bad args or allocation failure. 
+```C++
+>>> import numpy as np
+>>> from doppler.wfm import _SynthEngine, rrc_taps
+>>> s = _SynthEngine(type="symbols", fs=1.0, freq=0.0, snr=100.0, sps=4)
+>>> s.set_symbols(np.array([1+0j, 1j, -1+0j, -1j], np.complex64))
+>>> s.steps(4)[::4].tolist()   # symbol centres (rect hold)
+[(1+0j), (1+0j), (1+0j), (1+0j)]
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_synth\_set\_wtype 
 
 _Override the waveform type discriminant in-place. Changing wtype does not reinitialise sub-objects; use with care._ 
@@ -753,6 +874,21 @@ void wfm_synth_set_wtype (
 
 
         
+
+<hr>
+
+
+
+### function wfm\_synth\_state\_bytes 
+
+```C++
+size_t wfm_synth_state_bytes (
+    const wfm_synth_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -848,6 +984,32 @@ void wfm_synth_steps (
 
 ```C++
 #define WFM_SYNTH_SNR_CLEAN `100.0`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SYNTH\_STATE\_MAGIC 
+
+```C++
+#define WFM_SYNTH_STATE_MAGIC `DP_FOURCC ('W','F','M','S')`
+```
+
+
+
+
+<hr>
+
+
+
+### define WFM\_SYNTH\_STATE\_VERSION 
+
+```C++
+#define WFM_SYNTH_STATE_VERSION `1u`
 ```
 
 

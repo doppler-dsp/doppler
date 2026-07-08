@@ -26,7 +26,7 @@
  * error is per-block jitter bounded by the OS scheduler, which averages out.
  *
  * Pacing is POSIX only (``clock_gettime`` + an absolute-deadline sleep); the
- * build guards this translation unit out on Windows, mirroring the ZMQ sink.
+ * build guards this translation unit out on Windows, mirroring the stream sink.
  */
 #ifndef DP_TIMING_CORE_H
 #define DP_TIMING_CORE_H

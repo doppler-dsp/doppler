@@ -8,6 +8,8 @@ Here is a list of all files with brief descriptions:
     * **dir** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md)     
         * **file** [**clib\_common.h**](clib__common_8h.md)     
         * **file** [**doppler.h**](doppler_8h.md) 
+        * **file** [**dp\_state.h**](dp__state_8h.md)     
+        * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
         * **file** [**jm\_perf.h**](jm__perf_8h.md) _just-makeit performance annotation macros._     
         * **file** [**jm\_simd.h**](jm__simd_8h.md) _Width-portable SIMD operation macros._     
         * **dir** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md)     
@@ -28,6 +30,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**acc\_trace\_core.h**](acc__trace__core_8h.md) _AccTrace — per-bin vector trace accumulator._     
         * **dir** [**accumulator**](dir_06136a2119985c3c219633f937232576.md)     
             * **file** [**accumulator\_core.h**](accumulator__core_8h.md) _Accumulator module — public C API._ 
+        * **dir** [**acq**](dir_25a1e6db36731e5901b5cfb158eaa462.md)     
+            * **file** [**acq\_core.h**](acq__core_8h.md) _Streaming DSSS burst-acquisition engine._     
         * **dir** [**adc**](dir_a6be6b8cb61d5f2be55c0b2f94afbd88.md)     
             * **file** [**adc\_core.h**](adc__core_8h.md) _Signed two's-complement ADC model._     
         * **dir** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md)     
@@ -38,20 +42,34 @@ Here is a list of all files with brief descriptions:
             * **file** [**arith\_core.h**](arith__core_8h.md) _Arith module — public C API for fixed-point arithmetic on Q15 (int16\_t) and Q8 (int8\_t) arrays. All elementwise operations write into a caller-supplied output buffer of the same length as the shorter input. Saturation clamps results to the representable range rather than wrapping, matching the two's-complement DSP convention._     
         * **dir** [**awgn**](dir_b535f71dd6c18f769df9e4bf89a97331.md)     
             * **file** [**awgn\_core.h**](awgn__core_8h.md) _Additive White Gaussian Noise generator._     
+        * **dir** [**boxcar**](dir_4075e3d5389fc37fde93604059f4dd85.md)     
+            * **file** [**boxcar\_core.h**](boxcar__core_8h.md) _Boxcar (rectangular) moving-average filter — cf32, fixed window._     
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
+        * **dir** [**burst\_demod**](dir_96a22b0098c79a5049df57065c5b8df4.md)     
+            * **file** [**burst\_demod\_core.h**](burst__demod__core_8h.md) _Feedforward BPSK DSSS frame demodulator._     
+        * **dir** [**carrier\_mpsk**](dir_aac9a6642a6538588e08cd0551821cb3.md)     
+            * **file** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md) _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._     
+        * **dir** [**carrier\_nda**](dir_425637d1941eacd8ae8cdd8750b207f0.md)     
+            * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
+        * **dir** [**channel**](dir_7cd82dec1dfa46f6b0156d9a972e4575.md)     
+            * **file** [**channel\_core.h**](channel__core_8h.md) _GPS-style tracking channel — Costas carrier loop + DLL code loop._     
         * **dir** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md)     
             * **file** [**cic\_core.h**](cic__core_8h.md) _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._     
         * **dir** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md)     
             * **file** [**corr\_core.h**](corr__core_8h.md) _1-D FFT-based cross-correlator with coherent integrate-and-dump._     
         * **dir** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md)     
             * **file** [**corr2d\_core.h**](corr2d__core_8h.md) _2-D FFT-based cross-correlator with coherent integrate-and-dump._     
+        * **dir** [**costas**](dir_9b517cb2745356d7938c9e100210a101.md)     
+            * **file** [**costas\_core.h**](costas__core_8h.md) _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._     
         * **dir** [**cvt**](dir_7aebb15fbd538257eeb7884581a8ab59.md)     
             * **file** [**cvt\_core.h**](cvt__core_8h.md) _Cvt module — public C API._ 
         * **dir** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md)     
             * **file** [**ddc\_core.h**](ddc__core_8h.md) _Digital Down-Converter — composes LO + RateConverter cascade._     
         * **dir** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md)     
             * **file** [**delay\_core.h**](delay__core_8h.md) _Delay component API._     
+        * **dir** [**despreader**](dir_9949992fff5aebed427f83f9eaa478ca.md)     
+            * **file** [**despreader\_core.h**](despreader__core_8h.md) _Despreader component API._     
         * **dir** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md)     
             * **file** [**detection\_core.h**](detection__core_8h.md) _Detection-theory utilities for the amplitude-ratio test statistic._     
         * **dir** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md)     
@@ -59,6 +77,10 @@ Here is a list of all files with brief descriptions:
             * **file** [**detector\_core.h**](detector__core_8h.md) _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
         * **dir** [**detector2d**](dir_bd7354e9665bd912180ec22b3c69b55c.md)     
             * **file** [**detector2d\_core.h**](detector2d__core_8h.md) _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._     
+        * **dir** [**dll**](dir_f3da3e2048ea3a8b9e723d3c5367d8f8.md)     
+            * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
+        * **dir** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md)     
+            * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._ 
         * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     
             * **file** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md) _Scale-and-saturate float-to-int16 converter._     
         * **dir** [**f32\_to\_i16u32**](dir_5361bfc3c658147f85e2e18e4bfef9b4.md)     
@@ -67,6 +89,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md) _Scale-and-saturate float to Q15-in-uint64 converter._     
         * **dir** [**f32\_to\_uq15**](dir_4e8c99e54919bb49218552fb8f2fb678.md)     
             * **file** [**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md) _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._     
+        * **dir** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md)     
+            * **file** [**farrow\_core.h**](farrow__core_8h.md) _Farrow fractional-delay interpolator — linear / parabolic / cubic._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
             * **file** [**fft\_core.h**](fft__core_8h.md) _Per-instance 1-D FFT using pocketfft directly._     
         * **dir** [**fft2d**](dir_9009a3f6624dc57956402cd0407c056b.md)     
@@ -94,14 +118,22 @@ Here is a list of all files with brief descriptions:
             * **file** [**imdmeas\_core.h**](imdmeas__core_8h.md) _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._     
         * **dir** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md)     
             * **file** [**lo\_core.h**](lo__core_8h.md) _Local oscillator: NCO + 2^16 sin/cos LUT → CF32 phasors._     
+        * **dir** [**loop\_filter**](dir_6fa6397534e50a536c96f665c3cf0441.md)     
+            * **file** [**loop\_filter\_core.h**](loop__filter__core_8h.md) _Second-order proportional-integral loop filter — the shared engine of every tracking loop (Costas/PLL, DLL, symbol timing)._     
         * **dir** [**measure**](dir_4f61a452d1df39cf8c2e8be27f29f1f2.md)     
             * **file** [**measure\_core.h**](measure__core_8h.md) _Measure module — shared result structs and module-level helpers._     
+        * **dir** [**mpsk**](dir_ca9d413705226c109a44c5982d79aa0f.md)     
+            * **file** [**mpsk\_core.h**](mpsk__core_8h.md) _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._     
+        * **dir** [**mpsk\_receiver**](dir_a1dc26622ebd32726f4fc723db7ccb3b.md)     
+            * **file** [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md) _Pulse-shaped M-PSK receiver: NDA-acquired carrier + Gardner timing._     
         * **dir** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md)     
             * **file** [**nco\_core.h**](nco__core_8h.md) _Pure 32-bit phase-accumulator NCO._     
         * **dir** [**nprmeas**](dir_2ffe7a00bca5d7665b823d0b8c1040c3.md)     
             * **file** [**nprmeas\_core.h**](nprmeas__core_8h.md) _NPRMeasure — notched-noise Noise Power Ratio._     
         * **dir** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md)     
             * **file** [**pn\_core.h**](pn__core_8h.md) _PN component API._     
+        * **dir** [**ppe**](dir_d640b2c624b0e530b2e913b3aa05ce26.md)     
+            * **file** [**ppe\_core.h**](ppe__core_8h.md) _Feedforward polynomial-phase estimator (frequency + chirp rate)._     
         * **dir** [**psd**](dir_1f3d46873d925f2e533983763479900d.md)     
             * **file** [**psd\_core.h**](psd__core_8h.md) _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._     
         * **dir** [**resamp**](dir_289a9297ce406b952fab973539197d1c.md)     
@@ -118,10 +150,14 @@ Here is a list of all files with brief descriptions:
         * **dir** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md)     
             * **file** [**stream.h**](stream_8h.md) _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._     
             * **file** [**stream\_core.h**](stream__core_8h.md) _Stream module — public C API._ 
+        * **dir** [**symsync**](dir_bee143323fe2e99a30a6d3a881f82f29.md)     
+            * **file** [**symsync\_core.h**](symsync__core_8h.md) _SymbolSync component API._     
         * **dir** [**timing**](dir_0a8cc616bc028a416e339204953e39da.md)     
             * **file** [**timing\_core.h**](timing__core_8h.md)     
         * **dir** [**tonemeas**](dir_78c9bf326243d2be956f1c1b5de2ee56.md)     
             * **file** [**tonemeas\_core.h**](tonemeas__core_8h.md) _ToneMeasure — single-tone ADC/converter spectral measurement._     
+        * **dir** [**track**](dir_c2a9225c85c9c9a3475fb96606254dcb.md)     
+            * **file** [**track\_core.h**](track__core_8h.md) _Track module — public C API._ 
         * **dir** [**uq15\_to\_f32**](dir_b44b8aae78dd39801a4344596faf709f.md)     
             * **file** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md) _UQ15 (offset-binary uint16) to float converter._     
         * **dir** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md)     
@@ -130,8 +166,9 @@ Here is a list of all files with brief descriptions:
             * **file** [**wfm\_compose.h**](wfm__compose_8h.md) _Multi-segment waveform composer (Phase B)._     
             * **file** [**wfm\_core.h**](wfm__core_8h.md) _Wfmgen module — public C API._     
             * **file** [**wfm\_dsp.h**](wfm__dsp_8h.md) _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._     
+            * **file** [**wfm\_plan.h**](wfm__plan_8h.md)     
             * **file** [**wfm\_reader.h**](wfm__reader_8h.md) _Input containers for generated IQ — the dual of wfm\_writer._     
-            * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _ZMQ PUB sink for generated IQ (Phase B)._     
+            * **file** [**wfm\_sink.h**](wfm__sink_8h.md) _NATS PUB sink for generated IQ (Phase B)._     
             * **file** [**wfm\_writer.h**](wfm__writer_8h.md) _Output containers for generated IQ: raw / csv / BLUE-1000 + SigMF meta._     
             * **file** [**wfmgen.h**](wfmgen_8h.md)     
         * **dir** [**wfm\_synth**](dir_0493917d169dff974fa9eaf690c8d4c9.md)     

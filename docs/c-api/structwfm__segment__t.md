@@ -39,7 +39,10 @@ _One composer segment: one or more sources summed over the same span, then a tra
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**n\_sources**](#variable-n_sources)  <br> |
 |  size\_t | [**num\_samples**](#variable-num_samples)  <br> |
+|  size\_t | [**num\_samples\_hi**](#variable-num_samples_hi)  <br> |
 |  size\_t | [**off\_samples**](#variable-off_samples)  <br> |
+|  size\_t | [**off\_samples\_hi**](#variable-off_samples_hi)  <br> |
+|  unsigned | [**ranged**](#variable-ranged)  <br> |
 |  [**wfm\_source\_t**](structwfm__source__t.md) \* | [**sources**](#variable-sources)  <br> |
 
 
@@ -136,10 +139,49 @@ size_t wfm_segment_t::num_samples;
 
 
 
+### variable num\_samples\_hi 
+
+```C++
+size_t wfm_segment_t::num_samples_hi;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable off\_samples 
 
 ```C++
 size_t wfm_segment_t::off_samples;
+```
+
+
+
+
+<hr>
+
+
+
+### variable off\_samples\_hi 
+
+```C++
+size_t wfm_segment_t::off_samples_hi;
+```
+
+
+
+
+<hr>
+
+
+
+### variable ranged 
+
+```C++
+unsigned wfm_segment_t::ranged;
 ```
 
 

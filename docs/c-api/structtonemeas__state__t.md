@@ -36,6 +36,7 @@ _ToneMeasure state: owned window, FFT plan and analysis scratch._ [More...](#det
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**beta**](#variable-beta)  <br> |
 |  size\_t | [**dc\_guard**](#variable-dc_guard)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  unsigned char \* | [**excl**](#variable-excl)  <br> |
@@ -46,7 +47,7 @@ _ToneMeasure state: owned window, FFT plan and analysis scratch._ [More...](#det
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
-|  int | [**window**](#variable-window)  <br> |
+|  size\_t | [**spur\_guard\_bins**](#variable-spur_guard_bins)  <br> |
 
 
 
@@ -94,12 +95,25 @@ _ToneMeasure state: owned window, FFT plan and analysis scratch._ [More...](#det
 ## Detailed Description
 
 
-Allocate with [**tonemeas\_create()**](tonemeas__core_8h.md#function-tonemeas_create). `nfft = next_pow2(n * pad)` is the zero-padded transform length; `cg`/`s2`/`enbw` are the window's coherent gain, power and equivalent-noise bandwidth (bins); `lobe_bins` is the main-lobe half-width L over which component power is integrated. 
+Allocate with [**tonemeas\_create()**](tonemeas__core_8h.md#function-tonemeas_create). `nfft = next_pow2(n * MEASURE_PAD)` is the zero-padded transform length; `enbw` is the window's equivalent-noise bandwidth (bins); `lobe_bins` is the main-lobe half-width L over which a component's power is integrated; `spur_guard_bins` (&gt;= L) is the wider fundamental keep-out used by the worst-spur search so the fundamental's own sidelobes are never reported as a spur. 
 
 
     
 ## Public Attributes Documentation
 
+
+
+
+### variable beta 
+
+```C++
+double tonemeas_state_t::beta;
+```
+
+
+
+
+<hr>
 
 
 
@@ -233,10 +247,10 @@ float* tonemeas_state_t::pwr;
 
 
 
-### variable window 
+### variable spur\_guard\_bins 
 
 ```C++
-int tonemeas_state_t::window;
+size_t tonemeas_state_t::spur_guard_bins;
 ```
 
 

@@ -12,6 +12,7 @@ _AccF32 component API._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -64,10 +65,13 @@ _AccF32 component API._ [More...](#detailed-description)
 |  float | [**acc\_f32\_dump**](#function-acc_f32_dump) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Return the accumulated sum and atomically reset it to zero. This is the canonical "drain" primitive: read the period total, then start a fresh accumulation interval without a separate_ `reset` _call. The zero-reset is unconditional and always writes 0.0f._ |
 |  float | [**acc\_f32\_get**](#function-acc_f32_get) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Return the current accumulated sum without resetting state. Identical to reading the_ `acc` _property directly; retained as an explicit method so call sites that need the value can be uniform with_`dump` _without a conditional._ |
 |  float | [**acc\_f32\_get\_acc**](#function-acc_f32_get_acc) (const [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Return the current accumulator value without modifying state. Use this when you need to read the running sum mid-accumulation without disturbing it. For a read-and-reset in one call use_ `acc_f32_dump` _._ |
+|  void | [**acc\_f32\_get\_state**](#function-acc_f32_get_state) (const [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, void \* blob) <br> |
 |  void | [**acc\_f32\_madd**](#function-acc_f32_madd) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total._ |
 |  void | [**acc\_f32\_madd2d**](#function-acc_f32_madd2d) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* x, size\_t x\_len, const float \* h, size\_t h\_len) <br>_Dot-product accumulate over a flat 2-D buffer:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. Combines_`add2d` _and_`madd` _semantics — a 2-D signal array is weighted element-wise by a coefficient buffer and the scalar total is folded into the running sum._ |
 |  void | [**acc\_f32\_reset**](#function-acc_f32_reset) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br>_Zero the accumulator, restoring the same state as a fresh_ `AccF32(0.0)` _— regardless of the value supplied to_`acc_f32_create` _. Subsequent_`get` _/_`dump` _calls return_`0.0` _until new samples are processed._ |
 |  void | [**acc\_f32\_set\_acc**](#function-acc_f32_set_acc) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float acc) <br>_Overwrite the accumulator with a new value. Useful for seeding the accumulator to a known baseline before processing a new segment without a full_ `reset` _._ |
+|  int | [**acc\_f32\_set\_state**](#function-acc_f32_set_state) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**acc\_f32\_state\_bytes**](#function-acc_f32_state_bytes) (const [**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_f32\_step**](#function-acc_f32_step) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, float x) <br>_Add one sample to the running sum (_ `acc += x` _). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer_`acc_f32_steps` _to amortise call overhead and allow auto-vectorisation._ |
 |  void | [**acc\_f32\_steps**](#function-acc_f32_steps) ([**acc\_f32\_state\_t**](structacc__f32__state__t.md) \* state, const float \* input, size\_t n) <br>_Add all samples in_ `input` _to the running sum. Equivalent to calling_`acc_f32_step` _for each element, but SIMD-vectorised on platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses JM\_RESTRICT so the compiler can assume no aliasing between_`state` _and_`input` _._ |
 
@@ -97,6 +101,12 @@ _AccF32 component API._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**ACC\_F32\_STATE\_MAGIC**](acc__f32__core_8h.md#define-acc_f32_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', 'F')`<br> |
+| define  | [**ACC\_F32\_STATE\_VERSION**](acc__f32__core_8h.md#define-acc_f32_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -340,6 +350,22 @@ Current value of `acc` (float).
 
 
 
+### function acc\_f32\_get\_state 
+
+```C++
+void acc_f32_get_state (
+    const acc_f32_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function acc\_f32\_madd 
 
 _Dot-product accumulate:_ `acc += sum(x[i] * h[i])` _for_`i` _in_`0 .. min(x_len, h_len) - 1` _. The shorter of the two arrays limits the iteration count; no out-of-bounds access occurs. Typical use: apply a short FIR weight vector to one block of signal samples and fold the result into a running total._
@@ -498,6 +524,37 @@ void acc_f32_set_acc (
 
 
 
+### function acc\_f32\_set\_state 
+
+```C++
+int acc_f32_set_state (
+    acc_f32_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function acc\_f32\_state\_bytes 
+
+```C++
+size_t acc_f32_state_bytes (
+    const acc_f32_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function acc\_f32\_step 
 
 _Add one sample to the running sum (_ `acc += x` _). This is the hot-path entry point for sample-by-sample processing. For block inputs prefer_`acc_f32_steps` _to amortise call overhead and allow auto-vectorisation._
@@ -570,6 +627,35 @@ void acc_f32_steps (
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define ACC\_F32\_STATE\_MAGIC 
+
+```C++
+#define ACC_F32_STATE_MAGIC `DP_FOURCC ('A', 'C', 'C', 'F')`
+```
+
+
+
+
+<hr>
+
+
+
+### define ACC\_F32\_STATE\_VERSION 
+
+```C++
+#define ACC_F32_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

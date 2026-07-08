@@ -293,9 +293,16 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 * `state` Must be non-NULL. 
 * `input` Input uint32 array (Q15 packed in lower 16 bits); must contain at least `n` elements. 
 * `output` Output float32 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import I16U32ToF32
+>>> import numpy as np
+>>> I16U32ToF32().steps(np.array([0, 16384], dtype=np.uint32)).tolist()
+[0.0, 0.5]
+```
+ 
 
 
         

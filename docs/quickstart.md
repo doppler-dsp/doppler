@@ -75,18 +75,19 @@ ______________________________________________________________________
 
 ## Streaming
 
-Doppler streams IQ data over ZMQ. Transmit and receive on the same
-machine or across a network — the API is identical.
+Doppler streams IQ data over NATS. Transmit and receive on the same
+machine or across a network — the API is identical. Either side
+needs a running `nats-server` (e.g. `nats-server -js`) to connect to.
 
 ### Publisher (Python)
 
-<!-- docs-snippet: skip=two-terminal ZMQ demo; the send/recv round-trip and message fields are gated by doppler/stream/tests/test_stream.py -->
+<!-- docs-snippet: skip=two-terminal NATS demo, needs a broker; the send/recv round-trip and message fields are gated by doppler/stream/tests/test_stream.py -->
 
 ```python
 from doppler.stream import Publisher
 import numpy as np
 
-pub = Publisher("tcp://*:5555")
+pub = Publisher("nats://127.0.0.1:4222/iq")
 
 samples = np.ones(1024, dtype=np.complex64)
 pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
@@ -99,7 +100,7 @@ pub.send(samples, sample_rate=1e6, center_freq=2.4e9)
 ```python
 from doppler.stream import Subscriber
 
-sub = Subscriber("tcp://localhost:5555")
+sub = Subscriber("nats://127.0.0.1:4222/iq")
 
 msg = sub.recv()
 print(f"Received {len(msg.samples)} samples @ {msg.sample_rate/1e6:.1f} MHz")
@@ -113,12 +114,12 @@ Build the C examples once, then mix and match:
 make          # builds ./build/examples/c/transmitter, receiver, etc.
 
 # Terminal 1
-./build/examples/c/transmitter tcp://*:5555 cf32
+./build/examples/c/transmitter nats://127.0.0.1:4222/iq cf32
 
 # Terminal 2 (Python)
 python - <<'EOF'
 from doppler.stream import Subscriber
-sub = Subscriber("tcp://localhost:5555")
+sub = Subscriber("nats://127.0.0.1:4222/iq")
 while True:
     msg = sub.recv()
     print(f"seq={msg.seq}  samples={len(msg.samples)}")
@@ -197,13 +198,13 @@ If you need the C library, examples, or Rust FFI bindings:
 === "Fedora / RHEL"
 
     ```bash
-    sudo dnf install gcc gcc-c++ make cmake pkgconf-pkg-config python3-devel python3-numpy
+    sudo dnf install gcc make cmake pkgconf-pkg-config python3-devel python3-numpy
     ```
 
 === "openSUSE"
 
     ```bash
-    sudo zypper install gcc gcc-c++ make cmake pkg-config python3-devel python3-numpy
+    sudo zypper install gcc make cmake pkg-config python3-devel python3-numpy
     ```
 
 === "macOS"
@@ -218,11 +219,11 @@ If you need the C library, examples, or Rust FFI bindings:
     [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container
     and follow the Ubuntu / Debian steps.
 
-!!! note "C++ compiler"
+!!! note "No C++ compiler needed"
 
-    `gcc-c++` above is needed **only** for the optional ZMQ/stream component
-    (the vendored libzmq is C++). The core C library and the rest of the
-    Python package are pure C99 — drop it if you don't need streaming.
+    The core C library and the optional stream component (`libdoppler_stream`,
+    which vendors `nats.c`) are both pure C99 — no C++ toolchain is required
+    anywhere in the build.
 
 ```bash
 git clone https://github.com/doppler-dsp/doppler

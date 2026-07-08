@@ -227,12 +227,12 @@ Throughput is **MSa/s** (higher is better); latency ops are mean **time/call** (
 
 ## Transport (P0)
 
-Wire throughput and control-plane latency for the two transports the `stream` module ships, measured by the `bench_stream` C harness (block = 65536 CF32 samples, 600 frames, best of 3 passes) over TCP loopback.
+Wire throughput and control-plane latency measured by the `bench_stream` C harness (block = 65536 CF32 samples, 600 frames, best of 3 passes) over TCP loopback, from when doppler still supported two streaming transports side by side.
 
-- **ZMQ** — brokerless PUSH/PULL, the streaming data plane.
+- **ZMQ (removed)** — brokerless PUSH/PULL, the former streaming data plane. ZMQ has since been fully removed from doppler; NATS is now the sole streaming transport. The row below is kept as a historical baseline for the throughput/durability trade-off.
 - **NATS** — the durable JetStream work-queue tier (server-acked publish + explicit-ack pull). Its lower throughput is the price of exactly-once durability, not overhead.
 
-| metric | ZMQ | NATS (JetStream) |
+| metric | ZMQ (removed) | NATS (JetStream) |
 | --- | ---: | ---: |
 | firehose throughput — MSa/s | 945.7 | 61.1 |
 | firehose throughput — MB/s | 7,215 | 466.3 |

@@ -13,6 +13,7 @@
 #define FIR_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 
 #include <complex.h>
@@ -33,11 +34,43 @@ extern "C"
     size_t num_taps;
   } fir_state_t;
 
+  JM_FORCEINLINE JM_HOT float complex
+  fir_step (fir_state_t *s, float complex x)
+  {
+    size_t               M = s->num_taps;
+    const float complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
+    const float         *h = s->rtaps;  /* real taps (fir_create_real)   */
+    float                re = 0.0f, im = 0.0f;
+    for (size_t k = 0; k < M; k++)
+      {
+        float complex cf = (k == 0) ? x : d[M - 1 - k];
+        re += h[k] * crealf (cf);
+        im += h[k] * cimagf (cf);
+      }
+    if (M > 1)
+      {
+        float complex *dl = s->delay; /* shift left, append x as newest */
+        for (size_t i = 0; i + 2 < M; i++)
+          dl[i] = dl[i + 1];
+        dl[M - 2] = x;
+      }
+    return CMPLXF (re, im);
+  }
+
   fir_state_t *fir_create (const float complex *taps, size_t num_taps);
 
   fir_state_t *fir_create_real (const float *taps, size_t num_taps);
 
   void fir_reset (fir_state_t *state);
+
+  /* Serializable state (standard bytes interface; see dp_state.h): the delay
+   * line (num_taps-1 samples) after the envelope; taps/scratch are config. */
+#define FIR_STATE_MAGIC DP_FOURCC ('F', 'I', 'R', '_')
+#define FIR_STATE_VERSION 1u
+
+  size_t fir_state_bytes (const fir_state_t *state);
+  void fir_get_state (const fir_state_t *state, void *blob);
+  int fir_set_state (fir_state_t *state, const void *blob);
 
   void fir_destroy (fir_state_t *state);
 

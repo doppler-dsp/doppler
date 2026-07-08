@@ -20,7 +20,7 @@ license = { text = "MIT" }
 authors = [
     { name = "doppler contributors" },
 ]
-keywords = ["dsp", "sdr", "fft", "fir", "nco", "signal-processing", "zmq", "iq"]
+keywords = ["dsp", "sdr", "fft", "fir", "nco", "signal-processing", "nats", "iq"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

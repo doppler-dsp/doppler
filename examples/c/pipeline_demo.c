@@ -1,8 +1,12 @@
 /*
- * pipeline_demo.c — ZMQ PUSH/PULL pipeline demo.
+ * pipeline_demo.c — NATS PUSH/PULL pipeline demo.
+ *
+ * Requires a running nats-server (e.g. `nats-server -js`, or
+ * `docker run -p 4222:4222 nats:2.10 -js`) — the PUSH/PULL pipeline uses the
+ * NATS JetStream work-queue tier, which needs a broker.
  *
  * Two threads in-process:
- *   Producer  PUSH  binds   ipc:///tmp/dp_pipeline.ipc  (tcp on Windows)
+ *   Producer  PUSH  binds   nats://127.0.0.1:4222/dp-pipeline-demo-<pid>
  *   Consumer  PULL  connects the same endpoint
  *
  * The producer sends 100 batches of 1024 CF64 samples using a
@@ -26,16 +30,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#define dp_usleep(us) Sleep ((DWORD)((us) / 1000))
-const char *ENDPOINT = "tcp://127.0.0.1:15100";
-#else
 #include <unistd.h>
+
 #define dp_usleep(us) usleep ((useconds_t)(us))
-const char *ENDPOINT = "ipc:///tmp/dp_pipeline.ipc";
-#endif
+
+static char ENDPOINT[96];
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -113,11 +112,18 @@ static void *
 consumer_thread (void *arg)
 {
   (void)arg;
-  dp_usleep (50000); /* brief pause for producer to bind */
-
   printf ("Consumer: connecting to %s\n", ENDPOINT);
 
-  dp_pull_t *ctx = dp_pull_create (ENDPOINT);
+  /* The NATS JetStream pull consumer attaches to the work-queue stream that
+   * the producer's push_create provisions, so the stream may not exist yet
+   * if this thread wins the race to start first. Retry until it lands. */
+  dp_pull_t *ctx = NULL;
+  for (int attempt = 0; attempt < 100 && !ctx; attempt++)
+    {
+      ctx = dp_pull_create (ENDPOINT);
+      if (!ctx)
+        dp_usleep (20000); /* 20 ms */
+    }
   if (!ctx)
     {
       fputs ("Consumer: dp_pull_create failed\n", stderr);
@@ -158,6 +164,9 @@ consumer_thread (void *arg)
         printf ("Consumer: batch %3d/%d  power=%.4f (%.2f dB)\n", batches,
                 NUM_BATCHES, pwr, 10.0 * log10 (pwr + 1e-12));
 
+      /* No-op on transports without acks; required on the JetStream pull
+       * tier so the durable consumer keeps delivering. */
+      dp_msg_ack (msg);
       dp_msg_free (msg);
     }
 
@@ -175,13 +184,17 @@ consumer_thread (void *arg)
 int
 main (int argc, char *argv[])
 {
+  snprintf (ENDPOINT, sizeof ENDPOINT,
+            "nats://127.0.0.1:4222/dp-pipeline-demo-%ld", (long)getpid ());
+
   if (argc > 1
       && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
     {
       printf ("Usage: %s\n\n", argv[0]);
       printf ("PUSH/PULL pipeline demo — two in-process threads,\n");
-      printf ("%d batches of %d CF64 samples via %s\n\n", NUM_BATCHES,
+      printf ("%d batches of %d CF64 samples via %s\n", NUM_BATCHES,
               SAMPLES_PER_BATCH, ENDPOINT);
+      printf ("Requires a running nats-server (e.g. `nats-server -js`).\n\n");
       return 0;
     }
 

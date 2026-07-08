@@ -1,19 +1,26 @@
 """Tests for doppler.stream — PUSH/PULL, PUB/SUB, and REQ/REP round-trips.
 
-Wire format: ZMQ multipart (header frame + data frame).  The header
-carries sample type, sample_rate, center_freq, and a nanosecond
-timestamp.  Zero-copy recv: the returned NumPy array holds a reference
-to the dp_msg_t until GC.
+Requires a nats-server reachable on 127.0.0.1:4222 (run `nats-server -js`);
+the whole module skips cleanly without one.
+
+Wire format: a 96-byte dp_header_t binary prefix followed by the
+interleaved I/Q payload, all in one NATS message.  The header carries
+sample type, sample_rate, center_freq, and a nanosecond timestamp.
+Zero-copy recv: the returned NumPy array holds a reference to the
+dp_msg_t until GC.
 
 Sample types supported by the Python binding: CI32, CF64, CF128.
 CI8/CI16/CF32 exist in the C wire protocol but the Python recv path
 does not decode them (raises ValueError on receipt).
 
-All tests use random high TCP ports to avoid collisions between runs.
+All tests use a random subject so they don't collide with each other or
+with a concurrent run on the same broker.
 """
 
 from __future__ import annotations
 
+import random
+import socket
 import time
 
 import numpy as np
@@ -32,17 +39,30 @@ from doppler.stream import (
     get_timestamp_ns,
 )
 
+
+def _nats_available() -> bool:
+    """True if a nats-server is listening on 127.0.0.1:4222."""
+    try:
+        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _nats_available(),
+    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
+)
+
 # ------------------------------------------------------------------ #
 # Helpers                                                             #
 # ------------------------------------------------------------------ #
 
 
-def _unique_endpoint(base: str = "tcp://127.0.0.1") -> str:
-    """Use a random high port to avoid collisions between test runs."""
-    import random
-
-    port = random.randint(49152, 65000)
-    return f"{base}:{port}"
+def _unique_endpoint(hint: str = "ep") -> str:
+    """Use a random subject so tests don't collide with each other or a
+    concurrent run on the same broker."""
+    return f"nats://127.0.0.1:4222/{hint}{random.randint(1, 10**9)}"
 
 
 # ------------------------------------------------------------------ #
@@ -72,7 +92,7 @@ def push_pull_cf64():
     ep = _unique_endpoint()
     push = Push(ep, CF64)
     pull = Pull(ep)
-    time.sleep(0.05)  # allow ZMQ to bind/connect
+    time.sleep(0.05)  # allow the JetStream work-queue to provision
     yield push, pull
     push.__exit__(None, None, None)
     pull.__exit__(None, None, None)
@@ -178,7 +198,7 @@ def test_pub_sub_cf64_roundtrip():
     ep = _unique_endpoint()
     pub = Publisher(ep, CF64)
     sub = Subscriber(ep)
-    time.sleep(0.1)  # ZMQ PUB/SUB needs subscriber warm-up time
+    time.sleep(0.3)  # core NATS: sub must exist before publish
     x = np.array([7 + 8j, 9 + 10j], dtype=np.complex128)
     pub.send(x, sample_rate=int(1e6))
     samples, _hdr = sub.recv(timeout_ms=2000)
@@ -454,37 +474,12 @@ def test_req_rep_context_manager():
 
 
 # ------------------------------------------------------------------ #
-# NATS backend (nats://) — skipped unless a broker is reachable       #
+# Chunking, JetStream durability, and other NATS-specific behavior    #
 # ------------------------------------------------------------------ #
 
 
-def _nats_available() -> bool:
-    """True if a nats-server is listening on 127.0.0.1:4222."""
-    import socket
-
-    try:
-        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
-        return True
-    except OSError:
-        return False
-
-
-requires_nats = pytest.mark.skipif(
-    not _nats_available(),
-    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
-)
-
-
-def _nats_ep(hint: str) -> str:
-    """Unique nats:// endpoint so tests don't share streams/subjects."""
-    import random
-
-    return f"nats://127.0.0.1:4222/{hint}{random.randint(1, 10**9)}"
-
-
-@requires_nats
 def test_nats_pub_sub_roundtrip():
-    ep = _nats_ep("pubsub")
+    ep = _unique_endpoint("pubsub")
     sub = Subscriber(ep)
     time.sleep(0.3)  # core NATS: sub must exist before publish
     pub = Publisher(ep, CF64)
@@ -499,17 +494,15 @@ def test_nats_pub_sub_roundtrip():
     sub.close()
 
 
-@requires_nats
 def test_nats_pub_sub_timeout():
-    sub = Subscriber(_nats_ep("empty"))
+    sub = Subscriber(_unique_endpoint("empty"))
     with pytest.raises((TimeoutError, Exception)):
         sub.recv(timeout_ms=50)
     sub.close()
 
 
-@requires_nats
 def test_nats_req_rep_roundtrip():
-    ep = _nats_ep("ctrl")
+    ep = _unique_endpoint("ctrl")
     rep = Replier(ep)
     time.sleep(0.3)
     req = Requester(ep)
@@ -523,10 +516,9 @@ def test_nats_req_rep_roundtrip():
     rep.close()
 
 
-@requires_nats
 def test_nats_chunked_pub_sub():
     """A >1 MiB frame is split into chunks and reassembled byte-identical."""
-    ep = _nats_ep("chunk")
+    ep = _unique_endpoint("chunk")
     sub = Subscriber(ep)
     time.sleep(0.3)
     pub = Publisher(ep, CF64)
@@ -543,7 +535,6 @@ def test_nats_chunked_pub_sub():
     sub.close()
 
 
-@requires_nats
 def test_nats_push_frame_too_large():
     """A frame over the broker max_payload fails the PUSH work-queue with a
     clear, actionable error instead of an opaque "send failed".
@@ -553,7 +544,7 @@ def test_nats_push_frame_too_large():
     never reassemble), so an oversized PUSH frame cannot be split.  The same
     size succeeds over PUB/SUB — see ``test_nats_chunked_pub_sub``.
     """
-    push = Push(_nats_ep("toobig"), CF64)
+    push = Push(_unique_endpoint("toobig"), CF64)
     # 200k CF64 = 3.05 MiB > the stock 1 MiB max_payload.
     big = np.zeros(200_000, dtype=np.complex128)
     with pytest.raises(ValueError, match="max_payload"):
@@ -561,10 +552,9 @@ def test_nats_push_frame_too_large():
     push.close()
 
 
-@requires_nats
 def test_nats_jetstream_push_pull_ack():
     """Durable work-queue: every pushed frame is pulled and acked exactly."""
-    ep = _nats_ep("wq")
+    ep = _unique_endpoint("wq")
     push = Push(ep, CF64)
     n = 10
     for i in range(n):
@@ -580,17 +570,3 @@ def test_nats_jetstream_push_pull_ack():
     push.close()
     pull.close()
     assert sorted(got) == list(range(n))
-
-
-@requires_nats
-def test_nats_ack_noop_on_zmq():
-    """Pull.ack is a no-op for a ZMQ frame (safe to call unconditionally)."""
-    ep = _unique_endpoint()
-    push = Push(ep, CF64)
-    pull = Pull(ep)
-    time.sleep(0.1)
-    push.send(np.ones(2, dtype=np.complex128))
-    samples, _ = pull.recv(timeout_ms=2000)
-    pull.ack(samples)  # ZMQ: no-op, must not raise
-    push.close()
-    pull.close()

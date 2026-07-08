@@ -5,14 +5,14 @@ doppler ships a C-first **waveform generator**: one declarative synth engine
 
 - **`wfmgen`** — the one command-line tool. A single waveform *or* a
     multi-segment scene, the **raw / CSV / BLUE / SigMF** containers, and
-    streaming to **ZMQ**. (A one-segment run is the simple single-waveform case.)
+    streaming to **NATS**. (A one-segment run is the simple single-waveform case.)
 - **`doppler.wfm`** — the same engine as a Python API, one import path:
     `from doppler.wfm import …`.
 
 ![wfmgen engine](../../assets/wfmgen_demo.png)
 
 Reach for `--from-file` (or the Python `Composer`) when you need multiple
-segments, mixing, BLUE/SigMF, or a ZMQ stream — otherwise a handful of flags
+segments, mixing, BLUE/SigMF, or a NATS stream — otherwise a handful of flags
 generate a single waveform.
 
 !!! tip "The 30-second version"
@@ -34,7 +34,7 @@ ______________________________________________________________________
 | [Levels & SNR](levels.md)        | Unit-average-power, full-scale, clipping, headroom, the SNR model.             |
 | [Output & containers](output.md) | Sample types, raw/CSV/BLUE/SigMF, byte order, sinks.                           |
 | [Scenes](scenes.md)              | Multi-segment specs, `sum`/`add`, seeds, ranged values, `--record`.            |
-| [Streaming](streaming.md)        | Real-time pacing and streaming to ZMQ.                                         |
+| [Streaming](streaming.md)        | Real-time pacing and streaming to NATS.                                        |
 | [Python API](python.md)          | The `Synth` class, the composer builders, reading captures back.               |
 | [Recipes](recipes.md)            | Copy-paste one-liners and the three faces of `wfmgen`.                         |
 

@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,6 +63,14 @@ size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
 double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
 
 size_t hbdecim_q15_get_num_taps(const hbdecim_q15_state_t *r);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Field-wise: pack four dual-write rings + heads + pending; coeffs restored by create. */
+#define HBDECIM_Q15_STATE_MAGIC DP_FOURCC ('H','B','1','5')
+#define HBDECIM_Q15_STATE_VERSION 1u
+size_t hbdecim_q15_state_bytes (const hbdecim_q15_state_t *state);
+void hbdecim_q15_get_state (const hbdecim_q15_state_t *state, void *blob);
+int hbdecim_q15_set_state (hbdecim_q15_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

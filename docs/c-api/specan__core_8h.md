@@ -12,6 +12,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 * `#include "ddc/ddc_core.h"`
 * `#include "psd/psd_core.h"`
+* `#include "dp_state.h"`
 * `#include <complex.h>`
 * `#include <stddef.h>`
 * `#include "lo/lo_core.h"`
@@ -74,8 +75,11 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 |  void | [**specan\_destroy**](#function-specan_destroy) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
 |  size\_t | [**specan\_execute**](#function-specan_execute) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const float complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
 |  size\_t | [**specan\_execute\_max\_out**](#function-specan_execute_max_out) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function-specan_execute) _; equals disp\_n._ |
+|  void | [**specan\_get\_state**](#function-specan_get_state) (const [**specan\_state\_t**](structspecan__state__t.md) \* state, void \* blob) <br> |
 |  void | [**specan\_reset**](#function-specan_reset) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Drop pending samples and the running average; LO/filter history zero._  |
 |  void | [**specan\_retune**](#function-specan_retune) ([**specan\_state\_t**](structspecan__state__t.md) \* state, double center) <br>_Retune the display center without rebuilding the chain._  |
+|  int | [**specan\_set\_state**](#function-specan_set_state) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**specan\_state\_bytes**](#function-specan_state_bytes) (const [**specan\_state\_t**](structspecan__state__t.md) \* state) <br> |
 
 
 
@@ -103,6 +107,12 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**SPECAN\_STATE\_MAGIC**](specan__core_8h.md#define-specan_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('S','P','A','N')`<br> |
+| define  | [**SPECAN\_STATE\_VERSION**](specan__core_8h.md#define-specan_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -286,10 +296,21 @@ Feeds `x` through the Ddc, buffers the decimated output, and once `n·navg` deci
 
 **Returns:**
 
-Display bins written (disp\_n), or 0 if no frame is ready yet. 
+Display bins written (disp\_n), or 0 if no frame is ready yet.
 
 
 
+```C++
+>>> from doppler.analyzer import Specan
+>>> import numpy as np
+>>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0, navg=1)
+>>> sa.execute(np.zeros(64, dtype=np.complex64)) is None  # too few samples
+True
+>>> frame = sa.execute(np.zeros(65536, dtype=np.complex64))
+>>> frame.shape, frame.dtype
+((801,), dtype('float32'))
+```
+ 
 
 
         
@@ -304,6 +325,22 @@ _Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function
 ```C++
 size_t specan_execute_max_out (
     specan_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function specan\_get\_state 
+
+```C++
+void specan_get_state (
+    const specan_state_t * state,
+    void * blob
 ) 
 ```
 
@@ -368,6 +405,66 @@ Updates the Ddc LO phase increment (seamless across blocks — no resampler or w
 
 
         
+
+<hr>
+
+
+
+### function specan\_set\_state 
+
+```C++
+int specan_set_state (
+    specan_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function specan\_state\_bytes 
+
+```C++
+size_t specan_state_bytes (
+    const specan_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define SPECAN\_STATE\_MAGIC 
+
+```C++
+#define SPECAN_STATE_MAGIC `DP_FOURCC ('S','P','A','N')`
+```
+
+
+
+
+<hr>
+
+
+
+### define SPECAN\_STATE\_VERSION 
+
+```C++
+#define SPECAN_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

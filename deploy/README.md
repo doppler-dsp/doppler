@@ -2,37 +2,34 @@
 
 This tree deploys doppler's **resilient, autoscaling I/Q transport** on
 Kubernetes: a NATS JetStream work-queue that survives pod crashes, scales
-consumers on backlog, and never drops a frame. It complements — does not
-replace — the existing ZMQ transport.
+consumers on backlog, and never drops a frame. NATS is doppler's only
+transport — the earlier ZMQ backend was removed once NATS reached full
+functional parity.
 
 - **Design:** `docs/dev/nats-jetstream-transport-migration.md`
-- **Benchmarks / rationale:** `docs/design/streaming-roadmap.md`
+- **Benchmarks / rationale:** `docs/dev/streaming-roadmap.md`
 - **C/Python API:** `native/inc/stream/stream.h`, `doppler.stream`
 
 ______________________________________________________________________
 
-## 1. Why two transports
+## 1. Transport planes
 
-doppler routes by **plane**, not by frame size:
+doppler routes by **plane**, all over NATS:
 
-| Plane                                | Transport                     | Endpoint            | Why                                                           |
-| ------------------------------------ | ----------------------------- | ------------------- | ------------------------------------------------------------- |
-| **Co-located I/Q firehose**          | ZMQ (unchanged)               | `tcp://` / `ipc://` | Brokerless, lowest latency, link-bound on a real NIC anyway   |
-| **Distributed / resilient firehose** | **NATS JetStream** work-queue | `nats://…`          | Durable, at-least-once, autoscalable — what this tree deploys |
-| **Status / control / telemetry**     | NATS Core pub/sub + req/reply | `nats://…`          | Last-value, late-joiner, reconnect, discovery                 |
+| Plane                                | Transport                     | Endpoint   | Why                                                           |
+| ------------------------------------ | ----------------------------- | ---------- | ------------------------------------------------------------- |
+| **Distributed / resilient firehose** | **NATS JetStream** work-queue | `nats://…` | Durable, at-least-once, autoscalable — what this tree deploys |
+| **Status / control / telemetry**     | NATS Core pub/sub + req/reply | `nats://…` | Last-value, late-joiner, reconnect, discovery                 |
 
-The same 96-byte `dp_header_t` "SIGS" wire envelope is used on both backends, so
-a ZMQ producer and a NATS consumer agree byte-for-byte. The C library is a pure
-NATS **client** (vendored `nats.c`); the Go `nats-server` is infrastructure
-(sidecar / StatefulSet), never embedded in the library.
+The C library is a pure NATS **client** (vendored `nats.c`); the Go
+`nats-server` is infrastructure (sidecar / StatefulSet), never embedded in
+the library. The 96-byte `dp_header_t` "SIGS" wire envelope is the same
+across every pattern (PUB/SUB, PUSH/PULL, REQ/REP).
 
-### Selecting a backend
-
-The endpoint scheme picks the backend at create time — no API change:
+### Endpoint format
 
 ```c
 dp_push_t *p = dp_push_create("nats://nats:4222/myfeed", CF32); /* JetStream */
-dp_push_t *z = dp_push_create("tcp://*:5555",            CF32); /* ZMQ       */
 ```
 
 `nats://host:port/<base>` → subjects `work.<base>.>` (work-queue) and
@@ -42,7 +39,7 @@ dp_push_t *z = dp_push_create("tcp://*:5555",            CF32); /* ZMQ       */
 
 A `nats://` Pull consumer must acknowledge each frame once processed; an
 un-acked frame is **redelivered** if the worker dies (this is the zero-loss
-guarantee). `dp_msg_ack` is a no-op on ZMQ / NATS-core, so callers can ack
+guarantee). `dp_msg_ack` is a no-op on NATS core PUB/SUB, so callers can ack
 unconditionally.
 
 ```c
@@ -57,14 +54,14 @@ ______________________________________________________________________
 
 ## 2. Layout
 
-| Path                              | What                                                             |
-| --------------------------------- | ---------------------------------------------------------------- |
-| `docker/stream_tool.c`            | Reference producer/consumer (PN self-verifying I/Q).             |
-| `docker/Dockerfile`               | Multi-stage build of `stream_tool` (static C++ runtime).         |
-| `nats/values.yaml`                | Official NATS chart values — 3-node R=3 JetStream, file storage. |
-| `pipeline/`                       | Helm chart: producer + (autoscaled) consumer Deployments.        |
-| `keda/consumer-scaledobject.yaml` | KEDA ScaledObject — scale on consumer lag, 2 → 50.               |
-| `docker-compose.nats.yml`         | Single-node JetStream broker for local dev / tests.              |
+| Path                              | What                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `docker/stream_tool.c`            | Reference producer/consumer (PN self-verifying I/Q).                      |
+| `docker/Dockerfile`               | Multi-stage build of `stream_tool` (pure C, no runtime deps beyond libc). |
+| `nats/values.yaml`                | Official NATS chart values — 3-node R=3 JetStream, file storage.          |
+| `pipeline/`                       | Helm chart: producer + (autoscaled) consumer Deployments.                 |
+| `keda/consumer-scaledobject.yaml` | KEDA ScaledObject — scale on consumer lag, 2 → 50.                        |
+| `docker-compose.nats.yml`         | Single-node JetStream broker for local dev / tests.                       |
 
 ______________________________________________________________________
 
@@ -86,9 +83,8 @@ ______________________________________________________________________
 ## 4. Build the image
 
 `stream_tool` links the doppler core (`libdoppler.a`, the `lo`/`pn` objects)
-and the stream tier (`libdoppler_stream.a`, vendored zmq+nats folded in). The
-C++ runtime is linked **statically** (`-static-libstdc++`), so the runtime
-image needs only libc.
+and the stream tier (`libdoppler_stream.a`, vendored `nats.c` folded in). The
+whole build is pure C, so the runtime image needs only libc.
 
 ```sh
 # Host docker (needs docker-buildx for BuildKit):

@@ -13,6 +13,7 @@
 #define WFM_SYNTH_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "fir/fir_core.h"
 #include "lo/lo_core.h"
@@ -31,6 +32,8 @@ enum {
     WFM_SYNTH_QPSK = 4,  /* Gray-coded QPSK over PN-sourced data     */
     WFM_SYNTH_CHIRP = 5, /* linear-FM sweep f_start→f_end (no symbols) */
     WFM_SYNTH_BITS = 6,  /* user bit pattern, oversampled + cycled    */
+    WFM_SYNTH_SYMBOLS
+    = 7, /* user complex-symbol stream, oversampled + cycled */
 };
 
 /* snr >= this (dB) means "clean": no AWGN is generated at all (the common case
@@ -126,6 +129,9 @@ typedef struct {
     size_t n_bits;
     size_t bit_idx;
     int bit_mod;
+    float _Complex * symbols;
+    size_t n_symbols;
+    size_t sym_read_idx;
     fir_state_t * fir;
     lo_state_t * lo;
     awgn_state_t * awgn;
@@ -139,12 +145,17 @@ void wfm_synth_set_chirp_span(wfm_synth_state_t *state, size_t span);
 int wfm_synth_set_bits(wfm_synth_state_t *state, const uint8_t *bits, size_t n,
                        int modulation);
 
+int wfm_synth_set_symbols(wfm_synth_state_t *state,
+                          const float _Complex *symbols, size_t n);
+
 int wfm_synth_set_rrc(wfm_synth_state_t *state, const float *taps,
                       size_t ntaps);
 
 void wfm_synth_destroy(wfm_synth_state_t *state);
 
 void wfm_synth_reset(wfm_synth_state_t *state);
+
+void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
 
 JM_FORCEINLINE JM_HOT float complex
 wfm_synth_step(wfm_synth_state_t *state)
@@ -172,9 +183,42 @@ wfm_synth_step(wfm_synth_state_t *state)
                 state->bit_idx = (state->bit_idx + 1) % state->n_bits;
             }
         }
+        if (state->fir) {
+            /* RRC pulse shaping: the same matched-FIR impulse train as the
+             * PN/PSK path, sourced from the bit latch instead of the LFSR. The
+             * FIR carries its delay line across calls, so this is chunk-invariant
+             * — step() and the block path agree bit-for-bit. */
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
         if (++state->sym_pos >= state->nsps)
             state->sym_pos = 0;
-        sym = state->cur_re + state->cur_im * I; /* bits: no pulse shaping */
+    } else if (state->wtype == WFM_SYNTH_SYMBOLS) {
+        /* User complex-symbol stream: the symbol IS the constellation point (no
+         * bit->symbol mapping), oversampled sps and cycled. Generalises every
+         * modulation — pi/4-QPSK, QAM, custom — into "compute symbols, pass them".
+         * Shares the bits path's latch + FIR/rect machinery; only the source of
+         * cur_re/cur_im differs (symbols[sym_read_idx] instead of a bit map). */
+        if (state->sym_pos == 0 && state->symbols && state->n_symbols) {
+            state->cur_re = crealf (state->symbols[state->sym_read_idx]);
+            state->cur_im = cimagf (state->symbols[state->sym_read_idx]);
+            state->sym_read_idx
+                = (state->sym_read_idx + 1) % state->n_symbols;
+        }
+        if (state->fir) {
+            float complex imp = (state->sym_pos == 0)
+                                    ? (state->cur_re + state->cur_im * I)
+                                    : (0.0f + 0.0f * I);
+            fir_execute(state->fir, &imp, 1, &sym);
+        } else {
+            sym = state->cur_re + state->cur_im * I; /* rect sample-and-hold */
+        }
+        if (++state->sym_pos >= state->nsps)
+            state->sym_pos = 0;
     } else if (state->wtype >= WFM_SYNTH_PN && state->wtype <= WFM_SYNTH_QPSK) {
         if (state->sym_pos == 0) {
             if (state->wtype == WFM_SYNTH_QPSK) {
@@ -256,6 +300,15 @@ float wfm_synth_get_cur_im(const wfm_synth_state_t *state);
 void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
 
 
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * composition of optional fir/lo/awgn/pn children (presence-flagged) +
+ * running waveform-position scalars; bits/config restored by create. */
+#define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
+#define WFM_SYNTH_STATE_VERSION 1u
+size_t wfm_synth_state_bytes (const wfm_synth_state_t *state);
+void wfm_synth_get_state (const wfm_synth_state_t *state, void *blob);
+int wfm_synth_set_state (wfm_synth_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

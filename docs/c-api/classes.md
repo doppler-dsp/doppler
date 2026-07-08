@@ -9,28 +9,48 @@
 * [**acc\_q15\_state\_t**](structacc__q15__state__t.md)
 * [**acc\_q8\_state\_t**](structacc__q8__state__t.md)
 * [**acc\_trace\_state\_t**](structacc__trace__state__t.md)
+* [**acq\_extra\_t**](structacq__extra__t.md)
+* [**acq\_result\_t**](structacq__result__t.md)
+* [**acq\_state\_t**](structacq__state__t.md)
 * [**adc\_state\_t**](structadc__state__t.md)
 * [**agc\_state\_t**](structagc__state__t.md)
 * [**awgn\_state\_t**](structawgn__state__t.md)
 
 
+## b
+
+* [**boxcar\_state\_t**](structboxcar__state__t.md)
+* [**burst\_demod\_state\_t**](structburst__demod__state__t.md)
+
+
 ## c
 
+* [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md)
+* [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md)
+* [**channel\_state\_t**](structchannel__state__t.md)
 * [**cic\_state\_t**](structcic__state__t.md)
 * [**corr2d\_state\_t**](structcorr2d__state__t.md)
 * [**corr\_state\_t**](structcorr__state__t.md)
+* [**costas\_state\_t**](structcostas__state__t.md)
 
 
 ## d
 
+* [**ddc\_extra\_t**](structddc__extra__t.md)
+* [**ddcr\_extra\_t**](structddcr__extra__t.md)
 * [**delay\_state\_t**](structdelay__state__t.md)
+* [**despreader\_state\_t**](structdespreader__state__t.md)
 * [**det\_result2d\_t**](structdet__result2d__t.md)
 * [**det\_result\_t**](structdet__result__t.md)
 * [**detector2d\_state\_t**](structdetector2d__state__t.md)
 * [**detector\_state\_t**](structdetector__state__t.md)
+* [**dll\_state\_t**](structdll__state__t.md)
 * [**dp\_header\_t**](structdp__header__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
+* [**dp\_reader\_t**](structdp__reader__t.md)
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
+* [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)
+* [**dp\_writer\_t**](structdp__writer__t.md)
 
 
 ## f
@@ -39,6 +59,7 @@
 * [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md)
 * [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md)
 * [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md)
+* [**farrow\_state\_t**](structfarrow__state__t.md)
 * [**fft2d\_state\_t**](structfft2d__state__t.md)
 * [**fft\_state\_t**](structfft__state__t.md)
 * [**fir\_state\_t**](structfir__state__t.md)
@@ -64,6 +85,12 @@
 ## l
 
 * [**lo\_state\_t**](structlo__state__t.md)
+* [**loop\_filter\_state\_t**](structloop__filter__state__t.md)
+
+
+## m
+
+* [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md)
 
 
 ## n
@@ -76,6 +103,8 @@
 ## p
 
 * [**pn\_state\_t**](structpn__state__t.md)
+* [**ppe\_result\_t**](structppe__result__t.md)
+* [**ppe\_state\_t**](structppe__state__t.md)
 * [**psd\_state\_t**](structpsd__state__t.md)
 
 
@@ -88,6 +117,7 @@
 ## s
 
 * [**specan\_state\_t**](structspecan__state__t.md)
+* [**symsync\_state\_t**](structsymsync__state__t.md)
 
 
 ## t

@@ -23,8 +23,8 @@ fn main() {
 
     // Homebrew on macOS does not add its lib dir to the default linker
     // search path. Add both Apple-Silicon (/opt/homebrew) and Intel
-    // (/usr/local) prefixes so libzmq and libfftw3 are found regardless
-    // of the runner architecture.
+    // (/usr/local) prefixes so libfftw3 is found regardless of the runner
+    // architecture.
     if target_os == "macos" {
         for path in &["/opt/homebrew/lib", "/usr/local/lib"] {
             if std::path::Path::new(path).exists() {
@@ -32,8 +32,6 @@ fn main() {
             }
         }
     }
-
-    println!("cargo:rustc-link-lib=dylib=zmq");
 
     if target_os == "windows" {
         // Static link on Windows: avoids pseudo-relocation failures and

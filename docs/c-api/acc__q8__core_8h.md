@@ -12,6 +12,7 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -63,9 +64,12 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 |  int32\_t | [**acc\_q8\_dump**](#function-acc_q8_dump) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state) <br>_Return the accumulated value and atomically reset it to zero. Avoids the need for a separate reset() call when processing a stream of non-overlapping blocks._  |
 |  int32\_t | [**acc\_q8\_get**](#function-acc_q8_get) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state) <br>_Return the current accumulated value without resetting it. Mirrors get\_acc() but exposed under the name used consistently across all Acc-family objects in the Python API._  |
 |  int32\_t | [**acc\_q8\_get\_acc**](#function-acc_q8_get_acc) (const [**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state) <br>_Read the current accumulator value without modifying it. Permits repeated snapshots of the running sum mid-stream._  |
+|  void | [**acc\_q8\_get\_state**](#function-acc_q8_get_state) (const [**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, void \* blob) <br> |
 |  void | [**acc\_q8\_madd**](#function-acc_q8_madd) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, const int8\_t \* a, size\_t a\_len, const int8\_t \* b, size\_t b\_len) <br>_Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), widening int8\_t inputs to int32\_t before accumulation to prevent intermediate overflow._ |
 |  void | [**acc\_q8\_reset**](#function-acc_q8_reset) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state) <br>_Reset the accumulator to zero, mirroring the post-create state. Always resets to zero regardless of the original constructor value, so it is safe to call at the start of any new accumulation window._  |
 |  void | [**acc\_q8\_set\_acc**](#function-acc_q8_set_acc) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, int32\_t val) <br>_Overwrite the accumulator with a new value. Useful for applying a bias before a new accumulation window, or for restoring a checkpointed accumulator state._  |
+|  int | [**acc\_q8\_set\_state**](#function-acc_q8_set_state) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**acc\_q8\_state\_bytes**](#function-acc_q8_state_bytes) (const [**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**acc\_q8\_step**](#function-acc_q8_step) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, int8\_t x) <br>_Accumulate one Q8 sample into the running total. The sample is sign-extended to 32 bits before addition so negative samples correctly subtract from the accumulator._  |
 |  void | [**acc\_q8\_steps**](#function-acc_q8_steps) ([**acc\_q8\_state\_t**](structacc__q8__state__t.md) \* state, const int8\_t \* input, size\_t n) <br>_Accumulate a contiguous block of Q8 samples. Equivalent to calling step() n times; the single loop is more amenable to auto-vectorisation than repeated method calls._  |
 
@@ -95,6 +99,12 @@ _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Intern
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**ACC\_Q8\_STATE\_MAGIC**](acc__q8__core_8h.md#define-acc_q8_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'C', '8')`<br> |
+| define  | [**ACC\_Q8\_STATE\_VERSION**](acc__q8__core_8h.md#define-acc_q8_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -322,6 +332,22 @@ int32_t acc_q8_get_acc (
 
 
 
+### function acc\_q8\_get\_state 
+
+```C++
+void acc_q8_get_state (
+    const acc_q8_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function acc\_q8\_madd 
 
 _Multiply-accumulate over the shorter of the two arrays. Computes acc += sum(_ `a[i]` _\*_`b[i]` _), widening int8\_t inputs to int32\_t before accumulation to prevent intermediate overflow._
@@ -441,6 +467,37 @@ void acc_q8_set_acc (
 
 
 
+### function acc\_q8\_set\_state 
+
+```C++
+int acc_q8_set_state (
+    acc_q8_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function acc\_q8\_state\_bytes 
+
+```C++
+size_t acc_q8_state_bytes (
+    const acc_q8_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function acc\_q8\_step 
 
 _Accumulate one Q8 sample into the running total. The sample is sign-extended to 32 bits before addition so negative samples correctly subtract from the accumulator._ 
@@ -514,6 +571,35 @@ void acc_q8_steps (
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define ACC\_Q8\_STATE\_MAGIC 
+
+```C++
+#define ACC_Q8_STATE_MAGIC `DP_FOURCC ('A', 'C', 'C', '8')`
+```
+
+
+
+
+<hr>
+
+
+
+### define ACC\_Q8\_STATE\_VERSION 
+
+```C++
+#define ACC_Q8_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

@@ -2,7 +2,7 @@
  * @file stream.h
  * @brief Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP.
  *
- * Provides ZMQ-backed signal streaming using three messaging patterns:
+ * Provides NATS-backed signal streaming using three messaging patterns:
  *
  * | Pattern   | Sender function  | Receiver function | Use case |
  * |-----------|------------------|-------------------|------------------------|
@@ -11,18 +11,22 @@
  * load-balance| | REQ/REP   | dp_req_*         | dp_rep_*          | Control /
  * metadata |
  *
+ * Requires a running `nats-server` (`nats-server -js` for the PUSH/PULL
+ * JetStream work-queue tier). An endpoint is `"nats://host:port[/subject]"`;
+ * the subject defaults to `"default"` if omitted.
+ *
  * ### Quick start (C)
  * ```c
  * #include "stream/stream.h"
  *
  * // Transmitter
- * dp_pub_t *pub = dp_pub_create("tcp://\*:5555", CF64);
+ * dp_pub_t *pub = dp_pub_create("nats://127.0.0.1:4222/iq", CF64);
  * double _Complex samples[1024] = { ... };
  * dp_pub_send_cf64(pub, samples, 1024, 1e6, 2.4e9);
  * dp_pub_destroy(pub);
  *
  * // Receiver (zero-copy)
- * dp_sub_t *sub = dp_sub_create("tcp://localhost:5555");
+ * dp_sub_t *sub = dp_sub_create("nats://127.0.0.1:4222/iq");
  * dp_msg_t *msg;  dp_header_t hdr;
  * dp_sub_recv(sub, &msg, &hdr);
  * double _Complex *cf64 = (double _Complex *)dp_msg_data(msg);
@@ -46,7 +50,7 @@
 
 /**
  * @defgroup streaming Streaming
- * @brief ZMQ-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP.
+ * @brief NATS-backed signal streaming: PUB/SUB, PUSH/PULL, REQ/REP.
  */
 
 #ifdef __cplusplus
@@ -129,7 +133,7 @@ extern "C"
   /** @} */ /* end group sampletypes */
 
   /**
-   * @brief Frame metadata header carried in every ZMQ message.
+   * @brief Frame metadata header carried in every stream message.
    *
    * The first 4 bytes of the wire header are always the magic value
    * `0x53494753` ("SIGS"), which receivers can use for basic validation.
@@ -229,8 +233,9 @@ extern "C"
    * redelivered if the consumer dies before acking.  Call this once the
    * message has been fully processed, then dp_msg_free().
    *
-   * A no-op (returns DP_OK) for transports without acks — ZMQ messages and
-   * NATS core PUB/SUB — so callers can ack unconditionally.
+   * A no-op (returns DP_OK) for transports without acks — NATS core
+   * PUB/SUB and reassembled chunked frames — so callers can ack
+   * unconditionally.
    *
    * @param msg Message handle returned by a recv function.
    * @return DP_OK on success, negative error code on failure.
@@ -253,16 +258,16 @@ extern "C"
    *  @ingroup streaming
    *  @{
    *
-   * The Publisher binds to an endpoint and fans out every message to all
-   * connected Subscribers.  Subscribers connect and receive every frame.
-   * Slow subscribers will drop frames (ZMQ_HWM behaviour).
+   * The Publisher publishes to a subject and fans out every message to all
+   * connected Subscribers.  Subscribers subscribe and receive every frame
+   * published after they connect — a slow or absent subscriber simply
+   * misses frames (core NATS PUB/SUB has no queuing/replay).
    */
 
   /**
-   * @brief Create a Publisher socket and bind to @p endpoint.
+   * @brief Create a Publisher and connect to @p endpoint.
    *
-   * @param endpoint  ZMQ endpoint string, e.g. `"tcp://\*:5555"` or
-   *                  `"ipc:///tmp/feed"`.
+   * @param endpoint  NATS endpoint, e.g. `"nats://127.0.0.1:4222/iq"`.
    * @param sample_type  Sample format that will be sent.
    * @return Non-NULL context on success, NULL on failure.
    */
@@ -328,12 +333,11 @@ extern "C"
   void dp_pub_destroy (dp_pub_t *ctx);
 
   /**
-   * @brief Create a Subscriber socket and connect to @p endpoint.
+   * @brief Create a Subscriber and connect to @p endpoint.
    *
    * Subscribes to all topics (empty topic filter).
    *
-   * @param endpoint  ZMQ endpoint to connect to, e.g.
-   * `"tcp://localhost:5555"`.
+   * @param endpoint  NATS endpoint, e.g. `"nats://127.0.0.1:4222/iq"`.
    * @return Non-NULL context on success, NULL on failure.
    */
   dp_sub_t *dp_sub_create (const char *endpoint);
@@ -382,9 +386,9 @@ extern "C"
    */
 
   /**
-   * @brief Create a Push socket and bind to @p endpoint.
+   * @brief Create a Push producer and connect to @p endpoint.
    *
-   * @param endpoint    ZMQ endpoint to bind, e.g. `"tcp://\*:5556"`.
+   * @param endpoint    NATS endpoint, e.g. `"nats://127.0.0.1:4222/work"`.
    * @param sample_type Sample format that will be sent.
    * @return Non-NULL context on success, NULL on failure.
    *
@@ -393,13 +397,13 @@ extern "C"
    * Unlike PUB/SUB, PUSH does not chunk (the work-queue load-balances frames
    * across workers, which cannot reassemble a split frame), so an oversized
    * `dp_push_send_*` returns @ref DP_ERR_TOO_LARGE. Raise the broker
-   * `max_payload` for larger durable frames, or use PUB/SUB / ZMQ.
+   * `max_payload` for larger durable frames, or use PUB/SUB (which chunks).
    */
   dp_push_t *dp_push_create (const char *endpoint, dp_sample_type_t sample_type);
 
   /**
-   * @brief Create a Pull socket and connect to @p endpoint.
-   * @param endpoint ZMQ endpoint to connect to, e.g. `"tcp://localhost:5556"`.
+   * @brief Create a Pull consumer and connect to @p endpoint.
+   * @param endpoint NATS endpoint, e.g. `"nats://127.0.0.1:4222/work"`.
    * @return Non-NULL context on success, NULL on failure.
    */
   dp_pull_t *dp_pull_create (const char *endpoint);
@@ -488,15 +492,15 @@ extern "C"
    */
 
   /**
-   * @brief Create a Requester socket and connect to @p endpoint.
-   * @param endpoint ZMQ endpoint to connect to, e.g. `"tcp://localhost:5557"`.
+   * @brief Create a Requester and connect to @p endpoint.
+   * @param endpoint NATS endpoint, e.g. `"nats://127.0.0.1:4222/ctrl"`.
    * @return Non-NULL context on success, NULL on failure.
    */
   dp_req_t *dp_req_create (const char *endpoint);
 
   /**
-   * @brief Create a Replier socket and bind to @p endpoint.
-   * @param endpoint ZMQ endpoint to bind, e.g. `"tcp://\*:5557"`.
+   * @brief Create a Replier and connect to @p endpoint.
+   * @param endpoint NATS endpoint, e.g. `"nats://127.0.0.1:4222/ctrl"`.
    * @return Non-NULL context on success, NULL on failure.
    */
   dp_rep_t *dp_rep_create (const char *endpoint);

@@ -42,11 +42,17 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  [**fft2d\_state\_t**](structfft2d__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
 |  [**fft2d\_state\_t**](structfft2d__state__t.md) \* | [**inv**](#variable-inv)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**n\_out**](#variable-n_out)  <br> |
 |  size\_t | [**nx**](#variable-nx)  <br> |
+|  size\_t | [**nx\_out**](#variable-nx_out)  <br> |
 |  size\_t | [**ny**](#variable-ny)  <br> |
+|  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
 |  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
-|  float complex \* | [**work\_ifft**](#variable-work_ifft)  <br> |
+|  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
+|  float complex \* | [**zcol**](#variable-zcol)  <br> |
+|  float complex \* | [**zcolout**](#variable-zcolout)  <br> |
+|  float complex \* | [**ztmp**](#variable-ztmp)  <br> |
 
 
 
@@ -111,7 +117,7 @@ float complex* corr2d_state_t::accum;
 
 
 
-Coherent integration accumulator. 
+Coherent product-spectrum accumulator. 
 
 
         
@@ -162,7 +168,7 @@ fft2d_state_t* corr2d_state_t::fwd;
 
 
 
-Forward 2-D plan (sign = -1). 
+Forward 2-D plan (sign = -1) at (ny, nx). 
 
 
         
@@ -179,7 +185,7 @@ fft2d_state_t* corr2d_state_t::inv;
 
 
 
-Inverse 2-D plan (sign = +1). 
+Inverse 2-D plan (sign = +1) at (ny\_out,…). 
 
 
         
@@ -205,6 +211,23 @@ ny \* nx — total element count.
 
 
 
+### variable n\_out 
+
+```C++
+size_t corr2d_state_t::n_out;
+```
+
+
+
+ny\_out \* nx\_out — output element count. 
+
+
+        
+
+<hr>
+
+
+
 ### variable nx 
 
 ```C++
@@ -214,6 +237,23 @@ size_t corr2d_state_t::nx;
 
 
 Column count. 
+
+
+        
+
+<hr>
+
+
+
+### variable nx\_out 
+
+```C++
+size_t corr2d_state_t::nx_out;
+```
+
+
+
+Output columns (== nx unless decoupled). 
 
 
         
@@ -239,6 +279,23 @@ Row count.
 
 
 
+### variable ny\_out 
+
+```C++
+size_t corr2d_state_t::ny_out;
+```
+
+
+
+Output rows (== ny unless decoupled). 
+
+
+        
+
+<hr>
+
+
+
 ### variable ref\_spec 
 
 ```C++
@@ -247,7 +304,7 @@ float complex* corr2d_state_t::ref_spec;
 
 
 
-conj(FFT2(ref)), pre-computed. 
+conj(FFT2(ref)), pre-computed. (ny, nx) 
 
 
         
@@ -264,7 +321,7 @@ float complex* corr2d_state_t::work_fft;
 
 
 
-Scratch: FFT2(in) output. 
+Scratch: FFT2(in) · ref\_spec (product). 
 
 
         
@@ -273,15 +330,66 @@ Scratch: FFT2(in) output.
 
 
 
-### variable work\_ifft 
+### variable work\_pad 
 
 ```C++
-float complex* corr2d_state_t::work_ifft;
+float complex* corr2d_state_t::work_pad;
 ```
 
 
 
-Scratch: IFFT2 output before accumulate. 
+Zero-padded product, (ny\_out, nx\_out). 
+
+
+        
+
+<hr>
+
+
+
+### variable zcol 
+
+```C++
+float complex* corr2d_state_t::zcol;
+```
+
+
+
+Column gather scratch, (ny). 
+
+
+        
+
+<hr>
+
+
+
+### variable zcolout 
+
+```C++
+float complex* corr2d_state_t::zcolout;
+```
+
+
+
+Column-padded scratch, (ny\_out). 
+
+
+        
+
+<hr>
+
+
+
+### variable ztmp 
+
+```C++
+float complex* corr2d_state_t::ztmp;
+```
+
+
+
+Row-padded intermediate, (ny, nx\_out). 
 
 
         

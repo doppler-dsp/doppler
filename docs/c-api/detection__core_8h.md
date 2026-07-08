@@ -53,11 +53,14 @@ _Detection-theory utilities for the amplitude-ratio test statistic._ [More...](#
 | ---: | :--- |
 |  int | [**det\_dwell**](#function-det_dwell) (double snr, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the given SNR and Pfa._  |
 |  int | [**det\_dwell\_power**](#function-det_dwell_power) (double snr\_power, double pd\_min, double pfa, int max\_dwell) <br>_Minimum dwell such that Pd &gt;= pd\_min for the power detector._  |
+|  int | [**det\_n\_noncoh**](#function-det_n_noncoh) (double snr, int n\_coh, double pd\_min, double pfa, int max\_n\_noncoh) <br>_Minimum non-coherent looks achieving Pd &gt;= pd\_min at fixed n\_coh._  |
 |  double | [**det\_pd**](#function-det_pd) (double snr, int dwell, double threshold) <br>_Detection probability for given per-sample amplitude SNR and dwell._  |
+|  double | [**det\_pd\_noncoherent**](#function-det_pd_noncoherent) (double snr, int n\_coh, int n\_noncoh, double threshold) <br>_Detection probability for n\_noncoh non-coherent looks._  |
 |  double | [**det\_pd\_power**](#function-det_pd_power) (double snr\_power, int dwell, double power\_threshold) <br>_Detection probability for the power detector._  |
 |  double | [**det\_snr**](#function-det_snr) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample amplitude SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_snr\_power**](#function-det_snr_power) (int dwell, double pd\_min, double pfa) <br>_Minimum per-sample power SNR achieving Pd &gt;= pd\_min._  |
 |  double | [**det\_threshold**](#function-det_threshold) (double pfa) <br>_Threshold eta for a given false-alarm probability._  |
+|  double | [**det\_threshold\_noncoherent**](#function-det_threshold_noncoherent) (double pfa, int n\_noncoh) <br>_CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._  |
 |  double | [**det\_threshold\_power**](#function-det_threshold_power) (double pfa) <br>_Power threshold p from Pfa for the power detector._  |
 |  double | [**marcum\_q**](#function-marcum_q) (int m, double a, double b) <br>_Marcum Q function Q\_M(a, b) for integer M &gt;= 1._  |
 
@@ -158,7 +161,13 @@ Iterates dwell = 1, 2, ..., max\_dwell, computing [**det\_pd()**](detection__cor
 Minimum dwell &gt;= 1, or -1 if not achievable.
 
 
-Example: det\_dwell(0.5, 0.9, 1e-6, 256) returns the coherent integration depth needed to detect a 0.5 amplitude-SNR signal with Pd = 0.9 and Pfa = 1e-6. 
+
+```C++
+>>> from doppler.detection import det_dwell
+>>> det_dwell(snr=0.5, pd_min=0.9, pfa=1e-6, max_dwell=256)
+84
+```
+ 
 
 
         
@@ -195,10 +204,67 @@ int det_dwell_power (
 
 **Returns:**
 
-Minimum dwell &gt;= 1, or -1 if not achievable. 
+Minimum dwell &gt;= 1, or -1 if not achievable.
 
 
 
+```C++
+>>> from doppler.detection import det_dwell_power
+>>> det_dwell_power(snr_power=0.25, pd_min=0.9, pfa=1e-6, max_dwell=256)
+84
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_n\_noncoh 
+
+_Minimum non-coherent looks achieving Pd &gt;= pd\_min at fixed n\_coh._ 
+```C++
+int det_n_noncoh (
+    double snr,
+    int n_coh,
+    double pd_min,
+    double pfa,
+    int max_n_noncoh
+) 
+```
+
+
+
+Iterates n\_noncoh = 1, 2, ..., max\_n\_noncoh, recomputing the threshold (det\_threshold\_noncoherent, which grows with the look count) at each step. Returns the first look count that meets the Pd requirement, or -1 if none does within max\_n\_noncoh. Used by the acquisition engine's (M, N\_nc) split.
+
+
+
+
+**Parameters:**
+
+
+* `snr` Per-sample amplitude SNR (linear). 
+* `n_coh` Coherent integration length in samples (dwell \* N). 
+* `pd_min` Required detection probability, e.g. 0.9. 
+* `pfa` Per-test false-alarm probability. 
+* `max_n_noncoh` Search upper bound on the look count. 
+
+
+
+**Returns:**
+
+Minimum n\_noncoh &gt;= 1, or -1 if not achievable.
+
+
+
+```C++
+>>> from doppler.detection import det_n_noncoh
+>>> det_n_noncoh(snr=2.0, n_coh=16, pd_min=0.9, pfa=1e-3, max_n_noncoh=64)
+1
+```
+ 
 
 
         
@@ -242,7 +308,71 @@ At snr = 0, det\_pd returns Pfa (the false-alarm rate, as expected for a noise-o
 Detection probability in &#91;0, 1&#93;.
 
 
-Example: det\_pd(1.0, 4, det\_threshold(1e-6)) ~ 0.78 
+
+```C++
+>>> from doppler.detection import det_pd, det_threshold
+>>> thr = det_threshold(pfa=1e-6)
+>>> round(det_pd(snr=1.613, dwell=8, threshold=thr), 2)  # 8-dwell -> Pd~0.9
+0.9
+>>> round(det_pd(snr=0.0, dwell=8, threshold=thr), 6)    # snr=0 -> Pd=Pfa
+1e-06
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_pd\_noncoherent 
+
+_Detection probability for n\_noncoh non-coherent looks._ 
+```C++
+double det_pd_noncoherent (
+    double snr,
+    int n_coh,
+    int n_noncoh,
+    double threshold
+) 
+```
+
+
+
+Computes Pd = Q\_{n\_noncoh}(a, threshold) with the non-centrality a = sqrt(2 \* n\_coh \* n\_noncoh) \* snr. At n\_noncoh = 1 this is exactly det\_pd(snr, n\_coh, threshold); at snr = 0 it returns the per-test Pfa.
+
+
+
+
+**Parameters:**
+
+
+* `snr` Per-sample amplitude SNR (signal / noise amplitude). 
+* `n_coh` Coherent integration length in samples (dwell \* N). 
+* `n_noncoh` Number of non-coherent looks; must be &gt;= 1. 
+* `threshold` Threshold eta\_nc, e.g. from [**det\_threshold\_noncoherent()**](detection__core_8h.md#function-det_threshold_noncoherent). 
+
+
+
+**Returns:**
+
+Detection probability in &#91;0, 1&#93;.
+
+
+
+```C++
+>>> from doppler.detection import det_pd_noncoherent, det_pd, det_threshold
+>>> from doppler.detection import det_threshold_noncoherent
+>>> eta = det_threshold(pfa=1e-6)
+>>> det_pd_noncoherent(snr=0.5, n_coh=8, n_noncoh=1, threshold=eta) \
+...     == det_pd(snr=0.5, dwell=8, threshold=eta)        # reduces to coherent
+True
+>>> eta4 = det_threshold_noncoherent(pfa=1e-3, n_noncoh=4)
+>>> round(det_pd_noncoherent(snr=0.3, n_coh=16, n_noncoh=4, threshold=eta4), 2)
+0.19
+```
+ 
 
 
         
@@ -283,7 +413,14 @@ Pd = Q\_1(sqrt(2·dwell·snr\_power), sqrt(2·power\_threshold))
 Detection probability in &#91;0, 1&#93;.
 
 
-Example: det\_pd\_power(1.0, 4, det\_threshold\_power(1e-6)) ~ 0.78 (same result as det\_pd(1.0, 4, det\_threshold(1e-6)) since snr\_power=1 corresponds to snr\_amplitude=1 and the Q\_1 arguments are identical) 
+
+```C++
+>>> from doppler.detection import det_pd_power, det_threshold_power
+>>> thr = det_threshold_power(pfa=1e-6)
+>>> round(det_pd_power(snr_power=2.6017, dwell=8, power_threshold=thr), 2)
+0.9
+```
+ The result equals [**det\_pd()**](detection__core_8h.md#function-det_pd) at the equivalent amplitude SNR: power SNR `s` corresponds to amplitude SNR `sqrt(s)`, and the Q\_1 arguments match. 
 
 
         
@@ -324,7 +461,16 @@ Binary search over SNR in &#91;0, hi&#93; where hi is doubled from 1.0 until det
 Minimum amplitude SNR &gt;= 0.
 
 
-Roundtrip invariant: det\_pd(det\_snr(M, pd, pfa), M, det\_threshold(pfa)) &gt;= pd 
+
+```C++
+>>> from doppler.detection import det_snr, det_pd, det_threshold
+>>> snr = det_snr(dwell=8, pd_min=0.9, pfa=1e-6)
+>>> round(snr, 3)
+1.613
+>>> det_pd(snr=snr, dwell=8, threshold=det_threshold(pfa=1e-6)) >= 0.9
+True
+```
+ 
 
 
         
@@ -346,9 +492,6 @@ double det_snr_power (
 
 
 
-Roundtrip invariant: det\_pd\_power(det\_snr\_power(M,pd,pfa), M, det\_threshold\_power(pfa)) &gt;= pd
-
-
 
 
 **Parameters:**
@@ -362,10 +505,21 @@ Roundtrip invariant: det\_pd\_power(det\_snr\_power(M,pd,pfa), M, det\_threshold
 
 **Returns:**
 
-Minimum power SNR &gt;= 0. 
+Minimum power SNR &gt;= 0.
 
 
 
+```C++
+>>> from doppler.detection import (det_snr_power, det_pd_power,
+...                                det_threshold_power)
+>>> sp = det_snr_power(dwell=8, pd_min=0.9, pfa=1e-6)
+>>> round(sp, 4)
+2.6017
+>>> det_pd_power(snr_power=sp, dwell=8,
+...              power_threshold=det_threshold_power(pfa=1e-6)) >= 0.9
+True
+```
+ 
 
 
         
@@ -408,7 +562,60 @@ The threshold is independent of dwell and SNR; it depends only on the desired Pf
 Threshold eta &gt; 0.
 
 
-Example: det\_threshold(1e-6) ~ 5.2565 
+
+```C++
+>>> from doppler.detection import det_threshold
+>>> round(det_threshold(pfa=1e-6), 4)
+5.2565
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function det\_threshold\_noncoherent 
+
+_CFAR threshold eta\_nc for a non-coherent detector of n\_noncoh looks._ 
+```C++
+double det_threshold_noncoherent (
+    double pfa,
+    int n_noncoh
+) 
+```
+
+
+
+Solves marcum\_q(n\_noncoh, 0, eta\_nc) = pfa (the order-M central tail, monotone decreasing in eta\_nc) by bisection. For n\_noncoh = 1 this is the exact closed form sqrt(-2 ln pfa) (== det\_threshold).
+
+
+
+
+**Parameters:**
+
+
+* `pfa` Per-test false-alarm probability in (0, 1). 
+* `n_noncoh` Number of non-coherent looks; must be &gt;= 1. 
+
+
+
+**Returns:**
+
+Threshold eta\_nc on the normalized statistic R.
+
+
+
+```C++
+>>> from doppler.detection import det_threshold_noncoherent, det_threshold
+>>> round(det_threshold_noncoherent(pfa=1e-3, n_noncoh=4), 3)
+5.111
+>>> det_threshold_noncoherent(pfa=1e-6, n_noncoh=1) == det_threshold(pfa=1e-6)
+True
+```
+ 
 
 
         
@@ -448,7 +655,13 @@ p = -ln(Pfa)
 Threshold p &gt; 0.
 
 
-Example: det\_threshold\_power(1e-6) = 6·ln(10) ~ 13.816 
+
+```C++
+>>> from doppler.detection import det_threshold_power
+>>> round(det_threshold_power(pfa=1e-6), 3)   # -ln(1e-6) = 6*ln(10)
+13.816
+```
+ 
 
 
         
@@ -508,7 +721,19 @@ Special cases:
 Q\_M(a, b) in &#91;0, 1&#93;.
 
 
-Verifiable reference values (scipy.special.marcum\_q): marcum\_q(1, 0.0, 1.0) = exp(-0.5) ~ 0.60653 marcum\_q(1, 0.0, 2.0) = exp(-2.0) ~ 0.13534 marcum\_q(2, 0.0, 2.0) = 3\*exp(-2) ~ 0.40601 marcum\_q(1, 2.0, 1.0) ~ 0.91441 
+
+```C++
+>>> from doppler.detection import marcum_q
+>>> round(marcum_q(m=1, a=0.0, b=1.0), 5)   # P(Rayleigh > 1) = exp(-0.5)
+0.60653
+>>> round(marcum_q(m=1, a=0.0, b=2.0), 5)   # exp(-2)
+0.13534
+>>> round(marcum_q(m=2, a=0.0, b=2.0), 5)   # 3*exp(-2)
+0.40601
+>>> round(marcum_q(m=1, a=2.0, b=1.0), 5)   # signal present (a=2)
+0.91811
+```
+ 
 
 
         

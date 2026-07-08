@@ -7,7 +7,7 @@ to regenerate every image**, or run a single script directly (each page lists
 its command under *Reproduce* / *Run it*).
 
 C programs calling the library directly live on the [C examples](c.md) page;
-the end-to-end ZMQ pipeline is on the [Streaming](streaming.md) page.
+the end-to-end NATS pipeline is on the [Streaming](streaming.md) page.
 
 ## Sources & Waveforms
 
@@ -80,4 +80,4 @@ the end-to-end ZMQ pipeline is on the [Streaming](streaming.md) page.
 - [FFT](python-fft.md) — per-instance 1-D and 2-D FFT with plan reuse.
 - [Ring Buffers](python-buffers.md) — double-mapped lock-free ring buffers for producer/consumer pipelines.
 - [C examples](c.md) — minimal C99 programs calling the library directly.
-- [Streaming](streaming.md) — ZMQ-based signal streaming end-to-end.
+- [Streaming](streaming.md) — NATS-based signal streaming end-to-end.

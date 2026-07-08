@@ -14,6 +14,7 @@
 #define HBDECIM_R2C_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -35,6 +36,20 @@ extern "C"
   size_t hbdecim_r2c_execute (hbdecim_r2c_state_t *r, const float *in,
                               size_t num_in, float _Complex *out,
                               size_t max_out);
+
+  /* ── Serializable state (reusable elastic-resume convention) ──────────────
+   * Mutable per-stream state only — the even/odd delay rings, their write
+   * heads, the pending odd sample, and the output parity.  Coefficients and
+   * sizes are config (rebuilt from num_taps on the resumed instance).  Size is
+   * derived from even_cap, so a same-num_taps instance round-trips exactly. */
+
+  /* Standard bytes interface; see dp_state.h. */
+#define HBDECIM_R2C_STATE_MAGIC DP_FOURCC ('H', 'B', 'R', '2')
+#define HBDECIM_R2C_STATE_VERSION 1u
+
+  size_t hbdecim_r2c_state_bytes (const hbdecim_r2c_state_t *r);
+  void hbdecim_r2c_get_state (const hbdecim_r2c_state_t *r, void *blob);
+  int hbdecim_r2c_set_state (hbdecim_r2c_state_t *r, const void *blob);
 
 #ifdef __cplusplus
 }

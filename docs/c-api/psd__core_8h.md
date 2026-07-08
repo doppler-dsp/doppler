@@ -11,6 +11,7 @@
 _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include "fft/fft_core.h"`
 * `#include "acc_trace/acc_trace_core.h"`
@@ -66,6 +67,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  size\_t | [**psd\_band\_power\_max\_out**](#function-psd_band_power_max_out) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
 |  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd\_create**](#function-psd_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits, int mode, double alpha) <br>_Create an averaging PSD estimator._  |
 |  void | [**psd\_destroy**](#function-psd_destroy) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Destroy a PSD instance and release all memory._  |
+|  void | [**psd\_get\_state**](#function-psd_get_state) (const [**psd\_state\_t**](structpsd__state__t.md) \* state, void \* blob) <br> |
 |  double | [**psd\_noise\_floor**](#function-psd_noise_floor) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Noise-floor estimate: median of the averaged dB spectrum._  |
 |  double | [**psd\_occupied\_bw**](#function-psd_occupied_bw) ([**psd\_state\_t**](structpsd__state__t.md) \* state, double fraction) <br>_Occupied bandwidth in Hz holding_ `fraction` _of the total power._ |
 |  size\_t | [**psd\_power\_onesided**](#function-psd_power_onesided) ([**psd\_state\_t**](structpsd__state__t.md) \* state, size\_t cap, float \* out) <br>_Averaged linear power, one-sided (length nfft/2 + 1). Folds the DC-centred two-sided estimate onto_ `[0, fs/2]` _: the DC and Nyquist bins are kept as-is, every interior bin is the sum of its +k and -k halves (so a real-input tone reads 2\*avg\|_`X[k]` _\|^2 / cg^2 there). Coherent-gain normalised; full\_scale is NOT applied. Returns 0 before any accumulate._ |
@@ -77,8 +79,10 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 |  size\_t | [**psd\_psd\_dbhz**](#function-psd_psd_dbhz) ([**psd\_state\_t**](structpsd__state__t.md) \* state, size\_t n, float \* out) <br>_Averaged power spectral density in dB/Hz, DC-centred. Normalised by_ `fs * sum(w^2)` _(ENBW-aware), the standard one-sided-free PSD scaling. Differs from psd\_db() by the constant_`10*log10(cg^2/(fs*s2))` _. Returns 0 (Python None) before any frame is accumulated._ |
 |  size\_t | [**psd\_psd\_dbhz\_max\_out**](#function-psd_psd_dbhz_max_out) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Output capacity hint for psd\_dbhz(); equals n._  |
 |  void | [**psd\_reset**](#function-psd_reset) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Discard the running average; the next accumulate re-seeds it._  |
+|  int | [**psd\_set\_state**](#function-psd_set_state) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const void \* blob) <br> |
 |  double | [**psd\_sfdr**](#function-psd_sfdr) ([**psd\_state\_t**](structpsd__state__t.md) \* state, float min\_db) <br>_Spurious-free dynamic range in dB from the two strongest peaks._  |
 |  double | [**psd\_snr**](#function-psd_snr) ([**psd\_state\_t**](structpsd__state__t.md) \* state, double lo\_hz, double hi\_hz) <br>_In-band SNR in dB: peak level in_ `[lo_hz, hi_hz]` _minus the noise floor._ |
+|  size\_t | [**psd\_state\_bytes**](#function-psd_state_bytes) (const [**psd\_state\_t**](structpsd__state__t.md) \* state) <br> |
 |  double | [**psd\_total\_band\_power**](#function-psd_total_band_power) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const double \* bands, size\_t bands\_len) <br>_Total integrated power across all bands in dB._  |
 
 
@@ -107,6 +111,12 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**PSD\_STATE\_MAGIC**](psd__core_8h.md#define-psd_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('P','S','D',' ')`<br> |
+| define  | [**PSD\_STATE\_VERSION**](psd__core_8h.md#define-psd_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -370,6 +380,22 @@ void psd_destroy (
 
 
         
+
+<hr>
+
+
+
+### function psd\_get\_state 
+
+```C++
+void psd_get_state (
+    const psd_state_t * state,
+    void * blob
+) 
+```
+
+
+
 
 <hr>
 
@@ -675,6 +701,22 @@ void psd_reset (
 
 
 
+### function psd\_set\_state 
+
+```C++
+int psd_set_state (
+    psd_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function psd\_sfdr 
 
 _Spurious-free dynamic range in dB from the two strongest peaks._ 
@@ -749,6 +791,21 @@ SNR in dB (0 if empty).
 
 
 
+### function psd\_state\_bytes 
+
+```C++
+size_t psd_state_bytes (
+    const psd_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function psd\_total\_band\_power 
 
 _Total integrated power across all bands in dB._ 
@@ -782,6 +839,35 @@ Total band power in dB (dB floor if empty).
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define PSD\_STATE\_MAGIC 
+
+```C++
+#define PSD_STATE_MAGIC `DP_FOURCC ('P','S','D',' ')`
+```
+
+
+
+
+<hr>
+
+
+
+### define PSD\_STATE\_VERSION 
+
+```C++
+#define PSD_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

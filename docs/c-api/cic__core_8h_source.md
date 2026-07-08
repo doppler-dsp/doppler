@@ -13,6 +13,7 @@
 #define CIC_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 
 #ifdef __cplusplus
@@ -36,6 +37,19 @@ cic_state_t *cic_create(uint32_t R);
 void cic_destroy(cic_state_t *state);
 
 void cic_reset(cic_state_t *state);
+
+/* Serializable state (reusable elastic-resume convention): the integrator and
+ * comb accumulators plus the decimation phase counter — R/shift are config
+ * (rebuilt from R on the resumed instance). */
+
+/* Standard bytes interface (see dp_state.h): [dp_state_hdr_t][integ_re/im,
+ * comb_re/im (CIC_N u64 each)][u32 phase]. */
+#define CIC_STATE_MAGIC DP_FOURCC ('C', 'I', 'C', '_')
+#define CIC_STATE_VERSION 1u
+
+size_t cic_state_bytes(const cic_state_t *state);
+void cic_get_state(const cic_state_t *state, void *blob);
+int cic_set_state(cic_state_t *state, const void *blob);
 
 size_t cic_decimate_max_out(cic_state_t *state);
 

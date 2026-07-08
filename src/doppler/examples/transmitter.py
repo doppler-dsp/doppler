@@ -1,12 +1,13 @@
-"""transmitter.py — ZMQ PUB transmitter example.
+"""transmitter.py — NATS PUB transmitter example.
 
-Generates a complex tone and publishes 8 192-sample packets via a ZMQ PUB
-socket.  Mirrors the C transmitter example using the Python stream API.
+Generates a complex tone and publishes 8 192-sample packets via a NATS PUB
+subject.  Mirrors the C transmitter example using the Python stream API.
+Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
   python examples/python/transmitter.py [endpoint]
-  python examples/python/transmitter.py                  # tcp://*:5555
-  python examples/python/transmitter.py tcp://*:5556
+  python examples/python/transmitter.py                  # nats://127.0.0.1:4222/iq
+  python examples/python/transmitter.py nats://127.0.0.1:4222/iq2
 
 Press Ctrl+C to stop.
 """
@@ -45,7 +46,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://*:5555")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/iq"
+    )
     args = parser.parse_args()
 
     signal.signal(signal.SIGINT, _sighandler)

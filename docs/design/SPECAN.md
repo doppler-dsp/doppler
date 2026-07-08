@@ -35,7 +35,7 @@ source: demo          # demo | file | socket
 # source: file
 # path: /path/to/capture.iq
 # source: socket
-# address: tcp://localhost:5555
+# address: nats://127.0.0.1:4222/iq
 
 center: 0             # Hz
 span: 200e3           # Hz  (auto if omitted)
@@ -59,7 +59,7 @@ any signal processing.
 ```
 ┌─────────────────────────────────────────────┐
 │  Source                                     │
-│  socket (ZMQ sub) | file | demo             │
+│  socket (NATS sub) | file | demo            │
 │  → header carries Fs, center, sample type   │
 └─────────────────────┬───────────────────────┘
                       │ IQ blocks (cf32)
@@ -159,7 +159,7 @@ ______________________________________________________________________
 
 ## Input Sources
 
-### Socket (ZMQ PUB/SUB)
+### Socket (NATS PUB/SUB)
 
 The doppler streaming protocol (`dp_header_t`) carries `sample_rate`,
 `center_freq`, and `sample_type` in every packet header. The DDC engine
@@ -168,7 +168,7 @@ needed. Subsequent packets that change `sample_rate` trigger a chain
 reconfiguration.
 
 ```
-doppler-specan --source socket tcp://sdr-host:5555
+doppler-specan --source socket nats://sdr-host:4222/iq
 ```
 
 ### File

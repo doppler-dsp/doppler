@@ -115,7 +115,7 @@ the line immediately before the fence. The reason is **mandatory** (a bare
 marker fails the gate), so every exclusion is reviewed in the diff:
 
 ```text
-<!-- docs-snippet: skip=blocking ZMQ recv; round-trip covered by stream tests -->
+<!-- docs-snippet: skip=blocking NATS recv, needs a broker; round-trip covered by stream tests -->
 ```
 
 A block can also assert it raises: `<!-- docs-snippet: raises=ValueError -->`.

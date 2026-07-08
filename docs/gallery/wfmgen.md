@@ -37,7 +37,7 @@ it:
 | Scope      | one waveform from flags, *or* a multi-segment scene |
 | Spec       | flags **or** `--from-file spec.json`                |
 | Containers | `raw`, `csv`, **BLUE-1000**, **SigMF**              |
-| Output     | file / stdout / **`zmq://`**                        |
+| Output     | file / stdout / **`nats://`**                       |
 | Provenance | `--record run.json` (replays byte-identically)      |
 
 The same engine is the `doppler.wfm` Python API; a one-segment `wfmgen` run is
@@ -73,8 +73,9 @@ wfmgen --type qpsk --count 100000 --sample-type ci16 --endian be \
 # per segment, with frequency edges and the waveform label)
 wfmgen --from-file scenario.json --sample-type ci16 --file-type sigmf -o capture
 
-# stream to a ZMQ PUB endpoint a doppler subscriber can read
-wfmgen --type tone --continuous --output zmq://tcp://*:5555
+# stream to a NATS PUB endpoint a doppler subscriber can read
+# (requires a running nats-server)
+wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq
 ```
 
 BLUE carries `fs` (as `xdelta = 1/fs`), the complex sample format, and byte
@@ -190,6 +191,6 @@ with Writer("frame.cf32", sample_type="cf32") as w:
     w.write(Composer(spec).compose())
 ```
 
-See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink)
-for `Writer` containers (raw / CSV / BLUE / SigMF), the `ZmqSink`, JSON
+See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
+for `Writer` containers (raw / CSV / BLUE / SigMF), the `StreamSink`, JSON
 round-tripping, and the `rrc_taps` / `dsss_spread` / `mls_poly` helpers.

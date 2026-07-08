@@ -12,8 +12,9 @@
 #
 # Each path builds and runs the examples/consumer program (so the example
 # doubles as the test), and every produced binary — plus libdoppler.so itself —
-# is checked to carry NO dynamic libzmq dependency (the vendored zmq is folded
-# into both libraries, so consumers never link it).
+# is checked to carry NO dynamic libzmq dependency. ZMQ has been fully removed
+# from doppler; this assertion is now a permanent regression guard against it
+# (or any other C++ runtime dependency) ever creeping back into the core.
 #
 # Usage:
 #   tests/install/release-smoke.sh [VERSION] [PREFIX_DIR]

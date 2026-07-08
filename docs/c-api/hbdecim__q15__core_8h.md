@@ -12,6 +12,7 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "dp_state.h"`
 
 
 
@@ -64,7 +65,10 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 |  size\_t | [**hbdecim\_q15\_execute\_max\_out**](#function-hbdecim_q15_execute_max_out) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_Maximum output samples for a given input length._  |
 |  size\_t | [**hbdecim\_q15\_get\_num\_taps**](#function-hbdecim_q15_get_num_taps) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_FIR branch length as supplied to the constructor. This is the count of non-zero symmetric taps in the FIR branch, not the full sparse halfband prototype length. Useful for introspection when chaining multiple stages with programmatically computed filter banks._  |
 |  double | [**hbdecim\_q15\_get\_rate**](#function-hbdecim_q15_get_rate) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_The sample-rate reduction factor; always 0.5 for 2:1 decimation. Exposed as a read-only property so pipelines can query the rate of each stage programmatically without hard-coding the 2:1 assumption._  |
+|  void | [**hbdecim\_q15\_get\_state**](#function-hbdecim_q15_get_state) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state, void \* blob) <br> |
 |  void | [**hbdecim\_q15\_reset**](#function-hbdecim_q15_reset) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* r) <br>_Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._  |
+|  int | [**hbdecim\_q15\_set\_state**](#function-hbdecim_q15_set_state) ([**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**hbdecim\_q15\_state\_bytes**](#function-hbdecim_q15_state_bytes) (const [**hbdecim\_q15\_state\_t**](structhbdecim__q15__state__t.md) \* state) <br> |
 
 
 
@@ -92,6 +96,12 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**HBDECIM\_Q15\_STATE\_MAGIC**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('H','B','1','5')`<br> |
+| define  | [**HBDECIM\_Q15\_STATE\_VERSION**](hbdecim__q15__core_8h.md#define-hbdecim_q15_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -313,6 +323,22 @@ double hbdecim_q15_get_rate (
 
 
 
+### function hbdecim\_q15\_get\_state 
+
+```C++
+void hbdecim_q15_get_state (
+    const hbdecim_q15_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function hbdecim\_q15\_reset 
 
 _Zero all delay rings and clear the pending-sample flag. After a reset the decimator behaves identically to a freshly constructed instance: the four dual-write delay rings are zeroed and has\_pending is cleared, so no partial IQ pair carries over. Call this between unrelated signal segments to prevent inter-segment leakage._ 
@@ -341,6 +367,66 @@ void hbdecim_q15_reset (
 
 
         
+
+<hr>
+
+
+
+### function hbdecim\_q15\_set\_state 
+
+```C++
+int hbdecim_q15_set_state (
+    hbdecim_q15_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function hbdecim\_q15\_state\_bytes 
+
+```C++
+size_t hbdecim_q15_state_bytes (
+    const hbdecim_q15_state_t * state
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define HBDECIM\_Q15\_STATE\_MAGIC 
+
+```C++
+#define HBDECIM_Q15_STATE_MAGIC `DP_FOURCC ('H','B','1','5')`
+```
+
+
+
+
+<hr>
+
+
+
+### define HBDECIM\_Q15\_STATE\_VERSION 
+
+```C++
+#define HBDECIM_Q15_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

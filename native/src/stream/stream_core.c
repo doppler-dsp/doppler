@@ -1,19 +1,7 @@
 #include "stream/stream.h"
 #include "stream_internal.h"
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
-#include <zmq.h>
-
-/* =========================================================================
- * Backend seam
- *
- * The transport is selected per context by the endpoint scheme (see
- * parse_backend): a "nats://…" endpoint routes to the NATS backend
- * (stream_nats.c, dpn_*), anything else (tcp://, ipc://, inproc://) to the
- * ZMQ backend (dpz_*, below).  struct dp_ctx / struct dp_msg and the enums
- * live in stream_internal.h so both translation units share them.
- * ========================================================================= */
 
 /* =========================================================================
  * dp_msg_t — zero-copy message accessors (dispatch on how the buffer is owned)
@@ -26,10 +14,8 @@ dp_msg_data (dp_msg_t *msg)
     return NULL;
   switch (msg->kind)
     {
-    case DP_MSG_ZMQ:
-      return zmq_msg_data (&msg->u.zmq);
     case DP_MSG_NATS:
-      return dpn_msg_data (msg);
+      return nats_msg_data (msg);
     case DP_MSG_OWNED:
       return (char *)msg->u.owned.ptr + msg->data_offset;
     default:
@@ -44,10 +30,8 @@ dp_msg_size (dp_msg_t *msg)
     return 0;
   switch (msg->kind)
     {
-    case DP_MSG_ZMQ:
-      return zmq_msg_size (&msg->u.zmq);
     case DP_MSG_NATS:
-      return dpn_msg_size (msg);
+      return nats_msg_size (msg);
     case DP_MSG_OWNED:
       return msg->u.owned.len - msg->data_offset;
     default:
@@ -73,8 +57,8 @@ dp_msg_ack (dp_msg_t *msg)
   if (!msg)
     return DP_ERR_INVALID;
   if (msg->kind == DP_MSG_NATS)
-    return dpn_msg_ack (msg);
-  return DP_OK; /* ZMQ / core-NATS / reassembled: nothing to ack */
+    return nats_msg_ack (msg);
+  return DP_OK; /* core-NATS / reassembled: nothing to ack */
 }
 
 void
@@ -84,11 +68,8 @@ dp_msg_free (dp_msg_t *msg)
     return;
   switch (msg->kind)
     {
-    case DP_MSG_ZMQ:
-      zmq_msg_close (&msg->u.zmq);
-      break;
     case DP_MSG_NATS:
-      dpn_msg_free (msg);
+      nats_msg_free (msg);
       break;
     case DP_MSG_OWNED:
       free (msg->u.owned.ptr);
@@ -180,229 +161,8 @@ dp_strerror (int err)
 }
 
 /* =========================================================================
- * Backend selection
- * ========================================================================= */
-
-static dp_backend_t
-parse_backend (const char *endpoint)
-{
-  return (strncmp (endpoint, "nats://", 7) == 0) ? DP_BACKEND_NATS
-                                                 : DP_BACKEND_ZMQ;
-}
-
-/* =========================================================================
- * ZMQ backend (dpz_*)  — named dpz_ rather than zmq_ to stay clear of
- * libzmq's own zmq_* symbol namespace.
- * ========================================================================= */
-
-static int
-dpz_role_to_socket_type (dp_role_t role)
-{
-  switch (role)
-    {
-    case DP_ROLE_PUB:
-      return ZMQ_PUB;
-    case DP_ROLE_SUB:
-      return ZMQ_SUB;
-    case DP_ROLE_PUSH:
-      return ZMQ_PUSH;
-    case DP_ROLE_PULL:
-      return ZMQ_PULL;
-    case DP_ROLE_REQ:
-      return ZMQ_REQ;
-    case DP_ROLE_REP:
-      return ZMQ_REP;
-    }
-  return -1;
-}
-
-static int
-role_binds (dp_role_t role)
-{
-  return role == DP_ROLE_PUB || role == DP_ROLE_PUSH || role == DP_ROLE_REP;
-}
-
-static struct dp_ctx *
-dpz_ctx_create (dp_role_t role, const char *endpoint,
-                dp_sample_type_t sample_type)
-{
-  int zmq_type = dpz_role_to_socket_type (role);
-
-  struct dp_ctx *ctx = (struct dp_ctx *)calloc (1, sizeof (struct dp_ctx));
-  if (!ctx)
-    return NULL;
-  ctx->backend = DP_BACKEND_ZMQ;
-
-  ctx->u.zmq.context = zmq_ctx_new ();
-  if (!ctx->u.zmq.context)
-    {
-      free (ctx);
-      return NULL;
-    }
-
-  ctx->u.zmq.socket = zmq_socket (ctx->u.zmq.context, zmq_type);
-  if (!ctx->u.zmq.socket)
-    {
-      zmq_ctx_destroy (ctx->u.zmq.context);
-      free (ctx);
-      return NULL;
-    }
-
-  /* High water mark */
-  int hwm = 1000;
-  if (zmq_type == ZMQ_PUB || zmq_type == ZMQ_PUSH)
-    zmq_setsockopt (ctx->u.zmq.socket, ZMQ_SNDHWM, &hwm, sizeof (hwm));
-  else if (zmq_type == ZMQ_SUB || zmq_type == ZMQ_PULL)
-    zmq_setsockopt (ctx->u.zmq.socket, ZMQ_RCVHWM, &hwm, sizeof (hwm));
-
-  /* Subscribe to all messages for SUB sockets */
-  if (zmq_type == ZMQ_SUB)
-    zmq_setsockopt (ctx->u.zmq.socket, ZMQ_SUBSCRIBE, "", 0);
-
-  int rc = role_binds (role) ? zmq_bind (ctx->u.zmq.socket, endpoint)
-                             : zmq_connect (ctx->u.zmq.socket, endpoint);
-  if (rc != 0)
-    {
-      zmq_close (ctx->u.zmq.socket);
-      zmq_ctx_destroy (ctx->u.zmq.context);
-      free (ctx);
-      return NULL;
-    }
-
-  ctx->sample_type = sample_type;
-  ctx->sequence    = 0;
-  return ctx;
-}
-
-static void
-dpz_ctx_destroy (struct dp_ctx *ctx)
-{
-  if (ctx->u.zmq.socket)
-    zmq_close (ctx->u.zmq.socket);
-  if (ctx->u.zmq.context)
-    zmq_ctx_destroy (ctx->u.zmq.context);
-}
-
-static int
-dpz_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                 const void *samples, size_t data_size)
-{
-  int rc = zmq_send (ctx->u.zmq.socket, header, sizeof (*header), ZMQ_SNDMORE);
-  if (rc == -1)
-    return DP_ERR_SEND;
-
-  rc = zmq_send (ctx->u.zmq.socket, samples, data_size, 0);
-  if (rc == -1)
-    return DP_ERR_SEND;
-
-  return DP_OK;
-}
-
-static int
-dpz_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
-{
-  /* Receive header frame */
-  dp_header_t hdr;
-  int         rc = zmq_recv (ctx->u.zmq.socket, &hdr, sizeof (hdr), 0);
-  if (rc == -1)
-    {
-      if (zmq_errno () == EAGAIN)
-        return DP_ERR_TIMEOUT;
-      return DP_ERR_RECV;
-    }
-  if ((size_t)rc != sizeof (hdr))
-    return DP_ERR_INVALID;
-
-  /* Validate magic */
-  if (hdr.magic != DP_MAGIC)
-    return DP_ERR_INVALID;
-
-  /* Check for data frame */
-  int    more;
-  size_t more_size = sizeof (more);
-  zmq_getsockopt (ctx->u.zmq.socket, ZMQ_RCVMORE, &more, &more_size);
-  if (!more)
-    return DP_ERR_INVALID;
-
-  /* Allocate message wrapper (tiny struct, not the data) */
-  dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
-  if (!msg)
-    {
-      /* Drain the data frame to keep socket state clean */
-      zmq_msg_t discard;
-      zmq_msg_init (&discard);
-      zmq_msg_recv (&discard, ctx->u.zmq.socket, 0);
-      zmq_msg_close (&discard);
-      return DP_ERR_MEMORY;
-    }
-
-  /* Zero-copy recv: ZMQ owns the buffer */
-  msg->kind        = DP_MSG_ZMQ;
-  msg->data_offset = 0;
-  zmq_msg_init (&msg->u.zmq);
-  rc = zmq_msg_recv (&msg->u.zmq, ctx->u.zmq.socket, 0);
-  if (rc == -1)
-    {
-      zmq_msg_close (&msg->u.zmq);
-      free (msg);
-      return DP_ERR_RECV;
-    }
-
-  msg->sample_type = (dp_sample_type_t)hdr.sample_type;
-  msg->num_samples = hdr.num_samples;
-
-  *out_msg = msg;
-  if (out_hdr)
-    memcpy (out_hdr, &hdr, sizeof (dp_header_t));
-
-  return DP_OK;
-}
-
-static int
-dpz_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
-{
-  dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
-  if (!msg)
-    return DP_ERR_MEMORY;
-
-  msg->kind        = DP_MSG_ZMQ;
-  msg->data_offset = 0;
-  zmq_msg_init (&msg->u.zmq);
-  int rc = zmq_msg_recv (&msg->u.zmq, ctx->u.zmq.socket, 0);
-  if (rc == -1)
-    {
-      zmq_msg_close (&msg->u.zmq);
-      free (msg);
-      if (zmq_errno () == EAGAIN)
-        return DP_ERR_TIMEOUT;
-      return DP_ERR_RECV;
-    }
-
-  msg->sample_type = CF64; /* not meaningful for raw recv */
-  msg->num_samples = 0;
-
-  *out_msg  = msg;
-  *out_size = zmq_msg_size (&msg->u.zmq);
-
-  return DP_OK;
-}
-
-static int
-dpz_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
-{
-  int rc = zmq_send (ctx->u.zmq.socket, data, size, 0);
-  return (rc == -1) ? DP_ERR_SEND : DP_OK;
-}
-
-static void
-dpz_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
-{
-  zmq_setsockopt (ctx->u.zmq.socket, ZMQ_RCVTIMEO, &timeout_ms,
-                  sizeof (timeout_ms));
-}
-
-/* =========================================================================
- * Shared dispatch funnels — backend-agnostic framing + a one-line branch
+ * Shared framing funnels — backend-agnostic header construction, delegating
+ * the actual transport I/O to the NATS implementation (stream_nats.c).
  * ========================================================================= */
 
 static struct dp_ctx *
@@ -410,9 +170,7 @@ ctx_create (dp_role_t role, const char *endpoint, dp_sample_type_t sample_type)
 {
   if (!endpoint)
     return NULL;
-  if (parse_backend (endpoint) == DP_BACKEND_NATS)
-    return dpn_ctx_create (role, endpoint, sample_type);
-  return dpz_ctx_create (role, endpoint, sample_type);
+  return nats_ctx_create (role, endpoint, sample_type);
 }
 
 static void
@@ -420,10 +178,7 @@ ctx_destroy (struct dp_ctx *ctx)
 {
   if (!ctx)
     return;
-  if (ctx->backend == DP_BACKEND_NATS)
-    dpn_ctx_destroy (ctx);
-  else
-    dpz_ctx_destroy (ctx);
+  nats_ctx_destroy (ctx);
   free (ctx);
 }
 
@@ -449,9 +204,7 @@ send_signal (struct dp_ctx *ctx, const void *samples, size_t num_samples,
 
   size_t data_size = num_samples * dp_sample_size (type);
 
-  if (ctx->backend == DP_BACKEND_NATS)
-    return dpn_send_signal (ctx, &header, samples, data_size);
-  return dpz_send_signal (ctx, &header, samples, data_size);
+  return nats_send_signal (ctx, &header, samples, data_size);
 }
 
 static int
@@ -459,9 +212,7 @@ recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
   if (!ctx || !out_msg)
     return DP_ERR_INVALID;
-  if (ctx->backend == DP_BACKEND_NATS)
-    return dpn_recv_signal (ctx, out_msg, out_hdr);
-  return dpz_recv_signal (ctx, out_msg, out_hdr);
+  return nats_recv_signal (ctx, out_msg, out_hdr);
 }
 
 static int
@@ -469,9 +220,7 @@ recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 {
   if (!ctx || !out_msg || !out_size)
     return DP_ERR_INVALID;
-  if (ctx->backend == DP_BACKEND_NATS)
-    return dpn_recv_raw (ctx, out_msg, out_size);
-  return dpz_recv_raw (ctx, out_msg, out_size);
+  return nats_recv_raw (ctx, out_msg, out_size);
 }
 
 static int
@@ -479,9 +228,7 @@ send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
   if (!ctx || !data || size == 0)
     return DP_ERR_INVALID;
-  if (ctx->backend == DP_BACKEND_NATS)
-    return dpn_send_raw (ctx, data, size);
-  return dpz_send_raw (ctx, data, size);
+  return nats_send_raw (ctx, data, size);
 }
 
 static void
@@ -489,10 +236,7 @@ set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 {
   if (!ctx)
     return;
-  if (ctx->backend == DP_BACKEND_NATS)
-    dpn_set_recv_timeout (ctx, timeout_ms);
-  else
-    dpz_set_recv_timeout (ctx, timeout_ms);
+  nats_set_recv_timeout (ctx, timeout_ms);
 }
 
 /* =========================================================================

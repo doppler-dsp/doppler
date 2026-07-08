@@ -51,9 +51,12 @@ _Synth state._ [More...](#detailed-description)
 |  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
+|  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
 |  int | [**nsps**](#variable-nsps)  <br> |
 |  [**pn\_state\_t**](structpn__state__t.md) \* | [**pn**](#variable-pn)  <br> |
 |  int | [**sym\_pos**](#variable-sym_pos)  <br> |
+|  size\_t | [**sym\_read\_idx**](#variable-sym_read_idx)  <br> |
+|  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
 |  int | [**wtype**](#variable-wtype)  <br> |
 
 
@@ -306,6 +309,19 @@ size_t wfm_synth_state_t::n_bits;
 
 
 
+### variable n\_symbols 
+
+```C++
+size_t wfm_synth_state_t::n_symbols;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable nsps 
 
 ```C++
@@ -336,6 +352,32 @@ pn_state_t* wfm_synth_state_t::pn;
 
 ```C++
 int wfm_synth_state_t::sym_pos;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sym\_read\_idx 
+
+```C++
+size_t wfm_synth_state_t::sym_read_idx;
+```
+
+
+
+
+<hr>
+
+
+
+### variable symbols 
+
+```C++
+float _Complex* wfm_synth_state_t::symbols;
 ```
 
 

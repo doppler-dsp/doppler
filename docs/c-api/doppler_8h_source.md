@@ -50,6 +50,8 @@ extern "C" {
 
 #include "hbdecim_q15/hbdecim_q15_core.h"
 
+#include "boxcar/boxcar_core.h"
+
 #include "nco/nco_core.h"
 
 #include "lo/lo_core.h"
@@ -94,11 +96,37 @@ extern "C" {
 
 #include "RateConverter/RateConverter_core.h"
 
+#include "farrow/farrow_core.h"
+
 #include "agc/agc_core.h"
 
 #include "acc_q15/acc_q15_core.h"
 
 #include "acc_q8/acc_q8_core.h"
+
+#include "loop_filter/loop_filter_core.h"
+
+#include "costas/costas_core.h"
+
+#include "dll/dll_core.h"
+
+#include "channel/channel_core.h"
+
+#include "symsync/symsync_core.h"
+
+#include "carrier_mpsk/carrier_mpsk_core.h"
+
+#include "carrier_nda/carrier_nda_core.h"
+
+#include "mpsk_receiver/mpsk_receiver_core.h"
+
+#include "despreader/despreader_core.h"
+
+#include "acq/acq_core.h"
+
+#include "ppe/ppe_core.h"
+
+#include "burst_demod/burst_demod_core.h"
 
 #ifdef __cplusplus
 }

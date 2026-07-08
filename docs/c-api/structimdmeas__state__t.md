@@ -36,6 +36,7 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 
 | Type | Name |
 | ---: | :--- |
+|  double | [**beta**](#variable-beta)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**lobe\_bins**](#variable-lobe_bins)  <br> |
@@ -43,6 +44,7 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
+|  size\_t | [**spur\_guard\_bins**](#variable-spur_guard_bins)  <br> |
 
 
 
@@ -89,6 +91,19 @@ _IMDMeasure state: owned window, FFT plan and one-sided power scratch._
 
 ## Public Attributes Documentation
 
+
+
+
+### variable beta 
+
+```C++
+double imdmeas_state_t::beta;
+```
+
+
+
+
+<hr>
 
 
 
@@ -174,6 +189,19 @@ psd_state_t* imdmeas_state_t::psd;
 
 ```C++
 float* imdmeas_state_t::pwr;
+```
+
+
+
+
+<hr>
+
+
+
+### variable spur\_guard\_bins 
+
+```C++
+size_t imdmeas_state_t::spur_guard_bins;
 ```
 
 

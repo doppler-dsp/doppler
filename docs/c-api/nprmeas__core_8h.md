@@ -62,7 +62,7 @@ _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-descriptio
 | Type | Name |
 | ---: | :--- |
 |  [**npr\_meas\_t**](structnpr__meas__t.md) | [**nprmeas\_analyze**](#function-nprmeas_analyze) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t n\_in, double active\_lo, double active\_hi, double notch\_lo, double notch\_hi, double guard\_hz) <br>_NPR of a notched-noise capture._  |
-|  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits) <br>_Create an NPRMeasure analyser._  |
+|  [**nprmeas\_state\_t**](structnprmeas__state__t.md) \* | [**nprmeas\_create**](#function-nprmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an NPRMeasure analyser (auto Kaiser window)._  |
 |  void | [**nprmeas\_destroy**](#function-nprmeas_destroy) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Destroy an NPRMeasure analyser._  |
 |  void | [**nprmeas\_reset**](#function-nprmeas_reset) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
 |  size\_t | [**nprmeas\_spectrum\_dbfs**](#function-nprmeas_spectrum_dbfs) ([**nprmeas\_state\_t**](structnprmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
@@ -146,10 +146,26 @@ npr_meas_t nprmeas_analyze (
 
 **Returns:**
 
-the NPR metric record (by value). 
+the NPR metric record (by value).
 
 
 
+```C++
+>>> from doppler.measure import NPRMeasure
+>>> import numpy as np
+>>> rng = np.random.default_rng(0)
+>>> n = 1 << 15
+>>> F = np.fft.rfft(rng.standard_normal(n))
+>>> f = np.fft.rfftfreq(n)
+>>> F[(f < 0.05) | (f > 0.45)] = 0                 # band-limit to [0.05,0.45]
+>>> F[(f >= 0.20) & (f <= 0.25)] *= 10**(-50/20)   # notch 50 dB deep
+>>> x = np.fft.irfft(F, n)
+>>> x = (0.3*x/np.std(x)).astype(np.float32)
+>>> r = NPRMeasure(n=n, fs=1.0).analyze(x, 0.05, 0.45, 0.20, 0.25, 0.01)
+>>> 45 < r.npr_db < 55, r.notch_psd_dbfs < r.inband_psd_dbfs
+(True, True)
+```
+ 
 
 
         
@@ -160,19 +176,20 @@ the NPR metric record (by value).
 
 ### function nprmeas\_create 
 
-_Create an NPRMeasure analyser._ 
+_Create an NPRMeasure analyser (auto Kaiser window)._ 
 ```C++
 nprmeas_state_t * nprmeas_create (
     size_t n,
     double fs,
-    int window,
-    float beta,
-    size_t pad,
     double full_scale,
-    size_t bits
+    size_t bits,
+    double dynamic_range_db
 ) 
 ```
 
+
+
+The window is always Kaiser; its shape is auto-selected so the sidelobes sit below the requested dynamic range (see measure\_resolve\_dr()). The chosen window also sets a minimum notch keep-out so active-band noise cannot leak into the notch average through the window skirt.
 
 
 
@@ -182,11 +199,9 @@ nprmeas_state_t * nprmeas_create (
 
 * `n` Capture/frame length (&gt;= 2). 
 * `fs` Sample rate (Hz, &gt; 0). 
-* `window` 0 = Hann, 1 = Kaiser. 
-* `beta` Kaiser shape (ignored for Hann). 
-* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
 * `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
-* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) (resolved in the shared PSD core). 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target. 
+* `dynamic_range_db` Explicit sidelobe/dynamic-range target (dB); used when &gt; 0, else derived from `bits`. 
 
 
 

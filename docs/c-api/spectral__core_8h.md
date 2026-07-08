@@ -60,6 +60,7 @@ _Spectral module — public C API._ [More...](#detailed-description)
 |  void | [**blackman\_harris\_window**](#function-blackman_harris_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a 4-term Blackman-Harris window. Computes the minimum 4-term Blackman-Harris window: w(k) = 0.35875 - 0.48829\*cos(2πk/(N-1))._ |
 |  size\_t | [**find\_peaks\_f32**](#function-find_peaks_f32) (const float \* db, size\_t db\_len, size\_t n\_peaks, float min\_db, [**dp\_peak\_t**](structdp__peak__t.md) \* result) <br>_Find up to_ `n_peaks` _local maxima in a DC-centred F32 dB spectrum. Three-step algorithm: (1) local-max scan —_`db[k]` _&gt;_`db[k-1]` _&&_`db[k]` _&gt;=_`db[k+1]` _with_`db[k]` _&gt; min\_db; (2) parabolic interpolation on each local maximum to produce sub-bin freq\_norm accuracy; (3) sort descending and return the top_`n_peaks` _. freq\_norm is DC-centred: bin i maps to freq\_norm = (i - N/2) / N so DC (bin N/2) → 0.0 and the first negative frequency bin → −0.5. The spectrum must have at least 3 bins._ |
 |  void | [**hann\_window**](#function-hann_window) (float \* w, size\_t w\_len) <br>_Fill_ `w` _with a Hann (raised-cosine) window. Computes w(k) = 0.5\*(1 - cos(2π k/(N-1))) for k = 0..N-1. The window tapers smoothly to zero at both endpoints, providing ~31 dB first-sidelobe rejection. Takes no shape parameter; use Kaiser for adjustable roll-off._ |
+|  double | [**kaiser\_beta\_for\_sidelobe**](#function-kaiser_beta_for_sidelobe) (double atten\_db) <br>_Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._ |
 |  float | [**kaiser\_enbw**](#function-kaiser_enbw) (const float \* w, size\_t w\_len) <br>_Compute the equivalent noise bandwidth of a window in bins. ENBW = N \* sum(w²) / (sum(w))² quantifies how many noise bins the window smears into the main lobe. A rectangular window has ENBW = 1.0; tapered windows are &gt; 1.0. Works with any window type, not just Kaiser._  |
 |  void | [**kaiser\_window**](#function-kaiser_window) (float \* w, size\_t w\_len, float beta) <br>_Fill_ `w` _with a Kaiser window of shape parameter_`beta` _. I0 is computed via the converging power-series expansion. Increasing_`beta` _raises sidelobe attenuation at the cost of a wider main lobe (beta=0 → rectangular, beta≈6 → ~60 dB sidelobe rejection). The output is normalised so that_`w[0]` _=_`w[N-1]` _= I0(0)/I0(beta)._ |
 |  void | [**magnitude\_db\_cf32**](#function-magnitude_db_cf32) (const float complex \* x, size\_t x\_len, float \* out, float lin\_floor, float offset\_db) <br>_Convert a CF32 complex spectrum to F32 dB magnitudes. Computes out(k) = 20\*log10(max(\|x(k)\|, lin\_floor)) + offset\_db for each bin. The_ `lin_floor` _guard prevents log10(0); a value of 1e-12 corresponds to a -240 dB noise floor._`offset_db` _shifts the entire output for calibration (e.g., normalise to 0 dBFS)._ |
@@ -231,6 +232,54 @@ void hann_window (
 [0.0, 0.1883, 0.6113, 0.9505, 0.9505, 0.6113, 0.1883, 0.0]
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function kaiser\_beta\_for\_sidelobe 
+
+_Kaiser beta achieving a target_ _window_ _peak-sidelobe attenuation._
+```C++
+double kaiser_beta_for_sidelobe (
+    double atten_db
+) 
+```
+
+
+
+Inverts the Kaiser window-design formula (Kaiser 1974) so the window's own peak sidelobe sits at -atten\_db: A &gt; 60 dB : beta = 0.12438 \* (A + 6.3) 13.26 &lt; A &lt;= 60 dB : beta = 0.76609\*(A-13.26)^0.4 + 0.09834\*(A-13.26) A &lt;= 13.26 dB : beta = 0.0 (rectangular, sidelobes ~ -13.3 dB) Picking the smallest beta meeting a dynamic-range target keeps the main lobe (hence ENBW / resolution bandwidth) as narrow as the requirement allows — the basis of the measurement suite's auto-window selection.
+
+
+This differs from doppler.resample.kaiser\_beta(), which uses the Kaiser _FIR-filter_ formula (A there is a filter stopband ripple, not a window sidelobe — about 13 dB lower for the same beta).
+
+
+
+
+**Parameters:**
+
+
+* `atten_db` Desired window peak-sidelobe attenuation in dB (positive). 
+
+
+
+**Returns:**
+
+Kaiser beta (&gt;= 0.0). 
+```C++
+>>> from doppler.spectral import kaiser_beta_for_sidelobe
+>>> round(kaiser_beta_for_sidelobe(90.0), 4)
+11.9778
+>>> kaiser_beta_for_sidelobe(10.0)
+0.0
+```
+ 
+
 
 
 

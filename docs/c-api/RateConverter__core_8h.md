@@ -11,6 +11,7 @@
 _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include <complex.h>`
 * `#include <stddef.h>`
 * `#include "resamp/resamp_core.h"`
@@ -72,9 +73,12 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 |  size\_t | [**RateConverter\_execute**](#function-rateconverter_execute) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Convert a block of CF32 samples through the cascade. Passes input through each stage in order, ping-ponging between two intermediate buffers. State persists between calls, so contiguous calls on sequential blocks give the same result as one large call. Output length is approximately n\_in \* rate._  |
 |  size\_t | [**RateConverter\_execute\_max\_out**](#function-rateconverter_execute_max_out) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Upper bound on execute output for a standard 65536-sample block._  |
 |  double | [**RateConverter\_get\_rate**](#function-rateconverter_get_rate) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Get / set the output-to-input sample rate ratio. The setter rebuilds the entire cascade (new stage selection, new sub-objects) and resets all filter memories — equivalent to destroying and recreating with the new rate. Setting rate &lt;= 0 is silently ignored._  |
+|  void | [**RateConverter\_get\_state**](#function-rateconverter_get_state) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, void \* blob) <br>_Serialize_ `s's` _active-stage state into_`blob` _._ |
 |  void | [**RateConverter\_reset**](#function-rateconverter_reset) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._  |
 |  void | [**RateConverter\_set\_rate**](#function-rateconverter_set_rate) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, double rate) <br>_Change the rate; rebuilds the cascade and resets all filter state. Silently ignores rate &lt;= 0._  |
+|  int | [**RateConverter\_set\_state**](#function-rateconverter_set_state) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, const void \* blob) <br>_Restore active-stage state from_ `blob` _(same rate)._ |
 |  int | [**RateConverter\_stage\_label**](#function-rateconverter_stage_label) ([**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s, int i, char \* buf, size\_t len) <br>_Write a human-readable label for stage i into buf._  |
+|  size\_t | [**RateConverter\_state\_bytes**](#function-rateconverter_state_bytes) (const [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* s) <br>_Bytes_ [_**RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-rateconverter_get_state) _writes for_`s` _(envelope + stages)._ |
 
 
 
@@ -107,6 +111,8 @@ _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**RC\_MAX\_STAGES**](RateConverter__core_8h.md#define-rc_max_stages)  `3`<br> |
+| define  | [**RC\_STATE\_MAGIC**](RateConverter__core_8h.md#define-rc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('R', 'C', 'V', 'T')`<br> |
+| define  | [**RC\_STATE\_VERSION**](RateConverter__core_8h.md#define-rc_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -376,6 +382,23 @@ double RateConverter_get_rate (
 
 
 
+### function RateConverter\_get\_state 
+
+_Serialize_ `s's` _active-stage state into_`blob` _._
+```C++
+void RateConverter_get_state (
+    const RateConverter_state_t * s,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function RateConverter\_reset 
 
 _Zero all sub-stage filter memories. Rate, stage count, and stage types are preserved. Processing from a reset state produces the same output as a freshly created converter fed the same input. Use between signal bursts to suppress transient artefacts from prior filter memory._ 
@@ -433,6 +456,34 @@ void RateConverter_set_rate (
 
 
 
+### function RateConverter\_set\_state 
+
+_Restore active-stage state from_ `blob` _(same rate)._
+```C++
+int RateConverter_set_state (
+    RateConverter_state_t * s,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the blob's envelope rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function RateConverter\_stage\_label 
 
 _Write a human-readable label for stage i into buf._ 
@@ -473,6 +524,22 @@ Examples: "HalfbandDecimator", "CIC(8)", "CIC(8)+FIR", "Resampler(0.8)".
         
 
 <hr>
+
+
+
+### function RateConverter\_state\_bytes 
+
+_Bytes_ [_**RateConverter\_get\_state()**_](RateConverter__core_8h.md#function-rateconverter_get_state) _writes for_`s` _(envelope + stages)._
+```C++
+size_t RateConverter_state_bytes (
+    const RateConverter_state_t * s
+) 
+```
+
+
+
+
+<hr>
 ## Macro Definition Documentation
 
 
@@ -491,6 +558,32 @@ Maximum number of visible cascade stages.
 
 
         
+
+<hr>
+
+
+
+### define RC\_STATE\_MAGIC 
+
+```C++
+#define RC_STATE_MAGIC `DP_FOURCC ('R', 'C', 'V', 'T')`
+```
+
+
+
+
+<hr>
+
+
+
+### define RC\_STATE\_VERSION 
+
+```C++
+#define RC_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

@@ -30,19 +30,19 @@ typedef struct {
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
     double enbw;            /* window equivalent noise bandwidth (bins)    */
-    size_t lobe_bins;       /* main-lobe half-width L (nfft bins)          */
+    double beta;            /* auto-selected Kaiser shape (from DR target)  */
+    size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
+    size_t spur_guard_bins; /* fundamental keep-out for spur search (>= L)  */
     size_t n;               /* capture / frame length                      */
     size_t nfft;            /* zero-padded transform length                */
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
     double fs;              /* sample rate (Hz)                            */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
-    int    window;          /* 0 hann, 1 kaiser (for amp_uncert_db)        */
 } tonemeas_state_t;
 
-tonemeas_state_t *tonemeas_create(size_t n, double fs, int window, float beta,
-                                  size_t pad, size_t n_harmonics,
+tonemeas_state_t *tonemeas_create(size_t n, double fs, size_t n_harmonics,
                                   double full_scale, size_t bits,
-                                  size_t dc_guard);
+                                  double dynamic_range_db, size_t dc_guard);
 
 void tonemeas_destroy(tonemeas_state_t *state);
 

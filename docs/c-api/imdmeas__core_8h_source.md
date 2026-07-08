@@ -26,14 +26,16 @@ typedef struct {
     psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, one-sided power       */
     double enbw;            /* window equivalent noise bandwidth (bins)     */
-    size_t lobe_bins;       /* main-lobe half-width L                       */
+    double beta;            /* auto-selected Kaiser shape (from DR target)   */
+    size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
+    size_t spur_guard_bins; /* tone keep-out for the two-tone search (>= L) */
     size_t n;               /* capture / frame length                      */
     size_t nfft;            /* zero-padded transform length                */
     double fs;              /* sample rate (Hz)                            */
 } imdmeas_state_t;
 
-imdmeas_state_t *imdmeas_create(size_t n, double fs, int window, float beta,
-                                size_t pad, double full_scale, size_t bits);
+imdmeas_state_t *imdmeas_create(size_t n, double fs, double full_scale,
+                                size_t bits, double dynamic_range_db);
 
 void imdmeas_destroy(imdmeas_state_t *state);
 

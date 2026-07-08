@@ -63,7 +63,10 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 |  size\_t | [**HalfbandDecimator\_execute\_max\_out**](#function-halfbanddecimator_execute_max_out) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br> |
 |  size\_t | [**HalfbandDecimator\_get\_num\_taps**](#function-halfbanddecimator_get_num_taps) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num\_taps. The total prototype length is 2 \* num\_taps - 1._  |
 |  double | [**HalfbandDecimator\_get\_rate**](#function-halfbanddecimator_get_rate) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._  |
+|  void | [**HalfbandDecimator\_get\_state**](#function-halfbanddecimator_get_state) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, void \* blob) <br>_Serialize the decimator's delay-line state into_ `blob` _._ |
 |  void | [**HalfbandDecimator\_reset**](#function-halfbanddecimator_reset) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Zero all delay lines. Coefficients and num\_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input._  |
+|  int | [**HalfbandDecimator\_set\_state**](#function-halfbanddecimator_set_state) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, const void \* blob) <br>_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._ |
+|  size\_t | [**HalfbandDecimator\_state\_bytes**](#function-halfbanddecimator_state_bytes) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Serialized-state byte size (forwarded to the hbdecim leaf)._  |
 
 
 
@@ -329,6 +332,23 @@ double HalfbandDecimator_get_rate (
 
 
 
+### function HalfbandDecimator\_get\_state 
+
+_Serialize the decimator's delay-line state into_ `blob` _._
+```C++
+void HalfbandDecimator_get_state (
+    const HalfbandDecimator_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function HalfbandDecimator\_reset 
 
 _Zero all delay lines. Coefficients and num\_taps preserved. Call between signal bursts to suppress transient ringing from prior filter state. The next execute() after reset produces the same output as a freshly created decimator fed the same input._ 
@@ -356,6 +376,39 @@ void HalfbandDecimator_reset (
 
 
         
+
+<hr>
+
+
+
+### function HalfbandDecimator\_set\_state 
+
+_Restore state from_ `blob` _; DP\_OK, or DP\_ERR\_INVALID if rejected._
+```C++
+int HalfbandDecimator_set_state (
+    HalfbandDecimator_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function HalfbandDecimator\_state\_bytes 
+
+_Serialized-state byte size (forwarded to the hbdecim leaf)._ 
+```C++
+size_t HalfbandDecimator_state_bytes (
+    const HalfbandDecimator_state_t * state
+) 
+```
+
+
+
 
 <hr>
 ## Macro Definition Documentation

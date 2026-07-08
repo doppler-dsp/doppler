@@ -11,6 +11,7 @@
 _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include <math.h>`
 
@@ -61,7 +62,10 @@ _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-descr
 | ---: | :--- |
 |  [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* | [**f32\_to\_i16u64\_create**](#function-f32_to_i16u64_create) (float scale) <br>_Create a f32\_to\_i16u64 instance._  |
 |  void | [**f32\_to\_i16u64\_destroy**](#function-f32_to_i16u64_destroy) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br>_Destroy a f32\_to\_i16u64 instance and release all memory._  |
+|  void | [**f32\_to\_i16u64\_get\_state**](#function-f32_to_i16u64_get_state) (const [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, void \* blob) <br> |
 |  void | [**f32\_to\_i16u64\_reset**](#function-f32_to_i16u64_reset) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br>_Reset f32\_to\_i16u64 to its post-create state._  |
+|  int | [**f32\_to\_i16u64\_set\_state**](#function-f32_to_i16u64_set_state) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**f32\_to\_i16u64\_state\_bytes**](#function-f32_to_i16u64_state_bytes) (const [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint64\_t | [**f32\_to\_i16u64\_step**](#function-f32_to_i16u64_step) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, float x) <br>_Process one input sample._  |
 |  void | [**f32\_to\_i16u64\_steps**](#function-f32_to_i16u64_steps) ([**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) \* state, const float \* input, uint64\_t \* output, size\_t n) <br>_Process a block of float samples to Q15-in-uint64._  |
 
@@ -91,6 +95,12 @@ _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-descr
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**F32\_TO\_I16U64\_STATE\_MAGIC**](f32__to__i16u64__core_8h.md#define-f32_to_i16u64_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','U','6','4')`<br> |
+| define  | [**F32\_TO\_I16U64\_STATE\_VERSION**](f32__to__i16u64__core_8h.md#define-f32_to_i16u64_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -202,6 +212,22 @@ void f32_to_i16u64_destroy (
 
 
 
+### function f32\_to\_i16u64\_get\_state 
+
+```C++
+void f32_to_i16u64_get_state (
+    const f32_to_i16u64_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function f32\_to\_i16u64\_reset 
 
 _Reset f32\_to\_i16u64 to its post-create state._ 
@@ -227,6 +253,37 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 
 
         
+
+<hr>
+
+
+
+### function f32\_to\_i16u64\_set\_state 
+
+```C++
+int f32_to_i16u64_set_state (
+    f32_to_i16u64_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function f32\_to\_i16u64\_state\_bytes 
+
+```C++
+size_t f32_to_i16u64_state_bytes (
+    const f32_to_i16u64_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -296,12 +353,48 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 * `state` Must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
 * `output` Output uint64 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import F32ToI16U64
+>>> import numpy as np
+>>> F32ToI16U64().steps(np.array([0.0, 0.5], dtype=np.float32)).tolist()
+[0, 16384]
+```
+ 
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define F32\_TO\_I16U64\_STATE\_MAGIC 
+
+```C++
+#define F32_TO_I16U64_STATE_MAGIC `DP_FOURCC ('F','U','6','4')`
+```
+
+
+
+
+<hr>
+
+
+
+### define F32\_TO\_I16U64\_STATE\_VERSION 
+
+```C++
+#define F32_TO_I16U64_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

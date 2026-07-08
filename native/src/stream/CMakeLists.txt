@@ -28,6 +28,21 @@ if(NOT WIN32)
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/native/benchmarks")
 endif()
 
+if(NOT WIN32)
+    add_executable(test_stream_nats_core
+        ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
+    target_link_libraries(test_stream_nats_core PRIVATE
+        $<TARGET_OBJECTS:stream_core_obj>
+        zmq_vendor_static
+        nats_vendor_static
+        stdc++ m pthread)
+    target_include_directories(test_stream_nats_core PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc)
+    add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
+    set_tests_properties(test_stream_nats_core PROPERTIES
+        SKIP_RETURN_CODE 77)
+endif()
+
 if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE

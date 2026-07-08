@@ -4,8 +4,8 @@ The `doppler.detection` module is the **detection-theory** layer over the C
 `detection` core: closed-form relationships between probability of detection
 (`Pd`), probability of false alarm (`Pfa`), SNR, and coherent dwell length for a
 square-law detector. Pair it with the streaming
-[`Detector`](python-spectral.md#streaming-detection) — `detection` tells you
-*what threshold and dwell to use*, `Detector` *runs* the detection.
+[`CorrDetector`](python-spectral.md#streaming-detection) — `detection` tells you
+*what threshold and dwell to use*, `CorrDetector` *runs* the detection.
 
 Every quantity comes in two forms: an **amplitude-SNR** version (`det_*`, where
 SNR is the *linear* signal/noise **amplitude** ratio) and a **power-SNR** version

@@ -1,4 +1,4 @@
-"""DSSS burst acquisition gate for ``doppler.spectral.Detector2D``.
+"""DSSS burst acquisition gate for ``doppler.spectral.CorrDetector2D``.
 
 Exercises the detector as a real spread-spectrum acquisition engine: a burst of
 repeated PN-sequence segments, BPSK-modulated and oversampled, arriving with a

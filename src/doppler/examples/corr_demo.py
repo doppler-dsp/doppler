@@ -1,13 +1,13 @@
-"""corr_demo.py — doppler Corr / Corr2D / Detector / Detector2D demo.
+"""corr_demo.py — doppler Corr / Corr2D / CorrDetector / CorrDetector2D demo.
 
 Demonstrates all four correlation / detection classes:
 
   1. Corr     — coherent integrate-and-dump lifts a −6 dB signal out of noise.
                 Left panel compares |R[τ]| for dwell=1 vs dwell=8.
   2. Corr2D   — 2-D template matching; correlation heatmap in centre panel.
-  3. Detector — streaming push with threshold.  Right panel plots test_stat
+  3. CorrDetector — streaming push with threshold.  Right panel plots test_stat
                 for alternating signal and noise-only dwell cycles.
-  4. Detector2D — one-call sanity check printed to stdout.
+  4. CorrDetector2D — one-call sanity check printed to stdout.
 
 Saves a three-panel figure to corr_demo.png.
 
@@ -22,7 +22,7 @@ matplotlib.use("Agg")  # headless: no display required
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.spectral import Corr, Corr2D, Detector, Detector2D
+from doppler.spectral import Corr, Corr2D, CorrDetector, CorrDetector2D
 
 # ── Parameters ───────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ def noise_block(n_frames: int) -> np.ndarray:
     ).astype(np.complex64) * _noise_scale
 
 
-print("=== doppler Corr / Corr2D / Detector / Detector2D demo ===\n")
+print("=== doppler Corr / Corr2D / CorrDetector / CorrDetector2D demo ===\n")
 
 # ── 1. Corr: dwell=1 vs dwell=8 ─────────────────────────────────────────────
 
@@ -95,12 +95,12 @@ print(
     f"  (expected ({ROW}, {COL}))"
 )
 
-# ── 3. Detector: alternating signal / noise-only dwell cycles ────────────────
+# ── 3. CorrDetector: alternating signal / noise-only dwell cycles ───────────
 #
 # threshold=0 so both signal and noise-only dumps always fire — we use the
 # threshold line on the bar chart to show what would be gated in practice.
 
-det = Detector(
+det = CorrDetector(
     ref1d,
     dwell=DWELL,
     noise_lo=LAG + 4,
@@ -119,22 +119,22 @@ for _ in range(N_CYCLES):
         noise_stats.append(stat)
 
 print(
-    f"[Detector]  {len(sig_stats)} signal dumps  "
+    f"[CorrDetector]  {len(sig_stats)} signal dumps  "
     f"mean stat={np.mean(sig_stats):.1f}"
     f"  |  {len(noise_stats)} noise dumps  "
     f"mean stat={np.mean(noise_stats):.1f}"
     f"  (shown threshold={THRESHOLD})"
 )
 
-# ── 4. Detector2D: one-frame sanity check ───────────────────────────────────
+# ── 4. CorrDetector2D: one-frame sanity check ────────────────────────────────
 
-with Detector2D(ref2d, threshold=0) as det2d:
+with CorrDetector2D(ref2d, threshold=0) as det2d:
     hits2d = det2d.push(x2d.ravel())
 
 if hits2d:
     r, col_hit, *_ = hits2d[0]
     print(
-        f"[Detector2D] peak at (row={r}, col={col_hit})"
+        f"[CorrDetector2D] peak at (row={r}, col={col_hit})"
         f"  (expected ({ROW}, {COL}))"
     )
 
@@ -174,7 +174,7 @@ ax2.set_title("Corr2D: correlation surface")
 ax2.legend(fontsize=8, loc="lower right")
 fig.colorbar(im, ax=ax2, fraction=0.046)
 
-# Panel 3 — Detector test_stat per dump
+# Panel 3 — CorrDetector test_stat per dump
 n = N_CYCLES
 xs = np.arange(n)
 w = 0.35
@@ -186,7 +186,7 @@ ax3.axhline(
 ax3.set_xticks(xs)
 ax3.set_xticklabels([f"cycle {i + 1}" for i in xs])
 ax3.set_ylabel("test_stat  (peak / noise_est)")
-ax3.set_title(f"Detector: test_stat per dwell cycle (dwell={DWELL})")
+ax3.set_title(f"CorrDetector: test_stat per dwell cycle (dwell={DWELL})")
 ax3.legend(fontsize=8)
 ax3.grid(alpha=0.3, axis="y")
 

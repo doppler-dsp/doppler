@@ -1,4 +1,4 @@
-"""stream — ZMQ-based IQ streaming types."""
+"""stream — NATS-based IQ streaming types."""
 
 import os as _os
 import sys as _sys

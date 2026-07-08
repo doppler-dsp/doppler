@@ -41,8 +41,8 @@ def main() -> None:
         default=None,
         metavar="PATH_OR_ADDR",
         help=(
-            "File path (source=file) or ZMQ endpoint (source=socket). "
-            "ZMQ endpoints are auto-detected: tcp://, ipc://, inproc://"
+            "File path (source=file) or NATS endpoint (source=socket). "
+            "NATS endpoints are auto-detected: nats://"
         ),
     )
     parser.add_argument(
@@ -170,11 +170,11 @@ def main() -> None:
     if args.noise_floor is not None:
         demo_overrides["noise_floor"] = args.noise_floor
 
-    # Auto-infer source=socket from ZMQ address prefix
+    # Auto-infer source=socket from a NATS address prefix
     source = args.source
     if source is None and args.address:
-        _ZMQ_PREFIXES = ("tcp://", "ipc://", "inproc://", "pgm://", "epgm://")
-        if any(args.address.startswith(p) for p in _ZMQ_PREFIXES):
+        _STREAM_PREFIXES = ("nats://",)
+        if any(args.address.startswith(p) for p in _STREAM_PREFIXES):
             source = "socket"
 
     cfg = load_config(

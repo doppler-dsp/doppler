@@ -1,16 +1,17 @@
-"""replier.py — ZMQ REP server example.
+"""replier.py — NATS REP server example.
 
-Binds a ZMQ REP socket, receives signal frames from a Requester, applies
-a simple DSP operation (gain), and sends the result back.  Models a remote
-DSP service that a client queries for processed signal blocks.
+Connects a NATS REP endpoint, receives signal frames from a Requester,
+applies a simple DSP operation (gain), and sends the result back.  Models
+a remote DSP service that a client queries for processed signal blocks.
+Requires a running nats-server (e.g. `nats-server -js`).
 
 The REQ/REP pattern is strictly alternating: recv → send → recv → send.
 The Replier must always reply before accepting the next request.
 
 Usage:
   python examples/python/replier.py [endpoint] [--gain G]
-  python examples/python/replier.py                          # *:5562, gain=1
-  python examples/python/replier.py tcp://*:5563 --gain 0.5
+  python examples/python/replier.py                          # ctrl subject, gain=1
+  python examples/python/replier.py nats://127.0.0.1:4222/ctrl2 --gain 0.5
 
 Run this before starting requester.py.  Press Ctrl+C to stop.
 """
@@ -41,7 +42,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://*:5562")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/ctrl"
+    )
     parser.add_argument(
         "--gain",
         type=float,

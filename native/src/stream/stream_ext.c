@@ -5,7 +5,7 @@
  * dp_req_t/dp_rep_t API.  All socket creation, header construction,
  * send/recv logic, and protocol handling lives in the C library.
  *
- * Zero-copy recv: dp_msg_t owns the ZMQ buffer; we wrap it in dpMsgObject
+ * Zero-copy recv: dp_msg_t owns the receive buffer; we wrap it in dpMsgObject
  * which is set as the NumPy array's base object.  When the array is GC'd,
  * dpMsgObject.dealloc calls dp_msg_free().
  */
@@ -266,7 +266,7 @@ do_recv (void *ctx, set_timeout_fn fn_timeout, recv_signal_fn fn_recv,
 }
 
 /* =========================================================================
- * Publisher (ZMQ PUB)
+ * Publisher (NATS PUB)
  * ========================================================================= */
 
 typedef struct
@@ -370,13 +370,13 @@ static PyTypeObject PublisherType = {
   .tp_basicsize = sizeof (PublisherObject),
   .tp_dealloc = (destructor)Publisher_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Publisher(endpoint, sample_type=CF64) — ZMQ PUB socket",
+  .tp_doc = "Publisher(endpoint, sample_type=CF64) — NATS PUB",
   .tp_methods = Publisher_methods,
   .tp_new = Publisher_new,
 };
 
 /* =========================================================================
- * Subscriber (ZMQ SUB)
+ * Subscriber (NATS SUB)
  * ========================================================================= */
 
 typedef struct
@@ -465,13 +465,13 @@ static PyTypeObject SubscriberType = {
   .tp_basicsize = sizeof (SubscriberObject),
   .tp_dealloc = (destructor)Subscriber_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Subscriber(endpoint) — ZMQ SUB socket",
+  .tp_doc = "Subscriber(endpoint) — NATS SUB",
   .tp_methods = Subscriber_methods,
   .tp_new = Subscriber_new,
 };
 
 /* =========================================================================
- * Push (ZMQ PUSH)
+ * Push (NATS JetStream work-queue)
  * ========================================================================= */
 
 typedef struct
@@ -575,13 +575,13 @@ static PyTypeObject PushType = {
   .tp_basicsize = sizeof (PushObject),
   .tp_dealloc = (destructor)Push_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Push(endpoint, sample_type=CF64) — ZMQ PUSH socket",
+  .tp_doc = "Push(endpoint, sample_type=CF64) — NATS JetStream work-queue producer",
   .tp_methods = Push_methods,
   .tp_new = Push_new,
 };
 
 /* =========================================================================
- * Pull (ZMQ PULL)
+ * Pull (NATS JetStream work-queue)
  * ========================================================================= */
 
 typedef struct
@@ -636,7 +636,7 @@ Pull_ack (PullObject *Py_UNUSED (self), PyObject *arr)
 {
   /* `arr` is the samples array from recv(); its NumPy base is the dpMsgObject
    * holding the dp_msg.  Acknowledges a JetStream work-queue message (so it is
-   * not redelivered); a no-op for ZMQ / core-NATS transports.  Call after the
+   * not redelivered); a no-op for core-NATS PUB/SUB.  Call after the
    * frame has been processed, before dropping the array. */
   if (!PyArray_Check (arr))
     {
@@ -693,7 +693,7 @@ static PyMethodDef Pull_methods[] = {
   { "recv", (PyCFunction)Pull_recv, METH_VARARGS | METH_KEYWORDS,
     "recv(timeout_ms=-1) -> (samples, header) — zero-copy recv" },
   { "ack", (PyCFunction)Pull_ack, METH_O,
-    "ack(samples) — acknowledge a JetStream work-queue frame (no-op on ZMQ)" },
+    "ack(samples) — acknowledge a JetStream work-queue frame (no-op on PUB/SUB)" },
   { "close", (PyCFunction)Pull_close, METH_NOARGS, NULL },
   { "__enter__", (PyCFunction)Pull_enter, METH_NOARGS, NULL },
   { "__exit__", (PyCFunction)Pull_exit, METH_VARARGS, NULL },
@@ -705,13 +705,13 @@ static PyTypeObject PullType = {
   .tp_basicsize = sizeof (PullObject),
   .tp_dealloc = (destructor)Pull_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Pull(endpoint) — ZMQ PULL socket",
+  .tp_doc = "Pull(endpoint) — NATS JetStream work-queue consumer",
   .tp_methods = Pull_methods,
   .tp_new = Pull_new,
 };
 
 /* =========================================================================
- * Requester (ZMQ REQ)
+ * Requester (NATS REQ)
  * ========================================================================= */
 
 typedef struct
@@ -823,13 +823,13 @@ static PyTypeObject RequesterType = {
   .tp_basicsize = sizeof (RequesterObject),
   .tp_dealloc = (destructor)Requester_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Requester(endpoint, sample_type=CF64) — ZMQ REQ socket",
+  .tp_doc = "Requester(endpoint, sample_type=CF64) — NATS request",
   .tp_methods = Requester_methods,
   .tp_new = Requester_new,
 };
 
 /* =========================================================================
- * Replier (ZMQ REP)
+ * Replier (NATS REP)
  * ========================================================================= */
 
 typedef struct
@@ -941,7 +941,7 @@ static PyTypeObject ReplierType = {
   .tp_basicsize = sizeof (ReplierObject),
   .tp_dealloc = (destructor)Replier_dealloc,
   .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Replier(endpoint, sample_type=CF64) — ZMQ REP socket",
+  .tp_doc = "Replier(endpoint, sample_type=CF64) — NATS reply",
   .tp_methods = Replier_methods,
   .tp_new = Replier_new,
 };
@@ -972,7 +972,7 @@ static PyMethodDef module_methods[] = {
 static PyModuleDef stream_module = {
   PyModuleDef_HEAD_INIT,
   .m_name = "stream",
-  .m_doc = "Doppler streaming — ZMQ PUB/SUB, PUSH/PULL, REQ/REP.",
+  .m_doc = "Doppler streaming — NATS PUB/SUB, PUSH/PULL, REQ/REP.",
   .m_size = -1,
   .m_methods = module_methods,
 };

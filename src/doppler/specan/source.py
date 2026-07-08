@@ -16,7 +16,7 @@ FileSource
     must be supplied via config (no metadata in raw files).
 
 SocketSource
-    ZMQ PUB/SUB subscriber.  Rate and center frequency are
+    NATS PUB/SUB subscriber.  Rate and center frequency are
     auto-discovered from the ``dp_header_t`` carried in each packet.
 """
 
@@ -313,7 +313,7 @@ class FileSource(Source):
 
 class SocketSource(Source):
     """
-    ZMQ PUB/SUB subscriber.
+    NATS PUB/SUB subscriber.
 
     Connects to a doppler streaming publisher and auto-configures
     sample rate and center frequency from the ``dp_header_t`` carried
@@ -322,7 +322,7 @@ class SocketSource(Source):
     Parameters
     ----------
     address : str
-        ZMQ endpoint, e.g. ``"tcp://localhost:5555"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/iq"``.
     timeout_ms : int
         Receive timeout in milliseconds.
     """
@@ -380,7 +380,7 @@ class SocketSource(Source):
 
 class PullSource(Source):
     """
-    ZMQ PUSH/PULL receiver.
+    NATS JetStream PUSH/PULL receiver.
 
     Connects to a doppler streaming PUSH socket and auto-configures
     sample rate and center frequency from the ``dp_header_t`` carried
@@ -391,7 +391,7 @@ class PullSource(Source):
     Parameters
     ----------
     address : str
-        ZMQ endpoint of the upstream PUSH socket,
+        NATS endpoint of the upstream PUSH producer,
         e.g. ``"tcp://127.0.0.1:5600"``.
     timeout_ms : int
         Receive timeout in milliseconds.
@@ -475,14 +475,14 @@ def make_source(cfg: SpecanConfig) -> Source:
     if s == "socket":
         if not cfg.address:
             raise ValueError(
-                "source=socket requires an address (ZMQ endpoint), "
+                "source=socket requires an address (NATS endpoint), "
                 "e.g. tcp://localhost:5555"
             )
         return SocketSource(cfg.address, timeout_ms=cfg.timeout)
     if s == "pull":
         if not cfg.address:
             raise ValueError(
-                "source=pull requires an address (ZMQ endpoint), "
+                "source=pull requires an address (NATS endpoint), "
                 "e.g. tcp://127.0.0.1:5600"
             )
         return PullSource(cfg.address, timeout_ms=cfg.timeout)

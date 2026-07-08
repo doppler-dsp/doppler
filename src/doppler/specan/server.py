@@ -145,8 +145,8 @@ async def tune(body: dict) -> dict:
 # WebSocket — stream frames
 # -----------------------------------------------------------------------
 
-# Single-worker executor: ZMQ sockets are not thread-safe; they must be
-# created and used in the same OS thread.
+# Single-worker executor: stream connections are not thread-safe; they must
+# be created and used in the same OS thread.
 _dsp_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
 _FRAME_RATE = 30

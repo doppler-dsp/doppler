@@ -5,10 +5,9 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # doppler is pure C: every first-party source is C99 and the core libdoppler
-# links only -lm.  The sole C++ in the tree is the vendored libzmq, which builds
-# in its own sub-cmake (its own project()) and is confined to the optional
-# libdoppler_stream component — so the top-level project declares no CXX, and a
-# C++ compiler is needed only to build that optional stream component.
+# links only -lm.  The vendored nats.c (the optional libdoppler_stream
+# component's transport) is also pure C, so the whole build needs only a C
+# compiler — the top-level project declares no CXX.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Always emit build/compile_commands.json so clangd/IDEs resolve include paths
@@ -128,26 +127,26 @@ endforeach()
 # Export both libs under obvious target names: `doppler::doppler` (shared) and
 # `doppler::doppler-static`. Both go through install(EXPORT) below, so CMake
 # generates fully relocatable imported targets (no hand-rolled paths in the
-# package config). The objects each archive folds in (pocketfft, wfmcompose,
-# the ar-merged zmq) are baked into the .a/.so via target_sources — they are
-# NOT export-time dependencies, so the static lib exports cleanly; its only
-# interface dep is m — pocketfft is pure C99 and the C++ zmq/stream layer is
-# split into the optional libdoppler_stream component.
+# package config). The objects each archive folds in (pocketfft, wfmcompose)
+# are baked into the .a/.so via target_sources — they are NOT export-time
+# dependencies, so the static lib exports cleanly; its only interface dep is
+# m — pocketfft is pure C99 and the networking/stream layer is split into the
+# optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
 set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # pocketfft (pure C99) is compiled into fft_core, which is folded into both libs
 # below with every other component — so no separate pocketfft target to wire here.
-# The core is pure C and links only -lm — no C++ runtime, no zmq (the
-# ZMQ/stream layer lives in the optional libdoppler_stream component below).
-# Threads is still located here for that component and the examples.
+# The core is pure C and links only -lm (the stream layer lives in the
+# optional libdoppler_stream component below). Threads is still located here
+# for that component and the examples.
 find_package(Threads REQUIRED)
 target_link_libraries(doppler_lib        PRIVATE m)
 target_link_libraries(doppler_lib_static PUBLIC  m)
 
-# The core ships weak no-op stubs for the wfm_zmq_sink_* symbols wfmgen uses
-# (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir), so the
-# core is self-contained and needs no per-platform linker flags; linking
-# libdoppler_stream supplies the strong overrides.
+# The core ships weak no-op stubs for the wfm_stream_sink_* symbols wfmgen
+# uses (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir),
+# so the core is self-contained and needs no per-platform linker flags;
+# linking libdoppler_stream supplies the strong overrides.
 
 enable_testing()
 
@@ -362,38 +361,11 @@ add_subdirectory(native/src/wfmcompose_py)
 
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
 
-# ── Vendored libzmq (static, PIC) ────────────────────────────────────────────
-# stream.so statically links libzmq so it has no runtime dep on libzmq.so.5.
-set(_ZMQ_SRC "${CMAKE_SOURCE_DIR}/vendor/libzmq")
-set(_ZMQ_BLD "${CMAKE_CURRENT_BINARY_DIR}/libzmq-vendor")
-set(_ZMQ_LIB "${_ZMQ_BLD}/lib/libzmq.a")
-add_custom_command(OUTPUT "${_ZMQ_LIB}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${_ZMQ_BLD}"
-    COMMAND ${CMAKE_COMMAND} -B "${_ZMQ_BLD}" -S "${_ZMQ_SRC}"
-            -DCMAKE_BUILD_TYPE=Release
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-            -DBUILD_SHARED=OFF -DBUILD_STATIC=ON
-            -DWITH_DOCS=OFF -DZMQ_BUILD_TESTS=OFF
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-            "-DCMAKE_CXX_FLAGS="
-    COMMAND ${CMAKE_COMMAND} -B "${_ZMQ_BLD}" -S "${_ZMQ_SRC}"
-            "-DCMAKE_CXX_FLAGS=-I${_ZMQ_BLD} -I${_ZMQ_SRC}/src\
- -include precompiled.hpp -include macros.hpp -include command.hpp\
- -Wno-missing-field-initializers -Wno-missing-braces"
-    COMMAND ${CMAKE_COMMAND} --build "${_ZMQ_BLD}" --parallel
-    COMMENT "Building vendored libzmq (static, PIC)" VERBATIM)
-add_custom_target(libzmq_vendor DEPENDS "${_ZMQ_LIB}")
-add_library(zmq_vendor_static STATIC IMPORTED GLOBAL)
-set_target_properties(zmq_vendor_static PROPERTIES
-    IMPORTED_LOCATION             "${_ZMQ_LIB}"
-    INTERFACE_INCLUDE_DIRECTORIES "${_ZMQ_SRC}/include")
-add_dependencies(zmq_vendor_static libzmq_vendor)
-
 # ── Vendored nats.c (static, PIC) ────────────────────────────────────────────
 # stream.so statically links libnats so it has no runtime dep on a libnats.so.
 # TLS and NATS Streaming (STAN, which pulls protobuf-c) are OFF; JetStream and
-# KV (js.c/jsm.c/kv.c) stay in.  nats.c is pure C, so — exactly like libzmq —
-# it lands only in the libdoppler_stream tier and adds no C++ to the core.
+# KV (js.c/jsm.c/kv.c) stay in.  nats.c is pure C, so it lands only in the
+# libdoppler_stream tier and adds no C++ anywhere in the build.
 set(_NATS_SRC "${CMAKE_SOURCE_DIR}/vendor/nats.c")
 set(_NATS_BLD "${CMAKE_CURRENT_BINARY_DIR}/libnats-vendor")
 set(_NATS_LIB "${_NATS_BLD}/lib/libnats_static.a")
@@ -419,15 +391,16 @@ set_target_properties(nats_vendor_static PROPERTIES
 add_dependencies(nats_vendor_static libnats_vendor)
 
 # ── Optional stream component (libdoppler_stream) ────────────────────────────
-# The ZMQ-dependent layer is split OUT of the core so libdoppler stays C++-free
-# (-lm only).  libdoppler_stream bundles the stream wire layer (stream_core) and
-# the wfm ZMQ sink (wfm_sink_core) and links the vendored C++ libzmq.  It
-# provides the strong wfm_zmq_sink_* definitions that satisfy the core's weak
-# seam (native/inc/wfm/wfm_sink.h), so a C consumer that wants `--output zmq://`
+# The networking layer is split OUT of the core so a consumer that doesn't
+# need streaming isn't forced to pull in nats.c/pthreads.  libdoppler_stream
+# bundles the stream wire layer (stream_core) and the wfm stream sink
+# (wfm_sink_core) and links the vendored nats.c.  It provides the strong
+# wfm_stream_sink_* definitions that satisfy the core's weak seam
+# (native/inc/wfm/wfm_sink.h), so a C consumer that wants `--output nats://`
 # (or the dp_pub_*/dp_sub_* wire layer) links `doppler::stream` alongside
-# `doppler::doppler[-static]`.  POSIX-only, like the vendored zmq.  zmq stays
-# statically embedded — no runtime libzmq.so in either the shared or static
-# form.  This component intentionally carries the C++ runtime (libzmq is C++).
+# `doppler::doppler[-static]`.  POSIX-only, like the vendored nats.c build.
+# nats.c stays statically embedded — no runtime libnats.so in either the
+# shared or static form.  Pure C: this component carries no C++ runtime.
 if(NOT WIN32)
     add_library(doppler_stream        SHARED
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:wfm_sink_core>)
@@ -441,32 +414,24 @@ if(NOT WIN32)
     endforeach()
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
-    # gcc (C driver) links the C objects; -lstdc++ pulls libstdc++ for the C++
-    # libzmq (nats.c is pure C).  Threads/m propagate to consumers.
     target_link_libraries(doppler_stream
-        PRIVATE zmq_vendor_static nats_vendor_static
-        PUBLIC  stdc++ Threads::Threads m)
-    target_link_libraries(doppler_stream_static PUBLIC stdc++ Threads::Threads m)
+        PRIVATE nats_vendor_static
+        PUBLIC  Threads::Threads m)
+    target_link_libraries(doppler_stream_static PUBLIC Threads::Threads m)
     # The static form can't embed an archive through link rules, so fold the
-    # vendored libzmq.a AND libnats.a objects in (the ar-merge the core used to
-    # use) — leaving the static consumer with `-ldoppler_stream` + the C/C++
-    # runtime, no -lzmq / -lnats.
-    add_dependencies(doppler_stream        libzmq_vendor libnats_vendor)
-    add_dependencies(doppler_stream_static libzmq_vendor libnats_vendor)
+    # vendored libnats.a objects in (the ar-merge the core used to use) —
+    # leaving the static consumer with `-ldoppler_stream` + the C runtime,
+    # no -lnats.
+    add_dependencies(doppler_stream        libnats_vendor)
+    add_dependencies(doppler_stream_static libnats_vendor)
     add_custom_command(TARGET doppler_stream_static POST_BUILD
-        COMMAND ${CMAKE_COMMAND}
-            -DDEST=$<TARGET_FILE:doppler_stream_static>
-            -DSRC=${_ZMQ_LIB}
-            -DAR=${CMAKE_AR}
-            -DRANLIB=${CMAKE_RANLIB}
-            -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
         COMMAND ${CMAKE_COMMAND}
             -DDEST=$<TARGET_FILE:doppler_stream_static>
             -DSRC=${_NATS_LIB}
             -DAR=${CMAKE_AR}
             -DRANLIB=${CMAKE_RANLIB}
             -P ${CMAKE_SOURCE_DIR}/cmake/merge_static_libs.cmake
-        COMMENT "Folding libzmq.a + libnats.a into libdoppler_stream.a (self-contained)"
+        COMMENT "Folding libnats.a into libdoppler_stream.a (self-contained)"
         VERBATIM)
 endif()
 
@@ -482,13 +447,13 @@ install(TARGETS doppler_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 # Static lib is a first-class export member → find_package gives consumers
-# `doppler::doppler-static` (pure C, self-contained: only -lm, no C++, no zmq).
+# `doppler::doppler-static` (pure C, self-contained: only -lm).
 install(TARGETS doppler_lib_static
     EXPORT doppler-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Optional stream component → `doppler::stream` / `doppler::stream-static`.
-# Carries the C++ runtime (libzmq); link it only if you need the ZMQ wire layer.
+# Link it only if you need the dp_pub_*/dp_sub_*/etc. NATS wire layer.
 if(NOT WIN32)
     install(TARGETS doppler_stream doppler_stream_static
         EXPORT doppler-targets

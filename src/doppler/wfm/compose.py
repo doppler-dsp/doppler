@@ -22,7 +22,7 @@ sample generation
 (:meth:`Synth.steps`), the ``pattern`` / ``f_start`` input sugar, the flat
 single-source :class:`Segment` view, :meth:`Composer.stream`, and the resolved
 :meth:`Composer.to_dict` are all generated. Only the container writers/readers
-(BLUE / SigMF / ZMQ / sample-clock) stay hand-written here, over the transport
+(BLUE / SigMF / NATS / sample-clock) stay hand-written here, over the transport
 binding ``_wfmcompose``.
 
 Examples

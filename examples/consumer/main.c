@@ -3,9 +3,9 @@
  *
  * Drives the in-process waveform generator (doppler_wfmgen, the same engine as
  * the `wfmgen` CLI) to write a small QPSK capture to a file. wfmgen lives in
- * the pure-C core, and its `zmq://` path is a weak seam (resolved only by the
- * optional libdoppler_stream component) — so this file-output consumer links
- * against the core alone with just `-lm`, proving the core is C++/zmq-free.
+ * the pure-C core, and its `nats://` path is a weak seam (resolved only by
+ * the optional libdoppler_stream component) — so this file-output consumer
+ * links against the core alone with just `-lm`, proving the core is C++-free.
  *
  * Builds against either link mode; see CMakeLists.txt (find_package) and the
  * pkg-config commands in docs/install/c.md.

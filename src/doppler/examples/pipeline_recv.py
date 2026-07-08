@@ -1,13 +1,14 @@
-"""pipeline_recv.py — ZMQ PULL worker example.
+"""pipeline_recv.py — NATS PULL worker example.
 
-Connects to a PUSH sender and processes packets as they arrive.  Multiple
-instances can run simultaneously; each receives a share of the frames
-round-robin from the sender.
+Connects to a PUSH sender's JetStream work-queue and processes packets as
+they arrive.  Multiple instances can run simultaneously, sharing the same
+durable consumer; each receives a share of the frames, load-balanced by
+the broker.  Requires a running nats-server (e.g. `nats-server -js`).
 
 Usage:
   python examples/python/pipeline_recv.py [endpoint] [worker-id]
   python examples/python/pipeline_recv.py                        # worker 0
-  python examples/python/pipeline_recv.py tcp://localhost:5560 1
+  python examples/python/pipeline_recv.py nats://127.0.0.1:4222/work 1
 
 Press Ctrl+C to stop.
 """
@@ -46,7 +47,9 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("endpoint", nargs="?", default="tcp://localhost:5560")
+    parser.add_argument(
+        "endpoint", nargs="?", default="nats://127.0.0.1:4222/work"
+    )
     parser.add_argument("worker_id", nargs="?", type=int, default=0)
     args = parser.parse_args()
 

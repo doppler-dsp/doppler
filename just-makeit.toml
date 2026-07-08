@@ -408,7 +408,7 @@ type_name       = "StreamSink"
 context_manager = true
 close_fn        = "wfm_stream_sink_close"
 create_fn       = "wfm_stream_sink_open"
-extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "zmq_vendor_static", "nats_vendor_static", "Threads::Threads", "stdc++", "m"]
+extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "nats_vendor_static", "Threads::Threads", "m"]
 
 [[module.wfm_sink.create_args]]
 name = "endpoint"

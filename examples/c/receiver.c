@@ -1,13 +1,14 @@
 /*
- * receiver.c — ZMQ SUB receiver example.
+ * receiver.c — NATS SUB receiver example.
  *
  * Subscribes to a doppler transmitter and displays a live dashboard
  * showing signal power, packet statistics, and first few samples.
+ * Requires a running nats-server (e.g. `nats-server -js`).
  *
  * Usage:
  *   receiver [endpoint]
- *   receiver                            # tcp://localhost:5555
- *   receiver tcp://192.168.1.10:5555   # remote host
+ *   receiver                                   # nats://127.0.0.1:4222/iq
+ *   receiver nats://broker.example:4222/iq     # remote broker
  *
  * Press Ctrl+C to stop.
  *
@@ -107,14 +108,14 @@ print_samples (const void *samples, dp_sample_type_t type, size_t count)
 int
 main (int argc, char *argv[])
 {
-  const char *endpoint = "tcp://localhost:5555";
+  const char *endpoint = "nats://127.0.0.1:4222/iq";
 
   if (argc > 1
       && (strcmp (argv[1], "--help") == 0 || strcmp (argv[1], "-h") == 0))
     {
       printf ("Usage: %s [endpoint]\n\n", argv[0]);
-      printf ("  endpoint  ZMQ SUB connect address"
-              "  (default: tcp://localhost:5555)\n\n");
+      printf ("  endpoint  NATS SUB endpoint"
+              "  (default: nats://127.0.0.1:4222/iq)\n\n");
       printf ("Press Ctrl+C to stop.\n");
       return 0;
     }

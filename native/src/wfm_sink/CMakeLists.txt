@@ -7,10 +7,8 @@ Python3_add_library(wfm_sink MODULE WITH_SOABI wfm_sink_ext.c)
 target_link_libraries(wfm_sink PRIVATE
     wfm_sink_core
     $<TARGET_OBJECTS:stream_core_obj>
-    zmq_vendor_static
     nats_vendor_static
     Threads::Threads
-    stdc++
     m
     Python3::NumPy)
 target_include_directories(wfm_sink PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

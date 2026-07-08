@@ -8,7 +8,7 @@ against a derived expectation**, plus the physics auto-config math (C/N0 → snr
 the chosen coherent depth ``doppler_bins``, threshold, non-coherent looks).
 
 The engine ingests **raw** cf32 and applies the slow-time Doppler FFT
-internally, so (unlike the Detector2D demo) these builders never call
+internally, so (unlike the CorrDetector2D demo) these builders never call
 ``np.fft``.
 
 Construction is physics-only: ``Acquisition`` derives the search grid from

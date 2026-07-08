@@ -1,12 +1,12 @@
 /*
- * spectral_ext_detector2d.c — Detector2D type for the spectral module.
+ * spectral_ext_detector2d.c — CorrDetector2D type for the spectral module.
  *
  * Included by spectral_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only spectral_ext.c is compiled.
  */
 /* ======================================================== */
-/* Detector2DObject — wraps detector2d_state_t *       */
+/* CorrDetector2DObject — wraps detector2d_state_t *       */
 /* ======================================================== */
 
 #include "detector2d/detector2d_core.h"
@@ -14,10 +14,10 @@
 typedef struct
 {
   PyObject_HEAD detector2d_state_t *handle;
-} Detector2DObject;
+} CorrDetector2DObject;
 
 static void
-Detector2DObj_dealloc (Detector2DObject *self)
+CorrDetector2DObj_dealloc (CorrDetector2DObject *self)
 {
   if (self->handle)
     detector2d_destroy (self->handle);
@@ -25,16 +25,18 @@ Detector2DObj_dealloc (Detector2DObject *self)
 }
 
 static PyObject *
-Detector2DObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+CorrDetector2DObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  Detector2DObject *self = (Detector2DObject *)type->tp_alloc (type, 0);
+  CorrDetector2DObject *self
+      = (CorrDetector2DObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-Detector2DObj_init (Detector2DObject *self, PyObject *args, PyObject *kwds)
+CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
+                        PyObject *kwds)
 {
   static char *kwlist[] = { "ref",      "noise_mode", "dwell",    "noise_lo",
                             "noise_hi", "threshold",  "nthreads", NULL };
@@ -97,7 +99,8 @@ Detector2DObj_init (Detector2DObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-Detector2DObj_reset (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
+CorrDetector2DObj_reset (CorrDetector2DObject *self,
+                         PyObject             *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -109,7 +112,7 @@ Detector2DObj_reset (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Detector2DObj_push (Detector2DObject *self, PyObject *args)
+CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
 {
   if (!self->handle)
     {
@@ -148,7 +151,8 @@ Detector2DObj_push (Detector2DObject *self, PyObject *args)
   return lst;
 }
 static PyObject *
-Detector2D_getprop_ny (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_ny (CorrDetector2DObject *self,
+                           void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -158,7 +162,8 @@ Detector2D_getprop_ny (Detector2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->ny);
 }
 static PyObject *
-Detector2D_getprop_nx (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_nx (CorrDetector2DObject *self,
+                           void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -168,7 +173,8 @@ Detector2D_getprop_nx (Detector2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->nx);
 }
 static PyObject *
-Detector2D_getprop_n (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_n (CorrDetector2DObject *self,
+                          void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -178,7 +184,8 @@ Detector2D_getprop_n (Detector2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->n);
 }
 static PyObject *
-Detector2D_getprop_dwell (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_dwell (CorrDetector2DObject *self,
+                              void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -189,7 +196,8 @@ Detector2D_getprop_dwell (Detector2DObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->corr->dwell);
 }
 static PyObject *
-Detector2D_getprop_count (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_count (CorrDetector2DObject *self,
+                              void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -200,7 +208,8 @@ Detector2D_getprop_count (Detector2DObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->corr->count);
 }
 static PyObject *
-Detector2D_getprop_ring_cap (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_ring_cap (CorrDetector2DObject *self,
+                                 void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -211,7 +220,8 @@ Detector2D_getprop_ring_cap (Detector2DObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->ring_cap);
 }
 static PyObject *
-Detector2D_getprop_noise_lo (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_noise_lo (CorrDetector2DObject *self,
+                                 void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -222,7 +232,8 @@ Detector2D_getprop_noise_lo (Detector2DObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->noise_lo);
 }
 static PyObject *
-Detector2D_getprop_noise_hi (Detector2DObject *self, void *Py_UNUSED (closure))
+CorrDetector2D_getprop_noise_hi (CorrDetector2DObject *self,
+                                 void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -233,8 +244,8 @@ Detector2D_getprop_noise_hi (Detector2DObject *self, void *Py_UNUSED (closure))
       (unsigned long long)self->handle->noise_hi);
 }
 static PyObject *
-Detector2D_getprop_threshold (Detector2DObject *self,
-                              void             *Py_UNUSED (closure))
+CorrDetector2D_getprop_threshold (CorrDetector2DObject *self,
+                                  void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -244,8 +255,8 @@ Detector2D_getprop_threshold (Detector2DObject *self,
   return PyFloat_FromDouble ((double)self->handle->threshold);
 }
 static PyObject *
-Detector2D_getprop_last_corr (Detector2DObject *self,
-                              void             *Py_UNUSED (closure))
+CorrDetector2D_getprop_last_corr (CorrDetector2DObject *self,
+                                  void                 *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -264,28 +275,29 @@ Detector2D_getprop_last_corr (Detector2DObject *self,
   return arr;
 }
 
-static PyGetSetDef Detector2D_getset[]
-    = { { "ny", (getter)Detector2D_getprop_ny, NULL, NULL, NULL },
-        { "nx", (getter)Detector2D_getprop_nx, NULL, NULL, NULL },
-        { "n", (getter)Detector2D_getprop_n, NULL, NULL, NULL },
-        { "dwell", (getter)Detector2D_getprop_dwell, NULL, NULL, NULL },
-        { "count", (getter)Detector2D_getprop_count, NULL, NULL, NULL },
-        { "ring_cap", (getter)Detector2D_getprop_ring_cap, NULL, NULL, NULL },
-        { "noise_lo", (getter)Detector2D_getprop_noise_lo, NULL, NULL, NULL },
-        { "noise_hi", (getter)Detector2D_getprop_noise_hi, NULL, NULL, NULL },
-        { "threshold", (getter)Detector2D_getprop_threshold, NULL, NULL,
-          NULL },
-        { "last_corr", (getter)Detector2D_getprop_last_corr, NULL,
-          "The correlation vector from the most recent push() that produced a "
-          "result (None before that). This is a zero-copy view into a buffer "
-          "owned by the detector and reused every push() -- the next push() "
-          "(even one that doesn't produce a result) overwrites it in place. "
-          "Copy the array before the next push() if you need to retain it.\n",
-          NULL },
-        { NULL } };
+static PyGetSetDef CorrDetector2D_getset[] = {
+  { "ny", (getter)CorrDetector2D_getprop_ny, NULL, NULL, NULL },
+  { "nx", (getter)CorrDetector2D_getprop_nx, NULL, NULL, NULL },
+  { "n", (getter)CorrDetector2D_getprop_n, NULL, NULL, NULL },
+  { "dwell", (getter)CorrDetector2D_getprop_dwell, NULL, NULL, NULL },
+  { "count", (getter)CorrDetector2D_getprop_count, NULL, NULL, NULL },
+  { "ring_cap", (getter)CorrDetector2D_getprop_ring_cap, NULL, NULL, NULL },
+  { "noise_lo", (getter)CorrDetector2D_getprop_noise_lo, NULL, NULL, NULL },
+  { "noise_hi", (getter)CorrDetector2D_getprop_noise_hi, NULL, NULL, NULL },
+  { "threshold", (getter)CorrDetector2D_getprop_threshold, NULL, NULL, NULL },
+  { "last_corr", (getter)CorrDetector2D_getprop_last_corr, NULL,
+    "The correlation vector from the most recent push() that produced a "
+    "result (None before that). This is a zero-copy view into a buffer "
+    "owned by the detector and reused every push() -- the next push() "
+    "(even one that doesn't produce a result) overwrites it in place. "
+    "Copy the array before the next push() if you need to retain it.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
-Detector2DObj_destroy (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
+CorrDetector2DObj_destroy (CorrDetector2DObject *self,
+                           PyObject             *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -296,14 +308,15 @@ Detector2DObj_destroy (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Detector2DObj_enter (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
+CorrDetector2DObj_enter (CorrDetector2DObject *self,
+                         PyObject             *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-Detector2DObj_exit (Detector2DObject *self, PyObject *args)
+CorrDetector2DObj_exit (CorrDetector2DObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -315,8 +328,8 @@ Detector2DObj_exit (Detector2DObject *self, PyObject *args)
 }
 
 static PyObject *
-Detector2DObj_state_bytes (Detector2DObject *self,
-                           PyObject         *Py_UNUSED (ignored))
+CorrDetector2DObj_state_bytes (CorrDetector2DObject *self,
+                               PyObject             *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -327,7 +340,8 @@ Detector2DObj_state_bytes (Detector2DObject *self,
 }
 
 static PyObject *
-Detector2DObj_get_state (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
+CorrDetector2DObj_get_state (CorrDetector2DObject *self,
+                             PyObject             *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -343,7 +357,7 @@ Detector2DObj_get_state (Detector2DObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-Detector2DObj_set_state (Detector2DObject *self, PyObject *arg)
+CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
@@ -368,43 +382,44 @@ Detector2DObj_set_state (Detector2DObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef Detector2DObj_methods[] = {
-  { "reset", (PyCFunction)Detector2DObj_reset, METH_NOARGS,
+static PyMethodDef CorrDetector2DObj_methods[] = {
+  { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
     "Reset state to post-create defaults." },
 
-  { "push", (PyCFunction)Detector2DObj_push, METH_VARARGS,
+  { "push", (PyCFunction)CorrDetector2DObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
     "\n"
     "Returns list of (row, col, peak_mag, noise_est, test_stat,) tuples.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Detector2D\n"
-    "    >>> obj = Detector2D(np.zeros((1, 1), dtype=np.complex64), \"mean\", "
+    "    >>> from doppler import CorrDetector2D\n"
+    "    >>> obj = CorrDetector2D(np.zeros((1, 1), dtype=np.complex64), "
+    "\"mean\", "
     "1, 0, ny*nx-1, 0.0, 1)\n"
     "    >>> results = obj.push(np.zeros(4, dtype=np.complex64))\n"
     "    >>> isinstance(results, list)\n"
     "    True\n" },
-  { "destroy", (PyCFunction)Detector2DObj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)CorrDetector2DObj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)Detector2DObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)Detector2DObj_exit, METH_VARARGS, NULL },
-  { "state_bytes", (PyCFunction)Detector2DObj_state_bytes, METH_NOARGS,
+  { "__enter__", (PyCFunction)CorrDetector2DObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)CorrDetector2DObj_exit, METH_VARARGS, NULL },
+  { "state_bytes", (PyCFunction)CorrDetector2DObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)Detector2DObj_get_state, METH_NOARGS,
+  { "get_state", (PyCFunction)CorrDetector2DObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)Detector2DObj_set_state, METH_O,
+  { "set_state", (PyCFunction)CorrDetector2DObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
   { NULL }
 };
 
-static PyTypeObject Detector2DObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.Detector2D",
-  .tp_basicsize                           = sizeof (Detector2DObject),
-  .tp_dealloc                             = (destructor)Detector2DObj_dealloc,
-  .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a 2-D signal detector.\n",
-  .tp_methods                             = Detector2DObj_methods,
-  .tp_getset                              = Detector2D_getset,
-  .tp_new                                 = Detector2DObj_new,
-  .tp_init                                = (initproc)Detector2DObj_init,
+static PyTypeObject CorrDetector2DObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "spectral.CorrDetector2D",
+  .tp_basicsize                           = sizeof (CorrDetector2DObject),
+  .tp_dealloc = (destructor)CorrDetector2DObj_dealloc,
+  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Create a 2-D signal detector.\n",
+  .tp_methods = CorrDetector2DObj_methods,
+  .tp_getset  = CorrDetector2D_getset,
+  .tp_new     = CorrDetector2DObj_new,
+  .tp_init    = (initproc)CorrDetector2DObj_init,
 };

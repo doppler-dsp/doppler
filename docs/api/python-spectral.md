@@ -3,7 +3,7 @@
 The `doppler.spectral` module is a single CPython extension over the C `spectral`
 core. Its FFT engines are documented on the [FFT page](python-fft.md); this page
 covers the rest of the module — **correlation** (`Corr`, `Corr2D`), **streaming
-detection** (`Detector`, `Detector2D`), and the **spectral helper functions**
+detection** (`CorrDetector`, `CorrDetector2D`), and the **spectral helper functions**
 (windows, magnitude, peak-finding).
 
 For the statistical-detection side (probability of detection, thresholds, dwell
@@ -42,7 +42,7 @@ ______________________________________________________________________
 
 ## Streaming detection
 
-`Detector` wraps a correlator with a **double-mapped ring buffer** so you can
+`CorrDetector` wraps a correlator with a **double-mapped ring buffer** so you can
 push arbitrary-sized chunks. After each integrate-and-dump it compares the
 peak-to-noise test statistic against `threshold` and emits a detection result
 when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
@@ -50,10 +50,10 @@ when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
 
 ```python
 import numpy as np
-from doppler.spectral import Detector
+from doppler.spectral import CorrDetector
 
 ref = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)
-det = Detector(ref, dwell=4, threshold=12.0)      # ~12 dB peak-to-noise
+det = CorrDetector(ref, dwell=4, threshold=12.0)      # ~12 dB peak-to-noise
 
 
 def stream_chunks():                              # a real CF32 source
@@ -67,11 +67,11 @@ for chunk in stream_chunks():                     # any chunk size
         print("detection:", hit)                  # (lag, peak, noise, stat)
 ```
 
-`Detector2D` is the 2-D streaming detector over a grid.
+`CorrDetector2D` is the 2-D streaming detector over a grid.
 
-::: doppler.spectral.Detector
+::: doppler.spectral.CorrDetector
 
-::: doppler.spectral.Detector2D
+::: doppler.spectral.CorrDetector2D
 
 ______________________________________________________________________
 

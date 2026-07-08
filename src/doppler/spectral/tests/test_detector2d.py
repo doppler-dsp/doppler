@@ -1,10 +1,10 @@
 import numpy as np
 
-from doppler.spectral import Detector2D
+from doppler.spectral import CorrDetector2D
 
 
 def test_create():
-    obj = Detector2D(
+    obj = CorrDetector2D(
         np.zeros((1, 1), dtype=np.complex64), "mean", 1, 0, 0, 0.0, 1
     )
     assert obj is not None
@@ -19,21 +19,21 @@ def test_reset():
 
 
 def test_context_manager():
-    with Detector2D(
+    with CorrDetector2D(
         np.zeros((1, 1), dtype=np.complex64), "mean", 1, 0, 0, 0.0, 1
     ):
         pass
 
 
 def test_destroy():
-    obj = Detector2D(
+    obj = CorrDetector2D(
         np.zeros((1, 1), dtype=np.complex64), "mean", 1, 0, 0, 0.0, 1
     )
     obj.destroy()
 
 
 def test_last_corr_none_before_any_hit():
-    obj = Detector2D(
+    obj = CorrDetector2D(
         np.ones((1, 4), dtype=np.complex64), "mean", 1, 0, 3, 0.0, 1
     )
     assert obj.last_corr is None
@@ -45,7 +45,7 @@ def test_last_corr_aliases_across_pushes():
     # later push() with different data overwrites an earlier-returned view
     # in place, visible through the same handle.
     ref = np.ones((1, 4), dtype=np.complex64)
-    obj = Detector2D(ref, "mean", 1, 0, 3, 0.0, 1)
+    obj = CorrDetector2D(ref, "mean", 1, 0, 3, 0.0, 1)
     obj.push(ref)
     first = obj.last_corr
     assert first is not None

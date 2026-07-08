@@ -22,26 +22,26 @@ required to acquire — that is what the M-th-power arm buys.
 zero onto the true offset (black dashed) within tens of symbols, and the lock
 metric (purple) rises and holds. The lock metric is orientation-normalised, so it
 reads `~+` at lock for every M (BPSK ≈ 1, QPSK ≈ 0.62, 8PSK ≈ 0.41) and is what
-the opt-in `auto_handover` thresholds on.
+the opt-in `acq_to_track` switch thresholds on.
 
 **Right — BER vs Es/N0.** Bit error rate against the coherent M-PSK bound, using
-NDA acquisition followed by decision-directed handover (`auto_handover=1`). BPSK
+NDA acquisition followed by decision-directed tracking (`acq_to_track=1`). BPSK
 and QPSK track the bound within ~1–2 dB. **8PSK shows an acquisition threshold**:
 the 8th-power discriminator's phase noise is large at low SNR, so the loop does
 not pull in until ~13–14 dB — above which decision-directed tracking takes over
 and it falls to the bound. This is the fundamental cost of non-data-aided 8PSK
 acquisition; a known preamble or external frequency aid removes the threshold.
 
-## Carrier handover — acquire blind, track clean
+## Acquisition-to-tracking switch — acquire blind, track clean
 
-By default (`auto_handover=0`) the receiver stays in robust NDA tracking the
-whole time. Enabling handover hands the **shared NCO** from the M-th-power
+By default (`acq_to_track=0`) the receiver stays in robust NDA tracking the
+whole time. Enabling the switch hands the **shared NCO** from the M-th-power
 discriminator to a lower-jitter **decision-directed** error `e = Im(y·conj(â))/|y|`
 on the recovered symbols once the loop has locked and a warmup has elapsed —
 essential for 8PSK, whose M-th-power phase noise would otherwise cross the ±π/8
 decision margins. The decision-directed loop steers at symbol rate (a naturally
 lower loop bandwidth), which is exactly what low-jitter steady-state tracking
-wants; the NCO frequency estimate carries across handover.
+wants; the NCO frequency estimate carries across the switch.
 
 ```python
 import numpy as np
@@ -58,10 +58,10 @@ iq  = (tx * np.exp(2j * np.pi * 0.0015 * k)).astype(np.complex64)
 
 rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
                   bn_carrier=0.01, bn_timing=0.01,
-                  auto_handover=1, lock_thresh=0.4, warmup_syms=200)
+                  acq_to_track=1, lock_thresh=0.4, warmup_syms=200)
 sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)           # hard Gray bits, LSB-first per symbol
-assert rx.tracking == 1      # handed over to decision-directed tracking
+assert rx.tracking == 1      # switched to decision-directed tracking
 ```
 
 ## Resolving the M-fold ambiguity — differential bits

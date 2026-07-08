@@ -151,15 +151,15 @@ def test_rrc_pulse_recovers():
     assert _ser(out, idx, m) < 0.02
 
 
-def test_auto_handover_engages():
-    """auto_handover flips the loop from NDA acquisition to DD tracking."""
+def test_acq_to_track_engages():
+    """acq_to_track flips the loop from NDA acquisition to DD tracking."""
     tx, idx = _signal(4, foff=0.0008, snr_db=25, seed=4)
     rx = MpskReceiver(
         m=4,
         sps=8,
         n=4,
         init_norm_freq=0.0008,
-        auto_handover=1,
+        acq_to_track=1,
         lock_thresh=0.4,
         warmup_syms=200,
         bn_carrier=0.03,
@@ -169,7 +169,7 @@ def test_auto_handover_engages():
     assert _ser(out, idx, 4) < 0.02
 
 
-def test_handover_off_by_default():
+def test_acq_to_track_off_by_default():
     tx, _ = _signal(4, snr_db=30, seed=5)
     rx = MpskReceiver(m=4, sps=8, n=4)
     rx.steps(tx)

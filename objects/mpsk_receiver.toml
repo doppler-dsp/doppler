@@ -66,7 +66,7 @@ type = "double"
 default = "0.01"
 
 [[mpsk_receiver.init_params]]
-name = "auto_handover"
+name = "acq_to_track"
 type = "int"
 default = "0"
 
@@ -92,7 +92,7 @@ default = "0"
 
 [[mpsk_receiver.methods]]
 name = "steps"
-doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With auto_handover enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
+doc = "Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true

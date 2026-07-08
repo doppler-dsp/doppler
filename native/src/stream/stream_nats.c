@@ -1,15 +1,15 @@
 /**
  * @file stream_nats.c
- * @brief NATS backend for the streaming API (the dpn_* hooks).
+ * @brief NATS transport for the streaming API (the nats_* hooks).
  *
- * Selected when an endpoint uses the "nats://" scheme.  This translation
- * unit is the only place nats.h is included; stream_core.c stays the
- * transport-agnostic dispatcher and never sees a nats type.
+ * Every endpoint uses the "nats://" scheme; stream_core.c's ctx_create()
+ * calls straight into nats_ctx_create() below. This translation unit is the
+ * only place nats.h is included — stream_core.c never sees a nats type.
  *
- * Wire format is identical to the ZMQ backend: a 96-byte dp_header_t binary
- * prefix followed by the interleaved I/Q payload, all in one NATS message.
- * Receive stays zero-copy — dp_msg_data() points into the natsMsg past the
- * header, and dp_msg_free() does exactly one natsMsg_Destroy().
+ * Wire format: a 96-byte dp_header_t binary prefix followed by the
+ * interleaved I/Q payload, all in one NATS message. Receive stays
+ * zero-copy — dp_msg_data() points into the natsMsg past the header, and
+ * dp_msg_free() does exactly one natsMsg_Destroy().
  *
  * Subjects: an endpoint "nats://host:port/{base}" yields a subject base
  * (default "default").  PUB publishes "iq.{base}.{sample_type}"; SUB
@@ -37,11 +37,15 @@
  * ========================================================================= */
 
 /* Split "nats://authority[/base]" into a bare connection URL ("nats://auth")
- * and a strdup'd subject base (default "default").  Returns 0 on success. */
+ * and a strdup'd subject base (default "default").  Returns 0 on success,
+ * -1 if the endpoint doesn't use the "nats://" scheme (the only backend). */
 static int
 nats_parse_endpoint (const char *endpoint, char *url, size_t url_sz,
                      char **base_out)
 {
+  if (strncmp (endpoint, "nats://", 7) != 0)
+    return -1;
+
   const char *authority = endpoint + 7; /* past "nats://" */
   const char *slash     = strchr (authority, '/');
   size_t auth_len = slash ? (size_t)(slash - authority) : strlen (authority);
@@ -61,7 +65,7 @@ nats_parse_endpoint (const char *endpoint, char *url, size_t url_sz,
 
 /* Open a NATS connection with auto-reconnect to a single bare URL. */
 static natsConnection *
-dpn_connect (const char *url)
+nats_connect (const char *url)
 {
   natsOptions *opts = NULL;
   if (natsOptions_Create (&opts) != NATS_OK)
@@ -80,7 +84,7 @@ dpn_connect (const char *url)
 
 /* Synchronous subscribe with unbounded pending (best-effort). */
 static natsStatus
-dpn_subscribe (natsConnection *conn, const char *subj, natsSubscription **sub)
+nats_subscribe (natsConnection *conn, const char *subj, natsSubscription **sub)
 {
   natsStatus s = natsConnection_SubscribeSync (sub, conn, subj);
   if (s == NATS_OK)
@@ -91,7 +95,7 @@ dpn_subscribe (natsConnection *conn, const char *subj, natsSubscription **sub)
 /* JetStream stream/consumer names cannot contain . * > or space — derive a
  * safe one from the subject base. */
 static void
-dpn_js_name (char *out, size_t n, const char *prefix, const char *base)
+nats_js_name (char *out, size_t n, const char *prefix, const char *base)
 {
   (void)snprintf (out, n, "%s%s", prefix, base);
   for (char *p = out; *p; p++)
@@ -103,10 +107,10 @@ dpn_js_name (char *out, size_t n, const char *prefix, const char *base)
  * pre-provisioned stream (e.g. a Helm-created R=3 one): if AddStream fails but
  * the stream already exists, succeed and use it as-is. */
 static int
-dpn_ensure_stream (jsCtx *js, const char *base)
+nats_ensure_stream (jsCtx *js, const char *base)
 {
   char name[256], subj[256];
-  dpn_js_name (name, sizeof (name), "DP_WORK_", base);
+  nats_js_name (name, sizeof (name), "DP_WORK_", base);
   (void)snprintf (subj, sizeof (subj), "work.%s.>", base);
 
   jsStreamConfig cfg;
@@ -133,11 +137,11 @@ dpn_ensure_stream (jsCtx *js, const char *base)
 /* Create/attach the shared durable pull consumer for `base` (explicit ack,
  * at-least-once; workers sharing the durable load-balance + redeliver). */
 static int
-dpn_pull_subscribe (struct dp_ctx *ctx, jsCtx *js, natsSubscription **out)
+nats_pull_subscribe (struct dp_ctx *ctx, jsCtx *js, natsSubscription **out)
 {
   char durable[256], filter[256];
-  dpn_js_name (durable, sizeof (durable), "DP_PULL_", ctx->u.nats.base);
-  (void)snprintf (filter, sizeof (filter), "work.%s.>", ctx->u.nats.base);
+  nats_js_name (durable, sizeof (durable), "DP_PULL_", ctx->nats.base);
+  (void)snprintf (filter, sizeof (filter), "work.%s.>", ctx->nats.base);
 
   jsSubOptions so;
   jsSubOptions_Init (&so);
@@ -157,22 +161,22 @@ dpn_pull_subscribe (struct dp_ctx *ctx, jsCtx *js, natsSubscription **out)
  * PUB needs no subscription; SUB/REP/REQ each get one (REQ also an inbox);
  * PUSH/PULL set up the JetStream work-queue tier. */
 static int
-dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
+nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
 {
   natsSubscription *sub = NULL;
 
-  switch (ctx->u.nats.role)
+  switch (ctx->nats.role)
     {
     case DP_ROLE_SUB:
       {
         char subj[600];
-        (void)snprintf (subj, sizeof (subj), "iq.%s.>", ctx->u.nats.base);
-        if (dpn_subscribe (conn, subj, &sub) != NATS_OK)
+        (void)snprintf (subj, sizeof (subj), "iq.%s.>", ctx->nats.base);
+        if (nats_subscribe (conn, subj, &sub) != NATS_OK)
           return -1;
         break;
       }
     case DP_ROLE_REP:
-      if (dpn_subscribe (conn, ctx->u.nats.base, &sub) != NATS_OK)
+      if (nats_subscribe (conn, ctx->nats.base, &sub) != NATS_OK)
         return -1;
       break;
     case DP_ROLE_REQ:
@@ -180,8 +184,8 @@ dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
         natsInbox *inbox = NULL;
         if (natsInbox_Create (&inbox) != NATS_OK)
           return -1;
-        ctx->u.nats.inbox = inbox;
-        if (dpn_subscribe (conn, inbox, &sub) != NATS_OK)
+        ctx->nats.inbox = inbox;
+        if (nats_subscribe (conn, inbox, &sub) != NATS_OK)
           return -1;
         break;
       }
@@ -190,8 +194,8 @@ dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
         jsCtx *js = NULL;
         if (natsConnection_JetStream (&js, conn, NULL) != NATS_OK)
           return -1;
-        ctx->u.nats.js = js;
-        if (dpn_ensure_stream (js, ctx->u.nats.base) != DP_OK)
+        ctx->nats.js = js;
+        if (nats_ensure_stream (js, ctx->nats.base) != DP_OK)
           return -1;
         break; /* publisher: no subscription */
       }
@@ -200,8 +204,8 @@ dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
         jsCtx *js = NULL;
         if (natsConnection_JetStream (&js, conn, NULL) != NATS_OK)
           return -1;
-        ctx->u.nats.js = js;
-        if (dpn_pull_subscribe (ctx, js, &sub) != 0)
+        ctx->nats.js = js;
+        if (nats_pull_subscribe (ctx, js, &sub) != 0)
           return -1;
         break;
       }
@@ -209,56 +213,55 @@ dpn_wire_role (struct dp_ctx *ctx, natsConnection *conn)
       break;
     }
 
-  ctx->u.nats.sub = sub;
+  ctx->nats.sub = sub;
   return 0;
 }
 
 struct dp_ctx *
-dpn_ctx_create (dp_role_t role, const char *endpoint,
+nats_ctx_create (dp_role_t role, const char *endpoint,
                 dp_sample_type_t sample_type)
 {
   struct dp_ctx *ctx = (struct dp_ctx *)calloc (1, sizeof (struct dp_ctx));
   if (!ctx)
     return NULL;
-  ctx->backend                = DP_BACKEND_NATS;
-  ctx->sample_type            = sample_type;
-  ctx->u.nats.role            = role;
-  ctx->u.nats.recv_timeout_ms = -1; /* block by default, like ZMQ RCVTIMEO */
+  ctx->sample_type          = sample_type;
+  ctx->nats.role            = role;
+  ctx->nats.recv_timeout_ms = -1; /* block by default */
 
   char url[512];
-  if (nats_parse_endpoint (endpoint, url, sizeof (url), &ctx->u.nats.base)
+  if (nats_parse_endpoint (endpoint, url, sizeof (url), &ctx->nats.base)
       != 0)
     {
       free (ctx);
       return NULL;
     }
 
-  ctx->u.nats.conn = dpn_connect (url);
-  if (!ctx->u.nats.conn || dpn_wire_role (ctx, ctx->u.nats.conn) != 0)
+  ctx->nats.conn = nats_connect (url);
+  if (!ctx->nats.conn || nats_wire_role (ctx, ctx->nats.conn) != 0)
     {
-      dpn_ctx_destroy (ctx); /* frees internals (NULL-safe), not ctx itself */
+      nats_ctx_destroy (ctx); /* frees internals (NULL-safe), not ctx itself */
       free (ctx);
       return NULL;
     }
   /* Cache the server's max message size; frames above it are chunked. */
-  ctx->u.nats.max_payload
-      = natsConnection_GetMaxPayload ((natsConnection *)ctx->u.nats.conn);
+  ctx->nats.max_payload
+      = natsConnection_GetMaxPayload ((natsConnection *)ctx->nats.conn);
   return ctx;
 }
 
 void
-dpn_ctx_destroy (struct dp_ctx *ctx)
+nats_ctx_destroy (struct dp_ctx *ctx)
 {
-  if (ctx->u.nats.sub)
-    natsSubscription_Destroy ((natsSubscription *)ctx->u.nats.sub);
-  if (ctx->u.nats.js)
-    jsCtx_Destroy ((jsCtx *)ctx->u.nats.js);
-  if (ctx->u.nats.conn)
-    natsConnection_Destroy ((natsConnection *)ctx->u.nats.conn);
-  if (ctx->u.nats.inbox)
-    natsInbox_Destroy ((natsInbox *)ctx->u.nats.inbox);
-  free (ctx->u.nats.base);
-  free (ctx->u.nats.last_reply);
+  if (ctx->nats.sub)
+    natsSubscription_Destroy ((natsSubscription *)ctx->nats.sub);
+  if (ctx->nats.js)
+    jsCtx_Destroy ((jsCtx *)ctx->nats.js);
+  if (ctx->nats.conn)
+    natsConnection_Destroy ((natsConnection *)ctx->nats.conn);
+  if (ctx->nats.inbox)
+    natsInbox_Destroy ((natsInbox *)ctx->nats.inbox);
+  free (ctx->nats.base);
+  free (ctx->nats.last_reply);
 }
 
 /* =========================================================================
@@ -268,31 +271,31 @@ dpn_ctx_destroy (struct dp_ctx *ctx)
 /* Publish one prebuilt buffer to the role's subject.  typestr is the sample
  * type name (used only by PUB to build "iq.{base}.{type}"). */
 static int
-dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
+nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
 {
-  natsConnection *conn = (natsConnection *)ctx->u.nats.conn;
+  natsConnection *conn = (natsConnection *)ctx->nats.conn;
   natsStatus      s;
 
-  switch (ctx->u.nats.role)
+  switch (ctx->nats.role)
     {
     case DP_ROLE_PUB:
       {
         char subj[640];
-        (void)snprintf (subj, sizeof (subj), "iq.%s.%s", ctx->u.nats.base,
+        (void)snprintf (subj, sizeof (subj), "iq.%s.%s", ctx->nats.base,
                         typestr);
         s = natsConnection_Publish (conn, subj, buf, len);
         break;
       }
     case DP_ROLE_REQ:
       s = natsConnection_PublishRequest (
-          conn, ctx->u.nats.base, (const char *)ctx->u.nats.inbox, buf, len);
+          conn, ctx->nats.base, (const char *)ctx->nats.inbox, buf, len);
       if (s == NATS_OK)
         s = natsConnection_Flush (conn); /* push the request out now */
       break;
     case DP_ROLE_REP:
-      if (!ctx->u.nats.last_reply)
+      if (!ctx->nats.last_reply)
         return DP_ERR_SEND; /* no request to answer */
-      s = natsConnection_Publish (conn, ctx->u.nats.last_reply, buf, len);
+      s = natsConnection_Publish (conn, ctx->nats.last_reply, buf, len);
       if (s == NATS_OK)
         s = natsConnection_Flush (conn);
       break;
@@ -302,10 +305,10 @@ dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
          * message is persisted (and replicated) before we return, so a
          * producer-side crash never silently drops it. */
         char subj[640];
-        (void)snprintf (subj, sizeof (subj), "work.%s.%s", ctx->u.nats.base,
+        (void)snprintf (subj, sizeof (subj), "work.%s.%s", ctx->nats.base,
                         typestr);
         jsPubAck *pa = NULL;
-        s = js_Publish (&pa, (jsCtx *)ctx->u.nats.js, subj, buf, len, NULL,
+        s = js_Publish (&pa, (jsCtx *)ctx->nats.js, subj, buf, len, NULL,
                         NULL);
         if (pa)
           jsPubAck_Destroy (pa);
@@ -321,7 +324,7 @@ dpn_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
 /* Stage one [header][payload] message and publish it (zero-copy send is not
  * possible over NATS — header and data must be one contiguous buffer). */
 static int
-dpn_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
+nats_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
                     size_t data_len)
 {
   size_t hdr_sz = sizeof (*h);
@@ -330,18 +333,18 @@ dpn_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
     return DP_ERR_MEMORY;
   memcpy (buf, h, hdr_sz);
   memcpy (buf + hdr_sz, data, data_len);
-  int rc = dpn_publish (ctx, dp_sample_type_str (h->sample_type), buf,
+  int rc = nats_publish (ctx, dp_sample_type_str (h->sample_type), buf,
                         (int)(hdr_sz + data_len));
   free (buf);
   return rc;
 }
 
 int
-dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
+nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
                  const void *samples, size_t data_size)
 {
   size_t  hdr_sz = sizeof (*header);
-  int64_t maxp   = ctx->u.nats.max_payload;
+  int64_t maxp   = ctx->nats.max_payload;
   if (maxp <= 0)
     maxp = 1024LL * 1024; /* NATS default if the server didn't report one */
 
@@ -350,7 +353,7 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
    * load-balanced work-queue (PUSH/PULL) a frame's chunks could land on
    * different workers, so PUSH sends one frame as one message (the resilient
    * tier relies on a generous server max_payload).  REQ/REP are small. */
-  if (ctx->u.nats.role != DP_ROLE_PUB)
+  if (ctx->nats.role != DP_ROLE_PUB)
     {
       /* Non-fan-out roles never chunk, so a frame that won't fit in one
        * message can't be sent — report it distinctly (the bare js_Publish
@@ -359,12 +362,12 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
        */
       if (hdr_sz + data_size > (size_t)maxp)
         return DP_ERR_TOO_LARGE;
-      return dpn_publish_framed (ctx, header, samples, data_size);
+      return nats_publish_framed (ctx, header, samples, data_size);
     }
 
   /* PUB that already fits: one un-chunked message (the common case). */
   if (hdr_sz + data_size <= (size_t)maxp)
-    return dpn_publish_framed (ctx, header, samples, data_size);
+    return nats_publish_framed (ctx, header, samples, data_size);
 
   /* Large PUB frame: split into sample-aligned chunks that each fit, all
    * sharing this frame's sequence; (sequence, chunk_index) lets each
@@ -392,7 +395,7 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
       h.reserved[DP_CHUNK_TOT] = header->num_samples;
       h.reserved[DP_CHUNK_OFF] = off;
 
-      int rc = dpn_publish_framed (ctx, &h, src + off, take);
+      int rc = nats_publish_framed (ctx, &h, src + off, take);
       if (rc != DP_OK)
         return rc;
     }
@@ -400,9 +403,9 @@ dpn_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
 }
 
 int
-dpn_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
+nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
 {
-  return dpn_publish (ctx, NULL, data, (int)size);
+  return nats_publish (ctx, NULL, data, (int)size);
 }
 
 /* =========================================================================
@@ -413,13 +416,13 @@ dpn_send_raw (struct dp_ctx *ctx, const void *data, size_t size)
  * message is NOT acked here — the caller acks via dp_msg_ack once it has been
  * processed, so a crash before ack triggers redelivery (at-least-once). */
 static int
-dpn_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
+nats_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
 {
-  natsSubscription *sub = (natsSubscription *)ctx->u.nats.sub;
+  natsSubscription *sub = (natsSubscription *)ctx->nats.sub;
   if (!sub)
     return DP_ERR_INVALID;
 
-  int         to   = ctx->u.nats.recv_timeout_ms;
+  int         to   = ctx->nats.recv_timeout_ms;
   natsMsgList list = { NULL, 0 };
   natsStatus  s;
   if (to < 0)
@@ -449,14 +452,14 @@ dpn_pull_fetch (struct dp_ctx *ctx, natsMsg **out)
 static int
 nats_next (struct dp_ctx *ctx, natsMsg **out)
 {
-  if (ctx->u.nats.role == DP_ROLE_PULL)
-    return dpn_pull_fetch (ctx, out);
+  if (ctx->nats.role == DP_ROLE_PULL)
+    return nats_pull_fetch (ctx, out);
 
-  natsSubscription *sub = (natsSubscription *)ctx->u.nats.sub;
+  natsSubscription *sub = (natsSubscription *)ctx->nats.sub;
   if (!sub)
     return DP_ERR_INVALID;
 
-  int        to = ctx->u.nats.recv_timeout_ms;
+  int        to = ctx->nats.recv_timeout_ms;
   natsStatus s;
   if (to < 0)
     {
@@ -479,18 +482,18 @@ nats_next (struct dp_ctx *ctx, natsMsg **out)
 static void
 nats_stash_reply (struct dp_ctx *ctx, natsMsg *m)
 {
-  free (ctx->u.nats.last_reply);
-  ctx->u.nats.last_reply = NULL;
+  free (ctx->nats.last_reply);
+  ctx->nats.last_reply = NULL;
   const char *reply      = natsMsg_GetReply (m);
   if (reply)
-    ctx->u.nats.last_reply = strdup (reply);
+    ctx->nats.last_reply = strdup (reply);
 }
 
 /* Validate one chunk message and copy its payload into the reassembly buffer
  * at its byte offset.  Idempotent: a redelivered chunk (seen[idx]) is a no-op.
  * Does not destroy m. */
 static int
-dpn_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
+nats_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
                  uint64_t sequence, natsMsg *m, unsigned char *seen,
                  uint64_t *received)
 {
@@ -525,7 +528,7 @@ dpn_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
  * already-received chunk; fhdr is its parsed header.  Consumes `first` and any
  * further chunks fetched.  Returns a DP_MSG_OWNED message on success. */
 static int
-dpn_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
+nats_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
                 dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
   size_t   ss      = dp_sample_size ((dp_sample_type_t)fhdr->sample_type);
@@ -553,7 +556,7 @@ dpn_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
   int      rc       = DP_OK;
   for (;;)
     {
-      rc = dpn_place_chunk (buf, total_bytes, nchunks, fhdr->sequence, m, seen,
+      rc = nats_place_chunk (buf, total_bytes, nchunks, fhdr->sequence, m, seen,
                             &received);
       natsMsg_Destroy (m);
       m = NULL;
@@ -596,7 +599,7 @@ dpn_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
 }
 
 int
-dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
+nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
   natsMsg *m  = NULL;
   int      rc = nats_next (ctx, &m);
@@ -619,13 +622,13 @@ dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
       return DP_ERR_INVALID;
     }
 
-  if (ctx->u.nats.role == DP_ROLE_REP)
+  if (ctx->nats.role == DP_ROLE_REP)
     nats_stash_reply (ctx, m);
 
   /* Large fan-out frames arrive as several chunks — reassemble into one owned
    * buffer.  (PULL never chunks: the work-queue carries whole frames.) */
-  if ((hdr.flags & DP_FLAG_CHUNKED) && ctx->u.nats.role != DP_ROLE_PULL)
-    return dpn_reassemble (ctx, m, &hdr, out_msg, out_hdr);
+  if ((hdr.flags & DP_FLAG_CHUNKED) && ctx->nats.role != DP_ROLE_PULL)
+    return nats_reassemble (ctx, m, &hdr, out_msg, out_hdr);
 
   /* Single message: zero-copy, data lives in the natsMsg past the header. */
   dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
@@ -647,14 +650,14 @@ dpn_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg, dp_header_t *out_hdr)
 }
 
 int
-dpn_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
+nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 {
   natsMsg *m  = NULL;
   int      rc = nats_next (ctx, &m);
   if (rc != DP_OK)
     return rc;
 
-  if (ctx->u.nats.role == DP_ROLE_REP)
+  if (ctx->nats.role == DP_ROLE_REP)
     nats_stash_reply (ctx, m);
 
   dp_msg_t *msg = (dp_msg_t *)malloc (sizeof (dp_msg_t));
@@ -675,9 +678,9 @@ dpn_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size)
 }
 
 void
-dpn_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
+nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
 {
-  ctx->u.nats.recv_timeout_ms = timeout_ms;
+  ctx->nats.recv_timeout_ms = timeout_ms;
 }
 
 /* =========================================================================
@@ -685,27 +688,27 @@ dpn_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms)
  * ========================================================================= */
 
 void *
-dpn_msg_data (dp_msg_t *msg)
+nats_msg_data (dp_msg_t *msg)
 {
   natsMsg *m = (natsMsg *)msg->u.nats;
   return (void *)((char *)natsMsg_GetData (m) + msg->data_offset);
 }
 
 size_t
-dpn_msg_size (dp_msg_t *msg)
+nats_msg_size (dp_msg_t *msg)
 {
   natsMsg *m = (natsMsg *)msg->u.nats;
   return (size_t)natsMsg_GetDataLength (m) - msg->data_offset;
 }
 
 void
-dpn_msg_free (dp_msg_t *msg)
+nats_msg_free (dp_msg_t *msg)
 {
   natsMsg_Destroy ((natsMsg *)msg->u.nats);
 }
 
 int
-dpn_msg_ack (dp_msg_t *msg)
+nats_msg_ack (dp_msg_t *msg)
 {
   natsStatus s = natsMsg_Ack ((natsMsg *)msg->u.nats, NULL);
   return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;

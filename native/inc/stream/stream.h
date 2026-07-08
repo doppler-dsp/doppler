@@ -229,8 +229,9 @@ extern "C"
    * redelivered if the consumer dies before acking.  Call this once the
    * message has been fully processed, then dp_msg_free().
    *
-   * A no-op (returns DP_OK) for transports without acks — ZMQ messages and
-   * NATS core PUB/SUB — so callers can ack unconditionally.
+   * A no-op (returns DP_OK) for transports without acks — NATS core
+   * PUB/SUB and reassembled chunked frames — so callers can ack
+   * unconditionally.
    *
    * @param msg Message handle returned by a recv function.
    * @return DP_OK on success, negative error code on failure.

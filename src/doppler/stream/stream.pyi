@@ -92,24 +92,26 @@ def get_timestamp_ns() -> int:
 
 
 class Publisher:
-    """ZMQ PUB socket — one-to-many broadcast of signal frames.
+    """NATS core PUB — one-to-many broadcast of signal frames.
 
-    Wraps ``dp_pub_t``.  Each :meth:`send` call emits a two-frame ZMQ
-    multipart message: a ``dp_header_t`` frame followed by a raw data
-    frame.  Multiple :class:`Subscriber` sockets can connect to one
-    Publisher; each subscriber receives every frame.  Slow subscribers
-    drop frames according to ZMQ's high-watermark (HWM) policy —
-    there is no back-pressure.
+    Wraps ``dp_pub_t``.  Each :meth:`send` call stages one
+    ``[dp_header_t][raw data]`` buffer and publishes it to the
+    endpoint's ``iq.<subject>.<type>`` NATS subject.  Multiple
+    :class:`Subscriber` sockets can subscribe to the same subject;
+    each subscriber receives every frame.  NATS core has no
+    persistence or back-pressure: a slow subscriber simply misses
+    frames published while it isn't reading.
 
-    The socket *binds* to ``endpoint``; Subscribers connect to it.
-    Use ``"ipc:///tmp/feed"`` for intra-host transfers (lower latency
-    than TCP) and ``"tcp://*:PORT"`` for inter-host.
+    The endpoint identifies a subject on a NATS broker; both
+    Publisher and Subscriber connect to the same ``nats-server`` (no
+    bind/connect distinction — the broker mediates fan-out).
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to bind, e.g. ``"tcp://*:5556"`` or
-        ``"ipc:///tmp/iq.sock"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/iq"``
+        (``host:port/subject``; the subject defaults to ``"default"``
+        if omitted). Requires a running ``nats-server``.
     sample_type : int
         Wire encoding.  One of :data:`CI32`, :data:`CF64` (default),
         :data:`CF128`.  Raises :exc:`ValueError` for any other value.
@@ -119,32 +121,32 @@ class Publisher:
     ValueError
         If ``sample_type`` is not one of the three supported values.
     RuntimeError
-        If the ZMQ context or socket cannot be created (e.g. the port
-        is already in use).
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
     Construct, use as a context manager, and verify the type:
 
     >>> from doppler.stream import Publisher, CF64
-    >>> pub = Publisher("tcp://*:19100", CF64)
+    >>> pub = Publisher("nats://127.0.0.1:4222/t19100", CF64)
     >>> type(pub).__name__
     'Publisher'
     >>> pub.close()
 
     Context-manager form (preferred — ensures close on exception):
 
-    >>> with Publisher("tcp://*:19101", CF64) as pub:
+    >>> with Publisher("nats://127.0.0.1:4222/t19101", CF64) as pub:
     ...     type(pub).__name__
     'Publisher'
 
     Full send round-trip with a :class:`Subscriber` (requires a live
-    ZMQ connection and a brief warm-up sleep):
+    ``nats-server`` and a brief warm-up sleep so the subscription is
+    established before the first publish):
 
     >>> import numpy as np, time                        # doctest: +SKIP
     >>> from doppler.stream import Subscriber           # doctest: +SKIP
-    >>> pub = Publisher("tcp://*:5556", CF64)           # doctest: +SKIP
-    >>> sub = Subscriber("tcp://localhost:5556")        # doctest: +SKIP
+    >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)           # doctest: +SKIP
+    >>> sub = Subscriber("nats://127.0.0.1:4222/iq")        # doctest: +SKIP
     >>> time.sleep(0.1)                                 # doctest: +SKIP
     >>> pub.send(np.array([1+2j, 3+4j],                # doctest: +SKIP
     ...          dtype=np.complex128),                  # doctest: +SKIP
@@ -155,13 +157,12 @@ class Publisher:
     """
 
     def __init__(self, endpoint: str, sample_type: int = ...) -> None:
-        """Create a Publisher socket and bind to ``endpoint``.
+        """Create a Publisher and connect to ``endpoint``'s NATS broker.
 
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint string to bind, e.g. ``"tcp://*:5556"`` or
-            ``"ipc:///tmp/feed"``.
+            NATS endpoint, e.g. ``"nats://127.0.0.1:4222/iq"``.
         sample_type : int, optional
             Wire encoding: :data:`CI32`, :data:`CF64` (default), or
             :data:`CF128`.
@@ -174,7 +175,7 @@ class Publisher:
         Examples
         --------
         >>> from doppler.stream import Publisher, CF64
-        >>> with Publisher("tcp://*:19102", CF64) as pub:
+        >>> with Publisher("nats://127.0.0.1:4222/t19102", CF64) as pub:
         ...     type(pub).__name__
         'Publisher'
 
@@ -195,10 +196,12 @@ class Publisher:
 
         Constructs a ``dp_header_t`` with the supplied metadata (plus an
         auto-generated ``timestamp_ns`` from ``CLOCK_REALTIME`` and a
-        per-socket monotonically increasing ``sequence`` number), then
-        sends a two-frame ZMQ multipart message: header frame followed
-        by raw sample bytes.  The call releases the GIL while blocked in
-        ZMQ, so other Python threads can run concurrently.
+        per-socket monotonically increasing ``sequence`` number), stages
+        one ``[header][raw sample bytes]`` buffer (NATS has no scatter/
+        gather send, so header and data are copied into one contiguous
+        buffer first), and publishes it.  The call releases the GIL
+        while blocked in the underlying NATS client, so other Python
+        threads can run concurrently.
 
         Parameters
         ----------
@@ -220,13 +223,13 @@ class Publisher:
         ValueError
             If ``samples`` is not C-contiguous.
         RuntimeError
-            If the ZMQ send fails.
+            If the publish fails (e.g. the broker connection dropped).
 
         Examples
         --------
         >>> from doppler.stream import Publisher, CF64  # doctest: +SKIP
         >>> import numpy as np, time                    # doctest: +SKIP
-        >>> pub = Publisher("tcp://*:5556", CF64)       # doctest: +SKIP
+        >>> pub = Publisher("nats://127.0.0.1:4222/iq", CF64)       # doctest: +SKIP
         >>> pub.send(np.ones(4, dtype=np.complex128),   # doctest: +SKIP
         ...          sample_rate=int(48000),             # doctest: +SKIP
         ...          center_freq=int(433e6))             # doctest: +SKIP
@@ -235,7 +238,7 @@ class Publisher:
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_pub_destroy()``.  Safe to call multiple times —
         subsequent calls are no-ops.  After ``close()`` the object
@@ -244,7 +247,7 @@ class Publisher:
         Examples
         --------
         >>> from doppler.stream import Publisher, CF64
-        >>> pub = Publisher("tcp://*:19103", CF64)
+        >>> pub = Publisher("nats://127.0.0.1:4222/t19103", CF64)
         >>> pub.close()
         >>> pub.close()  # idempotent — no error
 
@@ -253,42 +256,46 @@ class Publisher:
 
 
 class Subscriber:
-    """ZMQ SUB socket — receives signal frames from a :class:`Publisher`.
+    """NATS core SUB — receives signal frames from one or more Publishers.
 
-    Wraps ``dp_sub_t``.  Connects to the Publisher's endpoint.  The
-    socket subscribes to all topics (empty ZMQ topic filter), so it
-    receives every frame the Publisher sends.
+    Wraps ``dp_sub_t``.  Subscribes to the endpoint's ``iq.<subject>.>``
+    NATS subject, so it receives every frame any :class:`Publisher` bound
+    to that subject sends (fan-out: every Subscriber on the subject gets
+    every frame).  There is no "connect to exactly one Publisher" concept
+    — the broker mediates delivery by subject, not by socket.
 
-    Unlike :class:`Pull`, a single Subscriber socket connects to exactly
-    one Publisher.  For fan-in (receiving from multiple publishers) or
-    load-balanced consumption, use :class:`Pull`.
+    For load-balanced consumption (each frame delivered to exactly one
+    of several workers, with durable redelivery) use :class:`Pull`
+    instead, which is backed by NATS JetStream rather than NATS core.
 
     The recv path is zero-copy: the returned NumPy array's memory is
-    owned by an internal ``dp_msg_t`` handle.  The ZMQ buffer is freed
-    only when the array (and all views of it) are garbage-collected.
+    owned by an internal ``dp_msg_t`` handle that points into the
+    received NATS message; the buffer is freed only when the array
+    (and all views of it) are garbage-collected.
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to connect to, e.g. ``"tcp://localhost:5556"`` or
-        ``"ipc:///tmp/feed"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/iq"``
+        (``host:port/subject``; the subject defaults to ``"default"``
+        if omitted). Requires a running ``nats-server``.
 
     Raises
     ------
     RuntimeError
-        If the ZMQ context or socket cannot be created.
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
     >>> from doppler.stream import Subscriber
-    >>> sub = Subscriber("tcp://localhost:19104")
+    >>> sub = Subscriber("nats://127.0.0.1:4222/t19104")
     >>> type(sub).__name__
     'Subscriber'
     >>> sub.close()
 
     Context-manager form:
 
-    >>> with Subscriber("tcp://localhost:19105") as sub:
+    >>> with Subscriber("nats://127.0.0.1:4222/t19105") as sub:
     ...     type(sub).__name__
     'Subscriber'
 
@@ -304,8 +311,8 @@ class Subscriber:
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint to connect to, e.g.
-            ``"tcp://localhost:5556"``.
+            NATS endpoint, e.g.
+            ``"nats://127.0.0.1:4222/iq"``.
         """
         ...
 
@@ -315,7 +322,7 @@ class Subscriber:
         Examples
         --------
         >>> from doppler.stream import Subscriber
-        >>> with Subscriber("tcp://localhost:19106") as sub:
+        >>> with Subscriber("nats://127.0.0.1:4222/t19106") as sub:
         ...     type(sub).__name__
         'Subscriber'
 
@@ -332,8 +339,8 @@ class Subscriber:
         """Receive one signal frame from the connected Publisher.
 
         Blocks until a frame arrives or the optional timeout expires.
-        The returned NumPy array is a zero-copy view into the ZMQ
-        message buffer; the buffer is freed when the array is
+        The returned NumPy array is a zero-copy view into the received
+        NATS message buffer; the buffer is freed when the array is
         garbage-collected.
 
         Parameters
@@ -378,26 +385,26 @@ class Subscriber:
         TimeoutError
             If ``timeout_ms`` elapses before a frame arrives.
         RuntimeError
-            If the ZMQ recv fails for any other reason.
+            If the underlying NATS recv fails for any other reason.
 
         Examples
         --------
         >>> from doppler.stream import Subscriber          # doctest: +SKIP
-        >>> with Subscriber("tcp://localhost:5556") as sub:# doctest: +SKIP
+        >>> with Subscriber("nats://127.0.0.1:4222/iq") as sub:# doctest: +SKIP
         ...     samples, hdr = sub.recv(timeout_ms=1000)  # doctest: +SKIP
         ...     print(samples.dtype, hdr["sample_rate"])  # doctest: +SKIP
         """
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_sub_destroy()``.  Safe to call multiple times.
 
         Examples
         --------
         >>> from doppler.stream import Subscriber
-        >>> sub = Subscriber("tcp://localhost:19107")
+        >>> sub = Subscriber("nats://127.0.0.1:4222/t19107")
         >>> sub.close()
         >>> sub.close()  # idempotent — no error
 
@@ -406,23 +413,27 @@ class Subscriber:
 
 
 class Push:
-    """ZMQ PUSH socket — pipeline sender for load-balanced distribution.
+    """NATS JetStream work-queue producer — durable pipeline sender.
 
-    Wraps ``dp_push_t``.  Frames are distributed round-robin across all
-    connected :class:`Pull` sockets.  Each frame is delivered to exactly
-    one Pull consumer, unlike :class:`Publisher` which fans out to all
-    subscribers.
+    Wraps ``dp_push_t``.  Each :meth:`send` is a synchronous, server-
+    acked JetStream publish: the frame is persisted (and replicated, on
+    a clustered broker) before the call returns, so a producer crash
+    never silently drops a frame.  Each persisted frame is later
+    delivered to exactly one :class:`Pull` worker (competing-consumers
+    distribution), unlike :class:`Publisher` which fans out to every
+    Subscriber.
 
-    Use the PUSH/PULL pattern when you have a pool of workers and want
-    automatic load balancing, or when you need back-pressure (PUSH blocks
-    when no Pull worker is ready to receive).
+    Use the PUSH/PULL pattern when you have a pool of workers pulling
+    from a shared, durable queue and want at-least-once delivery with
+    redelivery on worker crash (see :meth:`Pull.ack`).
 
-    The socket *binds* to ``endpoint``; Pull workers connect to it.
+    Both ends address the same NATS work-queue subject; there is no
+    bind/connect distinction (the broker mediates delivery).
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to bind, e.g. ``"tcp://*:5557"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/work"``.
     sample_type : int
         Wire encoding.  One of :data:`CI32`, :data:`CF64` (default),
         :data:`CF128`.  Raises :exc:`ValueError` for any other value.
@@ -432,19 +443,19 @@ class Push:
     ValueError
         If ``sample_type`` is not one of the three supported values.
     RuntimeError
-        If the ZMQ context or socket cannot be created.
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
     >>> from doppler.stream import Push, CF64
-    >>> push = Push("tcp://*:19108", CF64)
+    >>> push = Push("nats://127.0.0.1:4222/t19108", CF64)
     >>> type(push).__name__
     'Push'
     >>> push.close()
 
     Context-manager form:
 
-    >>> with Push("tcp://*:19109", CF64) as push:
+    >>> with Push("nats://127.0.0.1:4222/t19109", CF64) as push:
     ...     type(push).__name__
     'Push'
 
@@ -452,8 +463,8 @@ class Push:
 
     >>> import numpy as np, time                        # doctest: +SKIP
     >>> from doppler.stream import Pull                 # doctest: +SKIP
-    >>> push = Push("tcp://127.0.0.1:5557", CF64)       # doctest: +SKIP
-    >>> pull = Pull("tcp://127.0.0.1:5557")             # doctest: +SKIP
+    >>> push = Push("nats://127.0.0.1:4222/work", CF64)       # doctest: +SKIP
+    >>> pull = Pull("nats://127.0.0.1:4222/work")             # doctest: +SKIP
     >>> time.sleep(0.05)                                # doctest: +SKIP
     >>> push.send(np.ones(4, dtype=np.complex128))      # doctest: +SKIP
     >>> samples, hdr = pull.recv(timeout_ms=2000)       # doctest: +SKIP
@@ -466,7 +477,7 @@ class Push:
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint to bind, e.g. ``"tcp://*:5557"``.
+            NATS endpoint, e.g. ``"nats://127.0.0.1:4222/work"``.
         sample_type : int, optional
             Wire encoding: :data:`CI32`, :data:`CF64` (default), or
             :data:`CF128`.
@@ -479,7 +490,7 @@ class Push:
         Examples
         --------
         >>> from doppler.stream import Push, CF64
-        >>> with Push("tcp://*:19110", CF64) as push:
+        >>> with Push("nats://127.0.0.1:4222/t19110", CF64) as push:
         ...     type(push).__name__
         'Push'
 
@@ -496,11 +507,12 @@ class Push:
         sample_rate: float = 0,
         center_freq: float = 0,
     ) -> None:
-        """Send one block of samples to the next available Pull worker.
+        """Durably publish one block of samples to the work-queue.
 
-        Frames are distributed round-robin.  The call blocks until a
-        Pull socket is ready to accept (back-pressure), then releases
-        the GIL while blocked in ZMQ.
+        Blocks until the broker acks that the frame is persisted (and
+        replicated, on a clustered broker) — not until a Pull worker is
+        ready; the frame waits in the queue for the next available
+        worker. Releases the GIL while blocked on the broker round trip.
 
         Parameters
         ----------
@@ -522,14 +534,14 @@ class Push:
         ValueError
             If ``samples`` is not C-contiguous.
         RuntimeError
-            If the ZMQ send fails.
+            If the publish fails (e.g. the broker connection dropped).
 
         Examples
         --------
         >>> from doppler.stream import Push, Pull, CF64  # doctest: +SKIP
         >>> import numpy as np, time                     # doctest: +SKIP
-        >>> push = Push("tcp://127.0.0.1:5557", CF64)    # doctest: +SKIP
-        >>> pull = Pull("tcp://127.0.0.1:5557")          # doctest: +SKIP
+        >>> push = Push("nats://127.0.0.1:4222/work", CF64)    # doctest: +SKIP
+        >>> pull = Pull("nats://127.0.0.1:4222/work")          # doctest: +SKIP
         >>> time.sleep(0.05)                             # doctest: +SKIP
         >>> push.send(np.array([1+2j, 3+4j],            # doctest: +SKIP
         ...           dtype=np.complex128),              # doctest: +SKIP
@@ -540,14 +552,14 @@ class Push:
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_push_destroy()``.  Safe to call multiple times.
 
         Examples
         --------
         >>> from doppler.stream import Push, CF64
-        >>> push = Push("tcp://*:19111", CF64)
+        >>> push = Push("nats://127.0.0.1:4222/t19111", CF64)
         >>> push.close()
         >>> push.close()  # idempotent — no error
 
@@ -556,38 +568,44 @@ class Push:
 
 
 class Pull:
-    """ZMQ PULL socket — pipeline receiver for load-balanced workers.
+    """NATS JetStream work-queue consumer — durable pipeline receiver.
 
-    Wraps ``dp_pull_t``.  Receives frames from a :class:`Push` socket.
-    Multiple Pull workers can share one Push sender; each frame goes to
-    exactly one worker (round-robin from the Push side).
+    Wraps ``dp_pull_t``.  Consumes frames persisted by one or more
+    :class:`Push` producers.  Multiple Pull workers can share the same
+    durable consumer group; each frame is delivered to exactly one
+    worker.  Call :meth:`ack` once a frame is fully processed — an
+    un-acked frame is redelivered if the worker dies first.
 
     The recv path is zero-copy: see :class:`Subscriber` for the buffer
     lifetime semantics.
 
-    The socket *connects* to the Push endpoint; the Push socket binds.
+    Both ends address the same NATS work-queue subject; there is no
+    bind/connect distinction (the broker mediates delivery).
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to connect to, e.g. ``"tcp://localhost:5557"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/work"``. Requires
+        a running ``nats-server -js`` (JetStream enabled).
 
     Raises
     ------
     RuntimeError
-        If the ZMQ context or socket cannot be created.
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
-    >>> from doppler.stream import Pull
-    >>> pull = Pull("tcp://localhost:19112")
+    >>> from doppler.stream import Push, Pull, CF64
+    >>> _ = Push("nats://127.0.0.1:4222/t19112", CF64)  # provisions the queue
+    >>> pull = Pull("nats://127.0.0.1:4222/t19112")
     >>> type(pull).__name__
     'Pull'
     >>> pull.close()
 
     Context-manager form:
 
-    >>> with Pull("tcp://localhost:19113") as pull:
+    >>> _ = Push("nats://127.0.0.1:4222/t19113", CF64)  # provisions the queue
+    >>> with Pull("nats://127.0.0.1:4222/t19113") as pull:
     ...     type(pull).__name__
     'Pull'
 
@@ -603,8 +621,8 @@ class Pull:
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint to connect to, e.g.
-            ``"tcp://localhost:5557"``.
+            NATS endpoint, e.g.
+            ``"nats://127.0.0.1:4222/work"``.
         """
         ...
 
@@ -613,8 +631,9 @@ class Pull:
 
         Examples
         --------
-        >>> from doppler.stream import Pull
-        >>> with Pull("tcp://localhost:19114") as pull:
+        >>> from doppler.stream import Push, Pull, CF64
+        >>> _ = Push("nats://127.0.0.1:4222/t19114", CF64)  # provisions queue
+        >>> with Pull("nats://127.0.0.1:4222/t19114") as pull:
         ...     type(pull).__name__
         'Pull'
 
@@ -631,8 +650,8 @@ class Pull:
         """Receive one signal frame from the connected Push socket.
 
         Blocks until a frame arrives or the optional timeout expires.
-        The returned NumPy array is a zero-copy view into the ZMQ
-        message buffer; the buffer is freed when the array is
+        The returned NumPy array is a zero-copy view into the received
+        NATS message buffer; the buffer is freed when the array is
         garbage-collected.
 
         Parameters
@@ -657,27 +676,24 @@ class Pull:
         TimeoutError
             If ``timeout_ms`` elapses before a frame arrives.
         RuntimeError
-            If the ZMQ recv fails for any other reason.
+            If the underlying NATS recv fails for any other reason.
 
         Examples
         --------
         >>> from doppler.stream import Pull             # doctest: +SKIP
-        >>> with Pull("tcp://localhost:5557") as pull:  # doctest: +SKIP
+        >>> with Pull("nats://127.0.0.1:4222/work") as pull:  # doctest: +SKIP
         ...     samples, hdr = pull.recv(timeout_ms=1000)# doctest: +SKIP
         ...     print(samples.dtype, hdr["num_samples"])# doctest: +SKIP
         """
         ...
 
     def ack(self, samples: NDArray[Any]) -> None:
-        """Acknowledge a frame on a durable (JetStream) consumer.
+        """Acknowledge a frame consumed from the JetStream work-queue.
 
-        For the resilient NATS work-queue tier (a ``nats://`` Pull), delivery
-        is at-least-once: a frame stays pending until acked and is redelivered
-        if the worker dies first.  Pass the array returned by :meth:`recv`
-        once it has been fully processed, then drop the array.
-
-        A no-op for transports without acks (ZMQ, NATS core PUB/SUB), so it is
-        always safe to call.
+        Delivery is at-least-once: a frame stays pending until acked
+        and is redelivered to another worker if this one dies first.
+        Pass the array returned by :meth:`recv` once it has been fully
+        processed, then drop the array.
 
         Parameters
         ----------
@@ -702,14 +718,15 @@ class Pull:
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_pull_destroy()``.  Safe to call multiple times.
 
         Examples
         --------
-        >>> from doppler.stream import Pull
-        >>> pull = Pull("tcp://localhost:19115")
+        >>> from doppler.stream import Push, Pull, CF64
+        >>> _ = Push("nats://127.0.0.1:4222/t19115", CF64)  # provisions queue
+        >>> pull = Pull("nats://127.0.0.1:4222/t19115")
         >>> pull.close()
         >>> pull.close()  # idempotent — no error
 
@@ -718,24 +735,29 @@ class Pull:
 
 
 class Requester:
-    """ZMQ REQ socket — sends a request frame, then waits for a reply.
+    """NATS request/reply — sends a request frame, then waits for a reply.
 
-    Wraps ``dp_req_t``.  The REQ/REP pattern is strictly alternating:
-    :meth:`send` must be called before :meth:`recv`, and :meth:`recv`
-    must complete before the next :meth:`send`.  Violating this order
-    triggers a ZMQ FSM error.
+    Wraps ``dp_req_t``.  Built on a NATS request: :meth:`send` publishes
+    to the endpoint's subject with a reply-to address (a dedicated
+    inbox created for this Requester), and :meth:`recv` waits on that
+    same inbox for the :class:`Replier`'s answer.  Use this pattern
+    strictly alternating (send, then recv, then send again) — unlike
+    ZMQ's REQ socket there is no enforced state machine, but calling
+    ``recv`` before a matching ``send`` simply blocks/times out on an
+    empty inbox rather than raising immediately.
 
     Complements :class:`Replier`.  Use this pattern for control-plane
     messages (tuning commands, metadata queries) or synchronous
     signal-frame RPC where one peer processes each frame and returns a
     result.
 
-    The socket *connects* to the Replier endpoint.
+    Both ends address the same NATS subject; there is no bind/connect
+    distinction (the broker mediates delivery via the reply-to inbox).
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to connect to, e.g. ``"tcp://localhost:5558"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
     sample_type : int
         Wire encoding of frames *sent* by this socket.  One of
         :data:`CI32`, :data:`CF64` (default), :data:`CF128`.  The
@@ -746,19 +768,19 @@ class Requester:
     ValueError
         If ``sample_type`` is not one of the three supported values.
     RuntimeError
-        If the ZMQ context or socket cannot be created.
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
     >>> from doppler.stream import Requester, CF64
-    >>> req = Requester("tcp://localhost:19116", CF64)
+    >>> req = Requester("nats://127.0.0.1:4222/t19116", CF64)
     >>> type(req).__name__
     'Requester'
     >>> req.close()
 
     Context-manager form:
 
-    >>> with Requester("tcp://localhost:19117", CF64) as req:
+    >>> with Requester("nats://127.0.0.1:4222/t19117", CF64) as req:
     ...     type(req).__name__
     'Requester'
 
@@ -766,8 +788,8 @@ class Requester:
 
     >>> import numpy as np, time                            # doctest: +SKIP
     >>> from doppler.stream import Replier                  # doctest: +SKIP
-    >>> rep = Replier("tcp://*:5558", CF64)                 # doctest: +SKIP
-    >>> req = Requester("tcp://localhost:5558", CF64)       # doctest: +SKIP
+    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)                 # doctest: +SKIP
+    >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)       # doctest: +SKIP
     >>> time.sleep(0.05)                                    # doctest: +SKIP
     >>> req.send(np.ones(4, dtype=np.complex128),           # doctest: +SKIP
     ...          sample_rate=int(1e6))                      # doctest: +SKIP
@@ -783,8 +805,8 @@ class Requester:
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint to connect to, e.g.
-            ``"tcp://localhost:5558"``.
+            NATS endpoint, e.g.
+            ``"nats://127.0.0.1:4222/ctrl"``.
         sample_type : int, optional
             Wire encoding of frames sent by this socket:
             :data:`CI32`, :data:`CF64` (default), or :data:`CF128`.
@@ -797,7 +819,7 @@ class Requester:
         Examples
         --------
         >>> from doppler.stream import Requester, CF64
-        >>> with Requester("tcp://localhost:19118", CF64) as req:
+        >>> with Requester("nats://127.0.0.1:4222/t19118", CF64) as req:
         ...     type(req).__name__
         'Requester'
 
@@ -814,11 +836,13 @@ class Requester:
         sample_rate: float = 0,
         center_freq: float = 0,
     ) -> None:
-        """Send a request frame to the connected :class:`Replier`.
+        """Publish a request frame with this Requester's reply-to inbox.
 
-        The ZMQ REQ FSM requires that each :meth:`send` be followed by
-        exactly one :meth:`recv` before the next send.  Calling
-        ``send`` twice in a row raises a ZMQ error.
+        Use strictly alternating with :meth:`recv` (send, recv, send,
+        recv, ...) — sending again before consuming the previous reply
+        works mechanically but leaves an unread message in the inbox
+        for the next :meth:`recv` to pick up, which will desync the
+        request/reply pairing.
 
         Parameters
         ----------
@@ -840,13 +864,13 @@ class Requester:
         ValueError
             If ``samples`` is not C-contiguous.
         RuntimeError
-            If the ZMQ send fails (including FSM violation).
+            If the publish fails (e.g. the broker connection dropped).
 
         Examples
         --------
         >>> from doppler.stream import Requester, CF64   # doctest: +SKIP
         >>> import numpy as np                           # doctest: +SKIP
-        >>> req = Requester("tcp://localhost:5558", CF64)# doctest: +SKIP
+        >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)# doctest: +SKIP
         >>> req.send(np.ones(4, dtype=np.complex128),    # doctest: +SKIP
         ...          sample_rate=int(1e6))               # doctest: +SKIP
         """
@@ -857,9 +881,9 @@ class Requester:
     ) -> Tuple[NDArray[Any], Dict[str, Any]]:
         """Receive the reply frame from the :class:`Replier`.
 
-        Must be called after :meth:`send`; calling without a prior
-        ``send`` triggers a ZMQ FSM error.  Blocks until the reply
-        arrives or the timeout expires.
+        Waits on this Requester's reply-to inbox.  Call after
+        :meth:`send`; calling without a prior ``send`` just blocks (or
+        times out) on an empty inbox rather than raising immediately.
 
         Parameters
         ----------
@@ -879,29 +903,27 @@ class Requester:
         Raises
         ------
         TimeoutError
-            If ``timeout_ms`` elapses before the reply arrives.
-        RuntimeError
-            If the ZMQ recv fails (including FSM violation from
+            If ``timeout_ms`` elapses before a reply arrives (including
             calling ``recv`` without a prior ``send``).
 
         Examples
         --------
         >>> from doppler.stream import Requester, CF64   # doctest: +SKIP
-        >>> req = Requester("tcp://localhost:5558", CF64)# doctest: +SKIP
+        >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)# doctest: +SKIP
         >>> req.send(np.ones(4, dtype=np.complex128))    # doctest: +SKIP
         >>> reply, hdr = req.recv(timeout_ms=2000)       # doctest: +SKIP
         """
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_req_destroy()``.  Safe to call multiple times.
 
         Examples
         --------
         >>> from doppler.stream import Requester, CF64
-        >>> req = Requester("tcp://localhost:19119", CF64)
+        >>> req = Requester("nats://127.0.0.1:4222/t19119", CF64)
         >>> req.close()
         >>> req.close()  # idempotent — no error
 
@@ -910,23 +932,27 @@ class Requester:
 
 
 class Replier:
-    """ZMQ REP socket — receives a request frame, then sends a reply.
+    """NATS request/reply — receives a request frame, then sends a reply.
 
-    Wraps ``dp_rep_t``.  The REQ/REP pattern is strictly alternating:
-    :meth:`recv` must be called first to consume a request, then
-    :meth:`send` emits the reply.  Violating this order triggers a ZMQ
-    FSM error.
+    Wraps ``dp_rep_t``.  Subscribes to the endpoint's subject; each
+    :meth:`recv` captures the request's reply-to inbox, and the next
+    :meth:`send` publishes the reply directly to that inbox.  Calling
+    ``send`` before ``recv`` has captured a request raises
+    :exc:`RuntimeError` immediately (there is no reply-to target yet)
+    — unlike ZMQ's REP FSM, ``recv`` itself has no such restriction and
+    simply waits for the next request.
 
     Complements :class:`Requester`.  Use for control-plane responses or
     signal-frame RPC where the Replier processes each frame and returns
     a result synchronously.
 
-    The socket *binds* to ``endpoint``; Requesters connect to it.
+    Both ends address the same NATS subject; there is no bind/connect
+    distinction (the broker mediates delivery via the reply-to inbox).
 
     Parameters
     ----------
     endpoint : str
-        ZMQ endpoint to bind, e.g. ``"tcp://*:5558"``.
+        NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
     sample_type : int
         Wire encoding of frames *sent* by this socket (the reply).  One
         of :data:`CI32`, :data:`CF64` (default), :data:`CF128`.  The
@@ -937,19 +963,19 @@ class Replier:
     ValueError
         If ``sample_type`` is not one of the three supported values.
     RuntimeError
-        If the ZMQ context or socket cannot be created.
+        If ``nats-server`` isn't reachable at ``endpoint``.
 
     Examples
     --------
     >>> from doppler.stream import Replier, CF64
-    >>> rep = Replier("tcp://*:19120", CF64)
+    >>> rep = Replier("nats://127.0.0.1:4222/t19120", CF64)
     >>> type(rep).__name__
     'Replier'
     >>> rep.close()
 
     Context-manager form:
 
-    >>> with Replier("tcp://*:19121", CF64) as rep:
+    >>> with Replier("nats://127.0.0.1:4222/t19121", CF64) as rep:
     ...     type(rep).__name__
     'Replier'
 
@@ -957,8 +983,8 @@ class Replier:
 
     >>> from doppler.stream import Requester            # doctest: +SKIP
     >>> import numpy as np, time                        # doctest: +SKIP
-    >>> rep = Replier("tcp://*:5558", CF64)             # doctest: +SKIP
-    >>> req = Requester("tcp://localhost:5558", CF64)   # doctest: +SKIP
+    >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)             # doctest: +SKIP
+    >>> req = Requester("nats://127.0.0.1:4222/ctrl", CF64)   # doctest: +SKIP
     >>> time.sleep(0.05)                                # doctest: +SKIP
     >>> req.send(np.ones(4, dtype=np.complex128))       # doctest: +SKIP
     >>> request, hdr = rep.recv(timeout_ms=2000)        # doctest: +SKIP
@@ -973,7 +999,7 @@ class Replier:
         Parameters
         ----------
         endpoint : str
-            ZMQ endpoint to bind, e.g. ``"tcp://*:5558"``.
+            NATS endpoint, e.g. ``"nats://127.0.0.1:4222/ctrl"``.
         sample_type : int, optional
             Wire encoding of reply frames sent by this socket:
             :data:`CI32`, :data:`CF64` (default), or :data:`CF128`.
@@ -986,7 +1012,7 @@ class Replier:
         Examples
         --------
         >>> from doppler.stream import Replier, CF64
-        >>> with Replier("tcp://*:19122", CF64) as rep:
+        >>> with Replier("nats://127.0.0.1:4222/t19122", CF64) as rep:
         ...     type(rep).__name__
         'Replier'
 
@@ -1000,11 +1026,11 @@ class Replier:
     def recv(
         self, timeout_ms: int = -1
     ) -> Tuple[NDArray[Any], Dict[str, Any]]:
-        """Receive one request frame from the :class:`Requester`.
+        """Receive one request frame from a :class:`Requester`.
 
-        Must be called before :meth:`send`; calling ``send`` before
-        ``recv`` triggers a ZMQ FSM error.  Blocks until a request
-        arrives or the timeout expires.
+        Blocks until a request arrives or the timeout expires. Captures
+        the request's reply-to inbox so the next :meth:`send` reaches
+        the right Requester.
 
         Parameters
         ----------
@@ -1026,13 +1052,12 @@ class Replier:
         TimeoutError
             If ``timeout_ms`` elapses before a request arrives.
         RuntimeError
-            If the ZMQ recv fails (including FSM violation from
-            calling ``recv`` twice in a row).
+            If the underlying NATS recv fails for any other reason.
 
         Examples
         --------
         >>> from doppler.stream import Replier, CF64    # doctest: +SKIP
-        >>> rep = Replier("tcp://*:5558", CF64)         # doctest: +SKIP
+        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)         # doctest: +SKIP
         >>> request, hdr = rep.recv(timeout_ms=5000)    # doctest: +SKIP
         >>> rep.send(request,                           # doctest: +SKIP
         ...          sample_rate=hdr["sample_rate"])    # doctest: +SKIP
@@ -1045,11 +1070,12 @@ class Replier:
         sample_rate: float = 0,
         center_freq: float = 0,
     ) -> None:
-        """Send the reply frame back to the :class:`Requester`.
+        """Publish the reply to the request's captured reply-to inbox.
 
         Must be called after :meth:`recv`; calling without a prior
-        ``recv`` triggers a ZMQ FSM error.  After this call returns,
-        the Replier is ready to ``recv`` the next request.
+        ``recv`` raises :exc:`RuntimeError` immediately (there is no
+        reply-to target yet). After this call returns, the Replier is
+        ready to ``recv`` the next request.
 
         Parameters
         ----------
@@ -1073,14 +1099,14 @@ class Replier:
         ValueError
             If ``samples`` is not C-contiguous.
         RuntimeError
-            If the ZMQ send fails (including FSM violation from
-            calling ``send`` before ``recv``).
+            If ``send`` is called before ``recv`` has captured a
+            request, or the publish otherwise fails.
 
         Examples
         --------
         >>> from doppler.stream import Replier, CF64    # doctest: +SKIP
         >>> import numpy as np                          # doctest: +SKIP
-        >>> rep = Replier("tcp://*:5558", CF64)         # doctest: +SKIP
+        >>> rep = Replier("nats://127.0.0.1:4222/ctrl", CF64)         # doctest: +SKIP
         >>> request, hdr = rep.recv(timeout_ms=5000)    # doctest: +SKIP
         >>> rep.send(np.zeros_like(request),            # doctest: +SKIP
         ...          sample_rate=hdr["sample_rate"])    # doctest: +SKIP
@@ -1088,14 +1114,14 @@ class Replier:
         ...
 
     def close(self) -> None:
-        """Destroy the ZMQ socket and release all resources.
+        """Destroy the underlying NATS handle and release all resources.
 
         Calls ``dp_rep_destroy()``.  Safe to call multiple times.
 
         Examples
         --------
         >>> from doppler.stream import Replier, CF64
-        >>> rep = Replier("tcp://*:19123", CF64)
+        >>> rep = Replier("nats://127.0.0.1:4222/t19123", CF64)
         >>> rep.close()
         >>> rep.close()  # idempotent — no error
 

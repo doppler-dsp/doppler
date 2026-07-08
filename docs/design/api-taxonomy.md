@@ -160,16 +160,18 @@ detector, preamble detector, etc., in different DSP subfields.
 | `Detector`   | `CorrDetector`   |
 | `Detector2D` | `CorrDetector2D` |
 
-### 4.5 `track.MpskReceiver`'s `auto_handover` param → `acq_to_track` or `auto_mode_switch`
+### 4.5 `track.MpskReceiver`'s `auto_handover` param → `acq_to_track`
 
 Cellular-network jargon ("handover" = transferring a call between base
 stations) describing what's purely an internal loop-mode transition: swap from
 the NDA acquisition-mode carrier loop to a lower-jitter decision-directed
 tracking-mode loop once locked. Same flavor of leak as `nav_period`.
 
-| From            | To                                   |
-| --------------- | ------------------------------------ |
-| `auto_handover` | `acq_to_track` or `auto_mode_switch` |
+| From            | To             |
+| --------------- | -------------- |
+| `auto_handover` | `acq_to_track` |
+
+Landed: [doppler-dsp/doppler#361](https://github.com/doppler-dsp/doppler/issues/361).
 
 ### 4.6 Flagged, no rename proposed yet
 

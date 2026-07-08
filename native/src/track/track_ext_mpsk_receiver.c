@@ -58,7 +58,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
                                          "sps",         "n",
                                          "rrc_beta",    "rrc_span",
                                          "bn_carrier",  "zeta",
-                                         "bn_timing",   "auto_handover",
+                                         "bn_timing",   "acq_to_track",
                                          "lock_thresh", "init_norm_freq",
                                          "warmup_syms", "differential",
                                          NULL };
@@ -71,7 +71,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   double             bn_carrier      = 0.01;
   double             zeta            = 0.707;
   double             bn_timing       = 0.01;
-  int                auto_handover   = 0;
+  int                acq_to_track    = 0;
   double             lock_thresh     = 0.5;
   double             init_norm_freq  = 0.0;
   unsigned long long warmup_syms_raw = 100;
@@ -79,7 +79,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (
           args, kwds, "|siKididddiddKi", kwlist, &pulse_str, &m, &sps_raw, &n,
-          &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing, &auto_handover,
+          &rrc_beta, &rrc_span, &bn_carrier, &zeta, &bn_timing, &acq_to_track,
           &lock_thresh, &init_norm_freq, &warmup_syms_raw, &differential))
     return -1;
   int pulse = 0;
@@ -98,7 +98,7 @@ MpskReceiverObj_init (MpskReceiverObject *self, PyObject *args, PyObject *kwds)
   size_t warmup_syms = (size_t)warmup_syms_raw;
   self->handle       = mpsk_receiver_create (
       m, sps, n, pulse, rrc_beta, rrc_span, bn_carrier, zeta, bn_timing,
-      auto_handover, lock_thresh, init_norm_freq, warmup_syms, differential);
+      acq_to_track, lock_thresh, init_norm_freq, warmup_syms, differential);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError,
@@ -503,7 +503,7 @@ static PyMethodDef MpskReceiverObj_methods[] = {
     "wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n "
     "dumps/symbol to acquire the carrier with no data and no symbol timing, "
     "matched-filters the de-rotated stream (integrate-and-dump or RRC), and "
-    "runs a Gardner symbol-timing loop. With auto_handover enabled it "
+    "runs a Gardner symbol-timing loop. With acq_to_track enabled it "
     "switches to a lower-jitter decision-directed carrier loop once locked. "
     "The loop locks to one of m phases (M-fold ambiguity); resolve it with "
     "bits(differential) or a sync word. Read norm_freq for the tracked "

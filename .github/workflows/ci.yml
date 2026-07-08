@@ -75,20 +75,23 @@ jobs:
         echo "OK — wide SIMD only in runtime-dispatched *avx512* functions."
 
     # The core libdoppler is pure C and must link only -lm — no libstdc++/CXXABI.
-    # pocketfft is C99 (no longer C++) and the C++ zmq/stream layer is split into
-    # the optional libdoppler_stream component. This gate catches any C++ creeping
-    # back into the core (a new .cc TU, or zmq re-folded into the core archive),
-    # which would re-break downstreams that cannot supply a matching libstdc++.
+    # pocketfft is C99 (no longer C++). This gate catches any C++ creeping back
+    # into the core (e.g. a new .cc TU), which would re-break downstreams that
+    # cannot supply a matching libstdc++. ZMQ (the only C++ ever in this repo)
+    # was removed entirely, so libdoppler_stream (the optional NATS component)
+    # is checked here too — the whole build is pure C now, not just the core.
     # NB: __cxa_finalize@GLIBC is a libc symbol (not libstdc++) and is excluded by
     # matching only GLIBCXX_/CXXABI_/std::/operator new|delete.
-    - name: Verify C++-free core (no libstdc++/CXXABI)
+    - name: Verify C++-free build (no libstdc++/CXXABI anywhere)
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         pat='GLIBCXX_|CXXABI_|std::|operator new|operator delete'
         bad=$(nm -CD build/libdoppler.so 2>/dev/null | grep -E "$pat" || true)
         bad="$bad$(nm -C build/libdoppler.a 2>/dev/null | grep -E "$pat" || true)"
+        bad="$bad$(nm -CD build/libdoppler_stream.so 2>/dev/null | grep -E "$pat" || true)"
+        bad="$bad$(nm -C build/libdoppler_stream.a 2>/dev/null | grep -E "$pat" || true)"
         if [ -n "$bad" ]; then
-          echo "::error::core libdoppler references the C++ runtime — it must be pure C:"
+          echo "::error::doppler references the C++ runtime — the whole build must be pure C:"
           echo "$bad" | head -20
           exit 1
         fi
@@ -96,15 +99,19 @@ jobs:
           echo "::error::libdoppler.so has a dynamic libstdc++ dependency"
           exit 1
         fi
-        echo "OK — core libdoppler is C++-free (libstdc++/CXXABI absent; links -lm only)."
+        if ldd build/libdoppler_stream.so | grep -qi 'libstdc++'; then
+          echo "::error::libdoppler_stream.so has a dynamic libstdc++ dependency"
+          exit 1
+        fi
+        echo "OK — doppler is C++-free everywhere (libstdc++/CXXABI absent; links -lm only)."
 
     # Statically link the core archive into a downstream C program with just -lm
-    # — no -lstdc++, no zmq, no special linker flags — on EVERY platform. This is
-    # the consumer scenario the release C-tarball smoke checks, hoisted into CI
-    # so a regression (e.g. an undefined-symbol seam that only ld64 rejects) is
-    # caught on macOS *before* a release rather than after the PyPI publish. The
-    # consumer drives doppler_wfmgen (file output), exercising the wfm_zmq_sink_*
-    # weak-stub seam that keeps libdoppler.a self-contained.
+    # — no -lstdc++, no special linker flags — on EVERY platform. This is the
+    # consumer scenario the release C-tarball smoke checks, hoisted into CI so a
+    # regression (e.g. an undefined-symbol seam that only ld64 rejects) is caught
+    # on macOS *before* a release rather than after the PyPI publish. The
+    # consumer drives doppler_wfmgen (file output), exercising the
+    # wfm_stream_sink_* weak-stub seam that keeps libdoppler.a self-contained.
     - name: Smoke-test static link (libdoppler.a -lm)
       run: |
         cc examples/consumer/main.c -Inative/inc -Ibuild/native/inc \
@@ -230,7 +237,6 @@ jobs:
         apt-get install -y --no-install-recommends \
           build-essential \
           pkg-config \
-          libzmq3-dev \
           libfftw3-dev \
           ca-certificates \
           wget

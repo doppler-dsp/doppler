@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     pkg-config \
-    libzmq3-dev \
     libfftw3-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,7 +26,6 @@ RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -S . && \
 FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libzmq5 \
     libfftw3-3 \
     && rm -rf /var/lib/apt/lists/*
 

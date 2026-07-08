@@ -31,7 +31,7 @@ class FIR:
 
         """
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Filter n_in CF32 samples and write the results to out. Each output sample is the inner product of the tap vector with the current delay line.  The delay line is updated with each input sample so state carries over across successive calls — process frames of any size without gaps or overlap.  The scratch buffer is grown lazily on the first call and reused on subsequent calls of the same size.
 
         Parameters
@@ -60,6 +60,9 @@ class FIR:
         [0.25, 0.5, 0.25]
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

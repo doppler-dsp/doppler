@@ -22,7 +22,7 @@ class DDC:
     """
     def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Mix input block with LO, then rate-convert.
 
         Parameters
@@ -51,6 +51,9 @@ class DDC:
         1.0
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
 
     def reset(self) -> None:
         """Zero LO phase and filter history.

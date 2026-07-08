@@ -91,8 +91,8 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
           double        ph = 2.0 * M_PI * foff * (double)n;
           float complex c  = (float)cos (ph) + (float)sin (ph) * I;
           float complex w  = (float)(sigma * gauss (&st))
-                            + (float)(sigma * gauss (&st)) * I;
-          tx[n] = s * c + w;
+                             + (float)(sigma * gauss (&st)) * I;
+          tx[n]            = s * c + w;
         }
     }
 }

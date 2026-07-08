@@ -37,7 +37,7 @@ CFAR noise estimate:
 
 ```python
 from doppler.detection import det_dwell, det_threshold
-from doppler.spectral import Detector2D
+from doppler.spectral import CorrDetector2D
 import math, numpy as np
 
 N_DOPPLER, N_CODE_PHASE = 16, 16
@@ -78,14 +78,14 @@ def signal_frame():
 
 signal_block = np.concatenate([signal_frame() for _ in range(M)])
 
-det = Detector2D(
+det = CorrDetector2D(
     ref2d, dwell=M, noise_lo=1, noise_hi=N - 1, threshold=0.0
 )
 for *_, stat in det.push(signal_block):
     detected = stat > theta
 ```
 
-`Detector2D.push()` accepts arbitrary-length blocks and yields
+`CorrDetector2D.push()` accepts arbitrary-length blocks and yields
 `(row, col, peak_mag, noise_est, test_stat)` for each dwell; compare
 `test_stat` against `theta` to declare acquisition.
 
@@ -113,6 +113,6 @@ python src/doppler/examples/detection2d_demo.py  # → detection2d_demo.png  (~1
 ```
 
 See [Correlation and Detection](corr.md) for the base `Corr2D` /
-`Detector2D` classes, and the full script
+`CorrDetector2D` classes, and the full script
 `src/doppler/examples/detection2d_demo.py` for the ROC construction and
 Monte Carlo validation behind the right-hand panels.

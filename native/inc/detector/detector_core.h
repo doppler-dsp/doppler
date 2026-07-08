@@ -126,10 +126,10 @@ typedef struct
  * @param nthreads   Accepted for API compatibility; ignored.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @code
- * >>> from doppler.spectral import Detector
+ * >>> from doppler.spectral import CorrDetector
  * >>> import numpy as np
  * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
- * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
  * ...                noise_mode="mean", threshold=0.0)
  * >>> det.n, det.dwell, det.ring_cap
  * (8, 1, 512)
@@ -151,10 +151,10 @@ void detector_destroy (detector_state_t *state);
  * rebuilding any internal object.
  *
  * @code
- * >>> from doppler.spectral import Detector
+ * >>> from doppler.spectral import CorrDetector
  * >>> import numpy as np
  * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
- * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
  * ...                noise_mode="mean", threshold=0.0)
  * >>> _ = det.push(np.ones(8, dtype=np.complex64))
  * >>> det.reset()
@@ -201,10 +201,10 @@ void detector_set_threshold (detector_state_t *state, float threshold);
  * @param max_results  Capacity of @p result (maximum detections to emit).
  * @return Number of det_result_t entries written to @p result.
  * @code
- * >>> from doppler.spectral import Detector
+ * >>> from doppler.spectral import CorrDetector
  * >>> import numpy as np
  * >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
- * >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+ * >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
  * ...                noise_mode="mean", threshold=0.0)
  * >>> results = det.push(np.ones(8, dtype=np.complex64))
  * >>> len(results)

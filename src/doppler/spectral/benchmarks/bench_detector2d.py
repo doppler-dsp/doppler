@@ -1,4 +1,4 @@
-"""Benchmark for Detector2D.
+"""Benchmark for CorrDetector2D.
 
 Run: pytest src/doppler/spectral/benchmarks/bench_detector2d.py
      --benchmark-only
@@ -7,7 +7,7 @@ Run: pytest src/doppler/spectral/benchmarks/bench_detector2d.py
 import numpy as np
 import pytest
 
-from doppler.spectral import Detector2D
+from doppler.spectral import CorrDetector2D
 
 NY = 8
 NX = 8
@@ -16,7 +16,7 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return Detector2D(
+    return CorrDetector2D(
         np.zeros((NY, NX), dtype=np.complex64),
         "mean",
         4,

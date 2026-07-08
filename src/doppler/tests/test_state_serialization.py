@@ -54,7 +54,7 @@ from doppler.resample import (
     Resampler,
 )
 from doppler.source import AWGN, LO, NCO
-from doppler.spectral import PSD, Corr, Corr2D, Detector, Detector2D
+from doppler.spectral import PSD, Corr, Corr2D, CorrDetector, CorrDetector2D
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
@@ -326,12 +326,14 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     ),
     # Detectors / analyzer / generator — output is phase/threshold dependent,
     # so the post-block state blob is the resume observable.
-    "Detector": (
-        lambda: Detector(ref=_REF16, dwell=3, threshold=0.0),
+    "CorrDetector": (
+        lambda: CorrDetector(ref=_REF16, dwell=3, threshold=0.0),
         _blob_after(lambda o, seg: o.push(seg)),
     ),
-    "Detector2D": (
-        lambda: Detector2D(ref=_REF16.reshape(4, 4), dwell=3, threshold=0.0),
+    "CorrDetector2D": (
+        lambda: CorrDetector2D(
+            ref=_REF16.reshape(4, 4), dwell=3, threshold=0.0
+        ),
         _blob_after(lambda o, seg: o.push(seg)),
     ),
     "Specan": (

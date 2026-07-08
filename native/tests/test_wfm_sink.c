@@ -40,8 +40,8 @@ broker_reachable (void)
   if (fd < 0)
     return 0;
   struct sockaddr_in addr;
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons (4222);
+  addr.sin_family      = AF_INET;
+  addr.sin_port        = htons (4222);
   addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
   int ok = (connect (fd, (struct sockaddr *)&addr, sizeof addr) == 0);
   close (fd);
@@ -66,8 +66,8 @@ main (void)
   for (int t = 0; t < 5; t++)
     {
       char ep[96];
-      snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-test-%d-%ld",
-                t, (long)time (NULL));
+      snprintf (ep, sizeof ep, "nats://127.0.0.1:4222/wfm-sink-test-%d-%ld", t,
+                (long)time (NULL));
       wfm_stream_sink_t *s = wfm_stream_sink_open (ep, t);
       CHECK (s, "sink open");
       CHECK (wfm_stream_sink_send (s, blk, 256, 1e6, 2.4e9) == 0, "send 1");

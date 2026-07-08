@@ -1,13 +1,14 @@
 """Exhaustive API-surface coverage for ``doppler.wfm`` / ``wfmgen``.
 
-Where :mod:`test_dsp_correctness` validates the *math*, this module validates
-the *surface*: every public name in ``doppler.wfm.__all__`` is importable and
-exercised, every handle class round-trips its lifecycle (construct → use → read
-properties → context-manager → ``close``/``destroy``), the ``Segment`` /
-``Timeline`` / ``Composer`` graph composes and serialises, the live ``StreamSink``
-+ ``SampleClock`` path actually moves samples, and the ``wfmgen`` CLI honours
-its full argument map with **face parity** (CLI bytes == Python ``Composer``
-bytes == ``--from-file`` JSON replay).
+Where :mod:`test_dsp_correctness` validates the *math*, this module
+validates the *surface*: every public name in ``doppler.wfm.__all__`` is
+importable and exercised, every handle class round-trips its lifecycle
+(construct → use → read properties → context-manager →
+``close``/``destroy``), the ``Segment`` / ``Timeline`` / ``Composer`` graph
+composes and serialises, the live ``StreamSink`` + ``SampleClock`` path
+actually moves samples, and the ``wfmgen`` CLI honours its full argument
+map with **face parity** (CLI bytes == Python ``Composer`` bytes ==
+``--from-file`` JSON replay).
 
 A **completeness gate** (:class:`TestSurfaceCompleteness`) fails loudly if a
 new public symbol is added to ``__all__`` without a matching entry in the
@@ -529,7 +530,7 @@ class TestStreamSinkAndClock:
     def test_streamsink_clip_properties(self) -> None:
         import random
 
-        ep = f"nats://127.0.0.1:4222/streamsink-feed2-{random.randint(1, 10**9)}"
+        ep = f"nats://127.0.0.1:4222/ssfeed2-{random.randint(1, 10**9)}"
         sink = w.StreamSink(ep, sample_type="ci16")
         sink.track_clipping(1)
         sink.send(3.0 * np.ones(64, np.complex64), 1e6, 0.0)

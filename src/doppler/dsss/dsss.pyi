@@ -316,7 +316,7 @@ class Acquisition:
 
     def __exit__(self, *args: object) -> None: ...
 
-class PolyPhaseEstimator:
+class PolynomialPhaseEstimator:
     """Create a polynomial-phase estimator.
 
     Parameters
@@ -330,8 +330,8 @@ class PolyPhaseEstimator:
     --------
     Create with defaults:
 
-    >>> from doppler.dsss import PolyPhaseEstimator
-    >>> obj = PolyPhaseEstimator(max_len=4096, max_rate=0.0)
+    >>> from doppler.dsss import PolynomialPhaseEstimator
+    >>> obj = PolynomialPhaseEstimator(max_len=4096, max_rate=0.0)
 
     """
     def __init__(self, max_len: int = ..., max_rate: float = ...) -> None: ...
@@ -373,7 +373,7 @@ class PolyPhaseEstimator:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "PolyPhaseEstimator": ...
+    def __enter__(self) -> "PolynomialPhaseEstimator": ...
 
     def __exit__(self, *args: object) -> None: ...
 

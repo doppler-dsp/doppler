@@ -6,6 +6,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .dsss import Despreader, Acquisition, PolyPhaseEstimator, BurstDemod  # noqa: E402
+from .dsss import BurstDespreader, Acquisition, PolyPhaseEstimator, BurstDemod  # noqa: E402
 
-__all__ = ["Despreader", "Acquisition", "PolyPhaseEstimator", "BurstDemod"]
+__all__ = ["BurstDespreader", "Acquisition", "PolyPhaseEstimator", "BurstDemod"]

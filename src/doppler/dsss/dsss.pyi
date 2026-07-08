@@ -3,8 +3,8 @@ from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
-class Despreader:
-    """Despreader component.
+class BurstDespreader:
+    """BurstDespreader component.
 
     Parameters
     ----------
@@ -36,7 +36,7 @@ class Despreader:
         Streams: a partial symbol is carried in state across calls. Each emitted
         symbol is the complex prompt integrate-and-dump (carrier-wiped,
         code-stripped) — its sign is the BPSK decision, its phase/magnitude the
-        soft information. During a `despreader_set_acq` preamble no symbols are
+        soft information. During a `burst_despreader_set_acq` preamble no symbols are
         emitted (the loops are pulling in); payload symbols follow.
 
         Without out=, the returned array is a view into a buffer reused on the
@@ -59,11 +59,11 @@ class Despreader:
         Examples
         --------
         // seed from acquisition (norm_freq cyc/sample, chip phase in chips):
-        despreader_state_t *d = despreader_create(code, n, 32, 2, f0, chip, .05, .01);
+        burst_despreader_state_t *d = burst_despreader_create(code, n, 32, 2, f0, chip, .05, .01);
         float complex sym[256];
-        size_t k = despreader_steps(d, rx, rx_len, sym, 256);
+        size_t k = burst_despreader_steps(d, rx, rx_len, sym, 256);
         // hard bit of sym[i] = crealf(sym[i]) >= 0
-        despreader_destroy(d);
+        burst_despreader_destroy(d);
 
         """
 
@@ -75,7 +75,7 @@ class Despreader:
     ) -> NDArray[np.uint8]:
         """Despread a cf32 block; emit one hard BPSK bit per code period.
 
-        Same streaming kernel as despreader_steps(), but emits the hard decision
+        Same streaming kernel as burst_despreader_steps(), but emits the hard decision
         `crealf(prompt) >= 0` instead of the complex symbol.
 
         Without out=, the returned array is a view into a buffer reused on the
@@ -107,7 +107,7 @@ class Despreader:
         in even a wide residual) before switching to the data code for the
         payload. Call before feeding the burst; the acq mode clears
         automatically once the preamble is consumed, and re-arms on
-        despreader_reset().
+        burst_despreader_reset().
 
         Parameters
         ----------
@@ -161,7 +161,7 @@ class Despreader:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Despreader": ...
+    def __enter__(self) -> "BurstDespreader": ...
 
     def __exit__(self, *args: object) -> None: ...
 

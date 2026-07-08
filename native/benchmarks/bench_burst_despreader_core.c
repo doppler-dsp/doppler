@@ -1,5 +1,5 @@
-/* bench_despreader_core.c — no step() to benchmark */
-#include "despreader/despreader_core.h"
+/* bench_burst_despreader_core.c — no step() to benchmark */
+#include "burst_despreader/burst_despreader_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,8 +18,8 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  despreader_state_t *obj
-      = despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.01, 0.002);
+  burst_despreader_state_t *obj
+      = burst_despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.01, 0.002);
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
@@ -27,7 +27,7 @@ main (void)
   printf ("  (no step(); methods below)\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  jm_bench_write_json (&_bench, "despreader");
-  despreader_destroy (obj);
+  jm_bench_write_json (&_bench, "burst_despreader");
+  burst_despreader_destroy (obj);
   return 0;
 }

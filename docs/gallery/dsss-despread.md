@@ -33,12 +33,12 @@ The receiver is built from two new objects:
 
 - [`track.LoopFilter`](../api/python-track.md) — a reusable 2nd-order PI loop filter,
     the shared engine of the code and carrier loops.
-- [`dsss.Despreader`](../api/python-dsss.md) — carrier wipe-off (Costas) + an
+- [`dsss.BurstDespreader`](../api/python-dsss.md) — carrier wipe-off (Costas) + an
     early/prompt/late delay-locked loop (DLL), integrate-and-dump per code period.
 
 ```python
 import numpy as np
-from doppler.dsss import Despreader
+from doppler.dsss import BurstDespreader
 
 # A real DSSS-BPSK payload: 40 symbols spread by a 32-chip data code at 2
 # samples/chip, plus the long acq code that seeds the preamble pull-in.
@@ -53,7 +53,7 @@ rx = np.repeat(np.concatenate([s * dsig for s in syms]), 2).astype(
 acq_freq, acq_chip = 0.0, 0.0  # seeded from acquisition (genie here)
 
 # seed from acquisition: norm_freq (cycles/sample), chip phase (chips)
-d = Despreader(data_code, sf=32, sps=2,
+d = BurstDespreader(data_code, sf=32, sps=2,
                init_norm_freq=acq_freq, init_chip_phase=acq_chip)
 d.set_acq(acq_code, acq_reps=5)    # preamble-aided pull-in (optional)
 symbols = d.steps(rx)              # complex prompt symbols

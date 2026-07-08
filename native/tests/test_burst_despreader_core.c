@@ -1,4 +1,4 @@
-#include "despreader/despreader_core.h"
+#include "burst_despreader/burst_despreader_core.h"
 #include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
@@ -69,7 +69,8 @@ main (void)
   int _fails = 0;
 
   /* Invalid args -> NULL (not a silent zero state). */
-  CHECK (despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01) == NULL);
+  CHECK (burst_despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01)
+         == NULL);
 
   size_t  sf = 31, sps = 4, nsym = 120;
   uint8_t code[31];
@@ -80,52 +81,52 @@ main (void)
   size_t   blen = 0;
 
   /* (1) Genie: zero offset, no noise -> exact recovery. */
-  float complex      *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
-  despreader_state_t *d
-      = despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
+  float complex *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
+  burst_despreader_state_t *d
+      = burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
   CHECK (d != NULL);
-  size_t n_out = despreader_bits (d, burst, blen, rx, nsym);
+  size_t n_out = burst_despreader_bits (d, burst, blen, rx, nsym);
   CHECK (n_out == nsym);
   CHECK (amb_ber (rx, tx, 0, n_out) == 0.0);
-  despreader_destroy (d);
+  burst_despreader_destroy (d);
   free (burst);
 
   /* (2) Carrier offset, seeded at the true frequency -> exact recovery,
    *     loop holds the frequency. */
   double f0 = 0.0006;
   burst     = make_burst (code, sf, sps, nsym, f0, tx, &blen);
-  d         = despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
-  n_out     = despreader_bits (d, burst, blen, rx, nsym);
+  d         = burst_despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
+  n_out     = burst_despreader_bits (d, burst, blen, rx, nsym);
   CHECK (amb_ber (rx, tx, n_out / 4, n_out) == 0.0);
-  CHECK (fabs (despreader_get_norm_freq (d) - f0) < 1e-4);
-  CHECK (despreader_get_lock_metric (d) > 0.9);
+  CHECK (fabs (burst_despreader_get_norm_freq (d) - f0) < 1e-4);
+  CHECK (burst_despreader_get_lock_metric (d) > 0.9);
 
   /* (3) reset re-seeds; a second identical run reproduces the first. */
-  despreader_reset (d);
+  burst_despreader_reset (d);
   uint8_t *rx2 = malloc (nsym);
-  size_t   n2  = despreader_bits (d, burst, blen, rx2, nsym);
+  size_t   n2  = burst_despreader_bits (d, burst, blen, rx2, nsym);
   CHECK (n2 == n_out);
   CHECK (amb_ber (rx2, tx, n2 / 4, n2) == 0.0);
 
   /* (4) property accessors round-trip. */
-  despreader_set_bn_carrier (d, 0.06);
-  CHECK (despreader_get_bn_carrier (d) == 0.06);
-  despreader_set_bn_code (d, 0.02);
-  CHECK (despreader_get_bn_code (d) == 0.02);
-  despreader_set_norm_freq (d, 0.001);
-  CHECK (fabs (despreader_get_norm_freq (d) - 0.001) < 1e-9);
-  (void)despreader_get_code_phase (d);
-  (void)despreader_get_lock_metric (d);
-  (void)despreader_get_snr_est (d);
+  burst_despreader_set_bn_carrier (d, 0.06);
+  CHECK (burst_despreader_get_bn_carrier (d) == 0.06);
+  burst_despreader_set_bn_code (d, 0.02);
+  CHECK (burst_despreader_get_bn_code (d) == 0.02);
+  burst_despreader_set_norm_freq (d, 0.001);
+  CHECK (fabs (burst_despreader_get_norm_freq (d) - 0.001) < 1e-9);
+  (void)burst_despreader_get_code_phase (d);
+  (void)burst_despreader_get_lock_metric (d);
+  (void)burst_despreader_get_snr_est (d);
 
   /* (5) set_acq enable then disable (payload-only). */
   uint8_t acq[16];
   for (size_t i = 0; i < 16; i++)
     acq[i] = (uint8_t)(i & 1u);
-  despreader_set_acq (d, acq, 16, 3);
-  despreader_set_acq (d, NULL, 0, 0); /* disable */
+  burst_despreader_set_acq (d, acq, 16, 3);
+  burst_despreader_set_acq (d, NULL, 0, 0); /* disable */
 
-  despreader_destroy (d);
+  burst_despreader_destroy (d);
   free (burst);
   free (rx2);
 
@@ -133,7 +134,7 @@ main (void)
   free (rx);
   if (_fails)
     {
-      fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
+      fprintf (stderr, "test_burst_despreader_core FAILED (%d)\n", _fails);
       return 1;
     }
   /* serializable state — whole-struct (loop_filter children embedded); the
@@ -145,19 +146,19 @@ main (void)
     float complex rx[256], sym[8];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
-    despreader_state_t *a
-        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
-    despreader_state_t *b
-        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    burst_despreader_state_t *a
+        = burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    burst_despreader_state_t *b
+        = burst_despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
     CHECK (a != NULL && b != NULL);
-    (void)despreader_steps (a, rx, 256, sym, 8);
-    DP_STATE_ROUNDTRIP_TEST (despreader, a, b);
+    (void)burst_despreader_steps (a, rx, 256, sym, 8);
+    DP_STATE_ROUNDTRIP_TEST (burst_despreader, a, b);
     CHECK (b->car_phase == a->car_phase && b->acc_p == a->acc_p);
     CHECK (b->code != NULL && b->code != a->code);
-    despreader_destroy (a);
-    despreader_destroy (b);
+    burst_despreader_destroy (a);
+    burst_despreader_destroy (b);
   }
 
-  printf ("test_despreader_core PASSED\n");
+  printf ("test_burst_despreader_core PASSED\n");
   return 0;
 }

@@ -1,19 +1,19 @@
 /*
- * dsss_ext_despreader.c — Despreader type for the dsss module.
+ * dsss_ext_burst_despreader.c — BurstDespreader type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* DespreaderObject — wraps despreader_state_t *       */
+/* BurstDespreaderObject — wraps burst_despreader_state_t *       */
 /* ======================================================== */
 
-#include "despreader/despreader_core.h"
+#include "burst_despreader/burst_despreader_core.h"
 
 typedef struct
 {
-  PyObject_HEAD despreader_state_t *handle;
+  PyObject_HEAD burst_despreader_state_t *handle;
   float complex *_steps_buf;     /* pre-allocated output for steps */
   size_t         _steps_buf_cap; /* allocated capacity for steps */
   void         **_steps_retired; /* gh-219 deferred free */
@@ -24,13 +24,13 @@ typedef struct
   void         **_bits_retired; /* gh-219 deferred free */
   size_t         _bits_retired_n;
   size_t         _bits_retired_cap;
-} DespreaderObject;
+} BurstDespreaderObject;
 
 static void
-DespreaderObj_dealloc (DespreaderObject *self)
+BurstDespreaderObj_dealloc (BurstDespreaderObject *self)
 {
   if (self->handle)
-    despreader_destroy (self->handle);
+    burst_despreader_destroy (self->handle);
   free (self->_steps_buf);
   for (size_t _i = 0; _i < self->_steps_retired_n; _i++)
     free (self->_steps_retired[_i]);
@@ -43,16 +43,18 @@ DespreaderObj_dealloc (DespreaderObject *self)
 }
 
 static PyObject *
-DespreaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+BurstDespreaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  DespreaderObject *self = (DespreaderObject *)type->tp_alloc (type, 0);
+  BurstDespreaderObject *self
+      = (BurstDespreaderObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
+BurstDespreaderObj_init (BurstDespreaderObject *self, PyObject *args,
+                         PyObject *kwds)
 {
   static char *kwlist[]
       = { "code",       "sf",      "sps", "init_norm_freq", "init_chip_phase",
@@ -78,17 +80,18 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle = despreader_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                    code_len, sf, sps, init_norm_freq,
-                                    init_chip_phase, bn_carrier, bn_code);
+  self->handle    = burst_despreader_create (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, sf, sps,
+      init_norm_freq, init_chip_phase, bn_carrier, bn_code);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "despreader_create returned NULL");
+      PyErr_SetString (PyExc_MemoryError,
+                       "burst_despreader_create returned NULL");
       return -1;
     }
   {
-    size_t _max = despreader_steps_max_out (self->handle);
+    size_t _max = burst_despreader_steps_max_out (self->handle);
     if (_max)
       {
         self->_steps_buf = malloc (_max * sizeof (float complex));
@@ -101,7 +104,7 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
       }
   }
   {
-    size_t _max = despreader_bits_max_out (self->handle);
+    size_t _max = burst_despreader_bits_max_out (self->handle);
     if (_max)
       {
         self->_bits_buf = malloc (_max * sizeof (uint8_t));
@@ -117,19 +120,20 @@ DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DespreaderObj_steps_max_out (DespreaderObject *self,
-                             PyObject         *Py_UNUSED (ignored))
+BurstDespreaderObj_steps_max_out (BurstDespreaderObject *self,
+                                  PyObject              *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_steps_max_out (self->handle));
+  return PyLong_FromSize_t (burst_despreader_steps_max_out (self->handle));
 }
 
 static PyObject *
-DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
+BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
+                          PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -158,7 +162,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = despreader_steps_max_out (self->handle);
+      size_t _omax    = burst_despreader_steps_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -179,7 +183,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
       float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
       size_t               n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = burst_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -196,7 +200,7 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_steps_buf || self->_steps_buf_cap < _need)
     {
-      size_t _max = despreader_steps_max_out (self->handle);
+      size_t _max = burst_despreader_steps_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_steps_buf
@@ -234,8 +238,8 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = despreader_steps (self->handle, _ng0, _ng1, self->_steps_buf,
-                              self->_steps_buf_cap);
+    n_out = burst_despreader_steps (self->handle, _ng0, _ng1, self->_steps_buf,
+                                    self->_steps_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
@@ -249,19 +253,20 @@ DespreaderObj_steps (DespreaderObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DespreaderObj_bits_max_out (DespreaderObject *self,
-                            PyObject         *Py_UNUSED (ignored))
+BurstDespreaderObj_bits_max_out (BurstDespreaderObject *self,
+                                 PyObject              *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_bits_max_out (self->handle));
+  return PyLong_FromSize_t (burst_despreader_bits_max_out (self->handle));
 }
 
 static PyObject *
-DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
+BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
+                         PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -289,7 +294,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = despreader_bits_max_out (self->handle);
+      size_t _omax    = burst_despreader_bits_max_out (self->handle);
       size_t _min_cap = _omax > (size_t)PyArray_SIZE (x_arr)
                             ? _omax
                             : ((size_t)PyArray_SIZE (x_arr));
@@ -310,7 +315,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
       uint8_t             *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
       size_t               n_out;
       Py_BEGIN_ALLOW_THREADS
-        n_out = despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
+        n_out = burst_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -327,7 +332,7 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t _need = (size_t)PyArray_SIZE (x_arr);
   if (!self->_bits_buf || self->_bits_buf_cap < _need)
     {
-      size_t _max = despreader_bits_max_out (self->handle);
+      size_t _max = burst_despreader_bits_max_out (self->handle);
       if (!_max || _max < _need)
         _max = _need;
       if (self->_bits_buf && self->_bits_retired_n == self->_bits_retired_cap)
@@ -364,8 +369,8 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
   size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
   size_t               n_out;
   Py_BEGIN_ALLOW_THREADS
-    n_out = despreader_bits (self->handle, _ng0, _ng1, self->_bits_buf,
-                             self->_bits_buf_cap);
+    n_out = burst_despreader_bits (self->handle, _ng0, _ng1, self->_bits_buf,
+                                   self->_bits_buf_cap);
   Py_END_ALLOW_THREADS
   npy_intp  dim = (npy_intp)n_out;
   PyObject *arr
@@ -379,7 +384,8 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DespreaderObj_set_acq (DespreaderObject *self, PyObject *args, PyObject *kwds)
+BurstDespreaderObj_set_acq (BurstDespreaderObject *self, PyObject *args,
+                            PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -401,53 +407,55 @@ DespreaderObj_set_acq (DespreaderObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *acq_code     = (const uint8_t *)PyArray_DATA (acq_code_arr);
   size_t         acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
-  despreader_set_acq (self->handle, acq_code, acq_code_len, acq_reps);
+  burst_despreader_set_acq (self->handle, acq_code, acq_code_len, acq_reps);
   Py_DECREF (acq_code_arr);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-DespreaderObj_reset (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
+BurstDespreaderObj_reset (BurstDespreaderObject *self,
+                          PyObject              *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  despreader_reset (self->handle);
+  burst_despreader_reset (self->handle);
   Py_RETURN_NONE;
 }
 
 static PyObject *
-DespreaderObj_state_bytes (DespreaderObject *self,
-                           PyObject         *Py_UNUSED (ignored))
+BurstDespreaderObj_state_bytes (BurstDespreaderObject *self,
+                                PyObject              *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyLong_FromSize_t (despreader_state_bytes (self->handle));
+  return PyLong_FromSize_t (burst_despreader_state_bytes (self->handle));
 }
 
 static PyObject *
-DespreaderObj_get_state (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
+BurstDespreaderObj_get_state (BurstDespreaderObject *self,
+                              PyObject              *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  size_t    _n = despreader_state_bytes (self->handle);
+  size_t    _n = burst_despreader_state_bytes (self->handle);
   PyObject *_b = PyBytes_FromStringAndSize (NULL, (Py_ssize_t)_n);
   if (!_b)
     return NULL;
-  despreader_get_state (self->handle, PyBytes_AS_STRING (_b));
+  burst_despreader_get_state (self->handle, PyBytes_AS_STRING (_b));
   return _b;
 }
 
 static PyObject *
-DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
+BurstDespreaderObj_set_state (BurstDespreaderObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
@@ -459,12 +467,13 @@ DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
       PyErr_SetString (PyExc_TypeError, "set_state expects bytes");
       return NULL;
     }
-  if ((size_t)PyBytes_GET_SIZE (arg) != despreader_state_bytes (self->handle))
+  if ((size_t)PyBytes_GET_SIZE (arg)
+      != burst_despreader_state_bytes (self->handle))
     {
       PyErr_SetString (PyExc_ValueError, "state blob size mismatch");
       return NULL;
     }
-  if (despreader_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
+  if (burst_despreader_set_state (self->handle, PyBytes_AS_STRING (arg)) != 0)
     {
       PyErr_SetString (PyExc_ValueError, "set_state rejected the blob");
       return NULL;
@@ -472,8 +481,8 @@ DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-Despreader_getprop_bn_carrier (DespreaderObject *self,
-                               void             *Py_UNUSED (closure))
+BurstDespreader_getprop_bn_carrier (BurstDespreaderObject *self,
+                                    void                  *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -481,11 +490,11 @@ Despreader_getprop_bn_carrier (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_bn_carrier (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_bn_carrier (self->handle));
 }
 static int
-Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
-                               void *Py_UNUSED (closure))
+BurstDespreader_setprop_bn_carrier (BurstDespreaderObject *self,
+                                    PyObject *value, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -495,11 +504,12 @@ Despreader_setprop_bn_carrier (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_bn_carrier (self->handle, v);
+  burst_despreader_set_bn_carrier (self->handle, v);
   return 0;
 }
 static PyObject *
-Despreader_getprop_bn_code (DespreaderObject *self, void *Py_UNUSED (closure))
+BurstDespreader_getprop_bn_code (BurstDespreaderObject *self,
+                                 void                  *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -507,11 +517,11 @@ Despreader_getprop_bn_code (DespreaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_bn_code (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_bn_code (self->handle));
 }
 static int
-Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
-                            void *Py_UNUSED (closure))
+BurstDespreader_setprop_bn_code (BurstDespreaderObject *self, PyObject *value,
+                                 void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -521,12 +531,12 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_bn_code (self->handle, v);
+  burst_despreader_set_bn_code (self->handle, v);
   return 0;
 }
 static PyObject *
-Despreader_getprop_norm_freq (DespreaderObject *self,
-                              void             *Py_UNUSED (closure))
+BurstDespreader_getprop_norm_freq (BurstDespreaderObject *self,
+                                   void                  *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -534,11 +544,11 @@ Despreader_getprop_norm_freq (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_norm_freq (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_norm_freq (self->handle));
 }
 static int
-Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
-                              void *Py_UNUSED (closure))
+BurstDespreader_setprop_norm_freq (BurstDespreaderObject *self,
+                                   PyObject *value, void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -548,12 +558,12 @@ Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
   double v = 0.0;
   if (!PyArg_Parse (value, "d", &v))
     return -1;
-  despreader_set_norm_freq (self->handle, v);
+  burst_despreader_set_norm_freq (self->handle, v);
   return 0;
 }
 static PyObject *
-Despreader_getprop_code_phase (DespreaderObject *self,
-                               void             *Py_UNUSED (closure))
+BurstDespreader_getprop_code_phase (BurstDespreaderObject *self,
+                                    void                  *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -561,11 +571,11 @@ Despreader_getprop_code_phase (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_code_phase (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_code_phase (self->handle));
 }
 static PyObject *
-Despreader_getprop_lock_metric (DespreaderObject *self,
-                                void             *Py_UNUSED (closure))
+BurstDespreader_getprop_lock_metric (BurstDespreaderObject *self,
+                                     void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -573,10 +583,11 @@ Despreader_getprop_lock_metric (DespreaderObject *self,
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_lock_metric (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_lock_metric (self->handle));
 }
 static PyObject *
-Despreader_getprop_snr_est (DespreaderObject *self, void *Py_UNUSED (closure))
+BurstDespreader_getprop_snr_est (BurstDespreaderObject *self,
+                                 void                  *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -584,95 +595,101 @@ Despreader_getprop_snr_est (DespreaderObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_snr_est (self->handle));
+  return PyFloat_FromDouble (burst_despreader_get_snr_est (self->handle));
 }
 
-static PyGetSetDef Despreader_getset[] = {
-  { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
-    (setter)Despreader_setprop_bn_carrier,
+static PyGetSetDef BurstDespreader_getset[] = {
+  { "bn_carrier", (getter)BurstDespreader_getprop_bn_carrier,
+    (setter)BurstDespreader_setprop_bn_carrier,
     "Carrier (Costas) loop noise bandwidth, normalized to the symbol rate.\n",
     NULL },
-  { "bn_code", (getter)Despreader_getprop_bn_code,
-    (setter)Despreader_setprop_bn_code,
+  { "bn_code", (getter)BurstDespreader_getprop_bn_code,
+    (setter)BurstDespreader_setprop_bn_code,
     "Code (DLL) loop noise bandwidth, normalized to the symbol rate.\n",
     NULL },
-  { "norm_freq", (getter)Despreader_getprop_norm_freq,
-    (setter)Despreader_setprop_norm_freq,
+  { "norm_freq", (getter)BurstDespreader_getprop_norm_freq,
+    (setter)BurstDespreader_setprop_norm_freq,
     "Current carrier frequency estimate, cycles/sample.\n", NULL },
-  { "code_phase", (getter)Despreader_getprop_code_phase, NULL,
+  { "code_phase", (getter)BurstDespreader_getprop_code_phase, NULL,
     "Current tracked code phase within the symbol, chips.\n", NULL },
-  { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
+  { "lock_metric", (getter)BurstDespreader_getprop_lock_metric, NULL,
     "Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked).\n",
     NULL },
-  { "snr_est", (getter)Despreader_getprop_snr_est, NULL,
+  { "snr_est", (getter)BurstDespreader_getprop_snr_est, NULL,
     "Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2).\n",
     NULL },
   { NULL }
 };
 
 static PyObject *
-DespreaderObj_destroy (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
+BurstDespreaderObj_destroy (BurstDespreaderObject *self,
+                            PyObject              *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
-      despreader_destroy (self->handle);
+      burst_despreader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
 static PyObject *
-DespreaderObj_enter (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
+BurstDespreaderObj_enter (BurstDespreaderObject *self,
+                          PyObject              *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-DespreaderObj_exit (DespreaderObject *self, PyObject *args)
+BurstDespreaderObj_exit (BurstDespreaderObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
     {
-      despreader_destroy (self->handle);
+      burst_despreader_destroy (self->handle);
       self->handle = NULL;
     }
   Py_RETURN_NONE;
 }
 
-static PyMethodDef DespreaderObj_methods[] = {
+static PyMethodDef BurstDespreaderObj_methods[] = {
 
-  { "steps", (PyCFunction)DespreaderObj_steps, METH_VARARGS | METH_KEYWORDS,
+  { "steps", (PyCFunction)BurstDespreaderObj_steps,
+    METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
     "Despread a cf32 block; emit one complex prompt symbol per code period.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
+    "    >>> from doppler import BurstDespreader\n"
+    "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
+    "0.0, "
     "0.05, 0.01)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
-  { "steps_max_out", (PyCFunction)DespreaderObj_steps_max_out, METH_NOARGS,
+  { "steps_max_out", (PyCFunction)BurstDespreaderObj_steps_max_out,
+    METH_NOARGS,
     "steps_max_out() -> int\n\nMax output length steps() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "bits", (PyCFunction)DespreaderObj_bits, METH_VARARGS | METH_KEYWORDS,
+  { "bits", (PyCFunction)BurstDespreaderObj_bits, METH_VARARGS | METH_KEYWORDS,
     "bits(x) -> ndarray\n"
     "\n"
     "Despread a cf32 block; emit one hard BPSK bit per code period.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
+    "    >>> from doppler import BurstDespreader\n"
+    "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
+    "0.0, "
     "0.05, 0.01)\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
-  { "bits_max_out", (PyCFunction)DespreaderObj_bits_max_out, METH_NOARGS,
+  { "bits_max_out", (PyCFunction)BurstDespreaderObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n\nMax output length bits() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "set_acq", (PyCFunction)(void *)DespreaderObj_set_acq,
+  { "set_acq", (PyCFunction)(void *)BurstDespreaderObj_set_acq,
     METH_VARARGS | METH_KEYWORDS,
     "set_acq(acq_code, acq_reps) -> None\n"
     "\n"
@@ -681,40 +698,42 @@ static PyMethodDef DespreaderObj_methods[] = {
     "Call before feeding the burst; clears when the preamble is consumed.\n"
     "\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
+    "    >>> from doppler import BurstDespreader\n"
+    "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
+    "0.0, "
     "0.05, 0.01)\n"
     "    >>> obj.set_acq(np.zeros(4, dtype=np.uint8), 0)\n" },
-  { "reset", (PyCFunction)DespreaderObj_reset, METH_NOARGS,
+  { "reset", (PyCFunction)BurstDespreaderObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
     "Re-seed the loops to the create-time phase/frequency; preserve config.\n"
     "\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
+    "    >>> from doppler import BurstDespreader\n"
+    "    >>> obj = BurstDespreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, "
+    "0.0, "
     "0.05, 0.01)\n"
     "    >>> obj.reset()\n" },
-  { "state_bytes", (PyCFunction)DespreaderObj_state_bytes, METH_NOARGS,
+  { "state_bytes", (PyCFunction)BurstDespreaderObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
-  { "get_state", (PyCFunction)DespreaderObj_get_state, METH_NOARGS,
+  { "get_state", (PyCFunction)BurstDespreaderObj_get_state, METH_NOARGS,
     "Serialize the engine's mutable state to bytes." },
-  { "set_state", (PyCFunction)DespreaderObj_set_state, METH_O,
+  { "set_state", (PyCFunction)BurstDespreaderObj_set_state, METH_O,
     "Restore mutable state from a get_state() blob." },
-  { "destroy", (PyCFunction)DespreaderObj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)BurstDespreaderObj_destroy, METH_NOARGS,
     "Release resources." },
-  { "__enter__", (PyCFunction)DespreaderObj_enter, METH_NOARGS, NULL },
-  { "__exit__", (PyCFunction)DespreaderObj_exit, METH_VARARGS, NULL },
+  { "__enter__", (PyCFunction)BurstDespreaderObj_enter, METH_NOARGS, NULL },
+  { "__exit__", (PyCFunction)BurstDespreaderObj_exit, METH_VARARGS, NULL },
   { NULL }
 };
 
-static PyTypeObject DespreaderObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.Despreader",
-  .tp_basicsize                           = sizeof (DespreaderObject),
-  .tp_dealloc                             = (destructor)DespreaderObj_dealloc,
-  .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Despreader type.\n",
-  .tp_methods                             = DespreaderObj_methods,
-  .tp_getset                              = Despreader_getset,
-  .tp_new                                 = DespreaderObj_new,
-  .tp_init                                = (initproc)DespreaderObj_init,
+static PyTypeObject BurstDespreaderObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.BurstDespreader",
+  .tp_basicsize                           = sizeof (BurstDespreaderObject),
+  .tp_dealloc = (destructor)BurstDespreaderObj_dealloc,
+  .tp_flags   = Py_TPFLAGS_DEFAULT,
+  .tp_doc     = "Create a burst despreader instance.\n",
+  .tp_methods = BurstDespreaderObj_methods,
+  .tp_getset  = BurstDespreader_getset,
+  .tp_new     = BurstDespreaderObj_new,
+  .tp_init    = (initproc)BurstDespreaderObj_init,
 };

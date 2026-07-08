@@ -368,7 +368,7 @@ Covered: generators + loops (`LO`/`NCO`/`AWGN`/`PN`/`Costas`/`CarrierMpsk`/
 field-wise set (`delay`/`acc_trace`/`hbdecim_q15`), the compositions
 (`Dll`/`SymbolSync`/`Channel`/`MpskReceiver`/`wfm_synth`), and the
 correlator/detector/analyzer family
-(`corr`/`corr2d`/`detector`/`detector2d`/`despreader`/`psd`/`specan` — opaque
+(`corr`/`corr2d`/`detector`/`detector2d`/`burst_despreader`/`psd`/`specan` — opaque
 FFT plans + work buffers rebuilt by `create`; ring/pending buffers zero-padded
 to a fixed capacity so blobs stay canonical).
 

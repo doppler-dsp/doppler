@@ -392,7 +392,7 @@ class PullSource(Source):
     ----------
     address : str
         NATS endpoint of the upstream PUSH producer,
-        e.g. ``"tcp://127.0.0.1:5600"``.
+        e.g. ``"nats://127.0.0.1:4222/iq"``.
     timeout_ms : int
         Receive timeout in milliseconds.
     """
@@ -476,14 +476,14 @@ def make_source(cfg: SpecanConfig) -> Source:
         if not cfg.address:
             raise ValueError(
                 "source=socket requires an address (NATS endpoint), "
-                "e.g. tcp://localhost:5555"
+                "e.g. nats://127.0.0.1:4222/iq"
             )
         return SocketSource(cfg.address, timeout_ms=cfg.timeout)
     if s == "pull":
         if not cfg.address:
             raise ValueError(
                 "source=pull requires an address (NATS endpoint), "
-                "e.g. tcp://127.0.0.1:5600"
+                "e.g. nats://127.0.0.1:4222/work"
             )
         return PullSource(cfg.address, timeout_ms=cfg.timeout)
     raise ValueError(f"Unknown source: {cfg.source!r}")

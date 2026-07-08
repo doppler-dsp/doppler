@@ -1,11 +1,22 @@
 services:
+  # NATS broker — required by every stream service below. Not exposed to the
+  # host: every service here reaches it over the internal doppler-net at
+  # nats:4222. Add a `ports:` mapping only if you need host-side access too.
+  nats:
+    image: nats:2.10
+    container_name: doppler-nats
+    command: "-js"
+    networks:
+      - doppler-net
+    restart: unless-stopped
+
   # Transmitter — generates and publishes signal samples
   transmitter:
     build: .
     container_name: doppler-tx
-    ports:
-      - "5555:5555"
-    command: ./transmitter tcp://*:5555 cf64
+    depends_on:
+      - nats
+    command: ./transmitter nats://nats:4222/iq cf64
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -17,7 +28,7 @@ services:
     container_name: doppler-rx-1
     depends_on:
       - transmitter
-    command: ./receiver tcp://transmitter:5555
+    command: ./receiver nats://nats:4222/iq
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -29,7 +40,7 @@ services:
     container_name: doppler-rx-2
     depends_on:
       - transmitter
-    command: ./receiver tcp://transmitter:5555
+    command: ./receiver nats://nats:4222/iq
     networks:
       - doppler-net
     stop_signal: SIGTERM
@@ -41,7 +52,7 @@ services:
     container_name: doppler-spectrum
     depends_on:
       - transmitter
-    command: ./spectrum_analyzer tcp://transmitter:5555 512
+    command: ./spectrum_analyzer nats://nats:4222/iq 512
     networks:
       - doppler-net
     stop_signal: SIGTERM

@@ -73,7 +73,7 @@ When `args:` is omitted, Doppler auto-maps everything by convention:
 Example — `sample_rate: 2048000.0` with `role: source` produces:
 
 ```sh
-./chirp.py --bind tcp://127.0.0.1:5600 --sample-rate 2048000.0 ...
+./chirp.py --bind nats://127.0.0.1:4222/dp-chain-5600 --sample-rate 2048000.0 ...
 ```
 
 ### Explicit mapping
@@ -135,7 +135,7 @@ ______________________________________________________________________
 
 ```
 my-project/
-  chirp.py           # source: sweeping tone via ZMQ PUSH
+  chirp.py           # source: sweeping tone via NATS JetStream PUSH
   chirp.yml          # dopplerfile
 ```
 

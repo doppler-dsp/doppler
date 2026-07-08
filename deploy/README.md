@@ -17,7 +17,7 @@ ______________________________________________________________________
 doppler routes by **plane**, all over NATS:
 
 | Plane                                | Transport                     | Endpoint   | Why                                                           |
-| ------------------------------------ | ------------------------------ | ---------- | -------------------------------------------------------------- |
+| ------------------------------------ | ----------------------------- | ---------- | ------------------------------------------------------------- |
 | **Distributed / resilient firehose** | **NATS JetStream** work-queue | `nats://…` | Durable, at-least-once, autoscalable — what this tree deploys |
 | **Status / control / telemetry**     | NATS Core pub/sub + req/reply | `nats://…` | Last-value, late-joiner, reconnect, discovery                 |
 
@@ -54,14 +54,14 @@ ______________________________________________________________________
 
 ## 2. Layout
 
-| Path                              | What                                                             |
-| --------------------------------- | ---------------------------------------------------------------- |
-| `docker/stream_tool.c`            | Reference producer/consumer (PN self-verifying I/Q).             |
+| Path                              | What                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `docker/stream_tool.c`            | Reference producer/consumer (PN self-verifying I/Q).                      |
 | `docker/Dockerfile`               | Multi-stage build of `stream_tool` (pure C, no runtime deps beyond libc). |
-| `nats/values.yaml`                | Official NATS chart values — 3-node R=3 JetStream, file storage. |
-| `pipeline/`                       | Helm chart: producer + (autoscaled) consumer Deployments.        |
-| `keda/consumer-scaledobject.yaml` | KEDA ScaledObject — scale on consumer lag, 2 → 50.               |
-| `docker-compose.nats.yml`         | Single-node JetStream broker for local dev / tests.              |
+| `nats/values.yaml`                | Official NATS chart values — 3-node R=3 JetStream, file storage.          |
+| `pipeline/`                       | Helm chart: producer + (autoscaled) consumer Deployments.                 |
+| `keda/consumer-scaledobject.yaml` | KEDA ScaledObject — scale on consumer lag, 2 → 50.                        |
+| `docker-compose.nats.yml`         | Single-node JetStream broker for local dev / tests.                       |
 
 ______________________________________________________________________
 

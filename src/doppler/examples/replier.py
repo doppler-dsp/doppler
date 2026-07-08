@@ -10,7 +10,7 @@ The Replier must always reply before accepting the next request.
 
 Usage:
   python examples/python/replier.py [endpoint] [--gain G]
-  python examples/python/replier.py                          # ctrl subject, gain=1
+  python examples/python/replier.py                    # ctrl subject, gain=1
   python examples/python/replier.py nats://127.0.0.1:4222/ctrl2 --gain 0.5
 
 Run this before starting requester.py.  Press Ctrl+C to stop.

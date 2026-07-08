@@ -21,19 +21,19 @@
 #define SKIP_CODE 77
 #define SETTLE_US 300000 /* core NATS: sub/rep must exist before pub/req */
 
-#define CHECK(cond)                                                          \
-  do                                                                         \
-    {                                                                        \
-      if (!(cond))                                                          \
-        {                                                                   \
-          fprintf (stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);\
-          _fails++;                                                         \
-        }                                                                    \
-      else                                                                   \
-        {                                                                    \
-          printf ("  PASS  %s\n", #cond);                                   \
-        }                                                                    \
-    }                                                                        \
+#define CHECK(cond)                                                           \
+  do                                                                          \
+    {                                                                         \
+      if (!(cond))                                                            \
+        {                                                                     \
+          fprintf (stderr, "  FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);  \
+          _fails++;                                                           \
+        }                                                                     \
+      else                                                                    \
+        {                                                                     \
+          printf ("  PASS  %s\n", #cond);                                     \
+        }                                                                     \
+    }                                                                         \
   while (0)
 
 static int _fails = 0;
@@ -46,8 +46,8 @@ broker_reachable (void)
     return 0;
   struct sockaddr_in addr;
   memset (&addr, 0, sizeof addr);
-  addr.sin_family = AF_INET;
-  addr.sin_port = htons (4222);
+  addr.sin_family      = AF_INET;
+  addr.sin_port        = htons (4222);
   addr.sin_addr.s_addr = inet_addr ("127.0.0.1");
   int ok = (connect (fd, (struct sockaddr *)&addr, sizeof addr) == 0);
   close (fd);
@@ -84,7 +84,7 @@ test_pub_sub_roundtrip (void)
   double _Complex tx[3] = { 1 + 2 * I, 3 + 4 * I, 5 + 6 * I };
   CHECK (dp_pub_send_cf64 (pub, tx, 3, 48000.0, 915e6) == DP_OK);
 
-  dp_msg_t *msg = NULL;
+  dp_msg_t   *msg = NULL;
   dp_header_t hdr;
   dp_sub_set_timeout (sub, 3000);
   CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);
@@ -122,8 +122,8 @@ test_req_rep_roundtrip (void)
   const char *ping = "ping";
   CHECK (dp_req_send (req, ping, strlen (ping) + 1) == DP_OK);
 
-  dp_msg_t *rq_msg = NULL;
-  size_t rq_size = 0;
+  dp_msg_t *rq_msg  = NULL;
+  size_t    rq_size = 0;
   dp_rep_set_timeout (rep, 3000);
   CHECK (dp_rep_recv (rep, &rq_msg, &rq_size) == DP_OK);
   if (rq_msg)
@@ -136,8 +136,8 @@ test_req_rep_roundtrip (void)
   const char *pong = "pong";
   CHECK (dp_rep_send (rep, pong, strlen (pong) + 1) == DP_OK);
 
-  dp_msg_t *rp_msg = NULL;
-  size_t rp_size = 0;
+  dp_msg_t *rp_msg  = NULL;
+  size_t    rp_size = 0;
   dp_req_set_timeout (req, 3000);
   CHECK (dp_req_recv (req, &rp_msg, &rp_size) == DP_OK);
   if (rp_msg)
@@ -160,8 +160,8 @@ static void
 test_chunked_pub_sub (void)
 {
   printf ("\n-- Chunked PUB/SUB (>1 MiB) --\n");
-  const char *ep = nats_ep ("chunk");
-  const size_t n = 100000; /* 1.6 MB of CF64 > 1 MiB max_payload */
+  const char  *ep = nats_ep ("chunk");
+  const size_t n  = 100000; /* 1.6 MB of CF64 > 1 MiB max_payload */
 
   dp_sub_t *sub = dp_sub_create (ep);
   CHECK (sub != NULL);
@@ -180,7 +180,7 @@ test_chunked_pub_sub (void)
 
       CHECK (dp_pub_send_cf64 (pub, tx, n, 1e6, 2.4e9) == DP_OK);
 
-      dp_msg_t *msg = NULL;
+      dp_msg_t   *msg = NULL;
       dp_header_t hdr;
       dp_sub_set_timeout (sub, 5000);
       CHECK (dp_sub_recv (sub, &msg, &hdr) == DP_OK);

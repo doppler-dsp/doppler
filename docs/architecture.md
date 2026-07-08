@@ -43,11 +43,11 @@ library. It defines one header struct (`dp_header_t`), one magic
 value (`SIGS`), and three messaging patterns, each addressed by a
 `nats://host:port/subject` endpoint:
 
-| Pattern       | Use                                             |
-| ------------- | ------------------------------------------------ |
+| Pattern       | Use                                                                              |
+| ------------- | -------------------------------------------------------------------------------- |
 | **PUSH/PULL** | Unidirectional pipeline — source → block → sink (NATS JetStream work-queue tier) |
-| **PUB/SUB**   | Fan-out — one source, many subscribers (NATS core pub/sub) |
-| **REQ/REP**   | Request/response — configuration, queries (NATS request/reply) |
+| **PUB/SUB**   | Fan-out — one source, many subscribers (NATS core pub/sub)                       |
+| **REQ/REP**   | Request/response — configuration, queries (NATS request/reply)                   |
 
 Every block speaks the same framing format. A C transmitter can
 push to a Python subscriber and vice versa. The transport is

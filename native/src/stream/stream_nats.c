@@ -219,7 +219,7 @@ nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
 
 struct dp_ctx *
 nats_ctx_create (dp_role_t role, const char *endpoint,
-                dp_sample_type_t sample_type)
+                 dp_sample_type_t sample_type)
 {
   struct dp_ctx *ctx = (struct dp_ctx *)calloc (1, sizeof (struct dp_ctx));
   if (!ctx)
@@ -229,8 +229,7 @@ nats_ctx_create (dp_role_t role, const char *endpoint,
   ctx->nats.recv_timeout_ms = -1; /* block by default */
 
   char url[512];
-  if (nats_parse_endpoint (endpoint, url, sizeof (url), &ctx->nats.base)
-      != 0)
+  if (nats_parse_endpoint (endpoint, url, sizeof (url), &ctx->nats.base) != 0)
     {
       free (ctx);
       return NULL;
@@ -271,7 +270,8 @@ nats_ctx_destroy (struct dp_ctx *ctx)
 /* Publish one prebuilt buffer to the role's subject.  typestr is the sample
  * type name (used only by PUB to build "iq.{base}.{type}"). */
 static int
-nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
+nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
+              int len)
 {
   natsConnection *conn = (natsConnection *)ctx->nats.conn;
   natsStatus      s;
@@ -324,8 +324,8 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf, int len)
 /* Stage one [header][payload] message and publish it (zero-copy send is not
  * possible over NATS — header and data must be one contiguous buffer). */
 static int
-nats_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
-                    size_t data_len)
+nats_publish_framed (struct dp_ctx *ctx, const dp_header_t *h,
+                     const void *data, size_t data_len)
 {
   size_t hdr_sz = sizeof (*h);
   char  *buf    = (char *)malloc (hdr_sz + data_len);
@@ -334,14 +334,14 @@ nats_publish_framed (struct dp_ctx *ctx, const dp_header_t *h, const void *data,
   memcpy (buf, h, hdr_sz);
   memcpy (buf + hdr_sz, data, data_len);
   int rc = nats_publish (ctx, dp_sample_type_str (h->sample_type), buf,
-                        (int)(hdr_sz + data_len));
+                         (int)(hdr_sz + data_len));
   free (buf);
   return rc;
 }
 
 int
 nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                 const void *samples, size_t data_size)
+                  const void *samples, size_t data_size)
 {
   size_t  hdr_sz = sizeof (*header);
   int64_t maxp   = ctx->nats.max_payload;
@@ -484,7 +484,7 @@ nats_stash_reply (struct dp_ctx *ctx, natsMsg *m)
 {
   free (ctx->nats.last_reply);
   ctx->nats.last_reply = NULL;
-  const char *reply      = natsMsg_GetReply (m);
+  const char *reply    = natsMsg_GetReply (m);
   if (reply)
     ctx->nats.last_reply = strdup (reply);
 }
@@ -494,8 +494,8 @@ nats_stash_reply (struct dp_ctx *ctx, natsMsg *m)
  * Does not destroy m. */
 static int
 nats_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
-                 uint64_t sequence, natsMsg *m, unsigned char *seen,
-                 uint64_t *received)
+                  uint64_t sequence, natsMsg *m, unsigned char *seen,
+                  uint64_t *received)
 {
   size_t      hdr_sz = sizeof (dp_header_t);
   const char *d      = natsMsg_GetData (m);
@@ -529,7 +529,7 @@ nats_place_chunk (char *buf, size_t total_bytes, uint64_t nchunks,
  * further chunks fetched.  Returns a DP_MSG_OWNED message on success. */
 static int
 nats_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
-                dp_msg_t **out_msg, dp_header_t *out_hdr)
+                 dp_msg_t **out_msg, dp_header_t *out_hdr)
 {
   size_t   ss      = dp_sample_size ((dp_sample_type_t)fhdr->sample_type);
   uint64_t nchunks = fhdr->reserved[DP_CHUNK_CNT];
@@ -556,8 +556,8 @@ nats_reassemble (struct dp_ctx *ctx, natsMsg *first, const dp_header_t *fhdr,
   int      rc       = DP_OK;
   for (;;)
     {
-      rc = nats_place_chunk (buf, total_bytes, nchunks, fhdr->sequence, m, seen,
-                            &received);
+      rc = nats_place_chunk (buf, total_bytes, nchunks, fhdr->sequence, m,
+                             seen, &received);
       natsMsg_Destroy (m);
       m = NULL;
       if (rc != DP_OK || received == nchunks)

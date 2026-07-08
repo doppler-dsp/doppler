@@ -101,10 +101,10 @@ ______________________________________________________________________
 ## Sinks
 
 | `--output`                 | Result                                                                                            |
-| --------------------------- | --------------------------------------------------------------------------------------------------- |
-| *(omitted)*                | binary stream to **stdout** (pipe it)                                                              |
-| `file.iq`                  | write to a file                                                                                     |
-| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (SIGS wire format); requires a `nats-server`   |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| *(omitted)*                | binary stream to **stdout** (pipe it)                                                             |
+| `file.iq`                  | write to a file                                                                                   |
+| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (SIGS wire format); requires a `nats-server` |
 
 ```sh
 wfmgen --type tone --count 1000000 | other-tool                    # pipe via stdout

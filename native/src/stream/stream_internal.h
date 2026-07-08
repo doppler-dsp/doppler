@@ -55,7 +55,7 @@ struct dp_nats_state
 
 struct dp_ctx
 {
-  dp_sample_type_t    sample_type;
+  dp_sample_type_t     sample_type;
   uint64_t             sequence; /* per-sender count. */
   struct dp_nats_state nats;
 };
@@ -88,11 +88,11 @@ struct dp_msg
 
 struct dp_ctx *nats_ctx_create (dp_role_t role, const char *endpoint,
                                 dp_sample_type_t sample_type);
-void nats_ctx_destroy (struct dp_ctx *ctx);
-int  nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
-                       const void *samples, size_t data_size);
-int  nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
-                       dp_header_t *out_hdr);
+void           nats_ctx_destroy (struct dp_ctx *ctx);
+int            nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
+                                 const void *samples, size_t data_size);
+int            nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,
+                                 dp_header_t *out_hdr);
 int  nats_recv_raw (struct dp_ctx *ctx, dp_msg_t **out_msg, size_t *out_size);
 int  nats_send_raw (struct dp_ctx *ctx, const void *data, size_t size);
 void nats_set_recv_timeout (struct dp_ctx *ctx, int timeout_ms);

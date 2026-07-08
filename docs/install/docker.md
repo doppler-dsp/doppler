@@ -45,8 +45,8 @@ profile). The streaming services need a reachable `nats-server` (e.g.
 
 Services:
 
-| Service       | Description                                                  |
-| ------------- | -------------------------------------------------------------- |
+| Service       | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
 | `transmitter` | Generates and publishes IQ samples over NATS PUB (subject `iq`) |
 | `receiver-1`  | Subscribes and prints signal stats                              |
 | `receiver-2`  | Second subscriber (demonstrates NATS PUB/SUB fan-out)           |

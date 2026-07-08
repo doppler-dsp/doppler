@@ -2,9 +2,9 @@
 
 ## Prerequisites
 
-| Tool       | Minimum | Notes                                                                                             |
-| ---------- | ------- | -------------------------------------------------------------------------------------------------- |
-| CMake      | 3.16    |                                                                                                    |
+| Tool       | Minimum | Notes                                                                                                                                                                    |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CMake      | 3.16    |                                                                                                                                                                          |
 | C compiler | C99     | GCC or Clang — builds the entire core library, including the optional NATS stream component (`libdoppler_stream`, vendors `nats.c`). No C++ compiler is needed anywhere. |
 
 !!! note "Python extensions"

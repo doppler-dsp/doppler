@@ -7,8 +7,9 @@
  *
  * Usage:
  *   transmitter [endpoint [sample_type]]
- *   transmitter                                       # nats://127.0.0.1:4222/iq, CF64
- *   transmitter nats://127.0.0.1:4222/iq2 ci32         # different subject, CI32
+ *   transmitter                                       #
+ * nats://127.0.0.1:4222/iq, CF64 transmitter nats://127.0.0.1:4222/iq2 ci32 #
+ * different subject, CI32
  *
  * Press Ctrl+C to stop.
  *

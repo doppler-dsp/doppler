@@ -22,11 +22,11 @@ ______________________________________________________________________
 
 ## Socket patterns
 
-| Pattern   | Sender      | Receiver     | NATS tier            | Use                                      |
-| --------- | ----------- | ------------ | --------------------- | ----------------------------------------- |
-| PUB / SUB | `Publisher` | `Subscriber` | Core NATS              | fan-out broadcast; subscribers may drop  |
-| PUSH/PULL | `Push`      | `Pull`       | JetStream work-queue   | load-balanced pipeline; durable, acked   |
-| REQ / REP | `Requester` | `Replier`    | NATS request/reply     | request/response (lock-step)             |
+| Pattern   | Sender      | Receiver     | NATS tier            | Use                                     |
+| --------- | ----------- | ------------ | -------------------- | --------------------------------------- |
+| PUB / SUB | `Publisher` | `Subscriber` | Core NATS            | fan-out broadcast; subscribers may drop |
+| PUSH/PULL | `Push`      | `Pull`       | JetStream work-queue | load-balanced pipeline; durable, acked  |
+| REQ / REP | `Requester` | `Replier`    | NATS request/reply   | request/response (lock-step)            |
 
 Every socket is a **context manager** and releases the GIL while blocked
 waiting on NATS, so receive loops thread cleanly. The sender's

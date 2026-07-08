@@ -46,7 +46,7 @@ name mirrors its C backing at the same level.
 | C symbol prefix           | **`wfm_*`** — engine `wfm_synth`, `wfm_compose`, `wfm_resolve`, `wfm_writer`, …         | mixed `synth_*` + `wfm_*`     |
 | C CLI + console script    | **`wfmgen`**                                                                            | `wfmgen` (C) / `wavegen` (py) |
 | engine                    | C `wfm_synth` · Python `wfm.synth` → class **`Synth`**                                  | `synth` · `Synth`             |
-| composition / I/O classes | `Composer` · `Segment` · `Timeline` · `Writer` · `Reader` · `StreamSink`               | (same)                        |
+| composition / I/O classes | `Composer` · `Segment` · `Timeline` · `Writer` · `Reader` · `StreamSink`                | (same)                        |
 
 ## Decisions
 

@@ -8,9 +8,9 @@
  *
  * Usage:
  *   spectrum_analyzer [endpoint [fft_size]]
- *   spectrum_analyzer                              # 127.0.0.1:4222/iq, 1024-pt
- *   spectrum_analyzer nats://broker.example:4222/iq
- *   spectrum_analyzer nats://127.0.0.1:4222/iq 2048
+ *   spectrum_analyzer                              # 127.0.0.1:4222/iq,
+ * 1024-pt spectrum_analyzer nats://broker.example:4222/iq spectrum_analyzer
+ * nats://127.0.0.1:4222/iq 2048
  *
  * Press Ctrl+C to stop.
  *

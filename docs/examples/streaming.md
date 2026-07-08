@@ -382,7 +382,7 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ### Performance tips
 
 - **Run the broker on the same machine for the lowest latency:** a loopback
-  `nats://127.0.0.1:4222/…` connection beats a cross-machine one.
+    `nats://127.0.0.1:4222/…` connection beats a cross-machine one.
 - **Batch samples:** Larger packets = less overhead (but more latency)
 - **Pin threads to cores:** For real-time processing (see `pthread_setaffinity_np`)
 

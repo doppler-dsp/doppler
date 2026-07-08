@@ -621,7 +621,7 @@ class Corr2D:
 
     def __exit__(self, *args: object) -> None: ...
 
-class Detector:
+class CorrDetector:
     """Allocate a 1-D streaming signal detector backed by an FFT correlator. Combines a corr_state_t with a double-mapped ring buffer so that arbitrary chunk sizes can be pushed.  After every int-dump the peak-to-noise test statistic is compared against threshold; a det_result_t is emitted when it passes.  Setting threshold to 0.0 unconditionally fires on every dump. The ring capacity is next_pow2(max(n, 512)) complex samples.
 
     Parameters
@@ -649,10 +649,10 @@ class Detector:
 
         Examples
         --------
-        >>> from doppler.spectral import Detector
+        >>> from doppler.spectral import CorrDetector
         >>> import numpy as np
         >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
-        >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+        >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
         ...                noise_mode="mean", threshold=0.0)
         >>> _ = det.push(np.ones(8, dtype=np.complex64))
         >>> det.reset()
@@ -676,10 +676,10 @@ class Detector:
 
         Examples
         --------
-        >>> from doppler.spectral import Detector
+        >>> from doppler.spectral import CorrDetector
         >>> import numpy as np
         >>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0
-        >>> det = Detector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
+        >>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,
         ...                noise_mode="mean", threshold=0.0)
         >>> results = det.push(np.ones(8, dtype=np.complex64))
         >>> len(results)
@@ -732,11 +732,11 @@ class Detector:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Detector": ...
+    def __enter__(self) -> "CorrDetector": ...
 
     def __exit__(self, *args: object) -> None: ...
 
-class Detector2D:
+class CorrDetector2D:
     """Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of detector_create().  Input frames are flat row-major CF32 arrays of length ny*nx streamed through a ring buffer.  On every int-dump the peak flat index is decomposed into (row, col) and a det_result2d_t is emitted when test_stat > threshold.  The Python wrapper accepts a (ny, nx) CF32 ndarray for both ref and the push input.
 
     Parameters
@@ -764,10 +764,10 @@ class Detector2D:
 
         Examples
         --------
-        >>> from doppler.spectral import Detector2D
+        >>> from doppler.spectral import CorrDetector2D
         >>> import numpy as np
         >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
         ...                  noise_mode="mean", threshold=0.0)
         >>> _ = det.push(np.ones((4, 4), dtype=np.complex64))
         >>> det.reset()
@@ -791,10 +791,10 @@ class Detector2D:
 
         Examples
         --------
-        >>> from doppler.spectral import Detector2D
+        >>> from doppler.spectral import CorrDetector2D
         >>> import numpy as np
         >>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0
-        >>> det = Detector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
+        >>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,
         ...                  noise_mode="mean", threshold=0.0)
         >>> results = det.push(np.ones((4, 4), dtype=np.complex64))
         >>> len(results)
@@ -855,7 +855,7 @@ class Detector2D:
     def destroy(self) -> None:
         """Release C resources immediately."""
 
-    def __enter__(self) -> "Detector2D": ...
+    def __enter__(self) -> "CorrDetector2D": ...
 
     def __exit__(self, *args: object) -> None: ...
 

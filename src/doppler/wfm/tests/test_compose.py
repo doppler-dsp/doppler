@@ -26,10 +26,10 @@ from doppler.wfm.compose import (
     Reader,
     SampleClock,
     Segment,
+    StreamSink,
     Synth,
     Timeline,
     Writer,
-    ZmqSink,
     noise,
     prepare,
     qpsk,
@@ -66,13 +66,28 @@ _WFMGEN = _wfmgen_bin()
 _needs_wfmgen = pytest.mark.skipif(
     _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
-# ZmqSink and SampleClock are POSIX-only (the vendored zmq is POSIX-only; the
-# clock uses clock_gettime / nanosleep). The generated handles are gated the
-# same way the retired capsule bindings were (#ifndef _WIN32), so key the skips
-# off the platform now that those probe symbols are gone (gh-178 review #7).
-_needs_zmq = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="ZmqSink not available on this platform",
+
+
+# StreamSink and SampleClock are POSIX-only (the vendored nats.c client is
+# POSIX-only; the clock uses clock_gettime / nanosleep). The generated
+# handles are gated the same way the retired capsule bindings were (#ifndef
+# _WIN32), so key the skips off the platform now that those probe symbols
+# are gone (gh-178 review #7). StreamSink additionally needs a live
+# nats-server to actually move a frame.
+def _nats_available() -> bool:
+    import socket
+
+    try:
+        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+_needs_stream_sink = pytest.mark.skipif(
+    sys.platform == "win32" or not _nats_available(),
+    reason="StreamSink not available on this platform, or no nats-server "
+    "on 127.0.0.1:4222 (run `nats-server -js`)",
 )
 _needs_clock = pytest.mark.skipif(
     sys.platform == "win32",
@@ -346,33 +361,37 @@ def test_context_manager_and_idempotent_close():
     c.close()  # idempotent after __exit__
 
 
-@_needs_zmq
-def test_zmqsink_loopback_to_subscriber():
-    """ZmqSink publishes the wfmgen fs/fc framing that doppler.stream decodes.
+@_needs_stream_sink
+def test_streamsink_loopback_to_subscriber():
+    """StreamSink publishes the wfmgen fs/fc framing that doppler.stream
+    decodes.
 
-    ZmqSink frames with ``dp_pub_send_*`` (the shared wire format), so a
+    StreamSink frames with ``dp_pub_send_*`` (the shared wire format), so a
     ``doppler.stream.Subscriber`` on the same endpoint must recover the samples
     and the fs/fc tags. cf64 is used because the Python recv path decodes
     CF64/CI32/CF128 (cf32 is wire-valid but not Python-decodable).
     """
     from doppler.stream import Subscriber
 
-    ep = f"tcp://127.0.0.1:{random.randint(49152, 65000)}"
+    ep = (
+        f"nats://127.0.0.1:4222/streamsink-loopback-{random.randint(1, 10**9)}"
+    )
     x = Composer(type="tone", freq=1e5, num_samples=512).compose()
-    with ZmqSink(ep, sample_type="cf64") as sink, Subscriber(ep) as sub:
-        time.sleep(0.15)  # PUB/SUB subscription warm-up
-        sink.send(x, 1e6, 2.4e9)
-        samples, hdr = sub.recv(timeout_ms=2000)
+    with Subscriber(ep) as sub:
+        time.sleep(0.3)  # core NATS: sub must exist before publish
+        with StreamSink(ep, sample_type="cf64") as sink:
+            sink.send(x, 1e6, 2.4e9)
+            samples, hdr = sub.recv(timeout_ms=2000)
     assert samples.dtype == np.complex128 and len(samples) == 512
     assert np.allclose(samples, x.astype(np.complex128), atol=1e-6)
     assert hdr["sample_rate"] == pytest.approx(1e6)
     assert hdr["center_freq"] == pytest.approx(2.4e9)
 
 
-@_needs_zmq
-def test_zmqsink_idempotent_close():
-    ep = f"tcp://127.0.0.1:{random.randint(49152, 65000)}"
-    sink = ZmqSink(ep)
+@_needs_stream_sink
+def test_streamsink_idempotent_close():
+    ep = f"nats://127.0.0.1:4222/streamsink-close-{random.randint(1, 10**9)}"
+    sink = StreamSink(ep)
     sink.close()
     sink.close()  # idempotent
 

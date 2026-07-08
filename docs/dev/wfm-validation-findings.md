@@ -101,17 +101,20 @@ ordinary output path (`fopen("-")`) instead of special-casing it to `stdout`.
 `wfmgen.c` (matching the docs), or drop the `-` claim from the docs and rely on
 the omitted-`--output` stdout default. The former matches common CLI convention.
 
-### zmqsink-stream-dtype-gap — `doppler.stream` can't decode `ZmqSink` cf32/ci16/ci8
+### streamsink-stream-dtype-gap — `doppler.stream` can't decode `ZmqSink` cf32/ci16/ci8
 
 > **✅ Resolved in #196** (closes #193) — `doppler.stream` now decodes all six
 > `dp_sample_type_t` wire types (cf32/ci16/ci8 added). The xfail is removed and
-> `test_zmqsink_cf32_decodes_in_stream` is now a positive round-trip test.
+> `test_streamsink_cf32_decodes_in_stream` is now a positive round-trip test.
+> `ZmqSink` (named at the time this bug was observed) was later renamed to
+> `StreamSink` when the ZMQ transport backend was removed in favor of NATS;
+> the finding below is preserved as originally written.
 
 **Symbols:** `doppler.wfm.ZmqSink` ↔ `doppler.stream.Subscriber`/`Pull`
 **Severity:** high (the **default** `ZmqSink` sample type is undeliverable to the
 Python receiver — a C transmitter cannot talk to a Python subscriber for the
 common case, contra the "shared wire formats" architecture rule)
-**xfail:** `TestZmqSinkAndClock::test_zmqsink_cf32_decodes_in_stream`
+**xfail:** `TestStreamSinkAndClock::test_streamsink_cf32_decodes_in_stream`
 
 **Expected.** `ZmqSink` and `doppler.stream` share one wire enum
 (`dp_sample_type_t`, `native/inc/stream/stream.h:84`):

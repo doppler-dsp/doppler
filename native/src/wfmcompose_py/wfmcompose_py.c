@@ -6,12 +6,12 @@
  * add_subdirectory): the file is hand-owned, like ddc_fn_ext.c.
  *
  * The composer (Synth/Segment/Timeline/Composer), the transport handles
- * (Writer/Reader/ZmqSink/SampleClock) and SigMF metadata (Composer.to_sigmf())
- * are all jm-generated now. The capsule bindings that used to live here for
- * those — the _fn_writer/reader/sink/clock PyCapsule glue — were
- * superseded by the generated handles and have been removed (gh-178 review
- * #7), along with the orphan includes they needed. The only surface still
- * wired through here is blue_write_hcb, backing the hand-Python
+ * (Writer/Reader/StreamSink/SampleClock) and SigMF metadata
+ * (Composer.to_sigmf()) are all jm-generated now. The capsule bindings that
+ * used to live here for those — the _fn_writer/reader/sink/clock PyCapsule
+ * glue — were superseded by the generated handles and have been removed
+ * (gh-178 review #7), along with the orphan includes they needed. The only
+ * surface still wired through here is blue_write_hcb, backing the hand-Python
  * write_blue_header() (a path + string-enum I/O helper jm module functions
  * cannot yet express).
  */

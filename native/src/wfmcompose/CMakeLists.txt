@@ -96,9 +96,9 @@ target_include_directories(test_wfm_reader PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_reader COMMAND test_wfm_reader)
 
-# ── ZMQ PUB sink — POSIX only (vendored zmq + pthreads don't build on MinGW;
-#    mirrors examples/c's streaming guard). The sink is independent of the
-#    composer, so it links the stream layer, not synth. ──────────────────────
+# ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
+#    MinGW; mirrors examples/c's streaming guard). The sink is independent of
+#    the composer, so it links the stream layer, not synth. ─────────────────
 if(NOT WIN32)
     find_package(Threads REQUIRED)
 
@@ -170,10 +170,12 @@ if(NOT WIN32)
     target_include_directories(test_wfm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
+    set_tests_properties(test_wfm_sink PROPERTIES SKIP_RETURN_CODE 77)
 
-    # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / zmq / record).
+    # ── wfmgen: the composer CLI (multi-segment / BLUE / SigMF / nats / record).
     #    Hand-written (a composer is not a single-object jm-app generator); thin
-    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (zmq).
+    #    glue over wfm_compose + wfm_writer + wfm_sink. POSIX-only (the
+    #    vendored stream client).
     #
     #    The CLI body is the callable `doppler_wfmgen()` (wfmgen.c → the
     #    wfmgen_core OBJECT lib); the `wfmgen` binary is a one-line `main` shim
@@ -187,7 +189,7 @@ if(NOT WIN32)
         # configure-time doppler/version.h (DOPPLER_VERSION for --version)
         ${CMAKE_BINARY_DIR}/native/inc)
 
-    # Weak no-op fallbacks for the wfm_zmq_sink_* symbols wfmgen references, so
+    # Weak no-op fallbacks for the wfm_stream_sink_* symbols wfmgen references, so
     # the pure-C core is self-contained and links everywhere with no special
     # flags (ELF + Mach-O). libdoppler_stream provides the strong overrides.
     add_library(wfm_sink_stub_core OBJECT
@@ -214,12 +216,12 @@ if(NOT WIN32)
     # `doppler_wfmgen(argc, argv)` (wfm/wfmgen.h ships with the native/inc
     # install). The synth/lo/awgn/pn/fir/timing cores are already in libdoppler,
     # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
-    # wfmgen stays in the pure-C core; its zmq path uses the weak-stub seam
-    # (wfm_sink_stub.c here + the strong override in libdoppler_stream — see
-    # native/inc/wfm/wfm_sink.h).  The ZMQ-dependent objects (wfm_sink_core,
-    # stream_core_obj) and the vendored C++ libzmq are NOT folded into libdoppler
-    # — they live in the optional libdoppler_stream component (defined in the
-    # root CMakeLists) so the core stays C++-free.
+    # wfmgen stays in the pure-C core; its stream-sink path uses the weak-stub
+    # seam (wfm_sink_stub.c here + the strong override in libdoppler_stream —
+    # see native/inc/wfm/wfm_sink.h).  The stream-dependent objects
+    # (wfm_sink_core, stream_core_obj) and the vendored C++ libzmq are NOT
+    # folded into libdoppler — they live in the optional libdoppler_stream
+    # component (defined in the root CMakeLists) so the core stays C++-free.
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>

@@ -4,7 +4,7 @@
  * The rich sibling of the generated `wavegen` single-shot tool: it sequences
  * multi-segment specs (`--from-file`), emits any output container
  * (raw/csv/BLUE/SigMF, `--file-type`) in any wire type / byte order, streams
- * to a file, stdout, or a ZMQ PUB endpoint (`--output zmq://…`), and writes a
+ * to a file, stdout, or a NATS PUB subject (`--output nats://…`), and writes a
  * JSON record of exactly what it produced (`--record`). All of it is thin glue
  * over the C cores in the wfmcompose c_dep — wfm_compose / wfm_writer /
  * wfm_sink — which is why this lives by hand rather than via `jm app` (a
@@ -243,7 +243,7 @@ static const char USAGE[]
     = "wfmgen - doppler waveform generator\n"
       "\n"
       "USAGE\n"
-      "  wfmgen [OPTIONS] [--output FILE|-|zmq://HOST:PORT]\n"
+      "  wfmgen [OPTIONS] [--output FILE|-|nats://HOST:PORT/SUBJECT]\n"
       "  wfmgen json-template [FILE]\n"
       "\n"
       "WAVEFORM TYPE\n"
@@ -313,7 +313,7 @@ static const char USAGE[]
       "  --clip-error    Exit non-zero if output clips after headroom\n"
       "\n"
       "OUTPUT\n"
-      "  --output DEST   File path, - for stdout, or zmq://HOST:PORT"
+      "  --output DEST   File path, - for stdout, or nats://HOST:PORT/SUBJECT"
       " (default -)\n"
       "  --sample-type T cf32 | cf64 | ci32 | ci16 | ci8 (default cf32)\n"
       "  --file-type T   raw | csv | blue | sigmf (default raw)\n"
@@ -352,9 +352,9 @@ static const char USAGE[]
       "         --snr 10 --snr-mode ebno --count 16384"
       " --output burst.cf32\n"
       "\n"
-      "  # QPSK stream to ZMQ, real-time paced at 2 MHz\n"
+      "  # QPSK stream to NATS, real-time paced at 2 MHz\n"
       "  wfmgen --type qpsk --sps 8 --fs 2e6 \\\n"
-      "         --output zmq://127.0.0.1:5555 --continuous --realtime\n"
+      "         --output nats://127.0.0.1:4222/iq --continuous --realtime\n"
       "\n"
       "  # Multi-segment scene from a JSON spec\n"
       "  wfmgen json-template scene.json  # generate skeleton\n"
@@ -785,47 +785,48 @@ doppler_wfmgen (int   argc, /* NOLINT(readability-function-size) */
   float complex buf[BLK];
   size_t        n;
 
-  if (out_path && !strncmp (out_path, "zmq://", 6)
-      && !wfm_zmq_sink_available ())
+  if (out_path && !strncmp (out_path, "nats://", 7)
+      && !wfm_stream_sink_available ())
     {
-      /* The ZMQ sink lives in the optional libdoppler_stream component (it
-         pulls in the vendored C++ libzmq).  The pure-C core links only weak
-         no-op stubs; wfm_zmq_sink_available() reports 0 unless the real
-         component is linked (it provides the strong override). */
+      /* The stream sink lives in the optional libdoppler_stream component
+         (it pulls in the vendored nats.c client).  The pure-C core links
+         only weak no-op stubs; wfm_stream_sink_available() reports 0 unless
+         the real component is linked (it provides the strong override). */
       (void)fprintf (
           stderr,
-          "error: zmq output (%s) requires the stream component; this "
+          "error: nats output (%s) requires the stream component; this "
           "build was not linked against libdoppler_stream\n",
           out_path);
       rc = 1;
     }
-  else if (out_path && !strncmp (out_path, "zmq://", 6))
+  else if (out_path && !strncmp (out_path, "nats://", 7))
     {
-      /* stream to a ZMQ PUB endpoint */
-      wfm_zmq_sink_t *sink = wfm_zmq_sink_open (out_path + 6, sample_type);
+      /* stream to a NATS PUB subject */
+      wfm_stream_sink_t *sink = wfm_stream_sink_open (out_path, sample_type);
       if (!sink)
         {
-          (void)fprintf (stderr, "error: cannot open zmq sink %s\n", out_path);
+          (void)fprintf (stderr, "error: cannot open stream sink %s\n",
+                         out_path);
           rc = 1;
         }
       else
         {
-          wfm_zmq_sink_set_gain (sink, gain);
+          wfm_stream_sink_set_gain (sink, gain);
           if (clip_report)
-            wfm_zmq_sink_track_clipping (sink, 1);
+            wfm_stream_sink_track_clipping (sink, 1);
           while ((n = wfm_compose_execute (comp, buf, BLK)) > 0)
             {
-              wfm_zmq_sink_send (sink, buf, n, fs, fc);
+              wfm_stream_sink_send (sink, buf, n, fs, fc);
               if (realtime)
                 dp_sample_clock_pace (&clk, n);
               if (n < BLK)
                 break;
             }
-          if (report_clip (wfm_zmq_sink_peak (sink),
-                           wfm_zmq_sink_clip_fraction (sink), sample_type,
+          if (report_clip (wfm_stream_sink_peak (sink),
+                           wfm_stream_sink_clip_fraction (sink), sample_type,
                            headroom, clip_report, clip_error))
             rc = 1;
-          wfm_zmq_sink_close (sink);
+          wfm_stream_sink_close (sink);
         }
     }
   else if (file_type == 2 && detached)

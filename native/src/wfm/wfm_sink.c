@@ -1,10 +1,10 @@
 /*
- * wfm_sink.c — ZMQ PUB sink (Phase B).
+ * wfm_sink.c — NATS PUB sink (Phase B).
  *
  * Thin glue over doppler's dp_pub_* layer: maps the wavegen wire-type index to
  * dp_sample_type_t, converts each cf32 block to that type into a
  * grow-on-demand scratch buffer, and publishes it. POSIX-only (links the
- * vendored zmq).
+ * vendored nats.c).
  */
 #include "wfm/wfm_sink.h"
 
@@ -25,7 +25,7 @@ enum
   WT_CI8
 };
 
-struct wfm_zmq_sink
+struct wfm_stream_sink
 {
   dp_pub_t *pub;
   int       wtype;
@@ -51,7 +51,7 @@ qz (float v, double fs_val)
 /* Track peak + opt-in clip on the integer convert paths (called per sample).
  */
 static inline void
-track_sample (wfm_zmq_sink_t *s, float re, float im)
+track_sample (wfm_stream_sink_t *s, float re, float im)
 {
   float ar = fabsf (re), ai = fabsf (im);
   float m = ar > ai ? ar : ai;
@@ -64,7 +64,7 @@ track_sample (wfm_zmq_sink_t *s, float re, float im)
 
 /* Ensure scratch holds at least `need` bytes. */
 static int
-grow (wfm_zmq_sink_t *s, size_t need)
+grow (wfm_stream_sink_t *s, size_t need)
 {
   if (s->cap >= need)
     return 0;
@@ -77,16 +77,17 @@ grow (wfm_zmq_sink_t *s, size_t need)
 }
 
 /* Strong definition — overrides the core's weak stub (wfm_sink_stub.c) when
- * libdoppler_stream is linked, signalling that the real ZMQ sink is present.
+ * libdoppler_stream is linked, signalling that the real stream sink is
+ * present.
  */
 int
-wfm_zmq_sink_available (void)
+wfm_stream_sink_available (void)
 {
   return 1;
 }
 
-wfm_zmq_sink_t *
-wfm_zmq_sink_open (const char *endpoint, int sample_type)
+wfm_stream_sink_t *
+wfm_stream_sink_open (const char *endpoint, int sample_type)
 {
   /* map wavegen index → dp_sample_type_t */
   dp_sample_type_t dt;
@@ -110,7 +111,7 @@ wfm_zmq_sink_open (const char *endpoint, int sample_type)
     default:
       return NULL;
     }
-  wfm_zmq_sink_t *s = calloc (1, sizeof (*s));
+  wfm_stream_sink_t *s = calloc (1, sizeof (*s));
   if (!s)
     return NULL;
   s->wtype = sample_type;
@@ -125,8 +126,8 @@ wfm_zmq_sink_open (const char *endpoint, int sample_type)
 }
 
 int
-wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
-                   double fs, double fc)
+wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
+                      size_t n, double fs, double fc)
 {
   if (!sink || (n && !iq))
     return -1;
@@ -202,7 +203,7 @@ wfm_zmq_sink_send (wfm_zmq_sink_t *sink, const float _Complex *iq, size_t n,
 }
 
 void
-wfm_zmq_sink_close (wfm_zmq_sink_t *sink)
+wfm_stream_sink_close (wfm_stream_sink_t *sink)
 {
   if (sink)
     {
@@ -214,27 +215,27 @@ wfm_zmq_sink_close (wfm_zmq_sink_t *sink)
 }
 
 void
-wfm_zmq_sink_track_clipping (wfm_zmq_sink_t *sink, int on)
+wfm_stream_sink_track_clipping (wfm_stream_sink_t *sink, int on)
 {
   if (sink)
     sink->track = on ? 1 : 0;
 }
 
 void
-wfm_zmq_sink_set_gain (wfm_zmq_sink_t *sink, double gain)
+wfm_stream_sink_set_gain (wfm_stream_sink_t *sink, double gain)
 {
   if (sink)
     sink->gain = (float)gain;
 }
 
 double
-wfm_zmq_sink_peak (const wfm_zmq_sink_t *sink)
+wfm_stream_sink_peak (const wfm_stream_sink_t *sink)
 {
   return sink ? (double)sink->peak : 0.0;
 }
 
 double
-wfm_zmq_sink_clip_fraction (const wfm_zmq_sink_t *sink)
+wfm_stream_sink_clip_fraction (const wfm_stream_sink_t *sink)
 {
   if (!sink || sink->ntot == 0)
     return 0.0;

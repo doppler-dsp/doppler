@@ -400,14 +400,14 @@ returns = "double"
 expr = "tmp > 1.0 && self->sample_type >= 2"
 [module.wfm_sink]
 kind            = "handle"
-backing         = "wfm_zmq_sink"
-handle_type     = "wfm_zmq_sink_t"
+backing         = "wfm_stream_sink"
+handle_type     = "wfm_stream_sink_t"
 header          = "wfm/wfm_sink.h"
 package         = "wfm"
-type_name       = "ZmqSink"
+type_name       = "StreamSink"
 context_manager = true
-close_fn        = "wfm_zmq_sink_close"
-create_fn       = "wfm_zmq_sink_open"
+close_fn        = "wfm_stream_sink_close"
+create_fn       = "wfm_stream_sink_open"
 extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "zmq_vendor_static", "nats_vendor_static", "Threads::Threads", "stdc++", "m"]
 
 [[module.wfm_sink.create_args]]
@@ -425,7 +425,7 @@ name = "wfm_sink"
 link = true
 [[module.wfm_sink.methods]]
 name = "send"
-fn = "wfm_zmq_sink_send"
+fn = "wfm_stream_sink_send"
 returns = "int"
 nogil = true
 
@@ -443,7 +443,7 @@ type = "double"
 
 [[module.wfm_sink.methods]]
 name = "track_clipping"
-fn = "wfm_zmq_sink_track_clipping"
+fn = "wfm_stream_sink_track_clipping"
 
 [[module.wfm_sink.methods.args]]
 name = "on"
@@ -452,19 +452,19 @@ default = "1"
 [[module.wfm_sink.getters]]
 [[module.wfm_sink.getters.fields]]
 name = "clip_fraction"
-getter = "wfm_zmq_sink_clip_fraction"
+getter = "wfm_stream_sink_clip_fraction"
 type = "double"
 
 [[module.wfm_sink.getters.fields]]
 name = "peak_dbfs"
-getter = "wfm_zmq_sink_peak"
+getter = "wfm_stream_sink_peak"
 type = "double"
 returns = "double"
 expr = "tmp > 0 ? 20*log10(tmp) : -INFINITY"
 
 [[module.wfm_sink.getters.fields]]
 name = "clipped"
-getter = "wfm_zmq_sink_peak"
+getter = "wfm_stream_sink_peak"
 type = "bool"
 returns = "double"
 expr = "tmp > 1.0 && self->sample_type >= 2"
@@ -501,7 +501,7 @@ extra_link_libs = ["wfm_dsp_core"]
 compose = ["Synth", "tone", "bpsk", "qpsk", "pn", "noise", "chirp", "bits", "Segment", "Timeline", "Composer", "write_blue_header", "Plan", "prepare"]
 wfm_writer = ["Writer"]
 wfm_reader = ["Reader"]
-wfm_sink = ["ZmqSink"]
+wfm_sink = ["StreamSink"]
 sample_clock = ["SampleClock"]
 readback = ["read_iq"]
 

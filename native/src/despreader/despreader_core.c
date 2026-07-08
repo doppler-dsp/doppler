@@ -1,14 +1,14 @@
-#include "channel/channel_core.h"
+#include "despreader/despreader_core.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 /* Reset the bit-sync state (histogram + accumulators). */
 static void
-bitsync_reset (channel_state_t *ch)
+bitsync_reset (despreader_state_t *ch)
 {
   if (ch->flip_hist)
-    memset (ch->flip_hist, 0, ch->nav_period * sizeof (*ch->flip_hist));
+    memset (ch->flip_hist, 0, ch->periods_per_bit * sizeof (*ch->flip_hist));
   ch->epoch_count   = 0;
   ch->bit_phase     = 0;
   ch->epochs_in_bit = 0;
@@ -18,32 +18,32 @@ bitsync_reset (channel_state_t *ch)
 }
 
 void
-channel_init (channel_state_t *ch, const uint8_t *code, size_t code_len,
-              size_t sps, double init_norm_freq, double init_chip,
-              double bn_carrier, double bn_code, double bn_fll, double zeta,
-              double spacing, size_t nav_period)
+despreader_init (despreader_state_t *ch, const uint8_t *code, size_t code_len,
+                 size_t sps, double init_norm_freq, double init_chip,
+                 double bn_carrier, double bn_code, double bn_fll, double zeta,
+                 double spacing, size_t periods_per_bit)
 {
   size_t tsamps = (code_len ? code_len : 1) * (sps ? sps : 1);
   /* one carrier-loop update per code period (the integrate-and-dump window) */
   costas_init (&ch->car, bn_carrier, zeta, init_norm_freq, tsamps, bn_fll);
   dll_init (&ch->code, code, code_len, sps, init_chip, bn_code, zeta, spacing);
-  ch->code_copy  = NULL;
-  ch->nav_period = nav_period ? nav_period : 1;
-  ch->flip_hist  = NULL;
-  if (ch->nav_period > 1)
-    ch->flip_hist = calloc (ch->nav_period, sizeof (*ch->flip_hist));
+  ch->code_copy       = NULL;
+  ch->periods_per_bit = periods_per_bit ? periods_per_bit : 1;
+  ch->flip_hist       = NULL;
+  if (ch->periods_per_bit > 1)
+    ch->flip_hist = calloc (ch->periods_per_bit, sizeof (*ch->flip_hist));
   bitsync_reset (ch);
 }
 
-channel_state_t *
-channel_create (const uint8_t *code, size_t code_len, size_t sps,
-                double init_norm_freq, double init_chip, double bn_carrier,
-                double bn_code, double bn_fll, double zeta, double spacing,
-                size_t nav_period)
+despreader_state_t *
+despreader_create (const uint8_t *code, size_t code_len, size_t sps,
+                   double init_norm_freq, double init_chip, double bn_carrier,
+                   double bn_code, double bn_fll, double zeta, double spacing,
+                   size_t periods_per_bit)
 {
   if (!code || code_len == 0)
     return NULL;
-  channel_state_t *ch = calloc (1, sizeof (*ch));
+  despreader_state_t *ch = calloc (1, sizeof (*ch));
   if (!ch)
     return NULL;
   uint8_t *copy = malloc (code_len);
@@ -53,14 +53,15 @@ channel_create (const uint8_t *code, size_t code_len, size_t sps,
       return NULL;
     }
   memcpy (copy, code, code_len);
-  channel_init (ch, copy, code_len, sps, init_norm_freq, init_chip, bn_carrier,
-                bn_code, bn_fll, zeta, spacing, nav_period);
-  ch->code_copy = copy; /* channel owns the code (dll borrows it) */
+  despreader_init (ch, copy, code_len, sps, init_norm_freq, init_chip,
+                   bn_carrier, bn_code, bn_fll, zeta, spacing,
+                   periods_per_bit);
+  ch->code_copy = copy; /* despreader owns the code (dll borrows it) */
   return ch;
 }
 
 void
-channel_destroy (channel_state_t *state)
+despreader_destroy (despreader_state_t *state)
 {
   if (!state)
     return;
@@ -70,7 +71,7 @@ channel_destroy (channel_state_t *state)
 }
 
 void
-channel_reset (channel_state_t *state)
+despreader_reset (despreader_state_t *state)
 {
   costas_reset (&state->car);
   dll_reset (&state->code);
@@ -81,23 +82,23 @@ channel_reset (channel_state_t *state)
  * running bit-sync histogram + scalars; the owned code copy is config
  * (create). */
 size_t
-channel_state_bytes (const channel_state_t *s)
+despreader_state_bytes (const despreader_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + costas_state_bytes (&s->car)
          + dll_state_bytes (&s->code)
-         + (s->flip_hist ? s->nav_period * sizeof (size_t) : 0)
+         + (s->flip_hist ? s->periods_per_bit * sizeof (size_t) : 0)
          + 3 * sizeof (uint64_t) + sizeof (double) + 2 * sizeof (uint32_t);
 }
 
 void
-channel_get_state (const channel_state_t *s, void *blob)
+despreader_get_state (const despreader_state_t *s, void *blob)
 {
-  DP_GET_OPEN (CHANNEL_STATE_MAGIC, CHANNEL_STATE_VERSION,
-               channel_state_bytes (s));
+  DP_GET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
+               despreader_state_bytes (s));
   DP_W_CHILD (&_w, costas, &s->car);
   DP_W_CHILD (&_w, dll, &s->code);
   if (s->flip_hist)
-    dp_w_bytes (&_w, s->flip_hist, s->nav_period * sizeof (size_t));
+    dp_w_bytes (&_w, s->flip_hist, s->periods_per_bit * sizeof (size_t));
   dp_w_u64 (&_w, s->epoch_count);
   dp_w_u64 (&_w, s->bit_phase);
   dp_w_u64 (&_w, s->epochs_in_bit);
@@ -107,14 +108,14 @@ channel_get_state (const channel_state_t *s, void *blob)
 }
 
 int
-channel_set_state (channel_state_t *s, const void *blob)
+despreader_set_state (despreader_state_t *s, const void *blob)
 {
-  DP_SET_OPEN (CHANNEL_STATE_MAGIC, CHANNEL_STATE_VERSION,
-               channel_state_bytes (s));
+  DP_SET_OPEN (DESPREADER_STATE_MAGIC, DESPREADER_STATE_VERSION,
+               despreader_state_bytes (s));
   DP_R_CHILD (&_r, costas, &s->car);
   DP_R_CHILD (&_r, dll, &s->code);
   if (s->flip_hist)
-    dp_r_bytes (&_r, s->flip_hist, s->nav_period * sizeof (size_t));
+    dp_r_bytes (&_r, s->flip_hist, s->periods_per_bit * sizeof (size_t));
   s->epoch_count   = (size_t)dp_r_u64 (&_r);
   s->bit_phase     = (size_t)dp_r_u64 (&_r);
   s->epochs_in_bit = (size_t)dp_r_u64 (&_r);
@@ -127,7 +128,7 @@ channel_set_state (channel_state_t *s, const void *blob)
 /* Process one input sample. On a code-period boundary, dump the prompt, update
  * both loops, and return 1 with the normalised prompt in *prompt. */
 static int
-process_sample (channel_state_t *ch, float complex x, float complex *prompt)
+process_sample (despreader_state_t *ch, float complex x, float complex *prompt)
 {
   float complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
   dll_accumulate (&ch->code, d);                  /* E/P/L correlate */
@@ -143,15 +144,15 @@ process_sample (channel_state_t *ch, float complex x, float complex *prompt)
 }
 
 size_t
-channel_steps_max_out (channel_state_t *state)
+despreader_steps_max_out (despreader_state_t *state)
 {
   (void)state;
   return 0;
 }
 
 size_t
-channel_steps (channel_state_t *state, const float complex *x, size_t x_len,
-               float complex *out, size_t max_out)
+despreader_steps (despreader_state_t *state, const float complex *x,
+                  size_t x_len, float complex *out, size_t max_out)
 {
   size_t emitted = 0;
   for (size_t n = 0; n < x_len; n++)
@@ -164,12 +165,12 @@ channel_steps (channel_state_t *state, const float complex *x, size_t x_len,
 }
 
 /* Feed one prompt to the bit-sync; emit a hard data bit when an aligned group
- * of nav_period prompts completes. Returns 1 (and sets *bit) when a bit is
- * emitted. For nav_period == 1 every prompt is a bit. */
+ * of periods_per_bit prompts completes. Returns 1 (and sets *bit) when a bit
+ * is emitted. For periods_per_bit == 1 every prompt is a bit. */
 static int
-bit_sync (channel_state_t *ch, float complex P, uint8_t *bit)
+bit_sync (despreader_state_t *ch, float complex P, uint8_t *bit)
 {
-  size_t N  = ch->nav_period;
+  size_t N  = ch->periods_per_bit;
   double re = (double)crealf (P);
   if (N <= 1)
     {
@@ -211,15 +212,15 @@ bit_sync (channel_state_t *ch, float complex P, uint8_t *bit)
 }
 
 size_t
-channel_bits_max_out (channel_state_t *state)
+despreader_bits_max_out (despreader_state_t *state)
 {
   (void)state;
   return 0;
 }
 
 size_t
-channel_bits (channel_state_t *state, const float complex *x, size_t x_len,
-              uint8_t *out, size_t max_out)
+despreader_bits (despreader_state_t *state, const float complex *x,
+                 size_t x_len, uint8_t *out, size_t max_out)
 {
   size_t emitted = 0;
   for (size_t n = 0; n < x_len; n++)
@@ -235,61 +236,61 @@ channel_bits (channel_state_t *state, const float complex *x, size_t x_len,
 }
 
 double
-channel_get_norm_freq (const channel_state_t *state)
+despreader_get_norm_freq (const despreader_state_t *state)
 {
   return state->car.nco.norm_freq;
 }
 
 void
-channel_set_norm_freq (channel_state_t *state, double val)
+despreader_set_norm_freq (despreader_state_t *state, double val)
 {
   costas_set_norm_freq (&state->car, val);
 }
 
 double
-channel_get_code_phase (const channel_state_t *state)
+despreader_get_code_phase (const despreader_state_t *state)
 {
   return state->code.chip_pos;
 }
 
 double
-channel_get_code_rate (const channel_state_t *state)
+despreader_get_code_rate (const despreader_state_t *state)
 {
   return state->code.code_rate;
 }
 
 double
-channel_get_lock_metric (const channel_state_t *state)
+despreader_get_lock_metric (const despreader_state_t *state)
 {
   return state->car.lock_metric;
 }
 
 size_t
-channel_get_bit_phase (const channel_state_t *state)
+despreader_get_bit_phase (const despreader_state_t *state)
 {
   return state->bit_phase;
 }
 
 double
-channel_get_bn_carrier (const channel_state_t *state)
+despreader_get_bn_carrier (const despreader_state_t *state)
 {
   return state->car.bn;
 }
 
 void
-channel_set_bn_carrier (channel_state_t *state, double val)
+despreader_set_bn_carrier (despreader_state_t *state, double val)
 {
   costas_set_bn (&state->car, val);
 }
 
 double
-channel_get_bn_code (const channel_state_t *state)
+despreader_get_bn_code (const despreader_state_t *state)
 {
   return state->code.bn;
 }
 
 void
-channel_set_bn_code (channel_state_t *state, double val)
+despreader_set_bn_code (despreader_state_t *state, double val)
 {
   dll_set_bn (&state->code, val);
 }

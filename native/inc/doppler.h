@@ -107,8 +107,6 @@ extern "C" {
 
 #include "dll/dll_core.h"
 
-#include "channel/channel_core.h"
-
 #include "symsync/symsync_core.h"
 
 #include "carrier_mpsk/carrier_mpsk_core.h"
@@ -116,6 +114,8 @@ extern "C" {
 #include "carrier_nda/carrier_nda_core.h"
 
 #include "mpsk_receiver/mpsk_receiver_core.h"
+
+#include "despreader/despreader_core.h"
 
 #include "burst_despreader/burst_despreader_core.h"
 

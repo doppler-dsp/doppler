@@ -1,10 +1,10 @@
-/* bench_channel_core.c — the full Costas+DLL tracking channel.
+/* bench_despreader_core.c — the full Costas+DLL continuous despreader.
  *
  *   steps — end-to-end throughput (MSa/s) of the shared per-sample carrier
  *           wipe-off + E/P/L correlate + per-period dual-loop update over a
  *           64k burst (the headline: composing two loops costs no extra pass).
  */
-#include "channel/channel_core.h"
+#include "despreader/despreader_core.h"
 #include "jm_bench.h"
 #include <complex.h>
 #include <math.h>
@@ -52,19 +52,19 @@ main (void)
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  printf ("=== channel benchmark ===\n");
+  printf ("=== despreader benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  channel_state_t *ch = channel_create (code, SF, SPS, 0.0, 0.0, 0.05, 0.005,
-                                        0.0, 0.707, 0.5, 1);
-  channel_steps (ch, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
+  despreader_state_t *ch = despreader_create (code, SF, SPS, 0.0, 0.0, 0.05,
+                                              0.005, 0.0, 0.707, 0.5, 1);
+  despreader_steps (ch, rx, SF * SPS * 2, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      channel_reset (ch);
+      despreader_reset (ch);
       clock_gettime (CLOCK_MONOTONIC, &t0);
-      channel_steps (ch, rx, BENCH_N, out, BENCH_N);
+      despreader_steps (ch, rx, BENCH_N, out, BENCH_N);
       clock_gettime (CLOCK_MONOTONIC, &t1);
       times[r] = elapsed_sec (&t0, &t1);
     }
@@ -75,8 +75,8 @@ main (void)
   printf ("  steps    %8.1f MSa/s\n",
           (double)BENCH_N / (sum / ITERATIONS) / 1e6);
 
-  jm_bench_write_json (&_bench, "channel");
-  channel_destroy (ch);
+  jm_bench_write_json (&_bench, "despreader");
+  despreader_destroy (ch);
   free (rx);
   free (out);
   return 0;

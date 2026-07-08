@@ -3,6 +3,141 @@ from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
+class Despreader:
+    """Create a despreader (COPIES code).
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8], default ...
+        code constructor parameter.
+    sps : int, default 4
+        sps constructor parameter.
+    init_norm_freq : float, default 0.0
+        init_norm_freq constructor parameter.
+    init_chip : float, default 0.0
+        init_chip constructor parameter.
+    bn_carrier : float, default 0.05
+        bn_carrier constructor parameter.
+    bn_code : float, default 0.005
+        bn_code constructor parameter.
+    bn_fll : float, default 0.0
+        bn_fll constructor parameter.
+    zeta : float, default 0.707
+        zeta constructor parameter.
+    spacing : float, default 0.5
+        spacing constructor parameter.
+    periods_per_bit : int, default 1
+        periods_per_bit constructor parameter.
+
+    """
+    def __init__(self, code: NDArray[np.uint8] = ..., sps: int = ..., init_norm_freq: float = ..., init_chip: float = ..., bn_carrier: float = ..., bn_code: float = ..., bn_fll: float = ..., zeta: float = ..., spacing: float = ..., periods_per_bit: int = ...) -> None: ...
+
+    def steps(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = ...,
+    ) -> NDArray[np.complex64]:
+        """Track carrier + code and despread a cf32 block: per sample wipe the carrier (Costas) and correlate early/prompt/late against the code (DLL), update both loops each code period, and emit one complex prompt symbol per period.
+
+        Without out=, the returned array is a view into a buffer reused on the
+        next call (see steps_max_out() to size an out= buffer for an
+        independent, alias-free result).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+        out : NDArray[np.complex64], optional
+            Caller-provided output buffer, at least max(steps_max_out(),
+            len(x)) elements.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Output.
+        """
+
+    def steps_max_out(self) -> int:
+        """Max output length steps() can produce for the current state. Use to size the ``out=`` buffer."""
+
+    def bits(
+        self, x: NDArray[np.complex64], out: NDArray[np.uint8] | None = ...
+    ) -> NDArray[np.uint8]:
+        """Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit.
+
+        Without out=, the returned array is a view into a buffer reused on the
+        next call (see bits_max_out() to size an out= buffer for an
+        independent, alias-free result).
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+        out : NDArray[np.uint8], optional
+            Caller-provided output buffer, at least max(bits_max_out(),
+            len(x)) elements.
+
+        Returns
+        -------
+        NDArray[np.uint8]
+            Output.
+        """
+
+    def bits_max_out(self) -> int:
+        """Max output length bits() can produce for the current state. Use to size the ``out=`` buffer."""
+
+    def reset(self) -> None:
+        """Re-seed both loops to the create-time frequency/phase; preserve config.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def norm_freq(self) -> float:
+        """Norm freq."""
+    @norm_freq.setter
+    def norm_freq(self, value: float) -> None: ...
+
+    @property
+    def code_phase(self) -> float:
+        """Code phase."""
+
+    @property
+    def code_rate(self) -> float:
+        """Code rate."""
+
+    @property
+    def lock_metric(self) -> float:
+        """Lock metric."""
+
+    @property
+    def bit_phase(self) -> int:
+        """Bit phase."""
+
+    @property
+    def bn_carrier(self) -> float:
+        """Bn carrier."""
+    @bn_carrier.setter
+    def bn_carrier(self, value: float) -> None: ...
+
+    @property
+    def bn_code(self) -> float:
+        """Bn code."""
+    @bn_code.setter
+    def bn_code(self, value: float) -> None: ...
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "Despreader": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 class BurstDespreader:
     """BurstDespreader component.
 

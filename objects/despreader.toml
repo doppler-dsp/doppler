@@ -1,10 +1,10 @@
-[channel]
+[despreader]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-class_name = "Channel"
+class_name = "Despreader"
 depends_on = [
   { name = "costas", link = true },
   { name = "dll", link = true },
@@ -13,56 +13,56 @@ depends_on = [
 ]
 serializable = "true"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "code"
 type = "uint8_t[]"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "sps"
 type = "size_t"
 default = "4"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "init_norm_freq"
 type = "double"
 default = "0.0"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "init_chip"
 type = "double"
 default = "0.0"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "bn_carrier"
 type = "double"
 default = "0.05"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "bn_code"
 type = "double"
 default = "0.005"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "bn_fll"
 type = "double"
 default = "0.0"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "zeta"
 type = "double"
 default = "0.707"
 
-[[channel.init_params]]
+[[despreader.init_params]]
 name = "spacing"
 type = "double"
 default = "0.5"
 
-[[channel.init_params]]
-name = "nav_period"
+[[despreader.init_params]]
+name = "periods_per_bit"
 type = "size_t"
 default = "1"
 
-[[channel.methods]]
+[[despreader.methods]]
 name = "steps"
 doc = "Track carrier + code and despread a cf32 block: per sample wipe the carrier (Costas) and correlate early/prompt/late against the code (DLL), update both loops each code period, and emit one complex prompt symbol per period."
 arg_type = "void"
@@ -72,9 +72,9 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
-[[channel.methods]]
+[[despreader.methods]]
 name = "bits"
-doc = "Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: nav_period prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit."
+doc = "Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
@@ -82,39 +82,39 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
-[[channel.methods]]
+[[despreader.methods]]
 name = "reset"
 doc = "Re-seed both loops to the create-time frequency/phase; preserve config."
 arg_type = "void"
 return_type = "void"
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "norm_freq"
 type = "double"
 writable = true
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "code_phase"
 type = "double"
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "code_rate"
 type = "double"
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "lock_metric"
 type = "double"
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "bit_phase"
 type = "size_t"
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "bn_carrier"
 type = "double"
 writable = true
 
-[[channel.properties]]
+[[despreader.properties]]
 name = "bn_code"
 type = "double"
 writable = true

@@ -1,9 +1,9 @@
-"""Integration tests for doppler.track.Channel (Costas + DLL receiver)."""
+"""Integration tests for doppler.dsss.Despreader (Costas + DLL receiver)."""
 
 import numpy as np
 import pytest
 
-from doppler.track import Channel
+from doppler.dsss import Despreader
 
 SF, SPS = 127, 8
 TSAMPS = SF * SPS
@@ -13,17 +13,17 @@ def _code(seed=1):
     return np.random.default_rng(seed).integers(0, 2, SF).astype(np.uint8)
 
 
-def _signal(code, nper, nav_period=1, f0=0.0, sigma=0.0, seed=3):
+def _signal(code, nper, periods_per_bit=1, f0=0.0, sigma=0.0, seed=3):
     """Continuous PN-spread BPSK x carrier (+ optional AWGN)."""
     rng = np.random.default_rng(seed)
-    nbits = nper // nav_period
+    nbits = nper // periods_per_bit
     data = rng.integers(0, 2, nbits) * 2 - 1
     n = TSAMPS * nper
     rx = np.empty(n, np.complex64)
     cph = 0.0
     k = 0
     for p in range(nper):
-        bit = data[p // nav_period]
+        bit = data[p // periods_per_bit]
         for _ in range(TSAMPS):
             idx = int(cph % SF)
             rx[k] = bit * (-1.0 if code[idx] & 1 else 1.0)
@@ -68,18 +68,18 @@ def _amb_ber_best_shift(dec, truth, max_shift=1):
 
 
 def test_create_and_guard():
-    assert Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    assert Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
 
 
 def test_context_manager_and_destroy():
-    with Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1):
+    with Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1):
         pass
-    c = Channel(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(_code(), SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     c.destroy()
 
 
 def test_properties():
-    c = Channel(_code(), SPS, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(_code(), SPS, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     assert c.norm_freq == pytest.approx(0.001)
     assert c.code_rate == pytest.approx(1.0)
     assert c.bn_carrier == pytest.approx(0.05)
@@ -93,7 +93,7 @@ def test_properties():
 def test_full_receiver_locks_and_despreads():
     code = _code()
     rx, data = _signal(code, 500, f0=5e-5, seed=3)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     sym = c.steps(rx)
     assert c.norm_freq == pytest.approx(5e-5, abs=1e-5)
     assert c.lock_metric > 0.9
@@ -106,11 +106,11 @@ def test_fll_assist_widens_pull_in():
     f0 = 0.2 / TSAMPS  # 0.2 cycles/epoch — beyond the bare PLL
     rx, data = _signal(code, 700, f0=f0, seed=11)
 
-    pll = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    pll = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     pll.steps(rx)
     assert pll.lock_metric < 0.8
 
-    fll = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
+    fll = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.03, 0.707, 0.5, 1)
     sym = fll.steps(rx)
     assert fll.norm_freq == pytest.approx(f0, abs=2e-5)
     assert fll.lock_metric > 0.9
@@ -118,10 +118,10 @@ def test_fll_assist_widens_pull_in():
     assert _amb_ber(dec, data[len(sym) // 2 : len(sym)]) == 0.0
 
 
-def test_hard_bits_nav_period_1():
+def test_hard_bits_periods_per_bit_1():
     code = _code()
     rx, data = _signal(code, 400, f0=4e-5, seed=17)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     c.steps(rx)  # prompts
     hb = c.bits(_signal(code, 400, f0=4e-5, seed=17)[0])  # fresh run
     assert hb.dtype == np.uint8
@@ -130,11 +130,11 @@ def test_hard_bits_nav_period_1():
     assert _amb_ber_best_shift(dec[half:], data[half : len(dec)]) == 0.0
 
 
-def test_bit_sync_recovers_nav_bits():
+def test_bit_sync_recovers_data_bits():
     code = _code()
     N, nbits = 20, 120
-    rx, data = _signal(code, N * nbits, nav_period=N, f0=3e-5, seed=23)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, N)
+    rx, data = _signal(code, N * nbits, periods_per_bit=N, f0=3e-5, seed=23)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, N)
     bits = c.bits(rx)
     assert len(bits) >= nbits - 3
     assert c.bit_phase == 0  # data boundary at epoch 0
@@ -146,7 +146,7 @@ def test_bit_sync_recovers_nav_bits():
 def test_reset_reproducible():
     code = _code()
     rx, _ = _signal(code, 300, f0=5e-5, seed=5)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     s1 = c.steps(rx)
     f1 = c.norm_freq
     c.reset()
@@ -158,7 +158,7 @@ def test_reset_reproducible():
 def test_steps_out_writes_into_callers_buffer():
     code = _code()
     rx, _ = _signal(code, 50, seed=5)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     out = np.zeros(max(c.steps_max_out(), len(rx)), dtype=np.complex64)
     y = c.steps(rx, out=out)
     assert np.shares_memory(y, out)
@@ -167,7 +167,7 @@ def test_steps_out_writes_into_callers_buffer():
 def test_steps_out_undersized_raises():
     code = _code()
     rx, _ = _signal(code, 50, seed=5)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     with pytest.raises(ValueError):
         c.steps(rx, out=np.zeros(1, dtype=np.complex64))
 
@@ -175,7 +175,7 @@ def test_steps_out_undersized_raises():
 def test_bits_out_writes_into_callers_buffer():
     code = _code()
     rx, _ = _signal(code, 50, seed=5)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     out = np.zeros(max(c.bits_max_out(), len(rx)), dtype=np.uint8)
     y = c.bits(rx, out=out)
     assert np.shares_memory(y, out)
@@ -184,6 +184,6 @@ def test_bits_out_writes_into_callers_buffer():
 def test_bits_out_undersized_raises():
     code = _code()
     rx, _ = _signal(code, 50, seed=5)
-    c = Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    c = Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
     with pytest.raises(ValueError):
         c.bits(rx, out=np.zeros(1, dtype=np.uint8))

@@ -1,12 +1,12 @@
-"""Benchmark for Channel.
+"""Benchmark for Despreader.
 
-Run: pytest src/doppler/track/benchmarks/bench_channel.py --benchmark-only
+Run: pytest src/doppler/dsss/benchmarks/bench_despreader.py --benchmark-only
 """
 
 import numpy as np
 import pytest
 
-from doppler.track import Channel
+from doppler.dsss import Despreader
 
 BLOCK_64K = 65_536
 SF, SPS = 127, 8
@@ -19,7 +19,7 @@ def code():
 
 @pytest.fixture
 def obj(code):
-    return Channel(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
+    return Despreader(code, SPS, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5, 1)
 
 
 @pytest.fixture

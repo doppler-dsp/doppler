@@ -44,7 +44,7 @@ from doppler.arith import AccQ8, AccQ15
 from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
 from doppler.ddc import DDC, Ddcr
 from doppler.delay import DelayCf64
-from doppler.dsss import BurstDespreader
+from doppler.dsss import BurstDespreader, Despreader
 from doppler.filter import FIR, HBDecimQ15, MovingAverage
 from doppler.resample import (
     CIC,
@@ -58,7 +58,6 @@ from doppler.spectral import PSD, Corr, Corr2D, Detector, Detector2D
 from doppler.track import (
     CarrierMpsk,
     CarrierNda,
-    Channel,
     Costas,
     Dll,
     LoopFilter,
@@ -276,7 +275,10 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         lambda: SymbolSync(sps=8, bn=0.01, zeta=0.707, order="cubic"),
         _track_feed,
     ),
-    "Channel": (lambda: Channel(code=_CODE, sps=2, nav_period=1), _track_feed),
+    "Despreader": (
+        lambda: Despreader(code=_CODE, sps=2, periods_per_bit=1),
+        _track_feed,
+    ),
     "MpskReceiver": (lambda: MpskReceiver(m=4, sps=8, n=4), _track_feed),
     # Generators ignore the segment values, emitting len(seg) samples.
     "NCO": (

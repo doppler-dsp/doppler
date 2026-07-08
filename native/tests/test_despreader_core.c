@@ -1,16 +1,17 @@
 /**
- * @file test_channel_core.c
- * @brief Unit tests for the GPS-style tracking channel (Costas + DLL).
+ * @file test_despreader_core.c
+ * @brief Unit tests for the continuous DSSS despreader (Costas + DLL).
  *
  * Tests:
  *   1. Lifecycle / NULL-code guard / init==create parity
  *   2. Full receiver — small residual: carrier + code lock, zero BER (steps)
  *   3. FLL assist — a residual the bare PLL misses is locked
- *   4. Hard bits (nav_period = 1) match the data, up to a global flip
- *   5. Bit-sync (nav_period > 1) recovers nav bits + detects the boundary
+ *   4. Hard bits (periods_per_bit = 1) match the data, up to a global flip
+ *   5. Bit-sync (periods_per_bit > 1) recovers data bits + detects the
+ * boundary
  *   6. Reset reproducibility
  */
-#include "channel/channel_core.h"
+#include "despreader/despreader_core.h"
 #include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
@@ -48,11 +49,12 @@ make_code (uint8_t *code, size_t sf, uint32_t seed)
 }
 
 /* Build a continuous DSSS-BPSK signal: PN code x BPSK data (one data bit every
- * nav_period code periods) x carrier exp(j 2pi f0 n), optional AWGN sigma.
- * Fills `data` with the +-1 bit per nav symbol.  Returns sample count. */
+ * periods_per_bit code periods) x carrier exp(j 2pi f0 n), optional AWGN
+ * sigma. Fills `data` with the +-1 bit per data symbol.  Returns sample count.
+ */
 static size_t
 make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
-             size_t sps, size_t nper, size_t nav_period, double f0,
+             size_t sps, size_t nper, size_t periods_per_bit, double f0,
              float sigma, uint32_t seed)
 {
   uint32_t dst = seed ^ 0x5bd1e995u, nst = seed;
@@ -62,9 +64,9 @@ make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
   int      bit = prbs (&dst);
   for (size_t p = 0; p < nper; p++)
     {
-      if (p % nav_period == 0) /* new data bit at the nav boundary */
+      if (p % periods_per_bit == 0) /* new data bit at the bit boundary */
         bit = prbs (&dst);
-      data[p / nav_period] = bit;
+      data[p / periods_per_bit] = bit;
       for (size_t i = 0; i < sf * sps; i++, k++)
         {
           size_t        idx  = (size_t)fmod (cph, (double)sf);
@@ -106,25 +108,25 @@ main (void)
 
   /* 1. Lifecycle / guard / parity */
   {
-    CHECK (channel_create (NULL, 0, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707,
-                           0.5, 1)
+    CHECK (despreader_create (NULL, 0, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707,
+                              0.5, 1)
            == NULL);
     uint8_t code[127];
     make_code (code, sf, 1u);
-    channel_state_t *c = channel_create (code, sf, sps, 0.001, 0.0, 0.05,
-                                         0.005, 0.0, 0.707, 0.5, 1);
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.001, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
     CHECK (c != NULL);
     if (!c)
       return 1;
-    CHECK (fabs (channel_get_norm_freq (c) - 0.001) < 1e-9); /* seeded */
-    CHECK (channel_get_code_rate (c) == 1.0);
-    channel_state_t v;
-    channel_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707, 0.5,
-                  1);
+    CHECK (fabs (despreader_get_norm_freq (c) - 0.001) < 1e-9); /* seeded */
+    CHECK (despreader_get_code_rate (c) == 1.0);
+    despreader_state_t v;
+    despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
+                     0.5, 1);
     CHECK (v.car.lf.kp == c->car.lf.kp);
     CHECK (v.code.sf == sf && v.code.owns_code == 0);
     free (v.flip_hist);
-    channel_destroy (c);
+    despreader_destroy (c);
   }
 
   /* 2. Full receiver — small residual locks, zero BER on the tail */
@@ -136,17 +138,17 @@ main (void)
     int           *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 3u);
 
-    channel_state_t *c = channel_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, 1);
-    float complex   *sym = malloc (nper * sizeof (*sym));
-    size_t           k   = channel_steps (c, rx, n, sym, nper);
-    CHECK (fabs (channel_get_norm_freq (c) - 5e-5) < 1e-5);
-    CHECK (channel_get_lock_metric (c) > 0.9);
+    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    size_t              k   = despreader_steps (c, rx, n, sym, nper);
+    CHECK (fabs (despreader_get_norm_freq (c) - 5e-5) < 1e-5);
+    CHECK (despreader_get_lock_metric (c) > 0.9);
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
     CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    channel_destroy (c);
+    despreader_destroy (c);
     free (rx);
     free (data);
     free (sym);
@@ -164,23 +166,23 @@ main (void)
     int           *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, f0, 0.0f, 11u);
 
-    channel_state_t *pll = channel_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                           0.005, 0.0, 0.707, 0.5, 1);
-    float complex   *sym = malloc (nper * sizeof (*sym));
-    channel_steps (pll, rx, n, sym, nper);
-    CHECK (channel_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
-    channel_destroy (pll);
+    despreader_state_t *pll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    despreader_steps (pll, rx, n, sym, nper);
+    CHECK (despreader_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
+    despreader_destroy (pll);
 
-    channel_state_t *fll = channel_create (code, sf, sps, 0.0, 0.0, 0.05,
-                                           0.005, 0.03, 0.707, 0.5, 1);
-    size_t           k   = channel_steps (fll, rx, n, sym, nper);
-    CHECK (fabs (channel_get_norm_freq (fll) - f0) < 2e-5);
-    CHECK (channel_get_lock_metric (fll) > 0.9);
+    despreader_state_t *fll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.03, 0.707, 0.5, 1);
+    size_t              k   = despreader_steps (fll, rx, n, sym, nper);
+    CHECK (fabs (despreader_get_norm_freq (fll) - f0) < 2e-5);
+    CHECK (despreader_get_lock_metric (fll) > 0.9);
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
     CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    channel_destroy (fll);
+    despreader_destroy (fll);
     free (rx);
     free (data);
     free (sym);
@@ -188,7 +190,7 @@ main (void)
     free (code);
   }
 
-  /* 4. Hard bits (nav_period = 1) match the data */
+  /* 4. Hard bits (periods_per_bit = 1) match the data */
   {
     const size_t nper = 400;
     uint8_t     *code = malloc (sf);
@@ -197,15 +199,15 @@ main (void)
     int           *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 4e-5, 0.0f, 17u);
 
-    channel_state_t *c = channel_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, 1);
-    uint8_t         *bits = malloc (nper);
-    size_t           k    = channel_bits (c, rx, n, bits, nper);
-    int             *dec  = malloc (k * sizeof (int));
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
+    uint8_t            *bits = malloc (nper);
+    size_t              k    = despreader_bits (c, rx, n, bits, nper);
+    int                *dec  = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = bits[i] ? 1 : -1;
     CHECK (amb_errors (dec, data, k / 2, k) == 0);
-    channel_destroy (c);
+    despreader_destroy (c);
     free (rx);
     free (data);
     free (bits);
@@ -213,7 +215,8 @@ main (void)
     free (code);
   }
 
-  /* 5. Bit-sync (nav_period = 20) recovers nav bits + detects the boundary */
+  /* 5. Bit-sync (periods_per_bit = 20) recovers data bits + detects the
+   * boundary */
   {
     const size_t N = 20, nbits = 120, nper = N * nbits;
     uint8_t     *code = malloc (sf);
@@ -222,18 +225,18 @@ main (void)
     int           *data = malloc (nbits * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, N, 3e-5, 0.0f, 23u);
 
-    channel_state_t *c = channel_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, N);
-    uint8_t         *bits = malloc (nbits);
-    size_t           k    = channel_bits (c, rx, n, bits, nbits);
-    CHECK (k >= nbits - 3); /* ~one bit per nav_period periods */
-    CHECK (channel_get_bit_phase (c) == 0); /* boundary at epoch 0 */
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, N);
+    uint8_t            *bits = malloc (nbits);
+    size_t              k    = despreader_bits (c, rx, n, bits, nbits);
+    CHECK (k >= nbits - 3); /* ~one bit per periods_per_bit periods */
+    CHECK (despreader_get_bit_phase (c) == 0); /* boundary at epoch 0 */
     int *dec = malloc (k * sizeof (int));
     for (size_t i = 0; i < k; i++)
       dec[i] = bits[i] ? 1 : -1;
     /* tail: after bit-sync settles, recovered bits match the data */
     CHECK (amb_errors (dec, data, k / 3, k) == 0);
-    channel_destroy (c);
+    despreader_destroy (c);
     free (rx);
     free (data);
     free (bits);
@@ -250,16 +253,17 @@ main (void)
     int           *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 5u);
 
-    channel_state_t *c = channel_create (code, sf, sps, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, 1);
-    float complex   *sym = malloc (nper * sizeof (*sym));
-    channel_steps (c, rx, n, sym, nper);
-    double f1 = channel_get_norm_freq (c), l1 = channel_get_lock_metric (c);
-    channel_reset (c);
-    channel_steps (c, rx, n, sym, nper);
-    CHECK (f1 == channel_get_norm_freq (c));
-    CHECK (l1 == channel_get_lock_metric (c));
-    channel_destroy (c);
+    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    despreader_steps (c, rx, n, sym, nper);
+    double f1 = despreader_get_norm_freq (c),
+           l1 = despreader_get_lock_metric (c);
+    despreader_reset (c);
+    despreader_steps (c, rx, n, sym, nper);
+    CHECK (f1 == despreader_get_norm_freq (c));
+    CHECK (l1 == despreader_get_lock_metric (c));
+    despreader_destroy (c);
     free (rx);
     free (data);
     free (sym);
@@ -268,11 +272,11 @@ main (void)
 
   if (_fails)
     {
-      fprintf (stderr, "test_channel_core FAILED (%d)\n", _fails);
+      fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
       return 1;
     }
   /* serializable state — costas + dll children resume; dll borrows this
-   * channel's own code copy after restore. */
+   * despreader's own code copy after restore. */
   {
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
@@ -280,21 +284,21 @@ main (void)
     float complex rx[256], sym[16];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
-    channel_state_t *a = channel_create (code, 31, 2, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, 1);
-    channel_state_t *b = channel_create (code, 31, 2, 0.0, 0.0, 0.05, 0.005,
-                                         0.0, 0.707, 0.5, 1);
+    despreader_state_t *a = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
+    despreader_state_t *b = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
     CHECK (a != NULL && b != NULL);
-    (void)channel_steps (a, rx, 256, sym, 16);
-    DP_STATE_ROUNDTRIP_TEST (channel, a, b);
+    (void)despreader_steps (a, rx, 256, sym, 16);
+    DP_STATE_ROUNDTRIP_TEST (despreader, a, b);
     CHECK (b->epoch_count == a->epoch_count);
     CHECK (b->car.acc == a->car.acc);       /* costas child */
     CHECK (b->code.acc_p == a->code.acc_p); /* dll child */
     CHECK (b->code_copy != NULL && b->code.code == b->code_copy);
-    channel_destroy (a);
-    channel_destroy (b);
+    despreader_destroy (a);
+    despreader_destroy (b);
   }
 
-  printf ("test_channel_core PASSED\n");
+  printf ("test_despreader_core PASSED\n");
   return 0;
 }

@@ -17,8 +17,9 @@ golden-path proof that what a user `pip install`s actually works on Python 3.9:
 
 Checks are chosen to pass on the shipped 0.17.0 — they deliberately steer
 around the three known bugs the repo's exhaustive suite pins as xfails
-(PN default polynomial, `wfmgen --output -`, and the `ZmqSink` cf32 stream
-decode), so this is a clean PASS/FAIL signal for the artifact itself. Features
+(PN default polynomial, `wfmgen --output -`, and the `ZmqSink`/`StreamSink`
+cf32 stream decode), so this is a clean PASS/FAIL signal for the artifact
+itself. Features
 that landed *after* 0.17.0 (the `Synth(bits=...)` kwarg, `Composer.to_sigmf`)
 are **feature-detected** — exercised when the wheel has them, gracefully
 degraded (SigMF via the `wfmgen` CLI) otherwise — so this same script validates
@@ -68,7 +69,7 @@ EXPECTED_SYMBOLS = {
     "write_blue_header",
     "Writer",
     "Reader",
-    "ZmqSink",
+    "StreamSink",
     "SampleClock",
     "read_iq",
 }

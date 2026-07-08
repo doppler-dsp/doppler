@@ -4,7 +4,7 @@ Where :mod:`test_dsp_correctness` validates the *math*, this module validates
 the *surface*: every public name in ``doppler.wfm.__all__`` is importable and
 exercised, every handle class round-trips its lifecycle (construct → use → read
 properties → context-manager → ``close``/``destroy``), the ``Segment`` /
-``Timeline`` / ``Composer`` graph composes and serialises, the live ``ZmqSink``
+``Timeline`` / ``Composer`` graph composes and serialises, the live ``StreamSink``
 + ``SampleClock`` path actually moves samples, and the ``wfmgen`` CLI honours
 its full argument map with **face parity** (CLI bytes == Python ``Composer``
 bytes == ``--from-file`` JSON replay).
@@ -64,8 +64,8 @@ COVERAGE: dict[str, str] = {
     # transport / IO handles
     "Writer": "TestReaderWriter",
     "Reader": "TestReaderWriter",
-    "ZmqSink": "TestZmqSinkAndClock",
-    "SampleClock": "TestZmqSinkAndClock",
+    "StreamSink": "TestStreamSinkAndClock",
+    "SampleClock": "TestStreamSinkAndClock",
     "read_iq": "TestReaderWriter",
 }
 
@@ -459,19 +459,39 @@ class TestReaderWriter:
         assert raw.shape == (1024, 2)
 
 
-class TestZmqSinkAndClock:
+def _nats_available() -> bool:
+    """True if a nats-server is listening on 127.0.0.1:4222."""
+    import socket
+
+    try:
+        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+_requires_nats = pytest.mark.skipif(
+    not _nats_available(),
+    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
+)
+
+
+@_requires_nats
+class TestStreamSinkAndClock:
     @staticmethod
     def _sink_to_sub(stream, sample_type: str):
-        """Bind a ``ZmqSink``, connect a ``Subscriber``, and round-trip one
-        block over ``ipc://``. Returns the received samples (or raises the
-        decode error). ZMQ PUB/SUB is a slow-joiner — warm up, then re-send a
-        few times in case the first frame races the subscription."""
-        import tempfile
+        """Bind a ``StreamSink``, connect a ``Subscriber``, and round-trip one
+        block over ``nats://``. Returns the received samples (or raises the
+        decode error). NATS core PUB/SUB requires the subscription to exist
+        before the first publish — warm up, then re-send a few times in case
+        the first frame still races it."""
+        import random
         import time
 
-        ep = f"ipc://{tempfile.mkdtemp()}/feed"
-        sink = w.ZmqSink(ep, sample_type=sample_type)
+        ep = f"nats://127.0.0.1:4222/streamsink-feed-{random.randint(1, 10**9)}"
         sub = stream.Subscriber(ep)
+        time.sleep(0.3)
+        sink = w.StreamSink(ep, sample_type=sample_type)
         time.sleep(0.1)
         x = w.Synth(type="tone", fs=1e6, freq=1e5, snr=100.0).steps(1024)
         try:
@@ -487,27 +507,28 @@ class TestZmqSinkAndClock:
             sub.close()
         return x, got
 
-    def test_zmqsink_to_subscriber(self) -> None:
-        # Live PUB->SUB over ipc:// proves ZmqSink moves samples to a
+    def test_streamsink_to_subscriber(self) -> None:
+        # Live PUB->SUB over nats:// proves StreamSink moves samples to a
         # doppler.stream Subscriber. cf64 round-trips bit-exactly.
         stream = pytest.importorskip("doppler.stream")
         x, got = self._sink_to_sub(stream, "cf64")
-        assert got is not None, "no frame received from ZmqSink"
+        assert got is not None, "no frame received from StreamSink"
         assert np.allclose(got, x.astype(np.complex128), atol=1e-9)
 
-    def test_zmqsink_cf32_decodes_in_stream(self) -> None:
-        # cf32 is wfm's DEFAULT sample type + the most common ZmqSink path;
-        # doppler.stream now decodes all six dp_sample_type_t types (#193).
+    def test_streamsink_cf32_decodes_in_stream(self) -> None:
+        # cf32 is wfm's DEFAULT sample type + the most common StreamSink
+        # path; doppler.stream now decodes all six dp_sample_type_t types
+        # (#193).
         stream = pytest.importorskip("doppler.stream")
         x, got = self._sink_to_sub(stream, "cf32")
-        assert got is not None, "no cf32 frame received from ZmqSink"
+        assert got is not None, "no cf32 frame received from StreamSink"
         assert np.allclose(got, x, atol=1e-4)
 
-    def test_zmqsink_clip_properties(self) -> None:
-        import tempfile
+    def test_streamsink_clip_properties(self) -> None:
+        import random
 
-        ep = f"ipc://{tempfile.mkdtemp()}/feed2"
-        sink = w.ZmqSink(ep, sample_type="ci16")
+        ep = f"nats://127.0.0.1:4222/streamsink-feed2-{random.randint(1, 10**9)}"
+        sink = w.StreamSink(ep, sample_type="ci16")
         sink.track_clipping(1)
         sink.send(3.0 * np.ones(64, np.complex64), 1e6, 0.0)
         assert sink.clipped is True

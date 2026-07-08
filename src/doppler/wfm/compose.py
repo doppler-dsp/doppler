@@ -1,4 +1,4 @@
-"""Multi-segment waveform composition, file writers, and a ZMQ sink.
+"""Multi-segment waveform composition, file writers, and a NATS sink.
 
 This is the Python face of the C ``wfmgen`` composer subsystem — the same
 engine behind the ``wfmgen`` CLI, exposed here as classes. A
@@ -6,8 +6,8 @@ engine behind the ``wfmgen`` CLI, exposed here as classes. A
 QPSK, each with its own on-time and trailing gap) into one stream, optionally
 looping (``repeat``) or running forever (``continuous``). :class:`Writer`
 serialises samples to the same containers as the CLI (raw interleaved I/Q,
-CSV, BLUE type-1000, SigMF), and :class:`ZmqSink` publishes them over
-ZeroMQ. The composer's resolved spec round-trips through JSON
+CSV, BLUE type-1000, SigMF), and :class:`StreamSink` publishes them over
+NATS. The composer's resolved spec round-trips through JSON
 (:meth:`Composer.to_json` / :meth:`Composer.from_json`), so a capture is
 fully reproducible.
 
@@ -77,7 +77,7 @@ from .wfm_compose import (  # noqa: F401  (re-export)
 )
 from .wfm_plan import Plan as _Plan  # the generated handle; wrapped below
 from .wfm_reader import Reader  # noqa: F401  (re-export)
-from .wfm_sink import ZmqSink  # noqa: F401  (re-export)
+from .wfm_sink import StreamSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)
 
 # string-enum ↔ C-int tables for the remaining hand binding

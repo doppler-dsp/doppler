@@ -8,7 +8,7 @@
  *
  * It is archived into libdoppler so a downstream that links libdoppler.a — or
  * loads libdoppler.so — can drive the full generator without shelling out. The
- * zmq sink is statically linked, so there is no runtime libzmq dependency. And
+ * stream sink is statically linked, so there is no runtime client dependency. And
  * because it is the exact same code path, `doppler_wfmgen(argc, argv)` is
  * byte-identical to running `wfmgen …`.
  */
@@ -24,8 +24,8 @@ extern "C" {
  *
  * Parses @p argv exactly as the `wfmgen` binary does (`--type`, `--count`,
  * `--from-file`, `--output`, `--record`, the container/wire/endian flags, the
- * `zmq://` sink, `--realtime` pacing, …), composes the waveform, and writes it
- * to the chosen destination (a file, stdout, or a ZMQ PUB endpoint). Output is
+ * `nats://` sink, `--realtime` pacing, …), composes the waveform, and writes it
+ * to the chosen destination (a file, stdout, or a NATS PUB subject). Output is
  * byte-identical to invoking the CLI with the same arguments — it is the same
  * code path, not a reimplementation.
  *

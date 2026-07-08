@@ -6,7 +6,7 @@
  * add_subdirectory): the file is hand-owned, like ddc_fn_ext.c.
  *
  * The composer (Synth/Segment/Timeline/Composer), the transport handles
- * (Writer/Reader/ZmqSink/SampleClock) and SigMF metadata (Composer.to_sigmf())
+ * (Writer/Reader/StreamSink/SampleClock) and SigMF metadata (Composer.to_sigmf())
  * are all jm-generated now. The capsule bindings that used to live here for
  * those — the _fn_writer/reader/sink/clock PyCapsule glue — were
  * superseded by the generated handles and have been removed (gh-178 review

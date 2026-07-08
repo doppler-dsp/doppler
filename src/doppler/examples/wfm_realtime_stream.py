@@ -1,36 +1,38 @@
-"""wfm_realtime_stream.py — paced ZMQ publish of a wfmgen scene.
+"""wfm_realtime_stream.py — paced NATS publish of a wfmgen scene.
 
-A self-contained real-time streaming demo over ``ipc://``: a
-:class:`~doppler.wfm.Composer` is streamed block-by-block, each block is
-**paced to wall-clock** with a :class:`~doppler.wfm.SampleClock` (so the feed
-runs at ``fs`` samples/second, like a live SDR), published through a
-:class:`~doppler.wfm.ZmqSink`, and received back by a
+A self-contained real-time streaming demo over ``nats://`` (requires a
+``nats-server`` running locally): a :class:`~doppler.wfm.Composer` is
+streamed block-by-block, each block is **paced to wall-clock** with a
+:class:`~doppler.wfm.SampleClock` (so the feed runs at ``fs``
+samples/second, like a live SDR), published through a
+:class:`~doppler.wfm.StreamSink`, and received back by a
 :class:`doppler.stream.Subscriber` that prints live power/throughput. At the
 end it reports the clock's pacing accuracy (samples emitted, underruns, worst
 lateness).
 
 The sink publishes **cf64** on purpose: ``doppler.stream``'s receiver currently
-decodes only ``CI32``/``CF64``/``CF128``, so the ``ZmqSink`` default ``cf32``
+decodes only ``CI32``/``CF64``/``CF128``, so the ``StreamSink`` default ``cf32``
 (and ``ci16``/``ci8``) are not yet decodable on the Python side — tracked in
-``docs/dev/wfm-validation-findings.md#zmqsink-stream-dtype-gap`` and filed as a
-``stream`` bug. Use cf64/ci32 for a Python subscriber until that lands.
+``docs/dev/wfm-validation-findings.md#streamsink-stream-dtype-gap`` and filed
+as a ``stream`` bug. Use cf64/ci32 for a Python subscriber until that lands.
 
 Unlike the smoke-tested compute demos, this one binds a socket and paces in
 real time, so it is a *manual* demo (run it directly); it still exits 0 cleanly
 after a bounded run.
 
 Run:
+    nats-server -js &
     python examples/python/wfm_realtime_stream.py
 """
 
 from __future__ import annotations
 
-import tempfile
+import random
 
 import numpy as np
 
 from doppler.stream import Subscriber
-from doppler.wfm import Composer, SampleClock, Segment, ZmqSink, qpsk, tone
+from doppler.wfm import Composer, SampleClock, Segment, StreamSink, qpsk, tone
 
 FS = 500_000.0  # 500 kHz feed
 FC = 2.4e9
@@ -39,7 +41,7 @@ TOTAL = 80_000  # ~0.16 s of signal at FS -> a short, bounded demo
 
 
 def main() -> None:
-    endpoint = f"ipc://{tempfile.mkdtemp()}/wfm_feed"
+    endpoint = f"nats://127.0.0.1:4222/wfm-feed-{random.randint(1, 10**9)}"
     # A two-source scene: a QPSK signal of interest plus a CW interferer.
     scene = Segment.sum(
         qpsk(fs=FS, sps=8, snr=20.0, snr_mode="esno"),
@@ -48,14 +50,17 @@ def main() -> None:
     )
     composer = Composer([scene])
 
-    # cf64 so the Python Subscriber can decode the frames (see docstring).
-    sink = ZmqSink(endpoint, sample_type="cf64")
     sub = Subscriber(endpoint)
-    clock = SampleClock(fs=FS)
 
     import time
 
-    time.sleep(0.1)  # ZMQ PUB/SUB slow-joiner warm-up
+    time.sleep(0.3)  # core NATS: sub must exist before the first publish
+
+    # cf64 so the Python Subscriber can decode the frames (see docstring).
+    sink = StreamSink(endpoint, sample_type="cf64")
+    clock = SampleClock(fs=FS)
+
+    time.sleep(0.1)
 
     sent_blocks = recv_blocks = recv_samples = 0
     print(f"streaming {TOTAL} samples @ {FS / 1e3:.0f} kHz over {endpoint}")

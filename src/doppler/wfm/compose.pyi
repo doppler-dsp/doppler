@@ -33,7 +33,7 @@ from .wfm_compose import (
 # (don't redefine) here to keep the surface in sync with the generated API.
 from .sample_clock import SampleClock as SampleClock
 from .wfm_reader import Reader as Reader
-from .wfm_sink import ZmqSink as ZmqSink
+from .wfm_sink import StreamSink as StreamSink
 from .wfm_writer import Writer as Writer
 
 # sigmf_meta is now the generated Composer.to_sigmf() method (see wfm_compose.pyi).

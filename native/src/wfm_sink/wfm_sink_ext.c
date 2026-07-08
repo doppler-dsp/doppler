@@ -1,7 +1,7 @@
 /*
- * wfm_sink_ext.c — handle extension: typed `ZmqSink` over `wfm_zmq_sink` (jm; gh-306).
+ * wfm_sink_ext.c — handle extension: typed `StreamSink` over `wfm_stream_sink` (jm; gh-306).
  *
- * `ZmqSink` wraps an opaque wfm_zmq_sink_t *; the resource logic
+ * `StreamSink` wraps an opaque wfm_stream_sink_t *; the resource logic
  * lives hand-written in the backing _core.c. This file is pure generated glue —
  * lifecycle, arg coercion, numpy marshaling, decoded-getter properties, RAII.
  */
@@ -38,13 +38,13 @@ static const char *const _enum_stype[] = {
 
 typedef struct {
     PyObject_HEAD
-    wfm_zmq_sink_t *h;
+    wfm_stream_sink_t *h;
     int       closed;
     int sample_type;
-} ZmqSinkObject;
+} StreamSinkObject;
 
 static int
-ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
+StreamSink_init(StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"endpoint", "sample_type", NULL};
     const char * endpoint = 0;
@@ -59,13 +59,13 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
     if (!self->closed && self->h) {
-        wfm_zmq_sink_close(self->h);
+        wfm_stream_sink_close(self->h);
         self->h = NULL;
         self->closed = 1;
     }
-    self->h = wfm_zmq_sink_open(endpoint, _arg_sample_type);
+    self->h = wfm_stream_sink_open(endpoint, _arg_sample_type);
     if (!self->h) {
-        PyErr_SetString(PyExc_RuntimeError, "wfm_zmq_sink_open failed");
+        PyErr_SetString(PyExc_RuntimeError, "wfm_stream_sink_open failed");
         return -1;
     }
     self->closed = 0;
@@ -76,7 +76,7 @@ ZmqSink_init(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-ZmqSink_send(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
+StreamSink_send(StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"iq", "fs", "fc", NULL};
     PyObject *x_obj;
@@ -86,7 +86,7 @@ ZmqSink_send(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
             &x_obj, &fs, &fc))
         return NULL;
     if (self->closed) {
-        PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
+        PyErr_SetString(PyExc_RuntimeError, "StreamSink is closed");
         return NULL;
     }
     PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF(
@@ -96,125 +96,125 @@ ZmqSink_send(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
     const float _Complex *in_data = (const float _Complex *)PyArray_DATA(x_arr);
     int r;
     Py_BEGIN_ALLOW_THREADS
-    r = wfm_zmq_sink_send(self->h, in_data, n_in, fs, fc);
+    r = wfm_stream_sink_send(self->h, in_data, n_in, fs, fc);
     Py_END_ALLOW_THREADS
     Py_DECREF(x_arr);
     return PyLong_FromLong((long)r);
 }
 
 static PyObject *
-ZmqSink_track_clipping(ZmqSinkObject *self, PyObject *args, PyObject *kwds)
+StreamSink_track_clipping(StreamSinkObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"on", NULL};
     int on = 1;
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist,
             &on)) return NULL;
     if (self->closed) {
-        PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
+        PyErr_SetString(PyExc_RuntimeError, "StreamSink is closed");
         return NULL;
     }
-    wfm_zmq_sink_track_clipping(self->h, on);
+    wfm_stream_sink_track_clipping(self->h, on);
     Py_RETURN_NONE;
 }
 
 static PyObject *
-ZmqSink_get_clip_fraction(ZmqSinkObject *self, void *closure)
+StreamSink_get_clip_fraction(StreamSinkObject *self, void *closure)
 {
     (void)closure;
     double tmp;
     if (self->closed) {
-        PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
+        PyErr_SetString(PyExc_RuntimeError, "StreamSink is closed");
         return NULL;
     }
-    tmp = wfm_zmq_sink_clip_fraction(self->h);
+    tmp = wfm_stream_sink_clip_fraction(self->h);
     return PyFloat_FromDouble(tmp);
 }
 
 static PyObject *
-ZmqSink_get_peak_dbfs(ZmqSinkObject *self, void *closure)
+StreamSink_get_peak_dbfs(StreamSinkObject *self, void *closure)
 {
     (void)closure;
     double tmp;
     if (self->closed) {
-        PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
+        PyErr_SetString(PyExc_RuntimeError, "StreamSink is closed");
         return NULL;
     }
-    tmp = wfm_zmq_sink_peak(self->h);
+    tmp = wfm_stream_sink_peak(self->h);
     return PyFloat_FromDouble(tmp > 0 ? 20*log10(tmp) : -INFINITY);
 }
 
 static PyObject *
-ZmqSink_get_clipped(ZmqSinkObject *self, void *closure)
+StreamSink_get_clipped(StreamSinkObject *self, void *closure)
 {
     (void)closure;
     double tmp;
     if (self->closed) {
-        PyErr_SetString(PyExc_RuntimeError, "ZmqSink is closed");
+        PyErr_SetString(PyExc_RuntimeError, "StreamSink is closed");
         return NULL;
     }
-    tmp = wfm_zmq_sink_peak(self->h);
+    tmp = wfm_stream_sink_peak(self->h);
     return PyBool_FromLong((long)(tmp > 1.0 && self->sample_type >= 2));
 }
 
-static PyGetSetDef ZmqSink_getset[] = {
-    {"clip_fraction", (getter)ZmqSink_get_clip_fraction, NULL, NULL, NULL},
-    {"peak_dbfs", (getter)ZmqSink_get_peak_dbfs, NULL, NULL, NULL},
-    {"clipped", (getter)ZmqSink_get_clipped, NULL, NULL, NULL},
+static PyGetSetDef StreamSink_getset[] = {
+    {"clip_fraction", (getter)StreamSink_get_clip_fraction, NULL, NULL, NULL},
+    {"peak_dbfs", (getter)StreamSink_get_peak_dbfs, NULL, NULL, NULL},
+    {"clipped", (getter)StreamSink_get_clipped, NULL, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
 static PyObject *
-ZmqSink_close(ZmqSinkObject *self, PyObject *Py_UNUSED(ignored))
+StreamSink_close(StreamSinkObject *self, PyObject *Py_UNUSED(ignored))
 {
     if (!self->closed && self->h) {
-        wfm_zmq_sink_close(self->h);
+        wfm_stream_sink_close(self->h);
         self->closed = 1;
     }
     Py_RETURN_NONE;
 }
 
 static PyObject *
-ZmqSink_enter(ZmqSinkObject *self, PyObject *Py_UNUSED(ignored))
+StreamSink_enter(StreamSinkObject *self, PyObject *Py_UNUSED(ignored))
 {
     Py_INCREF(self);
     return (PyObject *)self;
 }
 
 static PyObject *
-ZmqSink_exit(ZmqSinkObject *self, PyObject *args)
+StreamSink_exit(StreamSinkObject *self, PyObject *args)
 {
     (void)args;
-    return ZmqSink_close(self, NULL);
+    return StreamSink_close(self, NULL);
 }
 static void
-ZmqSink_dealloc(ZmqSinkObject *self)
+StreamSink_dealloc(StreamSinkObject *self)
 {
     if (!self->closed && self->h) {
-        wfm_zmq_sink_close(self->h);
+        wfm_stream_sink_close(self->h);
     }
     Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyMethodDef ZmqSink_methods[] = {
-    {"send", (PyCFunction)ZmqSink_send, METH_VARARGS | METH_KEYWORDS, NULL},
-    {"track_clipping", (PyCFunction)ZmqSink_track_clipping, METH_VARARGS | METH_KEYWORDS, NULL},
-    {"close", (PyCFunction)ZmqSink_close, METH_NOARGS, "close() -> None"},
-    {"__enter__", (PyCFunction)ZmqSink_enter, METH_NOARGS, NULL},
-    {"__exit__", (PyCFunction)ZmqSink_exit, METH_VARARGS, NULL},
+static PyMethodDef StreamSink_methods[] = {
+    {"send", (PyCFunction)StreamSink_send, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"track_clipping", (PyCFunction)StreamSink_track_clipping, METH_VARARGS | METH_KEYWORDS, NULL},
+    {"close", (PyCFunction)StreamSink_close, METH_NOARGS, "close() -> None"},
+    {"__enter__", (PyCFunction)StreamSink_enter, METH_NOARGS, NULL},
+    {"__exit__", (PyCFunction)StreamSink_exit, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 
-static PyTypeObject ZmqSinkType = {
+static PyTypeObject StreamSinkType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name      = "doppler.wfm.ZmqSink",
-    .tp_basicsize = sizeof(ZmqSinkObject),
+    .tp_name      = "doppler.wfm.StreamSink",
+    .tp_basicsize = sizeof(StreamSinkObject),
     .tp_flags     = Py_TPFLAGS_DEFAULT,
     .tp_new       = PyType_GenericNew,
-    .tp_init      = (initproc)ZmqSink_init,
-    .tp_dealloc   = (destructor)ZmqSink_dealloc,
-    .tp_getset    = ZmqSink_getset,
-    .tp_methods   = ZmqSink_methods,
-    .tp_doc       = PyDoc_STR("ZmqSink — handle over `wfm_zmq_sink`."),
+    .tp_init      = (initproc)StreamSink_init,
+    .tp_dealloc   = (destructor)StreamSink_dealloc,
+    .tp_getset    = StreamSink_getset,
+    .tp_methods   = StreamSink_methods,
+    .tp_doc       = PyDoc_STR("StreamSink — handle over `wfm_stream_sink`."),
 };
 
 static struct PyModuleDef _moduledef = {
@@ -226,12 +226,12 @@ PyMODINIT_FUNC
 PyInit_wfm_sink(void)
 {
     import_array();
-    if (PyType_Ready(&ZmqSinkType) < 0) return NULL;
+    if (PyType_Ready(&StreamSinkType) < 0) return NULL;
     PyObject *m = PyModule_Create(&_moduledef);
     if (!m) return NULL;
-    Py_INCREF(&ZmqSinkType);
-    if (PyModule_AddObject(m, "ZmqSink", (PyObject *)&ZmqSinkType) < 0) {
-        Py_DECREF(&ZmqSinkType);
+    Py_INCREF(&StreamSinkType);
+    if (PyModule_AddObject(m, "StreamSink", (PyObject *)&StreamSinkType) < 0) {
+        Py_DECREF(&StreamSinkType);
         Py_DECREF(m);
         return NULL;
     }

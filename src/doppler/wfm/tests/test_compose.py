@@ -66,6 +66,8 @@ _WFMGEN = _wfmgen_bin()
 _needs_wfmgen = pytest.mark.skipif(
     _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
 )
+
+
 # StreamSink and SampleClock are POSIX-only (the vendored nats.c client is
 # POSIX-only; the clock uses clock_gettime / nanosleep). The generated
 # handles are gated the same way the retired capsule bindings were (#ifndef
@@ -371,7 +373,9 @@ def test_streamsink_loopback_to_subscriber():
     """
     from doppler.stream import Subscriber
 
-    ep = f"nats://127.0.0.1:4222/streamsink-loopback-{random.randint(1, 10**9)}"
+    ep = (
+        f"nats://127.0.0.1:4222/streamsink-loopback-{random.randint(1, 10**9)}"
+    )
     x = Composer(type="tone", freq=1e5, num_samples=512).compose()
     with Subscriber(ep) as sub:
         time.sleep(0.3)  # core NATS: sub must exist before publish

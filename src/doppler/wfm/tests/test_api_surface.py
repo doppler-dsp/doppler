@@ -488,7 +488,9 @@ class TestStreamSinkAndClock:
         import random
         import time
 
-        ep = f"nats://127.0.0.1:4222/streamsink-feed-{random.randint(1, 10**9)}"
+        ep = (
+            f"nats://127.0.0.1:4222/streamsink-feed-{random.randint(1, 10**9)}"
+        )
         sub = stream.Subscriber(ep)
         time.sleep(0.3)
         sink = w.StreamSink(ep, sample_type=sample_type)

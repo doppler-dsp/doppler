@@ -1,6 +1,7 @@
 """Benchmark for BurstDespreader.
 
-Run: pytest src/doppler/dsss/benchmarks/bench_burst_despreader.py --benchmark-only
+Run: pytest src/doppler/dsss/benchmarks/bench_burst_despreader.py \
+    --benchmark-only
 """
 
 import numpy as np

@@ -13,6 +13,7 @@
 #define RATE_CONVERTER_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #include <complex.h>
 #include <stddef.h>
@@ -49,6 +50,18 @@ RateConverter_state_t *RateConverter_create (double rate, int compensate);
 void RateConverter_destroy (RateConverter_state_t *s);
 
 void RateConverter_reset (RateConverter_state_t *s);
+
+/* Serializable state (standard bytes interface; see dp_state.h): the standard
+ * envelope followed by the concatenated mutable state of the active cascade
+ * stages (HB / CIC[+comp FIR] / Resampler), in cascade order — each a
+ * self-contained sub-blob with its own leaf envelope.  The stage plan is config
+ * (rebuilt from rate), so a same-rate RateConverter round-trips exactly. */
+#define RC_STATE_MAGIC DP_FOURCC ('R', 'C', 'V', 'T')
+#define RC_STATE_VERSION 1u
+
+size_t RateConverter_state_bytes (const RateConverter_state_t *s);
+void RateConverter_get_state (const RateConverter_state_t *s, void *blob);
+int RateConverter_set_state (RateConverter_state_t *s, const void *blob);
 
 size_t RateConverter_execute (RateConverter_state_t *s,
                               const float _Complex *in, size_t n_in,

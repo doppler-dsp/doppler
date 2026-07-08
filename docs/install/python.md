@@ -9,7 +9,7 @@
 !!! success "No system libraries needed"
 
     The wheel bundles all native dependencies — the streaming extension
-    statically links a vendored copy of libzmq. `pip install` works
+    statically links a vendored copy of `nats.c`. `pip install` works
     out of the box on Linux and macOS (Python 3.9+). On Windows, install
     under [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a
     container.

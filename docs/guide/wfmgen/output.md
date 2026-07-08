@@ -10,7 +10,7 @@ The sample **type** (the datatype), the **container** (the file format), and the
 | `--sample-type`   | `cf32 cf64 ci32 ci16 ci8` | `cf32`  | wire type; integers are full-scale ±1.0                           |
 | `--file-type`     | `raw csv blue sigmf`      | `raw`   | container (below)                                                 |
 | `--endian`        | `le be`                   | `le`    | byte order (raw/BLUE only; csv is text)                           |
-| `--output` / `-o` | path *(or `zmq://…`)*     | stdout  | sink                                                              |
+| `--output` / `-o` | path *(or `nats://…`)*    | stdout  | sink                                                              |
 | `--record`        | path                      | —       | write a JSON record of the resolved run (see [Scenes](scenes.md)) |
 
 The integer sample types map ±1.0 → ±max-code (and can clip on PAPR > 0 dB
@@ -100,18 +100,18 @@ ______________________________________________________________________
 
 ## Sinks
 
-| `--output`           | Result                                                                 |
-| -------------------- | ---------------------------------------------------------------------- |
-| *(omitted)*          | binary stream to **stdout** (pipe it)                                  |
-| `file.iq`            | write to a file                                                        |
-| `zmq://tcp://*:5555` | *(`wfmgen` only)* publish to a **ZMQ PUB** endpoint (SIGS wire format) |
+| `--output`                 | Result                                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| *(omitted)*                | binary stream to **stdout** (pipe it)                                                              |
+| `file.iq`                  | write to a file                                                                                     |
+| `nats://127.0.0.1:4222/iq` | *(`wfmgen` only)* publish to a **NATS PUB** endpoint (SIGS wire format); requires a `nats-server`   |
 
 ```sh
-wfmgen --type tone --count 1000000 | other-tool               # pipe via stdout
-wfmgen --type tone --continuous --output zmq://tcp://*:5555    # stream forever to ZMQ
+wfmgen --type tone --count 1000000 | other-tool                    # pipe via stdout
+wfmgen --type tone --continuous --output nats://127.0.0.1:4222/iq  # stream forever to NATS
 ```
 
-A `dp_sub_*` subscriber (e.g. `examples/c/spectrum_analyzer`) reads the ZMQ
+A `dp_sub_*` subscriber (e.g. `examples/c/spectrum_analyzer`) reads the NATS
 stream. For pacing a live stream to the true sample rate, see
 [Streaming](streaming.md).
 

@@ -1,3 +1,9 @@
+> **Historical document** — This records the design process that led to the
+> static-linking approach for doppler's Python extensions. It predates the
+> ZMQ → NATS transport migration (ZMQ has since been removed entirely); the
+> static-vs-dynamic reasoning still applies to the vendored `nats.c`. See
+> `vendor/` in the repository root for current policy and paths.
+
 # Static vs Dynamic Libraries for Python Extensions
 
 ## The Question: Why not use static libraries?

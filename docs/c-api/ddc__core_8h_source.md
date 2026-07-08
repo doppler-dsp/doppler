@@ -59,6 +59,31 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
 
   void ddcr_reset (ddcr_state_t *s);
 
+  /* ── Serializable state — the elastic / pure-transducer face ───────────────
+   *
+   * Composes the leaf serializers of the whole chain (hbdecim_r2c -> LO ->
+   * RateConverter) into one flat POD, so a fresh DDCR built from the same
+   * (norm_freq, rate) descriptor resumes a stream bit-exactly on any
+   * thread/process/pod.  Standard bytes interface (see dp_state.h): the blob is
+   * `[dp_state_hdr_t][ddcr_extra_t][r2c][lo][rc]`, each child a self-contained
+   * sub-blob with its own envelope.  `rate` is the layout key. */
+
+  typedef struct
+  {
+    double rate; 
+  } ddcr_extra_t;
+
+#define DDCR_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', 'R')
+#define DDCR_STATE_VERSION 1u
+
+  size_t ddcr_state_bytes (const ddcr_state_t *s);
+  void ddcr_get_state (const ddcr_state_t *s, void *blob);
+  int ddcr_set_state (ddcr_state_t *s, const void *blob);
+
+  size_t ddcr_run (ddcr_state_t *s, const void *state_in, void *state_out,
+                   const float *in, size_t n_in, float _Complex *out,
+                   size_t max_out);
+
   double ddcr_get_norm_freq (const ddcr_state_t *s);
 
   void ddcr_set_norm_freq (ddcr_state_t *s, double norm_freq);
@@ -69,6 +94,26 @@ size_t ddc_execute(ddc_state_t *state, const float complex *x, size_t x_len, flo
                        float _Complex *out, size_t max_out);
 
 size_t ddc_execute_max_out(ddc_state_t *state);
+
+  /* ── Serializable state — complex DDC (LO + RateConverter) ─────────────────
+   * Standard bytes interface (see dp_state.h):
+   * `[dp_state_hdr_t][ddc_extra_t][lo][rc]`.  Like ddcr without the real-input
+   * halfband front end; `rate` is the layout key. */
+
+  typedef struct
+  {
+    double rate; 
+  } ddc_extra_t;
+
+#define DDC_STATE_MAGIC DP_FOURCC ('D', 'D', 'C', '_')
+#define DDC_STATE_VERSION 1u
+
+  size_t ddc_state_bytes (const ddc_state_t *state);
+  void ddc_get_state (const ddc_state_t *state, void *blob);
+  int ddc_set_state (ddc_state_t *state, const void *blob);
+  size_t ddc_run (ddc_state_t *state, const void *state_in, void *state_out,
+                  const float complex *in, size_t n_in, float complex *out,
+                  size_t max_out);
 
 #ifdef __cplusplus
 }

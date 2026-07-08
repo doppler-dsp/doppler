@@ -97,7 +97,7 @@ int doppler_wfmgen (
 
 
 
-Parses `argv` exactly as the `wfmgen` binary does (`--type`, `--count`, `--from-file`, `--output`, `--record`, the container/wire/endian flags, the `zmq://` sink, `--realtime` pacing, …), composes the waveform, and writes it to the chosen destination (a file, stdout, or a ZMQ PUB endpoint). Output is byte-identical to invoking the CLI with the same arguments — it is the same code path, not a reimplementation.
+Parses `argv` exactly as the `wfmgen` binary does (`--type`, `--count`, `--from-file`, `--output`, `--record`, the container/wire/endian flags, the `nats://` sink, `--realtime` pacing, …), composes the waveform, and writes it to the chosen destination (a file, stdout, or a NATS PUB subject). Output is byte-identical to invoking the CLI with the same arguments — it is the same code path, not a reimplementation.
 
 
 Process-global only in the ways the CLI is: it may write to `stdout` / `stderr` and create the `--output` / `--record` files. It installs no signal handlers, registers no `atexit` hooks, and keeps no mutable global state, so it is safe to call repeatedly within one process. Not reentrant across threads (it shares `stdout`).

@@ -42,9 +42,10 @@ _1-D FFT correlator state._ [More...](#detailed-description)
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**inv**](#variable-inv)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**n\_out**](#variable-n_out)  <br> |
 |  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
 |  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
-|  float complex \* | [**work\_ifft**](#variable-work_ifft)  <br> |
+|  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
 
 
 
@@ -92,7 +93,7 @@ _1-D FFT correlator state._ [More...](#detailed-description)
 ## Detailed Description
 
 
-Allocate with [**corr\_create()**](corr__core_8h.md#function-corr_create); never stack-allocate. The four heap buffers (ref\_spec, work\_fft, work\_ifft, accum) are each `n` complex floats. 
+Allocate with [**corr\_create()**](corr__core_8h.md#function-corr_create); never stack-allocate. ref\_spec/work\_fft/accum are each `n` complex floats; work\_pad (`n_out`) exists only on the decoupled-inverse path. 
 
 
     
@@ -109,7 +110,7 @@ float complex* corr_state_t::accum;
 
 
 
-Coherent integration accumulator. 
+Coherent product-spectrum accumulator. 
 
 
         
@@ -160,7 +161,7 @@ fft_state_t* corr_state_t::fwd;
 
 
 
-Forward plan (sign = -1). 
+Forward plan (sign = -1) at n. 
 
 
         
@@ -177,7 +178,7 @@ fft_state_t* corr_state_t::inv;
 
 
 
-Inverse plan (sign = +1). 
+Inverse plan (sign = +1) at n\_out. 
 
 
         
@@ -195,6 +196,23 @@ size_t corr_state_t::n;
 
 
 FFT / reference length (samples). 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_out 
+
+```C++
+size_t corr_state_t::n_out;
+```
+
+
+
+Output length (== n unless decoupled). 
 
 
         
@@ -228,7 +246,7 @@ float complex* corr_state_t::work_fft;
 
 
 
-Scratch: FFT(in) output. 
+Scratch: FFT(in) · ref\_spec (product). 
 
 
         
@@ -237,15 +255,15 @@ Scratch: FFT(in) output.
 
 
 
-### variable work\_ifft 
+### variable work\_pad 
 
 ```C++
-float complex* corr_state_t::work_ifft;
+float complex* corr_state_t::work_pad;
 ```
 
 
 
-Scratch: IFFT output before accumulate. 
+Zero-padded product, n\_out (NULL native). 
 
 
         

@@ -128,8 +128,11 @@ distributions older than the build host. `release.yml` builds inside the
 which sets the minimum runtime floor.
 
 After the build, `auditwheel repair` inspects the wheel, bundles any shared
-libraries beyond the manylinux allow-list (e.g., libzmq), and retags the
-wheel as `manylinux_2_28_x86_64`.
+libraries beyond the manylinux allow-list, and retags the wheel as
+`manylinux_2_28_x86_64`. The vendored `nats.c` build is fully static
+(TLS and NATS Streaming off, no OpenSSL/libsodium), so there is nothing
+left to bundle there — the last shared library this step had to pull in
+was libzmq, before it was removed in favor of NATS.
 
 macOS wheels are built natively on a `macos-14` (arm64) GitHub runner using
 `delocate` for the equivalent bundle-and-retag step.

@@ -18,7 +18,7 @@
  *
  * It is archived into libdoppler so a downstream that links libdoppler.a — or
  * loads libdoppler.so — can drive the full generator without shelling out. The
- * zmq sink is statically linked, so there is no runtime libzmq dependency. And
+ * stream sink is statically linked, so there is no runtime client dependency. And
  * because it is the exact same code path, `doppler_wfmgen(argc, argv)` is
  * byte-identical to running `wfmgen …`.
  */

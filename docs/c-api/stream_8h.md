@@ -13,6 +13,7 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 * `#include <complex.h>`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include "clib_common.h"`
 
 
 
@@ -32,7 +33,7 @@ _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every ZMQ message._  |
+| struct | [**dp\_header\_t**](structdp__header__t.md) <br>_Frame metadata header carried in every stream message._  |
 
 
 

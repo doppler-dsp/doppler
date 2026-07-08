@@ -13,6 +13,7 @@
 #define RESAMP_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -59,6 +60,17 @@ extern "C"
   void resamp_destroy (resamp_state_t *state);
 
   void resamp_reset (resamp_state_t *state);
+
+  /* Serializable state (standard bytes interface; see dp_state.h): after the
+   * envelope, the polyphase phase, the fractional ctrl accumulator, the
+   * delay-line write head, and the three delay buffers (delay_buf, decim_iad,
+   * decim_tfd).  Rate, bank, phase increment and sizes are config. */
+#define RESAMP_STATE_MAGIC DP_FOURCC ('R', 'S', 'M', 'P')
+#define RESAMP_STATE_VERSION 1u
+
+  size_t resamp_state_bytes (const resamp_state_t *state);
+  void resamp_get_state (const resamp_state_t *state, void *blob);
+  int resamp_set_state (resamp_state_t *state, const void *blob);
 
   /* ------------------------------------------------------------------
    * Execute

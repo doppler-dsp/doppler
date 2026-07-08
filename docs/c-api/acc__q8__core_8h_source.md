@@ -14,6 +14,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "dp_state.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,6 +51,15 @@ int32_t acc_q8_get(acc_q8_state_t *state);
 int32_t acc_q8_dump(acc_q8_state_t *state);
 
 void acc_q8_madd(acc_q8_state_t *state, const int8_t *a, size_t a_len, const int8_t *b, size_t b_len);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Whole-struct POD snapshot (pointer-free); the running 32-bit accumulator resumes exactly into an
+ * identically-built instance. */
+#define ACC_Q8_STATE_MAGIC DP_FOURCC ('A', 'C', 'C', '8')
+#define ACC_Q8_STATE_VERSION 1u
+size_t acc_q8_state_bytes (const acc_q8_state_t *state);
+void   acc_q8_get_state (const acc_q8_state_t *state, void *blob);
+int    acc_q8_set_state (acc_q8_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

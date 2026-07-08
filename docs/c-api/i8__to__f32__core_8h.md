@@ -287,9 +287,16 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 * `state` Must be non-NULL. 
 * `input` Input int8 array; must contain at least `n` elements. 
 * `output` Output float32 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import I8ToF32
+>>> import numpy as np
+>>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()
+[0.0, 0.5, -1.0]
+```
+ 
 
 
         

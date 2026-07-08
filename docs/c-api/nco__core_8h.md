@@ -11,6 +11,7 @@
 _Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 
 
@@ -63,9 +64,12 @@ _Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 |  double | [**nco\_get\_norm\_freq**](#function-nco_get_norm_freq) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Normalised frequency (read/write). Setting norm\_freq recomputes phase\_inc = floor(frac(v) × 2^32) and takes effect on the next nco\_steps\_\* call; phase is NOT reset._  |
 |  uint32\_t | [**nco\_get\_phase**](#function-nco_get_phase) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Current phase accumulator value (read/write). Reading returns the current integer phase in_ `[0, 2^32)` _. Writing overrides the accumulator directly, allowing arbitrary phase offsets without re-creating the NCO._ |
 |  uint32\_t | [**nco\_get\_phase\_inc**](#function-nco_get_phase_inc) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Per-sample phase increment (read-only). Derived from norm\_freq as floor(frac(norm\_freq) × 2^32). Updated automatically whenever norm\_freq is written. A freq of 0.25 gives phase\_inc = 1073741824 (0x40000000)._  |
+|  void | [**nco\_get\_state**](#function-nco_get_state) (const [**nco\_state\_t**](structnco__state__t.md) \* state, void \* blob) <br>_Serialize the phase accumulator into_ `blob` _._ |
 |  void | [**nco\_reset**](#function-nco_reset) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Zero the phase accumulator. Sets phase to 0 so the next nco\_steps\_u32 call starts from the beginning of the cycle. norm\_freq, phase\_inc, and nmax are unchanged; the NCO is ready to generate samples again immediately._  |
 |  void | [**nco\_set\_norm\_freq**](#function-nco_set_norm_freq) ([**nco\_state\_t**](structnco__state__t.md) \* state, double norm\_freq) <br> |
 |  void | [**nco\_set\_phase**](#function-nco_set_phase) ([**nco\_state\_t**](structnco__state__t.md) \* state, uint32\_t phase) <br> |
+|  int | [**nco\_set\_state**](#function-nco_set_state) ([**nco\_state\_t**](structnco__state__t.md) \* state, const void \* blob) <br>_Restore phase; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
+|  size\_t | [**nco\_state\_bytes**](#function-nco_state_bytes) (const [**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  size\_t | [**nco\_steps\_u32**](#function-nco_steps_u32) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out) <br>_Advance n samples; write raw uint32 accumulator values. Each element is the phase value BEFORE the increment fires, so_ `out[0]` _is the phase at the moment of the call. The accumulator wraps silently at 2^32, giving the full-resolution integer ramp that the scaled and carry variants derive from. Returns n._ |
 |  size\_t | [**nco\_steps\_u32\_max\_out**](#function-nco_steps_u32_max_out) ([**nco\_state\_t**](structnco__state__t.md) \* state) <br>_Maximum samples per call (determines pre-allocated buffer size)._  |
 |  size\_t | [**nco\_steps\_u32\_ovf**](#function-nco_steps_u32_ovf) ([**nco\_state\_t**](structnco__state__t.md) \* state, size\_t n, uint32\_t \* out, uint8\_t \* out1) <br>_Advance n samples; write raw phase values and per-sample carry. Identical to nco\_steps\_u32 for the phase array, but simultaneously fills a parallel uint8 carry buffer:_ `out1[i]` _is 1 if the add that produced_`out[i]` _'s post-increment phase wrapped past 2^32, else 0. The carry marks the exact boundary of one input period and is the primitive for polyphase sample-clock and rational resampling engines. Returns n._ |
@@ -109,6 +113,8 @@ _Pure 32-bit phase-accumulator NCO._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | define  | [**NCO\_ADD\_OVF**](nco__core_8h.md#define-nco_add_ovf) (a, b, res) `nco\_add\_ovf\_ ((a), (b), (res))`<br> |
+| define  | [**NCO\_STATE\_MAGIC**](nco__core_8h.md#define-nco_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('N', 'C', 'O', '\_')`<br> |
+| define  | [**NCO\_STATE\_VERSION**](nco__core_8h.md#define-nco_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -301,6 +307,23 @@ uint32_t nco_get_phase_inc (
 
 
 
+### function nco\_get\_state 
+
+_Serialize the phase accumulator into_ `blob` _._
+```C++
+void nco_get_state (
+    const nco_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function nco\_reset 
 
 _Zero the phase accumulator. Sets phase to 0 so the next nco\_steps\_u32 call starts from the beginning of the cycle. norm\_freq, phase\_inc, and nmax are unchanged; the NCO is ready to generate samples again immediately._ 
@@ -356,6 +379,39 @@ void nco_set_norm_freq (
 void nco_set_phase (
     nco_state_t * state,
     uint32_t phase
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function nco\_set\_state 
+
+_Restore phase; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._ 
+```C++
+int nco_set_state (
+    nco_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function nco\_state\_bytes 
+
+_Serialized-state byte size._ 
+```C++
+size_t nco_state_bytes (
+    const nco_state_t * state
 ) 
 ```
 
@@ -599,6 +655,32 @@ static inline uint8_t nco_add_ovf_ (
     b,
     res
 ) `nco_add_ovf_ ((a), (b), (res))`
+```
+
+
+
+
+<hr>
+
+
+
+### define NCO\_STATE\_MAGIC 
+
+```C++
+#define NCO_STATE_MAGIC `DP_FOURCC ('N', 'C', 'O', '_')`
+```
+
+
+
+
+<hr>
+
+
+
+### define NCO\_STATE\_VERSION 
+
+```C++
+#define NCO_STATE_VERSION `1u`
 ```
 
 

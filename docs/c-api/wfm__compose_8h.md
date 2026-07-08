@@ -39,7 +39,9 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+| enum  | [**wfm\_\_compose\_8h\_1aaa8203df32d6fa90fd184479af8db90a**](#enum-wfm__compose_8h_1aaa8203df32d6fa90fd184479af8db90a)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
 | typedef struct wfm\_compose\_state | [**wfm\_compose\_state\_t**](#typedef-wfm_compose_state_t)  <br> |
+| enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
 
 
 
@@ -64,13 +66,16 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* | [**wfm\_compose\_build\_synth**](#function-wfm_compose_build_synth) (const [**wfm\_source\_t**](structwfm__source__t.md) \* src, double fs, size\_t on\_len, double freq, double snr, double f\_end, unsigned epoch, int seed\_advance) <br>_Construct + configure the synth for one resolved source._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_create**](#function-wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
 |  void | [**wfm\_compose\_destroy**](#function-wfm_compose_destroy) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_file**](#function-wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json**](#function-wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
+|  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
 |  int | [**wfm\_resolve\_noise**](#function-wfm_resolve_noise) ([**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n) <br>_Resolve a segment list's noise model in place (Phase 4b)._  |
+|  double | [**wfm\_snr\_over\_fs**](#function-wfm_snr_over_fs) (int snr\_mode, int type, int sps, double snr) <br>_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._  |
 |  double | [**wfm\_spec\_headroom**](#function-wfm_spec_headroom) (const char \* json) <br>_The top-level_ `headroom` _(dB) from a spec JSON, or 0 if absent._ |
 |  char \* | [**wfm\_spec\_template\_json**](#function-wfm_spec_template_json) (void) <br>_A ready-to-edit example spec in the canonical_  _from-file schema._ |
 |  char \* | [**wfm\_spec\_to\_json**](#function-wfm_spec_to_json) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous, double headroom) <br>_Serialise a spec to a JSON string (for_  _record)._ |
@@ -136,6 +141,31 @@ wfm_compose_destroy(c);
 
 
 
+### enum wfm\_\_compose\_8h\_1aaa8203df32d6fa90fd184479af8db90a 
+
+_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._
+```C++
+enum wfm__compose_8h_1aaa8203df32d6fa90fd184479af8db90a {
+    WFM_RANGE_FREQ = 1u << 0,
+    WFM_RANGE_SNR = 1u << 1,
+    WFM_RANGE_LEVEL = 1u << 2,
+    WFM_RANGE_FEND = 1u << 3,
+    WFM_RANGE_NUM_SAMPLES = 1u << 4,
+    WFM_RANGE_OFF_SAMPLES = 1u << 5
+};
+```
+
+
+
+A scalar field is a constant; a _ranged_ field carries a `[lo, hi]` span (the scalar holds `lo`, a companion `*_hi` holds `hi`) and is redrawn uniformly in `[lo, hi]` at the start of every repeat (composer epoch) — so a looped / continuous stream can vary Doppler (`freq`), arrival jitter (`off_samples`), etc. burst-to-burst while staying _reproducible_: the draw is a deterministic hash of the source seed, the epoch, the segment/source index, and the field, so `--record` stores the span (not a drawn value) and `--from-file` replays the same sequence byte-for-byte. Bits 0–3 live on `wfm_source_t.ranged`; bits 4–5 on `wfm_segment_t.ranged`. 
+
+
+        
+
+<hr>
+
+
+
 ### typedef wfm\_compose\_state\_t 
 
 ```C++
@@ -150,8 +180,67 @@ Opaque composer state.
         
 
 <hr>
+
+
+
+### enum wfm\_seed\_advance\_t 
+
+_Per-repeat seed policy for a looped/continuous stream._ 
+```C++
+enum wfm_seed_advance_t {
+    WFM_SEED_ADVANCE_NONE = 0,
+    WFM_SEED_ADVANCE_NOISE = 1,
+    WFM_SEED_ADVANCE_ALL = 2
+};
+```
+
+
+
+A source's single `seed` feeds two RNGs: the PN LFSR (spreading code _and_ data bits — one register) and the AWGN generator. The clean cut is therefore signal (code+data) vs. noise, exposed as an ordered, cumulative level. 
+
+
+        
+
+<hr>
 ## Public Functions Documentation
 
+
+
+
+### function wfm\_compose\_build\_synth 
+
+_Construct + configure the synth for one resolved source._ 
+```C++
+wfm_synth_state_t * wfm_compose_build_synth (
+    const wfm_source_t * src,
+    double fs,
+    size_t on_len,
+    double freq,
+    double snr,
+    double f_end,
+    unsigned epoch,
+    int seed_advance
+) 
+```
+
+
+
+THE single synth-construction path (create + chirp-span pin + bits/symbols/RRC attach + per-repeat NOISE reseed) shared by the streaming composer and the Plan stimulus cache, so a cached per-source render is byte-identical to the composed one. `freq/snr/f_end` are passed already ranged-resolved by the caller; `on_len` pins a chirp's sweep to the on-time; `epoch`/`seed_advance` (a [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t)) drive the per-repeat seed policy — `epoch == 0` yields the unmodified seed.
+
+
+
+
+**Returns:**
+
+A heap synth (caller [**wfm\_synth\_destroy()**](wfm__synth__core_8h.md#function-wfm_synth_destroy)s it), or NULL on failure. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -352,6 +441,43 @@ Pointer to the internal segments (owned by the composer; valid until wfm\_compos
 
 
 
+### function wfm\_compose\_set\_seed\_advance 
+
+_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_
+```C++
+void wfm_compose_set_seed_advance (
+    wfm_compose_state_t * state,
+    int mode
+) 
+```
+
+
+
+
+* `WFM_SEED_ADVANCE_NONE` (default): byte-identical repeats.
+* `WFM_SEED_ADVANCE_NOISE`: advance only the AWGN seed → a fresh noise realization each pass while the signal (LO / PN code / data / pulse) stays bit-identical (so a fixed preamble/code re-acquires every burst).
+* `WFM_SEED_ADVANCE_ALL`: advance the whole seed → code, data, and noise all change (a fully stochastic stream).
+
+
+
+
+Set before the first execute(); the first pass is always unchanged. An out-of-range mode is ignored. 
+
+**Parameters:**
+
+
+* `state` Compose state (may be NULL). 
+* `mode` A [**wfm\_seed\_advance\_t**](wfm__compose_8h.md#enum-wfm_seed_advance_t) value. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_resolve\_noise 
 
 _Resolve a segment list's noise model in place (Phase 4b)._ 
@@ -375,6 +501,49 @@ No-op for 1-source segments (keeps the bundled-synth path byte-identical). For a
 **Returns:**
 
 0 on success; -1 if a non-anchor source over-specifies (snr + level) or on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_snr\_over\_fs 
+
+_SNR (dB) referred to fs, from a source's snr/snr\_mode/sps/type._ 
+```C++
+double wfm_snr_over_fs (
+    int snr_mode,
+    int type,
+    int sps,
+    double snr
+) 
+```
+
+
+
+The single source of truth for the Es/No, Eb/No, and over-fs conventions (`snr_mode` 0 auto / 1 fs / 2 ebno / 3 esno). `wfm_resolve_noise()` uses it to place the shared noise floor at `level(anchor) − wfm_snr_over_fs(anchor)`, and the Plan stimulus engine reuses it to recompute the floor at an arbitrary swept SNR — so both agree to the bit.
+
+
+
+
+**Parameters:**
+
+
+* `snr_mode` 0 auto, 1 fs, 2 ebno, 3 esno. 
+* `type` A WFM\_SYNTH\_\* waveform type (selects the auto convention). 
+* `sps` Samples per symbol/chip (≥1; &lt;1 treated as 1). 
+* `snr` The declared SNR in dB. 
+
+
+
+**Returns:**
+
+SNR over fs in dB. 
 
 
 

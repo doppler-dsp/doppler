@@ -13,6 +13,7 @@
 #define PSD_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include "fft/fft_core.h"
 #include "acc_trace/acc_trace_core.h"
@@ -82,6 +83,15 @@ double psd_noise_floor(psd_state_t *state);
 double psd_snr(psd_state_t *state, double lo_hz, double hi_hz);
 
 double psd_sfdr(psd_state_t *state, float min_db);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * delegates to the acc_trace power averager; window/plan/scratch
+ * are config, rebuilt by create. */
+#define PSD_STATE_MAGIC DP_FOURCC ('P','S','D',' ')
+#define PSD_STATE_VERSION 1u
+size_t psd_state_bytes (const psd_state_t *state);
+void psd_get_state (const psd_state_t *state, void *blob);
+int psd_set_state (psd_state_t *state, const void *blob);
+
 #ifdef __cplusplus
 }
 #endif

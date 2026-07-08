@@ -1,8 +1,13 @@
 # Streaming roadmap: resilient transport for Kubernetes
 
-**Status:** draft / for discussion
-**Scope:** doppler's network streaming of I/Q (and metadata) — where it goes
-beyond today's ZeroMQ transport layer.
+**Status:** complete — NATS JetStream shipped (P1) and ZMQ has since been
+fully removed from doppler; NATS is now the sole streaming transport. The
+sections below are kept as the historical record of why NATS was added and
+the benchmark data that justified it; where they recommend keeping ZMQ for
+the co-located firehose (§8, §9.3), that recommendation was superseded by
+the later decision to drop ZMQ entirely.
+**Scope:** doppler's network streaming of I/Q (and metadata) — where it went
+beyond the original ZeroMQ transport layer.
 
 ______________________________________________________________________
 
@@ -260,9 +265,12 @@ CLI's MB/s assumes a fixed 128 B default and is ignored. `nats bench` latency is
 - These are **core NATS** numbers — not JetStream. JetStream adds a
     persistence write per message and will be measurably slower; measure P2
     before committing to it for high-rate paths.
-- The NATS C client (`nats.c`) is not yet integrated; these numbers come from
-    the Go-based `nats bench` CLI which has its own serialisation overhead.
-    A C-native integration (P1) may close some of the gap at small frames.
+- At the time of this P0 measurement the NATS C client (`nats.c`) was not yet
+    integrated; the numbers above come from the Go-based `nats bench` CLI,
+    which has its own serialisation overhead. The P1 C-native integration
+    (`nats.c`, now the library's sole transport) has since shipped; see
+    `native/benchmarks/bench_stream.c` for current end-to-end NATS numbers
+    over the real C client rather than the CLI proxy.
 
 ### 9.2 Status / control plane (PUB/SUB + REQ/REP)
 

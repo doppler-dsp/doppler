@@ -62,7 +62,7 @@ _IMDMeasure — two-tone intermodulation (IMD2/IMD3) and intercept._ [More...](#
 | Type | Name |
 | ---: | :--- |
 |  [**imd\_meas\_t**](structimd__meas__t.md) | [**imdmeas\_analyze**](#function-imdmeas_analyze) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Two-tone IMD/TOI of a real capture (finds the two strongest tones)._  |
-|  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, int window, float beta, size\_t pad, double full\_scale, size\_t bits) <br>_Create an IMDMeasure analyser._  |
+|  [**imdmeas\_state\_t**](structimdmeas__state__t.md) \* | [**imdmeas\_create**](#function-imdmeas_create) (size\_t n, double fs, double full\_scale, size\_t bits, double dynamic\_range\_db) <br>_Create an IMDMeasure analyser (auto Kaiser window)._  |
 |  void | [**imdmeas\_destroy**](#function-imdmeas_destroy) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Destroy an IMDMeasure analyser._  |
 |  void | [**imdmeas\_reset**](#function-imdmeas_reset) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state) <br>_Reset (no-op: each analyze() call is independent)._  |
 |  size\_t | [**imdmeas\_spectrum\_dbfs**](#function-imdmeas_spectrum_dbfs) ([**imdmeas\_state\_t**](structimdmeas__state__t.md) \* state, const float \* x, size\_t x\_len, float \* out) <br>_DC-centred dBFS magnitude spectrum of a capture (length nfft). The same averaged PSD the metrics use, for an analyzer-display backdrop._  |
@@ -127,10 +127,23 @@ imd_meas_t imdmeas_analyze (
 
 **Returns:**
 
-the IMD metric record (by value; zeroed if no two tones are found). 
+the IMD metric record (by value; zeroed if no two tones are found).
 
 
 
+```C++
+>>> from doppler.measure import IMDMeasure
+>>> import numpy as np
+>>> t = np.arange(4096)
+>>> # two equal tones at 200 & 250 cycles + 3rd-order products 40 dB down
+>>> x = (np.cos(2*np.pi*200*t/4096) + np.cos(2*np.pi*250*t/4096)
+...      + 0.01*np.cos(2*np.pi*150*t/4096)
+...      + 0.01*np.cos(2*np.pi*300*t/4096)).astype(np.float32)
+>>> r = IMDMeasure(n=4096, fs=1.0).analyze(x)
+>>> round(r.f1, 4), round(r.f2, 4), round(r.imd3_dbc, 0)
+(0.0488, 0.061, -40.0)
+```
+ 
 
 
         
@@ -141,19 +154,20 @@ the IMD metric record (by value; zeroed if no two tones are found).
 
 ### function imdmeas\_create 
 
-_Create an IMDMeasure analyser._ 
+_Create an IMDMeasure analyser (auto Kaiser window)._ 
 ```C++
 imdmeas_state_t * imdmeas_create (
     size_t n,
     double fs,
-    int window,
-    float beta,
-    size_t pad,
     double full_scale,
-    size_t bits
+    size_t bits,
+    double dynamic_range_db
 ) 
 ```
 
+
+
+The window is always Kaiser; its shape is auto-selected so the sidelobes sit below the requested dynamic range (see measure\_resolve\_dr()), keeping the resolution bandwidth as fine as `n` allows.
 
 
 
@@ -163,11 +177,9 @@ imdmeas_state_t * imdmeas_create (
 
 * `n` Capture/frame length (&gt;= 2). 
 * `fs` Sample rate (Hz, &gt; 0). 
-* `window` 0 = Hann, 1 = Kaiser. 
-* `beta` Kaiser shape (ignored for Hann). 
-* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n\*pad). 
 * `full_scale` Amplitude that equals 0 dBFS (&gt; 0). Ignored if bits &gt; 0. 
-* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) (resolved in the shared PSD core). 
+* `bits` ADC depth: bits&gt;0 sets the 0-dBFS reference to 2^(bits-1) and, unless overridden, the dynamic-range target. 
+* `dynamic_range_db` Explicit sidelobe/dynamic-range target (dB); used when &gt; 0, else derived from `bits`. 
 
 
 

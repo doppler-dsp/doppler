@@ -20,7 +20,7 @@
 </p>
 
 doppler is a C99 DSP library: NCO, FIR filter, FFT, polyphase resampler,
-DDC, and ZMQ-based signal streaming. Python and Rust wrap the same C core —
+DDC, and NATS-based signal streaming. Python and Rust wrap the same C core —
 no second implementation, no divergence, full SIMD throughput from any
 language.
 
@@ -85,5 +85,6 @@ Full docs: **[doppler-dsp.github.io/doppler](https://doppler-dsp.github.io/doppl
 MIT. The core C library is pure C99 and links only `-lm`. Its FFT uses the
 vendored pocketfft (BSD-3-Clause) for double precision and arbitrary sizes, and
 the vendored PFFFT (Pommier/FFTPACK, BSD) for the native single-precision SIMD
-path. The optional ZMQ stream component (`libdoppler_stream`) vendors libzmq
-(MPL-2.0).
+path. The optional NATS stream component (`libdoppler_stream`) vendors
+`nats.c` (Apache-2.0) — it too is pure C99, so no C++ toolchain is needed
+anywhere in the build.

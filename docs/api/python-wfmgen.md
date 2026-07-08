@@ -8,7 +8,7 @@ Everything in the `doppler.wfm` package imports from one place — `from doppler
 | `PN`    | uint8 — raw LFSR chips (0/1)          | Spreading / ranging codes, scrambling, test vectors                                                 |
 
 `Synth` is also the unit of **composition** — pass synths into `Segment.sum`
-to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-zmq-sink) below).
+to mix them (see [`compose`](#compose-multi-segment-composition-writers-and-a-nats-sink) below).
 
 Source:
 [`src/doppler/wfm/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/__init__.py)
@@ -224,7 +224,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## `compose` — multi-segment composition, writers, and a ZMQ sink
+## `compose` — multi-segment composition, writers, and a NATS sink
 
 The composition layer is the Python face of the C `wfmgen` composer
 subsystem — the same engine behind the `wfmgen` CLI, output byte-identical for
@@ -262,7 +262,8 @@ flowchart LR
 A `Composer` turns a `Segment` / `Timeline` / segment-list into samples,
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
 serialises to the four containers (raw / CSV / BLUE type-1000 / SigMF), and
-`StreamSink` publishes over the stream transport (endpoint scheme picks NATS or ZMQ). The resolved spec round-trips through JSON, so a
+`StreamSink` publishes over NATS (requires a `nats-server` reachable at the
+endpoint). The resolved spec round-trips through JSON, so a
 capture is fully reproducible.
 
 ```python
@@ -331,15 +332,16 @@ pulse-shaping and spreading primitives.
 clock — the same C core behind the `wfmgen --realtime` CLI flag. Use it to
 throttle a producer to real time and to tag blocks with their ideal timestamp:
 
-<!-- docs-snippet: skip=unbounded real-time ZMQ streaming loop -->
+<!-- docs-snippet: skip=unbounded real-time NATS streaming loop -->
 
 ```python
 from doppler.wfm import Composer, SampleClock, StreamSink
 
-# Stream at the true 1 MS/s instead of as fast as possible.
+# Stream at the true 1 MS/s instead of as fast as possible. Requires a
+# nats-server reachable at the endpoint.
 comp = Composer(type="qpsk", sps=8, continuous=True)
 clk = SampleClock(fs=1e6)
-with StreamSink("tcp://0.0.0.0:5555") as sink:
+with StreamSink("nats://127.0.0.1:4222/iq") as sink:
     while True:
         blk = comp.execute(4096)
         ts = clk.stamp()              # ideal ns timestamp of this block

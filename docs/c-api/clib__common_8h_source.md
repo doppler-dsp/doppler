@@ -9,8 +9,8 @@
 
 ```C++
 
-#ifndef CLIB_COMMON_H
-#define CLIB_COMMON_H
+#ifndef DOPPLER_CLIB_COMMON_H
+#define DOPPLER_CLIB_COMMON_H
 
 #include <complex.h>
 #include <stddef.h>
@@ -32,14 +32,25 @@
 /* size_t-returning functions return a sample/byte count; they        */
 /* operate on already-created objects and cannot fail.                */
 /* Pointer-returning functions return NULL on failure.                */
+/*                                                                     */
+/* This is the single, doppler-wide error vocabulary.  The streaming   */
+/* API (stream/stream.h) includes this header for the same codes — one */
+/* scheme everywhere, so a value never means two things in one TU.     */
+/* Not every code is meaningful to every subsystem (the core DSP path  */
+/* only ever returns DP_OK / DP_ERR_MEMORY / DP_ERR_INVALID).          */
 /* ------------------------------------------------------------------ */
-#define DP_OK          0   
-#define DP_ERR_MEMORY  (-1) 
-#define DP_ERR_INVALID (-2) 
+#define DP_OK 0             
+#define DP_ERR_INIT (-1)    
+#define DP_ERR_SEND (-2)    
+#define DP_ERR_RECV (-3)    
+#define DP_ERR_INVALID (-4) 
+#define DP_ERR_TIMEOUT (-5) 
+#define DP_ERR_MEMORY (-6)  
+#define DP_ERR_TOO_LARGE (-7) 
 
 #include "jm_perf.h"
 
-#endif /* CLIB_COMMON_H */
+#endif /* DOPPLER_CLIB_COMMON_H */
 ```
 
 

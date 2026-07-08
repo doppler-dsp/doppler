@@ -32,10 +32,11 @@ export PKG_CONFIG_PATH="$HOME/doppler/lib/pkgconfig"   # for pkg-config doppler
 
 The core library is pure C and links only `-lm`, so there is no external
 runtime dependency to install. The optional stream component
-(`libdoppler_stream`, for the ZMQ wire layer) embeds the vendored zmq
-statically, so it too needs no external runtime zmq. See the
-[static vs. dynamic linking design notes](../design/STATIC_VS_DYNAMIC.md) for
-why static vendoring was chosen over a system `libzmq` dependency.
+(`libdoppler_stream`, for the NATS wire layer) embeds the vendored `nats.c`
+statically, so it too needs no external runtime NATS client library — just a
+running `nats-server` to connect to. See the
+[static vs. dynamic linking design notes](../design/archive/STATIC_VS_DYNAMIC.md)
+for why static vendoring was chosen over a system client-library dependency.
 
 ## System install
 
@@ -62,11 +63,11 @@ find_package(doppler REQUIRED)
 # shared: links -ldoppler; smallest binary
 target_link_libraries(my_app PRIVATE doppler::doppler)
 
-# static: pure C, self-contained — links only -lm (no C++ runtime, no zmq)
+# static: pure C, self-contained — links only -lm
 target_link_libraries(my_app PRIVATE doppler::doppler-static)
 
-# optional: the ZMQ/stream layer (dp_pub_*/dp_sub_*, wfmgen --output zmq://).
-# Carries the C++ runtime (vendored libzmq, folded in). Link only if needed.
+# optional: the NATS stream layer (dp_pub_*/dp_sub_*, wfmgen --output nats://).
+# Pure C (vendored nats.c, folded in). Link only if needed.
 target_link_libraries(my_app PRIVATE doppler::stream-static)
 ```
 
@@ -79,15 +80,15 @@ A complete, buildable consumer that exercises both targets lives in
 # shared
 gcc -o app main.c $(pkg-config --cflags --libs doppler)
 
-# static — pure C, self-contained: only -lm (no C++ runtime, no zmq)
+# static — pure C, self-contained: only -lm
 gcc -o app main.c $(pkg-config --cflags doppler) \
     "$(pkg-config --variable=libdir doppler)/libdoppler.a" -lm
 
-# static + the optional ZMQ/stream layer (carries the C++ runtime)
+# static + the optional NATS stream layer (pure C, no extra runtime)
 gcc -o app main.c $(pkg-config --cflags doppler) \
     "$(pkg-config --variable=libdir doppler)/libdoppler.a" \
     "$(pkg-config --variable=libdir doppler)/libdoppler_stream.a" \
-    -lstdc++ -lpthread -lm
+    -lpthread -lm
 ```
 
 !!! tip "Custom install prefix"
@@ -153,24 +154,25 @@ with just `libdoppler.a -lm`:
 gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" -lm
 ```
 
-The `--output zmq://…` PUB-sink path additionally needs the optional stream
-component (it carries the vendored C++ libzmq). Link `libdoppler_stream.a`
-alongside the core; zmq is statically embedded, so there is still **no runtime
-`libzmq` dependency**:
+The `--output nats://…` PUB-sink path additionally needs the optional stream
+component (it carries the vendored `nats.c`, pure C). Link
+`libdoppler_stream.a` alongside the core; `nats.c` is statically embedded, so
+there is still **no runtime client-library dependency** — just a running
+`nats-server` to connect to:
 
 ```sh
 gcc -o app app.c -I "$PREFIX/include" \
     "$PREFIX/lib/libdoppler.a" "$PREFIX/lib/libdoppler_stream.a" \
-    -lstdc++ -lpthread -lm
+    -lpthread -lm
 ```
 
 Without the stream component, `doppler_wfmgen()` still builds and runs; only the
-`zmq://` path is unavailable (it reports a clear "requires the stream component"
-error via the weak `wfm_zmq_sink_*` seam).
+`nats://` path is unavailable (it reports a clear "requires the stream component"
+error via the weak `wfm_stream_sink_*` seam).
 
 The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 
 !!! note "POSIX only"
 
     `doppler_wfmgen` is built on the same POSIX surface as the `wfmgen` binary
-    (the zmq sink and `--realtime` pacing), so it is not available on Windows.
+    (the stream sink and `--realtime` pacing), so it is not available on Windows.

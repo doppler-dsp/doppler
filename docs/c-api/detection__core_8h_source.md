@@ -26,6 +26,23 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
 
 double det_snr(int dwell, double pd_min, double pfa);
 
+/* ── Non-coherent integration ────────────────────────────────────────────── */
+/*                                                                            */
+/* Non-coherent integration sums the squared magnitude of n_noncoh coherent  */
+/* "looks", each itself an n_coh-sample coherent integration.  The normalized */
+/* statistic R = sqrt(sum |z_k|^2 / noise) has, under H0, P(R > b) =          */
+/* marcum_q(n_noncoh, 0, b) (order-M central Marcum-Q), and under H1          */
+/* P(R > b) = marcum_q(n_noncoh, sqrt(2*n_coh*n_noncoh)*snr, b).  All three    */
+/* helpers reduce to their coherent (order-1) counterparts at n_noncoh = 1.   */
+
+double det_threshold_noncoherent(double pfa, int n_noncoh);
+
+double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
+                          double threshold);
+
+int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
+                 int max_n_noncoh);
+
 /* ── Power detector ──────────────────────────────────────────────────────── */
 /*                                                                            */
 /* The power detector uses power_stat = |R[0]|² / mean(|R[τ]|²) instead of  */

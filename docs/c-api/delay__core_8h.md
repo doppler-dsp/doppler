@@ -12,6 +12,7 @@ _Delay component API._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
+* `#include "dp_state.h"`
 
 
 
@@ -60,12 +61,15 @@ _Delay component API._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**delay\_state\_t**](structdelay__state__t.md) \* | [**delay\_create**](#function-delay_create) (size\_t num\_taps) <br>_Create a dual-buffer circular delay line of length num\_taps. The internal capacity is rounded up to the next power of two so that modular indexing reduces to a single bitwise AND. Any window of num\_taps consecutive samples is always contiguous in the backing store; no wrap-around copy is ever needed._  |
 |  void | [**delay\_destroy**](#function-delay_destroy) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Destroy a delay instance and release all memory. Frees the internal dual buffer and the state struct itself. Safe to call with a NULL pointer (no-op). After this call the pointer must not be used; the Python binding raises RuntimeError on any subsequent method call._  |
+|  void | [**delay\_get\_state**](#function-delay_get_state) (const [**delay\_state\_t**](structdelay__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**delay\_ptr**](#function-delay_ptr) ([**delay\_state\_t**](structdelay__state__t.md) \* state, size\_t n, double complex \* out) <br>_Return a zero-copy view of the n most recent samples. Copies at most min(n, num\_taps) samples starting from_ `buf[head]` _into out. Because the dual-buffer layout guarantees contiguity, this is a single memcpy of up to num\_taps elements; no wrap-around logic is needed. The Python binding returns a NumPy array backed directly by the pre-allocated output buffer (base object is the DelayCf64 itself)._ |
 |  size\_t | [**delay\_ptr\_max\_out**](#function-delay_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Return the maximum output capacity for_ [_**delay\_ptr()**_](delay__core_8h.md#function-delay_ptr) _. Returns num\_taps; the Python binding uses this to pre-allocate the output buffer before calling_[_**delay\_ptr()**_](delay__core_8h.md#function-delay_ptr) _._ |
 |  void | [**delay\_push**](#function-delay_push) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x) <br>_Advance the write pointer and insert a new sample. The head pointer decrements (mod capacity) before the write so that_ `buf[head]` _always holds the most recent sample. The same value is simultaneously written at_`buf[head + capacity]` _to keep the mirror half in sync; this ensures any num\_taps-length window starting at head is contiguous without an extra copy._ |
 |  size\_t | [**delay\_push\_ptr**](#function-delay_push_ptr) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x, double complex \* out) <br>_Atomically push a sample and snapshot the current window. Equivalent to calling_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _then delay\_ptr(num\_taps), but avoids the overhead of a second function call. Always writes exactly num\_taps samples to out. The Python binding returns a NumPy array backed by the pre-allocated push\_ptr output buffer._ |
 |  size\_t | [**delay\_push\_ptr\_max\_out**](#function-delay_push_ptr_max_out) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Return the maximum output capacity for_ [_**delay\_push\_ptr()**_](delay__core_8h.md#function-delay_push_ptr) _. Returns num\_taps; the Python binding uses this to pre-allocate the output buffer before calling_[_**delay\_push\_ptr()**_](delay__core_8h.md#function-delay_push_ptr) _._ |
 |  void | [**delay\_reset**](#function-delay_reset) ([**delay\_state\_t**](structdelay__state__t.md) \* state) <br>_Reset the delay line to its post-create state. Zeroes the entire dual buffer and resets the write pointer to 0, discarding all previously pushed samples. The num\_taps and capacity are preserved; only the sample history is cleared._  |
+|  int | [**delay\_set\_state**](#function-delay_set_state) ([**delay\_state\_t**](structdelay__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**delay\_state\_bytes**](#function-delay_state_bytes) (const [**delay\_state\_t**](structdelay__state__t.md) \* state) <br> |
 |  void | [**delay\_write**](#function-delay_write) ([**delay\_state\_t**](structdelay__state__t.md) \* state, double complex x) <br>_Alias for_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**delay\_push()**_](delay__core_8h.md#function-delay_push) _with no additional overhead._ |
 
 
@@ -94,6 +98,12 @@ _Delay component API._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DELAY\_STATE\_MAGIC**](delay__core_8h.md#define-delay_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','L','A','Y')`<br> |
+| define  | [**DELAY\_STATE\_VERSION**](delay__core_8h.md#define-delay_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -193,6 +203,22 @@ destroyed
 
 
         
+
+<hr>
+
+
+
+### function delay\_get\_state 
+
+```C++
+void delay_get_state (
+    const delay_state_t * state,
+    void * blob
+) 
+```
+
+
+
 
 <hr>
 
@@ -442,6 +468,37 @@ void delay_reset (
 
 
 
+### function delay\_set\_state 
+
+```C++
+int delay_set_state (
+    delay_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function delay\_state\_bytes 
+
+```C++
+size_t delay_state_bytes (
+    const delay_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function delay\_write 
 
 _Alias for_ [_**delay\_push()**_](delay__core_8h.md#function-delay_push) _; insert a sample without reading back. Provided for API symmetry with write-then-read patterns where the caller wants to decouple sample ingestion from window inspection. Internally delegates to_[_**delay\_push()**_](delay__core_8h.md#function-delay_push) _with no additional overhead._
@@ -474,6 +531,35 @@ void delay_write (
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DELAY\_STATE\_MAGIC 
+
+```C++
+#define DELAY_STATE_MAGIC `DP_FOURCC ('D','L','A','Y')`
+```
+
+
+
+
+<hr>
+
+
+
+### define DELAY\_STATE\_VERSION 
+
+```C++
+#define DELAY_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

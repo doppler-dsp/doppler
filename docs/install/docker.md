@@ -25,7 +25,9 @@ The image contains:
 ## Docker Compose — full streaming demo
 
 `docker-compose.yml` wires up a transmitter, two receivers, and a spectrum
-analyzer (plus a one-shot `tests` service under the `test` profile):
+analyzer over NATS (plus a one-shot `tests` service under the `test`
+profile). The streaming services need a reachable `nats-server` (e.g.
+`nats-server -js`):
 
 ```sh
 --8<-- "tests/install/docker-build.sh:compose"
@@ -43,8 +45,8 @@ analyzer (plus a one-shot `tests` service under the `test` profile):
 
 Services:
 
-| Service       | Description                                                 |
-| ------------- | ----------------------------------------------------------- |
-| `transmitter` | Generates and publishes IQ samples over ZMQ PUB (port 5555) |
-| `receiver-1`  | Subscribes and prints signal stats                          |
-| `receiver-2`  | Second subscriber (demonstrates PUB/SUB fan-out)            |
+| Service       | Description                                                  |
+| ------------- | -------------------------------------------------------------- |
+| `transmitter` | Generates and publishes IQ samples over NATS PUB (subject `iq`) |
+| `receiver-1`  | Subscribes and prints signal stats                              |
+| `receiver-2`  | Second subscriber (demonstrates NATS PUB/SUB fan-out)           |

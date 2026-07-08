@@ -4,7 +4,7 @@ doppler can emit samples **at their real sample rate** — mimicking a hardware
 sample clock — and **timestamp** them on an ideal timeline. Both come from one
 small C core, `timing_core` (`dp_sample_clock_t`), exposed as the
 `wfmgen --realtime` CLI flag and the Python
-[`SampleClock`](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink).
+[`SampleClock`](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink).
 
 This guide explains *why* software pacing is more subtle than `sleep(N/fs)`,
 *how* doppler does it drift-free, and *where* it fits — including the role of the
@@ -15,7 +15,7 @@ ______________________________________________________________________
 ## The problem: `fs` is normally just metadata
 
 A generator produces samples as fast as the CPU allows. The sample rate `fs`
-only labels the data — it sets the BLUE `xdelta`, the ZMQ header's
+only labels the data — it sets the BLUE `xdelta`, the NATS header's
 `sample_rate`, the SigMF `core:sample_rate`. Nothing actually *waits*.
 
 That's correct for writing a file: you want it done now. But when a **consumer
@@ -75,9 +75,10 @@ ______________________________________________________________________
 the samples; a file written with and without `--realtime` is byte-identical.
 
 ```sh
-# Stream QPSK to a live receiver at the true 1 MS/s, not as fast as possible
+# Stream QPSK to a live receiver at the true 1 MS/s, not as fast as possible.
+# Requires a nats-server reachable at the endpoint.
 wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
-       --output zmq://tcp://*:5555
+       --output nats://127.0.0.1:4222/iq
 ```
 
 If the producer can't keep up — a block takes longer than its `N/fs` period, an
@@ -94,13 +95,13 @@ generated `stream` owns a `SampleClock` and sleeps to each block's deadline with
 the GIL released — the same clock the CLI uses). With `realtime` omitted (the
 default `0.0`), `stream` is a pure drain that yields as fast as it can:
 
-<!-- docs-snippet: skip=unbounded realtime ZMQ stream -->
+<!-- docs-snippet: skip=unbounded realtime NATS stream -->
 
 ```python
-from doppler.wfm.compose import Composer, ZmqSink
+from doppler.wfm.compose import Composer, StreamSink
 
 comp = Composer(type="qpsk", sps=8, fs=1e6, continuous=True)
-with ZmqSink("tcp://0.0.0.0:5555") as sink:
+with StreamSink("nats://127.0.0.1:4222/iq") as sink:
     for blk in comp.stream(4096, realtime=1e6):   # paced to fs in C
         sink.send(blk, fs=1e6, fc=0.0)
 ```
@@ -111,11 +112,11 @@ When you need the slack value, the timestamp, or a custom loop, drive a
 <!-- docs-snippet: skip=unbounded realtime pacing loop -->
 
 ```python
-from doppler.wfm.compose import Composer, SampleClock, ZmqSink
+from doppler.wfm.compose import Composer, SampleClock, StreamSink
 
 comp = Composer(type="qpsk", sps=8, continuous=True)
 clk = SampleClock(fs=1e6)
-with ZmqSink("tcp://0.0.0.0:5555") as sink:
+with StreamSink("nats://127.0.0.1:4222/iq") as sink:
     while True:
         blk = comp.execute(4096)
         sink.send(blk, fs=1e6, fc=0.0)
@@ -167,9 +168,9 @@ a block happens to be transmitted. Use it for reproducible capture metadata:
 SigMF `core:datetime`, per-record timestamps, aligning a generated capture to a
 reference epoch.
 
-!!! info "The ZMQ wire header is already timestamped"
+!!! info "The NATS wire header is already timestamped"
 
-    `ZmqSink.send` stamps each block's wire header with `CLOCK_REALTIME` at the
+    `StreamSink.send` stamps each block's wire header with `CLOCK_REALTIME` at the
     moment of send (jittery, but truthful for "when it left"). `SampleClock`'s
     stamp is the complementary *ideal* timeline — pace for flow control,
     timestamp for the clean schedule.
@@ -227,7 +228,7 @@ ______________________________________________________________________
     signal arriving at its true rate, so buffering, AGC, and sync behave as they
     would on real hardware.
 - **SDR playback emulation** — replay a recorded or synthesized capture at the
-    original `fs` over ZMQ, standing in for a radio front-end.
+    original `fs` over NATS, standing in for a radio front-end.
 - **Reproducible timestamped captures** — stamp segments on an ideal timeline
     for SigMF metadata that's independent of when the file was written.
 - **Soak / throughput tests** — run `--continuous --realtime` for hours and
@@ -240,4 +241,4 @@ ______________________________________________________________________
 - [Waveform Generator guide](wfmgen/streaming.md) — the `--realtime` flag
     in context.
 - [Python `compose` API](../api/python-wfmgen.md) — `SampleClock`, `Composer`,
-    `ZmqSink`.
+    `StreamSink`.

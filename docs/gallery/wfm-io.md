@@ -74,22 +74,24 @@ The CLI does the same in one shot with `--file-type blue --detached -o cap`
 (writes `cap.hdr` + `cap.det`); detached output needs `--output` and a finite
 (non-`--continuous`) run.
 
-## Real-time streaming (`SampleClock` + `ZmqSink`)
+## Real-time streaming (`SampleClock` + `StreamSink`)
 
 For a live feed, pace a `Composer.stream` against wall-clock with a
-`SampleClock` and publish each block over ZeroMQ with a `ZmqSink`. A
-`doppler.stream` `Subscriber` receives the frames with their `fs`/`fc` header:
+`SampleClock` and publish each block over NATS with a `StreamSink`. A
+`doppler.stream` `Subscriber` receives the frames with their `fs`/`fc` header.
+Requires a `nats-server` reachable at the endpoint (plain `nats-server` is
+enough for this PUB/SUB feed):
 
-<!-- docs-snippet: skip=blocking ZMQ publish/paced recv; see stream tests -->
+<!-- docs-snippet: skip=blocking NATS publish/paced recv; see stream tests -->
 
 ```python
 from doppler.stream import Subscriber
-from doppler.wfm import Composer, SampleClock, Segment, ZmqSink, qpsk, tone
+from doppler.wfm import Composer, SampleClock, Segment, StreamSink, qpsk, tone
 
 scene = Segment.sum(qpsk(sps=8, snr=20, snr_mode="esno"),
                     tone(freq=1.2e5, level=-12), num_samples=80_000)
-sink = ZmqSink("ipc:///tmp/feed", sample_type="cf64")   # see note below
-sub = Subscriber("ipc:///tmp/feed")
+sink = StreamSink("nats://127.0.0.1:4222/feed", sample_type="cf64")   # see note below
+sub = Subscriber("nats://127.0.0.1:4222/feed")
 clock = SampleClock(fs=500_000)
 for block in Composer([scene]).stream(block=4096):
     sink.send(block, 500_000, 2.4e9)
@@ -101,7 +103,7 @@ print(clock.samples, clock.underruns, clock.max_lateness)
 !!! note "Publish cf64/ci32 to a Python subscriber"
 
     `doppler.stream`'s receiver currently decodes only `CI32`/`CF64`/`CF128`,
-    so `ZmqSink`'s default `cf32` (and `ci16`/`ci8`) frames are not yet
+    so `StreamSink`'s default `cf32` (and `ci16`/`ci8`) frames are not yet
     decodable on the Python side — use `sample_type="cf64"` until the
     [stream dtype gap](../dev/wfm-validation-findings.md) is fixed. A C
     `dp_sub_*` subscriber decodes all six types today.
@@ -110,8 +112,8 @@ print(clock.samples, clock.underruns, clock.max_lateness)
 
 ```sh
 python src/doppler/examples/wfm_io_demo.py          # the four-container figure (.png)
-python src/doppler/examples/wfm_realtime_stream.py  # paced ZMQ publish + recv stats
+python src/doppler/examples/wfm_realtime_stream.py  # paced NATS publish + recv stats
 ```
 
-See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-zmq-sink)
+See the [Python composer API](../api/python-wfmgen.md#compose-multi-segment-composition-writers-and-a-nats-sink)
 for the full `Writer` / `Reader` / `read_iq` surface.

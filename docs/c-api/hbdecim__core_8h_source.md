@@ -13,6 +13,7 @@
 #define HBDECIM_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -47,6 +48,18 @@ extern "C"
   void hbdecim_destroy (hbdecim_state_t *r);
 
   void hbdecim_reset (hbdecim_state_t *r);
+
+  /* Serializable state (reusable elastic-resume convention): the even/odd
+   * dual-write delay rings, their heads, and the pending even sample.  Coeffs
+   * and sizes are config (rebuilt from num_taps on the resumed instance). */
+
+  /* Standard bytes interface; see dp_state.h. */
+#define HBDECIM_STATE_MAGIC DP_FOURCC ('H', 'B', 'D', 'C')
+#define HBDECIM_STATE_VERSION 1u
+
+  size_t hbdecim_state_bytes (const hbdecim_state_t *r);
+  void hbdecim_get_state (const hbdecim_state_t *r, void *blob);
+  int hbdecim_set_state (hbdecim_state_t *r, const void *blob);
 
   size_t hbdecim_execute (hbdecim_state_t *r, const float _Complex *in,
                           size_t num_in, float _Complex *out, size_t max_out);

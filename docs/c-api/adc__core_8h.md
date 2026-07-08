@@ -11,6 +11,7 @@
 _Signed two's-complement ADC model._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include <math.h>`
 
@@ -61,7 +62,10 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**adc\_state\_t**](structadc__state__t.md) \* | [**adc\_create**](#function-adc_create) (int bits, float dbfs, int dithering) <br>_Create an ADC instance._  |
 |  void | [**adc\_destroy**](#function-adc_destroy) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Destroy an ADC instance and release all memory._  |
+|  void | [**adc\_get\_state**](#function-adc_get_state) (const [**adc\_state\_t**](structadc__state__t.md) \* state, void \* blob) <br> |
 |  void | [**adc\_reset**](#function-adc_reset) ([**adc\_state\_t**](structadc__state__t.md) \* state) <br>_Reset ADC to its post-create state._  |
+|  int | [**adc\_set\_state**](#function-adc_set_state) ([**adc\_state\_t**](structadc__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**adc\_state\_bytes**](#function-adc_state_bytes) (const [**adc\_state\_t**](structadc__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int64\_t | [**adc\_step**](#function-adc_step) ([**adc\_state\_t**](structadc__state__t.md) \* state, float x) <br>_Process one input sample._  |
 |  void | [**adc\_steps**](#function-adc_steps) ([**adc\_state\_t**](structadc__state__t.md) \* state, const float \* input, int64\_t \* output, size\_t n) <br>_Process a block of float samples to int64._  |
 
@@ -91,6 +95,12 @@ _Signed two's-complement ADC model._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**ADC\_STATE\_MAGIC**](adc__core_8h.md#define-adc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A','D','C',' ')`<br> |
+| define  | [**ADC\_STATE\_VERSION**](adc__core_8h.md#define-adc_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -224,6 +234,22 @@ void adc_destroy (
 
 
 
+### function adc\_get\_state 
+
+```C++
+void adc_get_state (
+    const adc_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function adc\_reset 
 
 _Reset ADC to its post-create state._ 
@@ -249,6 +275,37 @@ Clears the sticky `clipped` flag and re-seeds the xorshift32 PRNG to its initial
 
 
         
+
+<hr>
+
+
+
+### function adc\_set\_state 
+
+```C++
+int adc_set_state (
+    adc_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function adc\_state\_bytes 
+
+```C++
+size_t adc_state_bytes (
+    const adc_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -318,12 +375,50 @@ When dithering is disabled the float-to-double multiply can use SIMD widening ([
 * `state` Must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
 * `output` Output int64 array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import ADC
+>>> import numpy as np
+>>> # ideal 12-bit ADC: full scale spans +-2**11 codes
+>>> ADC(12, 0.0, 0).steps(np.array([0.0, 0.5, 0.999, -1.0],
+...                                dtype=np.float32)).tolist()
+[0, 1024, 2046, -2048]
+```
+ 
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define ADC\_STATE\_MAGIC 
+
+```C++
+#define ADC_STATE_MAGIC `DP_FOURCC ('A','D','C',' ')`
+```
+
+
+
+
+<hr>
+
+
+
+### define ADC\_STATE\_VERSION 
+
+```C++
+#define ADC_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

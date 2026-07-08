@@ -1,16 +1,17 @@
 # Streaming — real-time pacing
 
 By default `wfmgen` emits as fast as the CPU allows — `fs` is only metadata (the
-BLUE `xdelta`, the ZMQ header). Add **`--realtime`** to throttle the output to
+BLUE `xdelta`, the NATS header). Add **`--realtime`** to throttle the output to
 `fs`, so blocks leave on an `epoch + n/fs` schedule — mimicking a hardware
 sample clock feeding the sink. This is what you want when a downstream consumer
 expects samples to arrive at the real rate (a live spectrum display, an SDR
 playback emulation):
 
 ```sh
-# Stream QPSK to a live receiver at the true 1 MS/s, not as fast as possible
+# Stream QPSK to a live receiver at the true 1 MS/s, not as fast as possible.
+# Requires a nats-server reachable at the endpoint.
 wfmgen --type qpsk --fs 1e6 --sps 8 --continuous --realtime \
-       --output zmq://tcp://*:5555
+       --output nats://127.0.0.1:4222/iq
 ```
 
 The schedule is **drift-free**: each deadline is recomputed from the cumulative
@@ -42,11 +43,12 @@ with their ideal timestamp:
 <!-- docs-snippet: skip=illustrative real-time pacing loop over reader IQ -->
 
 ```python
-from doppler.wfm import Composer, SampleClock, ZmqSink
+from doppler.wfm import Composer, SampleClock, StreamSink
 
+# Requires a nats-server reachable at the endpoint.
 comp = Composer(type="qpsk", sps=8, continuous=True)
 clk = SampleClock(fs=1e6)
-with ZmqSink("tcp://0.0.0.0:5555") as sink:
+with StreamSink("nats://127.0.0.1:4222/iq") as sink:
     while True:
         blk = comp.execute(4096)
         ts = clk.stamp()              # ideal ns timestamp of this block
@@ -57,5 +59,5 @@ with ZmqSink("tcp://0.0.0.0:5555") as sink:
 The schedule is drift-free (deadlines come from the cumulative sample count, not
 summed sleeps); underruns are counted in `clk.underruns` / `clk.max_lateness`,
 and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
-`SampleClock` and `ZmqSink` are POSIX-only. See the
+`SampleClock` and `StreamSink` are POSIX-only. See the
 [Python API](python.md) for the full class surface.

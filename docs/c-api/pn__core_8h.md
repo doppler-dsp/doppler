@@ -11,6 +11,7 @@
 _PN component API._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 
 
@@ -67,7 +68,10 @@ _PN component API._ [More...](#detailed-description)
 |  void | [**pn\_destroy**](#function-pn_destroy) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Destroy a pn instance and release all memory. Idempotent when_ `state` _is NULL; safe to call at any point in the lifecycle. After return the pointer is dangling — do not dereference it._ |
 |  size\_t | [**pn\_generate**](#function-pn_generate) ([**pn\_state\_t**](structpn__state__t.md) \* state, size\_t n, uint8\_t \* out) <br>_Generate_ `n` _chips into_`out` _and advance the LFSR by_`n` _positions. Each element of_`out` _is 0 or 1. Requesting more than one MLS period is valid — the sequence simply wraps around. The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot._ |
 |  size\_t | [**pn\_generate\_max\_out**](#function-pn_generate_max_out) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br> |
+|  void | [**pn\_get\_state**](#function-pn_get_state) (const [**pn\_state\_t**](structpn__state__t.md) \* state, void \* blob) <br>_Serialize the LFSR register into_ `blob` _._ |
 |  void | [**pn\_reset**](#function-pn_reset) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._  |
+|  int | [**pn\_set\_state**](#function-pn_set_state) ([**pn\_state\_t**](structpn__state__t.md) \* state, const void \* blob) <br>_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._  |
+|  size\_t | [**pn\_state\_bytes**](#function-pn_state_bytes) (const [**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint8\_t | [**pn\_step**](#function-pn_step) ([**pn\_state\_t**](structpn__state__t.md) \* state) <br>_Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._  |
 
 
@@ -96,6 +100,12 @@ _PN component API._ [More...](#detailed-description)
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**PN\_STATE\_MAGIC**](pn__core_8h.md#define-pn_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('P', 'N', '\_', '\_')`<br> |
+| define  | [**PN\_STATE\_VERSION**](pn__core_8h.md#define-pn_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -296,6 +306,23 @@ size_t pn_generate_max_out (
 
 
 
+### function pn\_get\_state 
+
+_Serialize the LFSR register into_ `blob` _._
+```C++
+void pn_get_state (
+    const pn_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function pn\_reset 
 
 _Reset PN to its post-create state. Reloads the LFSR register from the original seed so the sequence restarts from chip 0. Useful for reproducible captures without re-allocating._ 
@@ -333,6 +360,39 @@ True
 
 
 
+### function pn\_set\_state 
+
+_Restore the register; DP\_OK, or DP\_ERR\_INVALID if rejected._ 
+```C++
+int pn_set_state (
+    pn_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function pn\_state\_bytes 
+
+_Serialized-state byte size._ 
+```C++
+size_t pn_state_bytes (
+    const pn_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function pn\_step 
 
 _Advance the LFSR one step and return the output chip (0 or 1). Both realizations output the register LSB and then shift right. Galois XORs the tap polynomial on a 1 output bit (internal feedback); Fibonacci computes the parity of all tapped positions and inserts it at the top (external feedback). Same primitive polynomial, same period. Inlined so per-sample modulators (e.g. synth's bpsk/qpsk data source) can pull chips in a tight hot loop without call overhead._ 
@@ -362,6 +422,35 @@ Output chip: 0 or 1 (register LSB before the shift).
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define PN\_STATE\_MAGIC 
+
+```C++
+#define PN_STATE_MAGIC `DP_FOURCC ('P', 'N', '_', '_')`
+```
+
+
+
+
+<hr>
+
+
+
+### define PN\_STATE\_VERSION 
+
+```C++
+#define PN_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

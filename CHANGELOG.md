@@ -13,6 +13,25 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** `ZmqSink` (Python, `doppler.wfm`) and `wfm_zmq_sink_*` (C)
+    are renamed to `StreamSink` / `wfm_stream_sink_*`. `wfmgen --output` no
+    longer takes a `zmq://<endpoint>` double-prefix; pass the real endpoint
+    directly, e.g. `wfmgen --output nats://127.0.0.1:4222/iq`.
+- `examples/c/pipeline_demo.c` (and its Python counterparts) now require a
+    running `nats-server` (was a brokerless ZMQ ipc/tcp pipeline).
+
+### Removed
+
+- **BREAKING: the ZMQ transport backend and vendored libzmq are gone.**
+    `doppler.stream` / `stream.h`'s `dp_pub/sub/push/pull/req/rep_*` API is
+    unaffected — NATS (`nats://`) is now the only backend, with full
+    JetStream support and no `tcp://`/`ipc://`/`inproc://` fallback. This
+    also removes doppler's only C++ dependency: the entire build, including
+    the optional `libdoppler_stream` component, now needs only a C compiler
+    on every platform (the CI C++-free gate now checks both).
+
 ## [0.27.0] — 2026-07-05
 
 ### Added

@@ -14,6 +14,7 @@
 
 #include "buffer/buffer.h"
 #include "corr2d/corr2d_core.h"
+#include "dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +91,15 @@ void detector2d_set_threshold (detector2d_state_t *state, float threshold);
 size_t detector2d_push (detector2d_state_t *state, const float complex *in,
                         size_t n_in, det_result2d_t *result,
                         size_t max_results);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * corr2d child + the input ring's unconsumed samples (zero-padded to ring_cap)
+ * + the last-dump result fields; scratch is config (rebuilt by create). */
+#define DETECTOR2D_STATE_MAGIC DP_FOURCC ('D','E','T','2')
+#define DETECTOR2D_STATE_VERSION 1u
+size_t detector2d_state_bytes (const detector2d_state_t *state);
+void detector2d_get_state (const detector2d_state_t *state, void *blob);
+int detector2d_set_state (detector2d_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

@@ -27,6 +27,8 @@ extern "C"
 
 float kaiser_enbw(const float *w, size_t w_len);
 
+  double kaiser_beta_for_sidelobe(double atten_db);
+
 void kaiser_window(float *w, size_t w_len, float beta);
 
 void hann_window(float *w, size_t w_len);

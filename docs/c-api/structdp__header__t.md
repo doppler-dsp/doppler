@@ -8,7 +8,7 @@
 
 
 
-_Frame metadata header carried in every ZMQ message._ [More...](#detailed-description)
+_Frame metadata header carried in every stream message._ [More...](#detailed-description)
 
 * `#include <stream.h>`
 

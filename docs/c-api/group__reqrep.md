@@ -51,7 +51,7 @@
 
 | Type | Name |
 | ---: | :--- |
-|  [**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* | [**dp\_rep\_create**](#function-dp_rep_create) (const char \* endpoint) <br>_Create a Replier socket and bind to_ `endpoint` _._ |
+|  [**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* | [**dp\_rep\_create**](#function-dp_rep_create) (const char \* endpoint) <br>_Create a Replier and connect to_ `endpoint` _._ |
 |  void | [**dp\_rep\_destroy**](#function-dp_rep_destroy) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx) <br>_Destroy a Replier context and release all resources._  |
 |  int | [**dp\_rep\_recv**](#function-dp_rep_recv) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Block until an incoming request arrives on the Replier (zero-copy)._  |
 |  int | [**dp\_rep\_recv\_signal**](#function-dp_rep_recv_signal) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame request (zero-copy)._  |
@@ -63,7 +63,7 @@
 |  int | [**dp\_rep\_send\_ci32**](#function-dp_rep_send_ci32) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int32\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI32 signal frame as a reply._  |
 |  int | [**dp\_rep\_send\_ci8**](#function-dp_rep_send_ci8) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, const int8\_t \* samples, size\_t num\_samples, double sample\_rate, double center\_freq) <br>_Send CI8 signal frame as a reply._  |
 |  void | [**dp\_rep\_set\_timeout**](#function-dp_rep_set_timeout) ([**dp\_rep\_t**](group__types.md#typedef-dp_rep_t) \* ctx, int timeout\_ms) <br>_Set receive timeout for a Replier socket._  |
-|  [**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* | [**dp\_req\_create**](#function-dp_req_create) (const char \* endpoint) <br>_Create a Requester socket and connect to_ `endpoint` _._ |
+|  [**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* | [**dp\_req\_create**](#function-dp_req_create) (const char \* endpoint) <br>_Create a Requester and connect to_ `endpoint` _._ |
 |  void | [**dp\_req\_destroy**](#function-dp_req_destroy) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx) <br>_Destroy a Requester context and release all resources._  |
 |  int | [**dp\_req\_recv**](#function-dp_req_recv) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, size\_t \* size) <br>_Receive the reply to a previously sent request (zero-copy)._  |
 |  int | [**dp\_req\_recv\_signal**](#function-dp_req_recv_signal) ([**dp\_req\_t**](group__types.md#typedef-dp_req_t) \* ctx, [**dp\_msg\_t**](group__types.md#typedef-dp_msg_t) \*\* msg, [**dp\_header\_t**](structdp__header__t.md) \* header) <br>_Receive a signal frame reply (zero-copy)._  |
@@ -117,7 +117,7 @@ Strict synchronous request/reply. The Requester sends a message and must call re
 
 ### function dp\_rep\_create 
 
-_Create a Replier socket and bind to_ `endpoint` _._
+_Create a Replier and connect to_ `endpoint` _._
 ```
 dp_rep_t * dp_rep_create (
     const char * endpoint
@@ -131,7 +131,7 @@ dp_rep_t * dp_rep_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to bind, e.g. `"tcp://\*:5557"`. 
+* `endpoint` NATS endpoint, e.g. `"nats://127.0.0.1:4222/ctrl"`. 
 
 
 
@@ -441,7 +441,7 @@ void dp_rep_set_timeout (
 
 ### function dp\_req\_create 
 
-_Create a Requester socket and connect to_ `endpoint` _._
+_Create a Requester and connect to_ `endpoint` _._
 ```
 dp_req_t * dp_req_create (
     const char * endpoint
@@ -455,7 +455,7 @@ dp_req_t * dp_req_create (
 **Parameters:**
 
 
-* `endpoint` ZMQ endpoint to connect to, e.g. `"tcp://localhost:5557"`. 
+* `endpoint` NATS endpoint, e.g. `"nats://127.0.0.1:4222/ctrl"`. 
 
 
 

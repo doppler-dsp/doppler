@@ -11,6 +11,7 @@
 _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "dp_state.h"`
 * `#include "jm_perf.h"`
 * `#include <math.h>`
 
@@ -61,7 +62,10 @@ _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#
 | ---: | :--- |
 |  [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* | [**f32\_to\_uq15\_create**](#function-f32_to_uq15_create) (float scale) <br>_Create a f32\_to\_uq15 instance._  |
 |  void | [**f32\_to\_uq15\_destroy**](#function-f32_to_uq15_destroy) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br>_Destroy a f32\_to\_uq15 instance and release all memory._  |
+|  void | [**f32\_to\_uq15\_get\_state**](#function-f32_to_uq15_get_state) (const [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, void \* blob) <br> |
 |  void | [**f32\_to\_uq15\_reset**](#function-f32_to_uq15_reset) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br>_Reset f32\_to\_uq15 to its post-create state._  |
+|  int | [**f32\_to\_uq15\_set\_state**](#function-f32_to_uq15_set_state) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, const void \* blob) <br> |
+|  size\_t | [**f32\_to\_uq15\_state\_bytes**](#function-f32_to_uq15_state_bytes) (const [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) uint16\_t | [**f32\_to\_uq15\_step**](#function-f32_to_uq15_step) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, float x) <br>_Process one input sample._  |
 |  void | [**f32\_to\_uq15\_steps**](#function-f32_to_uq15_steps) ([**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) \* state, const float \* input, uint16\_t \* output, size\_t n) <br>_Process a block of float samples to UQ15 uint16._  |
 
@@ -91,6 +95,12 @@ _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._ [More...](#
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**F32\_TO\_UQ15\_STATE\_MAGIC**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('F','U','1','5')`<br> |
+| define  | [**F32\_TO\_UQ15\_STATE\_VERSION**](f32__to__uq15__core_8h.md#define-f32_to_uq15_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -212,6 +222,22 @@ void f32_to_uq15_destroy (
 
 
 
+### function f32\_to\_uq15\_get\_state 
+
+```C++
+void f32_to_uq15_get_state (
+    const f32_to_uq15_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function f32\_to\_uq15\_reset 
 
 _Reset f32\_to\_uq15 to its post-create state._ 
@@ -237,6 +263,37 @@ Clears the sticky `clipped` flag. The `scale` is preserved.
 
 
         
+
+<hr>
+
+
+
+### function f32\_to\_uq15\_set\_state 
+
+```C++
+int f32_to_uq15_set_state (
+    f32_to_uq15_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function f32\_to\_uq15\_state\_bytes 
+
+```C++
+size_t f32_to_uq15_state_bytes (
+    const f32_to_uq15_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -306,12 +363,48 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 * `state` Must be non-NULL. 
 * `input` Input float32 array; must contain at least `n` elements. 
 * `output` Output uint16 offset-binary array; must contain at least `n` elements. 
-* `n` Number of samples to process. 
+* `n` Number of samples to process.
 
 
+```C++
+>>> from doppler.cvt import F32ToUQ15
+>>> import numpy as np
+>>> F32ToUQ15().steps(np.array([-1.0, 0.0, 0.999], dtype=np.float32)).tolist()
+[0, 32768, 65503]
+```
+ 
 
 
         
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define F32\_TO\_UQ15\_STATE\_MAGIC 
+
+```C++
+#define F32_TO_UQ15_STATE_MAGIC `DP_FOURCC ('F','U','1','5')`
+```
+
+
+
+
+<hr>
+
+
+
+### define F32\_TO\_UQ15\_STATE\_VERSION 
+
+```C++
+#define F32_TO_UQ15_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

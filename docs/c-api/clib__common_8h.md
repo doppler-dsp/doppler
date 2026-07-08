@@ -85,8 +85,13 @@
 | Type | Name |
 | ---: | :--- |
 | define  | [**CMPLXF**](clib__common_8h.md#define-cmplxf) (r, i) `\_\_builtin\_complex ((float)(r), (float)(i))`<br> |
-| define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-2)`<br> |
-| define  | [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory)  `(-1)`<br> |
+| define  | [**DP\_ERR\_INIT**](clib__common_8h.md#define-dp_err_init)  `(-1)`<br> |
+| define  | [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid)  `(-4)`<br> |
+| define  | [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory)  `(-6)`<br> |
+| define  | [**DP\_ERR\_RECV**](clib__common_8h.md#define-dp_err_recv)  `(-3)`<br> |
+| define  | [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send)  `(-2)`<br> |
+| define  | [**DP\_ERR\_TIMEOUT**](clib__common_8h.md#define-dp_err_timeout)  `(-5)`<br> |
+| define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
 ## Macro Definition Documentation
@@ -115,10 +120,27 @@
 
 
 
+### define DP\_ERR\_INIT 
+
+```C++
+#define DP_ERR_INIT `(-1)`
+```
+
+
+
+Initialisation failed (context/socket). 
+
+
+        
+
+<hr>
+
+
+
 ### define DP\_ERR\_INVALID 
 
 ```C++
-#define DP_ERR_INVALID `(-2)`
+#define DP_ERR_INVALID `(-4)`
 ```
 
 
@@ -135,12 +157,80 @@ Invalid argument.
 ### define DP\_ERR\_MEMORY 
 
 ```C++
-#define DP_ERR_MEMORY `(-1)`
+#define DP_ERR_MEMORY `(-6)`
 ```
 
 
 
 Memory allocation failure. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_RECV 
+
+```C++
+#define DP_ERR_RECV `(-3)`
+```
+
+
+
+Receive failed or timed out (EAGAIN). 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_SEND 
+
+```C++
+#define DP_ERR_SEND `(-2)`
+```
+
+
+
+Send failed. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_TIMEOUT 
+
+```C++
+#define DP_ERR_TIMEOUT `(-5)`
+```
+
+
+
+Operation timed out. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_ERR\_TOO\_LARGE 
+
+```C++
+#define DP_ERR_TOO_LARGE `(-7)`
+```
+
+
+
+Frame exceeds transport max payload. 
 
 
         

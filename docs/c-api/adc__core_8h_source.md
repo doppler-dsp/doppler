@@ -13,6 +13,7 @@
 #define ADC_CORE_H
 
 #include "clib_common.h"
+#include "dp_state.h"
 #include "jm_perf.h"
 #include <math.h>
 #ifdef __cplusplus
@@ -63,6 +64,15 @@ void adc_steps(
     const float       *input,
     int64_t           *output,
     size_t             n);
+
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * Whole-struct POD snapshot (pointer-free); the dither RNG + sticky clip flag resume exactly into an
+ * identically-built instance. */
+#define ADC_STATE_MAGIC DP_FOURCC ('A','D','C',' ')
+#define ADC_STATE_VERSION 1u
+size_t adc_state_bytes (const adc_state_t *state);
+void adc_get_state (const adc_state_t *state, void *blob);
+int adc_set_state (adc_state_t *state, const void *blob);
 
 #ifdef __cplusplus
 }

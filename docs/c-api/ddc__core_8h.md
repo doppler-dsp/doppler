@@ -34,6 +34,12 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 
 
 
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**ddc\_extra\_t**](structddc__extra__t.md) <br> |
+| struct | [**ddcr\_extra\_t**](structddcr__extra__t.md) <br> |
 
 
 ## Public Types
@@ -72,15 +78,23 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  size\_t | [**ddc\_execute\_max\_out**](#function-ddc_execute_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Return the maximum output samples for one execute call._  |
 |  double | [**ddc\_get\_norm\_freq**](#function-ddc_get_norm_freq) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Return the current LO normalised frequency (cycles/sample)._  |
 |  double | [**ddc\_get\_rate**](#function-ddc_get_rate) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Return the configured output/input rate ratio (read-only). The rate is fixed at create time; change it by destroying and recreating the DDC with the new value._  |
+|  void | [**ddc\_get\_state**](#function-ddc_get_state) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, void \* blob) <br>_Serialize_ `state's` _LO + RateConverter state into_`blob` _._ |
 |  void | [**ddc\_reset**](#function-ddc_reset) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures._  |
+|  size\_t | [**ddc\_run**](#function-ddc_run) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* state\_in, void \* state\_out, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._ |
 |  void | [**ddc\_set\_norm\_freq**](#function-ddc_set_norm_freq) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, double val) <br>_Retune the LO without resetting phase or resampler history. Updates the NCO phase increment atomically so the carrier shift changes seamlessly across block boundaries. The resampler history and LO phase accumulator are left intact, avoiding the transient that a full reset would cause._  |
+|  int | [**ddc\_set\_state**](#function-ddc_set_state) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* blob) <br>_Restore LO + RateConverter state from_ `blob` _._ |
+|  size\_t | [**ddc\_state\_bytes**](#function-ddc_state_bytes) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Byte size of_ `state's` _blob (envelope + extra + lo + rc)._ |
 |  [**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* | [**ddcr\_create**](#function-ddcr_create) (double norm\_freq, double rate) <br>_Create a real-input Digital Down-Converter (Architecture D2). The signal chain is: halfband R2C (2:1, bakes in +fs/4 shift) → fine LO mix at the intermediate rate (fs\_in/2) → RateConverter → CF32 output. The halfband stage uses ±1/0 coefficients (no multiplications), making DDCR roughly 2× cheaper than DDC at the same total decimation ratio._  |
 |  void | [**ddcr\_destroy**](#function-ddcr_destroy) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Free all resources held by a DDCR instance. Releases the halfband, RateConverter, and LO substructures, then the struct itself. Passing NULL is a no-op._  |
 |  size\_t | [**ddcr\_execute**](#function-ddcr_execute) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Process a block of real float32 samples through the full DDCR signal chain: halfband R2C → LO mix → RateConverter → CF32. The halfband decimates by 2 and applies a built-in +fs/4 frequency shift; the fine NCO then completes the tuning. State is maintained across calls for contiguous streaming. Output length ≈ n\_in \* rate (±1 from polyphase indexing). A real tone at input normalised frequency f\_c has amplitude 0.5 in the baseband output (one-sided spectrum), consistent with analytic signal theory._  |
 |  double | [**ddcr\_get\_norm\_freq**](#function-ddcr_get_norm_freq) (const [**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Return the current fine NCO normalised frequency at the intermediate rate (fs\_in/2, cycles/sample)._  |
 |  double | [**ddcr\_get\_rate**](#function-ddcr_get_rate) (const [**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Return the total configured rate (fs\_out / fs\_in, read-only). This is the end-to-end ratio from ADC input to CF32 output. Change it by destroying and recreating the DDCR._  |
+|  void | [**ddcr\_get\_state**](#function-ddcr_get_state) (const [**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s, void \* blob) <br>_Serialize_ `s's` _full-chain state into_`blob` _._ |
 |  void | [**ddcr\_reset**](#function-ddcr_reset) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests._  |
+|  size\_t | [**ddcr\_run**](#function-ddcr_run) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s, const void \* state\_in, void \* state\_out, const float \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run: inject_ `state_in` _, process_`in` _, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config. Either state may be NULL (NULL in = use current; NULL out = discard)._`state_in` _/_`state_out` _may alias._ |
 |  void | [**ddcr\_set\_norm\_freq**](#function-ddcr_set_norm_freq) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s, double norm\_freq) <br>_Retune the fine NCO without resetting halfband or resampler history. Updates the LO phase increment only; state is preserved for seamless tuning across block boundaries._  |
+|  int | [**ddcr\_set\_state**](#function-ddcr_set_state) ([**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s, const void \* blob) <br>_Restore full-chain state from_ `blob` _into_`s` _._ |
+|  size\_t | [**ddcr\_state\_bytes**](#function-ddcr_state_bytes) (const [**ddcr\_state\_t**](ddc__core_8h.md#typedef-ddcr_state_t) \* s) <br>_Byte size of_ `s's` _state blob (envelope + extra + chain)._ |
 
 
 
@@ -108,6 +122,14 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DDCR\_STATE\_MAGIC**](ddc__core_8h.md#define-ddcr_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', 'R')`<br> |
+| define  | [**DDCR\_STATE\_VERSION**](ddc__core_8h.md#define-ddcr_state_version)  `1u`<br> |
+| define  | [**DDC\_STATE\_MAGIC**](ddc__core_8h.md#define-ddc_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D', 'D', 'C', '\_')`<br> |
+| define  | [**DDC\_STATE\_VERSION**](ddc__core_8h.md#define-ddc_state_version)  `1u`<br> |
 
 ## Detailed Description
 
@@ -347,6 +369,23 @@ double ddc_get_rate (
 
 
 
+### function ddc\_get\_state 
+
+_Serialize_ `state's` _LO + RateConverter state into_`blob` _._
+```C++
+void ddc_get_state (
+    const ddc_state_t * state,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function ddc\_reset 
 
 _Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures._ 
@@ -374,6 +413,28 @@ True
 
 
         
+
+<hr>
+
+
+
+### function ddc\_run 
+
+_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._
+```C++
+size_t ddc_run (
+    ddc_state_t * state,
+    const void * state_in,
+    void * state_out,
+    const float complex * in,
+    size_t n_in,
+    float complex * out,
+    size_t max_out
+) 
+```
+
+
+
 
 <hr>
 
@@ -411,6 +472,50 @@ void ddc_set_norm_freq (
 
 
         
+
+<hr>
+
+
+
+### function ddc\_set\_state 
+
+_Restore LO + RateConverter state from_ `blob` _._
+```C++
+int ddc_set_state (
+    ddc_state_t * state,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope/rate rejects. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function ddc\_state\_bytes 
+
+_Byte size of_ `state's` _blob (envelope + extra + lo + rc)._
+```C++
+size_t ddc_state_bytes (
+    const ddc_state_t * state
+) 
+```
+
+
+
 
 <hr>
 
@@ -599,6 +704,23 @@ double ddcr_get_rate (
 
 
 
+### function ddcr\_get\_state 
+
+_Serialize_ `s's` _full-chain state into_`blob` _._
+```C++
+void ddcr_get_state (
+    const ddcr_state_t * s,
+    void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function ddcr\_reset 
 
 _Zero halfband filter history, LO phase, and resampler history. After reset, the next execute call reproduces the output of the first call after create, enabling repeatable block-by-block tests._ 
@@ -624,6 +746,39 @@ void ddcr_reset (
 True
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function ddcr\_run 
+
+_Pure run: inject_ `state_in` _, process_`in` _, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config. Either state may be NULL (NULL in = use current; NULL out = discard)._`state_in` _/_`state_out` _may alias._
+```C++
+size_t ddcr_run (
+    ddcr_state_t * s,
+    const void * state_in,
+    void * state_out,
+    const float * in,
+    size_t n_in,
+    float _Complex * out,
+    size_t max_out
+) 
+```
+
+
+
+
+
+**Returns:**
+
+Number of CF32 output samples written. 
+
+
+
 
 
         
@@ -664,6 +819,105 @@ void ddcr_set_norm_freq (
 
 
         
+
+<hr>
+
+
+
+### function ddcr\_set\_state 
+
+_Restore full-chain state from_ `blob` _into_`s` _._
+```C++
+int ddcr_set_state (
+    ddcr_state_t * s,
+    const void * blob
+) 
+```
+
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if the envelope/rate disagree with `s` (rebuild the engine from the matching descriptor first). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function ddcr\_state\_bytes 
+
+_Byte size of_ `s's` _state blob (envelope + extra + chain)._
+```C++
+size_t ddcr_state_bytes (
+    const ddcr_state_t * s
+) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DDCR\_STATE\_MAGIC 
+
+```C++
+#define DDCR_STATE_MAGIC `DP_FOURCC ('D', 'D', 'C', 'R')`
+```
+
+
+
+
+<hr>
+
+
+
+### define DDCR\_STATE\_VERSION 
+
+```C++
+#define DDCR_STATE_VERSION `1u`
+```
+
+
+
+
+<hr>
+
+
+
+### define DDC\_STATE\_MAGIC 
+
+```C++
+#define DDC_STATE_MAGIC `DP_FOURCC ('D', 'D', 'C', '_')`
+```
+
+
+
+
+<hr>
+
+
+
+### define DDC\_STATE\_VERSION 
+
+```C++
+#define DDC_STATE_VERSION `1u`
+```
+
+
+
 
 <hr>
 

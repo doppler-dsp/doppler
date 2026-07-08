@@ -40,7 +40,7 @@ build_mf_taps (int pulse, size_t sps, double beta, int span, size_t *ntaps)
 mpsk_receiver_state_t *
 mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
                       int rrc_span, double bn_carrier, double zeta,
-                      double bn_timing, int auto_handover, double lock_thresh,
+                      double bn_timing, int acq_to_track, double lock_thresh,
                       double init_norm_freq, size_t warmup_syms,
                       int differential)
 {
@@ -79,7 +79,7 @@ mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
   rx->pulse         = pulse;
   rx->rrc_beta      = rrc_beta;
   rx->rrc_span      = rrc_span;
-  rx->auto_handover = auto_handover ? 1 : 0;
+  rx->acq_to_track  = acq_to_track ? 1 : 0;
   rx->lock_thresh   = lock_thresh;
   rx->warmup_syms   = warmup_syms;
   rx->tracking      = 0;
@@ -203,7 +203,7 @@ process_sample (mpsk_receiver_state_t *rx, float complex x, float complex *sym)
   rx->sym_count++;
   /* opt-in handover: after a timing/carrier warmup and a confident lock, hand
    * the carrier from NDA acquisition to decision-directed tracking. */
-  if (rx->auto_handover && !rx->tracking && rx->sym_count >= rx->warmup_syms
+  if (rx->acq_to_track && !rx->tracking && rx->sym_count >= rx->warmup_syms
       && rx->car.lock > rx->lock_thresh)
     rx->tracking = 1;
   *sym = y;

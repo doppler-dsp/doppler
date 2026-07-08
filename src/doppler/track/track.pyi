@@ -745,14 +745,14 @@ class MpskReceiver:
         Damping factor for both loops (default 0.707).
     bn_timing : float, default 0.01
         Symbol-timing loop noise bandwidth (default 0.01).
-    auto_handover : int, default 0
-        Enable NDA->decision-directed handover (default 0).
+    acq_to_track : int, default 0
+        Enable NDA->decision-directed tracking (default 0).
     lock_thresh : float, default 0.5
-        Lock metric required for handover (default 0.5).
+        Lock metric required to switch to tracking (default 0.5).
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample (default 0.0).
     warmup_syms : int, default 100
-        Symbols before handover is allowed (default 100).
+        Symbols before the acq-to-track switch is allowed (default 100).
     differential : int, default 0
         bits(): differential (rotation-invariant) demap (default 0 = coherent).
 
@@ -761,13 +761,13 @@ class MpskReceiver:
     Create with defaults:
 
     >>> from doppler.track import MpskReceiver
-    >>> obj = MpskReceiver(m=4, sps=8, n=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, auto_handover=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0)
+    >>> obj = MpskReceiver(m=4, sps=8, n=4, pulse="iandd", rrc_beta=0.35, rrc_span=8, bn_carrier=0.01, zeta=0.707, bn_timing=0.01, acq_to_track=0, lock_thresh=0.5, init_norm_freq=0.0, warmup_syms=100, differential=0)
 
     """
-    def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., auto_handover: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
+    def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
     def steps(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
-        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With auto_handover enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
 
         Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter +
         Gardner timing) over x and writes one cf32 symbol per recovered symbol

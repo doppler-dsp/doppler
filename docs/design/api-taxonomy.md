@@ -55,16 +55,16 @@ are a packaging/build concern — see [`repository-map.md`](../dev/repository-ma
 — not a naming one, though closer alignment between the two is a nice side
 effect where it's cheap).
 
-| #   | Layer                                | What it does                                                          | Current members                                                                                |
-| --- | ------------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                            |
-| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HBDecimQ15`, `Farrow`, `DDC` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `Detector`, `Detector2D`, `Acquisition`, `PolyPhaseEstimator`                |
-| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`       |
-| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                    |
-| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                     |
-| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                              |
-| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                   |
+| #   | Layer                                | What it does                                                          | Current members                                                                                          |
+| --- | ------------------------------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                      |
+| 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC` |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `Detector`, `Detector2D`, `Acquisition`, `PolyPhaseEstimator`                          |
+| 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                 |
+| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                              |
+| 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                               |
+| 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                        |
+| 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                             |
 
 ## 3. The naming axis per layer
 
@@ -129,6 +129,8 @@ matches how the algorithm is usually described in prose;
 chirp *waveform* rather than the general polynomial-phase model.
 
 ### 4.3 `filter.HBDecimQ15` → `resample.HalfbandDecimatorQ15`
+
+**Landed:** [doppler-dsp/doppler#359](https://github.com/doppler-dsp/doppler/issues/359).
 
 Same halfband 2:1 decimator algorithm as `resample.HalfbandDecimator`,
 differing only by dtype (Q15 fixed-point vs. CF32) — but one name is

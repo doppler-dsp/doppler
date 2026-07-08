@@ -92,12 +92,12 @@ typedef struct {
  * @param num_taps Number of FIR branch coefficients in h (>= 1).
  * @param h        Float FIR branch coefficients of length num_taps.
  *                 Must be symmetric (`h[k]` == `h[num_taps-1-k]`).
- * @return HBDecimQ15 instance.
+ * @return HalfbandDecimatorQ15 instance.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> dec = HBDecimQ15(h)
+ * >>> dec = HalfbandDecimatorQ15(h)
  * >>> dec.num_taps
  * 3
  * >>> dec.rate
@@ -114,9 +114,9 @@ hbdecim_q15_state_t *hbdecim_q15_create(size_t num_taps, const float *h);
  * deterministic release before GC reclaims the object.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> with HBDecimQ15(h) as dec:
+ * >>> with HalfbandDecimatorQ15(h) as dec:
  * ...     y = dec.execute(
  * ...         np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0],
  * ...                  dtype=np.int16))
@@ -135,9 +135,9 @@ void hbdecim_q15_destroy(hbdecim_q15_state_t *r);
  * leakage.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> dec = HBDecimQ15(h)
+ * >>> dec = HalfbandDecimatorQ15(h)
  * >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
  * >>> _ = dec.execute(x)
  * >>> dec.reset()
@@ -165,9 +165,9 @@ void hbdecim_q15_reset(hbdecim_q15_state_t *r);
  * @return        Number of int16_t values written to out.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> dec = HBDecimQ15(h)
+ * >>> dec = HalfbandDecimatorQ15(h)
  * >>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)
  * >>> y = dec.execute(x)
  * >>> y.dtype
@@ -196,9 +196,9 @@ size_t hbdecim_q15_execute_max_out(hbdecim_q15_state_t *r);
  * each stage programmatically without hard-coding the 2:1 assumption.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> HBDecimQ15(h).rate
+ * >>> HalfbandDecimatorQ15(h).rate
  * 0.5
  * @endcode
  */
@@ -211,9 +211,9 @@ double hbdecim_q15_get_rate(const hbdecim_q15_state_t *r);
  * when chaining multiple stages with programmatically computed filter banks.
  * @code
  * >>> import numpy as np
- * >>> from doppler.filter import HBDecimQ15
+ * >>> from doppler.resample import HalfbandDecimatorQ15
  * >>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)
- * >>> HBDecimQ15(h).num_taps
+ * >>> HalfbandDecimatorQ15(h).num_taps
  * 3
  * @endcode
  */

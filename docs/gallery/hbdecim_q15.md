@@ -1,4 +1,4 @@
-# HBDecimQ15 — Fixed-Point Halfband Decimator
+# HalfbandDecimatorQ15 — Fixed-Point Halfband Decimator
 
 ![](../assets/hbdecim_q15_demo.png)
 
@@ -112,7 +112,7 @@ push the Q15 floor lower.
 
 ## Coefficient format
 
-`HBDecimQ15` takes the FIR polyphase branch, not the full sparse prototype.
+`HalfbandDecimatorQ15` takes the FIR polyphase branch, not the full sparse prototype.
 
 `_halfband_bank(atten, pb, sb)` returns a `(2, N)` float32 array. One row
 is the FIR branch (N non-trivial coefficients, symmetric, peak ≈ 0.63 at
@@ -145,8 +145,7 @@ Together they give unity DC gain through the combined FIR + delay branches.
 
 ```python
 import numpy as np
-from doppler.filter import HBDecimQ15
-from doppler.resample import _halfband_bank
+from doppler.resample import HalfbandDecimatorQ15, _halfband_bank
 
 # ── design ────────────────────────────────────────────────────────────────
 bank = _halfband_bank(atten=60.0, pb=0.4, sb=0.6)
@@ -154,7 +153,7 @@ fir_row = int(np.argmin([np.max(np.abs(bank[r])) for r in range(2)]))
 h = bank[fir_row].astype(np.float32)
 
 # ── create ────────────────────────────────────────────────────────────────
-dec = HBDecimQ15(h)
+dec = HalfbandDecimatorQ15(h)
 print(f"num_taps={dec.num_taps}, rate={dec.rate}")  # 19, 0.5
 
 # ── generate IQ signal: two tones, interleaved int16 ──────────────────────
@@ -197,7 +196,7 @@ y_stream = np.concatenate(results)
 print(f"streaming match: {np.array_equal(y_iq, y_stream)}")  # True
 
 # ── context manager ───────────────────────────────────────────────────────
-with HBDecimQ15(h) as d:
+with HalfbandDecimatorQ15(h) as d:
     y2 = d.execute(x_iq).copy()
 
 # ── explicit destroy ──────────────────────────────────────────────────────
@@ -206,7 +205,7 @@ dec.destroy()
 
 ## SNR vs bit depth
 
-`HBDecimQ15` targets ADC-grade input at 12–16 bits. The Q15 arithmetic
+`HalfbandDecimatorQ15` targets ADC-grade input at 12–16 bits. The Q15 arithmetic
 budget limits the in-band SNR ceiling independently of signal level:
 
 | Metric                         | Value      | Notes                                                    |

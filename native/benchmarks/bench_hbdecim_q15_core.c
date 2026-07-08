@@ -1,4 +1,4 @@
-/* bench_hbdecim_q15_core.c — execute() throughput for HBDecimQ15 */
+/* bench_hbdecim_q15_core.c — execute() throughput for HalfbandDecimatorQ15 */
 #include "hbdecim_q15/hbdecim_q15_core.h"
 #include "jm_bench.h"
 #include <stdio.h>

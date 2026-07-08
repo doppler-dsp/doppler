@@ -1,4 +1,4 @@
-"""Integration tests for HBDecimQ15 — Q15 halfband 2:1 decimator.
+"""Integration tests for HalfbandDecimatorQ15 — Q15 halfband 2:1 decimator.
 
 Frequency-domain and SNR tests use scipy to generate proper halfband
 coefficients; structural tests replicate the C-level checks at the
@@ -8,7 +8,7 @@ Python boundary.
 import numpy as np
 import pytest
 
-from doppler.filter import HBDecimQ15
+from doppler.resample import HalfbandDecimatorQ15
 
 # ── shared coefficient fixture ─────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ def h51():
 
 @pytest.fixture
 def dec51(h51):
-    d = HBDecimQ15(h51)
+    d = HalfbandDecimatorQ15(h51)
     yield d
     d.destroy()
 
@@ -73,32 +73,32 @@ def _windowed_amplitude(y_c):
 
 
 def test_create_returns_object(h51):
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     assert dec is not None
     dec.destroy()
 
 
 def test_num_taps(h51):
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     assert dec.num_taps == len(h51)
     dec.destroy()
 
 
 def test_rate(h51):
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     assert abs(dec.rate - 0.5) < 1e-9
     dec.destroy()
 
 
 def test_destroy_then_raises(h51):
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     dec.destroy()
     with pytest.raises(RuntimeError, match="destroyed"):
         dec.execute(np.zeros(8, dtype=np.int16))
 
 
 def test_context_manager(h51):
-    with HBDecimQ15(h51) as dec:
+    with HalfbandDecimatorQ15(h51) as dec:
         y = dec.execute(np.zeros(16, dtype=np.int16))
     assert y.dtype == np.int16
 
@@ -146,7 +146,7 @@ def test_reset_clears_state(dec51):
 @pytest.mark.parametrize("f0", [0.02, 0.05, 0.08, 0.10])
 def test_passband_amplitude(h51, f0):
     """Passband tones should pass with near-unity gain (±10%)."""
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     amplitude = 20000
     x = _iq_tone(4096, f0, amplitude)
     y = dec.execute(x)
@@ -167,7 +167,7 @@ def test_stopband_rejection(h51, f0):
     Q15 coefficient quantization costs a few dB versus the float design
     (the _halfband_bank filter targets 60 dB, Q15 delivers ≥ 34 dB).
     """
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     amplitude = 20000
     x = _iq_tone(4096, f0, amplitude)
     y = dec.execute(x)
@@ -185,7 +185,7 @@ def test_snr_vs_float_reference(h51):
     """Q15 output SNR vs the same filter run in float64 should exceed 30 dB."""
     amplitude = 20000
     f0 = 0.05
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     x_iq = _iq_tone(8192, f0, amplitude)
     y_q15 = dec.execute(x_iq)
     settle = dec.num_taps
@@ -227,13 +227,13 @@ def test_streaming_matches_single_block(h51):
     x = _iq_tone(n, f0, amplitude)
 
     # Single block reference.
-    d_ref = HBDecimQ15(h51)
+    d_ref = HalfbandDecimatorQ15(h51)
     y_ref = d_ref.execute(x).copy()
     d_ref.destroy()
 
     # Small chunks of 8 IQ pairs (16 int16 elements each).
     chunk = 16
-    d_stream = HBDecimQ15(h51)
+    d_stream = HalfbandDecimatorQ15(h51)
     parts = []
     for i in range(0, len(x), chunk):
         parts.append(d_stream.execute(x[i : i + chunk]).copy())
@@ -264,7 +264,7 @@ def test_near_full_scale_no_saturation(h51):
     f0 = 0.05
     n = 4096
     x = _iq_tone(n, f0, amplitude)
-    dec = HBDecimQ15(h51)
+    dec = HalfbandDecimatorQ15(h51)
     y = dec.execute(x).copy()
     settle = dec.num_taps
     dec.destroy()
@@ -285,7 +285,7 @@ def test_near_full_scale_no_saturation(h51):
 
 
 def test_cascade_4x(h51):
-    """Two HBDecimQ15 stages give 4:1 decimation.
+    """Two HalfbandDecimatorQ15 stages give 4:1 decimation.
 
     The second stage receives the int16 IQ output of the first stage directly.
     The passband tone (at f0 = 0.05 relative to the original sample rate =
@@ -298,8 +298,8 @@ def test_cascade_4x(h51):
     amplitude = 20000
     x = _iq_tone(n, f0, amplitude)
 
-    dec1 = HBDecimQ15(h51)
-    dec2 = HBDecimQ15(h51)
+    dec1 = HalfbandDecimatorQ15(h51)
+    dec2 = HalfbandDecimatorQ15(h51)
     taps = dec1.num_taps  # read before destroy
 
     # Stage 1: 2:1 decimation.
@@ -352,7 +352,7 @@ def _get_fir_coeffs(atten, pb, sb):
     ],
 )
 def test_various_filter_lengths(att, pb, sb):
-    """HBDecimQ15 works for different filter lengths from _halfband_bank.
+    """HalfbandDecimatorQ15 works for different filter lengths from _halfband_bank.
 
     Verifies that a passband tone at f0=0.05 passes with near-unity gain
     (±15%) for each design, exercising different num_taps values in the
@@ -364,7 +364,7 @@ def test_various_filter_lengths(att, pb, sb):
     n = 4096
     x = _iq_tone(n, f0, amplitude)
 
-    dec = HBDecimQ15(h)
+    dec = HalfbandDecimatorQ15(h)
     y = dec.execute(x).copy()
     settle = dec.num_taps
     dec.destroy()

@@ -1,12 +1,12 @@
-"""Benchmark for HBDecimQ15.
+"""Benchmark for HalfbandDecimatorQ15.
 
-Run: pytest src/doppler/filter/benchmarks/bench_hbdecim_q15.py --benchmark-only
+Run: pytest src/doppler/resample/benchmarks/bench_hbdecim_q15.py --benchmark-only
 """
 
 import numpy as np
 import pytest
 
-from doppler.filter import HBDecimQ15
+from doppler.resample import HalfbandDecimatorQ15
 from doppler.resample import _halfband_bank
 
 BLOCK_64K = 65_536
@@ -22,7 +22,7 @@ def hb_fir():
 
 @pytest.fixture
 def dec(hb_fir):
-    return HBDecimQ15(hb_fir)
+    return HalfbandDecimatorQ15(hb_fir)
 
 
 def test_bench_execute_64k(benchmark, dec):

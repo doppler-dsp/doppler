@@ -11,8 +11,8 @@ Three-panel dark-theme figure:
     tone (f=0.35), all as interleaved int16 IQ.
 
   Panel 3 (bottom-right)
-    Output spectrum after HBDecimQ15.execute() — passband tone shifts to
-    f=0.16 of the output rate; stopband tone is suppressed ~60 dB.
+    Output spectrum after HalfbandDecimatorQ15.execute() — passband tone
+    shifts to f=0.16 of the output rate; stopband tone is suppressed ~60 dB.
 
 Run:
   python examples/python/hbdecim_q15_demo.py
@@ -24,8 +24,11 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.filter import HBDecimQ15
-from doppler.resample import HalfbandDecimator, _halfband_bank
+from doppler.resample import (
+    HalfbandDecimator,
+    HalfbandDecimatorQ15,
+    _halfband_bank,
+)
 from doppler.spectral import blackman_harris_window
 
 # ---------------------------------------------------------------------------
@@ -58,7 +61,7 @@ def _get_coeffs() -> np.ndarray:
     ``_halfband_bank`` returns a 2×N polyphase bank; one row contains only
     one non-zero centre coefficient (the delay branch) while the other row
     holds all the non-trivial taps.  We select the non-trivial row and
-    cast to float32 — the same format ``HBDecimQ15`` expects.
+    cast to float32 — the same format ``HalfbandDecimatorQ15`` expects.
     """
     bank = _halfband_bank(60.0, 0.4, 0.6)
     centre = bank.shape[1] // 2
@@ -78,7 +81,7 @@ def _measure_freq_response_q15(
     n_impulse: int = 32768,
     pad: int = 4,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Measure HBDecimQ15 frequency response via an impulse test.
+    """Measure HalfbandDecimatorQ15 frequency response via an impulse test.
 
     An impulse is injected as interleaved int16 IQ (I=amplitude, Q=0 at
     sample 0, then zeros).  The output is windowed with Blackman-Harris and
@@ -91,7 +94,7 @@ def _measure_freq_response_q15(
     Parameters
     ----------
     h : np.ndarray
-        FIR taps (float32) for HBDecimQ15.
+        FIR taps (float32) for HalfbandDecimatorQ15.
     n_impulse : int
         Number of complex input samples.  Longer → finer frequency
         resolution.
@@ -111,7 +114,7 @@ def _measure_freq_response_q15(
     x_iq = np.zeros(2 * n_impulse, dtype=np.int16)
     x_iq[0] = amplitude  # I channel impulse
 
-    dec = HBDecimQ15(h)
+    dec = HalfbandDecimatorQ15(h)
     y_iq = dec.execute(x_iq)
     dec.destroy()
 
@@ -318,8 +321,8 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     x_c = x_iq[0::2].astype(np.float64) + 1j * x_iq[1::2].astype(np.float64)
     freq_in, mag_in = _bh_spectrum_db(x_c, full_scale=32768.0)
 
-    # Run through HBDecimQ15
-    dec = HBDecimQ15(h)
+    # Run through HalfbandDecimatorQ15
+    dec = HalfbandDecimatorQ15(h)
     settle = dec.num_taps // 2
     y_iq = dec.execute(x_iq)
     dec.destroy()
@@ -392,7 +395,11 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
         label="Float32 reference (HalfbandDecimator)",
     )
     ax_resp.plot(
-        freq_q15, mag_q15, color=C_Q15, lw=1.2, label="Q15 (HBDecimQ15)"
+        freq_q15,
+        mag_q15,
+        color=C_Q15,
+        lw=1.2,
+        label="Q15 (HalfbandDecimatorQ15)",
     )
 
     # Passband / stopband edge annotations
@@ -510,13 +517,14 @@ def main(out_path: str = "hbdecim_q15_demo.png") -> None:
     )
     ax_out.set_ylabel("Magnitude (dBFS)", fontsize=9)
     ax_out.set_title(
-        "Output spectrum (after HBDecimQ15, 2:1 decimation)", fontsize=10
+        "Output spectrum (after HalfbandDecimatorQ15, 2:1 decimation)",
+        fontsize=10,
     )
     _style(ax_out)
 
     # ── save ─────────────────────────────────────────────────────────────────
     fig.suptitle(
-        "HBDecimQ15 — Q15 halfband 2:1 decimator",
+        "HalfbandDecimatorQ15 — Q15 halfband 2:1 decimator",
         fontsize=13,
         color=C_TEXT,
         y=0.97,

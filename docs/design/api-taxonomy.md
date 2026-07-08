@@ -62,7 +62,7 @@ effect where it's cheap).
 | --- | ------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | 1   | **Sources**                          | produce samples from nothing                                          | `LO`, `NCO`, `PN`, `AWGN`, the `wfm_compose` family                                                             |
 | 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HBDecimQ15`, `Farrow`, `DDC`, `MovingAverage` |
-| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `Detector`, `Detector2D`, `Acquisition`, `PolyPhaseEstimator`                                 |
+| 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolyPhaseEstimator`                         |
 | 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                        |
 | 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                                     |
 | 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                      |
@@ -78,7 +78,7 @@ concentrated in layers 3–5, which never had one written down:
 | ----------------- | ------------------------------------------------------------------------- | ---------------------------- |
 | 1 Sources         | mechanism (`NCO`, `PN`)                                                   | yes                          |
 | 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, modulo §4.2 below       |
-| 3 Detection       | *should be* mechanism — currently mixed with a too-generic bare noun      | **no** — see §4.4            |
+| 3 Detection       | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed       |
 | 4 Tracking loops  | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6            |
 | 5 DSSS composites | framing (continuous/burst) + role (despread/demod)                        | **now yes**, once §4.1 lands |
 | 6 Measurement     | what it measures (`ToneMeasure`)                                          | yes                          |
@@ -144,6 +144,8 @@ naming cue that they're siblings.
 
 ### 4.4 `spectral.Detector` / `Detector2D` → `CorrDetector` / `CorrDetector2D`
 
+**Landed:** [doppler-dsp/doppler#360](https://github.com/doppler-dsp/doppler/issues/360).
+
 Too generic for what it actually is — an FFT-correlation + CFAR-threshold
 detector, built directly on `Corr`/`Corr2D` but with no naming relationship to
 either. "Detector" alone could mean an edge detector, onset detector, envelope
@@ -185,9 +187,9 @@ completeness, not proposed for action:
 
 - `Acquisition`'s `cn0_dbhz` param — GNSS term, but also standard general RF
     link-budget vocabulary; borderline rather than a clear leak.
-- `dwell` across the `Corr`/`Corr2D`/`Detector`/`Detector2D` family — reads as
-    radar/EW jargon outside that subfield, but used consistently across the
-    whole family, so low priority.
+- `dwell` across the `Corr`/`Corr2D`/`CorrDetector`/`CorrDetector2D` family —
+    reads as radar/EW jargon outside that subfield, but used consistently
+    across the whole family, so low priority.
 - `CarrierNda` — "Nda" (non-data-aided) is synchronization-theory
     terminology, less immediately recognizable than sibling `CarrierMpsk`'s
     modulation-based name — this is the layer-4 axis inconsistency in §4.6,

@@ -1,4 +1,4 @@
-"""Benchmark for Detector.
+"""Benchmark for CorrDetector.
 
 Run: pytest src/doppler/spectral/benchmarks/bench_detector.py --benchmark-only
 """
@@ -6,7 +6,7 @@ Run: pytest src/doppler/spectral/benchmarks/bench_detector.py --benchmark-only
 import numpy as np
 import pytest
 
-from doppler.spectral import Detector
+from doppler.spectral import CorrDetector
 
 N = 64
 BLOCK_64K = 65_536
@@ -14,7 +14,7 @@ BLOCK_64K = 65_536
 
 @pytest.fixture
 def obj():
-    return Detector(
+    return CorrDetector(
         np.zeros(N, dtype=np.complex64), "mean", 4, 1, N - 2, 0.0, 1
     )
 

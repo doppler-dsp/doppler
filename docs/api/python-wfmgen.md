@@ -262,7 +262,7 @@ flowchart LR
 A `Composer` turns a `Segment` / `Timeline` / segment-list into samples,
 optionally looping (`repeat`) or running forever (`continuous`); `Writer`
 serialises to the four containers (raw / CSV / BLUE type-1000 / SigMF), and
-`ZmqSink` publishes over ZeroMQ. The resolved spec round-trips through JSON, so a
+`StreamSink` publishes over the stream transport (endpoint scheme picks NATS or ZMQ). The resolved spec round-trips through JSON, so a
 capture is fully reproducible.
 
 ```python
@@ -323,7 +323,7 @@ For a quick raw-only read with no object, `read_iq` still works;
 `Reader` is the full container-aware dual. `Writer` pairs with `read_iq` or
 `Reader`; for SigMF, pair a `Writer(..., file_type="sigmf")` data file with
 `Composer(...).to_sigmf(...)`, and for detached BLUE use `write_blue_header(...)`. The
-`ZmqSink` is POSIX-only. DSP
+`StreamSink` is POSIX-only. DSP
 helpers `rrc_taps(beta, sps, span)` and `dsss_spread(syms, code, sf)` expose the
 pulse-shaping and spreading primitives.
 
@@ -334,12 +334,12 @@ throttle a producer to real time and to tag blocks with their ideal timestamp:
 <!-- docs-snippet: skip=unbounded real-time ZMQ streaming loop -->
 
 ```python
-from doppler.wfm import Composer, SampleClock, ZmqSink
+from doppler.wfm import Composer, SampleClock, StreamSink
 
 # Stream at the true 1 MS/s instead of as fast as possible.
 comp = Composer(type="qpsk", sps=8, continuous=True)
 clk = SampleClock(fs=1e6)
-with ZmqSink("tcp://0.0.0.0:5555") as sink:
+with StreamSink("tcp://0.0.0.0:5555") as sink:
     while True:
         blk = comp.execute(4096)
         ts = clk.stamp()              # ideal ns timestamp of this block
@@ -363,7 +363,7 @@ and `SampleClock(fs, resync=True)` re-anchors to "now" on each underrun.
 
 ::: doppler.wfm.compose.Reader
 
-::: doppler.wfm.compose.ZmqSink
+::: doppler.wfm.compose.StreamSink
 
 ::: doppler.wfm.compose.SampleClock
 

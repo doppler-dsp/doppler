@@ -156,13 +156,13 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = fir_execute_max_out (self->handle);
-      if (_cap < _omax)
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = fir_execute_max_out (self->handle);
+      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      if (_cap < _min_cap)
         {
-          PyErr_Format (PyExc_ValueError,
-                        "out has %zu elements, need >= %zu (execute_max_out)",
-                        _cap, _omax);
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           Py_DECREF (in_arr);
           return NULL;

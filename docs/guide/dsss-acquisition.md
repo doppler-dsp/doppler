@@ -18,7 +18,7 @@ detections. You never pick a bin count or a threshold.
 
 This is the usage walk-through. For the matched-filter surface it builds on, see
 [2-D Acquisition](../gallery/detection2d.md) (`CorrDetector2D`); for what happens
-*after* acquisition, see the [DSSS Despreader](../api/python-dsss.md).
+*after* acquisition, see the [DSSS BurstDespreader](../api/python-dsss.md).
 
 !!! tip "The 30-second version"
 
@@ -420,19 +420,19 @@ ______________________________________________________________________
 
 `Acquisition` is the front of a two-stage receiver: **acquire**, then **track**.
 Once it reports a `(Doppler bin, code phase)`, hand the coarse estimate to the
-[`Despreader`](../api/python-dsss.md), which closes a DLL + Costas loop to track
-code phase and carrier and recover the payload bits. Both live in
+[`BurstDespreader`](../api/python-dsss.md), which closes a DLL + Costas loop to
+track code phase and carrier and recover the payload bits. Both live in
 `doppler.dsss`:
 
 ```python
-from doppler.dsss import Acquisition, Despreader
+from doppler.dsss import Acquisition, BurstDespreader
 ```
 
 ______________________________________________________________________
 
 ## See also
 
-- [Python: DSSS API](../api/python-dsss.md) — full `Acquisition` + `Despreader` reference
+- [Python: DSSS API](../api/python-dsss.md) — full `Acquisition` + `BurstDespreader` reference
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D` matched-filter surface
 - [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo

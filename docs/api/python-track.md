@@ -207,7 +207,7 @@ loop bandwidth is small (a few thousandths); `Dll` is data-insensitive (it works
 on envelopes, so BPSK data flips don't matter).
 
 In a full receiver the carrier loop (`Costas`) wipes the carrier and the `Dll`
-wipes the code; a channel composes the two.
+wipes the code; [`dsss.Despreader`](python-dsss.md) composes the two.
 
 ```python
 import numpy as np
@@ -248,37 +248,6 @@ extraction (`SymbolSync`) are downstream**, fed from this output. See the
 d = Dll(code, sps=8, bn=0.002, zeta=0.707, spacing=0.5, segments=4)
 partials = d.steps(rx)       # 4 partial prompts per code epoch (PN removed)
 # downstream: Costas(...).steps(partials) -> SymbolSync(...).steps(...) -> bits
-```
-
-______________________________________________________________________
-
-## Channel — full tracking channel
-
-`Channel` is the receiver that composes the loops: a `Costas` carrier loop and a
-`Dll` code loop on a **single shared per-sample integrate-and-dump**. Per sample
-it wipes the carrier (integer-NCO) and feeds the de-rotated sample to the DLL's
-early/prompt/late correlators; per code period it dumps the prompt and updates
-both loops — the code loop on the early/late envelopes, the carrier loop on the
-same prompt. `steps()` emits one despread prompt symbol per code period;
-`bits()` turns the prompts into hard data bits.
-
-`bn_fll > 0` enables FLL-assisted carrier pull-in. When a data bit spans
-`nav_period` code periods (GPS C/A: 20), `bits()` **bit-syncs** — it histograms
-the prompt sign-flip positions to find the bit boundary (`bit_phase`), then
-coherently sums `nav_period` prompts per bit. The channel is seeded by
-acquisition (coarse carrier frequency + code phase) and tracks the residual.
-
-See the [tracking channel gallery page](../gallery/channel.md) for the full
-receiver acquiring and despreading end to end.
-
-```python
-from doppler.track import Channel
-
-ch = Channel(code, sps=8, init_norm_freq=0.0, init_chip=0.0,
-             bn_carrier=0.05, bn_code=0.005, bn_fll=0.03,
-             zeta=0.707, spacing=0.5, nav_period=1)
-symbols = ch.steps(rx)   # one despread prompt per code period
-bits    = ch.bits(rx)    # hard data bits (bit-synced when nav_period > 1)
 ```
 
 ______________________________________________________________________
@@ -324,10 +293,6 @@ ______________________________________________________________________
 ______________________________________________________________________
 
 ::: doppler.track.Dll
-
-______________________________________________________________________
-
-::: doppler.track.Channel
 
 ______________________________________________________________________
 

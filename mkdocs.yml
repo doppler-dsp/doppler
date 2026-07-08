@@ -163,6 +163,7 @@ nav:
           - DSSS Acquisition & Despreading: gallery/dsss-despread.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
           - Streaming Async Despreader: gallery/async-despread.md
+          - Despreader (full continuous receiver): gallery/despreader.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md
           - Costas Loop (theory): gallery/costas-theory.md
@@ -172,7 +173,6 @@ nav:
           - Timing Loop (theory): gallery/symsync-theory.md
           - M-PSK Carrier Loop (theory): gallery/carrier-mpsk.md
           - NDA Carrier Loop (theory): gallery/carrier-nda.md
-          - Tracking Channel: gallery/channel.md
       - Constellations & Receivers:
           - M-PSK Constellation: gallery/mpsk.md
           - M-PSK Receiver: gallery/mpsk-receiver.md
@@ -205,7 +205,7 @@ nav:
       - "Python: Resample": api/python-resample.md
       - "Python: AGC": api/python-agc.md
       - "Python: Loop Filter (track)": api/python-track.md
-      - "Python: DSSS Despreader": api/python-dsss.md
+      - "Python: DSSS": api/python-dsss.md
       - "Python: Streaming": api/python-streaming.md
       - "Python: Buffer": api/python-buffer.md
       - "Python: Delay": api/python-delay.md

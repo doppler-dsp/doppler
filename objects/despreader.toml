@@ -5,7 +5,12 @@ mutable = "false"
 no_state = "true"
 no_step = "true"
 class_name = "Despreader"
-depends_on = [{ name = "loop_filter", link = true }]
+depends_on = [
+  { name = "costas", link = true },
+  { name = "dll", link = true },
+  { name = "lo", link = true },
+  { name = "loop_filter", link = true },
+]
 serializable = "true"
 
 [[despreader.init_params]]
@@ -13,14 +18,9 @@ name = "code"
 type = "uint8_t[]"
 
 [[despreader.init_params]]
-name = "sf"
-type = "size_t"
-default = "1"
-
-[[despreader.init_params]]
 name = "sps"
 type = "size_t"
-default = "2"
+default = "4"
 
 [[despreader.init_params]]
 name = "init_norm_freq"
@@ -28,7 +28,7 @@ type = "double"
 default = "0.0"
 
 [[despreader.init_params]]
-name = "init_chip_phase"
+name = "init_chip"
 type = "double"
 default = "0.0"
 
@@ -40,11 +40,31 @@ default = "0.05"
 [[despreader.init_params]]
 name = "bn_code"
 type = "double"
-default = "0.01"
+default = "0.005"
+
+[[despreader.init_params]]
+name = "bn_fll"
+type = "double"
+default = "0.0"
+
+[[despreader.init_params]]
+name = "zeta"
+type = "double"
+default = "0.707"
+
+[[despreader.init_params]]
+name = "spacing"
+type = "double"
+default = "0.5"
+
+[[despreader.init_params]]
+name = "periods_per_bit"
+type = "size_t"
+default = "1"
 
 [[despreader.methods]]
 name = "steps"
-doc = "Despread a cf32 block; emit one complex prompt symbol per code period."
+doc = "Track carrier + code and despread a cf32 block: per sample wipe the carrier (Costas) and correlate early/prompt/late against the code (DLL), update both loops each code period, and emit one complex prompt symbol per period."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true
@@ -54,7 +74,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[despreader.methods]]
 name = "bits"
-doc = "Despread a cf32 block; emit one hard BPSK bit per code period."
+doc = "Same tracking kernel as steps(), but bit-sync the per-period prompts into hard data bits: periods_per_bit prompts are coherently summed across each detected bit boundary and one 0/1 bit is emitted per data bit."
 arg_type = "void"
 return_type = "uint8_t"
 variable_output = true
@@ -63,27 +83,10 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 [[despreader.methods]]
-name = "set_acq"
-doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed."
-arg_type = "void"
-return_type = "void"
-params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "acq_reps", type = "size_t" }]
-
-[[despreader.methods]]
 name = "reset"
-doc = "Re-seed the loops to the create-time phase/frequency; preserve config."
+doc = "Re-seed both loops to the create-time frequency/phase; preserve config."
 arg_type = "void"
 return_type = "void"
-
-[[despreader.properties]]
-name = "bn_carrier"
-type = "double"
-writable = true
-
-[[despreader.properties]]
-name = "bn_code"
-type = "double"
-writable = true
 
 [[despreader.properties]]
 name = "norm_freq"
@@ -95,9 +98,23 @@ name = "code_phase"
 type = "double"
 
 [[despreader.properties]]
+name = "code_rate"
+type = "double"
+
+[[despreader.properties]]
 name = "lock_metric"
 type = "double"
 
 [[despreader.properties]]
-name = "snr_est"
+name = "bit_phase"
+type = "size_t"
+
+[[despreader.properties]]
+name = "bn_carrier"
 type = "double"
+writable = true
+
+[[despreader.properties]]
+name = "bn_code"
+type = "double"
+writable = true

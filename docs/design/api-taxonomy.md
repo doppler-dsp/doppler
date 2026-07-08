@@ -4,12 +4,11 @@
 **Scope:** distill doppler's implicit organizing vision for the DSP building
 blocks in `objects/*.toml` into an explicit hierarchy, so that naming a new
 class — or renaming an existing one — follows from *where it sits*, not from
-whatever felt right at the time. Concrete rename proposals are included; none
-have landed in code yet, including the one that motivated this doc
-([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader))
-— it is decided, tracked as
-[doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357),
-but not yet implemented.
+whatever felt right at the time. Concrete rename proposals are included; the
+one that motivated this doc has landed
+([`Channel` → `Despreader`](#41-trackchannel-dsssdespreader-continuous-dsssdespreader-dsssburstdespreader),
+[doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357)) —
+the rest are still proposals.
 
 ______________________________________________________________________
 
@@ -64,7 +63,7 @@ effect where it's cheap).
 | 2   | **Filtering & rate conversion**      | reshape a stream's spectrum/rate                                      | `FIR`, `CIC`, `Resampler`, `RateConverter`, `HalfbandDecimator`, `HalfbandDecimatorQ15`, `Farrow`, `DDC`, `MovingAverage` |
 | 3   | **Detection & acquisition**          | find presence/timing/frequency *once*, no persistent feedback         | `Corr`, `Corr2D`, `CorrDetector`, `CorrDetector2D`, `Acquisition`, `PolynomialPhaseEstimator`                             |
 | 4   | **Tracking & synchronization loops** | continuously refine an estimate via feedback, sample-by-sample        | `LoopFilter`, `Costas`, `Dll`, `CarrierMpsk`, `CarrierNda`, `SymbolSync`, `MpskReceiver`                                  |
-| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `track.Channel` (today); burst: `dsss.Despreader`, `BurstDemod`                                               |
+| 5   | **DSSS composite receivers**         | combine layers 3+4 into one PN-aware receiver, in exactly two flavors | continuous: `dsss.Despreader`; burst: `dsss.BurstDespreader`, `BurstDemod`                                                |
 | 6   | **Measurement & analysis**           | characterize signal quality                                           | `PSD`, `ToneMeasure`, `NPRMeasure`, `IMDMeasure`, `Specan`                                                                |
 | 7   | **Quantization & fixed-point**       | model/convert numeric representations                                 | `ADC`, the `cvt` family, Q15/UQ15                                                                                         |
 | 8   | **Support**                          | gain control, accumulation, plumbing                                  | `AGC`, `AccF32`/`AccCf64`/`AccQ15`/`AccQ8`/`AccTrace`, `Buffer`, `DelayCf64`                                              |
@@ -74,20 +73,22 @@ effect where it's cheap).
 Most layers already hold one naming axis consistently — the trouble is
 concentrated in layers 3–5, which never had one written down:
 
-| Layer             | Axis                                                                      | Holds today?                 |
-| ----------------- | ------------------------------------------------------------------------- | ---------------------------- |
-| 1 Sources         | mechanism (`NCO`, `PN`)                                                   | yes                          |
-| 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed       |
-| 3 Detection       | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed       |
-| 4 Tracking loops  | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6            |
-| 5 DSSS composites | framing (continuous/burst) + role (despread/demod)                        | **now yes**, once §4.1 lands |
-| 6 Measurement     | what it measures (`ToneMeasure`)                                          | yes                          |
-| 7 Quantization    | representation (`Q15`, `UQ15`)                                            | yes                          |
-| 8 Support         | role                                                                      | yes                          |
+| Layer             | Axis                                                                      | Holds today?           |
+| ----------------- | ------------------------------------------------------------------------- | ---------------------- |
+| 1 Sources         | mechanism (`NCO`, `PN`)                                                   | yes                    |
+| 2 Filtering       | mechanism (`FIR`, `CIC`, `Corr`-adjacent)                                 | yes, since §4.2 landed |
+| 3 Detection       | mechanism (`CorrDetector`, `CorrDetector2D`)                              | yes, since §4.4 landed |
+| 4 Tracking loops  | *should be* one of {mechanism, target-signal-type} — currently mixes both | **no** — see §4.6      |
+| 5 DSSS composites | framing (continuous/burst) + role (despread/demod)                        | yes, since §4.1 landed |
+| 6 Measurement     | what it measures (`ToneMeasure`)                                          | yes                    |
+| 7 Quantization    | representation (`Q15`, `UQ15`)                                            | yes                    |
+| 8 Support         | role                                                                      | yes                    |
 
 ## 4. Rename proposals
 
 ### 4.1 `track.Channel` → `dsss.Despreader` (continuous), `dsss.Despreader` → `dsss.BurstDespreader`
+
+**Landed:** [doppler-dsp/doppler#357](https://github.com/doppler-dsp/doppler/issues/357).
 
 The rename that started this doc. Per §1, the design doc's own language
 already treats the burst path's target as "the shipped `Despreader`" — so the
@@ -202,8 +203,8 @@ completeness, not proposed for action:
     not a standalone issue.
 - `BurstDemod` — legitimately a bigger-scope object (dechirp + despread +
     frame-sync + CRC) than a despreader. Not itself a naming defect; worth
-    double-checking it doesn't get confused with the incoming
-    `BurstDespreader` once §4.1 lands.
+    double-checking it doesn't get confused with `BurstDespreader`, now that
+    §4.1 has landed.
 
 Everything else checked (`FFT`/`FFT2D`, `FIR`, `CIC`, `AWGN`, `DDC`, the `cvt`
 and `Acc*` families, the `Resampler`/`RateConverter`/`HalfbandDecimator`

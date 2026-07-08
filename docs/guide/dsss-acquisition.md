@@ -17,7 +17,7 @@ looks — from the [detection theory](../api/python-detection.md) and streams
 detections. You never pick a bin count or a threshold.
 
 This is the usage walk-through. For the matched-filter surface it builds on, see
-[2-D Acquisition](../gallery/detection2d.md) (`Detector2D`); for what happens
+[2-D Acquisition](../gallery/detection2d.md) (`CorrDetector2D`); for what happens
 *after* acquisition, see the [DSSS BurstDespreader](../api/python-dsss.md).
 
 !!! tip "The 30-second version"
@@ -434,7 +434,7 @@ ______________________________________________________________________
 
 - [Python: DSSS API](../api/python-dsss.md) — full `Acquisition` + `BurstDespreader` reference
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
-- [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `Detector2D` matched-filter surface
+- [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D` matched-filter surface
 - [Gallery: DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — end-to-end demo
 - [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the
     elastic `(ddc_fn, acq_fn)` pipeline behind `Acquisition`, for pod fan-out

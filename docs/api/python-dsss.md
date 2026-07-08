@@ -156,7 +156,7 @@ ______________________________________________________________________
 ## `BurstDespreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the
-`Corr2D`/`Detector2D` acquisition engine or `Acquisition`), the `BurstDespreader` locks
+`Corr2D`/`CorrDetector2D` acquisition engine or `Acquisition`), the `BurstDespreader` locks
 the signal with a code-tracking **delay-locked loop** and a carrier-tracking
 **Costas loop**, despreads the payload, and emits symbols.
 

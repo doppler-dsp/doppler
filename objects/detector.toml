@@ -4,7 +4,7 @@ return_type = "float _Complex"
 mutable = "false"
 no_state = "true"
 no_step = "true"
-class_name = "Detector"
+class_name = "CorrDetector"
 depends_on = ["corr_core"]
 serializable = "true"
 

@@ -1,7 +1,7 @@
 """detection2d_demo.py — 2-D acquisition grid with theory-driven dwell and
 CFAR.
 
-Frames the Detector2D as a GPS/CDMA acquisition search: the correlation
+Frames the CorrDetector2D as a GPS/CDMA acquisition search: the correlation
 surface is an N_DOPPLER × N_CODE_PHASE grid where each cell is an
 independent matched-filter hypothesis testing a specific (Doppler bin,
 code-phase offset) pair.  The FFT2 correlator evaluates all N cells
@@ -24,7 +24,7 @@ call — the output is the full acquisition surface.
 
 Detection theory — N-cell Bonferroni correction
 -------------------------------------------------
-Detector2D searches all N cells and returns the maximum.  Each cell is
+CorrDetector2D searches all N cells and returns the maximum.  Each cell is
 an independent Rayleigh test under H0, so the system false-alarm rate is:
 
     Pfa_sys = 1 − (1 − pfa_cell)^N   ≈   N · pfa_cell   (small pfa_cell)
@@ -70,7 +70,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.detection import det_dwell, det_pd, det_threshold
-from doppler.spectral import Corr2D, Detector2D
+from doppler.spectral import Corr2D, CorrDetector2D
 
 # ── Search grid ──────────────────────────────────────────────────────────────
 
@@ -201,14 +201,14 @@ peak_doppler, peak_code_phase = np.unravel_index(
 #
 # Guard band: exclude the signal cell from the noise reference (flat index
 # = DOPPLER_BIN_TRUE * N_CODE_PHASE + CODE_PHASE_BIN_TRUE), analogous to
-# noise_lo = LAG + guard in the 1-D Detector.  Without this, the signal
+# noise_lo = LAG + guard in the 1-D CorrDetector.  Without this, the signal
 # cell inflates noise_est and raises the effective threshold.
 # Signal flat index = 0; guard one cell so noise_lo=1 excludes the signal.
 _signal_flat = DOPPLER_BIN_TRUE * N_CODE_PHASE + CODE_PHASE_BIN_TRUE  # = 0
 _noise_lo = _signal_flat + 1  # 1
 _noise_hi = N - 1  # 255 reference cells (maximum)
 
-det = Detector2D(
+det = CorrDetector2D(
     ref2d, dwell=M, noise_lo=_noise_lo, noise_hi=_noise_hi, threshold=0.0
 )
 

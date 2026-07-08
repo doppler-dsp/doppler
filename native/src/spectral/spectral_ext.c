@@ -1,7 +1,7 @@
 /*
  * spectral_ext.c — Python extension module spectral
  *
- * Objects: FFT, FFT2D, Corr, Corr2D, Detector, Detector2D, PSD
+ * Objects: FFT, FFT2D, Corr, Corr2D, CorrDetector, CorrDetector2D, PSD
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -263,8 +263,8 @@ PyInit_spectral(void)
     if (PyType_Ready(&FFT2DObjType) < 0) return NULL;
     if (PyType_Ready(&CorrObjType) < 0) return NULL;
     if (PyType_Ready(&Corr2DObjType) < 0) return NULL;
-    if (PyType_Ready(&DetectorObjType) < 0) return NULL;
-    if (PyType_Ready(&Detector2DObjType) < 0) return NULL;
+    if (PyType_Ready(&CorrDetectorObjType) < 0) return NULL;
+    if (PyType_Ready(&CorrDetector2DObjType) < 0) return NULL;
     if (PyType_Ready(&PSDObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&spectral_moduledef);
     if (!m) return NULL;
@@ -284,13 +284,13 @@ PyInit_spectral(void)
     if (PyModule_AddObject(m, "Corr2D", (PyObject *)&Corr2DObjType) < 0) {
         Py_DECREF(&Corr2DObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&DetectorObjType);
-    if (PyModule_AddObject(m, "Detector", (PyObject *)&DetectorObjType) < 0) {
-        Py_DECREF(&DetectorObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&CorrDetectorObjType);
+    if (PyModule_AddObject(m, "CorrDetector", (PyObject *)&CorrDetectorObjType) < 0) {
+        Py_DECREF(&CorrDetectorObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&Detector2DObjType);
-    if (PyModule_AddObject(m, "Detector2D", (PyObject *)&Detector2DObjType) < 0) {
-        Py_DECREF(&Detector2DObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&CorrDetector2DObjType);
+    if (PyModule_AddObject(m, "CorrDetector2D", (PyObject *)&CorrDetector2DObjType) < 0) {
+        Py_DECREF(&CorrDetector2DObjType); Py_DECREF(m); return NULL;
     }
     Py_INCREF(&PSDObjType);
     if (PyModule_AddObject(m, "PSD", (PyObject *)&PSDObjType) < 0) {

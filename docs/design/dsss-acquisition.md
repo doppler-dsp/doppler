@@ -440,7 +440,7 @@ ______________________________________________________________________
     `Acquisition` (parameters, streaming, the coarse-mix widening loop).
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` /
     `det_pd` / `det_dwell` / `marcum_q` (the order-`M` primitive).
-- [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `Detector2D`
+- [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D`
     matched-filter surface the coherent kernel builds on.
 - [Streaming roadmap](../dev/streaming-roadmap.md) — the transport seam the pod
     fan-out reuses.

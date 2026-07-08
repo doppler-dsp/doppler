@@ -114,11 +114,11 @@ the payload.
     at the coarse `1/nx` (2.44 kHz) resolution — **≈10× cheaper** on this `5×4094`
     grid (`bench_widedoppler.py`) than running ~98 fine mixer channels each
     integrating 5 epochs, which a 2-ms latency budget cannot afford serially.
-- **Refine only if needed:** if the despreader's pull-in can't swallow a 2.44 kHz
-    residual, column-FFT over the 5 reps **within** the winning coarse bin (one
-    channel) for the fine `1/(5·T_epoch)` ≈ 490 Hz Doppler.
+- **Refine only if needed:** if the burst despreader's pull-in can't swallow a
+    2.44 kHz residual, column-FFT over the 5 reps **within** the winning coarse
+    bin (one channel) for the fine `1/(5·T_epoch)` ≈ 490 Hz Doppler.
 - **Hand off:** the `(Doppler bin, code phase)` seeds the shipped
-    [`Despreader`](../api/python-dsss.md) on the shorter data code for the
+    [`BurstDespreader`](../api/python-dsss.md) on the shorter data code for the
     synchronous payload.
 
 Here latency and the wide span dominate; the roll's one-epoch coarse sweep beats

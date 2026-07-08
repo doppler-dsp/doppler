@@ -1,13 +1,22 @@
+/**
+ * @file test_despreader_core.c
+ * @brief Unit tests for the continuous DSSS despreader (Costas + DLL).
+ *
+ * Tests:
+ *   1. Lifecycle / NULL-code guard / init==create parity
+ *   2. Full receiver — small residual: carrier + code lock, zero BER (steps)
+ *   3. FLL assist — a residual the bare PLL misses is locked
+ *   4. Hard bits (periods_per_bit = 1) match the data, up to a global flip
+ *   5. Bit-sync (periods_per_bit > 1) recovers data bits + detects the
+ * boundary
+ *   6. Reset reproducibility
+ */
 #include "despreader/despreader_core.h"
 #include "dp_state_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 #define CHECK(cond)                                                           \
   do                                                                          \
@@ -20,140 +29,272 @@
     }                                                                         \
   while (0)
 
-/* Spread `nsym` BPSK bits by `code` (length sf), oversample by sps
- * (rectangular hold), and optionally rotate by a per-sample carrier `f0`
- * (cycles/sample). Returns a malloc'd cf32 burst of nsym*sf*sps samples; fills
- * tx_bits. */
-static float complex *
-make_burst (const uint8_t *code, size_t sf, size_t sps, size_t nsym, double f0,
-            uint8_t *tx_bits, size_t *out_len)
+static int
+prbs (uint32_t *st)
 {
-  size_t         nsamp = nsym * sf * sps;
-  float complex *x     = malloc (nsamp * sizeof (*x));
-  size_t         k     = 0;
-  for (size_t i = 0; i < nsym; i++)
-    {
-      uint8_t bit = (uint8_t)((i * 2654435761u) >> 31) & 1u; /* cheap PRBS */
-      tx_bits[i]  = bit;
-      float sym   = bit ? -1.0f : 1.0f; /* BPSK: 0->+1, 1->-1 */
-      for (size_t j = 0; j < sf; j++)
-        {
-          float chip = sym * ((code[j] & 1u) ? -1.0f : 1.0f);
-          for (size_t s = 0; s < sps; s++, k++)
-            {
-              float complex c
-                  = cexpf ((float)(2.0 * M_PI * f0 * (double)k) * I);
-              x[k] = chip * c;
-            }
-        }
-    }
-  *out_len = nsamp;
-  return x;
+  uint32_t x = *st;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  *st = x;
+  return (x & 1u) ? -1 : 1;
 }
 
-/* Ambiguity-tolerant bit error count over [start, nsym): 180 deg is
- * don't-care, so a globally-inverted decision counts as correct. */
-static double
-amb_ber (const uint8_t *rx, const uint8_t *tx, size_t start, size_t nsym)
+static void
+make_code (uint8_t *code, size_t sf, uint32_t seed)
 {
-  size_t err = 0, tot = 0;
-  for (size_t i = start; i < nsym; i++, tot++)
-    err += (rx[i] != tx[i]);
-  double b = (double)err / (double)tot;
-  return b < 1.0 - b ? b : 1.0 - b;
+  uint32_t st = seed;
+  for (size_t i = 0; i < sf; i++)
+    code[i] = prbs (&st) > 0 ? 0u : 1u;
+}
+
+/* Build a continuous DSSS-BPSK signal: PN code x BPSK data (one data bit every
+ * periods_per_bit code periods) x carrier exp(j 2pi f0 n), optional AWGN
+ * sigma. Fills `data` with the +-1 bit per data symbol.  Returns sample count.
+ */
+static size_t
+make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
+             size_t sps, size_t nper, size_t periods_per_bit, double f0,
+             float sigma, uint32_t seed)
+{
+  uint32_t dst = seed ^ 0x5bd1e995u, nst = seed;
+  size_t   k     = 0;
+  double   cph   = 0.0;
+  double   phase = 0.0, w = f0 * 2.0 * M_PI;
+  int      bit = prbs (&dst);
+  for (size_t p = 0; p < nper; p++)
+    {
+      if (p % periods_per_bit == 0) /* new data bit at the bit boundary */
+        bit = prbs (&dst);
+      data[p / periods_per_bit] = bit;
+      for (size_t i = 0; i < sf * sps; i++, k++)
+        {
+          size_t        idx  = (size_t)fmod (cph, (double)sf);
+          float         csgn = (code[idx] & 1u) ? -1.0f : 1.0f;
+          float complex s    = (float)bit * csgn * cexpf ((float)phase * I);
+          if (sigma > 0.0f)
+            {
+              float gr = 0, gi = 0;
+              for (int j = 0; j < 4; j++)
+                gr += (float)prbs (&nst);
+              for (int j = 0; j < 4; j++)
+                gi += (float)prbs (&nst);
+              s += CMPLXF (sigma * gr * 0.5f, sigma * gi * 0.5f);
+            }
+          rx[k] = s;
+          cph += 1.0 / (double)sps;
+          phase += w;
+        }
+    }
+  return k;
+}
+
+/* ambiguity-tolerant bit-error count of decisions vs truth over [lo,hi) */
+static int
+amb_errors (const int *dec, const int *truth, size_t lo, size_t hi)
+{
+  int err = 0, n = (int)(hi - lo);
+  for (size_t i = lo; i < hi; i++)
+    if (dec[i] != truth[i])
+      err++;
+  return err < n - err ? err : n - err;
 }
 
 int
 main (void)
 {
-  int _fails = 0;
+  int          _fails = 0;
+  const size_t sf = 127, sps = 8, tsamps = sf * sps;
 
-  /* Invalid args -> NULL (not a silent zero state). */
-  CHECK (despreader_create (NULL, 0, 1, 2, 0.0, 0.0, 0.05, 0.01) == NULL);
+  /* 1. Lifecycle / guard / parity */
+  {
+    CHECK (despreader_create (NULL, 0, sps, 0.0, 0.0, 0.05, 0.005, 0.0, 0.707,
+                              0.5, 1)
+           == NULL);
+    uint8_t code[127];
+    make_code (code, sf, 1u);
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.001, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
+    CHECK (c != NULL);
+    if (!c)
+      return 1;
+    CHECK (fabs (despreader_get_norm_freq (c) - 0.001) < 1e-9); /* seeded */
+    CHECK (despreader_get_code_rate (c) == 1.0);
+    despreader_state_t v;
+    despreader_init (&v, code, sf, sps, 0.001, 0.0, 0.05, 0.005, 0.0, 0.707,
+                     0.5, 1);
+    CHECK (v.car.lf.kp == c->car.lf.kp);
+    CHECK (v.code.sf == sf && v.code.owns_code == 0);
+    free (v.flip_hist);
+    despreader_destroy (c);
+  }
 
-  size_t  sf = 31, sps = 4, nsym = 120;
-  uint8_t code[31];
-  for (size_t i = 0; i < sf; i++)
-    code[i] = (uint8_t)((i * 2246822519u) >> 31) & 1u;
+  /* 2. Full receiver — small residual locks, zero BER on the tail */
+  {
+    const size_t nper = 500;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 7u);
+    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int           *data = malloc (nper * sizeof (*data));
+    size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 3u);
 
-  uint8_t *tx = malloc (nsym), *rx = malloc (nsym);
-  size_t   blen = 0;
+    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    size_t              k   = despreader_steps (c, rx, n, sym, nper);
+    CHECK (fabs (despreader_get_norm_freq (c) - 5e-5) < 1e-5);
+    CHECK (despreader_get_lock_metric (c) > 0.9);
+    int *dec = malloc (k * sizeof (int));
+    for (size_t i = 0; i < k; i++)
+      dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
+    CHECK (amb_errors (dec, data, k / 2, k) == 0);
+    despreader_destroy (c);
+    free (rx);
+    free (data);
+    free (sym);
+    free (dec);
+    free (code);
+  }
 
-  /* (1) Genie: zero offset, no noise -> exact recovery. */
-  float complex      *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
-  despreader_state_t *d
-      = despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
-  CHECK (d != NULL);
-  size_t n_out = despreader_bits (d, burst, blen, rx, nsym);
-  CHECK (n_out == nsym);
-  CHECK (amb_ber (rx, tx, 0, n_out) == 0.0);
-  despreader_destroy (d);
-  free (burst);
+  /* 3. FLL assist — a 0.2 cyc/epoch residual the bare PLL misses */
+  {
+    const size_t nper = 700;
+    double       f0   = 0.2 / (double)tsamps; /* 0.2 cycles per code period */
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 9u);
+    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int           *data = malloc (nper * sizeof (*data));
+    size_t n = make_signal (rx, data, code, sf, sps, nper, 1, f0, 0.0f, 11u);
 
-  /* (2) Carrier offset, seeded at the true frequency -> exact recovery,
-   *     loop holds the frequency. */
-  double f0 = 0.0006;
-  burst     = make_burst (code, sf, sps, nsym, f0, tx, &blen);
-  d         = despreader_create (code, sf, sf, sps, f0, 0.0, 0.05, 0.01);
-  n_out     = despreader_bits (d, burst, blen, rx, nsym);
-  CHECK (amb_ber (rx, tx, n_out / 4, n_out) == 0.0);
-  CHECK (fabs (despreader_get_norm_freq (d) - f0) < 1e-4);
-  CHECK (despreader_get_lock_metric (d) > 0.9);
+    despreader_state_t *pll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    despreader_steps (pll, rx, n, sym, nper);
+    CHECK (despreader_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
+    despreader_destroy (pll);
 
-  /* (3) reset re-seeds; a second identical run reproduces the first. */
-  despreader_reset (d);
-  uint8_t *rx2 = malloc (nsym);
-  size_t   n2  = despreader_bits (d, burst, blen, rx2, nsym);
-  CHECK (n2 == n_out);
-  CHECK (amb_ber (rx2, tx, n2 / 4, n2) == 0.0);
+    despreader_state_t *fll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.03, 0.707, 0.5, 1);
+    size_t              k   = despreader_steps (fll, rx, n, sym, nper);
+    CHECK (fabs (despreader_get_norm_freq (fll) - f0) < 2e-5);
+    CHECK (despreader_get_lock_metric (fll) > 0.9);
+    int *dec = malloc (k * sizeof (int));
+    for (size_t i = 0; i < k; i++)
+      dec[i] = (crealf (sym[i]) >= 0.0f) ? 1 : -1;
+    CHECK (amb_errors (dec, data, k / 2, k) == 0);
+    despreader_destroy (fll);
+    free (rx);
+    free (data);
+    free (sym);
+    free (dec);
+    free (code);
+  }
 
-  /* (4) property accessors round-trip. */
-  despreader_set_bn_carrier (d, 0.06);
-  CHECK (despreader_get_bn_carrier (d) == 0.06);
-  despreader_set_bn_code (d, 0.02);
-  CHECK (despreader_get_bn_code (d) == 0.02);
-  despreader_set_norm_freq (d, 0.001);
-  CHECK (fabs (despreader_get_norm_freq (d) - 0.001) < 1e-9);
-  (void)despreader_get_code_phase (d);
-  (void)despreader_get_lock_metric (d);
-  (void)despreader_get_snr_est (d);
+  /* 4. Hard bits (periods_per_bit = 1) match the data */
+  {
+    const size_t nper = 400;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 13u);
+    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int           *data = malloc (nper * sizeof (*data));
+    size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 4e-5, 0.0f, 17u);
 
-  /* (5) set_acq enable then disable (payload-only). */
-  uint8_t acq[16];
-  for (size_t i = 0; i < 16; i++)
-    acq[i] = (uint8_t)(i & 1u);
-  despreader_set_acq (d, acq, 16, 3);
-  despreader_set_acq (d, NULL, 0, 0); /* disable */
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
+    uint8_t            *bits = malloc (nper);
+    size_t              k    = despreader_bits (c, rx, n, bits, nper);
+    int                *dec  = malloc (k * sizeof (int));
+    for (size_t i = 0; i < k; i++)
+      dec[i] = bits[i] ? 1 : -1;
+    CHECK (amb_errors (dec, data, k / 2, k) == 0);
+    despreader_destroy (c);
+    free (rx);
+    free (data);
+    free (bits);
+    free (dec);
+    free (code);
+  }
 
-  despreader_destroy (d);
-  free (burst);
-  free (rx2);
+  /* 5. Bit-sync (periods_per_bit = 20) recovers data bits + detects the
+   * boundary */
+  {
+    const size_t N = 20, nbits = 120, nper = N * nbits;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 19u);
+    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int           *data = malloc (nbits * sizeof (*data));
+    size_t n = make_signal (rx, data, code, sf, sps, nper, N, 3e-5, 0.0f, 23u);
 
-  free (tx);
-  free (rx);
+    despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, N);
+    uint8_t            *bits = malloc (nbits);
+    size_t              k    = despreader_bits (c, rx, n, bits, nbits);
+    CHECK (k >= nbits - 3); /* ~one bit per periods_per_bit periods */
+    CHECK (despreader_get_bit_phase (c) == 0); /* boundary at epoch 0 */
+    int *dec = malloc (k * sizeof (int));
+    for (size_t i = 0; i < k; i++)
+      dec[i] = bits[i] ? 1 : -1;
+    /* tail: after bit-sync settles, recovered bits match the data */
+    CHECK (amb_errors (dec, data, k / 3, k) == 0);
+    despreader_destroy (c);
+    free (rx);
+    free (data);
+    free (bits);
+    free (dec);
+    free (code);
+  }
+
+  /* 6. Reset reproducibility */
+  {
+    const size_t nper = 300;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 21u);
+    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int           *data = malloc (nper * sizeof (*data));
+    size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 5u);
+
+    despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
+                                                 0.005, 0.0, 0.707, 0.5, 1);
+    float complex      *sym = malloc (nper * sizeof (*sym));
+    despreader_steps (c, rx, n, sym, nper);
+    double f1 = despreader_get_norm_freq (c),
+           l1 = despreader_get_lock_metric (c);
+    despreader_reset (c);
+    despreader_steps (c, rx, n, sym, nper);
+    CHECK (f1 == despreader_get_norm_freq (c));
+    CHECK (l1 == despreader_get_lock_metric (c));
+    despreader_destroy (c);
+    free (rx);
+    free (data);
+    free (sym);
+    free (code);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_despreader_core FAILED (%d)\n", _fails);
       return 1;
     }
-  /* serializable state — whole-struct (loop_filter children embedded); the
-   * owned code pointers are preserved across set_state. */
+  /* serializable state — costas + dll children resume; dll borrows this
+   * despreader's own code copy after restore. */
   {
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
       code[i] = (uint8_t)(i & 1);
-    float complex rx[256], sym[8];
+    float complex rx[256], sym[16];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
-    despreader_state_t *a
-        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
-    despreader_state_t *b
-        = despreader_create (code, 31, 31, 4, 0.0, 0.0, 0.05, 0.01);
+    despreader_state_t *a = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
+    despreader_state_t *b = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
+                                               0.005, 0.0, 0.707, 0.5, 1);
     CHECK (a != NULL && b != NULL);
-    (void)despreader_steps (a, rx, 256, sym, 8);
+    (void)despreader_steps (a, rx, 256, sym, 16);
     DP_STATE_ROUNDTRIP_TEST (despreader, a, b);
-    CHECK (b->car_phase == a->car_phase && b->acc_p == a->acc_p);
-    CHECK (b->code != NULL && b->code != a->code);
+    CHECK (b->epoch_count == a->epoch_count);
+    CHECK (b->car.acc == a->car.acc);       /* costas child */
+    CHECK (b->code.acc_p == a->code.acc_p); /* dll child */
+    CHECK (b->code_copy != NULL && b->code.code == b->code_copy);
     despreader_destroy (a);
     despreader_destroy (b);
   }

@@ -1,0 +1,103 @@
+[burst_despreader]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "BurstDespreader"
+depends_on = [{ name = "loop_filter", link = true }]
+serializable = "true"
+
+[[burst_despreader.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[burst_despreader.init_params]]
+name = "sf"
+type = "size_t"
+default = "1"
+
+[[burst_despreader.init_params]]
+name = "sps"
+type = "size_t"
+default = "2"
+
+[[burst_despreader.init_params]]
+name = "init_norm_freq"
+type = "double"
+default = "0.0"
+
+[[burst_despreader.init_params]]
+name = "init_chip_phase"
+type = "double"
+default = "0.0"
+
+[[burst_despreader.init_params]]
+name = "bn_carrier"
+type = "double"
+default = "0.05"
+
+[[burst_despreader.init_params]]
+name = "bn_code"
+type = "double"
+default = "0.01"
+
+[[burst_despreader.methods]]
+name = "steps"
+doc = "Despread a cf32 block; emit one complex prompt symbol per code period."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[burst_despreader.methods]]
+name = "bits"
+doc = "Despread a cf32 block; emit one hard BPSK bit per code period."
+arg_type = "void"
+return_type = "uint8_t"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[burst_despreader.methods]]
+name = "set_acq"
+doc = "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) acq_code coherently before despreading the payload with the data code. Call before feeding the burst; clears when the preamble is consumed."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "acq_code", type = "uint8_t[]" }, { name = "acq_reps", type = "size_t" }]
+
+[[burst_despreader.methods]]
+name = "reset"
+doc = "Re-seed the loops to the create-time phase/frequency; preserve config."
+arg_type = "void"
+return_type = "void"
+
+[[burst_despreader.properties]]
+name = "bn_carrier"
+type = "double"
+writable = true
+
+[[burst_despreader.properties]]
+name = "bn_code"
+type = "double"
+writable = true
+
+[[burst_despreader.properties]]
+name = "norm_freq"
+type = "double"
+writable = true
+
+[[burst_despreader.properties]]
+name = "code_phase"
+type = "double"
+
+[[burst_despreader.properties]]
+name = "lock_metric"
+type = "double"
+
+[[burst_despreader.properties]]
+name = "snr_est"
+type = "double"

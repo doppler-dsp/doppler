@@ -54,33 +54,39 @@ DespreaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DespreaderObj_init (DespreaderObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "code",       "sf",      "sps", "init_norm_freq", "init_chip_phase",
-          "bn_carrier", "bn_code", NULL };
-  PyObject          *code_obj        = NULL;
-  unsigned long long sf_raw          = 1;
-  unsigned long long sps_raw         = 2;
-  double             init_norm_freq  = 0.0;
-  double             init_chip_phase = 0.0;
-  double             bn_carrier      = 0.05;
-  double             bn_code         = 0.01;
+  static char *kwlist[] = {
+    "code",    "sps",    "init_norm_freq", "init_chip", "bn_carrier",
+    "bn_code", "bn_fll", "zeta",           "spacing",   "periods_per_bit",
+    NULL
+  };
+  PyObject          *code_obj            = NULL;
+  unsigned long long sps_raw             = 4;
+  double             init_norm_freq      = 0.0;
+  double             init_chip           = 0.0;
+  double             bn_carrier          = 0.05;
+  double             bn_code             = 0.005;
+  double             bn_fll              = 0.0;
+  double             zeta                = 0.707;
+  double             spacing             = 0.5;
+  unsigned long long periods_per_bit_raw = 1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddd", kwlist, &code_obj,
-                                    &sf_raw, &sps_raw, &init_norm_freq,
-                                    &init_chip_phase, &bn_carrier, &bn_code))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KdddddddK", kwlist,
+                                    &code_obj, &sps_raw, &init_norm_freq,
+                                    &init_chip, &bn_carrier, &bn_code, &bn_fll,
+                                    &zeta, &spacing, &periods_per_bit_raw))
     return -1;
-  size_t         sf       = (size_t)sf_raw;
-  size_t         sps      = (size_t)sps_raw;
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  size_t         sps             = (size_t)sps_raw;
+  size_t         periods_per_bit = (size_t)periods_per_bit_raw;
+  PyArrayObject *code_arr        = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle = despreader_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                    code_len, sf, sps, init_norm_freq,
-                                    init_chip_phase, bn_carrier, bn_code);
+  self->handle    = despreader_create (
+      (const uint8_t *)PyArray_DATA (code_arr), code_len, sps, init_norm_freq,
+      init_chip, bn_carrier, bn_code, bn_fll, zeta, spacing, periods_per_bit);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -379,34 +385,6 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-DespreaderObj_set_acq (DespreaderObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[]    = { "acq_code", "acq_reps", NULL };
-  PyObject          *acq_code_obj = NULL;
-  unsigned long long acq_reps_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OK", _kwlist, &acq_code_obj,
-                                    &acq_reps_raw))
-    return NULL;
-  size_t         acq_reps     = (size_t)acq_reps_raw;
-  PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!acq_code_arr)
-    {
-      return NULL;
-    }
-  const uint8_t *acq_code     = (const uint8_t *)PyArray_DATA (acq_code_arr);
-  size_t         acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
-  despreader_set_acq (self->handle, acq_code, acq_code_len, acq_reps);
-  Py_DECREF (acq_code_arr);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
 DespreaderObj_reset (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -472,6 +450,82 @@ DespreaderObj_set_state (DespreaderObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+Despreader_getprop_norm_freq (DespreaderObject *self,
+                              void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (despreader_get_norm_freq (self->handle));
+}
+static int
+Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
+                              void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  double v = 0.0;
+  if (!PyArg_Parse (value, "d", &v))
+    return -1;
+  despreader_set_norm_freq (self->handle, v);
+  return 0;
+}
+static PyObject *
+Despreader_getprop_code_phase (DespreaderObject *self,
+                               void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (despreader_get_code_phase (self->handle));
+}
+static PyObject *
+Despreader_getprop_code_rate (DespreaderObject *self,
+                              void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (despreader_get_code_rate (self->handle));
+}
+static PyObject *
+Despreader_getprop_lock_metric (DespreaderObject *self,
+                                void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (despreader_get_lock_metric (self->handle));
+}
+static PyObject *
+Despreader_getprop_bit_phase (DespreaderObject *self,
+                              void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)despreader_get_bit_phase (self->handle));
+}
+static PyObject *
 Despreader_getprop_bn_carrier (DespreaderObject *self,
                                void             *Py_UNUSED (closure))
 {
@@ -524,91 +578,23 @@ Despreader_setprop_bn_code (DespreaderObject *self, PyObject *value,
   despreader_set_bn_code (self->handle, v);
   return 0;
 }
-static PyObject *
-Despreader_getprop_norm_freq (DespreaderObject *self,
-                              void             *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_norm_freq (self->handle));
-}
-static int
-Despreader_setprop_norm_freq (DespreaderObject *self, PyObject *value,
-                              void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return -1;
-    }
-  double v = 0.0;
-  if (!PyArg_Parse (value, "d", &v))
-    return -1;
-  despreader_set_norm_freq (self->handle, v);
-  return 0;
-}
-static PyObject *
-Despreader_getprop_code_phase (DespreaderObject *self,
-                               void             *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_code_phase (self->handle));
-}
-static PyObject *
-Despreader_getprop_lock_metric (DespreaderObject *self,
-                                void             *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_lock_metric (self->handle));
-}
-static PyObject *
-Despreader_getprop_snr_est (DespreaderObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (despreader_get_snr_est (self->handle));
-}
 
-static PyGetSetDef Despreader_getset[] = {
-  { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
-    (setter)Despreader_setprop_bn_carrier,
-    "Carrier (Costas) loop noise bandwidth, normalized to the symbol rate.\n",
-    NULL },
-  { "bn_code", (getter)Despreader_getprop_bn_code,
-    (setter)Despreader_setprop_bn_code,
-    "Code (DLL) loop noise bandwidth, normalized to the symbol rate.\n",
-    NULL },
-  { "norm_freq", (getter)Despreader_getprop_norm_freq,
-    (setter)Despreader_setprop_norm_freq,
-    "Current carrier frequency estimate, cycles/sample.\n", NULL },
-  { "code_phase", (getter)Despreader_getprop_code_phase, NULL,
-    "Current tracked code phase within the symbol, chips.\n", NULL },
-  { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
-    "Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked).\n",
-    NULL },
-  { "snr_est", (getter)Despreader_getprop_snr_est, NULL,
-    "Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2).\n",
-    NULL },
-  { NULL }
-};
+static PyGetSetDef Despreader_getset[]
+    = { { "norm_freq", (getter)Despreader_getprop_norm_freq,
+          (setter)Despreader_setprop_norm_freq, "Norm freq.\n", NULL },
+        { "code_phase", (getter)Despreader_getprop_code_phase, NULL,
+          "Code phase.\n", NULL },
+        { "code_rate", (getter)Despreader_getprop_code_rate, NULL,
+          "Code rate.\n", NULL },
+        { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
+          "Lock metric.\n", NULL },
+        { "bit_phase", (getter)Despreader_getprop_bit_phase, NULL,
+          "Bit phase.\n", NULL },
+        { "bn_carrier", (getter)Despreader_getprop_bn_carrier,
+          (setter)Despreader_setprop_bn_carrier, "Bn carrier.\n", NULL },
+        { "bn_code", (getter)Despreader_getprop_bn_code,
+          (setter)Despreader_setprop_bn_code, "Bn code.\n", NULL },
+        { NULL } };
 
 static PyObject *
 DespreaderObj_destroy (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
@@ -645,12 +631,15 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "steps", (PyCFunction)DespreaderObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
-    "Despread a cf32 block; emit one complex prompt symbol per code period.\n"
+    "Track carrier + code and despread a cf32 block: per sample wipe the "
+    "carrier (Costas) and correlate early/prompt/late against the code (DLL), "
+    "update both loops each code period, and emit one complex prompt symbol "
+    "per period.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
-    "0.05, 0.01)\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -660,39 +649,29 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "bits", (PyCFunction)DespreaderObj_bits, METH_VARARGS | METH_KEYWORDS,
     "bits(x) -> ndarray\n"
     "\n"
-    "Despread a cf32 block; emit one hard BPSK bit per code period.\n"
+    "Same tracking kernel as steps(), but bit-sync the per-period prompts "
+    "into hard data bits: periods_per_bit prompts are coherently summed "
+    "across "
+    "each detected bit boundary and one 0/1 bit is emitted per data bit.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
-    "0.05, 0.01)\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
     "    >>> y = obj.bits(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('uint8')\n" },
   { "bits_max_out", (PyCFunction)DespreaderObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n\nMax output length bits() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
-  { "set_acq", (PyCFunction)(void *)DespreaderObj_set_acq,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_acq(acq_code, acq_reps) -> None\n"
-    "\n"
-    "Enable preamble-aided pull-in: track acq_reps periods of the (distinct) "
-    "acq_code coherently before despreading the payload with the data code. "
-    "Call before feeding the burst; clears when the preamble is consumed.\n"
-    "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
-    "0.05, 0.01)\n"
-    "    >>> obj.set_acq(np.zeros(4, dtype=np.uint8), 0)\n" },
   { "reset", (PyCFunction)DespreaderObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Re-seed the loops to the create-time phase/frequency; preserve config.\n"
+    "Re-seed both loops to the create-time frequency/phase; preserve config.\n"
     "\n"
     "    >>> from doppler import Despreader\n"
-    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 1, 2, 0.0, 0.0, "
-    "0.05, 0.01)\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)DespreaderObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },
@@ -712,9 +691,9 @@ static PyTypeObject DespreaderObjType = {
   .tp_basicsize                           = sizeof (DespreaderObject),
   .tp_dealloc                             = (destructor)DespreaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Despreader type.\n",
-  .tp_methods                             = DespreaderObj_methods,
-  .tp_getset                              = Despreader_getset,
-  .tp_new                                 = DespreaderObj_new,
-  .tp_init                                = (initproc)DespreaderObj_init,
+  .tp_doc     = "Create a tracking channel (COPIES code).\n",
+  .tp_methods = DespreaderObj_methods,
+  .tp_getset  = Despreader_getset,
+  .tp_new     = DespreaderObj_new,
+  .tp_init    = (initproc)DespreaderObj_init,
 };

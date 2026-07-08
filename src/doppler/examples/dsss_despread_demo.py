@@ -9,8 +9,8 @@ adds AWGN at Es/N0 = 10 dB, and runs the full receiver:
      ``doppler.spectral.Corr``. The peak test statistic (peak / noise estimate)
      is gated against a threshold from ``doppler.detection.det_threshold``.
   2. **Despreading** — the peak (Doppler bin, code phase) seeds
-     ``doppler.dsss.Despreader``; ``set_acq`` refines loops on the preamble,
-     then the DLL + Costas track the payload and emit symbols.
+     ``doppler.dsss.BurstDespreader``; ``set_acq`` refines loops on the
+     preamble, then the DLL + Costas track the payload and emit symbols.
 
 Three views (saved to a PNG):
   * **Acquisition** — test statistic across code phase at the winning Doppler
@@ -30,7 +30,7 @@ import sys
 import numpy as np
 
 from doppler.detection import det_threshold
-from doppler.dsss import Despreader
+from doppler.dsss import BurstDespreader
 from doppler.spectral import Corr
 
 ACQ_SF, DATA_SF, REPS, SPS = 512, 32, 5, 2
@@ -81,7 +81,7 @@ def acquire(rx, pre_len, asig):
 
 
 def run_despreader(rx, pre_len, acq_code, data_code, init_freq, init_chip):
-    d = Despreader(
+    d = BurstDespreader(
         data_code,
         sf=DATA_SF,
         sps=SPS,

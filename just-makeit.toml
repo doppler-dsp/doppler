@@ -20,6 +20,7 @@ c_deps = ["hbdecim", "resamp", "wfmcompose"]
 # even after the sacred fragments freshly regenerated with the new binding —
 # the same gap dsss.pyi/analyzer.pyi/delay.pyi hit below.
 # dsss.pyi/analyzer.pyi are hand-maintained for despreader.steps/bits,
+# burst_despreader.steps/bits,
 # burst_demod.demod, specan.execute: jm's stub aggregator didn't reconcile
 # out=/<name>_max_out() for these has_params-single-array-param methods even
 # after their sacred fragments freshly regenerated with the new binding (a
@@ -1728,7 +1729,7 @@ name = "endian"
 values = ["le", "be"]
 
 [module.track]
-objects = ["loop_filter", "costas", "dll", "channel", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
+objects = ["loop_filter", "costas", "dll", "symsync", "carrier_mpsk", "carrier_nda", "mpsk_receiver"]
 
 [module.dsss]
-objects = ["despreader", "acq", "ppe", "burst_demod"]
+objects = ["despreader", "burst_despreader", "acq", "ppe", "burst_demod"]

@@ -1,14 +1,30 @@
 /**
  * @file despreader_core.h
- * @brief Despreader component API.
+ * @brief Continuous DSSS despreader — Costas carrier loop + DLL code loop.
  *
- * Lifecycle: create -> [step / steps / reset]* -> destroy
+ * A complete continuous despreader for a DSSS-BPSK signal: it composes a
+ * @ref costas_state_t carrier loop and a @ref dll_state_t code loop on a single
+ * shared per-sample integrate-and-dump. Per sample it wipes the carrier
+ * (costas_wipeoff, integer NCO) and feeds the de-rotated sample to the DLL's
+ * early/prompt/late correlators (dll_accumulate); per code period it dumps the
+ * prompt and updates both loops — the code loop on the early/late envelopes, the
+ * carrier loop on the same prompt symbol. `steps()` emits one prompt per period;
+ * `bits()` bit-syncs the prompts into hard data bits (a data bit spans
+ * `periods_per_bit` code periods).
  *
- * Example:
+ * It is seeded by acquisition (the FFT search supplies the coarse carrier
+ * frequency + code phase); the loops then track the residual. Set
+ * `bn_fll > 0` for FLL-assisted carrier pull-in.
+ *
+ * Lifecycle: despreader_create -> [steps / bits / reset]* -> despreader_destroy.
+ *
  * @code
- * despreader_state_t *obj = despreader_create(NULL, 0, 1, 2, 0.0, 0.0, 0.01, 0.002);
- * float complex y = despreader_step(obj, 0.0f + 0.0f * I);
- * despreader_destroy(obj);
+ * uint8_t code[127] = { ... };  // one code period, 0/1 chips
+ * despreader_state_t *ch = despreader_create(code, 127, 8, 0.0, 0.0,
+ *                                       0.05, 0.005, 0.0, 0.707, 0.5, 1);
+ * float complex sym[64];
+ * size_t k = despreader_steps(ch, rx, rx_len, sym, 64);  // prompt per period
+ * despreader_destroy(ch);
  * @endcode
  */
 #ifndef DESPREADER_CORE_H
@@ -16,7 +32,11 @@
 
 #include "clib_common.h"
 #include "dp_state.h"
+#include "costas/costas_core.h"
+#include "dll/dll_core.h"
 #include "jm_perf.h"
+#include <complex.h>
+#include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
 #ifdef __cplusplus
 extern "C" {
@@ -25,170 +45,88 @@ extern "C" {
 /**
  * @brief Despreader state.
  *
- * Allocate with despreader_create().
+ * Allocate with despreader_create(). Embeds the carrier (`car`) and code (`code`)
+ * loops by value; the despreader owns the copied spreading code and the
+ * bit-sync histogram.
  */
-typedef struct
-{
-  /* ── configuration (immutable after create) ── */
-  uint8_t *code;   /**< owned spreading code, 0/1, length sf.          */
-  size_t   sf;     /**< spreading factor = code length, chips/symbol.  */
-  size_t   sps;    /**< samples per chip (>= 2).                       */
-  size_t   tsamps; /**< sf*sps, symbol period in samples.             */
-  double   seed_w; /**< create-time carrier angular freq, rad/sample. */
-  double   seed_chip; /**< create-time code phase, chips, for reset.  */
-
-  /* ── optional acquisition preamble (distinct acq code) ── */
-  uint8_t *acq_code; /**< owned acq code, NULL if payload-only.        */
-  size_t   acq_sf;   /**< acq code length, chips/period.               */
-  size_t   acq_reps; /**< preamble periods to track before payload.    */
-  size_t   preamble_left; /**< preamble periods still to consume.      */
-
-  /* ── tracking loops (embedded by value, shared engine) ── */
-  loop_filter_state_t lf_car;  /**< carrier (Costas) loop.            */
-  loop_filter_state_t lf_code; /**< code (DLL) loop.                  */
-
-  /* ── carrier NCO (inline, radians) ── */
-  double car_phase; /**< current carrier phase, radians.             */
-  double car_w;     /**< current carrier angular freq, rad/sample.   */
-
-  /* ── code phase / integrate-and-dump ── */
-  double        chip_pos;  /**< prompt code position within symbol, chips. */
-  double        code_rate; /**< chips advanced per nominal chip (~1.0).    */
-  float complex acc_e;     /**< early correlator accumulator.         */
-  float complex acc_p;     /**< prompt correlator accumulator.        */
-  float complex acc_l;     /**< late correlator accumulator.          */
-
-  /* ── status read-backs ── */
-  double lock_metric; /**< EMA of |Re P|/|P|, ~1 when phase-locked.   */
-  double snr_est;     /**< EMA SNR estimate from the prompt symbols.  */
+typedef struct {
+    costas_state_t car;   /**< carrier (Costas/FLL-assisted-PLL) loop.    */
+    dll_state_t code;     /**< code (early/prompt/late DLL) loop.         */
+    uint8_t *code_copy;   /**< owned copy of the spreading code.          */
+    size_t periods_per_bit;    /**< code periods per data bit (>=1).           */
+    /* bit-sync (used only when periods_per_bit > 1) */
+    size_t *flip_hist;    /**< prompt sign-flip histogram, length np.     */
+    size_t epoch_count;   /**< code periods processed so far.             */
+    size_t bit_phase;     /**< detected bit boundary (argmax flip_hist).  */
+    size_t epochs_in_bit; /**< periods accumulated in the current bit.    */
+    double bit_acc;       /**< running sum of Re(prompt) over the bit.    */
+    int prev_sign;        /**< previous prompt sign (+1/-1).              */
+    int have_prev;        /**< prev_sign valid.                           */
 } despreader_state_t;
 
 /**
- * @brief Create a despreader instance.
+ * @brief Initialise a despreader in place; BORROWS @p code.
  *
- * @param code  Data spreading code (0/1 chips), length @p code_len; copied.
- * @param code_len  Length of @p code in chips (>= sf).
- * @param sf  sf (default: 1).
- * @param sps  sps (default: 2).
- * @param init_norm_freq  init_norm_freq (default: 0.0).
- * @param init_chip_phase  init_chip_phase (default: 0.0).
- * @param bn_carrier  bn_carrier (default: 0.01).
- * @param bn_code  bn_code (default: 0.002).
+ * The by-value counterpart to despreader_create(): the caller retains ownership of
+ * @p code (it is not copied or freed). Seeds the carrier NCO at
+ * @p init_norm_freq and the code phase at @p init_chip (the acquisition
+ * estimate). The carrier loop's update period is one code period
+ * (`code_len * sps` samples).
+ *
+ * @param ch              State to initialise.  Must be non-NULL.
+ * @param code            Spreading code (0/1 chips), one period; borrowed.
+ * @param code_len        Code length (chips per period); >= 1.
+ * @param sps             Samples per chip.
+ * @param init_norm_freq  Seed carrier frequency, cycles/sample.
+ * @param init_chip       Seed code phase, chips.
+ * @param bn_carrier      Carrier loop noise bandwidth.
+ * @param bn_code         Code loop noise bandwidth.
+ * @param bn_fll          Carrier FLL-assist bandwidth (0 = pure PLL).
+ * @param zeta            Damping factor for both loops.
+ * @param spacing         DLL early/late tap offset, chips.
+ * @param periods_per_bit      Code periods per data bit (1 = one bit per period).
+ */
+void despreader_init(despreader_state_t *ch, const uint8_t *code, size_t code_len,
+                  size_t sps, double init_norm_freq, double init_chip,
+                  double bn_carrier, double bn_code, double bn_fll, double zeta,
+                  double spacing, size_t periods_per_bit);
+
+/**
+ * @brief Create a despreader (COPIES @p code).
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call despreader_destroy() when done.
  */
-despreader_state_t *despreader_create(const uint8_t *code, size_t code_len, size_t sf, size_t sps, double init_norm_freq, double init_chip_phase, double bn_carrier, double bn_code);
+despreader_state_t *despreader_create(const uint8_t *code, size_t code_len, size_t sps, double init_norm_freq, double init_chip, double bn_carrier, double bn_code, double bn_fll, double zeta, double spacing, size_t periods_per_bit);
 
 /**
- * @brief Enable preamble-aided pull-in with a distinct acquisition code.
- *
- * Track @p acq_reps periods of @p acq_code coherently (the unmodulated,
- * repeated acquisition preamble — a full ±pi phase discriminator, so the loops
- * pull in even a wide residual) before switching to the data code for the
- * payload. Call before feeding the burst; the acq mode clears automatically
- * once the preamble is consumed, and re-arms on despreader_reset().
- *
- * @param state         Must be non-NULL.
- * @param acq_code      Acquisition code (0/1), length acq_code_len; copied.
- * @param acq_code_len  Acquisition code length in chips.
- * @param acq_reps      Number of acq-code periods in the preamble.
- */
-void despreader_set_acq(despreader_state_t *state, const uint8_t *acq_code,
-                        size_t acq_code_len, size_t acq_reps);
-
-/**
- * @brief Destroy a despreader instance and release all memory.
+ * @brief Destroy a despreader and release all memory.
  * @param state  May be NULL.
  */
 void despreader_destroy(despreader_state_t *state);
 
 /**
- * @brief Reset Despreader to its post-create state.
+ * @brief Re-seed both loops to the create-time frequency/phase; keep config.
  * @param state  Must be non-NULL.
  */
 void despreader_reset(despreader_state_t *state);
 
-
-
-
-
-
-
-
-
-/** @brief Upper bound on symbols `despreader_steps` can emit (0; the caller
- *  sizes the output buffer to the input length, which always suffices). */
-size_t despreader_steps_max_out (despreader_state_t *state);
-
-/**
- * @brief Despread a CF32 block; emit one complex prompt symbol per code period.
- *
- * Streams: a partial symbol is carried in state across calls. Each emitted
- * symbol is the complex prompt integrate-and-dump (carrier-wiped, code-stripped)
- * — its sign is the BPSK decision, its phase/magnitude the soft information.
- * During a `despreader_set_acq` preamble no symbols are emitted (the loops are
- * pulling in); payload symbols follow.
- *
- * @param state    Must be non-NULL.
- * @param x        Input CF32 samples, length @p x_len.
- * @param x_len    Number of input samples.
- * @param out      Output buffer for prompt symbols (>= max_out).
- * @param max_out  Capacity of @p out in symbols.
- * @return Number of symbols written.
- *
- * @code
- * // seed from acquisition (norm_freq cyc/sample, chip phase in chips):
- * despreader_state_t *d = despreader_create(code, n, 32, 2, f0, chip, .05, .01);
- * float complex sym[256];
- * size_t k = despreader_steps(d, rx, rx_len, sym, 256);
- * // hard bit of sym[i] = crealf(sym[i]) >= 0
- * despreader_destroy(d);
- * @endcode
- */
-size_t despreader_steps (despreader_state_t *state, const float complex *x,
-                         size_t x_len, float complex *out, size_t max_out);
-
-/** @brief Upper bound on bits `despreader_bits` can emit (0; see
- *  despreader_steps_max_out). */
-size_t despreader_bits_max_out (despreader_state_t *state);
-
-/**
- * @brief Despread a CF32 block; emit one hard BPSK bit (0/1) per code period.
- *
- * Same streaming kernel as despreader_steps(), but emits the hard decision
- * `crealf(prompt) >= 0` instead of the complex symbol.
- *
- * @param state    Must be non-NULL.
- * @param x        Input CF32 samples, length @p x_len.
- * @param x_len    Number of input samples.
- * @param out      Output buffer for bits (>= max_out).
- * @param max_out  Capacity of @p out in bits.
- * @return Number of bits written.
- */
-size_t despreader_bits (despreader_state_t *state, const float complex *x,
-                        size_t x_len, uint8_t *out, size_t max_out);
-
-/** @brief Carrier (Costas) loop noise bandwidth, normalized to the symbol rate. */
-double despreader_get_bn_carrier (const despreader_state_t *state);
-/** @brief Set the carrier loop bandwidth (recomputes the loop gains). */
-void despreader_set_bn_carrier (despreader_state_t *state, double val);
-/** @brief Code (DLL) loop noise bandwidth, normalized to the symbol rate. */
-double despreader_get_bn_code (const despreader_state_t *state);
-/** @brief Set the code loop bandwidth (recomputes the loop gains). */
-void despreader_set_bn_code (despreader_state_t *state, double val);
-/** @brief Current carrier frequency estimate, cycles/sample. */
-double despreader_get_norm_freq (const despreader_state_t *state);
-/** @brief Override the carrier frequency estimate, cycles/sample (re-seed). */
-void despreader_set_norm_freq (despreader_state_t *state, double val);
-/** @brief Current tracked code phase within the symbol, chips. */
-double despreader_get_code_phase (const despreader_state_t *state);
-/** @brief Lock indicator in [0,1] (EMA of |Re prompt|/|prompt|; ~1 = locked). */
-double despreader_get_lock_metric (const despreader_state_t *state);
-/** @brief Post-despread SNR estimate (EMA of (Re prompt)^2 / (Im prompt)^2). */
-double despreader_get_snr_est (const despreader_state_t *state);
+size_t despreader_steps_max_out(despreader_state_t *state);
+size_t despreader_steps(despreader_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t despreader_bits_max_out(despreader_state_t *state);
+size_t despreader_bits(despreader_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+double despreader_get_norm_freq(const despreader_state_t *state);
+void despreader_set_norm_freq(despreader_state_t *state, double val);
+double despreader_get_code_phase(const despreader_state_t *state);
+double despreader_get_code_rate(const despreader_state_t *state);
+double despreader_get_lock_metric(const despreader_state_t *state);
+size_t despreader_get_bit_phase(const despreader_state_t *state);
+double despreader_get_bn_carrier(const despreader_state_t *state);
+void despreader_set_bn_carrier(despreader_state_t *state, double val);
+double despreader_get_bn_code(const despreader_state_t *state);
+void despreader_set_bn_code(despreader_state_t *state, double val);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
- * whole-struct snapshot (loop_filter children POD-embedded);
- * the owned code + acq_code pointers are config, restored by create. */
+ * composition: costas + dll children + running bit-sync histogram/state;
+ * the owned code copy is restored by create. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D','S','P','R')
 #define DESPREADER_STATE_VERSION 1u
 size_t despreader_state_bytes (const despreader_state_t *state);

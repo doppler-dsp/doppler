@@ -42,6 +42,7 @@ the end-to-end ZMQ pipeline is on the [Streaming](streaming.md) page.
 - [DSSS Acquisition & Despreading](../gallery/dsss-despread.md) — burst acquisition into a streaming despreader.
 - [DSSS Acquisition: Pd/Pfa](../gallery/dsss-acq-characterization.md) — detection characterisation curves.
 - [Streaming Async Despreader](../gallery/async-despread.md) — `Dll(segments)` PN-epoch despreader.
+- [Despreader (full continuous receiver)](../gallery/despreader.md) — a combined carrier + code tracking receiver.
 
 ## Synchronization Loops
 
@@ -53,7 +54,6 @@ the end-to-end ZMQ pipeline is on the [Streaming](streaming.md) page.
 - [Timing Loop (theory)](../gallery/symsync-theory.md) — the timing loop's transfer function.
 - [M-PSK Carrier Loop (theory)](../gallery/carrier-mpsk.md) — decision-directed carrier recovery.
 - [NDA Carrier Loop (theory)](../gallery/carrier-nda.md) — non-data-aided carrier recovery.
-- [Tracking Channel](../gallery/channel.md) — a combined carrier + code tracking channel.
 
 ## Constellations & Receivers
 

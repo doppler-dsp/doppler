@@ -1,9 +1,11 @@
 # Python DSSS API
 
-The `doppler.dsss` module provides the two halves of a DSSS receiver:
-**`Acquisition`** — the streaming burst-acquisition engine that finds an unknown
-code phase and Doppler — and **`Despreader`** — the tracking receiver that locks
-and despreads the payload once acquired.
+The `doppler.dsss` module provides a full DSSS receiver: **`Acquisition`** — the
+streaming burst-acquisition engine that finds an unknown code phase and
+Doppler — and two despreaders that track and despread once acquired:
+**`Despreader`**, the continuous DLL+Costas receiver (GPS-like, always
+tracking), and **`BurstDespreader`**, the preamble-aware payload tracker for
+latency-bound bursts.
 
 Source:
 [`src/doppler/dsss/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/__init__.py)
@@ -18,7 +20,7 @@ ______________________________________________________________________
 `Acquisition` searches a streamed cf32 signal for a repeated BPSK PN burst over the
 joint (Doppler × code-phase) grid, sizing its own search grid — coherent depth,
 CFAR threshold, non-coherent looks — from the physics `(chip_rate, cn0_dbhz, pfa, pd)` using `doppler.detection`. Push
-arbitrary-length blocks; it yields one record per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, snr_est)` — whose `(doppler_bin, code_phase)` seed the `Despreader`. See the
+arbitrary-length blocks; it yields one record per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, snr_est)` — whose `(doppler_bin, code_phase)` seed the `BurstDespreader`. See the
 [DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) for the search-space
 sizing and a worked example.
 
@@ -111,10 +113,50 @@ assert d.frame_valid             # CRC passed
 
 ______________________________________________________________________
 
-## `Despreader` — tracking receiver
+## `Despreader` — continuous tracking receiver
+
+A complete continuous DSSS-BPSK receiver in one object: `Despreader` composes
+a carrier loop (`Costas`, FLL-assisted) and a code loop (`Dll`) on a single
+shared per-sample integrate-and-dump. Per sample it wipes the carrier
+(integer-NCO) and feeds the de-rotated sample to the DLL's early/prompt/late
+correlators; per code period it dumps the prompt and updates both loops — the
+code loop on the early/late envelopes, the carrier loop on the same prompt.
+`steps()` emits one despread prompt symbol per code period; `bits()` turns the
+prompts into hard data bits.
+
+`bn_fll > 0` enables FLL-assisted carrier pull-in. When a data bit spans
+`periods_per_bit` code periods (GPS C/A: 20), `bits()` **bit-syncs** — it
+histograms the prompt sign-flip positions to find the bit boundary
+(`bit_phase`), then coherently sums `periods_per_bit` prompts per bit. The
+despreader is seeded by acquisition (coarse carrier frequency + code phase)
+and tracks the residual.
+
+See the [despreader gallery page](../gallery/despreader.md) for the full
+receiver acquiring and despreading end to end.
+
+```python
+import numpy as np
+from doppler.dsss import Despreader
+from doppler.wfm import Synth
+
+code = np.random.default_rng(1).integers(0, 2, 127).astype(np.uint8)
+rx = Synth(type="pn", pn_length=7, sps=8).steps(127 * 8 * 4)  # PN-spread IQ
+
+d = Despreader(code, sps=8, init_norm_freq=0.0, init_chip=0.0,
+               bn_carrier=0.05, bn_code=0.005, bn_fll=0.03,
+               zeta=0.707, spacing=0.5, periods_per_bit=1)
+symbols = d.steps(rx)   # one despread prompt per code period
+bits    = d.bits(rx)    # hard data bits (bit-synced when periods_per_bit > 1)
+```
+
+::: doppler.dsss.Despreader
+
+______________________________________________________________________
+
+## `BurstDespreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the
-`Corr2D`/`CorrDetector2D` acquisition engine or `Acquisition`), the `Despreader` locks
+`Corr2D`/`CorrDetector2D` acquisition engine or `Acquisition`), the `BurstDespreader` locks
 the signal with a code-tracking **delay-locked loop** and a carrier-tracking
 **Costas loop**, despreads the payload, and emits symbols.
 
@@ -159,13 +201,13 @@ ______________________________________________________________________
 
 ```python
 import numpy as np
-from doppler.dsss import Despreader
+from doppler.dsss import BurstDespreader
 
 # data_code: 0/1 spreading chips; seed from the acquisition peak.
 # rx is the received capture (reuse the burst built above).
 data_code = ((np.arange(32) * 40503 >> 7) & 1).astype(np.uint8)
 acq_freq, acq_chip = 0.012, 0.0
-d = Despreader(data_code, sf=32, sps=2,
+d = BurstDespreader(data_code, sf=32, sps=2,
                init_norm_freq=acq_freq, init_chip_phase=acq_chip)
 symbols = d.steps(rx)        # complex64 prompt symbols
 bits    = d.bits(rx)         # or hard BPSK bits (0/1)
@@ -176,11 +218,11 @@ round(d.lock_metric, 2)      # ~1.0 once locked
 
 ```python
 burst = rx                        # a received capture (from above)
-d = Despreader(data_code, sf=32, sps=2)
+d = BurstDespreader(data_code, sf=32, sps=2)
 d.set_acq(acq_code, acq_reps=5)   # 5-rep preamble pulls the loops in
 symbols = d.steps(burst)          # preamble emits nothing; payload follows
 ```
 
 ______________________________________________________________________
 
-::: doppler.dsss.Despreader
+::: doppler.dsss.BurstDespreader

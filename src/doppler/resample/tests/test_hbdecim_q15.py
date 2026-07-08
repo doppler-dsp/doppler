@@ -352,7 +352,8 @@ def _get_fir_coeffs(atten, pb, sb):
     ],
 )
 def test_various_filter_lengths(att, pb, sb):
-    """HalfbandDecimatorQ15 works for different filter lengths from _halfband_bank.
+    """HalfbandDecimatorQ15 works for different filter lengths from
+    _halfband_bank.
 
     Verifies that a passband tone at f0=0.05 passes with near-unity gain
     (±15%) for each design, exercising different num_taps values in the

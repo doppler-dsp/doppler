@@ -1,13 +1,13 @@
 """Benchmark for HalfbandDecimatorQ15.
 
-Run: pytest src/doppler/resample/benchmarks/bench_hbdecim_q15.py --benchmark-only
+Run: pytest src/doppler/resample/benchmarks/bench_hbdecim_q15.py \
+    --benchmark-only
 """
 
 import numpy as np
 import pytest
 
-from doppler.resample import HalfbandDecimatorQ15
-from doppler.resample import _halfband_bank
+from doppler.resample import HalfbandDecimatorQ15, _halfband_bank
 
 BLOCK_64K = 65_536
 

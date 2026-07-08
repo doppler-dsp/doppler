@@ -49,7 +49,7 @@ extern "C"
   } ppe_result_t;
 
   /**
-   * @brief PolyPhaseEstimator state (FFT plan + rate grid + scratch).
+   * @brief PolynomialPhaseEstimator state (FFT plan + rate grid + scratch).
    *
    * Allocate with ppe_create().
    */

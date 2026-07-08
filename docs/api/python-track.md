@@ -164,7 +164,7 @@ dump boxcar by default, or `pulse="rrc"` root-raised-cosine for band-limited
 links), and a `SymbolSync` Gardner timing loop. Carrier recovery follows the
 project rule — **predetection de-rotation** (always) and **postdetection
 discrimination**: the NDA loop acquires with no data and no symbol timing, then,
-when `auto_handover=1` (opt-in) and the loop has locked, the receiver hands the
+when `acq_to_track=1` (opt-in) and the loop has locked, the receiver switches the
 shared NCO to a lower-jitter **decision-directed** loop on the recovered symbols
 (essential for 8PSK, whose M-th-power phase noise would otherwise cross the
 ±π/8 margins). The loop locks to one of `m` phases (M-fold ambiguity); resolve it
@@ -181,10 +181,10 @@ from doppler.wfm import Synth
 
 iq = Synth(type="qpsk", sps=8, snr=20).steps(4096)  # received IQ
 
-# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in handover
+# QPSK, 8 samples/symbol, I&D matched filter; NDA acquisition + opt-in switch
 rx = MpskReceiver(m=4, sps=8, n=4, pulse="iandd",
                   bn_carrier=0.01, bn_timing=0.01,
-                  auto_handover=1, lock_thresh=0.4)
+                  acq_to_track=1, lock_thresh=0.4)
 sym  = rx.steps(iq)          # recovered symbols (~ len(iq) / sps)
 bits = rx.bits(iq)           # hard Gray bits (LSB-first per symbol)
 f    = rx.norm_freq          # tracked carrier (cycles/sample)

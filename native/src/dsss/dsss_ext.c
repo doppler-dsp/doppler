@@ -1,7 +1,7 @@
 /*
  * dsss_ext.c — Python extension module dsss
  *
- * Objects: Despreader, BurstDespreader, Acquisition, PolyPhaseEstimator, BurstDemod
+ * Objects: Despreader, BurstDespreader, Acquisition, PolynomialPhaseEstimator, BurstDemod
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -37,7 +37,7 @@ PyInit_dsss(void)
     if (PyType_Ready(&DespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&BurstDespreaderObjType) < 0) return NULL;
     if (PyType_Ready(&AcquisitionObjType) < 0) return NULL;
-    if (PyType_Ready(&PolyPhaseEstimatorObjType) < 0) return NULL;
+    if (PyType_Ready(&PolynomialPhaseEstimatorObjType) < 0) return NULL;
     if (PyType_Ready(&BurstDemodObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&dsss_moduledef);
     if (!m) return NULL;
@@ -53,9 +53,9 @@ PyInit_dsss(void)
     if (PyModule_AddObject(m, "Acquisition", (PyObject *)&AcquisitionObjType) < 0) {
         Py_DECREF(&AcquisitionObjType); Py_DECREF(m); return NULL;
     }
-    Py_INCREF(&PolyPhaseEstimatorObjType);
-    if (PyModule_AddObject(m, "PolyPhaseEstimator", (PyObject *)&PolyPhaseEstimatorObjType) < 0) {
-        Py_DECREF(&PolyPhaseEstimatorObjType); Py_DECREF(m); return NULL;
+    Py_INCREF(&PolynomialPhaseEstimatorObjType);
+    if (PyModule_AddObject(m, "PolynomialPhaseEstimator", (PyObject *)&PolynomialPhaseEstimatorObjType) < 0) {
+        Py_DECREF(&PolynomialPhaseEstimatorObjType); Py_DECREF(m); return NULL;
     }
     Py_INCREF(&BurstDemodObjType);
     if (PyModule_AddObject(m, "BurstDemod", (PyObject *)&BurstDemodObjType) < 0) {

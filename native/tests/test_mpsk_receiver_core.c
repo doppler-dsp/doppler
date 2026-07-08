@@ -6,7 +6,7 @@
  *   1. Lifecycle / argument validation / getters / reset reproducibility
  *   2. Locks + recovers symbols under a carrier offset (I&D), every M -> SER 0
  *   3. RRC matched filter locks + recovers
- *   4. auto_handover flips the loop from NDA acquisition to decision tracking
+ *   4. acq_to_track flips the loop from NDA acquisition to decision tracking
  */
 #include "dp_state_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
@@ -221,7 +221,7 @@ main (void)
     mpsk_receiver_destroy (rx);
   }
 
-  /* 4. auto_handover flips NDA acquisition -> decision-directed tracking */
+  /* 4. acq_to_track flips NDA acquisition -> decision-directed tracking */
   {
     mpsk_receiver_state_t *rx
         = mpsk_receiver_create (4, SPS, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.03,

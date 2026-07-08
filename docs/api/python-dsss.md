@@ -28,9 +28,9 @@ sizing and a worked example.
 
 ______________________________________________________________________
 
-## `PolyPhaseEstimator` — feedforward frequency + chirp-rate estimator
+## `PolynomialPhaseEstimator` — feedforward frequency + chirp-rate estimator
 
-`PolyPhaseEstimator` recovers the **frequency** and **chirp rate** (Doppler and
+`PolynomialPhaseEstimator` recovers the **frequency** and **chirp rate** (Doppler and
 Doppler rate) of a complex sequence in one shot — no tracking loop — via a
 **coherent (chirp-rate × frequency) matched-filter surface**: for each rate
 hypothesis it dechirps the sequence and FFTs it, and the surface's global peak
@@ -41,11 +41,11 @@ pure Doppler, near-static — while **`max_rate > 0`** searches a `±max_rate`
 dechirp bank for a severe LEO chirp (cost scales with the rate span). The caller
 strips modulation first (data-aided wipe, or square an M-PSK stream for the
 non-data-aided case). `estimate(x)` returns a
-`PolyPhaseEstimate(freq_norm, rate_norm, snr_db)` record in normalized units
+`PolynomialPhaseEstimate(freq_norm, rate_norm, snr_db)` record in normalized units
 (cycles/sample and cycles/sample²); scale by the sequence's sample rate for Hz.
 It is the feedforward front-end for chirping-burst demodulation.
 
-::: doppler.dsss.PolyPhaseEstimator
+::: doppler.dsss.PolynomialPhaseEstimator
 
 ______________________________________________________________________
 
@@ -53,7 +53,7 @@ ______________________________________________________________________
 
 `BurstDemod` is the whole post-acquisition payload chain, in C, with **no
 tracking loops**: it estimates the residual Doppler *and* Doppler rate
-feedforward (composing `PolyPhaseEstimator` over the unmodulated preamble),
+feedforward (composing `PolynomialPhaseEstimator` over the unmodulated preamble),
 dechirps the burst at sample rate, despreads the short data code to soft BPSK
 symbols, frame-syncs against a known word, and checks a CRC-16 trailer. The one
 `max_rate` knob spans both operating points: **near-static Doppler** (`0`, a

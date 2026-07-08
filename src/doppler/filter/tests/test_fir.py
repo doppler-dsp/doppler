@@ -136,3 +136,37 @@ def test_lowpass_attenuation():
 
     assert p_pass > 0.9, f"passband power {p_pass:.4f} < 0.9"
     assert p_stop < 1e-3, f"stopband power {p_stop:.2e} >= 1e-3"
+
+
+# ── out= buffer ──────────────────────────────────────────────────────────────
+
+
+def test_execute_out_param_writes_into_callers_buffer():
+    taps = np.array([1.0, 0.5, 0.25], dtype=np.complex64)
+    f = FIR(taps)
+    x = np.ones(8, dtype=np.complex64)
+
+    buf = np.empty(8, dtype=np.complex64)
+    result = f.execute(x, out=buf)
+    assert np.shares_memory(result, buf)
+
+    f2 = FIR(taps)
+    expected = f2.execute(x).copy()
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_execute_out_param_undersized_raises():
+    """Regression test: fir_execute_max_out() always returns 0 (FIR is a 1:1
+    transform, not a bounded-capacity one), but the out= validation used to
+    check `_cap < _omax` alone -- since sizes are unsigned, `_cap < 0` is
+    never true, so an undersized out= buffer passed validation and then
+    fir_execute() (which has no max_out clamp) overflowed it. The fix
+    requires capacity for max(max_out(), len(x))."""
+    taps = np.array([1.0, 0.5, 0.25], dtype=np.complex64)
+    f = FIR(taps)
+    x = np.ones(1000, dtype=np.complex64)
+
+    assert f.execute_max_out() == 0  # the misleading value from the docstring
+    undersized = np.empty(0, dtype=np.complex64)
+    with pytest.raises(ValueError, match="need >= 1000"):
+        f.execute(x, out=undersized)

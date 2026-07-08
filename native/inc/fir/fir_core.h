@@ -208,10 +208,12 @@ extern "C"
   int fir_get_is_real (const fir_state_t *state);
 
   /**
-   * @brief Upper bound on execute output samples (always == n_in for FIR).
+   * @brief Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.
    *
-   * Used by the generated ext.c to size the output buffer.
-   * Returns 0 at creation time (n_in unknown); buffer grows on first call.
+   * fir_execute() always writes exactly n_in samples; there is no
+   * call-independent upper bound smaller than the input length for this
+   * function to report. An `out=` buffer must be sized to exactly
+   * `len(x)`, not to this function's return value.
    */
   size_t fir_execute_max_out (fir_state_t *state);
 

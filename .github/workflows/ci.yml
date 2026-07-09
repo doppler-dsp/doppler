@@ -240,7 +240,6 @@ jobs:
         apt-get install -y --no-install-recommends \
           build-essential \
           pkg-config \
-          libfftw3-dev \
           ca-certificates \
           wget
         # Kitware's Buster apt repo is also EOL; use the statically-linked

@@ -1,0 +1,21 @@
+# deploy/docker/Dockerfile.cli — published every release as
+# ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest).
+#
+# Installs the published PyPI wheel rather than building from source: the
+# manylinux wheel already bundles its shared-lib deps via auditwheel repair,
+# so no system build toolchain or -dev packages are needed here at all —
+# this also guarantees the image runs the exact artifact the release
+# workflow already smoke-tested, not a fresh rebuild that could drift from
+# it.
+#
+# Usage:
+#   docker run --rm ghcr.io/doppler-dsp/doppler:0.28.0 wfmgen --help
+#   docker run --rm ghcr.io/doppler-dsp/doppler:0.28.0 \
+#       python -c "import doppler; print(doppler.__version__)"
+FROM python:3.12-slim
+
+ARG DOPPLER_VERSION
+
+RUN pip install --no-cache-dir "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}"
+
+CMD ["doppler", "--help"]

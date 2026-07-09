@@ -10,36 +10,12 @@ groups = ["runtime", "dev"]
 source = "just-bashit:just-makeit"
 config = "just-makeit.toml"
 
-[runtime.apt]
-packages = [
-    "libfftw3-dev",
-    "libfftw3-bin",
-]
-
-[runtime.pacman]
-packages = [
-    "fftw",
-]
-
-[runtime.brew]
-packages = [
-    "fftw",
-]
-
-[runtime.dnf]
-packages = [
-    "fftw-devel",
-]
-
-[runtime.zypper]
-packages = [
-    "fftw3-devel",
-]
-
-[runtime.msys2]
-packages = [
-    "mingw-w64-ucrt-x86_64-fftw",
-]
+# No [runtime.*] sections: doppler's FFT is fully vendored (pocketfft +
+# PFFFT, both in vendor/) and the rest of the core is pure C99 + libm, so
+# there is nothing to install at runtime on any platform. (Historically
+# listed libfftw3/fftw here before the FFT was vendored in-tree; removed
+# once confirmed dead — zero references to fftw3.h/fftw_* anywhere in
+# native/ or CMakeLists.txt.)
 
 [dev.apt]
 packages = [

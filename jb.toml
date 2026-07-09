@@ -10,6 +10,14 @@ groups = ["runtime", "dev"]
 source = "just-bashit:just-makeit"
 config = "just-makeit.toml"
 
+# Package NAMES below are architecture-agnostic per package manager (e.g.
+# apt's "build-essential"/"cmake" resolve on amd64 and arm64 alike) --
+# exercised on both via CI (manylinux_2_28_x86_64) and arm64 builds of
+# deploy/docker/Dockerfile.cli's linux/arm64 source-build path. If a
+# future dependency needs an arch-specific package name/version, add it
+# here rather than special-casing it downstream — this file stays the one
+# place every consumer (CI, both Dockerfiles) reads from.
+
 # No [runtime.*] sections: doppler's FFT is fully vendored (pocketfft +
 # PFFFT, both in vendor/) and the rest of the core is pure C99 + libm, so
 # there is nothing to install at runtime on any platform. (Historically

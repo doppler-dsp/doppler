@@ -1,21 +1,44 @@
+# syntax=docker/dockerfile:1
 # deploy/docker/Dockerfile.cli — published every release as
-# ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest).
+# ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest), linux/amd64 + linux/arm64.
 #
-# Installs the published PyPI wheel rather than building from source: the
-# manylinux wheel already bundles its shared-lib deps via auditwheel repair,
-# so no system build toolchain or -dev packages are needed here at all —
-# this also guarantees the image runs the exact artifact the release
-# workflow already smoke-tested, not a fresh rebuild that could drift from
-# it.
+# linux/amd64: installs the published PyPI wheel. The manylinux wheel
+# already bundles its shared-lib deps via auditwheel repair, so no system
+# build toolchain is needed, and it guarantees the image runs the exact
+# artifact the release workflow already smoke-tested, not an independent
+# rebuild that could drift from it.
+#
+# linux/arm64: there is no manylinux aarch64 wheel on PyPI yet (release.yml
+# only builds x86_64 Linux + macOS arm64), so nothing exists to `pip
+# install` for this architecture. Falls back to building from source —
+# jbx + jb.toml (the single source of truth for doppler's system deps,
+# same as the root Dockerfile) install the dev toolchain, then
+# `pip install .` builds the wheel in place via just-buildit's PEP 517
+# backend. This is an independent build, not validated by smoke-wheel.
 #
 # Usage:
 #   docker run --rm ghcr.io/doppler-dsp/doppler:0.28.0 wfmgen --help
 #   docker run --rm ghcr.io/doppler-dsp/doppler:0.28.0 \
 #       python -c "import doppler; print(doppler.__version__)"
+FROM python:3.12-slim AS source
+WORKDIR /src
+COPY . .
+
 FROM python:3.12-slim
-
 ARG DOPPLER_VERSION
+ARG TARGETARCH
 
-RUN pip install --no-cache-dir "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}"
+RUN --mount=type=bind,from=source,source=/src,target=/src,rw=true \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+        pip install --no-cache-dir "doppler-dsp[cli,specan-web]==${DOPPLER_VERSION}"; \
+    else \
+        apt-get update && apt-get install -y --no-install-recommends \
+            curl ca-certificates sudo bash \
+        && rm -rf /var/lib/apt/lists/* \
+        && bash -c 'export PATH="/root/.local/bin:${PATH}"; \
+            . <(curl -sSL https://just-buildit.github.io/get-jb.sh) && \
+            cd /src && jbx just-bashit:install-deps -g dev -s apt && \
+            pip install --no-cache-dir ".[cli,specan-web]"'; \
+    fi
 
 CMD ["doppler", "--help"]

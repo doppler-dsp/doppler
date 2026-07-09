@@ -448,6 +448,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # linux/arm64 has no manylinux wheel to pip-install (see
+      # Dockerfile.cli) and builds doppler from source under QEMU
+      # emulation instead -- register the emulator so buildx can target it
+      # from this x86_64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -456,6 +465,7 @@ jobs:
         with:
           context: .
           file: deploy/docker/Dockerfile.cli
+          platforms: linux/amd64,linux/arm64
           build-args: |
             DOPPLER_VERSION=${{ needs.verify-version.outputs.version }}
           push: true
@@ -463,10 +473,14 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}
             ghcr.io/${{ github.repository }}:latest
 
-      - name: Smoke-test the pushed image
+      - name: Smoke-test the pushed image (both architectures)
         run: |
-          docker run --rm "ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}" \
-            python -c "import doppler; print('doppler', doppler.__version__)"
+          docker run --rm --platform linux/amd64 \
+            "ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}" \
+            python -c "import doppler; print('doppler (amd64)', doppler.__version__)"
+          docker run --rm --platform linux/arm64 \
+            "ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}" \
+            python -c "import doppler; print('doppler (arm64)', doppler.__version__)"
 
   # ------------------------------------------------------------------
   # GitHub Release with auto-generated notes

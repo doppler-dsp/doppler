@@ -14,6 +14,7 @@ Covers:
 """
 
 import time
+from pathlib import Path
 
 import pytest
 import yaml
@@ -177,6 +178,17 @@ _requires_nats = pytest.mark.skipif(
 )
 
 
+def _tail_log(block, n: int = 4000) -> str:
+    """Best-effort tail of a spawned block's log file, for test failures."""
+    if not block.log_file:
+        return "(no log file)"
+    try:
+        text = Path(block.log_file).read_text()
+    except OSError as e:
+        return f"(could not read {block.log_file}: {e})"
+    return text[-n:]
+
+
 @_requires_nats
 class TestComposeUpLive:
     def test_three_block_chain_spawns_and_moves_data(
@@ -204,29 +216,44 @@ class TestComposeUpLive:
             from doppler.cli.state import pid_alive
 
             time.sleep(1.0)
-            assert pid_alive(tone_block.pid), "tone source process died"
-            assert pid_alive(fir_block.pid), "fir chain process died"
+            assert pid_alive(tone_block.pid), (
+                f"tone source process died: {_tail_log(tone_block)}"
+            )
+            assert pid_alive(fir_block.pid), (
+                f"fir chain process died: {_tail_log(fir_block)}"
+            )
 
             from doppler.stream import Pull
 
             fir_out = f"nats://127.0.0.1:4222/dp-chain-{fir_block.bind_port}"
-            # Pull() needs the JetStream work-queue stream to already
-            # exist, which fir's own Push() provisions on startup -- on a
-            # loaded/shared runner the fir process (Python interpreter
-            # startup + imports) can still be spinning up when this
-            # constructs, so retry rather than racing it once.
+            # dp_pull_create() needs the JetStream work-queue stream to
+            # already exist, which fir's own Push() provisions
+            # synchronously at construction (confirmed in
+            # native/src/stream/stream_nats.c's nats_wire_role /
+            # DP_ROLE_PUSH -> nats_ensure_stream). On a loaded/shared CI
+            # runner, fir's whole Python process (interpreter startup +
+            # doppler.filter/doppler.stream imports, slower under `--cov`
+            # instrumentation) can still be short of that line well past
+            # what looks generous locally -- retry substantially longer
+            # than a dev machine ever needs, and dump both blocks' logs
+            # if it still never comes up.
             pull = None
             last_err = None
-            for _ in range(50):
+            deadline = time.monotonic() + 60.0
+            while time.monotonic() < deadline:
                 try:
                     pull = Pull(fir_out)
                     break
                 except RuntimeError as e:
                     last_err = e
-                    time.sleep(0.2)
-            assert pull is not None, f"Pull() never succeeded: {last_err}"
+                    time.sleep(0.5)
+            assert pull is not None, (
+                f"Pull() never succeeded in 60s: {last_err}\n"
+                f"--- tone log ---\n{_tail_log(tone_block)}\n"
+                f"--- fir log ---\n{_tail_log(fir_block)}"
+            )
             try:
-                samples, hdr = pull.recv(timeout_ms=5000)
+                samples, hdr = pull.recv(timeout_ms=10000)
             finally:
                 pull.close()
             assert len(samples) > 0

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import signal
+import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     import types
 
 RECV_TIMEOUT_MS = 500  # poll interval so SIGTERM is noticed promptly
+CONNECT_TIMEOUT_S = 30.0  # how long to wait for the upstream stage to exist
 
 
 def _log(msg: str) -> None:
@@ -81,8 +83,30 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _stop)
 
+    # Pull(--connect) attaches to the upstream stage's JetStream work-queue
+    # stream, which that stage's own Push() provisions at construction --
+    # if it hasn't started yet (still spinning up its own interpreter /
+    # imports), Pull() raises immediately rather than waiting. Retry
+    # rather than crashing on a startup race every multi-block chain hits.
+    pull = None
+    deadline = time.monotonic() + CONNECT_TIMEOUT_S
+    last_err: Exception | None = None
+    while _running and time.monotonic() < deadline:
+        try:
+            pull = Pull(args.connect)
+            break
+        except RuntimeError as e:
+            last_err = e
+            time.sleep(0.2)
+    if pull is None:
+        _log(
+            f"doppler-fir: giving up connecting to {args.connect} after "
+            f"{CONNECT_TIMEOUT_S:.0f}s: {last_err}"
+        )
+        return
+
     try:
-        with Pull(args.connect) as pull, Push(args.bind, CF64) as push:
+        with pull, Push(args.bind, CF64) as push:
             while _running:
                 try:
                     samples, hdr = pull.recv(timeout_ms=RECV_TIMEOUT_MS)

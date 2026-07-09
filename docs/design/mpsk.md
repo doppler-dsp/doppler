@@ -313,6 +313,14 @@ modulation-agnostic (`|·|²`). It needs a by-value `symsync_init` (additive;
 this is just an in-place init mirroring `costas_init`/`dll_init`). The receiver
 embeds `symsync_state_t` and drives it with the inline `symsync_step`.
 
+`SymbolSync` later gained a second, selectable TED (`ted="dttl"`, a
+decision-directed sign-sign DTTL) alongside Gardner. `MpskReceiver` stays
+hardcoded to `SYMSYNC_TED_GARDNER` at its `symsync_init` call site and does not
+expose `ted`: DTTL's hard-decision decision device is only valid for
+constellations with independent, rectangular I/Q boundaries (BPSK/QPSK), not
+the 8PSK this receiver also supports, so wiring it through is a follow-up, not
+a drop-in default.
+
 ______________________________________________________________________
 
 ## 6. Component reuse

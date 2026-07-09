@@ -70,7 +70,8 @@ mpsk_receiver_create (int m, size_t sps, int n, int pulse, double rrc_beta,
     }
 
   carrier_nda_init (&rx->car, bn_carrier, zeta, init_norm_freq, sps, n, m);
-  symsync_init (&rx->sync, sps, bn_timing, zeta, FARROW_CUBIC);
+  symsync_init (&rx->sync, sps, bn_timing, zeta, FARROW_CUBIC,
+                SYMSYNC_TED_GARDNER);
   rx->mf            = mf;
   rx->mf_taps       = taps;
   rx->m             = m;

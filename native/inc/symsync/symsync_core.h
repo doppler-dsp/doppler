@@ -6,7 +6,7 @@
  *
  * Example:
  * @code
- * symsync_state_t *obj = symsync_create(4, 0.01, 0.707, 0);
+ * symsync_state_t *obj = symsync_create(4, 0.01, 0.707, 0, 0);
  * float complex y = symsync_step(obj, 0.0f + 0.0f * I);
  * symsync_destroy(obj);
  * @endcode
@@ -25,11 +25,18 @@ extern "C"
 {
 #endif
 
+  /** @brief Timing-error-detector selection for symsync_state_t::ted. */
+  enum
+  {
+    SYMSYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).    */
+    SYMSYNC_TED_DTTL = 1     /**< decision-directed sign-sign DTTL.       */
+  };
+
   /**
    * @brief SymbolSync state.
    *
    * Allocate with symsync_create().  Embeds the integer timing NCO, the Farrow
-   * interpolator and the PI loop filter by value; treat the Gardner history as
+   * interpolator and the PI loop filter by value; treat the TED history as
    * internal.
    */
   typedef struct
@@ -39,26 +46,75 @@ extern "C"
     loop_filter_state_t lf;     /**< 2nd-order timing PI loop.              */
     size_t              sps;    /**< nominal samples per symbol.            */
     uint32_t      base_inc;     /**< nominal NCO inc (one wrap / symbol).   */
+    int           ted;          /**< SYMSYNC_TED_GARDNER / _DTTL.           */
     int           have_ontime;  /**< a previous on-time sample exists.      */
     float complex prev_ontime;  /**< previous on-time interpolant.          */
-    float complex mid;          /**< mid-symbol interpolant (Gardner).      */
+    float complex mid;          /**< mid-symbol (transition-gate) sample.   */
     double        bn;           /**< loop noise bandwidth (retained).       */
     double        zeta;         /**< damping factor (retained).             */
-    double        last_error;   /**< last Gardner timing error.             */
+    double        last_error;   /**< last TED timing error.                 */
     double        rate_est;     /**< smoothed tracked samples/symbol.       */
     double        pwr_avg;      /**< running symbol power (TED normaliser).  */
   } symsync_state_t;
+
+  /**
+   * @brief Gardner timing-error detector: Re{ conj(mid) * (y - prev) }.
+   *
+   * Blind (non-data-aided): correlates the transition-gate sample against the
+   * on-time step, so it locks for any constellation but pays a
+   * non-transition-symbol self-noise cost. @see dttl_ted for the
+   * decision-directed alternative.
+   *
+   * @param mid   Mid-symbol (transition-gate) interpolant.
+   * @param diff  on_time[k] - on_time[k-1].
+   * @return Raw (pre-AGC-normalized) timing error.
+   */
+  JM_FORCEINLINE double
+  gardner_ted (float complex mid, float complex diff)
+  {
+    return (double)(crealf (mid) * crealf (diff)
+                    + cimagf (mid) * cimagf (diff));
+  }
+
+  /**
+   * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
+   * transition on each rail.
+   *
+   * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
+   * point-sample reduction): zero unless a rail's hard decision actually
+   * flips between on_time[k-1] and on_time[k], in which case the error is
+   * the transition-gate sample's value on that rail. Valid only for
+   * constellations with independent, rectangular I/Q decision boundaries
+   * (BPSK, QPSK/OQPSK) -- not 8PSK/QAM. Diff order (current minus previous)
+   * matches gardner_ted's convention so both TEDs share one loop-filter
+   * polarity.
+   *
+   * @param mid   Mid-symbol (transition-gate) interpolant.
+   * @param y     on_time[k].
+   * @param prev  on_time[k-1].
+   * @return Raw (pre-AGC-normalized) timing error.
+   */
+  JM_FORCEINLINE double
+  dttl_ted (float complex mid, float complex y, float complex prev)
+  {
+    double si = (crealf (y) >= 0.0f ? 1.0 : -1.0)
+                - (crealf (prev) >= 0.0f ? 1.0 : -1.0);
+    double sq = (cimagf (y) >= 0.0f ? 1.0 : -1.0)
+                - (cimagf (prev) >= 0.0f ? 1.0 : -1.0);
+    return (double)crealf (mid) * si + (double)cimagf (mid) * sq;
+  }
 
   /**
    * @brief Per-sample symbol-timing step (the inline composition API).
    *
    * Pushes one input sample into the Farrow history and advances the integer
    * timing NCO. When the NCO crosses its half-scale (mid-symbol) it stores the
-   * Gardner mid interpolant; when it wraps (on-time) it forms the on-time
-   * interpolant, runs the Gardner TED, steers the NCO frequency, and emits the
-   * timing-corrected symbol. Returns 1 and writes @p y_out on an on-time symbol,
-   * else 0. symsync_steps() is exactly this in a loop; a tracking channel inlines
-   * it to drive a downstream carrier loop on the recovered symbols.
+   * transition-gate interpolant; when it wraps (on-time) it forms the on-time
+   * interpolant, runs the selected TED (s->ted; see gardner_ted / dttl_ted),
+   * steers the NCO frequency, and emits the timing-corrected symbol. Returns 1
+   * and writes @p y_out on an on-time symbol, else 0. symsync_steps() is
+   * exactly this in a loop; a tracking channel inlines it to drive a
+   * downstream carrier loop on the recovered symbols.
    *
    * @param s      State.  Must be non-NULL.
    * @param x      One input sample.
@@ -91,9 +147,14 @@ extern "C"
     int           emit = 0;
     if (s->have_ontime)
       {
-        float complex diff = y - s->prev_ontime;
-        double        num  = (double)(crealf (s->mid) * crealf (diff)
-                                      + cimagf (s->mid) * cimagf (diff));
+        double num;
+        if (s->ted == SYMSYNC_TED_DTTL)
+          num = dttl_ted (s->mid, y, s->prev_ontime);
+        else
+          {
+            float complex diff = y - s->prev_ontime;
+            num                = gardner_ted (s->mid, diff);
+          }
         double inst_pwr
             = (double)(crealf (y) * crealf (y) + cimagf (y) * cimagf (y));
         s->pwr_avg += 0.01 * (inst_pwr - s->pwr_avg);
@@ -131,9 +192,11 @@ extern "C"
    * @param bn     Loop noise bandwidth (normalised to the symbol rate).
    * @param zeta   Damping factor (0.707 = critically damped).
    * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
+   * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
+   *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
    */
   void symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
-                     int order);
+                     int order, int ted);
 
   /**
    * @brief Create a symsync instance.
@@ -142,11 +205,12 @@ extern "C"
    * @param bn  bn (default: 0.01).
    * @param zeta  zeta (default: 0.707).
    * @param order  Enum index; 0=linear…2=cubic.
+   * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
    * @return Heap-allocated state, or NULL on allocation failure.
    * @note Caller must call symsync_destroy() when done.
    */
   symsync_state_t *symsync_create (size_t sps, double bn, double zeta,
-                                   int order);
+                                   int order, int ted);
 
   /**
    * @brief Destroy a symsync instance and release all memory.
@@ -172,7 +236,7 @@ extern "C"
  * pointer-free composition: nco + farrow + loop_filter embedded by value
  * (all POD) + scalar timing state — a whole-struct snapshot. */
 #define SYMSYNC_STATE_MAGIC DP_FOURCC ('S','Y','N','C')
-#define SYMSYNC_STATE_VERSION 1u
+#define SYMSYNC_STATE_VERSION 2u /* v2: ted */
 size_t symsync_state_bytes (const symsync_state_t *state);
 void symsync_get_state (const symsync_state_t *state, void *blob);
 int symsync_set_state (symsync_state_t *state, const void *blob);

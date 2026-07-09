@@ -1,12 +1,13 @@
 /**
  * @file test_symsync_core.c
- * @brief Unit tests for the Gardner symbol-timing synchronizer.
+ * @brief Unit tests for the symbol-timing synchronizer (Gardner + DTTL TEDs).
  *
  * Tests:
  *   1. Lifecycle / order / init parity / reset reproducibility
  *   2. Lock across a range of static timing offsets -> zero BER
  *   3. Clock-rate (asynchronous) tracking -> zero BER + recovered rate
  *   4. All three interpolator orders lock
+ *   5. Both TEDs (Gardner, DTTL) lock on a BPSK stream
  */
 #include "dp_state_test.h"
 #include "symsync/symsync_core.h"
@@ -119,11 +120,13 @@ main (void)
 
   /* 1. Lifecycle / order / reset reproducibility */
   {
-    symsync_state_t *s = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC);
+    symsync_state_t *s
+        = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
     CHECK (s != NULL);
     if (!s)
       return 1;
     CHECK (s->farrow.order == FARROW_CUBIC);
+    CHECK (s->ted == SYMSYNC_TED_GARDNER);
     CHECK (fabs (symsync_get_bn (s) - 0.01) < 1e-12);
     make_signal (rx, bits, NSYM, 1.3, 1.0, 3u);
     size_t k1 = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
@@ -140,7 +143,8 @@ main (void)
     for (int oi = 0; oi < 8; oi++)
       {
         double           off = oi * (double)SPS / 8.0;
-        symsync_state_t *s   = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC);
+        symsync_state_t *s   = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC,
+                                               SYMSYNC_TED_GARDNER);
         make_signal (rx, bits, NSYM, off, 1.0, 7u);
         size_t k   = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
         double ber = tail_ber (sym, k, bits, NSYM);
@@ -154,7 +158,8 @@ main (void)
     double rates[3] = { 1.0, 1.005, 0.995 };
     for (int ri = 0; ri < 3; ri++)
       {
-        symsync_state_t *s = symsync_create (SPS, 0.005, 0.707, FARROW_CUBIC);
+        symsync_state_t *s = symsync_create (SPS, 0.005, 0.707, FARROW_CUBIC,
+                                             SYMSYNC_TED_GARDNER);
         make_signal (rx, bits, NSYM, 1.3, rates[ri], 11u);
         size_t k   = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
         double ber = tail_ber (sym, k, bits, NSYM);
@@ -169,8 +174,29 @@ main (void)
   {
     for (int order = 0; order <= 2; order++)
       {
-        symsync_state_t *s = symsync_create (SPS, 0.01, 0.707, order);
+        symsync_state_t *s
+            = symsync_create (SPS, 0.01, 0.707, order, SYMSYNC_TED_GARDNER);
         make_signal (rx, bits, NSYM, 1.7, 1.0, 13u);
+        size_t k = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
+        CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
+        symsync_destroy (s);
+      }
+  }
+
+  /* 5. Both TEDs lock on a BPSK stream. DTTL's sign() decision device is
+   * only valid for BPSK/QPSK-like independent I/Q rails; make_signal()'s
+   * stream is real-valued BPSK so both TEDs are in their valid domain here.
+   * DTTL's decision-directed detector gain differs from Gardner's smooth
+   * product, so the same nominal bn does not yield the same loop bandwidth
+   * across TEDs -- this only asserts lock (zero BER), not a bandwidth
+   * target. */
+  {
+    int teds[2] = { SYMSYNC_TED_GARDNER, SYMSYNC_TED_DTTL };
+    for (int ti = 0; ti < 2; ti++)
+      {
+        symsync_state_t *s
+            = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, teds[ti]);
+        make_signal (rx, bits, NSYM, 2.1, 1.0, 17u);
         size_t k = symsync_steps (s, rx, NSYM * SPS, sym, NSYM);
         CHECK (tail_ber (sym, k, bits, NSYM) == 0.0);
         symsync_destroy (s);
@@ -186,11 +212,12 @@ main (void)
    * instances and may contract FMAs differently between the two, ~1 ULP, which
    * is a codegen artifact, not a state difference.) */
   {
-    symsync_state_t *c = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC);
+    symsync_state_t *c
+        = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
     /* poison the target so memset-or-not is actually exercised */
     symsync_state_t v;
     memset (&v, 0xFF, sizeof v);
-    symsync_init (&v, SPS, 0.01, 0.707, FARROW_CUBIC);
+    symsync_init (&v, SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
     CHECK (memcmp (c, &v, sizeof *c) == 0); /* init == create, byte-for-byte */
     symsync_destroy (c);
   }
@@ -208,13 +235,16 @@ main (void)
     float complex rx[256], sym[32];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 8) - 4.0f + 0.3f * I;
-    symsync_state_t *a = symsync_create (8, 0.01, 0.707, FARROW_CUBIC);
-    symsync_state_t *b = symsync_create (8, 0.01, 0.707, FARROW_CUBIC);
+    symsync_state_t *a
+        = symsync_create (8, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
+    symsync_state_t *b
+        = symsync_create (8, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
     CHECK (a != NULL && b != NULL);
     (void)symsync_steps (a, rx, 256, sym, 32);
     DP_STATE_ROUNDTRIP_TEST (symsync, a, b);
     CHECK (b->timing.phase == a->timing.phase); /* nco child */
     CHECK (b->last_error == a->last_error);
+    CHECK (b->ted == a->ted);
     symsync_destroy (a);
     symsync_destroy (b);
   }

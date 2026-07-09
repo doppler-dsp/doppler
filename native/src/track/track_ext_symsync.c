@@ -45,16 +45,18 @@ SymbolSyncObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 SymbolSyncObj_init (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
 {
-  static char       *kwlist[]  = { "order", "sps", "bn", "zeta", NULL };
-  const char        *order_str = "cubic";
+  static char       *kwlist[]  = { "sps", "bn", "zeta", "order", "ted", NULL };
   unsigned long long sps_raw   = 4;
   double             bn        = 0.01;
   double             zeta      = 0.707;
+  const char        *order_str = "cubic";
+  const char        *ted_str   = "gardner";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|sKdd", kwlist, &order_str,
-                                    &sps_raw, &bn, &zeta))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|Kddss", kwlist, &sps_raw,
+                                    &bn, &zeta, &order_str, &ted_str))
     return -1;
-  int order = 0;
+  size_t sps   = (size_t)sps_raw;
+  int    order = 0;
   if (strcmp (order_str, "linear") == 0)
     order = 0;
   else if (strcmp (order_str, "parabolic") == 0)
@@ -69,8 +71,19 @@ SymbolSyncObj_init (SymbolSyncObject *self, PyObject *args, PyObject *kwds)
                     order_str);
       return -1;
     }
-  size_t sps   = (size_t)sps_raw;
-  self->handle = symsync_create (sps, bn, zeta, order);
+  int ted = 0;
+  if (strcmp (ted_str, "gardner") == 0)
+    ted = 0;
+  else if (strcmp (ted_str, "dttl") == 0)
+    ted = 1;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "ted must be one of \"gardner\", \"dttl\", got '%s'",
+                    ted_str);
+      return -1;
+    }
+  self->handle = symsync_create (sps, bn, zeta, order, ted);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_MemoryError, "symsync_create returned NULL");
@@ -400,14 +413,15 @@ static PyMethodDef SymbolSyncObj_methods[] = {
   { "steps", (PyCFunction)SymbolSyncObj_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x) -> ndarray\n"
     "\n"
-    "Recover symbol timing from an oversampled cf32 baseband block: a Gardner "
-    "timing-error detector drives an integer timing NCO whose post-wrap value "
-    "gives the interpolation fraction for free, and a Farrow interpolator "
-    "emits one symbol-rate sample per recovered symbol instant.\n"
+    "Recover symbol timing from an oversampled cf32 baseband block: a "
+    "timing-error detector (Gardner or DTTL, see the `ted` param) drives an "
+    "integer timing NCO whose post-wrap value gives the interpolation "
+    "fraction for free, and a Farrow interpolator emits one symbol-rate "
+    "sample per recovered symbol instant.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import SymbolSync\n"
-    "    >>> obj = SymbolSync(\"cubic\", 4, 0.01, 0.707)\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
     "    >>> y = obj.steps(np.zeros(4))\n"
     "    >>> y.dtype\n"
     "    dtype('complex64')\n" },
@@ -423,7 +437,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import SymbolSync\n"
-    "    >>> obj = SymbolSync(\"cubic\", 4, 0.01, 0.707)\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
     "    >>> obj.configure(0.0, 0.0)\n" },
   { "reset", (PyCFunction)SymbolSyncObj_reset, METH_NOARGS,
     "reset() -> None\n"
@@ -431,7 +445,7 @@ static PyMethodDef SymbolSyncObj_methods[] = {
     "Re-seed the timing loop to its nominal rate and zero phase.\n"
     "\n"
     "    >>> from doppler import SymbolSync\n"
-    "    >>> obj = SymbolSync(\"cubic\", 4, 0.01, 0.707)\n"
+    "    >>> obj = SymbolSync(4, 0.01, 0.707, \"cubic\", \"gardner\")\n"
     "    >>> obj.reset()\n" },
   { "state_bytes", (PyCFunction)SymbolSyncObj_state_bytes, METH_NOARGS,
     "Serialized state size in bytes." },

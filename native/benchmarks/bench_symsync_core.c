@@ -49,7 +49,8 @@ main (void)
   printf ("=== symsync benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  symsync_state_t *s = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC);
+  symsync_state_t *s
+      = symsync_create (SPS, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
   symsync_steps (s, x, SPS * 64, out, BENCH_N); /* warmup */
 
   double times[ITERATIONS];

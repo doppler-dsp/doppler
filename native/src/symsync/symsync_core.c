@@ -31,7 +31,7 @@ seed (symsync_state_t *s)
 
 void
 symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
-              int order)
+              int order, int ted)
 {
   /* Zero first so an in-place (stack-embedded) init byte-matches the
    * calloc + init done by symsync_create: seed() sets only the timing NCO's
@@ -41,18 +41,19 @@ symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
   s->bn       = bn;
   s->zeta     = zeta;
   s->base_inc = nominal_inc (s->sps);
+  s->ted      = ted;
   farrow_init (&s->farrow, order);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* one update per symbol */
   seed (s);
 }
 
 symsync_state_t *
-symsync_create (size_t sps, double bn, double zeta, int order)
+symsync_create (size_t sps, double bn, double zeta, int order, int ted)
 {
   symsync_state_t *obj = calloc (1, sizeof (*obj));
   if (!obj)
     return NULL;
-  symsync_init (obj, sps, bn, zeta, order);
+  symsync_init (obj, sps, bn, zeta, order, ted);
   return obj;
 }
 

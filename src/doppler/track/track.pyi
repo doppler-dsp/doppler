@@ -358,19 +358,21 @@ class SymbolSync:
         zeta constructor parameter.
     order : Literal["linear", "parabolic", "cubic"], default "cubic"
         order constructor parameter.
+    ted : Literal["gardner", "dttl"], default "gardner"
+        Timing-error detector: "gardner" (blind, works for any constellation) or "dttl" (decision-directed sign-sign Data Transition Tracking Loop; lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK only -- invalid for 8PSK/QAM).
 
     Examples
     --------
     Create with defaults:
 
     >>> from doppler.track import SymbolSync
-    >>> obj = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic")
+    >>> obj = SymbolSync(sps=4, bn=0.01, zeta=0.707, order="cubic", ted="gardner")
 
     """
-    def __init__(self, sps: int = ..., bn: float = ..., zeta: float = ..., order: Literal["linear", "parabolic", "cubic"] = "cubic") -> None: ...
+    def __init__(self, sps: int = ..., bn: float = ..., zeta: float = ..., order: Literal["linear", "parabolic", "cubic"] = "cubic", ted: Literal["gardner", "dttl"] = "gardner") -> None: ...
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Recover symbol timing from an oversampled cf32 baseband block: a Gardner timing-error detector drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant.
+        """Recover symbol timing from an oversampled cf32 baseband block: a timing-error detector (Gardner or DTTL, see the `ted` param) drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant.
 
         Parameters
         ----------

@@ -13,6 +13,43 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.28.1] — 2026-07-09
+
+### Added
+
+- **Every release now publishes a container image**,
+    `ghcr.io/doppler-dsp/doppler:X.Y.Z` (+ `:latest`), for `linux/amd64` and
+    `linux/arm64` — `doppler`, `doppler-fir`, `doppler-source`,
+    `doppler-specan`, and `wfmgen` are all on `PATH`, with the `cli` and
+    `specan-web` extras pre-installed:
+    ```sh
+    docker pull ghcr.io/doppler-dsp/doppler:latest
+    docker run --rm ghcr.io/doppler-dsp/doppler wfmgen --help
+    ```
+    `linux/amd64` installs the exact wheel already published to PyPI;
+    `linux/arm64` (no manylinux wheel exists yet) builds from source at
+    image-build time. See [Docker](docs/install/docker.md#published-container).
+
+### Fixed
+
+- **`doppler compose` with a `fir` chain stage was completely broken** —
+    `FirBlock` referenced a `doppler-fir` console script that was never
+    registered, so `doppler compose init tone fir specan && doppler compose up`
+    (the literal example in the CLI docs and quickstart guide) failed with
+    `FileNotFoundError: 'doppler-fir'`. Implements the missing script (a
+    `Pull` → `FIR.execute()` → `Push` chain block, matching `doppler-source`'s
+    structure) and registers it in `pyproject.toml`.
+
+### Removed
+
+- **Dead `fftw` system dependency dropped everywhere** — doppler's FFT has
+    been fully vendored (pocketfft + PFFFT) for a while; every
+    fftw/libfftw3/fftw-devel package declaration across `jb.toml` (the
+    project's system-deps source of truth), both Dockerfiles, and both CI
+    workflows was leftover dead weight. Also removed two straggler
+    `zeromq-devel`/`zeromq` entries in the release workflow that the earlier
+    ZMQ-removal work missed.
+
 ## [0.28.0] — 2026-07-08
 
 ### Changed
@@ -1961,6 +1998,7 @@ ______________________________________________________________________
 [0.26.1]: https://github.com/doppler-dsp/doppler/compare/v0.26.0...v0.26.1
 [0.27.0]: https://github.com/doppler-dsp/doppler/compare/v0.26.1...v0.27.0
 [0.28.0]: https://github.com/doppler-dsp/doppler/compare/v0.27.0...v0.28.0
+[0.28.1]: https://github.com/doppler-dsp/doppler/compare/v0.28.0...v0.28.1
 [0.3.1]: https://github.com/doppler-dsp/doppler/compare/v0.2.9...v0.3.1
 [0.3.2]: https://github.com/doppler-dsp/doppler/compare/v0.3.1...v0.3.2
 [0.3.3]: https://github.com/doppler-dsp/doppler/compare/v0.3.2...v0.3.3
@@ -1980,4 +2018,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.28.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.28.1...HEAD

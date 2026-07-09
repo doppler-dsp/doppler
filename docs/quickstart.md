@@ -18,6 +18,20 @@ The wheel bundles all native dependencies — no system libraries required.
 
     See [Install → Python](install/python.md) for the full extras table.
 
+!!! tip "Or pull the container image"
+
+    Every release publishes a ready-to-run image with the `cli` and
+    `specan-web` extras pre-installed — `doppler`, `doppler-fir`,
+    `doppler-source`, `doppler-specan`, and `wfmgen` are all on `PATH`:
+
+    ```bash
+    docker pull ghcr.io/doppler-dsp/doppler:latest
+    docker run --rm ghcr.io/doppler-dsp/doppler wfmgen --help
+    ```
+
+    Built for both `linux/amd64` and `linux/arm64`. See
+    [Docker](install/docker.md#published-container) for details.
+
 ______________________________________________________________________
 
 ## Signal processing

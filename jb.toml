@@ -10,37 +10,30 @@ groups = ["runtime", "dev"]
 source = "just-bashit:just-makeit"
 config = "just-makeit.toml"
 
-[runtime.apt]
-packages = [
-    "libfftw3-dev",
-    "libfftw3-bin",
-]
+# Package NAMES below are architecture-agnostic per package manager (e.g.
+# apt's "build-essential"/"cmake" resolve on amd64 and arm64 alike) --
+# exercised on both via CI (manylinux_2_28_x86_64) and arm64 builds of
+# deploy/docker/Dockerfile.cli's linux/arm64 source-build path. If a
+# future dependency needs an arch-specific package name/version, add it
+# here rather than special-casing it downstream — this file stays the one
+# place every consumer (CI, both Dockerfiles) reads from.
 
-[runtime.pacman]
-packages = [
-    "fftw",
-]
+# No [runtime.*] sections: doppler's FFT is fully vendored (pocketfft +
+# PFFFT, both in vendor/) and the rest of the core is pure C99 + libm, so
+# there is nothing to install at runtime on any platform. (Historically
+# listed libfftw3/fftw here before the FFT was vendored in-tree; removed
+# once confirmed dead — zero references to fftw3.h/fftw_* anywhere in
+# native/ or CMakeLists.txt.)
 
-[runtime.brew]
-packages = [
-    "fftw",
-]
-
-[runtime.dnf]
-packages = [
-    "fftw-devel",
-]
-
-[runtime.zypper]
-packages = [
-    "fftw3-devel",
-]
-
-[runtime.msys2]
-packages = [
-    "mingw-w64-ucrt-x86_64-fftw",
-]
-
+# patchelf is only exercised when `pip install .`/`python -m build` runs the
+# full wheel build+repair path (auditwheel) from a bare Linux image, as
+# opposed to `make build`/`make pyext`'s local cmake+extension loop, which
+# never touches it. The manylinux containers release.yml's build-python job
+# uses already bundle it; deploy/docker/Dockerfile.cli's linux/arm64
+# source-build path (no manylinux wheel exists for that arch) is the other
+# consumer, on a bare python:3.12-slim + jbx dev group. Not listed for brew
+# (macOS wheel repair uses delocate-wheel, not auditwheel/patchelf) or
+# msys2 (Windows isn't a wheel-building target here).
 [dev.apt]
 packages = [
     "build-essential",
@@ -48,6 +41,7 @@ packages = [
     "pkg-config",
     "python3-dev",
     "python3-numpy",
+    "patchelf",
 ]
 
 [dev.pacman]
@@ -58,6 +52,7 @@ packages = [
     "python",
     "python-numpy",
     "rust",
+    "patchelf",
 ]
 
 [dev.brew]
@@ -74,6 +69,7 @@ packages = [
     "pkgconf-pkg-config",
     "python3-devel",
     "python3-numpy",
+    "patchelf",
 ]
 
 [dev.zypper]
@@ -84,6 +80,7 @@ packages = [
     "pkg-config",
     "python3-devel",
     "python3-numpy",
+    "patchelf",
 ]
 
 [dev.msys2]

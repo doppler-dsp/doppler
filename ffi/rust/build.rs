@@ -21,18 +21,6 @@ fn main() {
         build_dir.join("native/src/fft").display()
     );
 
-    // Homebrew on macOS does not add its lib dir to the default linker
-    // search path. Add both Apple-Silicon (/opt/homebrew) and Intel
-    // (/usr/local) prefixes so libfftw3 is found regardless of the runner
-    // architecture.
-    if target_os == "macos" {
-        for path in &["/opt/homebrew/lib", "/usr/local/lib"] {
-            if std::path::Path::new(path).exists() {
-                println!("cargo:rustc-link-search=native={}", path);
-            }
-        }
-    }
-
     if target_os == "windows" {
         // Static link on Windows: avoids pseudo-relocation failures and
         // the DLL runtime dependency. LTO is disabled on MinGW in CMake

@@ -8,6 +8,8 @@ Covers:
   - SpecanBlock: terminal and web mode commands
 """
 
+import shutil
+
 import pytest
 
 import doppler.cli.blocks.fir
@@ -63,13 +65,17 @@ class TestToneBlock:
 
     def test_command_contains_bind(self):
         cfg = ToneConfig()
-        cmd = ToneBlock().command(cfg, None, "tcp://127.0.0.1:5600")
+        cmd = ToneBlock().command(
+            cfg, None, "nats://127.0.0.1:4222/dp-chain-5600"
+        )
         assert "--bind" in cmd
-        assert "tcp://127.0.0.1:5600" in cmd
+        assert "nats://127.0.0.1:4222/dp-chain-5600" in cmd
 
     def test_command_contains_params(self):
         cfg = ToneConfig(sample_rate=1e6, tone_freq=200e3)
-        cmd = ToneBlock().command(cfg, None, "tcp://127.0.0.1:5600")
+        cmd = ToneBlock().command(
+            cfg, None, "nats://127.0.0.1:4222/dp-chain-5600"
+        )
         assert "--fs" in cmd
         assert "1000000.0" in cmd
         assert "--tone-freq" in cmd
@@ -77,7 +83,9 @@ class TestToneBlock:
 
     def test_command_no_input_addr(self):
         cfg = ToneConfig()
-        cmd = ToneBlock().command(cfg, None, "tcp://127.0.0.1:5600")
+        cmd = ToneBlock().command(
+            cfg, None, "nats://127.0.0.1:4222/dp-chain-5600"
+        )
         assert "--connect" not in cmd
 
 
@@ -95,20 +103,20 @@ class TestFirBlock:
         cfg = FirConfig()
         cmd = FirBlock().command(
             cfg,
-            "tcp://127.0.0.1:5600",
-            "tcp://127.0.0.1:5601",
+            "nats://127.0.0.1:4222/dp-chain-5600",
+            "nats://127.0.0.1:4222/dp-chain-5601",
         )
         assert "--connect" in cmd
-        assert "tcp://127.0.0.1:5600" in cmd
+        assert "nats://127.0.0.1:4222/dp-chain-5600" in cmd
         assert "--bind" in cmd
-        assert "tcp://127.0.0.1:5601" in cmd
+        assert "nats://127.0.0.1:4222/dp-chain-5601" in cmd
 
     def test_command_with_taps(self):
         cfg = FirConfig(taps=[0.25, 0.5, 0.25])
         cmd = FirBlock().command(
             cfg,
-            "tcp://127.0.0.1:5600",
-            "tcp://127.0.0.1:5601",
+            "nats://127.0.0.1:4222/dp-chain-5600",
+            "nats://127.0.0.1:4222/dp-chain-5601",
         )
         assert "--taps" in cmd
         assert "0.25" in cmd
@@ -118,17 +126,21 @@ class TestFirBlock:
         cfg = FirConfig(taps=[])
         cmd = FirBlock().command(
             cfg,
-            "tcp://127.0.0.1:5600",
-            "tcp://127.0.0.1:5601",
+            "nats://127.0.0.1:4222/dp-chain-5600",
+            "nats://127.0.0.1:4222/dp-chain-5601",
         )
         assert "--taps" not in cmd
 
     def test_requires_both_addrs(self):
         cfg = FirConfig()
         with pytest.raises(AssertionError):
-            FirBlock().command(cfg, None, "tcp://127.0.0.1:5601")
+            FirBlock().command(
+                cfg, None, "nats://127.0.0.1:4222/dp-chain-5601"
+            )
         with pytest.raises(AssertionError):
-            FirBlock().command(cfg, "tcp://127.0.0.1:5600", None)
+            FirBlock().command(
+                cfg, "nats://127.0.0.1:4222/dp-chain-5600", None
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -144,23 +156,29 @@ class TestSpecanBlock:
 
     def test_terminal_command(self):
         cfg = SpecanConfig(mode="terminal")
-        cmd = SpecanBlock().command(cfg, "tcp://127.0.0.1:5601", None)
+        cmd = SpecanBlock().command(
+            cfg, "nats://127.0.0.1:4222/dp-chain-5601", None
+        )
         assert "--source" in cmd
         assert "pull" in cmd
         assert "--address" in cmd
-        assert "tcp://127.0.0.1:5601" in cmd
+        assert "nats://127.0.0.1:4222/dp-chain-5601" in cmd
         assert "--web" not in cmd
 
     def test_web_command_includes_web_flag(self):
         cfg = SpecanConfig(mode="web", web_port=9090)
-        cmd = SpecanBlock().command(cfg, "tcp://127.0.0.1:5601", None)
+        cmd = SpecanBlock().command(
+            cfg, "nats://127.0.0.1:4222/dp-chain-5601", None
+        )
         assert "--web" in cmd
         assert "--port" in cmd
         assert "9090" in cmd
 
     def test_optional_display_params(self):
         cfg = SpecanConfig(span=200e3, rbw=500.0, level=-40.0)
-        cmd = SpecanBlock().command(cfg, "tcp://127.0.0.1:5601", None)
+        cmd = SpecanBlock().command(
+            cfg, "nats://127.0.0.1:4222/dp-chain-5601", None
+        )
         assert "--span" in cmd
         assert "--rbw" in cmd
         assert "--level" in cmd
@@ -169,3 +187,35 @@ class TestSpecanBlock:
         cfg = SpecanConfig()
         with pytest.raises(AssertionError):
             SpecanBlock().command(cfg, None, None)
+
+
+# ---------------------------------------------------------------------------
+# Every registered block's command must resolve to a real executable.
+#
+# Regression guard: FirBlock.command() returned ["doppler-fir", ...] for a
+# release and a half before anything backed that name — no console-script
+# entry point, no module, nothing. `doppler compose up` would spawn it and
+# fail with FileNotFoundError. Nothing caught this because every existing
+# test here only inspects the argv list, never checks that argv[0] is
+# actually installed. This test would have failed the moment FirBlock was
+# registered without doppler-fir existing.
+# ---------------------------------------------------------------------------
+
+
+class TestBlockExecutablesExist:
+    def test_every_block_executable_is_installed(self):
+        dummy_in = "nats://127.0.0.1:4222/dp-chain-test-in"
+        dummy_out = "nats://127.0.0.1:4222/dp-chain-test-out"
+        missing = []
+        for name, cls in sorted(all_blocks().items()):
+            cfg = cls.Config()
+            input_addr = None if cls.role == "source" else dummy_in
+            output_addr = None if cls.role == "sink" else dummy_out
+            cmd = cls().command(cfg, input_addr, output_addr)
+            exe = cmd[0]
+            if shutil.which(exe) is None:
+                missing.append(f"{name!r} -> {exe!r}")
+        assert not missing, (
+            "block(s) reference an executable that isn't installed/on "
+            f"PATH: {missing}"
+        )

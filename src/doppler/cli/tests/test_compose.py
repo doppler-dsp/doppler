@@ -10,7 +10,11 @@ Covers:
   - Unknown block name raises KeyError
   - Wrong roles raise ValueError
   - Too-few blocks (< 2) raises ValueError
+  - Live `compose up`: real subprocesses, real nats:// data flow
 """
+
+import time
+from pathlib import Path
 
 import pytest
 import yaml
@@ -20,6 +24,7 @@ import doppler.cli.blocks.specan
 import doppler.cli.blocks.tone  # noqa: F401
 from doppler.cli import compose as compose_mod
 from doppler.cli import ports as ports_mod
+from doppler.cli.state import stop_chain
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -145,3 +150,113 @@ class TestComposeInitErrors:
         monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
         with pytest.raises(ValueError, match="sink"):
             compose_mod.init(["tone", "fir"])
+
+
+# ---------------------------------------------------------------------------
+# Live `compose up` — actually spawns the block subprocesses over a real
+# nats-server. This is the level `TestComposeInit` above never reaches: it
+# only inspects the scaffolded YAML, never runs `up()`. That gap is exactly
+# how FirBlock shipped referencing a `doppler-fir` executable that had no
+# console-script entry point behind it -- `doppler compose up` with any
+# 3-block chain failed with FileNotFoundError, and nothing here caught it.
+# ---------------------------------------------------------------------------
+
+
+def _nats_available() -> bool:
+    import socket
+
+    try:
+        socket.create_connection(("127.0.0.1", 4222), timeout=0.3).close()
+        return True
+    except OSError:
+        return False
+
+
+_requires_nats = pytest.mark.skipif(
+    not _nats_available(),
+    reason="no nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
+)
+
+
+def _tail_log(block, n: int = 4000) -> str:
+    """Best-effort tail of a spawned block's log file, for test failures."""
+    if not block.log_file:
+        return "(no log file)"
+    try:
+        text = Path(block.log_file).read_text()
+    except OSError as e:
+        return f"(could not read {block.log_file}: {e})"
+    return text[-n:]
+
+
+@_requires_nats
+class TestComposeUpLive:
+    def test_three_block_chain_spawns_and_moves_data(
+        self, tmp_path, monkeypatch
+    ):
+        """tone -> fir -> specan: the exact chain from docs/cli/index.md.
+
+        specan's terminal mode needs a real TTY and can't run headless
+        under subprocess.Popen (a separate, pre-existing limitation
+        unrelated to this test) -- so this only asserts on tone and fir,
+        the two blocks compose actually needs to get right for this bug.
+        It pulls directly from fir's output subject to prove real,
+        filtered samples cross the whole nats:// wiring compose.up()
+        computed, not just that the processes stay alive.
+        """
+        monkeypatch.setattr(compose_mod, "_CHAINS_DIR", tmp_path)
+        monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
+
+        path = compose_mod.init(["tone", "fir", "specan"], name="live-test")
+        chain = compose_mod.up(path)
+        try:
+            fir_block = next(b for b in chain.blocks if b.name == "fir")
+            tone_block = next(b for b in chain.blocks if b.name == "tone")
+
+            from doppler.cli.state import pid_alive
+
+            time.sleep(1.0)
+            assert pid_alive(tone_block.pid), (
+                f"tone source process died: {_tail_log(tone_block)}"
+            )
+            assert pid_alive(fir_block.pid), (
+                f"fir chain process died: {_tail_log(fir_block)}"
+            )
+
+            from doppler.stream import Pull
+
+            fir_out = f"nats://127.0.0.1:4222/dp-chain-{fir_block.bind_port}"
+            # dp_pull_create() needs the JetStream work-queue stream to
+            # already exist, which fir's own Push() provisions
+            # synchronously at construction (confirmed in
+            # native/src/stream/stream_nats.c's nats_wire_role /
+            # DP_ROLE_PUSH -> nats_ensure_stream). On a loaded/shared CI
+            # runner, fir's whole Python process (interpreter startup +
+            # doppler.filter/doppler.stream imports, slower under `--cov`
+            # instrumentation) can still be short of that line well past
+            # what looks generous locally -- retry substantially longer
+            # than a dev machine ever needs, and dump both blocks' logs
+            # if it still never comes up.
+            pull = None
+            last_err = None
+            deadline = time.monotonic() + 60.0
+            while time.monotonic() < deadline:
+                try:
+                    pull = Pull(fir_out)
+                    break
+                except RuntimeError as e:
+                    last_err = e
+                    time.sleep(0.5)
+            assert pull is not None, (
+                f"Pull() never succeeded in 60s: {last_err}\n"
+                f"--- tone log ---\n{_tail_log(tone_block)}\n"
+                f"--- fir log ---\n{_tail_log(fir_block)}"
+            )
+            try:
+                samples, hdr = pull.recv(timeout_ms=10000)
+            finally:
+                pull.close()
+            assert len(samples) > 0
+            assert hdr["sample_rate"] > 0
+        finally:
+            stop_chain(chain, kill=True)

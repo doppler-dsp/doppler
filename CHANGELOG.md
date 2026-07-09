@@ -13,6 +13,22 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`dp_tlm` telemetry taps** (`native/inc/telemetry/telemetry.h`) — a
+    lightweight C99 primitive for observing scalar internals of running DSP
+    objects (tracking-loop stress, AGC gain, lock metrics) as time series.
+    Detached cost is one predicted-not-taken branch per *event*; attached
+    cost is a per-probe decimation check plus one 16-byte record into a
+    lock-free VM-mirrored SPSC ring (drop-on-overrun — the producer never
+    blocks). Named probe registry, caller-stamped sample index, non-blocking
+    `dp_tlm_read` drain, `-DDP_TLM_DISABLE` compile-out. The new
+    `DP_DEFINE_POD_STATE_TLM` macro (`dp_state.h`) keeps instrumented objects
+    serialization-safe: the attachment is zeroed in state blobs and preserved
+    across restore. Design doc: `docs/design/telemetry.md`. Object
+    instrumentation (AGC first) and the Python `Telemetry` module land in
+    follow-up PRs.
+
 ## [0.28.1] — 2026-07-09
 
 ### Added

@@ -1,15 +1,21 @@
 # Multi-stage Dockerfile for doppler library
 FROM ubuntu:22.04 AS builder
 
-# Install build dependencies
+# jb.toml is the single source of truth for doppler's system deps (dev +
+# runtime groups) — install jbx and read it from there rather than
+# hand-copying a package list here that would silently drift from it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    pkg-config \
-    libfftw3-dev \
+    curl ca-certificates sudo bash \
     && rm -rf /var/lib/apt/lists/*
+ENV PATH="/root/.local/bin:${PATH}"
 
 WORKDIR /build
+
+# jb.toml first so this layer caches independently of source changes.
+COPY jb.toml .
+# process substitution (<()) needs bash — /bin/sh here is dash.
+RUN bash -c ". <(curl -sSL https://just-buildit.github.io/get-jb.sh) && \
+    jbx just-bashit:install-deps -g dev -s apt"
 
 # Copy source files
 COPY CMakeLists.txt .
@@ -22,12 +28,8 @@ COPY examples/ examples/
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release -S . && \
     cmake --build build -j"$(nproc)"
 
-# Runtime stage
+# Runtime stage — the C core is pure C99 + libm; no system packages needed.
 FROM ubuntu:22.04
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libfftw3-3 \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

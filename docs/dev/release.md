@@ -145,20 +145,26 @@ verify-ci       ──  poll the "CI passed" aggregator on the tagged SHA
     │                (the merge to main already ran the full suite — we do
     │                 NOT re-test here, we confirm it was green)
     ▼
-build-python ── matrix ──┬── ubuntu-latest  (manylinux_2_28 x86_64 wheels via cibuildwheel)
-                         └── macos-14       (arm64 wheels via cibuildwheel)
+build-python  ──  manylinux_2_28 x86_64 wheels, one docker run per cp3x
+build-macos   ──  macOS arm64 wheels, one `uv venv` per Python version
+build-sdist   ──  source distribution
+build-c-linux ──  C library tarball (linux-x86_64)
+build-c-macos ──  C library tarball (macos-arm64)
+    │  (all five build-* jobs run in parallel, gated only on verify-version)
+    ▼
+smoke-wheel      ──  pip-install the built wheel + run deploy/validation/wfm_e2e.py
+    │                 (smoke-tests the ARTIFACT, not the source tree)
+    ▼
+publish-python   ──  PyPI (OIDC trusted publishing, no token needed)
     │
     ▼
-smoke-wheel     ──  pip-install the built wheel + run deploy/validation/wfm_e2e.py
-    │                (smoke-tests the ARTIFACT, not the source tree)
+publish-container ──  ghcr.io/doppler-dsp/doppler:X.Y.Z (+ :latest) —
+    │                  pip-installs the just-published wheel, no rebuild
     ▼
-publish-python  ──  PyPI (OIDC trusted publishing, no token needed)
+github-release   ──  GitHub Release + auto-generated notes + wheel/tarball attachments
     │
     ▼
-github-release  ──  GitHub Release + auto-generated notes + wheel attachments
-    │
-    ▼
-smoke-c         ──  download the published C tarball; find_package + pkg-config
+smoke-c          ──  download the published C tarball; find_package + pkg-config
 ```
 
 The release pipeline **does not re-run the test suite** — the bump PR's merge
@@ -167,12 +173,21 @@ tagged commit (`verify-ci` polls the `ci-passed` aggregator job in `ci.yml`),
 then builds, smoke-tests the built wheel, and publishes. This matches the
 canonical `release-process` skill.
 
-**What cibuildwheel does per Python version (cp312, cp313):**
+**How each wheel is actually built** (no `cibuildwheel` — `just-buildit` is a
+minimal PEP 517 backend driving the whole thing):
 
-1. `before-all` — install system deps (`zeromq-devel`, `fftw-devel`), build C library
-1. `before-build` — clean stale `.so` files, build and copy extensions for this interpreter
-1. `uv_build` — package the wheel
-1. `repair-wheel-command` (`scripts/retag_wheel.sh`) — retag `py3-none-any` → `cpXYZ-cpXYZ`, then `auditwheel repair` (Linux) / `delocate-wheel` (macOS) to bundle shared-lib deps
+1. **Linux** — one `docker run` per `cp3x` inside `quay.io/pypa/manylinux_2_28_x86_64`,
+    installing `cmake`/`pkg-config` (`fftw`/`zeromq` were dropped once the FFT was
+    fully vendored and ZMQ was removed — see CHANGELOG) plus `numpy`/`uv`/`build`/
+    `just-buildit`, then `python -m build --no-isolation --wheel`.
+1. **macOS** — a `uv venv` per Python version on `macos-14`, same
+    `python -m build` invocation, system deps from `jbx just-bashit:install-deps`
+    (reads `jb.toml`, the single source of truth for doppler's system deps).
+1. `just-buildit`'s backend (`make just-build` → cmake + pyext) assembles the
+    wheel from the build's output dir, detects the platform tag from the `.so`
+    suffix, and runs `auditwheel repair` (Linux, via `uvx`) / `delocate-wheel`
+    (macOS) to bundle shared-lib deps into the wheel — this is why the
+    published wheel needs zero system packages to `pip install`.
 
 **`verify-version` checks** — the workflow fails immediately if any of these disagree with the tag:
 

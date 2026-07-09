@@ -56,7 +56,7 @@ PYTHON_EXECUTABLE ?= $(shell uv run python -c \
     'import sys; print(sys.executable)' 2>/dev/null || which python3)
 PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
 # Extra cmake args passed through to every configure step.
-# Example: make build CMAKE_ARGS="-DUSE_FFTW=OFF"
+# Example: make build CMAKE_ARGS="-DENABLE_SIMD=OFF"
 CMAKE_ARGS  ?=
 # Everyday `make build` / `make pyext` target a PORTABLE baseline
 # (x86-64-v2) — the same flags every released wheel uses, so a local build

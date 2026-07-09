@@ -7,6 +7,27 @@ no_step = "false"
 class_name = "AGC"
 serializable = "true"
 
+# Telemetry attach (jm gh-432): the dp_tlm_t* crosses as the named capsule
+# exposed by doppler.telemetry.Telemetry._capsule (the binding also accepts
+# the Telemetry object itself via the `_capsule` duck-typed unwrap). The
+# int status return binds -> None, ValueError on failure. link=true puts
+# telemetry_core on the collocated object's core/test/bench and the .so
+# (gh-254 additive semantics).
+[[agc.depends_on]]
+name = "telemetry"
+link = true
+
+[[agc.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "telemetry/telemetry.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
 [[agc.init_params]]
 name = "ref_db"
 type = "double"

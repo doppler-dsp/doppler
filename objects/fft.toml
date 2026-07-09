@@ -54,3 +54,15 @@ field = true
 name = "sign"
 type = "int"
 field = true
+
+# gh-428 manual_stub: execute_ci16/execute_ci8 are hand-written CPython
+# overloads living in the sacred fragment with no manifest-expressible
+# shape (int16/int8 input casts); manifest presence preserves their
+# hand-written .pyi stubs across regen and satisfies the DROPPED gate.
+[[fft.methods]]
+name = "execute_ci16"
+manual_stub = true
+
+[[fft.methods]]
+name = "execute_ci8"
+manual_stub = true

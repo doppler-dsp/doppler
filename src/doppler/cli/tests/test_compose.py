@@ -210,8 +210,25 @@ class TestComposeUpLive:
             from doppler.stream import Pull
 
             fir_out = f"nats://127.0.0.1:4222/dp-chain-{fir_block.bind_port}"
-            with Pull(fir_out) as pull:
+            # Pull() needs the JetStream work-queue stream to already
+            # exist, which fir's own Push() provisions on startup -- on a
+            # loaded/shared runner the fir process (Python interpreter
+            # startup + imports) can still be spinning up when this
+            # constructs, so retry rather than racing it once.
+            pull = None
+            last_err = None
+            for _ in range(50):
+                try:
+                    pull = Pull(fir_out)
+                    break
+                except RuntimeError as e:
+                    last_err = e
+                    time.sleep(0.2)
+            assert pull is not None, f"Pull() never succeeded: {last_err}"
+            try:
                 samples, hdr = pull.recv(timeout_ms=5000)
+            finally:
+                pull.close()
             assert len(samples) > 0
             assert hdr["sample_rate"] > 0
         finally:

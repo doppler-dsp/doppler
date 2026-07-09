@@ -1064,6 +1064,9 @@ type = "size_t"
 [module.buffer]
 no_generate = "true"
 
+[module.telemetry]
+no_generate = "true"
+
 [module.stream]
 no_generate = "true"
 

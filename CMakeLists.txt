@@ -356,6 +356,7 @@ add_subdirectory(native/src/sample_clock)
 add_subdirectory(native/src/wfm_plan)
 add_subdirectory(native/src/wfm_reader)
 add_subdirectory(native/src/buffer)
+add_subdirectory(native/src/telemetry)
 add_subdirectory(native/src/stream)
 add_subdirectory(native/src/wfmcompose_py)
 

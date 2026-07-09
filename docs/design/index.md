@@ -10,6 +10,7 @@ instead.)
     naming axis, plus concrete rename proposals
 - [Quantization](QUANTIZATION.md) — fixed-point pipeline design
 - [Measurement Suite](measurement-suite.md) — tone, NPR, and IMD metric internals
+- [Telemetry](telemetry.md) — zero-cost scalar taps (loop stress, AGC gain) for running pipelines
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

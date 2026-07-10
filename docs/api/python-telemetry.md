@@ -46,11 +46,35 @@ probes before the producer starts.
 
 ______________________________________________________________________
 
+## Example — watching the AGC gain converge
+
+Instrumented objects expose `set_telemetry(tlm, prefix, decim=1)`; the
+AGC registers `"<prefix>.gain_db"` and records the loop-filter integrator
+once per gain-update event:
+
+```python
+import numpy as np
+
+from doppler.agc import AGC
+from doppler.telemetry import Telemetry
+
+tlm = Telemetry(1 << 14)
+agc = AGC(ref_db=0.0, loop_bw=0.0025, alpha=0.05)
+agc.set_telemetry(tlm, "agc", decim=1)
+
+x = np.full(4096, 0.125 + 0j, dtype=np.complex64)  # quiet input
+agc.steps(x)
+
+recs = tlm.read()
+gain = recs[recs["probe"] == tlm.probe_id("agc.gain_db")]["value"]
+assert len(gain) == 4096 // agc.decim  # one record per control update
+assert gain[-1] > gain[0]  # commanded gain rises toward the reference
+assert tlm.dropped == 0
+```
+
 ## Example — probes, records, decimation
 
-Python-side producers emit named probes through the ring (instrumented C
-objects attach with their generated `set_telemetry(tlm, prefix, decim=1)`
-face and publish the same way from their hot loops):
+Python-side producers emit named probes through the same ring:
 
 ```python
 from doppler.telemetry import Telemetry

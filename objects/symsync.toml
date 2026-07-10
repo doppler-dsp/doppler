@@ -32,9 +32,15 @@ name = "order"
 type = "string_enum:linear,parabolic,cubic"
 default = "cubic"
 
+[[symsync.init_params]]
+name = "ted"
+type = "string_enum:gardner,dttl"
+default = "gardner"
+doc = "Timing-error detector: \"gardner\" (blind, works for any constellation) or \"dttl\" (decision-directed sign-sign Data Transition Tracking Loop; lower self-noise near lock but degrades faster at low SNR. BPSK/QPSK only -- invalid for 8PSK/QAM)."
+
 [[symsync.methods]]
 name = "steps"
-doc = "Recover symbol timing from an oversampled cf32 baseband block: a Gardner timing-error detector drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant."
+doc = "Recover symbol timing from an oversampled cf32 baseband block: a timing-error detector (Gardner or DTTL, see the `ted` param) drives an integer timing NCO whose post-wrap value gives the interpolation fraction for free, and a Farrow interpolator emits one symbol-rate sample per recovered symbol instant."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true

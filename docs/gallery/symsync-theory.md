@@ -21,3 +21,12 @@ within 10 %.
 
 Source: `src/doppler/examples/symsync_theory_demo.py`;
 tests in `src/doppler/track/tests/test_theory_symsync.py`.
+
+!!! note "DTTL (`ted="dttl"`)"
+
+    The same file also validates the sign-sign DTTL detector (see
+    [Symbol Timing Recovery](symsync.md)): its own semi-analytic S-curve
+    reference, a check that its sign convention matches Gardner's at the
+    stable lock point, and its own self-noise-floor/SNR-variance tests.
+    DTTL is decision-directed and BPSK/QPSK-only, so it isn't plotted here
+    alongside Gardner's general-constellation figure above.

@@ -1,4 +1,5 @@
-"""Integration tests for doppler.track.SymbolSync (Gardner timing recovery)."""
+"""Integration tests for doppler.track.SymbolSync (Gardner/DTTL timing
+recovery)."""
 
 import numpy as np
 import pytest
@@ -86,6 +87,17 @@ def test_locks_across_timing_offsets(offset):
 def test_all_orders_lock(order):
     x, a = _signal(1500, offset=1.7, seed=2)
     s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, order=order)
+    y = s.steps(x)
+    assert _ber(y, a) == 0.0
+
+
+@pytest.mark.parametrize("ted", ["gardner", "dttl"])
+def test_all_teds_lock(ted):
+    # DTTL's sign() decision device is only valid for BPSK/QPSK-like
+    # independent I/Q rails; _signal() is real-valued BPSK so both TEDs
+    # are in their valid domain here.
+    x, a = _signal(1500, offset=2.1, seed=6)
+    s = SymbolSync(sps=SPS, bn=0.01, zeta=0.707, ted=ted)
     y = s.steps(x)
     assert _ber(y, a) == 0.0
 

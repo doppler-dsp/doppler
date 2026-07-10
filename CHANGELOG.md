@@ -13,6 +13,16 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+### Added
+
+- **`track.SymbolSync` gains a second, selectable timing-error detector**:
+    `ted="gardner"` (default, unchanged behavior) or `ted="dttl"` — a
+    decision-directed sign-sign Data Transition Tracking Loop (M.K. Simon).
+    DTTL reuses the same transition-gate/on-time samples Gardner already
+    computes, so no new strobe machinery is added; it's valid for BPSK/QPSK
+    only (not 8PSK/QAM). `MpskReceiver` is unaffected — it stays hardcoded
+    to Gardner. See [Symbol Timing Recovery](docs/gallery/symsync.md).
+
 ## [0.29.0] — 2026-07-09
 
 ### Added

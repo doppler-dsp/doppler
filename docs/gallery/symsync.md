@@ -4,8 +4,8 @@
 
 [`track.SymbolSync`](../api/python-track.md) recovers the symbol clock of an
 **asynchronous** data stream — one whose symbol rate is not locked to (and here
-runs 0.4 % fast of) the receiver's sample clock. It is a Gardner timing-error
-detector closing a PI loop around an **integer timing NCO** and a
+runs 0.4 % fast of) the receiver's sample clock. A selectable timing-error
+detector (`ted`) closes a PI loop around an **integer timing NCO** and a
 [`Farrow`](farrow.md) interpolator: the NCO's post-wrap accumulator value is the
 interpolation fraction µ — free, with no floating-point timing phase — so the
 timing accumulation stays exact while only the interpolation is floating point.
@@ -29,18 +29,31 @@ exactly why a fixed sampler fails and a tracking interpolator is needed.
 
 ## How it works
 
-One per-sample integer-NCO loop produces two interpolants per symbol for the
-Gardner detector, derived from the phase **value** (not a parity counter, so a
-loop correction can never desync them):
+One per-sample integer-NCO loop produces two interpolants per symbol —
+derived from the phase **value** (not a parity counter, so a loop correction
+can never desync them) — that both timing-error detectors share:
 
 ```text
 per sample:  push x[n] into the Farrow; advance the integer timing NCO
-             half-scale crossing  -> mid-symbol interpolant (µ from the NCO)
+             half-scale crossing  -> mid-symbol (transition-gate) interpolant
              full-scale wrap      -> on-time interpolant   (µ from the NCO)
-per symbol:  e = Re{ conj(mid) * (on_time - prev_on_time) }   # Gardner TED
+per symbol:  e = TED(mid, on_time, prev_on_time)   # ted="gardner" or "dttl"
              PI loop -> adjust the NCO frequency (slip-free)  # no phase nudge
              emit the on-time interpolant
 ```
+
+Two detectors are available via `ted`:
+
+- **`"gardner"`** (default) — `e = Re{ conj(mid) * (on_time - prev_on_time) }`.
+    Blind (non-data-aided): works for any constellation and at any SNR, at the
+    cost of a non-transition-symbol self-noise floor.
+- **`"dttl"`** — the sign-sign Data Transition Tracking Loop (M.K. Simon):
+    `e` is nonzero only when a hard decision on `on_time` actually flips
+    relative to `prev_on_time`, gated by the same transition-gate sample
+    Gardner uses. Decision-directed, so it's valid only for **BPSK/QPSK**
+    (independent, rectangular I/Q decision boundaries — not 8PSK/QAM), and
+    degrades faster than Gardner at low SNR (wrong decisions corrupt the
+    gating).
 
 Steering the NCO through its **frequency** (folding the proportional term into
 the rate rather than nudging the phase) keeps the strobe count smooth — a direct
@@ -61,8 +74,9 @@ ss.rate                  # tracked samples/symbol (the recovered clock)
 ```
 
 `order` selects the Farrow interpolator (`linear` / `parabolic` / `cubic`);
-`bn` / `zeta` set the loop bandwidth and damping. The synchronizer tracks
-residual clock offsets up to roughly ±1 % cleanly — it follows acquisition,
-just as the carrier loops track the residual after the FFT search.
+`ted` selects the timing-error detector (`gardner` / `dttl`); `bn` / `zeta`
+set the loop bandwidth and damping. The synchronizer tracks residual clock
+offsets up to roughly ±1 % cleanly — it follows acquisition, just as the
+carrier loops track the residual after the FFT search.
 
 Source: `src/doppler/examples/symsync_demo.py`.

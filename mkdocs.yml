@@ -186,6 +186,8 @@ nav:
           - cvt Quantization: gallery/cvt-quantization.md
       - Gain Control:
           - AGC: gallery/agc.md
+      - Telemetry:
+          - "Many Emitters, One Consumer": gallery/telemetry-fanin.md
       - Streaming: examples/streaming.md
       - Fundamentals:
           - FFT: examples/python-fft.md

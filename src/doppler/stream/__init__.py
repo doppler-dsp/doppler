@@ -14,9 +14,13 @@ from .stream import (  # noqa: E402
     Pull,
     Requester,
     Replier,
+    CI8,
+    CI16,
     CI32,
+    CF32,
     CF64,
     CF128,
+    TLM16,
     get_timestamp_ns,
 )
 
@@ -27,8 +31,12 @@ __all__ = [
     "Pull",
     "Requester",
     "Replier",
+    "CI8",
+    "CI16",
     "CI32",
+    "CF32",
     "CF64",
     "CF128",
+    "TLM16",
     "get_timestamp_ns",
 ]

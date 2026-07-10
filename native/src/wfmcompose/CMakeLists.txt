@@ -164,6 +164,7 @@ if(NOT WIN32)
     target_link_libraries(test_wfm_sink PRIVATE
         wfm_sink_core
         $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
         nats_vendor_static
         Threads::Threads m)
     target_include_directories(test_wfm_sink PRIVATE
@@ -204,6 +205,7 @@ if(NOT WIN32)
         wfm_compose_core wfm_writer_core wfm_sink_core timing_core wfm_cjson
         wfm_dsp_core wfm_synth_core lo_core awgn_core pn_core fir_core
         $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
         nats_vendor_static
         Threads::Threads m)
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

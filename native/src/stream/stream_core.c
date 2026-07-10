@@ -107,6 +107,8 @@ dp_sample_size (dp_sample_type_t type)
       return sizeof (double _Complex);
     case CF128:
       return sizeof (long double _Complex);
+    case TLM16:
+      return 16; /* one packed dp_tlm_rec_t per "sample" */
     default:
       return 0;
     }
@@ -129,6 +131,8 @@ dp_sample_type_str (dp_sample_type_t type)
       return "CF64";
     case CF128:
       return "CF128";
+    case TLM16:
+      return "TLM16";
     default:
       return "UNKNOWN";
     }
@@ -295,6 +299,14 @@ dp_pub_send_cf32 (dp_pub_t *ctx, const float _Complex *samples,
 {
   return send_signal (ctx, samples, num_samples, sample_rate, center_freq,
                       CF32);
+}
+
+int
+dp_pub_send_tlm16 (dp_pub_t *ctx, const void *records, size_t num_records,
+                   double sample_rate, double center_freq)
+{
+  return send_signal (ctx, records, num_records, sample_rate, center_freq,
+                      TLM16);
 }
 
 void

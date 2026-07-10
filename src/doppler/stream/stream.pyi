@@ -62,6 +62,67 @@ Examples
 
 """
 
+CI8: int
+"""Complex int8 — interleaved ``int8_t`` I/Q (2 bytes/sample).
+
+Sent and received as a ``numpy.int8`` array of ``2*n`` interleaved
+elements. Wire value: ``3``.
+
+Examples
+--------
+>>> from doppler.stream import CI8
+>>> CI8
+3
+
+"""
+
+CI16: int
+"""Complex int16 — interleaved ``int16_t`` I/Q (4 bytes/sample).
+
+Sent and received as a ``numpy.int16`` array of ``2*n`` interleaved
+elements. Wire value: ``4``.
+
+Examples
+--------
+>>> from doppler.stream import CI16
+>>> CI16
+4
+
+"""
+
+CF32: int
+"""Complex float32 — ``float _Complex`` (8 bytes/sample).
+
+Sent and received as ``numpy.complex64``. Wire value: ``5``.
+
+Examples
+--------
+>>> from doppler.stream import CF32
+>>> CF32
+5
+
+"""
+
+TLM16: int
+"""16-byte telemetry records (``dp_tlm_rec_t``) — not I/Q samples.
+
+A TLM16 frame's payload is packed telemetry records; ``num_samples``
+counts records. ``Publisher(ep, TLM16).send(recs)`` publishes the
+structured array ``doppler.telemetry.Telemetry.read()`` returns, and
+``Subscriber.recv()`` decodes the frame back into the same structured
+dtype ``[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"),
+("flags", "<u2")]``. The C-side producer face is the ``dp_tlm_sink_*``
+helper (``telemetry/tlm_sink.h``) in ``libdoppler_stream``. Wire
+value: ``6``.
+
+Examples
+--------
+>>> from doppler.stream import TLM16
+>>> TLM16
+6
+
+"""
+
 
 def get_timestamp_ns() -> int:
     """Current wall-clock time in nanoseconds since the UNIX epoch.

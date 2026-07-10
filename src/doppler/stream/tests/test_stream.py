@@ -570,3 +570,47 @@ def test_nats_jetstream_push_pull_ack():
     push.close()
     pull.close()
     assert sorted(got) == list(range(n))
+
+
+# ------------------------------------------------------------------ #
+# PUB / SUB — TLM16 telemetry frames                                  #
+# ------------------------------------------------------------------ #
+
+
+def test_pub_sub_tlm16_roundtrip():
+    """Telemetry records published as a TLM16 frame decode back into the
+    same structured rows Telemetry.read() produced."""
+    from doppler.agc import AGC
+    from doppler.stream import TLM16
+    from doppler.telemetry import Telemetry
+
+    ep = _unique_endpoint("tlm")
+    pub = Publisher(ep, TLM16)
+    sub = Subscriber(ep)
+    time.sleep(0.3)  # core NATS: sub must exist before publish
+
+    tlm = Telemetry(1 << 12)
+    agc = AGC(0.0, 0.0025, 0.05)
+    agc.set_telemetry(tlm, "agc")
+    agc.steps(np.full(512, 0.25 + 0j, dtype=np.complex64))
+    recs = tlm.read()
+    assert len(recs) > 0
+
+    pub.send(recs)
+    rx, hdr = sub.recv(timeout_ms=2000)
+    assert hdr["sample_type"] == TLM16
+    assert hdr["num_samples"] == len(recs)
+    assert rx.dtype == recs.dtype  # structured rows survive the wire
+    np.testing.assert_array_equal(rx, recs)
+
+    pub.__exit__(None, None, None)
+    sub.__exit__(None, None, None)
+
+
+def test_pub_tlm16_rejects_wrong_itemsize():
+    from doppler.stream import TLM16
+
+    pub = Publisher(_unique_endpoint("tlmbad"), TLM16)
+    with pytest.raises(TypeError):
+        pub.send(np.zeros(4, dtype=np.complex64))  # 8-byte items, not 16
+    pub.__exit__(None, None, None)

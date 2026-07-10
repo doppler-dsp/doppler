@@ -5,7 +5,13 @@
 # Skipped on Windows: the vendored nats.c build's MinGW support is unverified
 # (kept conservative pending a dedicated Windows-streaming follow-up).
 if(NOT WIN32)
-    add_library(stream_core_obj OBJECT stream_core.c stream_nats.c)
+    # tlm_sink.c is the telemetry NATS sink (telemetry/tlm_sink.h): stream-
+    # component code because it publishes through dp_pub_*. Its dp_tlm_read
+    # reference resolves against telemetry_core, which lives in the core lib
+    # — consumers link doppler::stream alongside the core; targets here that
+    # embed stream_core_obj directly link telemetry_core explicitly.
+    add_library(stream_core_obj OBJECT stream_core.c stream_nats.c
+        tlm_sink.c)
     target_include_directories(stream_core_obj PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc)
     target_link_libraries(stream_core_obj PUBLIC
@@ -19,6 +25,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_stream.c)
     target_link_libraries(bench_stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
         nats_vendor_static
         m pthread)
     target_include_directories(bench_stream PRIVATE
@@ -32,6 +39,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/tests/test_stream_nats_core.c)
     target_link_libraries(test_stream_nats_core PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
         nats_vendor_static
         m pthread)
     target_include_directories(test_stream_nats_core PRIVATE
@@ -39,12 +47,28 @@ if(NOT WIN32)
     add_test(NAME test_stream_nats_core COMMAND test_stream_nats_core)
     set_tests_properties(test_stream_nats_core PROPERTIES
         SKIP_RETURN_CODE 77)
+
+    # Telemetry-ring -> NATS round-trip (skips without a live broker, like
+    # test_stream_nats_core).
+    add_executable(test_tlm_sink
+        ${CMAKE_SOURCE_DIR}/native/tests/test_tlm_sink.c)
+    target_link_libraries(test_tlm_sink PRIVATE
+        $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
+        nats_vendor_static
+        m pthread)
+    target_include_directories(test_tlm_sink PRIVATE
+        ${CMAKE_SOURCE_DIR}/native/inc)
+    add_test(NAME test_tlm_sink COMMAND test_tlm_sink)
+    set_tests_properties(test_tlm_sink PROPERTIES
+        SKIP_RETURN_CODE 77)
 endif()
 
 if(BUILD_PYTHON)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj>
+        telemetry_core
         nats_vendor_static
         Python3::NumPy
         m pthread)

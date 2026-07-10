@@ -1,4 +1,5 @@
 #include "detection/detection_core.h"
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -213,6 +214,34 @@ main (void)
     double a    = det_ema_alpha (3.0, 27.0);
     double gain = (2.0 - a) / a;
     CHECK (CLOSE (10.0 * log10 (gain), 24.0, 1e-9));
+  }
+
+  /* ── det_verify_count / det_verify_delay ─────────────────────────── */
+  {
+    /* Compounding: p^n <= target at the returned n, not at n-1. */
+    CHECK (det_verify_count (1e-3, 1e-6) == 2);
+    CHECK (det_verify_count (1e-3, 1e-9) == 3);
+    CHECK (det_verify_count (0.5, 1e-3) == 10);
+    CHECK (pow (0.5, 10) <= 1e-3 && pow (0.5, 9) > 1e-3);
+
+    /* Exact log multiple stays exact (the pre-ceil nudge): 0.1^6 = 1e-6. */
+    CHECK (det_verify_count (0.1, 1e-6) == 6);
+
+    /* Degenerate edges. */
+    CHECK (det_verify_count (1e-3, 0.5) == 1);      /* budget already met  */
+    CHECK (det_verify_count (0.0, 1e-6) == 1);      /* impossible look     */
+    CHECK (det_verify_count (1.0, 0.5) == INT_MAX); /* unreachable     */
+
+    /* Run waiting time: classic 2-straight-heads = 6 tosses; the p -> 1
+     * limit is exactly n; p = 0 never completes. */
+    CHECK (CLOSE (det_verify_delay (0.5, 2), 6.0, 1e-12));
+    CHECK (det_verify_delay (1.0, 8) == 8.0);
+    CHECK (isinf (det_verify_delay (0.0, 3)));
+    CHECK (CLOSE (det_verify_delay (0.9, 8),
+                  (1.0 - pow (0.9, 8)) / (pow (0.9, 8) * 0.1), 1e-9));
+
+    /* n clamps to 1: a run of one success is a plain geometric wait. */
+    CHECK (CLOSE (det_verify_delay (0.5, 0), 2.0, 1e-12));
   }
 
   if (_fails)

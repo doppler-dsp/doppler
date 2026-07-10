@@ -40,6 +40,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "telemetry/telemetry.h"
 #include "detection/detection_core.h"
+#include "lockdet/lockdet_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -171,7 +172,7 @@ int despreader_set_telemetry(despreader_state_t *state, dp_tlm_t * tlm, const ch
  * composition: costas + dll children + running bit-sync histogram/state;
  * the owned code copy is restored by create. */
 #define DESPREADER_STATE_MAGIC DP_FOURCC ('D','S','P','R')
-#define DESPREADER_STATE_VERSION 2u /* v2: child blobs grew (tlm) */
+#define DESPREADER_STATE_VERSION 3u /* v3: dll child grew (lockdet rule) */
 size_t despreader_state_bytes (const despreader_state_t *state);
 void despreader_get_state (const despreader_state_t *state, void *blob);
 int despreader_set_state (despreader_state_t *state, const void *blob);

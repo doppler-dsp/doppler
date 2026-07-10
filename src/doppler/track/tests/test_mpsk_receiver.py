@@ -176,6 +176,37 @@ def test_acq_to_track_off_by_default():
     assert rx.tracking == 0  # opt-in: stays in NDA tracking
 
 
+def test_acq_to_track_two_way():
+    """A sustained lock loss drops back to the NDA acquisition steer.
+
+    The handover is verify-counted both ways (8 symbols up, 32 down with a
+    0.8x drop threshold), so a noise-dominated stretch drops tracking; a
+    returning signal re-declares after the carrier is re-seeded (on a real
+    drop-back the outer acquisition supplies that seed — during the outage
+    the discriminators see only noise and random-walk the shared NCO).
+    """
+    foff = 0.0008
+    tx, _ = _signal(4, foff=foff, snr_db=25, seed=4)
+    noise, _ = _signal(4, foff=foff, snr_db=-10, seed=6)
+    rx = MpskReceiver(
+        m=4,
+        sps=8,
+        n=4,
+        init_norm_freq=foff,
+        acq_to_track=1,
+        lock_thresh=0.4,
+        warmup_syms=200,
+        bn_carrier=0.03,
+    )
+    rx.steps(tx)
+    assert rx.tracking == 1
+    rx.steps(noise)
+    assert rx.tracking == 0  # dropped back to NDA
+    rx.norm_freq = foff  # acquisition re-seed
+    rx.steps(tx)
+    assert rx.tracking == 1  # re-declared
+
+
 @pytest.mark.parametrize("m", [2, 4, 8])
 def test_bits_differential_rotation_invariant(m):
     """Differential bits survive an arbitrary fixed carrier-phase rotation."""

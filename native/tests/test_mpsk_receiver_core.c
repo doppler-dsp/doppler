@@ -231,6 +231,23 @@ main (void)
     CHECK (mpsk_receiver_get_tracking (rx) == 1); /* handed over */
     double ser = tail_ser (out, k, idx, 4, phi0_for (4));
     CHECK (ser < 0.01);
+
+    /* two-way: a sustained lock loss (noise-dominated input collapses the
+       lock EMA below the 0.8x drop threshold for 32 straight symbols)
+       falls back to the NDA acquisition steer, and a returning signal
+       hands over again. During the outage both discriminators see only
+       noise, so the NCO random-walks — possibly beyond the NDA pull-in
+       range onto an M-th-power alias grid point. Recovering from THAT is
+       acquisition's job, so the test does what a real receiver does on a
+       drop-back: re-seed the carrier from the (still valid) acquisition
+       estimate before the signal returns. */
+    make_mpsk (tx, idx, 4, 0.0005, -10.0, 44u);
+    (void)mpsk_receiver_steps (rx, tx, (NSYM / 10) * SPS, out, NSYM);
+    CHECK (mpsk_receiver_get_tracking (rx) == 0); /* dropped back */
+    mpsk_receiver_set_norm_freq (rx, 0.0005);     /* acq re-seed */
+    make_mpsk (tx, idx, 4, 0.0005, 30.0, 45u);
+    (void)mpsk_receiver_steps (rx, tx, NSYM * SPS, out, NSYM);
+    CHECK (mpsk_receiver_get_tracking (rx) == 1); /* re-declared */
     mpsk_receiver_destroy (rx);
   }
 

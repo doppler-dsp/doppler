@@ -323,7 +323,7 @@ class Dll:
         """
 
     def configure_lock(self, pfa: float, n_looks: int, ref_snr_db: float = 0.0) -> None:
-        """Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; it declares lock when R exceeds det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties.
+        """Tune the always-on code-lock detector to a target (pfa, n_looks). The detector reuses acquisition's non-coherent statistic R = sqrt(2*sum|P|^2 / E|O|^2), where the prompt powers of n_looks consecutive looks are summed and E|O|^2 is an EMA of a random off-peak (noise) correlation re-drawn each epoch; a decision compares R against det_threshold_noncoherent(pfa, n_looks). Size n_looks with detection.det_n_noncoh(snr, ...) for your operating C/N0. The EMA bandwidth is sized probabilistically (detection.det_ema_alpha): ref_snr_db sets the noise reference's estimator SNR (mean^2/variance of the EMA output); the default 0.0 derives it from n_looks so the reference's std stays an eighth of the statistic's intrinsic H0 spread, floored at ~33 dB. Decisions feed a verify-counted lock detector rather than a single-comparison latch: locked flips up only after det_verify_count(pfa, pfa*1e-3) consecutive above-threshold decisions (2 for the default pfa=1e-3, compounding the false-declare rate three decades under pfa) and drops only after 2 consecutive below-threshold decisions, so a statistic grazing the threshold cannot chatter the flag. The default config is pfa=1e-3 over 20 looks. Raises ValueError for pfa outside (0, 1). Read the result from the locked / lock_stat / noise_est properties.
 
         The DLL carries a lock detector that reuses acquisition's non-coherent
         test statistic. Every emitted look (a partial in segments mode, or the
@@ -348,6 +348,16 @@ class Dll:
         to an eighth of the statistic's intrinsic H0 spread (`1/sqrt(N)`),
         floored at ~33 dB — which reproduces the classic `1/alpha = max(1024,
         32*N)` sizing exactly, now as a consequence instead of a constant.
+
+        The decision itself runs through an embedded lock detector
+        (lockdet_core.h) rather than a single-comparison latch: `locked` flips
+        up only after det_verify_count(pfa, pfa*1e-3) CONSECUTIVE
+        above-threshold decisions (the false-declare budget held three decades
+        under the per-decision pfa — 2 straight for the default 1e-3), and drops
+        only after 2 straight below-threshold decisions, so a statistic grazing
+        the threshold cannot chatter the flag. Full control of the verify counts
+        and a split declare/drop threshold pair is C-only via
+        dll_configure_lock_raw().
 
         Parameters
         ----------
@@ -409,7 +419,7 @@ class Dll:
 
     @property
     def locked(self) -> bool:
-        """True when the code-lock detector's statistic exceeds its CFAR threshold (latched at each n_looks-look decision; see configure_lock)."""
+        """Current lock decision: True after the verify count of consecutive above-threshold N-look decisions, False again after the drop count of consecutive below-threshold ones (see configure_lock)."""
 
     @property
     def lock_stat(self) -> float:
@@ -795,9 +805,9 @@ class MpskReceiver:
     bn_timing : float, default 0.01
         Symbol-timing loop noise bandwidth (default 0.01).
     acq_to_track : int, default 0
-        Enable NDA->decision-directed tracking (default 0).
+        Enable the two-way NDA<->decision-directed handover (default 0).
     lock_thresh : float, default 0.5
-        Lock metric required to switch to tracking (default 0.5).
+        Handover declare threshold on the carrier lock metric (default 0.5); the drop threshold sits at 0.8x for level hysteresis, and both directions are verify-counted (8 symbols up / 32 down).
     init_norm_freq : float, default 0.0
         Seed carrier frequency, cycles/sample (default 0.0).
     warmup_syms : int, default 100
@@ -850,7 +860,7 @@ class MpskReceiver:
         """
 
     def steps(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
-        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled it switches to a lower-jitter decision-directed carrier loop once locked. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
+        """Demodulate a cf32 block and return the recovered M-PSK symbols (one cf32 per recovered symbol period, ~ len(x)/sps outputs). Per sample the receiver de-rotates with the integer-NCO carrier (predetection wipe-off), accumulates a non-data-aided M-th-power I/Q arm at n dumps/symbol to acquire the carrier with no data and no symbol timing, matched-filters the de-rotated stream (integrate-and-dump or RRC), and runs a Gardner symbol-timing loop. With acq_to_track enabled a verify-counted two-way handover steps on the carrier lock metric each symbol: it switches to a lower-jitter decision-directed carrier loop after 8 consecutive above-lock_thresh symbols, and on a sustained lock loss (32 consecutive symbols below 0.8*lock_thresh) drops back to the NDA acquisition steer, the shared NCO carrying the frequency estimate both ways. The loop locks to one of m phases (M-fold ambiguity); resolve it with bits(differential) or a sync word. Read norm_freq for the tracked carrier and lock for the carrier lock metric.
 
         Runs the per-sample loop (carrier wipe-off + NDA arm + matched filter +
         Gardner timing) over x and writes one cf32 symbol per recovered symbol

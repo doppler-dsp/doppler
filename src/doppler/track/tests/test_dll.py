@@ -291,7 +291,9 @@ def test_lock_stays_low_on_noise():
 def test_configure_lock_changes_only_threshold():
     # configure_lock(pfa, n_looks) sets the decision threshold; the statistic
     # itself is config-independent for a given stream + n_looks, so two pfas
-    # yield the same R and decisions consistent with their thresholds
+    # yield the same R and decisions consistent with their thresholds.
+    # (locked is verify-counted — the final-comparison equivalence below
+    # holds because this strong signal makes every decision agree.)
     from doppler.detection import det_threshold_noncoherent
 
     code = _code(11)

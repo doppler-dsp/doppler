@@ -1,0 +1,80 @@
+[lockdet]
+arg_type = "double"
+return_type = "int"
+mutable = "true"
+no_state = "true"
+no_step = "false"
+class_name = "LockDet"
+serializable = "true"
+
+[[lockdet.init_params]]
+name = "up_thresh"
+type = "double"
+default = "1.0"
+
+[[lockdet.init_params]]
+name = "down_thresh"
+type = "double"
+default = "1.0"
+
+[[lockdet.init_params]]
+name = "n_up"
+type = "uint32_t"
+default = "1"
+
+[[lockdet.init_params]]
+name = "n_down"
+type = "uint32_t"
+default = "1"
+
+[[lockdet.methods]]
+name = "configure"
+doc = "Re-tune thresholds and verify counts; a live lock survives, the in-flight verify run restarts under the new config."
+arg_type = "void"
+return_type = "void"
+params = [
+  { name = "up_thresh", type = "double" },
+  { name = "down_thresh", type = "double" },
+  { name = "n_up", type = "uint32_t" },
+  { name = "n_down", type = "uint32_t" },
+]
+
+[[lockdet.methods]]
+name = "reset"
+doc = "Drop the lock and clear the verify counter; keep the config."
+arg_type = "void"
+return_type = "void"
+
+[[lockdet.properties]]
+name = "up_thresh"
+type = "double"
+writable = true
+field = true
+
+[[lockdet.properties]]
+name = "down_thresh"
+type = "double"
+writable = true
+field = true
+
+[[lockdet.properties]]
+name = "n_up"
+type = "uint32_t"
+field = true
+
+[[lockdet.properties]]
+name = "n_down"
+type = "uint32_t"
+field = true
+
+[[lockdet.properties]]
+name = "cnt"
+type = "uint32_t"
+field = true
+doc = "Running consecutive-look verify counter: hits toward a declare while unlocked, misses toward a drop while locked."
+
+[[lockdet.properties]]
+name = "locked"
+type = "bool"
+field = true
+doc = "Current decision (True = locked)."

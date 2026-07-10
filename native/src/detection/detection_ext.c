@@ -1,7 +1,7 @@
 /*
  * detection_ext.c — Python extension module detection
  *
- * Objects: 
+ * Objects: LockDet
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -13,7 +13,7 @@
 
 #include "detection/detection_core.h"
 
-
+#include "detection_ext_lockdet.c"
 
 static PyObject *
 _bind_marcum_q(PyObject *self, PyObject *args, PyObject *kwds)
@@ -108,6 +108,32 @@ _bind_det_ema_alpha(PyObject *self, PyObject *args, PyObject *kwds)
             _kwlist, &snr_in_db, &snr_out_db))
         return NULL;
     return PyFloat_FromDouble(det_ema_alpha(snr_in_db, snr_out_db));
+}
+
+static PyObject *
+_bind_det_verify_count(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"p_look", "p_target", NULL};
+    double p_look = 0.0;
+    double p_target = 0.0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "dd",
+            _kwlist, &p_look, &p_target))
+        return NULL;
+    return PyLong_FromLong((long)det_verify_count(p_look, p_target));
+}
+
+static PyObject *
+_bind_det_verify_delay(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    (void)self;
+    static char *_kwlist[] = {"p_look", "n", NULL};
+    double p_look = 0.0;
+    int n = 0;
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "di",
+            _kwlist, &p_look, &n))
+        return NULL;
+    return PyFloat_FromDouble(det_verify_delay(p_look, n));
 }
 
 static PyObject *
@@ -209,6 +235,8 @@ static PyMethodDef detection_module_methods[] = {
     {"det_snr", (PyCFunction)(void *)_bind_det_snr, METH_VARARGS | METH_KEYWORDS, "det_snr."},
     {"det_threshold_noncoherent", (PyCFunction)(void *)_bind_det_threshold_noncoherent, METH_VARARGS | METH_KEYWORDS, "det_threshold_noncoherent."},
     {"det_ema_alpha", (PyCFunction)(void *)_bind_det_ema_alpha, METH_VARARGS | METH_KEYWORDS, "det_ema_alpha."},
+    {"det_verify_count", (PyCFunction)(void *)_bind_det_verify_count, METH_VARARGS | METH_KEYWORDS, "det_verify_count."},
+    {"det_verify_delay", (PyCFunction)(void *)_bind_det_verify_delay, METH_VARARGS | METH_KEYWORDS, "det_verify_delay."},
     {"det_pd_noncoherent", (PyCFunction)(void *)_bind_det_pd_noncoherent, METH_VARARGS | METH_KEYWORDS, "det_pd_noncoherent."},
     {"det_n_noncoh", (PyCFunction)(void *)_bind_det_n_noncoh, METH_VARARGS | METH_KEYWORDS, "det_n_noncoh."},
     {"det_threshold_power", (PyCFunction)(void *)_bind_det_threshold_power, METH_VARARGS | METH_KEYWORDS, "det_threshold_power."},
@@ -230,9 +258,12 @@ PyMODINIT_FUNC
 PyInit_detection(void)
 {
     import_array();
-
+    if (PyType_Ready(&LockDetObjType) < 0) return NULL;
     PyObject *m = PyModule_Create(&detection_moduledef);
     if (!m) return NULL;
-
+    Py_INCREF(&LockDetObjType);
+    if (PyModule_AddObject(m, "LockDet", (PyObject *)&LockDetObjType) < 0) {
+        Py_DECREF(&LockDetObjType); Py_DECREF(m); return NULL;
+    }
     return m;
 }

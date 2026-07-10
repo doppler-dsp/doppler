@@ -12,6 +12,12 @@
  * approximation the Python binding silently overrode). */
 #define DLL_LOCK_DEFAULT_PFA 1e-3
 #define DLL_LOCK_DEFAULT_N 20
+/* Drop-side verify count. Sizing the drop run probabilistically needs the
+ * per-decision detection probability, which needs an SNR the DLL doesn't
+ * know — so the default is a modest fixed time hysteresis: two straight
+ * sub-threshold decisions (false-drop rate (1-pd_dec)^2 per window). The
+ * C-only dll_configure_lock_raw() exposes it for callers that do know. */
+#define DLL_LOCK_DEFAULT_N_DOWN 2u
 
 /* xorshift32 — a tiny, deterministic PRNG for the lock-detector noise tap's
  * random offset.  Reproducible from a fixed seed so tests/benches are stable.
@@ -68,7 +74,7 @@ seed (dll_state_t *s)
   s->lock_count = 0;
   s->lock_nz    = 0;
   s->lock_stat  = 0.0;
-  s->locked     = 0;
+  lockdet_reset (&s->lock);
 }
 
 /* One non-coherent look: fold the offset (noise) sample into the noise
@@ -96,9 +102,9 @@ lock_look (dll_state_t *s, float complex prompt, float complex offset)
   s->lock_sum += pp;
   if (++s->lock_count >= s->n_looks)
     {
-      double denom  = s->noise_ema > DLL_EPS ? s->noise_ema : DLL_EPS;
-      s->lock_stat  = sqrt (2.0 * s->lock_sum / denom);
-      s->locked     = (s->lock_stat > s->lock_thresh);
+      double denom = s->noise_ema > DLL_EPS ? s->noise_ema : DLL_EPS;
+      s->lock_stat = sqrt (2.0 * s->lock_sum / denom);
+      (void)lockdet_step (&s->lock, s->lock_stat);
       s->lock_sum   = 0.0;
       s->lock_count = 0;
     }
@@ -458,32 +464,42 @@ dll_configure_lock (dll_state_t *state, double pfa, size_t n_looks,
             ? ref_snr_db
             : 10.0 * log10 (fmax (64.0 * (double)n, 2048.0) - 1.0);
   double alpha = det_ema_alpha (0.0, snr_out_db);
-  dll_configure_lock_raw (state, det_threshold_noncoherent (pfa, (int)n), n,
-                          alpha);
+  /* Declare-side time hysteresis, sized from the same pfa: the false-declare
+   * budget is held three decades under the per-decision pfa, so the verify
+   * count is det_verify_count(pfa, pfa*1e-3) — consecutive decisions
+   * compound as pfa^n_up (2 for the default pfa = 1e-3). No level
+   * hysteresis by default (up = down = eta): splitting the thresholds
+   * needs the detection probability, which needs an SNR the DLL doesn't
+   * know; the raw face exposes both thresholds for callers that do. */
+  double   eta  = det_threshold_noncoherent (pfa, (int)n);
+  uint32_t n_up = (uint32_t)det_verify_count (pfa, pfa * 1e-3);
+  dll_configure_lock_raw (state, eta, eta, n, alpha, n_up,
+                          DLL_LOCK_DEFAULT_N_DOWN);
   return DP_OK;
 }
 
 void
-dll_configure_lock_raw (dll_state_t *state, double threshold, size_t n_looks,
-                        double alpha)
+dll_configure_lock_raw (dll_state_t *state, double up_thresh,
+                        double down_thresh, size_t n_looks, double alpha,
+                        uint32_t n_up, uint32_t n_down)
 {
-  state->lock_thresh = threshold;
-  state->n_looks     = n_looks ? n_looks : 1;
-  state->lock_alpha  = alpha;
-  /* Re-tuning clears the in-flight statistic so the next decision uses only
-     looks gathered under the new config. */
+  lockdet_init (&state->lock, up_thresh, down_thresh, n_up, n_down);
+  state->n_looks    = n_looks ? n_looks : 1;
+  state->lock_alpha = alpha;
+  /* Re-tuning clears the in-flight statistic and drops the lock so the next
+     decision uses only looks gathered under the new config. */
   state->lock_sum   = 0.0;
   state->lock_count = 0;
   state->lock_nz    = 0;
   state->noise_ema  = 0.0;
   state->lock_stat  = 0.0;
-  state->locked     = 0;
+  lockdet_reset (&state->lock);
 }
 
 int
 dll_get_locked (const dll_state_t *state)
 {
-  return state->locked;
+  return state->lock.locked;
 }
 
 double

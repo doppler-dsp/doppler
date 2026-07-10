@@ -198,6 +198,9 @@ target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_q8_core>)
 add_subdirectory(native/src/acc_q15)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:acc_q15_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:acc_q15_core>)
+add_subdirectory(native/src/lockdet)
+target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:lockdet_core>)
+target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:lockdet_core>)
 add_subdirectory(native/src/hbdecim_q15)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:hbdecim_q15_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:hbdecim_q15_core>)
@@ -361,6 +364,15 @@ add_subdirectory(native/src/buffer)
 add_subdirectory(native/src/telemetry)
 add_subdirectory(native/src/stream)
 add_subdirectory(native/src/wfmcompose_py)
+# The detection module's free functions (marcum_q, det_* sizing) live in
+# module-level TUs, so jm emits no C test target for them — register the
+# module-level test here (per-object tests are jm-generated in their own
+# component CMakeLists).
+add_executable(test_detection_core native/tests/test_detection_core.c)
+target_link_libraries(test_detection_core PRIVATE detection_core m)
+target_include_directories(test_detection_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_detection_core COMMAND test_detection_core)
 
 # ── Hand-managed modules (not controlled by just-makeit) ─────────────────────
 

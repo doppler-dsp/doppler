@@ -1,4 +1,143 @@
 # detection/detection.pyi — type stubs for the detection C extension.
+import numpy as np
+from numpy.typing import NDArray
+
+class LockDet:
+    """LockDet component.
+
+    Parameters
+    ----------
+    up_thresh : float, default 1.0
+        up_thresh constructor parameter.
+    down_thresh : float, default 1.0
+        down_thresh constructor parameter.
+    n_up : int, default 1
+        n_up constructor parameter.
+    n_down : int, default 1
+        n_down constructor parameter.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.detection import LockDet
+    >>> obj = LockDet(up_thresh=1.0, down_thresh=1.0, n_up=1, n_down=1)
+
+    """
+    def __init__(self, up_thresh: float = ..., down_thresh: float = ..., n_up: int = ..., n_down: int = ...) -> None: ...
+
+    def step(self, x: float) -> int:
+        """Feed one look of the lock metric; return the current decision.
+
+        Unlocked: a hit (`x > up_thresh`) advances the verify run and the
+        n_up-th consecutive hit declares lock; any miss resets the run. Locked:
+        a miss (`x < down_thresh`) advances the run and the n_down-th
+        consecutive miss drops the lock; any hit (`x >= down_thresh`) resets it.
+        A metric inside the [down_thresh, up_thresh] band is sticky — it neither
+        advances a declare nor a drop.
+
+        Parameters
+        ----------
+        x : float
+            Lock metric for this look.
+
+        Returns
+        -------
+        int
+            Decision after this look (1 = locked, 0 = not).
+
+        Examples
+        --------
+        >>> from doppler.detection import LockDet
+        >>> d = LockDet(up_thresh=1.5, down_thresh=1.2, n_up=2, n_down=3)
+        >>> [d.step(2.0), d.step(2.0)]     # declared on the 2nd straight hit
+        [0, 1]
+        >>> d.step(1.3)                    # in the hysteresis band: stays up
+        1
+        >>> [d.step(1.0), d.step(1.0), d.step(1.0)]  # 3rd straight miss drops
+        [1, 1, 0]
+
+        """
+
+    def steps(self, x: NDArray[np.float64], out: NDArray[np.int32] | None = None) -> NDArray[np.int32]:
+        """Run a block of lock-metric looks through the detector.
+
+        Parameters
+        ----------
+        x : NDArray[np.float64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.int32]
+            Output.
+        """
+
+    def configure(self, up_thresh: float, down_thresh: float, n_up: int, n_down: int) -> None:
+        """Re-tune thresholds and verify counts; a live lock survives, the in-flight verify run restarts under the new config.
+
+        The current locked flag survives (a live lock is not dropped by a
+        re-tune); the in-flight verify counter is cleared so the next run is
+        counted entirely under the new config.
+
+        Parameters
+        ----------
+        up_thresh : float
+            Declare threshold (hit when metric > up_thresh).
+        down_thresh : float
+            Drop threshold (miss when metric < down_thresh).
+        n_up : int
+            Consecutive hits to declare; clamped to >= 1.
+        n_down : int
+            Consecutive misses to drop; clamped to >= 1.
+        """
+
+    def reset(self) -> None:
+        """Drop the lock and clear the verify counter; keep the config.
+        """
+
+    def state_bytes(self) -> int:
+        """Serialized state size in bytes."""
+    def get_state(self) -> bytes:
+        """Serialize the engine's mutable state to bytes."""
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a get_state() blob."""
+
+    @property
+    def up_thresh(self) -> float:
+        """Up thresh."""
+    @up_thresh.setter
+    def up_thresh(self, value: float) -> None: ...
+
+    @property
+    def down_thresh(self) -> float:
+        """Down thresh."""
+    @down_thresh.setter
+    def down_thresh(self, value: float) -> None: ...
+
+    @property
+    def n_up(self) -> int:
+        """N up."""
+
+    @property
+    def n_down(self) -> int:
+        """N down."""
+
+    @property
+    def cnt(self) -> int:
+        """Running consecutive-look verify counter: hits toward a declare while unlocked, misses toward a drop while locked."""
+
+    @property
+    def locked(self) -> bool:
+        """Current decision (True = locked)."""
+
+    def destroy(self) -> None:
+        """Release C resources immediately."""
+
+    def __enter__(self) -> "LockDet": ...
+
+    def __exit__(self, *args: object) -> None: ...
+
 def marcum_q(m: int, a: float, b: float) -> float:
     """Marcum Q function Q_M(a, b) for integer M >= 1.
 
@@ -241,6 +380,81 @@ def det_ema_alpha(snr_in_db: float, snr_out_db: float) -> float:
     50.5
     >>> round(1 / det_ema_alpha(10.0, 30.0), 1)  # same 20 dB gain, shifted
     50.5
+
+    """
+
+def det_verify_count(p_look: float, p_target: float) -> int:
+    """Verify count: consecutive looks needed to compound to a budget.
+
+    n consecutive independent looks at per-look probability p compound to
+    p^n, so the smallest n with `p_look^n <= p_target` is `ceil(ln p_target
+    / ln p_look)` (clamped to >= 1). One function serves both sides of a
+    lock detector (lockdet_core.h): the declare count from (per-look pfa,
+    false-declare budget) and the drop count from (per-look miss rate 1 -
+    pd, false-drop budget). Degenerate inputs resolve naturally: a target
+    already met by one look returns 1; p_look >= 1 can never compound below
+    a smaller target and returns INT_MAX.
+
+    Parameters
+    ----------
+    p_look : float
+        Per-look probability (pfa or 1 - pd), in (0, 1).
+    p_target : float
+        Compound probability budget, in (0, 1).
+
+    Returns
+    -------
+    int
+        Smallest verify count n with p_look^n <= p_target.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_verify_count
+    >>> det_verify_count(1e-3, 1e-6)   # two 1e-3 looks reach 1e-6
+    2
+    >>> det_verify_count(1e-3, 1e-9)
+    3
+    >>> det_verify_count(0.5, 1e-3)    # drop side: pd = 0.5 per look
+    10
+    >>> det_verify_count(1e-3, 0.5)    # budget already met -> 1
+    1
+
+    """
+
+def det_verify_delay(p_look: float, n: int) -> float:
+    """Expected looks until a run of n consecutive successes completes.
+
+    The mean waiting time of the consecutive-run process a lockdet verify
+    counter implements: at per-look success probability p, the first run of
+    n straight successes takes on average
+
+    E[T] = (1 - p^n) / (p^n * (1 - p)) looks,
+
+    which is the declare latency bought by a verify count of n (multiply by
+    the look period for time). Limits are handled exactly: p = 1 gives n
+    (the run completes immediately), p = 0 gives infinity.
+
+    Parameters
+    ----------
+    p_look : float
+        Per-look success probability (e.g. pd), in &#91;0, 1&#93;.
+    n : int
+        Run length (the verify count); clamped to >= 1.
+
+    Returns
+    -------
+    float
+        Expected number of looks to the first length-n run.
+
+    Examples
+    --------
+    >>> from doppler.detection import det_verify_delay
+    >>> det_verify_delay(1.0, 8)             # certain hits: exactly n
+    8.0
+    >>> round(det_verify_delay(0.5, 2), 6)   # 2 straight coin heads: 6
+    6.0
+    >>> round(det_verify_delay(0.9, 8), 1)
+    13.2
 
     """
 

@@ -235,6 +235,67 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
 double det_ema_alpha(double snr_in_db, double snr_out_db);
 
 /**
+ * @brief Verify count: consecutive looks needed to compound to a budget.
+ *
+ * n consecutive independent looks at per-look probability p compound to
+ * p^n, so the smallest n with `p_look^n <= p_target` is
+ * `ceil(ln p_target / ln p_look)` (clamped to >= 1). One function serves
+ * both sides of a lock detector (lockdet_core.h): the declare count from
+ * (per-look pfa, false-declare budget) and the drop count from (per-look
+ * miss rate 1 - pd, false-drop budget). Degenerate inputs resolve
+ * naturally: a target already met by one look returns 1; p_look >= 1
+ * can never compound below a smaller target and returns INT_MAX.
+ *
+ * @param p_look    Per-look probability (pfa or 1 - pd), in (0, 1).
+ * @param p_target  Compound probability budget, in (0, 1).
+ * @return          Smallest verify count n with p_look^n <= p_target.
+ *
+ * @code
+ * >>> from doppler.detection import det_verify_count
+ * >>> det_verify_count(1e-3, 1e-6)   # two 1e-3 looks reach 1e-6
+ * 2
+ * >>> det_verify_count(1e-3, 1e-9)
+ * 3
+ * >>> det_verify_count(0.5, 1e-3)    # drop side: pd = 0.5 per look
+ * 10
+ * >>> det_verify_count(1e-3, 0.5)    # budget already met -> 1
+ * 1
+ *
+ * @endcode
+ */
+int det_verify_count(double p_look, double p_target);
+
+/**
+ * @brief Expected looks until a run of n consecutive successes completes.
+ *
+ * The mean waiting time of the consecutive-run process a lockdet verify
+ * counter implements: at per-look success probability p, the first run of
+ * n straight successes takes on average
+ *
+ *   E[T] = (1 - p^n) / (p^n * (1 - p))     looks,
+ *
+ * which is the declare latency bought by a verify count of n (multiply by
+ * the look period for time). Limits are handled exactly: p = 1 gives n
+ * (the run completes immediately), p = 0 gives infinity.
+ *
+ * @param p_look  Per-look success probability (e.g. pd), in &#91;0, 1&#93;.
+ * @param n       Run length (the verify count); clamped to >= 1.
+ * @return        Expected number of looks to the first length-n run.
+ *
+ * @code
+ * >>> from doppler.detection import det_verify_delay
+ * >>> det_verify_delay(1.0, 8)             # certain hits: exactly n
+ * 8.0
+ * >>> round(det_verify_delay(0.5, 2), 6)   # 2 straight coin heads: 6
+ * 6.0
+ * >>> round(det_verify_delay(0.9, 8), 1)
+ * 13.2
+ *
+ * @endcode
+ */
+double det_verify_delay(double p_look, int n);
+
+/**
  * @brief Detection probability for n_noncoh non-coherent looks.
  *
  * Computes Pd = Q_{n_noncoh}(a, threshold) with the non-centrality

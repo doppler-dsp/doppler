@@ -105,32 +105,31 @@ extern "C"
   }
 
   /**
-   * @brief Per-sample symbol-timing step (the inline composition API).
+   * @brief Per-sample symbol-timing step with the TED selection as a
+   * parameter.
    *
-   * Pushes one input sample into the Farrow history and advances the integer
-   * timing NCO. When the NCO crosses its half-scale (mid-symbol) it stores the
-   * transition-gate interpolant; when it wraps (on-time) it forms the on-time
-   * interpolant, runs the selected TED (s->ted; see gardner_ted / dttl_ted),
-   * steers the NCO frequency, and emits the timing-corrected symbol. Returns 1
-   * and writes @p y_out on an on-time symbol, else 0. symsync_steps() is
-   * exactly this in a loop; a tracking channel inlines it to drive a
-   * downstream carrier loop on the recovered symbols.
+   * The workhorse behind symsync_step()/symsync_steps(). Pushes one input
+   * sample into the Farrow history and advances the integer timing NCO.
+   * When the NCO crosses its half-scale (mid-symbol) it stores the
+   * transition-gate interpolant; when it wraps (on-time) it forms the
+   * on-time interpolant, runs the selected TED (see gardner_ted /
+   * dttl_ted), steers the NCO frequency, and emits the timing-corrected
+   * symbol.
+   *
+   * Passing a literal @p ted (SYMSYNC_TED_GARDNER / SYMSYNC_TED_DTTL) lets
+   * the force-inlined body constant-fold the detector branch away, so a
+   * specialised block loop carries exactly one TED — the runtime `s->ted`
+   * branch inside the 64k-block loop measured ~30% slower (both TED bodies
+   * kept live across the per-sample path). Compositions that hardcode a
+   * detector (the MPSK receiver is Gardner-only) call this directly with
+   * the literal; runtime-configured callers use symsync_step().
    *
    * @param s      State.  Must be non-NULL.
    * @param x      One input sample.
    * @param y_out  Receives the symbol when the return is 1.
+   * @param ted    SYMSYNC_TED_GARDNER or SYMSYNC_TED_DTTL — pass a literal
+   *               for a specialised (branch-free) instantiation.
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
-   */
-  /**
-   * @brief symsync_step with the TED selection as a parameter.
-   *
-   * The workhorse behind symsync_step()/symsync_steps(). Passing a literal
-   * @p ted (SYMSYNC_TED_GARDNER / SYMSYNC_TED_DTTL) lets the force-inlined
-   * body constant-fold the detector branch away, so a specialised block
-   * loop carries exactly one TED — the runtime `s->ted` branch inside the
-   * 64k-block loop measured ~30% slower (both TED bodies kept live across
-   * the per-sample path). Compositions that hardcode a detector (the MPSK
-   * receiver is Gardner-only) call this directly with the literal.
    */
   JM_FORCEINLINE JM_HOT int
   symsync_step_ted (symsync_state_t *s, float complex x,
@@ -191,8 +190,19 @@ extern "C"
     return emit;
   }
 
-  /* Doc comment above ("Per-sample symbol-timing step") describes this
-   * public form; it dispatches on the state's configured detector. */
+  /**
+   * @brief Per-sample symbol-timing step (the inline composition API).
+   *
+   * The public form of symsync_step_ted(): dispatches on the state's
+   * configured detector (`s->ted`). symsync_steps() is this in a loop
+   * (with the TED specialised per detector); a tracking channel inlines
+   * it to drive a downstream carrier loop on the recovered symbols.
+   *
+   * @param s      State.  Must be non-NULL.
+   * @param x      One input sample.
+   * @param y_out  Receives the symbol when the return is 1.
+   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   */
   JM_FORCEINLINE JM_HOT int
   symsync_step (symsync_state_t *s, float complex x, float complex *y_out)
   {

@@ -1489,6 +1489,66 @@ type = "double"
 [[module.detection.functions.params]]
 name = "pfa"
 type = "double"
+
+[module.snr]
+objects = []
+
+[[module.snr.functions]]
+name = "snr_data_aided_db"
+doc = "Data-aided Es/N0 (dB): strip the known sign, Es/N0 = a^2 / mean(|z-a|^2)."
+return_type = "double"
+
+[[module.snr.functions.params]]
+name = "soft"
+type = "float _Complex[]"
+
+[[module.snr.functions.params]]
+name = "sign_bits"
+type = "uint8_t[]"
+
+[[module.snr.functions]]
+name = "snr_m2m4_db"
+doc = "Non-data-aided moment-based (M2M4) Es/N0 (dB) for a constant-modulus signal in AWGN."
+return_type = "double"
+
+[[module.snr.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.snr.functions]]
+name = "snr_data_aided_db_series"
+doc = "Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift."
+out_type = "double"
+variable_output = true
+out_size = "soft_len"
+
+[[module.snr.functions.params]]
+name = "soft"
+type = "float _Complex[]"
+
+[[module.snr.functions.params]]
+name = "sign_bits"
+type = "uint8_t[]"
+
+[[module.snr.functions.params]]
+name = "window"
+type = "size_t"
+
+[[module.snr.functions]]
+name = "snr_m2m4_db_series"
+doc = "Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift."
+out_type = "double"
+variable_output = true
+out_size = "x_len"
+
+[[module.snr.functions.params]]
+name = "x"
+type = "float _Complex[]"
+
+[[module.snr.functions.params]]
+name = "window"
+type = "size_t"
+
 [module.mpsk]
 objects = []
 

@@ -34,9 +34,13 @@ from ground truth:
      cluster.
   2. :class:`doppler.dsss.BurstDespreader` alone, seeded from each
      discovered hit: tracks the loops through the preamble (``set_acq``)
-     then despreads the frame to soft symbols, scored by a data-aided
-     Es/N0 (dB) estimate (not the object's own ``snr_est`` — see 'Rough
-     edges found').
+     then despreads the frame to soft symbols, scored by
+     :func:`doppler.snr.snr_data_aided_db` (not the object's own
+     ``snr_est`` — see 'Rough edges found'). ``doppler.snr`` is a new,
+     standalone, shared module (data-aided *and* non-data-aided/M2M4
+     estimators, both with sliding-window ``_series`` siblings) added
+     while building this demo, once it became clear the Es/N0 math
+     didn't belong reimplemented in Python here.
   3. :class:`doppler.dsss.BurstDemod`, the one-shot feedforward path: seeded
      with ``set_preamble``/``set_sync``/``set_prior`` (from the same
      discovered hit), ``demod()`` recovers the payload and checks the
@@ -131,6 +135,23 @@ write-up):
   fields elsewhere in the same module are (:attr:`BurstDemod.est_snr_db`) —
   worth a consistent naming convention upstream so "not dB" is visible from
   the name.
+* **The Es/N0 replacement was first a Python prototype, then ported to C.**
+  Reimplementing the fix in Python (strip the known sign, ``a**2 / mean(|z
+  - a|**2)``) was fine to validate the idea, but doppler is C-first — a
+  computed metric is an algorithm, not orchestration, and doesn't belong
+  reimplemented per-caller in Python. A repo-wide survey (nothing in
+  ``doppler.measure``/``doppler.psd`` — spectral/broadband ADC metrics, the
+  wrong question domain; nothing in ``doppler.detection`` — deliberately
+  input-only Pd/threshold math) found no existing home, so it's now
+  :mod:`doppler.snr`, a new standalone module: ``snr_data_aided_db()`` (the
+  estimator this demo uses) plus a non-data-aided sibling,
+  ``snr_m2m4_db()`` (moment-based/M2M4, Pauluzzi & Beaulieu 2000, for any
+  constant-modulus signal with no known symbols needed at all) — both with
+  sliding-window ``_series`` counterparts. Verified bit-for-bit identical
+  output to the retired Python prototype. ``BurstDespreader.snr_est`` (the
+  ad hoc EMA above) and ``PPE.snr_db`` (a peak-to-mean-dB confidence, a
+  different question) are candidates to eventually rebuild on this shared
+  module too — not done here, flagged for follow-up.
 * **Found and fixed a real bug in** :class:`~doppler.dsss.BurstDemod`
   (``native/src/burst_demod/burst_demod_core.c``). It is a **one-shot
   feedforward** design (no tracking loop, by its own header docs): one
@@ -179,6 +200,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.dsss import Acquisition, BurstDemod, BurstDespreader
+from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
 from doppler.wfm import Composer, Segment
 
 # ── waveform geometry ────────────────────────────────────────────────────────
@@ -207,41 +229,6 @@ TSYM = DATA_SF * SPC  # samples per despread data symbol
 ACQ_HOP = PRE_LEN // 4  # blind-sweep dwell hop -> 75% overlap between dwells
 
 ESN0_WINDOW = 51  # sliding-window length (symbols) for the Es/N0(dB) trace
-
-
-def _esn0_db(z):
-    """Data-aided Es/N0 (dB) of a modulation-stripped symbol segment.
-
-    ``z`` is despread symbols with the *known* transmitted sign already
-    multiplied in (``z = soft * sign``): with the carrier phase locked, z
-    sits near a constant amplitude ``a`` (real, but its sign is whatever
-    BurstDespreader's absolute-phase ambiguity happens to land on) plus
-    complex noise. Es (signal energy) = a**2, N0 (noise power per complex
-    sample) = mean(|z - a|**2) -- the same "energy over complex noise
-    variance" convention as wfm_awgn_amplitude / the add_noise() helpers
-    elsewhere in this repo. Scale-invariant (correct regardless of how
-    BurstDespreader normalizes its symbol amplitude) *and*
-    polarity-invariant (a**2 is the same whether a is + or -), so this
-    needs no resolution of the sign ambiguity noted in the module
-    docstring.
-    """
-    a = z.real.mean()
-    noise_pow = np.mean(np.abs(z - a) ** 2)
-    return 10.0 * np.log10((a * a) / noise_pow) if noise_pow > 0 else np.nan
-
-
-def symbol_esn0_db_series(soft, sign_bits, window=ESN0_WINDOW):
-    """Sliding-window Es/N0 (dB) vs symbol index, for visualizing drift."""
-    n = min(len(soft), len(sign_bits))
-    sign = np.where(np.asarray(sign_bits[:n]) & 1, -1.0, 1.0)
-    z = soft[:n] * sign
-    half = window // 2
-    return np.array(
-        [
-            _esn0_db(z[max(0, i - half) : min(n, i + half + 1)])
-            for i in range(n)
-        ]
-    )
 
 
 def _crc16(bits):
@@ -475,10 +462,10 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
     scored against both polarity hypotheses, since a Costas loop alone
     cannot resolve the absolute sign — see module docstring — but the
     reported Es/N0 needs no such resolution: it's invariant to a global sign
-    flip (see ``_esn0_db``), so it's reported once, not per polarity. This
-    *replaces* the object's own ``snr_est`` (not dB, not reliable once
-    locked — see 'Rough edges found') with a calibrated, data-aided Es/N0
-    (dB) computed against the known frame bits."""
+    flip (see :func:`doppler.snr.snr_data_aided_db`), so it's reported once,
+    not per polarity. This *replaces* the object's own ``snr_est`` (not dB,
+    not reliable once locked — see 'Rough edges found') with a calibrated,
+    data-aided Es/N0 (dB) computed against the known frame bits."""
     print("\n== BurstDespreader (alone) ==")
     print(
         f"  {'#':<3} {'symbols':>7} {'errs(as-is)':>11} "
@@ -517,7 +504,7 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
         n = min(len(hard), len(frame_bits))
         errs_as_is = int(np.sum(hard[:n] != frame_bits[:n]))
         errs_inv = int(np.sum(hard[:n] != (1 - frame_bits[:n])))
-        esn0_db = _esn0_db(soft[:n] * np.where(frame_bits[:n] & 1, -1.0, 1.0))
+        esn0_db = snr_data_aided_db(soft[:n], frame_bits[:n])
         slip = (
             f" (slipped {len(frame_bits) - len(soft):+d})"
             if n != len(frame_bits)
@@ -533,7 +520,9 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
                 "lock_metric": d.lock_metric,
                 "esn0_db": esn0_db,
                 "symbols": soft,
-                "esn0_series": symbol_esn0_db_series(soft[:n], frame_bits[:n]),
+                "esn0_series": snr_data_aided_db_series(
+                    soft[:n], frame_bits[:n], ESN0_WINDOW
+                ),
             }
         )
     return results

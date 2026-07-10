@@ -119,7 +119,7 @@ the carrier and code phase continuously across all 1029 frame symbols. Any
 false alarms score wildly wrong Es/N0 and near-zero lock, exactly as they
 should.
 
-### Es/N0 (dB), not `snr_est` — and why it's plotted vs time
+### Es/N0 (dB), not `snr_est` — now a standalone `doppler.snr` module
 
 `BurstDespreader`'s own `snr_est` isn't useful here (see
 [Rough edges found](#rough-edges-found)), so this demo reports a
@@ -131,6 +131,16 @@ It's scale-invariant (works regardless of `BurstDespreader`'s internal
 symbol normalization) *and* polarity-invariant (`a**2` doesn't care whether
 `a` is + or −), so unlike the bit-error count it needs no resolution of the
 sign ambiguity.
+
+This started as a Python prototype in the demo script itself — fine for
+validating the idea, but doppler is C-first, and a computed metric is an
+algorithm, not orchestration. It's now [`doppler.snr`](../api/python-snr.md),
+a new standalone module (`native/src/snr/`): `snr_data_aided_db()` (the
+estimator this demo uses) plus a non-data-aided sibling, `snr_m2m4_db()`
+(moment-based/M2M4, Pauluzzi & Beaulieu 2000 — needs no known symbols at
+all, for any constant-modulus signal), both with sliding-window `_series`
+counterparts. Verified bit-for-bit identical output to the retired Python
+prototype.
 
 A single scalar per burst hides the interesting part, though: a sliding
 51-symbol window of the same estimate, plotted against time into the
@@ -227,8 +237,23 @@ inconvenience:
     single digits up to `6.9e6` across otherwise-healthy bursts. Neither
     field is suffixed `_db` even though `BurstDemod.est_snr_db` is — a
     naming inconsistency worth fixing upstream. This demo now reports a
-    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-and-why-its-plotted-vs-time)
+    proper [data-aided Es/N0 (dB)](#esn0-db-not-snr_est-now-a-standalone-doppler-snr-module)
     instead.
+
+- **The Es/N0 replacement was first a Python prototype, then ported to
+    C.** Reimplementing the fix in Python was fine to validate the idea,
+    but doppler is C-first — a computed metric is an algorithm, not
+    orchestration. A repo-wide survey found no existing home for it
+    (`doppler.measure`/`doppler.psd` are spectral/broadband ADC metrics,
+    the wrong question domain; `doppler.detection` is deliberately
+    input-only Pd/threshold math), so it's now
+    [`doppler.snr`](../api/python-snr.md), a new standalone module —
+    `snr_data_aided_db()` plus a non-data-aided sibling, `snr_m2m4_db()`
+    (moment-based/M2M4, no known symbols needed at all), both with
+    sliding-window `_series` counterparts. Verified bit-for-bit identical
+    to the retired Python prototype. `BurstDespreader.snr_est` and
+    `PPE.snr_db` are candidates to eventually rebuild on this shared
+    module too — not done here, flagged for follow-up.
 
 - **Found and fixed a real bug in `BurstDemod`**
     (`native/src/burst_demod/burst_demod_core.c`). At this demo's original

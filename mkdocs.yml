@@ -163,6 +163,7 @@ nav:
           - 2-D Acquisition: gallery/detection2d.md
           - DSSS Acquisition & Despreading: gallery/dsss-despread.md
           - "DSSS Acquisition: Pd/Pfa": gallery/dsss-acq-characterization.md
+          - 5-Burst DSSS Link (wfmgen's 3 Faces): gallery/dsss-burst-pipeline.md
           - Streaming Async Despreader: gallery/async-despread.md
           - Despreader (full continuous receiver): gallery/despreader.md
       - Synchronization Loops:

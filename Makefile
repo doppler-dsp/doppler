@@ -274,6 +274,7 @@ PYTHON_EXAMPLE_SCRIPTS := \
     src/doppler/examples/wfm_rrc_response.py \
     src/doppler/examples/pn_codes.py \
     src/doppler/examples/wcdma_carriers_demo.py \
+    src/doppler/examples/dsss_burst_pipeline_demo.py \
     examples/standalone/example.py
 
 test-examples-python:

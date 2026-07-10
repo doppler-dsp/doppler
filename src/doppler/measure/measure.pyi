@@ -115,22 +115,13 @@ class ToneMeasure:
 
         """
 
-    def spectrum_dbfs(
-        self, x: NDArray[np.float32], out: NDArray[np.float32] | None = ...
-    ) -> NDArray[np.float32]:
+    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see spectrum_dbfs_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.float32]
             Input.
-        out : NDArray[np.float32], optional
-            Caller-provided output buffer, at least
-            max(spectrum_dbfs_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -139,7 +130,7 @@ class ToneMeasure:
         """
 
     def spectrum_dbfs_max_out(self) -> int:
-        """Max output length spectrum_dbfs() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length spectrum_dbfs() can produce for the current state."""
 
     @property
     def n(self) -> int:
@@ -259,22 +250,13 @@ class NPRMeasure:
 
         """
 
-    def spectrum_dbfs(
-        self, x: NDArray[np.float32], out: NDArray[np.float32] | None = ...
-    ) -> NDArray[np.float32]:
+    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see spectrum_dbfs_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.float32]
             Input.
-        out : NDArray[np.float32], optional
-            Caller-provided output buffer, at least
-            max(spectrum_dbfs_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -283,7 +265,7 @@ class NPRMeasure:
         """
 
     def spectrum_dbfs_max_out(self) -> int:
-        """Max output length spectrum_dbfs() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length spectrum_dbfs() can produce for the current state."""
 
     @property
     def n(self) -> int:
@@ -366,22 +348,13 @@ class IMDMeasure:
 
         """
 
-    def spectrum_dbfs(
-        self, x: NDArray[np.float32], out: NDArray[np.float32] | None = ...
-    ) -> NDArray[np.float32]:
+    def spectrum_dbfs(self, x: NDArray[np.float32], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """DC-centred dBFS magnitude spectrum of a capture (length nfft, for plots).
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see spectrum_dbfs_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.float32]
             Input.
-        out : NDArray[np.float32], optional
-            Caller-provided output buffer, at least
-            max(spectrum_dbfs_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -390,7 +363,7 @@ class IMDMeasure:
         """
 
     def spectrum_dbfs_max_out(self) -> int:
-        """Max output length spectrum_dbfs() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length spectrum_dbfs() can produce for the current state."""
 
     @property
     def n(self) -> int:

@@ -218,12 +218,15 @@ dll_set_telemetry (dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
   int id_rate = dp_tlm_probe (tlm, name, decim);
   (void)snprintf (name, sizeof (name), "%s.lock", p);
   int id_lock = dp_tlm_probe (tlm, name, decim);
-  if (id_e < 0 || id_rate < 0 || id_lock < 0)
+  (void)snprintf (name, sizeof (name), "%s.locked", p);
+  int id_locked = dp_tlm_probe (tlm, name, decim);
+  if (id_e < 0 || id_rate < 0 || id_lock < 0 || id_locked < 0)
     return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
-  state->tlm.id_e    = id_e;
-  state->tlm.id_rate = id_rate;
-  state->tlm.id_lock = id_lock;
-  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  state->tlm.id_e      = id_e;
+  state->tlm.id_rate   = id_rate;
+  state->tlm.id_lock   = id_lock;
+  state->tlm.id_locked = id_locked;
+  state->tlm.ctx       = tlm; /* set last: emit sites gate on ctx */
   return DP_OK;
 }
 
@@ -233,6 +236,7 @@ dll_tlm_flush (const dll_state_t *s)
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->code_rate);
   dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_stat);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_locked, (double)s->lock.locked);
 }
 
 /* Serializable state — whole-struct snapshot (loop_filter child is

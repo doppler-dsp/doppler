@@ -89,9 +89,10 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/mpsk_receiver.toml): a pure
 # forwarder to the embedded loops — "<prefix>.car.lock/.e/.freq" (Costas) +
-# "<prefix>.code.e/.rate/.lock" (DLL), six probes emitted once per code
-# period. None detaches everything; the int status binds -> None with
-# ValueError on failure.
+# "<prefix>.code.e/.rate/.lock/.locked" (DLL; .locked is the verify-counted
+# lockdet decision), seven probes emitted once per code period. None
+# detaches everything; the int status binds -> None with ValueError on
+# failure.
 [[despreader.methods]]
 name = "set_telemetry"
 arg_type = "void"

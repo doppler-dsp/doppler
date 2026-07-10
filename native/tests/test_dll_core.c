@@ -413,7 +413,7 @@ main (void)
     dll_destroy (d);
   }
 
-  /* telemetry attach — three records per code epoch in both the coherent
+  /* telemetry attach — four records per code epoch in both the coherent
    * (segments == 1) and partial-correlation (segments > 1) loops; blobs
    * stay attachment-independent; a live attachment survives set_state. */
   {
@@ -437,14 +437,16 @@ main (void)
     CHECK (dp_tlm_lookup (tlm, "code.e") == d->tlm.id_e);
     CHECK (dp_tlm_lookup (tlm, "code.rate") == d->tlm.id_rate);
     CHECK (dp_tlm_lookup (tlm, "code.lock") == d->tlm.id_lock);
+    CHECK (dp_tlm_lookup (tlm, "code.locked") == d->tlm.id_locked);
 
     size_t k     = dll_steps (d, rx, L, out, 256);
     size_t n_rec = dp_tlm_read (tlm, recs, 512);
-    CHECK (k > 0 && n_rec == 3 * k); /* e + rate + lock per epoch */
-    /* The final epoch's rate/lock records mirror the tracked state
-     * (flush order per epoch: e, rate, lock). */
-    CHECK (recs[n_rec - 2].value == (float)d->code_rate);
-    CHECK (recs[n_rec - 1].value == (float)d->lock_stat);
+    CHECK (k > 0 && n_rec == 4 * k); /* e + rate + lock + locked / epoch */
+    /* The final epoch's rate/lock/locked records mirror the tracked state
+     * (flush order per epoch: e, rate, lock, locked). */
+    CHECK (recs[n_rec - 3].value == (float)d->code_rate);
+    CHECK (recs[n_rec - 2].value == (float)d->lock_stat);
+    CHECK (recs[n_rec - 1].value == (float)dll_get_locked (d));
 
     /* segments > 1: the partial loop flushes once per epoch (an epoch is
      * `segments` emitted partials), through the same literal-tlm split. */
@@ -453,8 +455,8 @@ main (void)
     CHECK (dll_set_telemetry (s2, tlm, "code2", 1) == DP_OK);
     size_t k2 = dll_steps (s2, rx, L, out, 256);
     size_t n2 = dp_tlm_read (tlm, recs, 512);
-    CHECK (k2 > 0 && n2 > 0 && n2 % 3 == 0);
-    CHECK (n2 <= 3 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
+    CHECK (k2 > 0 && n2 > 0 && n2 % 4 == 0);
+    CHECK (n2 <= 4 * (k2 / 2 + 1)); /* one flush per epoch, not per partial */
     dll_destroy (s2);
 
     /* Blobs zero the attachment (deterministic) and set_state into an

@@ -205,6 +205,7 @@ static void
 mpsk_receiver_tlm_flush_ (const mpsk_receiver_state_t *rx)
 {
   dp_tlm_emit (rx->tlm_ctx, rx->tlm_id_lock, rx->car.lock);
+  dp_tlm_emit (rx->tlm_ctx, rx->tlm_id_tracking, (double)rx->tracking);
   carrier_nda_tlm_flush (&rx->car);
   symsync_tlm_flush (&rx->sync);
 }
@@ -396,7 +397,9 @@ mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
   char        name[DP_TLM_NAME_MAX];
   (void)snprintf (name, sizeof (name), "%s.lock", p);
   int id_lock = dp_tlm_probe (tlm, name, decim);
-  if (id_lock < 0)
+  (void)snprintf (name, sizeof (name), "%s.tracking", p);
+  int id_tracking = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0 || id_tracking < 0)
     return DP_ERR_INVALID;
   /* Forward to the carrier loop under "<prefix>.car" (which forwards on
    * to its arm AGC), then the timing loop under "<prefix>.sync"; if any
@@ -413,8 +416,9 @@ mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
       (void)carrier_nda_set_telemetry (&state->car, NULL, p, decim);
       return rc;
     }
-  state->tlm_id_lock = id_lock;
-  state->tlm_ctx     = tlm; /* set last: the emit site gates on ctx */
+  state->tlm_id_lock     = id_lock;
+  state->tlm_id_tracking = id_tracking;
+  state->tlm_ctx         = tlm; /* set last: the emit site gates on ctx */
   return DP_OK;
 }
 

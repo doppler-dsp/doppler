@@ -89,7 +89,7 @@ class Despreader:
     def set_telemetry(
         self, tlm: object | None, prefix: str, decim: int = 1
     ) -> None:
-        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" — six probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update).  Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" and the code loop registers "<prefix>.code.e" / ".rate" / ".lock" / ".locked" (the last is the verify-counted lockdet decision, 0/1) — seven probes, all thinned by decim and emitted once per code period (the despreader flushes both loops at its per-period update).  Passing NULL detaches both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -110,12 +110,12 @@ class Despreader:
         >>> ch = Despreader(code=code, sps=4)
         >>> ch.set_telemetry(tlm, "ch0")
         >>> sorted(tlm.probe_names())
-        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.rate']
+        ['ch0.car.e', 'ch0.car.freq', 'ch0.car.lock', 'ch0.code.e', 'ch0.code.lock', 'ch0.code.locked', 'ch0.code.rate']
         >>> chips = 1.0 - 2.0 * (np.arange(31) % 2)
         >>> x = np.tile(np.repeat(chips, 4), 40).astype(np.complex64)
         >>> _ = ch.steps(x)
-        >>> recs = tlm.read()   # six records per code period
-        >>> len(recs) > 0 and len(recs) % 6 == 0
+        >>> recs = tlm.read()   # seven records per code period
+        >>> len(recs) > 0 and len(recs) % 7 == 0
         True
 
         """

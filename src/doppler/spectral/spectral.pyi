@@ -1,5 +1,5 @@
 # spectral/spectral.pyi — type stubs for the spectral C extension.
-from typing import Literal
+from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -29,24 +29,13 @@ class FFT:
         """No-op reset (plans are immutable after creation).
         """
 
-    def execute_cf64(
-        self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = ...,
-    ) -> NDArray[np.complex128]:
+    def execute_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
         """Compute an out-of-place 1-D DFT on a double-precision complex input. The output is written to a fresh caller-supplied buffer; in and out must not alias.  The transform is unnormalised: the inverse DFT (sign=+1) does NOT divide by n.  Both buffers must be exactly state->n elements long.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_cf64_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128], optional
-            Caller-provided output buffer, at least
-            max(execute_cf64_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -65,24 +54,15 @@ class FFT:
         """
 
     def execute_cf64_max_out(self) -> int:
-        """Max output length execute_cf64() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_cf64() can produce for the current state."""
 
-    def execute_cf32(
-        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
-    ) -> NDArray[np.complex64]:
+    def execute_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input. Identical to fft_execute_cf64() but operates on float complex (CF32) buffers, halving memory bandwidth relative to the double-precision variant. Output is unnormalised; in and out must not alias.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_cf32_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64], optional
-            Caller-provided output buffer, at least
-            max(execute_cf32_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -101,7 +81,61 @@ class FFT:
         """
 
     def execute_cf32_max_out(self) -> int:
-        """Max output length execute_cf32() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_cf32() can produce for the current state."""
+
+    def execute_inplace_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
+        """Copy in into out, then transform out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate in / out pointers; use this variant when the caller already owns out and wants the result there without a second allocation.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex128]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex128]
+            n (number of samples written).
+
+        Examples
+        --------
+        >>> from doppler.spectral import FFT
+        >>> import numpy as np
+        >>> fft = FFT(n=4, sign=-1)
+        >>> x = np.array([1, 0, 0, 0], dtype=np.complex128)
+        >>> fft.execute_inplace_cf64(x).tolist()
+        [(1+0j), (1+0j), (1+0j), (1+0j)]
+
+        """
+
+    def execute_inplace_cf64_max_out(self) -> int:
+        """Max output length execute_inplace_cf64() can produce for the current state."""
+
+    def execute_inplace_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
+        """Copy in into out, then transform out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from in to out, then transforms out with the CF32 pocketfft plan.  in is left unmodified.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            n (number of samples written).
+
+        Examples
+        --------
+        >>> from doppler.spectral import FFT
+        >>> import numpy as np
+        >>> fft = FFT(n=4, sign=-1)
+        >>> x = np.array([1, 0, 0, 0], dtype=np.complex64)
+        >>> fft.execute_inplace_cf32(x).tolist()
+        [(1+0j), (1+0j), (1+0j), (1+0j)]
+
+        """
+
+    def execute_inplace_cf32_max_out(self) -> int:
+        """Max output length execute_inplace_cf32() can produce for the current state."""
 
     def execute_ci16(self, iq: NDArray[np.int16]) -> NDArray[np.complex64]:
         """Out-of-place 1-D FFT directly on interleaved int16 I/Q (CF32 out). The int16->float convert (v/32768, full-scale +/-1.0) is fused into the transform, so it is faster than i16_to_f32 then execute_cf32.
@@ -130,80 +164,6 @@ class FFT:
         dtype('complex64')
 
         """
-
-    def execute_inplace_cf64(
-        self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = ...,
-    ) -> NDArray[np.complex128]:
-        """Copy in into out, then transform out in-place (CF64). The copy step lets callers preserve their input while keeping the output buffer hot in cache.  Semantically identical to fft_execute_cf64() for separate in / out pointers; use this variant when the caller already owns out and wants the result there without a second allocation.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_inplace_cf64_max_out() to size an out=
-        buffer for an independent, alias-free result).
-
-        Parameters
-        ----------
-        x : NDArray[np.complex128]
-            Input.
-        out : NDArray[np.complex128], optional
-            Caller-provided output buffer, at least
-            max(execute_inplace_cf64_max_out(), len(x)) elements.
-
-        Returns
-        -------
-        NDArray[np.complex128]
-            n (number of samples written).
-
-        Examples
-        --------
-        >>> from doppler.spectral import FFT
-        >>> import numpy as np
-        >>> fft = FFT(n=4, sign=-1)
-        >>> x = np.array([1, 0, 0, 0], dtype=np.complex128)
-        >>> fft.execute_inplace_cf64(x).tolist()
-        [(1+0j), (1+0j), (1+0j), (1+0j)]
-
-        """
-
-    def execute_inplace_cf64_max_out(self) -> int:
-        """Max output length execute_inplace_cf64() can produce for the current state. Use to size the ``out=`` buffer."""
-
-    def execute_inplace_cf32(
-        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
-    ) -> NDArray[np.complex64]:
-        """Copy in into out, then transform out in-place (CF32). Single-precision variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples from in to out, then transforms out with the CF32 pocketfft plan.  in is left unmodified.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_inplace_cf32_max_out() to size an out=
-        buffer for an independent, alias-free result).
-
-        Parameters
-        ----------
-        x : NDArray[np.complex64]
-            Input.
-        out : NDArray[np.complex64], optional
-            Caller-provided output buffer, at least
-            max(execute_inplace_cf32_max_out(), len(x)) elements.
-
-        Returns
-        -------
-        NDArray[np.complex64]
-            n (number of samples written).
-
-        Examples
-        --------
-        >>> from doppler.spectral import FFT
-        >>> import numpy as np
-        >>> fft = FFT(n=4, sign=-1)
-        >>> x = np.array([1, 0, 0, 0], dtype=np.complex64)
-        >>> fft.execute_inplace_cf32(x).tolist()
-        [(1+0j), (1+0j), (1+0j), (1+0j)]
-
-        """
-
-    def execute_inplace_cf32_max_out(self) -> int:
-        """Max output length execute_inplace_cf32() can produce for the current state. Use to size the ``out=`` buffer."""
 
     @property
     def n(self) -> int:
@@ -248,24 +208,13 @@ class FFT2D:
         """No-op reset (plans are immutable after creation).
         """
 
-    def execute_cf64(
-        self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = ...,
-    ) -> NDArray[np.complex128]:
+    def execute_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
         """Compute an out-of-place 2-D DFT on a double-precision complex grid. in is a flat row-major CF64 array of length ny*nx.  The output is written to the caller-supplied out buffer (also ny*nx); the two must not alias.  The transform is unnormalised.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_cf64_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128], optional
-            Caller-provided output buffer, at least
-            max(execute_cf64_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -287,24 +236,15 @@ class FFT2D:
         """
 
     def execute_cf64_max_out(self) -> int:
-        """Max output length execute_cf64() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_cf64() can produce for the current state."""
 
-    def execute_cf32(
-        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
-    ) -> NDArray[np.complex64]:
+    def execute_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Compute an out-of-place 2-D DFT on a single-precision complex grid. Single-precision variant of fft2d_execute_cf64().  Accepts and returns flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; in and out must not alias.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_cf32_max_out() to size an out= buffer
-        for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64], optional
-            Caller-provided output buffer, at least
-            max(execute_cf32_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -326,26 +266,15 @@ class FFT2D:
         """
 
     def execute_cf32_max_out(self) -> int:
-        """Max output length execute_cf32() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_cf32() can produce for the current state."""
 
-    def execute_inplace_cf64(
-        self,
-        x: NDArray[np.complex128],
-        out: NDArray[np.complex128] | None = ...,
-    ) -> NDArray[np.complex128]:
+    def execute_inplace_cf64(self, x: NDArray[np.complex128], out: NDArray[np.complex128] | None = None) -> NDArray[np.complex128]:
         """Copy in into out, then transform out in-place (CF64 2-D). The ny*nx CF64 samples from in are first memcpy'd to out; the 2-D DFT is then applied to out in-place.  in is left unmodified. Useful when the caller owns out and wants to preserve in.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_inplace_cf64_max_out() to size an out=
-        buffer for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex128]
             Input.
-        out : NDArray[np.complex128], optional
-            Caller-provided output buffer, at least
-            max(execute_inplace_cf64_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -365,24 +294,15 @@ class FFT2D:
         """
 
     def execute_inplace_cf64_max_out(self) -> int:
-        """Max output length execute_inplace_cf64() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_inplace_cf64() can produce for the current state."""
 
-    def execute_inplace_cf32(
-        self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = ...
-    ) -> NDArray[np.complex64]:
+    def execute_inplace_cf32(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Copy in into out, then transform out in-place (CF32 2-D). Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx CF32 samples then applies the CF32 2-D pocketfft plan to out.
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see execute_inplace_cf32_max_out() to size an out=
-        buffer for an independent, alias-free result).
 
         Parameters
         ----------
         x : NDArray[np.complex64]
             Input.
-        out : NDArray[np.complex64], optional
-            Caller-provided output buffer, at least
-            max(execute_inplace_cf32_max_out(), len(x)) elements.
 
         Returns
         -------
@@ -402,7 +322,7 @@ class FFT2D:
         """
 
     def execute_inplace_cf32_max_out(self) -> int:
-        """Max output length execute_inplace_cf32() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length execute_inplace_cf32() can produce for the current state."""
 
     @property
     def ny(self) -> int:
@@ -458,7 +378,7 @@ class Corr:
 
         """
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Correlate one frame and optionally dump the coherent accumulator. Runs: forward FFT → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, inverse FFT → normalise (÷ n).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse. On the dwell-th call out is written, the accumulator is zeroed, and the counter resets; the function returns n_out.  All other calls return 0 and leave out unmodified.  In Python, a dump returns an ndarray and a no-dump returns None.
 
         Parameters
@@ -484,6 +404,9 @@ class Corr:
         [(2+0j), (2+0j), (2+0j), (2+0j)]
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -552,7 +475,7 @@ class Corr2D:
 
         """
 
-    def execute(self, x: NDArray[np.complex64]) -> NDArray[np.complex64]:
+    def execute(self, x: NDArray[np.complex64], out: NDArray[np.complex64] | None = None) -> NDArray[np.complex64]:
         """Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny*nx).  Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is **coherent** (a complex sum); a non-coherent (magnitude) integration could not defer the inverse.  The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny*nx ndarray, a no-dump returns None.
 
         Parameters
@@ -578,6 +501,9 @@ class Corr2D:
         [(2+0j), (2+0j), (2+0j), (2+0j)]
 
         """
+
+    def execute_max_out(self) -> int:
+        """Max output length execute() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""
@@ -934,7 +860,7 @@ class PSD:
         """Discard the running average; counters return to zero.
         """
 
-    def psd_db(self) -> NDArray[np.float32]:
+    def psd_db(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged power spectrum in dB (None before any accumulate).
 
         Returns
@@ -943,7 +869,10 @@ class PSD:
             n, or 0 if empty.
         """
 
-    def psd_dbhz(self) -> NDArray[np.float32]:
+    def psd_db_max_out(self) -> int:
+        """Max output length psd_db() can produce for the current state."""
+
+    def psd_dbhz(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged power spectral density in dB/Hz (None before any accumulate).
 
         Returns
@@ -963,7 +892,10 @@ class PSD:
 
         """
 
-    def power_twosided(self) -> NDArray[np.float32]:
+    def psd_dbhz_max_out(self) -> int:
+        """Max output length psd_dbhz() can produce for the current state."""
+
+    def power_twosided(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged linear power, DC-centred two-sided (length nfft); cg^2-normalised.
 
         Returns
@@ -972,7 +904,10 @@ class PSD:
             nfft, or 0 if empty.
         """
 
-    def power_onesided(self) -> NDArray[np.float32]:
+    def power_twosided_max_out(self) -> int:
+        """Max output length power_twosided() can produce for the current state."""
+
+    def power_onesided(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Averaged linear power, one-sided fold (length nfft/2+1); cg^2-normalised.
 
         Returns
@@ -981,22 +916,16 @@ class PSD:
             nfft/2 + 1, or 0 if empty.
         """
 
-    def band_power(
-        self, bands: NDArray[np.float64], out: NDArray[np.float32] | None = ...
-    ) -> NDArray[np.float32]:
-        """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
+    def power_onesided_max_out(self) -> int:
+        """Max output length power_onesided() can produce for the current state."""
 
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see band_power_max_out() to size an out= buffer for
-        an independent, alias-free result).
+    def band_power(self, bands: NDArray[np.float64], out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
+        """Integrated power per band in dB; bands = [lo0,hi0,lo1,hi1,...] Hz.
 
         Parameters
         ----------
         bands : NDArray[np.float64]
             Flat `[lo,hi,...]` band edges, Hz.
-        out : NDArray[np.float32], optional
-            Caller-provided output buffer, at least
-            max(band_power_max_out(), len(bands)) elements.
 
         Returns
         -------
@@ -1016,7 +945,7 @@ class PSD:
         """
 
     def band_power_max_out(self) -> int:
-        """Max output length band_power() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length band_power() can produce for the current state."""
 
     def total_band_power(self, bands: NDArray[np.float64]) -> float:
         """Total integrated power across all bands in dB.

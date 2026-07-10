@@ -456,17 +456,8 @@ class AccTrace:
 
         """
 
-    def value(self, out: NDArray[np.float32] | None = ...) -> NDArray[np.float32]:
+    def value(self, out: NDArray[np.float32] | None = None) -> NDArray[np.float32]:
         """Copy the current averaged trace (None before any accumulate).
-
-        Without out=, the returned array is a view into a buffer reused on
-        the next call (see value_max_out() to size an out= buffer for an
-        independent, alias-free result).
-
-        Parameters
-        ----------
-        out : NDArray[np.float32], optional
-            Caller-provided output buffer.
 
         Returns
         -------
@@ -486,7 +477,7 @@ class AccTrace:
         """
 
     def value_max_out(self) -> int:
-        """Max output length value() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length value() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

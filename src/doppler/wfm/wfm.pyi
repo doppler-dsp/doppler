@@ -42,17 +42,8 @@ class PN:
 
         """
 
-    def generate(
-        self, count: int = ..., out: NDArray[np.uint8] | None = ...
-    ) -> NDArray[np.uint8]:
-        """Generate ``n`` chips into ``out`` and advance the LFSR by ``n`` positions.  Each element of ``out`` is 0 or 1.  Requesting more than one MLS period is valid — the sequence simply wraps around.  Without out=, the Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot, or pass out= (must have at least max(generate_max_out(), count) elements) for an independent, alias-free result.
-
-        Parameters
-        ----------
-        count : int, default 1
-            Number of chips to generate.
-        out : NDArray[np.uint8], optional
-            Caller-provided output buffer.
+    def generate(self, out: NDArray[np.uint8] | None = None) -> NDArray[np.uint8]:
+        """Generate ``n`` chips into ``out`` and advance the LFSR by ``n`` positions.  Each element of ``out`` is 0 or 1.  Requesting more than one MLS period is valid — the sequence simply wraps around.  The Python binding returns a zero-copy NumPy uint8 view over a pre-allocated buffer; copy the result before calling generate again if you need a snapshot.
 
         Returns
         -------
@@ -73,7 +64,7 @@ class PN:
         """
 
     def generate_max_out(self) -> int:
-        """Max output length generate() can produce for the current state. Use to size the ``out=`` buffer."""
+        """Max output length generate() can produce for the current state."""
 
     def state_bytes(self) -> int:
         """Serialized state size in bytes."""

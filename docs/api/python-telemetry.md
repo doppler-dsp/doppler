@@ -44,15 +44,23 @@ Every tracking loop (and the AGC) exposes
 their embedded loops under a dotted sub-prefix. `None` detaches
 everything the attach armed.
 
-| Object               | Probes under `<prefix>`                               | Event rate                  |
-| -------------------- | ----------------------------------------------------- | --------------------------- |
-| `agc.AGC`            | `.gain_db`                                            | per gain update (amortized) |
-| `track.Costas`       | `.lock`, `.e`, `.freq`                                | per dumped symbol           |
-| `track.Dll`          | `.e`, `.rate`, `.lock`                                | per code epoch              |
-| `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`               | per sample — use `decim`    |
-| `track.SymbolSync`   | `.e`, `.freq`, `.rate`                                | per recovered symbol        |
-| `track.MpskReceiver` | `.lock` + `.car.*` (+ `.car.agc.gain_db`) + `.sync.*` | per recovered symbol        |
-| `dsss.Despreader`    | `.car.*` (Costas) + `.code.*` (DLL)                   | per code period             |
+| Object               | Probes under `<prefix>`                                            | Event rate                  |
+| -------------------- | ------------------------------------------------------------------ | --------------------------- |
+| `agc.AGC`            | `.gain_db`                                                         | per gain update (amortized) |
+| `track.Costas`       | `.lock`, `.e`, `.freq`                                             | per dumped symbol           |
+| `track.Dll`          | `.e`, `.rate`, `.lock`, `.locked`                                  | per code epoch              |
+| `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`                            | per sample — use `decim`    |
+| `track.SymbolSync`   | `.e`, `.freq`, `.rate`                                             | per recovered symbol        |
+| `track.MpskReceiver` | `.lock`, `.tracking` + `.car.*` (+ `.car.agc.gain_db`) + `.sync.*` | per recovered symbol        |
+| `dsss.Despreader`    | `.car.*` (Costas) + `.code.*` (DLL)                                | per code period             |
+
+The decision probes pair with their statistic probes by design:
+`Dll`'s `.locked` is the verify-counted
+[lock-detector](python-detection.md#lock-verification) output next to
+the `.lock` CFAR statistic it is judging, and `MpskReceiver`'s
+`.tracking` is the two-way handover state next to the `.lock` carrier
+metric — plot the pair and you see exactly where the declare/drop rule
+fired, without re-deriving thresholds consumer-side.
 
 ## Threading model
 

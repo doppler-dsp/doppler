@@ -58,9 +58,10 @@ nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
 # Telemetry attach (jm gh-432; mirrors objects/symsync.toml): registers
-# "<prefix>.e" / "<prefix>.rate" / "<prefix>.lock", emitted once per code
-# epoch. None detaches; the int status binds -> None with ValueError on
-# failure.
+# "<prefix>.e" / "<prefix>.rate" / "<prefix>.lock" / "<prefix>.locked"
+# (the last is the verify-counted lockdet decision, 0/1), emitted once per
+# code epoch. None detaches; the int status binds -> None with ValueError
+# on failure.
 [[dll.methods]]
 name = "set_telemetry"
 arg_type = "void"

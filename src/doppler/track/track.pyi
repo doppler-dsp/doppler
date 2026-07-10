@@ -281,7 +281,7 @@ class Dll:
         """Max output length steps() can produce for the current state."""
 
     def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context and register the code loop's probes on it. Registers three probes, emitted once per code epoch (period) and further thinned by decim: "<prefix>.e" (the early-minus-late envelope discriminator — the loop stress), "<prefix>.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock) and "<prefix>.lock" (the CFAR lock statistic R; compare against the configured threshold).  Passing NULL detaches.  Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "<prefix>.e" (the early-minus-late envelope discriminator — the loop stress), "<prefix>.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "<prefix>.lock" (the CFAR lock statistic R; compare against the configured threshold) and "<prefix>.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic).  Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -302,11 +302,11 @@ class Dll:
         >>> d = Dll(code=code, sps=2)
         >>> d.set_telemetry(tlm, "code")
         >>> sorted(tlm.probe_names())
-        ['code.e', 'code.lock', 'code.rate']
+        ['code.e', 'code.lock', 'code.locked', 'code.rate']
         >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
         >>> _ = d.steps(x)
-        >>> recs = tlm.read()   # three records per code epoch
-        >>> len(recs) > 0 and len(recs) % 3 == 0
+        >>> recs = tlm.read()   # four records per code epoch
+        >>> len(recs) > 0 and len(recs) % 4 == 0
         True
 
         """
@@ -826,7 +826,7 @@ class MpskReceiver:
     def __init__(self, m: int = ..., sps: int = ..., n: int = ..., pulse: Literal["iandd", "rrc"] = "iandd", rrc_beta: float = ..., rrc_span: int = ..., bn_carrier: float = ..., zeta: float = ..., bn_timing: float = ..., acq_to_track: int = ..., lock_thresh: float = ..., init_norm_freq: float = ..., warmup_syms: int = ..., differential: int = ...) -> None: ...
 
     def set_telemetry(self, tlm: object | None, prefix: Any, decim: int = 1) -> None:
-        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" — eight probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
+        """Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "<prefix>.lock" probe (the carrier lock EMA) and "<prefix>.tracking" (the two-way handover decision, 0/1 — the lockdet output, so a consumer sees exactly when the carrier was handed to the decision-directed discriminator or dropped back to NDA), then forwards the attach to both embedded loops: the carrier loop registers "<prefix>.car.lock" / ".e" / ".freq" (plus its arm AGC's "<prefix>.car.agc.gain_db") and the symbol-timing loop registers "<prefix>.sync.e" / ".freq" / ".rate" — nine probes total, all thinned by decim.  Every probe except the AGC's emits once per recovered symbol (the receiver flushes both loops at the symbol strobe, not at the carrier loop's sample rate); the AGC's emits at its own amortized gain-update rate.  Passing NULL detaches the receiver and both loops.  Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in telemetry/telemetry.h).
 
         Parameters
         ----------
@@ -846,12 +846,12 @@ class MpskReceiver:
         >>> rx = MpskReceiver(m=4, sps=4)
         >>> rx.set_telemetry(tlm, "rx")
         >>> len(tlm.probe_names())
-        8
+        9
         >>> rng = np.random.default_rng(7)
         >>> syms = (1 - 2 * rng.integers(0, 2, 512)).astype(np.complex64)
         >>> x = np.repeat(syms, 4)
         >>> _ = rx.steps(x)
-        >>> recs = tlm.read()   # seven records per emitted symbol + AGC
+        >>> recs = tlm.read()   # eight records per emitted symbol + AGC
         >>> n_sync = len(recs[recs["probe"] == tlm.probe_id("rx.sync.e")])
         >>> n_car = len(recs[recs["probe"] == tlm.probe_id("rx.car.e")])
         >>> n_sync > 0 and n_sync == n_car

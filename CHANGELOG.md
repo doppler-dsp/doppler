@@ -13,6 +13,8 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-07-09
+
 ### Added
 
 - **AGC telemetry instrumentation** — the first `dp_tlm`-instrumented
@@ -37,9 +39,11 @@ ______________________________________________________________________
     `dp_tlm_read` drain, `-DDP_TLM_DISABLE` compile-out. The new
     `DP_DEFINE_POD_STATE_TLM` macro (`dp_state.h`) keeps instrumented objects
     serialization-safe: the attachment is zeroed in state blobs and preserved
-    across restore. Design doc: `docs/design/telemetry.md`. Object
-    instrumentation (AGC first) and the Python `Telemetry` module land in
-    follow-up PRs.
+    across restore. Design doc: `docs/design/telemetry.md`. The Python
+    face is `doppler.telemetry.Telemetry` (hand-owned `no_generate`
+    module): numpy structured-array `read()`, probe-name map, per-probe
+    `emitted()` and `dropped` accounting, and the `_capsule` attach point
+    instrumented objects bind to. API page: `docs/api/python-telemetry.md`.
 
 ### Fixed
 

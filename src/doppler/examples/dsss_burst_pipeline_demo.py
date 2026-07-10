@@ -62,25 +62,59 @@ write-up):
   boundary by one symbol over a long (1000+ symbol) frame. Genuine
   streaming behaviour, not a bug — but code consuming the output must not
   assume the count is exact.
+* **Neither DSSS ``snr_est`` field is in dB, despite the demo's first draft
+  printing both as "snr(dB)".**
+  :attr:`Acquisition.push`'s 6th tuple element is documented as "estimated
+  *per-sample amplitude* SNR" (``acq_core.h``) — a linear ratio, computed as
+  ``test_stat / sqrt(2*pi) / sqrt(2*n)``. It is *supposed* to look small and
+  flat (observed ~0.2 here) even when ``test_stat`` is large and healthy
+  (observed ~24): it backs the coherent-integration gain back out of
+  ``test_stat`` to recover the raw per-sample SNR, which is a different,
+  correctly-related quantity, not a broken one.
 * ``BurstDespreader.snr_est`` (EMA of ``Re(prompt)^2 / Im(prompt)^2``) is
-  numerically unstable once the Costas loop is well locked on BPSK: a
-  locked BPSK prompt has ``Im -> 0``, so the ratio can spike to absurd
-  values (observed: single digits up to 6.9e6 "dB" across otherwise-healthy
-  bursts in this demo). Treat it as a rough lock-quality signal, not a
-  calibrated SNR in dB.
-* :class:`~doppler.dsss.BurstDemod` is a **one-shot feedforward** design (no
-  tracking loop, by its own header docs) — its single dechirp is only as
-  good as the Doppler/rate estimate from the fixed preamble. At this demo's
-  scale (1000-symbol payload, 5x512-chip preamble, Es/N0=10dB) a residual
-  few-Hz estimation error accumulates enough phase drift across the frame
-  to fail the CRC on more than half of runs; raising ``est_segments`` does
-  not meaningfully help (verified: 1-2/10 valid from est_segments=10 up to
-  200) because the bottleneck is the preamble's total coherent duration,
-  not the estimator's segmentation. ``BurstDespreader``'s continuous
-  tracking loop has no such ceiling. Practical takeaway: match the receiver
-  to the payload length — feedforward ``BurstDemod`` for short frames
-  (tens to a few hundred symbols, as in its own test suite), the tracking
-  ``BurstDespreader`` for long ones.
+  *also* not dB — a power-domain ratio — and is numerically unstable once
+  the Costas loop is well locked on BPSK: a locked BPSK prompt has
+  ``Im -> 0``, so the ratio can spike to absurd values (observed: single
+  digits up to 6.9e6 across otherwise-healthy bursts in this demo). Treat it
+  as a rough lock-quality signal, not a calibrated SNR.
+* Neither of the two fields above is suffixed ``_db`` even though sibling
+  fields elsewhere in the same module are (:attr:`BurstDemod.est_snr_db`) —
+  worth a consistent naming convention upstream so "not dB" is visible from
+  the name.
+* **Found and fixed a real bug in** :class:`~doppler.dsss.BurstDemod`
+  (``native/src/burst_demod/burst_demod_core.c``). It is a **one-shot
+  feedforward** design (no tracking loop, by its own header docs): one
+  static ``(f0, mu)`` dechirp is applied across the whole payload, so any
+  residual estimation error accumulates uncorrected phase drift over the
+  frame. At this demo's original scale (1000-symbol payload, 5x512-chip
+  preamble, Es/N0=10dB) a residual few-Hz error from the preamble-only
+  estimate broke the CRC on more than half of runs; raising
+  ``est_segments`` from 10 to 200 barely moved the pass rate (1-2/10
+  either way), because ``est_segments`` only changes the *time-sampling
+  grid* within the fixed preamble span — it can't buy back precision a
+  short coherent observation doesn't have.
+
+  The actual bug: ``burst_demod_demod()`` already squared the despread
+  payload symbols and ran :class:`~doppler.dsss.PolynomialPhaseEstimator`
+  over them (a baseline ~20x longer than the preamble) to NDA-refine the
+  chirp rate ``mu`` — but discarded the *frequency* term
+  (``e2.freq_norm``) the same ``ppe_estimate()`` call also returns, and
+  gated the whole refinement behind ``max_rate > 0.0``, skipping it
+  entirely for the Doppler-only (``max_rate=0``) case this demo uses. The
+  fix: apply the discarded frequency correction the same way the rate
+  correction was already applied (``f0 += 0.5 * e2.freq_norm / tsym``,
+  halved for the BPSK squaring — safe here because the preamble estimate
+  already pins the residual to a small fraction of a cycle per symbol,
+  nowhere near the squaring's half-cycle ambiguity zone), and stop gating
+  the block on ``max_rate`` (a Doppler-only ``ppe_create(nsym, 0.0)``
+  naturally returns ``rate_norm=0``, so the rate term is a no-op when
+  ``max_rate=0`` — no branch needed). Verified: 10/10 valid in an isolated
+  numpy repro (residual freq error dropped from a few-to-17 Hz down to
+  sub-Hz) and 5/5 in this demo's actual wfmgen capture, with the existing
+  ``test_burst_demod.py``/``test_realtime_file_demod.py``/``test_ppe.py``
+  suites (89 tests) still green. ``BurstDespreader``'s continuous tracking
+  loop never had this ceiling in the first place — it doesn't need a good
+  feedforward estimate, it converges to one.
 """
 
 from __future__ import annotations
@@ -282,7 +316,7 @@ def demo_acquisition(rx, starts, acq_code):
     print("\n== Acquisition (alone) ==")
     print(
         f"  {'burst':<5} {'dop bin':>7} {'code phase':>10} {'test stat':>9} "
-        f"{'threshold':>9} {'snr(dB)':>7}"
+        f"{'threshold':>9} {'snr_est(lin)':>12}"
     )
     results = []
     for k, start in enumerate(starts):
@@ -296,9 +330,14 @@ def demo_acquisition(rx, starts, acq_code):
             results.append(None)
             continue
         dop, cp, _peak, _noise, test_stat, snr = max(hits, key=lambda h: h[4])
+        # snr_est is a *linear per-sample amplitude* ratio (acq_core.h),
+        # NOT dB, and NOT the post-integration detection stat — it's
+        # expected to look small/flat for a spread-spectrum signal since
+        # it backs the coherent gain back out of test_stat. See module
+        # docstring's "Rough edges found".
         print(
             f"  {k:<5} {dop:>7d} {cp:>10d} {test_stat:>9.1f} "
-            f"{acq.threshold:>9.1f} {snr:>7.1f}"
+            f"{acq.threshold:>9.1f} {snr:>12.3f}"
         )
         results.append((dop, cp, acq))
     return results
@@ -313,7 +352,7 @@ def demo_despreader(rx, starts, acq_results, acq_code, data_code, frame_bits):
     print("\n== BurstDespreader (alone) ==")
     print(
         f"  {'burst':<5} {'symbols':>7} {'errs(as-is)':>11} "
-        f"{'errs(inv)':>9} {'lock':>5} {'snr(dB)':>7}"
+        f"{'errs(inv)':>9} {'lock':>5} {'snr_est(pwr)':>12}"
     )
     results = []
     for k, (start, hit) in enumerate(zip(starts, acq_results)):
@@ -355,7 +394,7 @@ def demo_despreader(rx, starts, acq_results, acq_code, data_code, frame_bits):
         )
         print(
             f"  {k:<5} {len(hard):>7} {errs_as_is:>11} {errs_inv:>9} "
-            f"{d.lock_metric:>5.2f} {d.snr_est:>7.1f}{slip}"
+            f"{d.lock_metric:>5.2f} {d.snr_est:>12.3g}{slip}"
         )
         results.append((min(errs_as_is, errs_inv), d.lock_metric, d.snr_est))
     return results
@@ -416,13 +455,11 @@ def main():
     print(f"\nsummary: {n_ok}/{N_BURSTS} bursts decoded with a valid CRC")
     if n_ok < N_BURSTS:
         print(
-            "  (expected at this payload length — see 'Rough edges' in the "
-            "module docstring: BurstDemod is a one-shot feedforward\n"
-            "  estimate-then-dechirp with no tracking loop, so a residual "
-            "Hz-level frequency error from the 2560-chip preamble\n"
-            "  accumulates uncorrected phase drift across a 1000-symbol "
-            "payload — BurstDespreader tracks continuously and doesn't\n"
-            "  share this failure mode, as the section above shows.)"
+            "  (a regression: BurstDemod's payload-domain frequency "
+            "refinement — see 'Rough edges' in the module docstring —\n"
+            "  should make this 5/5 reliably at this scale. If it isn't, "
+            "check native/src/burst_demod/burst_demod_core.c for a\n"
+            "  reverted or broken fix.)"
         )
 
 

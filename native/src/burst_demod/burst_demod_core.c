@@ -247,9 +247,28 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
   s->est_rate_hz = mu * fs * fs;
   s->est_snr_db  = est.snr_db;
 
-  /* ── 2) Dechirp + despread (coarse), then NDA-refine the RATE over the long
-   * data-symbol baseline and despread again. (Frequency stays from the
-   * iterated preamble — squaring folds it with a half-cycle ambiguity.) ─────
+  /* ── 2) Dechirp + despread (coarse), then NDA-refine (freq, rate) over the
+   * long data-symbol baseline and despread again.
+   *
+   * The preamble-only estimate from step 1 is limited to acq_sf*acq_reps
+   * chips of coherent observation; a long payload (hundreds to thousands of
+   * symbols) gives a baseline tens of times longer, so squaring off the
+   * BPSK modulation (which halves the CRLB-driving observation time penalty
+   * relative to redoing a data-aided estimate) still tightens the estimate
+   * substantially — critical because ONE static (f0, mu) is applied across
+   * the whole payload with no tracking loop, so any residual error
+   * accumulates uncorrected phase drift over the frame.
+   *
+   * Squaring doubles both frequency and rate and folds each mod its own
+   * Nyquist span, i.e. a true half-cycle ambiguity in the doubled domain.
+   * That is only safe to resolve by halving when the preamble estimate
+   * already pins the residual to well inside +/-0.25 cycles per symbol
+   * (per data-symbol period tsym) *before* doubling — true here by
+   * construction: the residual is bounded by the preamble estimator's own
+   * (small) variance, not by an a priori Doppler search span the way
+   * max_rate's rate search is. ppe_create with max_rate=0 collapses to a
+   * single FFT (rate_norm always 0), so this refines frequency alone when
+   * the caller configured Doppler-only, and both when max_rate>0.
    */
   const size_t   tsym     = s->data_sf * s->spc;
   const size_t   nsym_max = (x_len - data0) / tsym + 1;
@@ -263,20 +282,23 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
     }
   size_t nsym
       = despread_data (s, x, x_len, data0, npre, f0, mu, sym, nsym_max);
-  if (s->max_rate > 0.0 && nsym >= 8)
+  if (nsym >= 8)
     {
       for (size_t k = 0; k < nsym; k++)
         sym2[k] = sym[k] * sym[k];
-      double       t  = (double)tsym;
-      double       rm = fmin (s->max_rate * t * t * 2.0, 0.02);
+      double t = (double)tsym;
+      double rm
+          = (s->max_rate > 0.0) ? fmin (s->max_rate * t * t * 2.0, 0.02) : 0.0;
       ppe_state_t *pr = ppe_create (nsym, rm);
       if (pr)
         {
           ppe_result_t e2 = ppe_estimate (pr, sym2, nsym);
+          f0 += (e2.freq_norm * 0.5) / t;       /* squared -> halve */
           mu += (e2.rate_norm * 0.5) / (t * t); /* squared -> halve */
           ppe_destroy (pr);
           nsym = despread_data (s, x, x_len, data0, npre, f0, mu, sym,
                                 nsym_max);
+          s->est_freq_hz = f0 * fs;
           s->est_rate_hz = mu * fs * fs;
         }
     }

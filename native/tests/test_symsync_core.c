@@ -306,6 +306,52 @@ main (void)
     dp_tlm_destroy (tlm);
   }
 
+  /* telemetry edge paths: the public per-sample step flushes when
+   * attached; the attached-DTTL block loop emits; a full probe table
+   * fails the attach whole. */
+  {
+    float complex trx2[64], tsym2[32];
+    for (int i = 0; i < 64; i++)
+      trx2[i] = ((i / 4) % 2 ? 1.0f : -1.0f) + 0.0f * I;
+    dp_tlm_t        *tlm = dp_tlm_create (1024);
+    symsync_state_t *a
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_DTTL);
+    CHECK (tlm != NULL && a != NULL);
+    CHECK (symsync_set_telemetry (a, tlm, "s", 1) == DP_OK);
+
+    /* Attached DTTL block loop. */
+    size_t       n_sym = symsync_steps (a, trx2, 64, tsym2, 32);
+    dp_tlm_rec_t recs[256];
+    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_sym);
+
+    /* Public single-sample step (dispatches + flushes when attached). */
+    float complex y;
+    size_t        n_step_sym = 0;
+    for (int i = 0; i < 64; i++)
+      if (symsync_step (a, trx2[i], &y))
+        n_step_sym++;
+    CHECK (n_step_sym > 0);
+    CHECK (dp_tlm_read (tlm, recs, 256) == 3 * n_step_sym);
+
+    /* Fill the probe table; a fresh attach must fail whole and leave the
+     * object detached. */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    symsync_state_t *c
+        = symsync_create (4, 0.01, 0.707, FARROW_CUBIC, SYMSYNC_TED_GARDNER);
+    CHECK (c != NULL);
+    CHECK (symsync_set_telemetry (c, tlm, "full", 1) == DP_ERR_INVALID);
+    CHECK (c->tlm.ctx == NULL);
+
+    symsync_destroy (c);
+    symsync_destroy (a);
+    dp_tlm_destroy (tlm);
+  }
+
   if (_fails)
     {
       fprintf (stderr, "test_symsync_core FAILED (%d)\n", _fails);

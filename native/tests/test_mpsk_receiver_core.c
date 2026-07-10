@@ -288,6 +288,28 @@ main (void)
     (void)mpsk_receiver_steps (a, tx, 512, out, 80);
     CHECK (dp_tlm_read (tlm, recs, 1024) == 0);
 
+    /* bits() flushes telemetry too (the guarded in-loop path). */
+    CHECK (mpsk_receiver_set_telemetry (a, tlm, "rx2", 1) == DP_OK);
+    uint8_t bit_out[128];
+    size_t  n_bits = mpsk_receiver_bits (a, tx, 512, bit_out, 128);
+    CHECK (n_bits > 0);
+    CHECK (dp_tlm_read (tlm, recs, 1024) > 0);
+
+    /* A full probe table fails the attach whole (receiver detached). */
+    char pname[DP_TLM_NAME_MAX];
+    for (size_t i = 0; dp_tlm_probe_count (tlm) < DP_TLM_MAX_PROBES; i++)
+      {
+        (void)snprintf (pname, sizeof (pname), "fill%zu", i);
+        (void)dp_tlm_probe (tlm, pname, 1);
+      }
+    mpsk_receiver_state_t *b
+        = mpsk_receiver_create (2, 8, 4, MPSK_RX_PULSE_IANDD, 0.35, 8, 0.01,
+                                0.707, 0.01, 0, 0.5, 0.0, 100, 0);
+    CHECK (b != NULL);
+    CHECK (mpsk_receiver_set_telemetry (b, tlm, "full", 1) == DP_ERR_INVALID);
+    CHECK (b->tlm_ctx == NULL);
+
+    mpsk_receiver_destroy (b);
     mpsk_receiver_destroy (a);
     dp_tlm_destroy (tlm);
   }

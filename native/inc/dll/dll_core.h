@@ -35,6 +35,7 @@
 #include "dp_state.h"
 #include "jm_perf.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #include <complex.h>
 #include "detection/detection_core.h"
 #ifdef __cplusplus
@@ -43,6 +44,21 @@ extern "C" {
 
 /* Numerical guard on the early+late envelope sum (not tunable). */
 #define DLL_EPS 1e-12
+
+/**
+ * @brief Telemetry attachment: a borrowed context + this object's probe
+ *        ids.  NULL ctx (the default) means detached — every probe site
+ *        is then a single predicted-not-taken branch per code epoch.
+ *        Zeroed in state blobs and preserved across set_state (the
+ *        hand-written triplet treats it like the borrowed `code`).
+ */
+typedef struct {
+    dp_tlm_t *ctx;     /**< NULL = detached                          */
+    int32_t id_e;      /**< "<prefix>.e"    — E-L discriminator      */
+    int32_t id_rate;   /**< "<prefix>.rate" — tracked code rate      */
+    int32_t id_lock;   /**< "<prefix>.lock" — CFAR lock statistic R  */
+    int32_t _pad;
+} dll_tlm_t;
 
 /**
  * @brief DLL state.
@@ -89,6 +105,7 @@ typedef struct {
     size_t lock_nz;          /**< noise looks folded in (cumulative-mean boot).*/
     int locked;              /**< last lock decision (R > eta).               */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
+    dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */
 } dll_state_t;
 
 /** 0/1 chip -> +1/-1 BPSK sign. */
@@ -296,11 +313,68 @@ double dll_get_lock_stat(const dll_state_t *state);
 /** @brief Current CFAR noise-power estimate E|O|^2 (offset-tap EMA). */
 double dll_get_noise_est(const dll_state_t *state);
 
+/**
+ * @brief Emit the code loop's telemetry records for the epoch just closed.
+ *
+ * Out-of-line on purpose: the emit machinery must not inline into the
+ * per-sample correlator loop (inlined ring-write expansions bloat the
+ * loop body and an extern call site forces per-iteration state reloads —
+ * both measured ~20% slower detached on other loops). Callers gate on
+ * `s->tlm.ctx` and call this once per code-epoch update. Records
+ * "<prefix>.e" (the E-L envelope discriminator — the loop stress),
+ * "<prefix>.rate" (the tracked code rate, chips per nominal chip) and
+ * "<prefix>.lock" (the CFAR lock statistic R, refreshed every n_looks
+ * looks). A composing tracking channel (the DSSS despreader) calls this
+ * from its own per-epoch update.
+ *
+ * @param s  State with a non-NULL tlm.ctx (caller-checked).
+ */
+void dll_tlm_flush(const dll_state_t *s);
+
+/**
+ * @brief Attach (or detach) a telemetry context and register the code
+ * loop's probes on it.
+ * Registers three probes, emitted once per code epoch (period) and
+ * further thinned by decim: "<prefix>.e" (the early-minus-late envelope
+ * discriminator — the loop stress), "<prefix>.rate" (the tracked code
+ * rate, chips advanced per nominal chip, ~1.0 at lock) and
+ * "<prefix>.lock" (the CFAR lock statistic R; compare against the
+ * configured threshold).  Passing NULL detaches.  Setup path, never hot:
+ * call before the producer thread starts stepping; the context is
+ * borrowed and must outlive the attachment (SPSC rules in
+ * telemetry/telemetry.h).
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix, e.g. "code" or "ch0.code".
+ * @param decim  Emit every decim-th epoch; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+ *         three probes (the attach fails whole; the object stays
+ *         detached).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 12)
+ * >>> code = np.zeros(31, dtype=np.uint8)
+ * >>> d = Dll(code=code, sps=2)
+ * >>> d.set_telemetry(tlm, "code")
+ * >>> sorted(tlm.probe_names())
+ * ['code.e', 'code.lock', 'code.rate']
+ * >>> x = np.ones(31 * 2 * 50, dtype=np.complex64)
+ * >>> _ = d.steps(x)
+ * >>> recs = tlm.read()   # three records per code epoch
+ * >>> len(recs) > 0 and len(recs) % 3 == 0
+ * True
+ *
+ * @endcode
+ */
+int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * composition+field-wise: loop_filter child (POD-embedded) + running
  * correlators/loop/lock state; borrowed `code` pointer restored by create. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 1u
+#define DLL_STATE_VERSION 2u /* v2: telemetry attachment (zeroed) */
 size_t dll_state_bytes (const dll_state_t *state);
 void dll_get_state (const dll_state_t *state, void *blob);
 int dll_set_state (dll_state_t *state, const void *blob);

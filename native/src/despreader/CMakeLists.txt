@@ -7,6 +7,7 @@ target_link_libraries(despreader_core PUBLIC
     costas_core
     lo_core
     loop_filter_core
+    telemetry_core
     dll_core
     detection_core)
 
@@ -16,6 +17,7 @@ target_link_libraries(test_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core
     loop_filter_core
+    telemetry_core
     dll_core
     detection_core
     m)
@@ -30,6 +32,7 @@ target_link_libraries(bench_despreader_core
                       PRIVATE despreader_core costas_core
     lo_core
     loop_filter_core
+    telemetry_core
     dll_core
     detection_core
     m)

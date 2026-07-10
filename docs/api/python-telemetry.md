@@ -37,6 +37,23 @@ two; a sub-page request is rounded up, so read the real size back from
 `[("n", "<u8"), ("value", "<f4"), ("probe", "<u2"), ("flags", "<u2")]` —
 16 bytes per row, the exact C record layout.
 
+## Instrumented objects
+
+Every tracking loop (and the AGC) exposes
+`set_telemetry(tlm, prefix, decim=1)`; compositions forward the attach to
+their embedded loops under a dotted sub-prefix. `None` detaches
+everything the attach armed.
+
+| Object               | Probes under `<prefix>`                               | Event rate                  |
+| -------------------- | ----------------------------------------------------- | --------------------------- |
+| `agc.AGC`            | `.gain_db`                                            | per gain update (amortized) |
+| `track.Costas`       | `.lock`, `.e`, `.freq`                                | per dumped symbol           |
+| `track.Dll`          | `.e`, `.rate`, `.lock`                                | per code epoch              |
+| `track.CarrierNda`   | `.lock`, `.e`, `.freq` + `.agc.gain_db`               | per sample — use `decim`    |
+| `track.SymbolSync`   | `.e`, `.freq`, `.rate`                                | per recovered symbol        |
+| `track.MpskReceiver` | `.lock` + `.car.*` (+ `.car.agc.gain_db`) + `.sync.*` | per recovered symbol        |
+| `dsss.Despreader`    | `.car.*` (Costas) + `.code.*` (DLL)                   | per code period             |
+
 ## Threading model
 
 The ring is single-producer / single-consumer: everything that emits

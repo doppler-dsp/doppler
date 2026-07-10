@@ -1,5 +1,7 @@
 #include "costas/costas_core.h"
 
+#include <string.h>
+
 /* Seed the loop integrator so the per-symbol frequency estimate
  * (lf.integ / tsamps, rad/sample) matches the requested carrier offset,
  * and point the NCO at the same frequency — de-rotation is correct from
@@ -27,6 +29,10 @@ costas_init (costas_state_t *s, double bn, double zeta, double init_norm_freq,
   s->bn_fll         = bn_fll;
   s->k_fll          = 4.0 * bn_fll; /* 1st-order FLL aiding gain */
   s->seed_norm_freq = init_norm_freq;
+  /* In-place (stack-embedded) init: start detached — costas_create's calloc
+   * gets this for free, a caller-owned struct would otherwise carry a
+   * garbage telemetry pointer into the emit gates. */
+  memset (&s->tlm, 0, sizeof s->tlm);
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per symbol */
   seed (s, init_norm_freq);
 }
@@ -55,10 +61,45 @@ costas_reset (costas_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
-/* Serializable state — pointer-free POD whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (costas, costas_state_t, COSTAS_STATE_MAGIC,
-                     COSTAS_STATE_VERSION)
+int
+costas_set_telemetry (costas_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                      uint32_t decim)
+{
+  if (!tlm) /* detach: probe sites revert to the single-branch cost */
+    {
+      state->tlm.ctx = NULL;
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "car";
+  char        name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.lock", p);
+  int id_lock = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.e", p);
+  int id_e = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.freq", p);
+  int id_freq = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0)
+    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+  state->tlm.id_lock = id_lock;
+  state->tlm.id_e    = id_e;
+  state->tlm.id_freq = id_freq;
+  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+void
+costas_tlm_flush (const costas_state_t *s)
+{
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_metric);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq);
+}
+
+/* Serializable state — pointer-free POD whole-struct snapshot, with the
+ * telemetry attachment zeroed in blobs and kept live across restore
+ * (see DP_DEFINE_POD_STATE_TLM in dp_state.h). */
+DP_DEFINE_POD_STATE_TLM (costas, costas_state_t, COSTAS_STATE_MAGIC,
+                         COSTAS_STATE_VERSION, tlm)
 
 void
 costas_configure (costas_state_t *state, double bn, double zeta)
@@ -82,18 +123,43 @@ costas_steps (costas_state_t *state, const float complex *x, size_t x_len,
               float complex *out, size_t max_out)
 {
   size_t emitted = 0;
-  for (size_t n = 0; n < x_len; n++)
+  /* The telemetry check is hoisted to loop entry (attach is setup-time
+   * only — SPSC contract), so the detached loop contains NO call site:
+   * an extern call inside the loop forces the compiler to assume every
+   * state field is clobbered per iteration, spilling the register-cached
+   * NCO/accumulator hot state (measured ~20% slower detached on the
+   * symsync loops even though the call never executed). */
+  if (!state->tlm.ctx)
     {
-      state->acc += costas_wipeoff (state, x[n]);
-      if (++state->acc_n < state->tsamps)
-        continue;
-      /* symbol boundary: dump, steer the loop, emit the prompt */
-      float complex prompt = state->acc;
-      costas_update (state, prompt);
-      if (emitted < max_out)
-        out[emitted++] = prompt / (float)state->tsamps;
-      state->acc   = 0.0f;
-      state->acc_n = 0;
+      for (size_t n = 0; n < x_len; n++)
+        {
+          state->acc += costas_wipeoff (state, x[n]);
+          if (++state->acc_n < state->tsamps)
+            continue;
+          /* symbol boundary: dump, steer the loop, emit the prompt */
+          float complex prompt = state->acc;
+          costas_update (state, prompt);
+          if (emitted < max_out)
+            out[emitted++] = prompt / (float)state->tsamps;
+          state->acc   = 0.0f;
+          state->acc_n = 0;
+        }
+    }
+  else
+    {
+      for (size_t n = 0; n < x_len; n++)
+        {
+          state->acc += costas_wipeoff (state, x[n]);
+          if (++state->acc_n < state->tsamps)
+            continue;
+          float complex prompt = state->acc;
+          costas_update (state, prompt);
+          if (emitted < max_out)
+            out[emitted++] = prompt / (float)state->tsamps;
+          state->acc   = 0.0f;
+          state->acc_n = 0;
+          costas_tlm_flush (state);
+        }
     }
   return emitted;
 }

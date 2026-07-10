@@ -14,11 +14,12 @@ target_link_libraries(track PRIVATE
     carrier_nda_core
     mpsk_receiver_core
     lo_core
+    telemetry_core
     detection_core
     nco_core
     farrow_core
-    telemetry_core
     boxcar_core
+    agc_core
     wfm_dsp_core
     fir_core
     Python3::NumPy)

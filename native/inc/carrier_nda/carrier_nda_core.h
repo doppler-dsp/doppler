@@ -61,6 +61,7 @@
 #include "jm_perf.h"
 #include "lo/lo_core.h"
 #include "loop_filter/loop_filter_core.h"
+#include "telemetry/telemetry.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {
@@ -91,6 +92,21 @@ extern "C" {
 #define CARRIER_NDA_AGC_CLIP_DB 10.0
 
 /**
+ * @brief Telemetry attachment: a borrowed context + this object's probe
+ *        ids.  NULL ctx (the default) means detached — the probe site is
+ *        then a single predicted-not-taken branch per block loop.  Zeroed
+ *        in state blobs and preserved across set_state
+ *        (DP_DEFINE_POD_STATE_TLM).
+ */
+typedef struct {
+    dp_tlm_t *ctx;     /**< NULL = detached                          */
+    int32_t id_lock;   /**< "<prefix>.lock" — lock-signal EMA        */
+    int32_t id_e;      /**< "<prefix>.e"    — M-th-power phase error */
+    int32_t id_freq;   /**< "<prefix>.freq" — tracked carrier freq   */
+    int32_t _pad;
+} carrier_nda_tlm_t;
+
+/**
  * @brief NDA M-th-power carrier loop state.
  *
  * Allocate with carrier_nda_create(), or embed by value and carrier_nda_init().
@@ -115,6 +131,7 @@ typedef struct {
     agc_state_t agc;         /**< per-sample log-domain AGC on the arm sample
                                   (normalizes to unit average power).        */
     double ctl_cyc;          /**< NCO control (cyc/sample) for next wipeoff.*/
+    carrier_nda_tlm_t tlm;   /**< live telemetry attachment; zeroed in blobs */
 } carrier_nda_state_t;
 
 /**
@@ -289,11 +306,69 @@ void carrier_nda_destroy(carrier_nda_state_t *state);
  */
 void carrier_nda_reset(carrier_nda_state_t *state);
 
+/**
+ * @brief Emit the carrier loop's telemetry records for the current sample.
+ *
+ * Out-of-line on purpose: the emit machinery must not inline into the
+ * per-sample hot loop (inlined ring-write expansions bloat the loop body
+ * and an extern call site forces per-iteration state reloads — both
+ * measured ~20% slower detached on other loops). Callers gate on
+ * `s->tlm.ctx`. This loop updates every sample, so the natural call rate
+ * is per sample — decim (set at attach) is the throttle. Records
+ * "<prefix>.lock" (the lock-signal EMA), "<prefix>.e" (the M-th-power
+ * phase discriminator — the loop stress) and "<prefix>.freq" (the
+ * tracked carrier, NCO centre + integrated correction, cycles/sample).
+ * A composing receiver (the MPSK receiver) calls this once per recovered
+ * symbol instead.
+ *
+ * @param s  State with a non-NULL tlm.ctx (caller-checked).
+ */
+void carrier_nda_tlm_flush(const carrier_nda_state_t *s);
+
+/**
+ * @brief Attach (or detach) a telemetry context and register the carrier
+ * loop's probes on it — including the embedded arm AGC's.
+ * Registers three probes of its own, emitted once per input sample (this
+ * is a sample-rate loop — use @p decim to thin the stream) plus the
+ * embedded AGC's "<prefix>.agc.gain_db" (emitted at the AGC's own
+ * amortized gain-update rate): "<prefix>.lock" (the lock-signal EMA, ~1
+ * when phase-locked), "<prefix>.e" (the M-th-power phase discriminator —
+ * the loop stress) and "<prefix>.freq" (the tracked carrier frequency,
+ * cycles/sample).  Passing NULL detaches the loop and the embedded AGC.
+ * Setup path, never hot: call before the producer thread starts
+ * stepping; the context is borrowed and must outlive the attachment
+ * (SPSC rules in telemetry/telemetry.h).
+ * @param state  Must be non-NULL.
+ * @param tlm    Telemetry context to attach, or NULL to detach.
+ * @param prefix Probe-name prefix, e.g. "car" or "rx.car".
+ * @param decim  Emit every decim-th sample; >= 1.
+ * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+ *         four probes (the attach fails whole; everything stays
+ *         detached).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import CarrierNda
+ * >>> from doppler.telemetry import Telemetry
+ * >>> tlm = Telemetry(1 << 14)
+ * >>> c = CarrierNda(bn=0.01, sps=8, n=4, m=4)
+ * >>> c.set_telemetry(tlm, "car", decim=8)
+ * >>> sorted(tlm.probe_names())
+ * ['car.agc.gain_db', 'car.e', 'car.freq', 'car.lock']
+ * >>> x = np.exp(2j * np.pi * 0.005 * np.arange(4096)).astype(np.complex64)
+ * >>> _ = c.steps(x)
+ * >>> recs = tlm.read()
+ * >>> len(recs[recs["probe"] == tlm.probe_id("car.e")]) == 4096 // 8
+ * True
+ *
+ * @endcode
+ */
+int carrier_nda_set_telemetry(carrier_nda_state_t *state, dp_tlm_t * tlm, const char * prefix, uint32_t decim);
+
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Pointer-free POD struct, so a whole-struct snapshot resumes the loop exactly.
  */
 #define CARRIER_NDA_STATE_MAGIC DP_FOURCC('C', 'N', 'D', 'A')
-#define CARRIER_NDA_STATE_VERSION 2u /* v2: moving-average arm (ring + sum) */
+#define CARRIER_NDA_STATE_VERSION 3u /* v3: telemetry attachment (zeroed) */
 
 /** @brief Serialized-state byte size. */
 size_t carrier_nda_state_bytes(const carrier_nda_state_t *state);

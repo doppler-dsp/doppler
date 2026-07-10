@@ -166,15 +166,17 @@ mpsk_receiver_set_state (mpsk_receiver_state_t *s, const void *blob)
 }
 
 /* Emit the receiver's telemetry for the symbol just recovered: the carrier
- * lock EMA plus the embedded timing loop's probes (mpsk calls the
- * literal-TED step directly, so symsync's own wrapper flush never runs
- * here). Out-of-line on purpose — inlined emit machinery in the per-sample
+ * lock EMA plus both embedded loops' probes (mpsk inlines the loops'
+ * per-sample helpers directly, so neither loop's own block-loop flush
+ * ever runs here — the receiver flushes them at the symbol strobe).
+ * Out-of-line on purpose — inlined emit machinery in the per-sample
  * loop measured ~20% slower detached from body growth alone; callers gate
  * on tlm_ctx so the detached cost is one branch per symbol. */
 static void
 mpsk_receiver_tlm_flush_ (const mpsk_receiver_state_t *rx)
 {
   dp_tlm_emit (rx->tlm_ctx, rx->tlm_id_lock, rx->car.lock);
+  carrier_nda_tlm_flush (&rx->car);
   symsync_tlm_flush (&rx->sync);
 }
 
@@ -351,9 +353,10 @@ int
 mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
                              const char *prefix, uint32_t decim)
 {
-  if (!tlm) /* detach the receiver AND the embedded timing loop */
+  if (!tlm) /* detach the receiver AND both embedded loops */
     {
       state->tlm_ctx = NULL;
+      (void)carrier_nda_set_telemetry (&state->car, NULL, prefix, decim);
       (void)symsync_set_telemetry (&state->sync, NULL, prefix, decim);
       return DP_OK;
     }
@@ -363,12 +366,21 @@ mpsk_receiver_set_telemetry (mpsk_receiver_state_t *state, dp_tlm_t *tlm,
   int id_lock = dp_tlm_probe (tlm, name, decim);
   if (id_lock < 0)
     return DP_ERR_INVALID;
-  /* Forward to the timing loop under "<prefix>.sync"; if ITS registration
-   * fails the whole attach fails and the receiver stays detached too. */
-  (void)snprintf (name, sizeof (name), "%s.sync", p);
-  int rc = symsync_set_telemetry (&state->sync, tlm, name, decim);
+  /* Forward to the carrier loop under "<prefix>.car" (which forwards on
+   * to its arm AGC), then the timing loop under "<prefix>.sync"; if any
+   * registration fails the whole attach fails, unwinding the loops
+   * already attached so nothing is left half-armed. */
+  (void)snprintf (name, sizeof (name), "%s.car", p);
+  int rc = carrier_nda_set_telemetry (&state->car, tlm, name, decim);
   if (rc != DP_OK)
     return rc;
+  (void)snprintf (name, sizeof (name), "%s.sync", p);
+  rc = symsync_set_telemetry (&state->sync, tlm, name, decim);
+  if (rc != DP_OK)
+    {
+      (void)carrier_nda_set_telemetry (&state->car, NULL, p, decim);
+      return rc;
+    }
   state->tlm_id_lock = id_lock;
   state->tlm_ctx     = tlm; /* set last: the emit site gates on ctx */
   return DP_OK;

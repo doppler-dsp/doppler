@@ -150,6 +150,10 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   loop_filter_reset (&s->lf);
   s->code      = code; /* borrowed */
   s->owns_code = 0;
+  /* In-place (stack-embedded) init: start detached — dll_create's calloc
+   * gets this for free, a caller-owned struct would otherwise carry a
+   * garbage telemetry pointer into the emit gates. */
+  memset (&s->tlm, 0, sizeof s->tlm);
   seed (s);
 }
 
@@ -194,6 +198,40 @@ dll_reset (dll_state_t *state)
   seed (state);
 }
 
+int
+dll_set_telemetry (dll_state_t *state, dp_tlm_t *tlm, const char *prefix,
+                   uint32_t decim)
+{
+  if (!tlm) /* detach: probe sites revert to the single-branch cost */
+    {
+      state->tlm.ctx = NULL;
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "code";
+  char        name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.e", p);
+  int id_e = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.rate", p);
+  int id_rate = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.lock", p);
+  int id_lock = dp_tlm_probe (tlm, name, decim);
+  if (id_e < 0 || id_rate < 0 || id_lock < 0)
+    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+  state->tlm.id_e    = id_e;
+  state->tlm.id_rate = id_rate;
+  state->tlm.id_lock = id_lock;
+  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+void
+dll_tlm_flush (const dll_state_t *s)
+{
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_rate, s->code_rate);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock_stat);
+}
+
 /* Serializable state — whole-struct snapshot (loop_filter child is
  * POD-embedded, so its bytes are its state); only the borrowed `code` pointer
  * + its ownership are this instance's (config), restored by create() and
@@ -212,10 +250,13 @@ dll_get_state (const dll_state_t *s, void *blob)
   /* Snapshot the struct but NULL the borrowed `code` pointer + its ownership:
    * those are this instance's config (restored by create), and serializing a
    * machine address would make the blob differ across otherwise-identical
-   * instances. set_state preserves the live values regardless. */
+   * instances. The telemetry attachment is zeroed for the same reason (blobs
+   * stay deterministic and attachment-independent; telemetry is observation,
+   * not DSP state). set_state preserves the live values regardless. */
   dll_state_t tmp = *s;
   tmp.code        = NULL;
   tmp.owns_code   = 0;
+  memset (&tmp.tlm, 0, sizeof tmp.tlm);
   dp_w_bytes (&_w, &tmp, sizeof tmp);
 }
 
@@ -225,10 +266,12 @@ dll_set_state (dll_state_t *s, const void *blob)
   DP_SET_OPEN (DLL_STATE_MAGIC, DLL_STATE_VERSION, dll_state_bytes (s));
   const uint8_t *code
       = s->code; /* this instance's code + ownership (config) */
-  int owns = s->owns_code;
+  int       owns = s->owns_code;
+  dll_tlm_t tlm  = s->tlm; /* live attachment survives a state hand-off */
   dp_r_bytes (&_r, s, sizeof *s);
   s->code      = code;
   s->owns_code = owns;
+  s->tlm       = tlm;
   return DP_OK;
 }
 
@@ -249,9 +292,17 @@ dll_steps_max_out (dll_state_t *state)
   return 0;
 }
 
-size_t
-dll_steps (dll_state_t *state, const float complex *x, size_t x_len,
-           float complex *out, size_t max_out)
+/* The block kernel with the telemetry decision as a compile-time literal:
+ * a literal tlm_on lets each forced-inline instantiation constant-fold the
+ * flush branch away, so the detached loops carry NO call site (an extern
+ * call inside the loop — even never-taken — forces the compiler to assume
+ * every state field is clobbered per iteration, spilling the register-
+ * cached correlator/code-phase hot state; measured ~20% slower detached
+ * on the symsync loops). Same mechanism as symsync_step_ted's literal
+ * TED. */
+static JM_FORCEINLINE size_t
+dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
+                float complex *out, size_t max_out, int tlm_on)
 {
   size_t emitted = 0;
   /* segments == 1: coherent full-epoch integrate-and-dump (one prompt/period).
@@ -284,6 +335,8 @@ dll_steps (dll_state_t *state, const float complex *x, size_t x_len,
           state->acc_l = 0.0f;
           state->acc_o = 0.0f;
           draw_offset (state); /* fresh noise phase for the next epoch */
+          if (tlm_on)
+            dll_tlm_flush (state);
         }
       return emitted;
     }
@@ -331,10 +384,24 @@ dll_steps (dll_state_t *state, const float complex *x, size_t x_len,
               state->sum_l   = 0.0;
               state->seg_idx = 0;
               draw_offset (state); /* fresh noise phase for the next epoch */
+              if (tlm_on)
+                dll_tlm_flush (state);
             }
         }
     }
   return emitted;
+}
+
+size_t
+dll_steps (dll_state_t *state, const float complex *x, size_t x_len,
+           float complex *out, size_t max_out)
+{
+  /* Telemetry hoisted to a literal at entry (attach is setup-time only —
+   * SPSC contract): the detached instantiation is the pre-telemetry code
+   * verbatim. */
+  if (!state->tlm.ctx)
+    return dll_steps_impl (state, x, x_len, out, max_out, 0);
+  return dll_steps_impl (state, x, x_len, out, max_out, 1);
 }
 
 double

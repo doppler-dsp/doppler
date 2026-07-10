@@ -17,6 +17,7 @@ depends_on = [
   { name = "loop_filter", link = true },
   { name = "farrow", link = true },
   { name = "telemetry", link = true },
+  { name = "agc", link = true },
 ]
 extra_link_libs = ["wfm_dsp_core"]
 serializable = "true"
@@ -92,8 +93,9 @@ type = "int"
 default = "0"
 
 # Telemetry attach (jm gh-432; mirrors objects/agc.toml): registers the
-# receiver's "<prefix>.lock" probe and forwards to the embedded timing loop
-# ("<prefix>.sync.e" / ".freq" / ".rate") — four probes per attach. None
+# receiver's "<prefix>.lock" probe and forwards to both embedded loops —
+# "<prefix>.car.lock/.e/.freq" + "<prefix>.car.agc.gain_db" (carrier) and
+# "<prefix>.sync.e/.freq/.rate" (timing) — eight probes per attach. None
 # detaches everything; the int status binds -> None / ValueError.
 [[mpsk_receiver.methods]]
 name = "set_telemetry"

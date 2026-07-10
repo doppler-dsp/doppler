@@ -1,6 +1,7 @@
 #include "carrier_nda/carrier_nda_core.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 /* Per-M lock-signal scale: normalizes the lock metric across constellations
  * (see docs/design/mpsk.md §2.3). */
@@ -90,6 +91,13 @@ carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
   s->bn             = bn;
   s->zeta           = zeta;
   s->seed_norm_freq = init_norm_freq;
+  /* In-place (stack/by-value-embedded) init: start detached — both this
+   * loop's attachment and the embedded arm AGC's (seed() configures the
+   * AGC field-by-field and deliberately never touches agc.tlm, so a
+   * reset keeps a live attachment; that leaves init responsible for the
+   * initial zero). carrier_nda_create's calloc gets this for free. */
+  memset (&s->tlm, 0, sizeof s->tlm);
+  memset (&s->agc.tlm, 0, sizeof s->agc.tlm);
   config_loop (s);
   seed (s, init_norm_freq);
 }
@@ -124,10 +132,92 @@ carrier_nda_reset (carrier_nda_state_t *state)
   seed (state, state->seed_norm_freq);
 }
 
-/* Serializable state — pointer-free POD whole-struct snapshot
- * (see DP_DEFINE_POD_STATE in dp_state.h). */
-DP_DEFINE_POD_STATE (carrier_nda, carrier_nda_state_t, CARRIER_NDA_STATE_MAGIC,
-                     CARRIER_NDA_STATE_VERSION)
+int
+carrier_nda_set_telemetry (carrier_nda_state_t *state, dp_tlm_t *tlm,
+                           const char *prefix, uint32_t decim)
+{
+  if (!tlm) /* detach the loop AND the embedded arm AGC */
+    {
+      state->tlm.ctx = NULL;
+      (void)agc_set_telemetry (&state->agc, NULL, prefix, decim);
+      return DP_OK;
+    }
+  const char *p = prefix ? prefix : "car";
+  char        name[DP_TLM_NAME_MAX];
+  (void)snprintf (name, sizeof (name), "%s.lock", p);
+  int id_lock = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.e", p);
+  int id_e = dp_tlm_probe (tlm, name, decim);
+  (void)snprintf (name, sizeof (name), "%s.freq", p);
+  int id_freq = dp_tlm_probe (tlm, name, decim);
+  if (id_lock < 0 || id_e < 0 || id_freq < 0)
+    return DP_ERR_INVALID; /* table full / bad prefix: attach fails whole */
+  /* Forward to the embedded arm AGC under "<prefix>.agc"; if ITS
+   * registration fails the whole attach fails and this loop stays
+   * detached too (nothing registered above carries state — probe
+   * registration is idempotent by name). */
+  (void)snprintf (name, sizeof (name), "%s.agc", p);
+  int rc = agc_set_telemetry (&state->agc, tlm, name, decim);
+  if (rc != DP_OK)
+    return rc;
+  state->tlm.id_lock = id_lock;
+  state->tlm.id_e    = id_e;
+  state->tlm.id_freq = id_freq;
+  state->tlm.ctx     = tlm; /* set last: emit sites gate on ctx */
+  return DP_OK;
+}
+
+void
+carrier_nda_tlm_flush (const carrier_nda_state_t *s)
+{
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_lock, s->lock);
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_e, s->last_error);
+  /* Tracked carrier = NCO centre + the loop's integrated correction
+   * (cycles/sample) — the same reconstruction as get_norm_freq. */
+  dp_tlm_emit (s->tlm.ctx, s->tlm.id_freq, s->nco.norm_freq + s->lf.integ);
+}
+
+/* Serializable state — pointer-free POD whole-struct snapshot, with the
+ * telemetry attachments zeroed in blobs and kept live across restore.
+ * Hand-written (not DP_DEFINE_POD_STATE_TLM) because the snapshot spans TWO
+ * attachments: this loop's own `tlm` and the by-value-embedded arm AGC's
+ * `agc.tlm` — the macro zeroes/preserves a single named member. */
+size_t
+carrier_nda_state_bytes (const carrier_nda_state_t *s)
+{
+  (void)s;
+  return sizeof (dp_state_hdr_t) + sizeof (carrier_nda_state_t);
+}
+
+void
+carrier_nda_get_state (const carrier_nda_state_t *s, void *blob)
+{
+  carrier_nda_state_t c = *s;
+  memset (&c.tlm, 0, sizeof c.tlm);
+  memset (&c.agc.tlm, 0, sizeof c.agc.tlm);
+  dp_writer_t w = dp_writer_init (blob, carrier_nda_state_bytes (s));
+  dp_w_hdr (&w, CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION,
+            carrier_nda_state_bytes (s));
+  dp_w_bytes (&w, &c, sizeof c);
+}
+
+int
+carrier_nda_set_state (carrier_nda_state_t *s, const void *blob)
+{
+  int rc
+      = dp_state_validate (blob, carrier_nda_state_bytes (s),
+                           CARRIER_NDA_STATE_MAGIC, CARRIER_NDA_STATE_VERSION);
+  if (rc != DP_OK)
+    return rc;
+  carrier_nda_state_t c;
+  dp_reader_t         r = dp_reader_init (blob, carrier_nda_state_bytes (s));
+  r.off                 = sizeof (dp_state_hdr_t);
+  dp_r_bytes (&r, &c, sizeof c);
+  c.tlm     = s->tlm; /* keep the live attachments */
+  c.agc.tlm = s->agc.tlm;
+  *s        = c;
+  return DP_OK;
+}
 
 /* Output bound: emitted samples == input length (the de-rotated stream). */
 size_t
@@ -142,17 +232,44 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
                    size_t x_len, float complex *out, size_t max_out)
 {
   size_t emitted = 0;
-  for (size_t i = 0; i < x_len; i++)
+  /* The telemetry check is hoisted to loop entry (attach is setup-time
+   * only — SPSC contract), so the detached loop contains NO call site:
+   * an extern call inside the loop forces the compiler to assume every
+   * state field is clobbered per iteration, spilling the register-cached
+   * NCO/arm hot state (measured ~20% slower detached on the symsync
+   * loops even though the call never executed). This loop updates every
+   * sample, so the attached loop flushes per sample — the per-probe
+   * decim set at attach is the throttle. */
+  if (!state->tlm.ctx)
     {
-      float complex d = carrier_nda_wipeoff (state, x[i]);
-      double        pe, lk;
-      if (carrier_nda_arm_step (state, d, &pe, &lk))
+      for (size_t i = 0; i < x_len; i++)
         {
-          state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
-          carrier_nda_steer (state, pe);
+          float complex d = carrier_nda_wipeoff (state, x[i]);
+          double        pe, lk;
+          if (carrier_nda_arm_step (state, d, &pe, &lk))
+            {
+              state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
+              carrier_nda_steer (state, pe);
+            }
+          if (emitted < max_out)
+            out[emitted++] = d;
         }
-      if (emitted < max_out)
-        out[emitted++] = d;
+    }
+  else
+    {
+      for (size_t i = 0; i < x_len; i++)
+        {
+          float complex d = carrier_nda_wipeoff (state, x[i]);
+          double        pe, lk;
+          if (carrier_nda_arm_step (state, d, &pe, &lk))
+            {
+              state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
+              carrier_nda_steer (state, pe);
+            }
+          if (emitted < max_out)
+            out[emitted++] = d;
+          carrier_nda_tlm_flush (state);
+        }
     }
   return emitted;
 }

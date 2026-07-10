@@ -385,6 +385,50 @@ DespreaderObj_bits (DespreaderObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+DespreaderObj_set_telemetry (DespreaderObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = despreader_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 DespreaderObj_reset (DespreaderObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
@@ -651,8 +695,8 @@ static PyMethodDef DespreaderObj_methods[] = {
     "\n"
     "Same tracking kernel as steps(), but bit-sync the per-period prompts "
     "into hard data bits: periods_per_bit prompts are coherently summed "
-    "across "
-    "each detected bit boundary and one 0/1 bit is emitted per data bit.\n"
+    "across each detected bit boundary and one 0/1 bit is emitted per data "
+    "bit.\n"
     "\n"
     "    >>> import numpy as np\n"
     "    >>> from doppler import Despreader\n"
@@ -664,6 +708,25 @@ static PyMethodDef DespreaderObj_methods[] = {
   { "bits_max_out", (PyCFunction)DespreaderObj_bits_max_out, METH_NOARGS,
     "bits_max_out() -> int\n\nMax output length bits() can produce for the "
     "current state.\nUse to size the ``out=`` buffer." },
+  { "set_telemetry", (PyCFunction)(void *)DespreaderObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> int\n"
+    "\n"
+    "Attach (or detach) a telemetry context across the despreader. Pure "
+    "forwarder — the despreader registers no probes of its own: the carrier "
+    "loop registers \"<prefix>.car.lock\" / \".e\" / \".freq\" and the code "
+    "loop registers \"<prefix>.code.e\" / \".rate\" / \".lock\" — six probes, "
+    "all thinned by decim and emitted once per code period (the despreader "
+    "flushes both loops at its per-period update).  Passing NULL detaches "
+    "both loops.  Setup path, never hot; the context is borrowed and must "
+    "outlive the attachment (SPSC rules in telemetry/telemetry.h).\n"
+    "\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler import Despreader\n"
+    "    >>> obj = Despreader(np.zeros(1, dtype=np.uint8), 4, 0.0, 0.0, 0.05, "
+    "0.005, 0.0, 0.707, 0.5, 1)\n"
+    "    >>> obj.set_telemetry(0, 0, 0)\n"
+    "    0\n" },
   { "reset", (PyCFunction)DespreaderObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
@@ -691,7 +754,7 @@ static PyTypeObject DespreaderObjType = {
   .tp_basicsize                           = sizeof (DespreaderObject),
   .tp_dealloc                             = (destructor)DespreaderObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a tracking channel (COPIES code).\n",
+  .tp_doc     = "Create a despreader (COPIES code).\n",
   .tp_methods = DespreaderObj_methods,
   .tp_getset  = Despreader_getset,
   .tp_new     = DespreaderObj_new,

@@ -193,6 +193,14 @@ Hoisting the check is legal because attach/detach is setup-path-only on
 the producer thread (the SPSC contract): `tlm.ctx` cannot change inside a
 block.
 
+When the block loop is too large to duplicate textually (the DLL carries
+two ~40-line correlator variants), the same split is expressed as a
+**literal parameter on a forced-inline kernel** — `dll_steps_impl(..., int tlm_on)` called with a literal `0`/`1` from the hoisted branch. The
+`tlm_on == 0` instantiation dead-code-eliminates the flush call site
+entirely, so it compiles to the pre-telemetry loop verbatim; this is the
+same constant-folding mechanism as `symsync_step_ted`'s literal TED
+selector.
+
 **4. Serialization** — swap the POD-state macro for the TLM-aware variant and
 bump the object's state version (the struct grew):
 
@@ -243,7 +251,9 @@ structured array (`dtype: n u8 | value f4 | probe u2 | flags u2`): one
 `_capsule` property exposes the `dp_tlm_t *` that instrumented objects'
 jm-generated `set_telemetry` bindings unwrap (they also accept the
 `Telemetry` object itself, duck-typed through `_capsule` — jm gh-432).
-The AGC is the first instrumented object:
+Every tracking loop is instrumented (see the probe table in
+[docs/api/python-telemetry.md](../api/python-telemetry.md)); the AGC was
+the first:
 
 ```python
 import numpy as np
